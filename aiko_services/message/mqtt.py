@@ -67,7 +67,8 @@ class MQTT(Message):
             self.mqtt_client.on_connect = on_connect
             self.mqtt_client.on_message = message_handler
             self.mqtt_client.on_publish = on_publish
-            self.mqtt_client.will_set(lwt_topic, payload="(nil)", retain=lwt_retain)
+            if lwt_topic:
+                self.mqtt_client.will_set(lwt_topic, payload="(nil)", retain=lwt_retain)
             self.mqtt_client.connect(host=MQTT_HOST, port=MQTT_PORT, keepalive=60)
         except ConnectionRefusedError:
             raise SystemError(f"Error: Couldn't connect to MQTT server {MQTT_HOST}")
