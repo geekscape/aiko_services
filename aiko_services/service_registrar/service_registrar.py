@@ -11,7 +11,11 @@
 #
 # To Do
 # ~~~~~
+# - When Service fails with LWT, publish timestamp on "topic_path/state"
+#   - Maybe ProcessController should do this, rather than ServiceRegistrar ?
+# - Every Service persisted in MeemStore should have "uuid" Service tag
 # - Document state and protocol
+#   - Service state inspired by Meem life-cycle
 # - Create service_registrar/protocol.py
 # - Rename "framework.py" to "service.py" and create a Service class ?
 # - Implement protocol.py and state_machine.py !
