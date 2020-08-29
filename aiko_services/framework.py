@@ -36,6 +36,7 @@
 import time
 import traceback
 
+import aiko_services.event as event
 from aiko_services.message import MQTT
 from aiko_services.utilities import ContextManager, parse
 
@@ -176,8 +177,7 @@ def process(pipeline=None):
 # wait_connected()
 # wait_parameters(0)
 # wait_terminated()
-  while True:
-    time.sleep(1)
+  event.loop()
 
 def get_parameter(name):                                     # TODO: Replace V1
 # return aks.get_parameter(name)
