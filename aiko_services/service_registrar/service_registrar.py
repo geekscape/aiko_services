@@ -11,6 +11,7 @@
 #
 # To Do
 # ~~~~~
+# - Implement as a sub-class of Category ?
 # - When Service fails with LWT, publish timestamp on "topic_path/state"
 #   - Maybe ProcessController should do this, rather than ServiceRegistrar ?
 # - Every Service persisted in MeemStore should have "uuid" Service tag
@@ -35,19 +36,19 @@ parameter_1 = None
 #       Remove and timeout triggers this Service Registrar becoming the "primary"
 
 def on_service_registrar(aiko_, event_type, topic_path, timestamp):
-  print(f"service_registrar: {event_type}, topic_path: {topic_path}, timestamp: {timestamp}")
-  if event_type == "add":
-    pass
-  if event_type == "remove" or event_type == "timeout":
-    payload_out = f"(primary {aiko_.topic_in} 0)"
-    aiko_.message.publish(aiko.SERVICE_REGISTRAR_TOPIC, payload_out)
+    print(f"service_registrar: {event_type}, topic_path: {topic_path}, timestamp: {timestamp}")
+    if event_type == "add":
+        pass
+    if event_type == "remove" or event_type == "timeout":
+        payload_out = f"(primary {aiko_.topic_in} 0)"
+        aiko_.message.publish(aiko.SERVICE_REGISTRAR_TOPIC, payload_out)
 # TODO: publish with retain = True !
 
 # --------------------------------------------------------------------------- #
 
 @click.command()
 def main():
-  aiko.set_protocol(aiko.SERVICE_REGISTRAR_PROTOCOL)
+    aiko.set_protocol(aiko.SERVICE_REGISTRAR_PROTOCOL)
 
 # TODO: Start with SERVICE_REGISTRAR_PROTOCOL_SECONDARY
 # TODO: When promoting from secondary to primary ...
@@ -66,10 +67,10 @@ def main():
 
 # TODO: Add discovery protocol handler
 
-  aiko.add_service_registrar_handler(on_service_registrar)
-  aiko.process()
+    aiko.add_service_registrar_handler(on_service_registrar)
+    aiko.process()
 
 if __name__ == "__main__":
-  main()
+    main()
 
 # --------------------------------------------------------------------------- #
