@@ -7,26 +7,30 @@
 # ~~~~~
 # import time
 # import aiko_services.event as event
-# def timer_test(): 
-#   print("timer_test(): " + str(time.time()))
 #
+# counter = 1
+# def flatout_test():
+#     global counter
+#     counter += 1
+#
+# def timer_test():
+#     global counter
+#     print(f"timer_test(): {time.time()}: {counter}")
+#
+# event.add_flatout_handler(flatout_test)
 # event.add_timer_handler(timer_test, 1.0)
-# event.loop() 
+# event.loop()
 #
 # To Do
 # ~~~~~
-# - Implement "flat out" loop invocation, e.g like Arduino loop() !
 # - All Services should have initialise() and stream event handler()
 #   - All Streams also have task_start() and task_stop()
-# - Take into account that handlers take time, so need to adjust sleep delay
+# - Since handlers take time, need to adjust time.sleep() period
 # - New event types: Messages, GStreamer appsink, appsrc, serial
 
 import time
 
 __all__ = ["add_timer_handler", "remove_timer_handler", "loop", "terminate"]
-
-class private:
-    flatout_handlers = []
 
 timer_counter = 0
 
@@ -92,8 +96,16 @@ class EventList:
                     self.add(event)
             update_timer_counter()
 
+
 event_enabled = False
 event_list = EventList()
+flatout_handlers = []
+
+def add_flatout_handler(handler):
+    flatout_handlers.append(handler)
+
+def remove_flatout_handler(handler):
+    flatout_handlers.remove(handler)
 
 def add_timer_handler(handler, time_period):
     event = Event(handler, time_period)
@@ -113,8 +125,15 @@ def loop():
             if time.time() >= event.time_next:
                 event.handler()
                 event_list.update()
-        time.sleep(0.001)
-        timer_counter -= 0.001
+        sleep_time = 0.001
+        if len(flatout_handlers):
+            time_start = time.time()
+            for flatout_handler in flatout_handlers:
+                flatout_handler()
+            sleep_time = sleep_time - (time.time() - time_start)
+        if sleep_time > 0:
+            time.sleep(sleep_time)
+            timer_counter -= sleep_time
 
 def terminate():
     global event_enabled
