@@ -23,6 +23,9 @@
 #
 # To Do
 # ~~~~~
+# - Provide simple wallclock time monitoring of handler invocation time
+# - Currently, flatout_handlers invocation rate is limited by ...
+#     "sleep_time = 0.001", i.e 1,000 Hz.  Make this configurable.
 # - All Services should have initialise() and stream event handler()
 #   - All Streams also have task_start() and task_stop()
 # - Since handlers take time, need to adjust time.sleep() period
@@ -131,6 +134,7 @@ def loop():
             for flatout_handler in flatout_handlers:
                 flatout_handler()
             sleep_time = sleep_time - (time.time() - time_start)
+# TODO:     timer_counter -= sleep_time  # and don't sleep !
         if sleep_time > 0:
             time.sleep(sleep_time)
             timer_counter -= sleep_time
