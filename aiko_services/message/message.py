@@ -1,8 +1,8 @@
 # To Do
 # ~~~~~
-# - Add close(), subscribe()
+# - Implement disconnect() and support for "with" statement ?
+# - Implement subscribe() and track subscriptions for reconnecting
 # - Implement statistics measurements, e.g performance
-# - Implement destructor ?
 
 import abc
 from typing import Any
@@ -16,8 +16,8 @@ class Message(abc.ABC):
     ) -> None:
         pass
 
-    def loop_start(self: Any) -> None:
-        raise NotImplementedError("Message.loop_start()")
-
-    def publish(self: Any, topic: Any, payload: Any, wait: bool = False) -> None:
+    def publish(self: Any, topic: Any, payload: Any, retain: bool = False, wait: bool = False) -> None:
         raise NotImplementedError("Message.publish()")
+
+    def set_last_will_and_testament(self: Any, lwt_topic: str = None, lwt_retain: bool = False) -> None:
+        raise NotImplementedError("Message.set_last_will_and_testament()")
