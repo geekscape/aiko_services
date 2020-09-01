@@ -29,7 +29,7 @@ setup(
         "click>=7.0",
         "paho-mqtt>=1.3",
         "pyyaml>=5.3.1",
-        "transitions>=8.2.0"
+        "transitions>=0.8.2"
     ],
     entry_points={
         "console_scripts": [
