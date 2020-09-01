@@ -11,6 +11,12 @@
 #
 # To Do
 # ~~~~~
+# - Make this a sub-command of Aiko CLI
+# - Rename to registrar
+#
+# - Handle MQTT restart
+# - Handle MQTT stop and start on a different host
+#
 # - Implement as a sub-class of Category ?
 # - When Service fails with LWT, publish timestamp on "topic_path/state"
 #   - Maybe ProcessController should do this, rather than ServiceRegistrar ?
@@ -25,39 +31,79 @@
 # - Implement protocol matching similar to programming language interfaces with inheritance
 
 import click
+import traceback
 
+import aiko_services.event as event
 import aiko_services.framework as aiko
+from aiko_services.state import StateMachine
+from aiko_services.utilities import get_logger
+
+_LOGGER = get_logger(__name__)
+_PRIMARY_SEARCH_TIMEOUT = 2.0  # seconds
+
+# --------------------------------------------------------------------------- #
+
+class StateMachineModel(object):
+    states = [
+        "start",
+        "primary_search",
+        "secondary",
+        "primary"
+    ]
+
+    transitions = [
+        {"source": "start", "trigger": "initialize", "dest": "primary_search"},
+        {"source": "primary_search", "trigger": "primary_found", "dest": "secondary"},
+        {"source": "primary_search", "trigger": "primary_promotion", "dest": "primary"},
+        {"source": "secondary", "trigger": "primary_failed", "dest": "primary_search"}
+    ]
+
+    def on_enter_primary_search(self, event_data):
+#       parameters = event_data.kwargs.get("parameters", {})
+        _LOGGER.debug("do primary_search add_timer")
+
+# TODO: If oldest known secondary, then immediately become the primary
+        event.add_timer_handler(self.primary_search_timer, _PRIMARY_SEARCH_TIMEOUT)
+
+    def primary_search_timer(self):
+        timer_valid = state_machine.get_state() == "primary_search"
+        _LOGGER.debug(f"timer primary_search {timer_valid}")
+        event.remove_timer_handler(self.primary_search_timer)
+        if timer_valid:
+            state_machine.transition("primary_promotion", None)
+
+    def on_enter_secondary(self, event_data):
+        _LOGGER.debug("do enter_secondary")
+
+    def on_enter_primary(self, event_data):
+        _LOGGER.debug("do enter_primary")
+        aiko.set_last_will_and_testament(aiko.SERVICE_REGISTRAR_TOPIC, True)
+        payload_out = f"(primary {aiko.public.topic_in} 0)"
+        aiko.public.message.publish(aiko.SERVICE_REGISTRAR_TOPIC, payload_out, retain=True)
+
+state_machine = StateMachine(StateMachineModel())
 
 # --------------------------------------------------------------------------- #
 
 parameter_1 = None
 
-# TODO: Events: "add", "remove", "timeout" (waiting for Service Registrar)
-#       Remove and timeout triggers this Service Registrar becoming the "primary"
-
-def on_service_registrar(aiko_, event_type, topic_path, timestamp):
-    print(f"service_registrar: {event_type}, topic_path: {topic_path}, timestamp: {timestamp}")
+def on_service_registrar(_aiko, event_type, topic_path, timestamp):
+    _LOGGER.debug(f"event: {event_type}, topic_path={topic_path}, timestamp={timestamp}")
     if event_type == "add":
-        pass
-    if event_type == "remove" or event_type == "timeout":
-        payload_out = f"(primary {aiko_.topic_in} 0)"
-        aiko_.message.publish(aiko.SERVICE_REGISTRAR_TOPIC, payload_out)
-# TODO: publish with retain = True !
+        if state_machine.get_state() == "primary_search":
+            state_machine.transition("primary_found", None)
+
+    if event_type == "remove":
+        if state_machine.get_state() == "primary_search":
+            state_machine.transition("primary_promotion", None)
+        else:
+            if state_machine.get_state() == "secondary":
+                state_machine.transition("primary_failed", None)
 
 # --------------------------------------------------------------------------- #
 
 @click.command()
 def main():
-    aiko.set_protocol(aiko.SERVICE_REGISTRAR_PROTOCOL)
-
-# TODO: Start with SERVICE_REGISTRAR_PROTOCOL_SECONDARY
-# TODO: When promoting from secondary to primary ...
-#         Change to SERVICE_REGISTRAR_PROTOCOL_PRIMARY
-#         MQTT disconnect and wait for automatic reconnection
-
-# TODO: Add on_message_broker() handler to track MQTT connection status
-#       - Events: "add", "remove", "timeout" (waiting for connection)
-
 # V2: namespace/service/registrar (primary namespace/host/pid timestamp)
 
 # TODO: Add message handler for listening for other Service Registars ?
@@ -65,9 +111,14 @@ def main():
 #       - Find the primary service registrar (if it exists ?)
 #       - Query to find all other service registars
 
-# TODO: Add discovery protocol handler
+# TODO: Add on_message_broker() handler to track MQTT connection status
+#       - Events: "add", "remove", "timeout" (waiting for connection)
 
+# TODO: Add discovery protocol handler to keep a list of Service Registrars
+
+    aiko.set_protocol(aiko.SERVICE_REGISTRAR_PROTOCOL)
     aiko.add_service_registrar_handler(on_service_registrar)
+    state_machine.transition("initialize", None)
     aiko.process()
 
 if __name__ == "__main__":

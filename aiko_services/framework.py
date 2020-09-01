@@ -1,5 +1,6 @@
 # To Do
 # ~~~~~
+# - Implement message to change logging level !
 # - Rename "framework.py" to "service.py" and create a Service class ?
 # - Implement Aiko class with "class public variables" becoming Aiko class instance variables
 #   - "class private" becomes one of the Aiko class instance variables
@@ -157,12 +158,8 @@ def initialize(pipeline=None):
 # TODO: Implement protocol stuff, see set_protocol()
 # TODO: Implement tags stuff, e.g set_tags() ?
 
-    if public.protocol == SERVICE_REGISTRAR_PROTOCOL:
-        lwt_topic = SERVICE_REGISTRAR_TOPIC
-        lwt_retain = True
-    else:
-        lwt_topic = public.topic_state
-        lwt_retain = False
+    lwt_topic = public.topic_state
+    lwt_retain = False
 
     public.message = MQTT(on_message, private.message_handlers, lwt_topic, lwt_retain)
     context = ContextManager(public, public.message)
@@ -187,6 +184,9 @@ def parse_tags(tags_string):
     if tags_string:
         tags = tags_string.split(",")
         for tag in tags: public.tags.append(tag)
+
+def set_last_will_and_testament(lwt_topic, lwt_retain=False):
+    public.message.set_last_will_and_testament(lwt_topic, lwt_retain)
 
 def set_protocol(protocol):
     public.protocol = protocol
