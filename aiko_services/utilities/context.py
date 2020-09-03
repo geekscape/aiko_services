@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Usage
 # ~~~~~
 # from aiko_services.utilities import ContextManager, get_context
