@@ -16,6 +16,10 @@
 #
 # - Handle MQTT restart
 # - Handle MQTT stop and start on a different host
+# - Handle if system crashes, then mosquitto doesn't get to send a LWT messages for
+#   the Service Manager, leaving a stale reference to a Service Manager that
+#   now longer exists.  If a new Service Manager isn't started when the system
+#   restarts, then Aiko Clients try to use the defunct Service Manager !
 #
 # - Implement as a sub-class of Category ?
 # - When Service fails with LWT, publish timestamp on "topic_path/state"
@@ -31,7 +35,7 @@
 # - Implement protocol matching similar to programming language interfaces with inheritance
 
 import click
-import traceback
+import time
 
 import aiko_services.event as event
 import aiko_services.framework as aiko
@@ -40,6 +44,8 @@ from aiko_services.utilities import get_logger
 
 _LOGGER = get_logger(__name__)
 _PRIMARY_SEARCH_TIMEOUT = 2.0  # seconds
+
+time_started = time.time()
 
 # --------------------------------------------------------------------------- #
 
@@ -79,7 +85,7 @@ class StateMachineModel(object):
     def on_enter_primary(self, event_data):
         _LOGGER.debug("do enter_primary")
         aiko.set_last_will_and_testament(aiko.SERVICE_REGISTRAR_TOPIC, True)
-        payload_out = f"(primary {aiko.public.topic_in} 0)"
+        payload_out = f"(primary {aiko.public.topic_in} {time_started})"
         aiko.public.message.publish(aiko.SERVICE_REGISTRAR_TOPIC, payload_out, retain=True)
 
 state_machine = StateMachine(StateMachineModel())
