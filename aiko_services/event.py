@@ -134,13 +134,13 @@ def remove_timer_handler(handler):
     event_list.remove(handler)
     handler_count -= 1
 
-def loop():
+def loop(loop_when_no_handlers=False):
     global event_enabled, timer_counter
     event_list.reset()
 
     try:
         event_enabled = True
-        while event_enabled and handler_count:
+        while event_enabled and (loop_when_no_handlers or handler_count):
             event = event_list.head
             if event and timer_counter <= 0:
                 if time.time() >= event.time_next:

@@ -171,12 +171,12 @@ def initialize(pipeline=None):
 #   public.topic_log = public.aks_info.TOPIC_LOG             # TODO: Replace V1
 #   public.topic_out = public.aks_info.TOPIC_OUT             # TODO: Replace V1
 
-def process(pipeline=None):
+def process(loop_when_no_handlers=False, pipeline=None):
     initialize(pipeline)
 #   wait_connected()
 #   wait_parameters(0)
 #   wait_terminated()
-    event.loop()
+    event.loop(loop_when_no_handlers)
 
 def get_parameter(name):                                     # TODO: Replace V1
 #   return aks.get_parameter(name)

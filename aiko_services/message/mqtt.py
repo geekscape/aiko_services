@@ -48,7 +48,7 @@ def on_connect(
 
 def on_disconnect(mqtt_client: Any, user_data: Any, return_code: Any) -> None:
     _LOGGER.debug(f"on_disconnect")
-    if rc != 0:
+    if return_code != 0:
         _LOGGER.info(f"on_disconnect: will reconnect: {return_code}")
 
 def on_message(mqtt_client: Any, userdata: Any, message: Any) -> None:

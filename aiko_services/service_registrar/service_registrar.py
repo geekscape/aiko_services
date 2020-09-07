@@ -63,6 +63,7 @@ class StateMachineModel(object):
         _LOGGER.debug("do primary_search add_timer")
 
 # TODO: If oldest known secondary, then immediately become the primary
+# TODO: Choose timer period as _PRIMARY_SEARCH_TIMEOUT +/- delta to avoid collisions
         event.add_timer_handler(self.primary_search_timer, _PRIMARY_SEARCH_TIMEOUT)
 
     def primary_search_timer(self):
@@ -119,7 +120,7 @@ def main():
     aiko.set_protocol(aiko.SERVICE_REGISTRAR_PROTOCOL)
     aiko.add_service_registrar_handler(on_service_registrar)
     state_machine.transition("initialize", None)
-    aiko.process()
+    aiko.process(True)
 
 if __name__ == "__main__":
     main()
