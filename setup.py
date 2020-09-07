@@ -27,6 +27,7 @@ setup(
     ],
     install_requires=[
         "click>=7.0",
+        "networkx>=2.5",
         "paho-mqtt>=1.3",
         "pyyaml>=5.3.1",
         "transitions>=0.8.2"
