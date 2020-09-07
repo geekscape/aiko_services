@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-#
 # Aiko Engine
 # ~~~~~~~~~~~
 #
@@ -23,6 +21,14 @@
 #
 # To Do
 # ~~~~~
+# - BUG: Need to make handler_count, adding and removing handlers thread-safe !
+#   - See "mutex": https://hg.python.org/cpython/file/3.5/Lib/queue.py
+# - BUG: Why isn't event.add_timer_handler(_, _, True) firing immediately ?
+# - Move "timer_counter" and "update_timer_counter()" into EventList
+# - Refactor all remaining functions into new EventEngine class
+# - Coalesce remove_flatout_handler() and remove_timer_handler() into
+#     single remove_handler() that works in all cases.
+#
 # - Provide simple wallclock time monitoring of handler invocation time
 # - Currently, flatout_handlers invocation rate is limited by ...
 #     "sleep_time = 0.001", i.e 1,000 Hz.  Make this configurable.
@@ -35,6 +41,7 @@ import time
 
 __all__ = ["add_timer_handler", "remove_timer_handler", "loop", "terminate"]
 
+handler_count = 0
 timer_counter = 0
 
 def update_timer_counter():
@@ -43,9 +50,11 @@ def update_timer_counter():
         timer_counter = event_list.head.time_next - time.time()
 
 class Event:
-    def __init__(self, handler, time_period):
+    def __init__(self, handler, time_period, immediate=False):
         self.handler = handler
-        self.time_next = time.time() + time_period
+        self.time_next = time.time()
+        if not immediate:
+            self.time_next += time_period
         self.time_period = time_period
         self.next = None
 
@@ -105,39 +114,50 @@ event_list = EventList()
 flatout_handlers = []
 
 def add_flatout_handler(handler):
+    global handler_count
     flatout_handlers.append(handler)
+    handler_count += 1
 
 def remove_flatout_handler(handler):
+    global handler_count
     flatout_handlers.remove(handler)
+    handler_count -= 1
 
-def add_timer_handler(handler, time_period):
-    event = Event(handler, time_period)
+def add_timer_handler(handler, time_period, immediate=False):
+    global handler_count
+    event = Event(handler, time_period, immediate)
     event_list.add(event)
+    handler_count += 1
 
 def remove_timer_handler(handler):
+    global handler_count
     event_list.remove(handler)
+    handler_count -= 1
 
 def loop():
     global event_enabled, timer_counter
     event_list.reset()
 
-    event_enabled = True
-    while event_enabled:
-        event = event_list.head
-        if event and timer_counter <= 0:
-            if time.time() >= event.time_next:
-                event.handler()
-                event_list.update()
-        sleep_time = 0.001
-        if len(flatout_handlers):
-            time_start = time.time()
-            for flatout_handler in flatout_handlers:
-                flatout_handler()
-            sleep_time = sleep_time - (time.time() - time_start)
-# TODO:     timer_counter -= sleep_time  # and don't sleep !
-        if sleep_time > 0:
-            time.sleep(sleep_time)
-            timer_counter -= sleep_time
+    try:
+        event_enabled = True
+        while event_enabled and handler_count:
+            event = event_list.head
+            if event and timer_counter <= 0:
+                if time.time() >= event.time_next:
+                    event.handler()
+                    event_list.update()
+            sleep_time = 0.001
+            if len(flatout_handlers):
+                time_start = time.time()
+                for flatout_handler in flatout_handlers:
+                    flatout_handler()
+                sleep_time = sleep_time - (time.time() - time_start)
+# TODO:         timer_counter -= sleep_time  # and don't sleep !
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+                timer_counter -= sleep_time
+    except KeyboardInterrupt:
+        raise SystemExit("KeyboardInterrupt: abort !")
 
 def terminate():
     global event_enabled
