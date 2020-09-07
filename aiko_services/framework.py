@@ -41,7 +41,9 @@ import traceback
 
 import aiko_services.event as event
 from aiko_services.message import MQTT
-from aiko_services.utilities import ContextManager, parse
+from aiko_services.utilities.configuration import *
+from aiko_services.utilities.context import ContextManager
+from aiko_services.utilities.parser import parse
 
 # import aiko_services.framework as aks                      # TODO: Replace V1
 
@@ -60,8 +62,9 @@ class public:
     protocol = None
     service_name = None
     tags = []
-    topic_in = "test/host/pid/in"        # TODO: Determine topic path
-    topic_state = "test/host/pid/state"  # TODO: Determine topic path
+    topic_path = get_namespace() + "/" + get_hostname() + "/" + get_pid()
+    topic_in = topic_path + "/in"
+    topic_state = topic_path + "/state"
 
 SERVICE_REGISTRAR_PROTOCOL = "au.com.silverpond.protocol.service_registrar:0"
 SERVICE_REGISTRAR_TOPIC = f"{public.namespace}/service/registrar"
