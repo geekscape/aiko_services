@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import traceback
 from transitions import Machine
 from transitions.core import MachineError

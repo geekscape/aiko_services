@@ -5,6 +5,7 @@
 #
 # To Do
 # ~~~~~
+# - BUG: get_logger.info(message) doesn't display for LOG_LEVEL=INFO
 # - Set logging level and log file from command line argument
 # - Implement message to change logging level !
 

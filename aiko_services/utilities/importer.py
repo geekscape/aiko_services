@@ -13,6 +13,8 @@ import importlib
 import os
 import sys
 
+__all__ = ["load_module", "load_modules"]
+
 def load_module(module_pathname):
     pathname, filename = os.path.split(module_pathname)
     if pathname not in sys.path:
@@ -20,3 +22,12 @@ def load_module(module_pathname):
     module_name = os.path.splitext(filename)[0]
     module = importlib.import_module(module_name)
     return module
+
+def load_modules(module_pathnames):
+    modules = []
+    for module_pathname in module_pathnames:
+        if module_pathname:
+            modules.append(load_module(module_pathname))
+        else:
+            modules.append(None)
+    return modules
