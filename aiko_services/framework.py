@@ -1,10 +1,12 @@
 # To Do
 # ~~~~~
-# - Implement message to change logging level !
 # - Rename "framework.py" to "service.py" and create a Service class ?
 # - Implement Aiko class with "class public variables" becoming Aiko class instance variables
 #   - "class private" becomes one of the Aiko class instance variables
+#
 # - Store Aiko class instance as the "ContextManager.__init__(aiko=)" parameter
+#
+# - Implement message to change logging level !
 #
 # To Do
 # ~~~~~
