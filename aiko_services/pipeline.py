@@ -87,9 +87,12 @@ class Pipeline():
         for node_name, module in node_names_modules.items():
             if module:
                 node = self.get_node(node_name)
+                node_parameters = {}
+                if "parameters" in node:
+                    node_parameters = node.get("parameters", None)
                 node_predecessors = self.get_node_predecessors(node_name)
                 class_ = getattr(module, node_name)
-                node["instance"] = class_(node_name, node_predecessors)
+                node["instance"] = class_(node_name, node_parameters, node_predecessors)
 
     def pipeline_handler(self):
         head_node_name = self.get_head_node_name()

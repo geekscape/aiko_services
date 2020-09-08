@@ -12,9 +12,10 @@ class ImageShow(StreamElement):
     def stream_frame_handler(self, swag):
         self.logger.debug(f"stream_frame_handler(): frame_id: {self.frame_id}")
         image = swag[self.predecessor]["image"]
-        cv2.imshow("video", image)            # TODO: Window title parameter
+        title = self.parameters["window_title"]
+        cv2.imshow(title, image)
         if self.frame_id == 0:
-            cv2.moveWindow("video", 10, 10)   # TODO: Window location parameter
+            cv2.moveWindow(title, self.parameters["window_x"], self.parameters["window_y"])
         if cv2.waitKey(1) & 0xFF == ord("q"):
             return False, None
         return True, None
@@ -27,7 +28,7 @@ class ImageShow(StreamElement):
 class VideoReadFile(StreamElement):
     def stream_start_handler(self, swag):
         self.logger.debug("stream_start_handler()")
-        video_filename = "astra_brief.mp4"   # TODO: should be a parameter, in swag ?
+        video_filename = self.parameters["video_pathname"]
         self.video_capture = cv2.VideoCapture(video_filename)
         if (self.video_capture.isOpened() == False): 
             self.logger.error(f"Couldn't open video file: {video_filename}")

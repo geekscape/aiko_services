@@ -16,26 +16,35 @@ from aiko_services.utilities import get_logger
 
 _LOGGER = get_logger(__name__)
 
-VIDEO_SOURCE = "../../aiko_services/video.py"
+VIDEO_PATHNAME = "astra.mp4"
+WINDOW_TITLE = "Astra"
+WINDOW_LOCATION = (50, 50)
+
+SOURCE_COMPONENT_VIDEO = "../../aiko_services/video.py"
 
 pipeline_definition = [
-    {   "name": "VideoReadFile", "source": VIDEO_SOURCE,
+    {   "name": "VideoReadFile", "source": SOURCE_COMPONENT_VIDEO,
         "successors": ["ImageAnnotate1", "ImageAnnotate2"],
         "parameters": {
-            "stream_id": "stream_0"
+            "video_pathname": VIDEO_PATHNAME
         }
     },
-    {   "name": "ImageAnnotate1", "source": VIDEO_SOURCE,
+    {   "name": "ImageAnnotate1", "source": SOURCE_COMPONENT_VIDEO,
         "successors": ["ImageOverlay"]
     },
-    {   "name": "ImageAnnotate2", "source": VIDEO_SOURCE,
+    {   "name": "ImageAnnotate2", "source": SOURCE_COMPONENT_VIDEO,
         "successors": ["ImageOverlay"]
     },
-    {   "name": "ImageOverlay", "source": VIDEO_SOURCE,
+    {   "name": "ImageOverlay", "source": SOURCE_COMPONENT_VIDEO,
         "successors": ["ImageShow"]
     },
-    {   "name": "ImageShow", "source": VIDEO_SOURCE,
-        "successors": None
+    {   "name": "ImageShow", "source": SOURCE_COMPONENT_VIDEO,
+        "successors": None,
+        "parameters": {
+            "window_title": WINDOW_TITLE,
+            "window_x": WINDOW_LOCATION[0],
+            "window_y": WINDOW_LOCATION[1]
+        }
     }
 ]
 

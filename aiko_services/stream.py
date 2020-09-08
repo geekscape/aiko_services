@@ -22,8 +22,9 @@ class StreamElementState(Enum):
     COMPLETE = 3
 
 class StreamElement(abc.ABC):
-    def __init__(self, name, predecessors):
+    def __init__(self, name, parameters, predecessors):
         self.name = name
+        self.parameters = parameters
         self.predecessors = predecessors
         if predecessors:
             self.predecessor = predecessors[0]
