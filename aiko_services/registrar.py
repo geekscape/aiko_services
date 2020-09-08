@@ -5,7 +5,7 @@
 #
 # Usage
 # ~~~~~
-# service_registrar [--primary]
+# registrar [--primary]
 #
 #   --primary: Force take over of the primary service_registrar role
 #

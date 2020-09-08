@@ -28,6 +28,7 @@ setup(
     install_requires=[
         "click>=7.0",
         "networkx>=2.5",
+        "numpy>=1.19.1",
         "paho-mqtt>=1.3",
         "pyyaml>=5.3.1",
         "transitions>=0.8.2"
@@ -35,7 +36,7 @@ setup(
     entry_points={
         "console_scripts": [
 #           "aiko = aiko_services.cli:main",
-            "service_registrar = aiko_services.service_registrar.service_registrar:main"
+            "registrar = aiko_services.registrar:main"
         ]
     }
 )
