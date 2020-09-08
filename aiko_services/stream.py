@@ -17,7 +17,7 @@ __all__ = ["StreamElement", "StreamElementState"]
 
 class StreamElementState(Enum):
     START = 0
-    PROCESS = 1
+    RUN = 1
     STOP = 2
     COMPLETE = 3
 
@@ -36,7 +36,7 @@ class StreamElement(abc.ABC):
         if stream_processing:
             if self.state == StreamElementState.START:
                 self.handler = self.stream_frame_handler
-                self.state = StreamElementState.PROCESS
+                self.state = StreamElementState.RUN
             else:
                 self.frame_id += 1
         else:
