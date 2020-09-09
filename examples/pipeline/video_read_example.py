@@ -2,21 +2,18 @@
 #
 # Usage
 # ~~~~~
-# LOG_LEVEL=DEBUG ./test_pipeline.py
+# LOG_LEVEL=DEBUG ./video_read_example.py
 #
 # To Do
 # ~~~~~
 # - Add CLI arguments !
-
 
 import aiko_services.event as event
 # import aiko_services.framework as aiko
 from aiko_services.pipeline import Pipeline
 from aiko_services.utilities import get_logger
 
-_LOGGER = get_logger(__name__)
-
-# FRAME_RATE = 0   # Process flat-out with delay
+# FRAME_RATE = 0   # Process flat-out without delay
 FRAME_RATE = 0.05  # 20 FPS
 VIDEO_PATHNAME = "astra.mp4"
 WINDOW_LOCATION = (50, 50)
@@ -48,6 +45,8 @@ pipeline_definition = [
         }
     }
 ]
+
+_LOGGER = get_logger(__name__)
 
 def timer_test():
     _LOGGER.debug("Timer test")
