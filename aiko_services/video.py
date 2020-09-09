@@ -15,7 +15,9 @@ class ImageShow(StreamElement):
         title = self.parameters["window_title"]
         cv2.imshow(title, image)
         if self.frame_id == 0:
-            cv2.moveWindow(title, self.parameters["window_x"], self.parameters["window_y"])
+            window_x = self.parameters["window_location"][0]
+            window_y = self.parameters["window_location"][1]
+            cv2.moveWindow(title, window_x, window_y)
         if cv2.waitKey(1) & 0xFF == ord("q"):
             return False, None
         return True, None

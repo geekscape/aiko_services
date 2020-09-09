@@ -6,7 +6,7 @@
 #
 # To Do
 # ~~~~~
-# - None, yet !
+# - Add CLI arguments !
 
 
 import aiko_services.event as event
@@ -16,34 +16,35 @@ from aiko_services.utilities import get_logger
 
 _LOGGER = get_logger(__name__)
 
+# FRAME_RATE = 0   # Process flat-out with delay
+FRAME_RATE = 0.05  # 20 FPS
 VIDEO_PATHNAME = "astra.mp4"
-WINDOW_TITLE = "Astra"
 WINDOW_LOCATION = (50, 50)
+WINDOW_TITLE = "Astra"
 
-SOURCE_COMPONENT_VIDEO = "../../aiko_services/video.py"
+COMPONENT_SOURCE_VIDEO = "../../aiko_services/video.py"
 
 pipeline_definition = [
-    {   "name": "VideoReadFile", "source": SOURCE_COMPONENT_VIDEO,
+    {   "name": "VideoReadFile", "source": COMPONENT_SOURCE_VIDEO,
         "successors": ["ImageAnnotate1", "ImageAnnotate2"],
         "parameters": {
             "video_pathname": VIDEO_PATHNAME
         }
     },
-    {   "name": "ImageAnnotate1", "source": SOURCE_COMPONENT_VIDEO,
+    {   "name": "ImageAnnotate1", "source": COMPONENT_SOURCE_VIDEO,
         "successors": ["ImageOverlay"]
     },
-    {   "name": "ImageAnnotate2", "source": SOURCE_COMPONENT_VIDEO,
+    {   "name": "ImageAnnotate2", "source": COMPONENT_SOURCE_VIDEO,
         "successors": ["ImageOverlay"]
     },
-    {   "name": "ImageOverlay", "source": SOURCE_COMPONENT_VIDEO,
+    {   "name": "ImageOverlay", "source": COMPONENT_SOURCE_VIDEO,
         "successors": ["ImageShow"]
     },
-    {   "name": "ImageShow", "source": SOURCE_COMPONENT_VIDEO,
+    {   "name": "ImageShow", "source": COMPONENT_SOURCE_VIDEO,
         "successors": None,
         "parameters": {
-            "window_title": WINDOW_TITLE,
-            "window_x": WINDOW_LOCATION[0],
-            "window_y": WINDOW_LOCATION[1]
+            "window_location": WINDOW_LOCATION,
+            "window_title": WINDOW_TITLE
         }
     }
 ]
@@ -52,6 +53,6 @@ def timer_test():
     _LOGGER.debug("Timer test")
 # event.add_timer_handler(timer_test, 0.1)
 
-pipeline = Pipeline(pipeline_definition, 0.05)
+pipeline = Pipeline(pipeline_definition, FRAME_RATE)
 _LOGGER.debug(f"pipeline: {pipeline}")
 event.loop()  # aiko.process()
