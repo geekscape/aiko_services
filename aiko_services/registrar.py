@@ -106,13 +106,12 @@ state_machine = StateMachine(StateMachineModel())
 
 parameter_1 = None
 
-def registrar_handler(_aiko, event_type, topic_path, timestamp):
-    _LOGGER.debug(f"event: {event_type}, topic_path={topic_path}, timestamp={timestamp}")
-    if event_type == "add":
+def registrar_handler(_aiko, action, registrar):
+    if action == "started":
         if state_machine.get_state() == "primary_search":
             state_machine.transition("primary_found", None)
 
-    if event_type == "remove":
+    if action == "stopped":
         if state_machine.get_state() == "primary_search":
             state_machine.transition("primary_promotion", None)
         else:
@@ -136,7 +135,7 @@ def main():
 # TODO: Add discovery protocol handler to keep a list of Registrars
 
     aiko.set_protocol(aiko.REGISTRAR_PROTOCOL)
-    aiko.add_registrar_handler(registrar_handler)
+    aiko.set_registrar_handler(registrar_handler)
     state_machine.transition("initialize", None)
     aiko.process(True)
 

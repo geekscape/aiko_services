@@ -74,21 +74,28 @@ def add_message_handler(topic, message_handler):
         private.message_handlers[topic] = []
     private.message_handlers[topic].append(message_handler)
 
-def add_registrar_handler(registrar_handler):
-    if not private.registrar_handler:
-        add_message_handler(REGISTRAR_TOPIC, on_registrar_message)
-    private.registrar_handler = registrar_handler
-
+# TODO: Consider moving all registrar related code into the Registar
 def on_registrar_message(aiko_, topic, payload_in):
-    if private.registrar_handler:
-        command, parameters = parse(payload_in)
+    registrar = {}
+    command, parameters = parse(payload_in)
+    if len(parameters) > 0:
+        action = parameters[0]
         if command == "primary" and len(parameters) == 3:
-            if parameters[0] == "started":
-                topic_path = parameters[1]
-                timestamp = parameters[2]
-                private.registrar_handler(public, "add", topic_path, timestamp)
-            if parameters[0] == "stopped":
-                private.registrar_handler(public, "remove", None, None)
+            if action == "started":
+                registrar["topic_path"] = parameters[1]
+                registrar["timestamp"] = parameters[2]
+# TODO: Join Registrar
+
+            if action == "stopped":
+                pass
+# TODO: If Service requires the Registrar, e.g "aiko list_services",
+#       then provide immediate callback or termination of Service
+
+    if private.registrar_handler:
+        private.registrar_handler(public, action, registrar)
+
+def set_registrar_handler(registrar_handler):
+    private.registrar_handler = registrar_handler
 
 def add_stream_handlers(
     task_start_handler, stream_frame_handler, task_stop_handler):
@@ -163,6 +170,8 @@ def initialize(pipeline=None):
 # TODO: on_registrar user handler ?
 # TODO: Implement protocol stuff, see set_protocol()
 # TODO: Implement tags stuff, e.g set_tags() ?
+
+    add_message_handler(REGISTRAR_TOPIC, on_registrar_message)
 
     lwt_topic = public.topic_state
     lwt_payload = "(stopped)"
