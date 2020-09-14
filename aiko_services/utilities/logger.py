@@ -41,6 +41,9 @@ _CONFIGURATION = {
         "STATE": { 
             "handlers": ["h"],
             "level": "INFO"
+        },
+        "transitions.core": { 
+            "level": "ERROR"
         }
     }
 }
