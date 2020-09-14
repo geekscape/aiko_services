@@ -82,12 +82,13 @@ def add_registrar_handler(registrar_handler):
 def on_registrar_message(aiko_, topic, payload_in):
     if private.registrar_handler:
         command, parameters = parse(payload_in)
-        if command == "primary" and len(parameters) == 2:
-            topic_path = parameters[0]
-            timestamp = parameters[1]
-            private.registrar_handler(public, "add", topic_path, timestamp)
-        if command == "nil":
-            private.registrar_handler(public, "remove", None, None)
+        if command == "primary" and len(parameters) == 3:
+            if parameters[0] == "started":
+                topic_path = parameters[1]
+                timestamp = parameters[2]
+                private.registrar_handler(public, "add", topic_path, timestamp)
+            if parameters[0] == "stopped":
+                private.registrar_handler(public, "remove", None, None)
 
 def add_stream_handlers(
     task_start_handler, stream_frame_handler, task_stop_handler):
@@ -164,9 +165,10 @@ def initialize(pipeline=None):
 # TODO: Implement tags stuff, e.g set_tags() ?
 
     lwt_topic = public.topic_state
+    lwt_payload = "(stopped)"
     lwt_retain = False
 
-    public.message = MQTT(on_message, private.message_handlers, lwt_topic, lwt_retain)
+    public.message = MQTT(on_message, private.message_handlers, lwt_topic, lwt_payload, lwt_retain)
     context = ContextManager(public, public.message)
 # TODO: Wait for and connect to message broker and handle failure, discovery and reconnection
 
@@ -190,8 +192,8 @@ def parse_tags(tags_string):
         tags = tags_string.split(",")
         for tag in tags: public.tags.append(tag)
 
-def set_last_will_and_testament(lwt_topic, lwt_retain=False):
-    public.message.set_last_will_and_testament(lwt_topic, lwt_retain)
+def set_last_will_and_testament(lwt_topic, lwt_payload="(stopped)", lwt_retain=False):
+    public.message.set_last_will_and_testament(lwt_topic, lwt_payload, lwt_retain)
 
 def set_protocol(protocol):
     public.protocol = protocol

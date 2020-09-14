@@ -63,15 +63,15 @@ def on_publish(mqtt_client: Any, userdata: Any, result: Any) -> None:
 
 class MQTT(Message):
     def __init__(
-        self, message_handler: Any = on_message, topics_subscribe: Any = None, lwt_topic: str = None, lwt_retain: bool = False
+        self, message_handler: Any = on_message, topics_subscribe: Any = None, lwt_topic: str = None, lwt_payload:str = None, lwt_retain: bool = False
     ) -> None:
         global _TOPICS_SUBSCRIBE  # pylint: disable=global-statement
         _TOPICS_SUBSCRIBE = topics_subscribe
 
         self.message_handler = message_handler
-        self._connect(lwt_topic, lwt_retain)
+        self._connect(lwt_topic, lwt_payload, lwt_retain)
 
-    def _connect(self: Any, lwt_topic: Any, lwt_retain: Any) -> None:
+    def _connect(self: Any, lwt_topic: Any, lwt_payload: str, lwt_retain: Any) -> None:
         _LOGGER.debug(f"connecting to {MQTT_HOST}")
         self.mqtt_client = mqtt.Client()
         self.mqtt_client.on_connect = on_connect
@@ -80,7 +80,7 @@ class MQTT(Message):
         self.mqtt_client.on_publish = on_publish
 
         if lwt_topic:
-            self.mqtt_client.will_set(lwt_topic, payload="(nil)", retain=lwt_retain)
+            self.mqtt_client.will_set(lwt_topic, payload=lwt_payload, retain=lwt_retain)
         try:
             self.mqtt_client.connect(host=MQTT_HOST, port=MQTT_PORT, keepalive=60)
             self.mqtt_client.loop_start()
@@ -105,9 +105,9 @@ class MQTT(Message):
         if wait:
             self.wait_published()
 
-    def set_last_will_and_testament(self, lwt_topic: str = None, lwt_retain: bool = False) -> None:
+    def set_last_will_and_testament(self, lwt_topic: str = None, lwt_payload: str = None, lwt_retain: bool = False) -> None:
         self._disconnect()
-        self._connect(lwt_topic, lwt_retain)
+        self._connect(lwt_topic, lwt_payload, lwt_retain)
 
     def wait_connected(self) -> None:
         global _CONNECTED  # pylint: disable=global-statement

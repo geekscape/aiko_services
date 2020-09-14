@@ -12,7 +12,7 @@ __all__ = ["Message"]
 
 class Message(abc.ABC):
     def __init__(
-        self, message_handler: Any = None, topics_subscribe: Any = None, lwt_topic: str = None, lwt_retain: bool = False
+        self, message_handler: Any = None, topics_subscribe: Any = None, lwt_topic: str = None, lwt_payload: str =None, lwt_retain: bool = False
     ) -> None:
         pass
 

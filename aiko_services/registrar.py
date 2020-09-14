@@ -9,6 +9,18 @@
 #
 #   --primary: Force take over of the primary registrar role
 #
+# Notes
+# ~~~~~
+# Registrar should listen on ...
+#
+# - REGISTRAR_TOPIC for "(primary started ...)" and "(primary stopped)" messages
+#
+# - {topic_path}/in for "(add ...)", "(query ...)", "(remove ...)" messages
+#
+# - {namespace}/+/+/state for "(stopped)" from register Aiko Services
+#   - Will need a change to framework.py:on_message() regarding "for match_topic ..."
+#   - Need to handle endsWith("/state")
+#
 # To Do
 # ~~~~~
 # - Make this a sub-command of Aiko CLI
@@ -83,8 +95,9 @@ class StateMachineModel(object):
 
     def on_enter_primary(self, event_data):
         _LOGGER.debug("do enter_primary")
-        aiko.set_last_will_and_testament(aiko.REGISTRAR_TOPIC, True)
-        payload_out = f"(primary {aiko.public.topic_in} {time_started})"
+        lwt_payload = "(primary stopped)"
+        aiko.set_last_will_and_testament(aiko.REGISTRAR_TOPIC, lwt_payload, True)
+        payload_out = f"(primary started {aiko.public.topic_in} {time_started})"
         aiko.public.message.publish(aiko.REGISTRAR_TOPIC, payload_out, retain=True)
 
 state_machine = StateMachine(StateMachineModel())
