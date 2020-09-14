@@ -1,37 +1,36 @@
 #!/usr/bin/env python3
 #
-# Aiko Service: Service Registrar
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Aiko Service: Registrar
+# ~~~~~~~~~~~~~~~~~~~~~~~
 #
 # Usage
 # ~~~~~
 # registrar [--primary]
 #
-#   --primary: Force take over of the primary service_registrar role
+#   --primary: Force take over of the primary registrar role
 #
 # To Do
 # ~~~~~
 # - Make this a sub-command of Aiko CLI
-# - Rename to registrar
 #
 # - Handle MQTT restart
 # - Handle MQTT stop and start on a different host
 # - Handle if system crashes, then mosquitto doesn't get to send a LWT messages for
-#   the Service Manager, leaving a stale reference to a Service Manager that
-#   now longer exists.  If a new Service Manager isn't started when the system
-#   restarts, then Aiko Clients try to use the defunct Service Manager !
+#   the Registrar leaving a stale reference to a Registrar now longer exists.
+#   If a new Registrar't started when the system restarts, then Aiko Clients try
+#   to use the defunct Registrar
 #
 # - Implement as a sub-class of Category ?
 # - When Service fails with LWT, publish timestamp on "topic_path/state"
-#   - Maybe ProcessController should do this, rather than ServiceRegistrar ?
+#   - Maybe ProcessController should do this, rather than Registrar ?
 # - Every Service persisted in MeemStore should have "uuid" Service tag
 # - Document state and protocol
 #   - Service state inspired by Meem life-cycle
-# - Create service_registrar/protocol.py
+# - Create registrar/protocol.py
 # - Rename "framework.py" to "service.py" and create a Service class ?
 # - Implement protocol.py and state_machine.py !
-# - Primary and secondaries Service Registrars
-# - Primary Service Registrar supports discovery protocol
+# - Primary and secondaries Registrars
+# - Primary Registrar supports discovery protocol
 # - Implement protocol matching similar to programming language interfaces with inheritance
 
 import click
@@ -84,9 +83,9 @@ class StateMachineModel(object):
 
     def on_enter_primary(self, event_data):
         _LOGGER.debug("do enter_primary")
-        aiko.set_last_will_and_testament(aiko.SERVICE_REGISTRAR_TOPIC, True)
+        aiko.set_last_will_and_testament(aiko.REGISTRAR_TOPIC, True)
         payload_out = f"(primary {aiko.public.topic_in} {time_started})"
-        aiko.public.message.publish(aiko.SERVICE_REGISTRAR_TOPIC, payload_out, retain=True)
+        aiko.public.message.publish(aiko.REGISTRAR_TOPIC, payload_out, retain=True)
 
 state_machine = StateMachine(StateMachineModel())
 
@@ -94,7 +93,7 @@ state_machine = StateMachine(StateMachineModel())
 
 parameter_1 = None
 
-def on_service_registrar(_aiko, event_type, topic_path, timestamp):
+def registrar_handler(_aiko, event_type, topic_path, timestamp):
     _LOGGER.debug(f"event: {event_type}, topic_path={topic_path}, timestamp={timestamp}")
     if event_type == "add":
         if state_machine.get_state() == "primary_search":
@@ -113,18 +112,18 @@ def on_service_registrar(_aiko, event_type, topic_path, timestamp):
 def main():
 # V2: namespace/service/registrar (primary namespace/host/pid timestamp)
 
-# TODO: Add message handler for listening for other Service Registars ?
+# TODO: Add message handler for listening for other Registars ?
 #       This means that the Aiko V2 framework should do the subscription automagically
-#       - Find the primary service registrar (if it exists ?)
-#       - Query to find all other service registars
+#       - Find the primary registrar (if it exists ?)
+#       - Query to find all other registars
 
 # TODO: Add on_message_broker() handler to track MQTT connection status
 #       - Events: "add", "remove", "timeout" (waiting for connection)
 
-# TODO: Add discovery protocol handler to keep a list of Service Registrars
+# TODO: Add discovery protocol handler to keep a list of Registrars
 
-    aiko.set_protocol(aiko.SERVICE_REGISTRAR_PROTOCOL)
-    aiko.add_service_registrar_handler(on_service_registrar)
+    aiko.set_protocol(aiko.REGISTRAR_PROTOCOL)
+    aiko.add_registrar_handler(registrar_handler)
     state_machine.transition("initialize", None)
     aiko.process(True)
 

@@ -49,7 +49,7 @@ from aiko_services.utilities.parser import parse
 
 class private:
     message_handlers = {}
-    service_registrar_handler = None
+    registrar_handler = None
     stream_frame_handler = None
     task_start_handler = None
     task_stop_handler = None
@@ -66,28 +66,28 @@ class public:
     topic_in = topic_path + "/in"
     topic_state = topic_path + "/state"
 
-SERVICE_REGISTRAR_PROTOCOL = "au.com.silverpond.protocol.service_registrar:0"
-SERVICE_REGISTRAR_TOPIC = f"{public.namespace}/service/registrar"
+REGISTRAR_PROTOCOL = "au.com.silverpond.protocol.registrar:0"
+REGISTRAR_TOPIC = f"{public.namespace}/service/registrar"
 
 def add_message_handler(topic, message_handler):
     if not topic in private.message_handlers:
         private.message_handlers[topic] = []
     private.message_handlers[topic].append(message_handler)
 
-def add_service_registrar_handler(service_registrar_handler):
-    if not private.service_registrar_handler:
-        add_message_handler(SERVICE_REGISTRAR_TOPIC, on_service_registrar_message)
-    private.service_registrar_handler = service_registrar_handler
+def add_registrar_handler(registrar_handler):
+    if not private.registrar_handler:
+        add_message_handler(REGISTRAR_TOPIC, on_registrar_message)
+    private.registrar_handler = registrar_handler
 
-def on_service_registrar_message(aiko_, topic, payload_in):
-    if private.service_registrar_handler:
+def on_registrar_message(aiko_, topic, payload_in):
+    if private.registrar_handler:
         command, parameters = parse(payload_in)
         if command == "primary" and len(parameters) == 2:
             topic_path = parameters[0]
             timestamp = parameters[1]
-            private.service_registrar_handler(public, "add", topic_path, timestamp)
+            private.registrar_handler(public, "add", topic_path, timestamp)
         if command == "nil":
-            private.service_registrar_handler(public, "remove", None, None)
+            private.registrar_handler(public, "remove", None, None)
 
 def add_stream_handlers(
     task_start_handler, stream_frame_handler, task_stop_handler):
@@ -159,7 +159,7 @@ def initialize(pipeline=None):
 # TODO: check_service_manager ?
 # TODO: on_connect user handler ?
 # TODO: on_message user handler ?  Note: Aiko V2 provides add_message_handler() instead
-# TODO: on_service_registrar user handler ?
+# TODO: on_registrar user handler ?
 # TODO: Implement protocol stuff, see set_protocol()
 # TODO: Implement tags stuff, e.g set_tags() ?
 
