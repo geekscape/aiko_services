@@ -118,6 +118,8 @@ def registrar_handler(_aiko, action, registrar):
             if state_machine.get_state() == "secondary":
                 state_machine.transition("primary_failed", None)
 
+    return False  # Registrar message handling not finished
+
 # --------------------------------------------------------------------------- #
 
 @click.command()

@@ -36,6 +36,8 @@
 
 # --------------------------------------------------------------------------- #
 
+from logging import DEBUG
+import sys
 import time
 import traceback
 
@@ -43,11 +45,13 @@ import aiko_services.event as event
 from aiko_services.message import MQTT
 from aiko_services.utilities.configuration import *
 from aiko_services.utilities.context import ContextManager
+from aiko_services.utilities.logger import get_logger
 from aiko_services.utilities.parser import parse
 
 # import aiko_services.framework as aks                      # TODO: Replace V1
 
 class private:
+    exit_status = 0
     message_handlers = {}
     registrar_handler = None
     stream_frame_handler = None
@@ -66,6 +70,8 @@ class public:
     topic_in = topic_path + "/in"
     topic_state = topic_path + "/state"
 
+_LOGGER = get_logger(__name__)
+
 REGISTRAR_PROTOCOL = "au.com.silverpond.protocol.registrar:0"
 REGISTRAR_TOPIC = f"{public.namespace}/service/registrar"
 
@@ -76,6 +82,7 @@ def add_message_handler(topic, message_handler):
 
 # TODO: Consider moving all registrar related code into the Registar
 def on_registrar_message(aiko_, topic, payload_in):
+    parse_okay = False
     registrar = {}
     command, parameters = parse(payload_in)
     if len(parameters) > 0:
@@ -84,15 +91,21 @@ def on_registrar_message(aiko_, topic, payload_in):
             if action == "started":
                 registrar["topic_path"] = parameters[1]
                 registrar["timestamp"] = parameters[2]
-# TODO: Join Registrar
-
+                parse_okay = True
             if action == "stopped":
-                pass
+                parse_okay = True
+
+    handler_finished = True
+    if private.registrar_handler:
+        handler_finished = private.registrar_handler(public, action, registrar)
+
+    if not handler_finished:
+        if action == "started":
+            print("REGISTRAR FOUND: JOIN")
 # TODO: If Service requires the Registrar, e.g "aiko list_services",
 #       then provide immediate callback or termination of Service
-
-    if private.registrar_handler:
-        private.registrar_handler(public, action, registrar)
+        if action == "stopped":
+            terminate(1)
 
 def set_registrar_handler(registrar_handler):
     private.registrar_handler = registrar_handler
@@ -118,22 +131,27 @@ def on_message_stream(topic, payload_in):
     return False
 
 def on_message(mqtt_client, userdata, message):
-    payload_in = message.payload.decode("utf-8")
+    try:
+        payload_in = message.payload.decode("utf-8")
+#       if _LOGGER.isEnabledFor(DEBUG):
+#           _LOGGER.debug(f"message: {message.topic}: {message.payload}")
 
-    message_handler_list = []
-    for match_topic in message.topic, "#":
-        if match_topic in private.message_handlers:
-            message_handler_list.extend(private.message_handlers[match_topic])
+        message_handler_list = []
+        for match_topic in message.topic, "#":
+            if match_topic in private.message_handlers:
+                message_handler_list.extend(private.message_handlers[match_topic])
 
-    if len(message_handler_list) > 0:
-        for message_handler in message_handler_list:
-            try:
-                if message_handler(public, message.topic, payload_in):
-                    return
-            except Exception as exception:
-                payload_out = traceback.format_exc()
-                print(payload_out)
-#               public.message.publish(public.topic_log, payload=payload_out)
+        if len(message_handler_list) > 0:
+            for message_handler in message_handler_list:
+                try:
+                    if message_handler(public, message.topic, payload_in):
+                        return
+                except Exception as exception:
+                    payload_out = traceback.format_exc()
+                    print(payload_out)
+#                   public.message.publish(public.topic_log, payload=payload_out)
+    except Exception as exception:
+        print(traceback.format_exc())
 
 def process_pipeline_arguments(pipeline=None):
     if pipeline:
@@ -189,8 +207,9 @@ def process(loop_when_no_handlers=False, pipeline=None):
     initialize(pipeline)
 #   wait_connected()
 #   wait_parameters(0)
-#   wait_terminated()
     event.loop(loop_when_no_handlers)
+    if private.exit_status:
+        sys.exit(private.exit_status)
 
 def get_parameter(name):                                     # TODO: Replace V1
 #   return aks.get_parameter(name)
@@ -207,14 +226,14 @@ def set_last_will_and_testament(lwt_topic, lwt_payload="(stopped)", lwt_retain=F
 def set_protocol(protocol):
     public.protocol = protocol
 
+def terminate(exit_status=0):
+    private.exit_status = exit_status
+    event.terminate()
+
 def wait_connected():                                        # TODO: Replace V1
 #   aks.wait_connected()
     pass
 
 def wait_parameters(level):                                  # TODO: Replace V1
 #   aks.wait_parameters(level)
-    pass
-
-def wait_terminated():                                       # TODO: Replace V1
-#   aks.wait_terminated()
     pass
