@@ -11,13 +11,13 @@
 #
 # Notes
 # ~~~~~
-# Registrar should listen on ...
+# Registrar listens for ...
 #
-# - REGISTRAR_TOPIC for "(primary started ...)" and "(primary stopped)" messages
+# - REGISTRAR_TOPIC: "(primary started ...)" and "(primary stopped)" messages
 #
-# - {topic_path}/in for "(add ...)", "(query ...)", "(remove ...)" messages
+# - {topic_path}/in: "(add ...)", "(query ...)", "(remove ...)" messages
 #
-# - {namespace}/+/+/state for "(stopped)" from register Aiko Services
+# - {namespace}/+/+/state: "(stopped)" from register Aiko Services
 #   - Will need a change to framework.py:on_message() regarding "for match_topic ..."
 #   - Need to handle endsWith("/state")
 #
@@ -140,7 +140,7 @@ def topic_in_handler(aiko, topic, payload_in):
         payload_out = payload_in
         aiko.message.publish(aiko.topic_out, payload_out)
 
-    if command == "query":
+    if command == "query":                         # TODO: TO BE COMPLETED
         for service_name, service_details in services.items():
             _LOGGER.info(f"QUERY: {service_name}: {service_details}") 
 
@@ -156,23 +156,20 @@ def service_remove(service_topic):
 
 # --------------------------------------------------------------------------- #
 
-@click.command()
-def main():
-# V2: namespace/service/registrar (primary namespace/host/pid timestamp)
-
 # TODO: Add message handler for listening for other Registars ?
+#       Add discovery protocol handler to keep a list of Registrars
 #       This means that the Aiko V2 framework should do the subscription automagically
 #       - Find the primary registrar (if it exists ?)
 #       - Query to find all other registars
-
+#
 # TODO: Add on_message_broker() handler to track MQTT connection status
 #       - Events: "add", "remove", "timeout" (waiting for connection)
 
-# TODO: Add discovery protocol handler to keep a list of Registrars
-
-    aiko.add_topic_in_handler(topic_in_handler)
+@click.command()
+def main():
     aiko.set_protocol(aiko.REGISTRAR_PROTOCOL)
     aiko.set_registrar_handler(registrar_handler)
+    aiko.add_topic_in_handler(topic_in_handler)
     state_machine.transition("initialize", None)
     aiko.process(True)
 
