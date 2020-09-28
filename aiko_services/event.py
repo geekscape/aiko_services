@@ -37,6 +37,7 @@
 # - Since handlers take time, need to adjust time.sleep() period
 # - New event types: Messages, GStreamer appsink, appsrc, serial
 
+from queue import Queue
 import time
 
 __all__ = ["add_timer_handler", "remove_timer_handler", "loop", "terminate"]
@@ -112,6 +113,8 @@ class EventList:
 event_enabled = False
 event_list = EventList()
 flatout_handlers = []
+message_queue = Queue()
+message_queue_handler = None
 
 def add_flatout_handler(handler):
     global handler_count
@@ -134,6 +137,13 @@ def remove_timer_handler(handler):
     event_list.remove(handler)
     handler_count -= 1
 
+def set_message_queue_handler(queue_handler):
+    global message_queue_handler
+    message_queue_handler = queue_handler
+
+def queue_message(message):
+    message_queue.put(message)
+
 def loop(loop_when_no_handlers=False):
     global event_enabled, timer_counter
     event_list.reset()
@@ -147,6 +157,10 @@ def loop(loop_when_no_handlers=False):
                     event.handler()
                     event_list.update()
             sleep_time = 0.001
+
+            if message_queue_handler and message_queue.qsize():
+                message_queue_handler(message_queue)
+
             if len(flatout_handlers):
                 time_start = time.time()
                 for flatout_handler in flatout_handlers:
