@@ -32,6 +32,7 @@
 #   If a new Registrar't started when the system restarts, then Aiko Clients try
 #   to use the defunct Registrar
 #
+# - Consider the ability to add, change or remove a Service's tag
 # - Implement as a sub-class of Category ?
 # - When Service fails with LWT, publish timestamp on "topic_path/state"
 #   - Maybe ProcessController should do this, rather than Registrar ?
@@ -52,10 +53,12 @@ import aiko_services.event as event
 import aiko_services.framework as aiko
 from aiko_services.state import StateMachine
 from aiko_services.utilities import get_logger
+from aiko_services.utilities.parser import parse
 
 _LOGGER = get_logger(__name__)
 _PRIMARY_SEARCH_TIMEOUT = 2.0  # seconds
 
+services = {}
 time_started = time.time()
 
 # --------------------------------------------------------------------------- #
@@ -97,14 +100,12 @@ class StateMachineModel(object):
         _LOGGER.debug("do enter_primary")
         lwt_payload = "(primary stopped)"
         aiko.set_last_will_and_testament(aiko.REGISTRAR_TOPIC, lwt_payload, True)
-        payload_out = f"(primary started {aiko.public.topic_in} {time_started})"
+        payload_out = f"(primary started {aiko.public.topic_path} {time_started})"
         aiko.public.message.publish(aiko.REGISTRAR_TOPIC, payload_out, retain=True)
 
 state_machine = StateMachine(StateMachineModel())
 
 # --------------------------------------------------------------------------- #
-
-parameter_1 = None
 
 def registrar_handler(_aiko, action, registrar):
     if action == "started":
@@ -119,6 +120,39 @@ def registrar_handler(_aiko, action, registrar):
                 state_machine.transition("primary_failed", None)
 
     return False  # Registrar message handling not finished
+
+def topic_in_handler(aiko, topic, payload_in):
+    command, parameters = parse(payload_in)         # TODO: FIX TO HANDLE TAGS
+#   _LOGGER.debug(f"topic_in_handler(): {command}: {parameters}")
+
+    if command == "add" and len(parameters) == 4:
+        service_topic = parameters[0]
+        protocol = parameters[1]
+        owner = parameters[2]
+        tags = parameters[3]
+        service_add(service_topic, protocol, owner, tags)
+        payload_out = payload_in
+        aiko.message.publish(aiko.topic_out, payload_out)
+
+    if command == "remove" and len(parameters) == 1:
+        service_topic = parameters[0]
+        service_remove(service_topic)
+        payload_out = payload_in
+        aiko.message.publish(aiko.topic_out, payload_out)
+
+    if command == "query":
+        for service_name, service_details in services.items():
+            _LOGGER.info(f"QUERY: {service_name}: {service_details}") 
+
+def service_add(service_topic, protocol, owner, tags):
+    _LOGGER.debug(f"Service add: {service_topic}")
+    service_details = { "protocol": protocol, "owner": owner, "tags": tags }
+    services[service_topic] = service_details
+
+def service_remove(service_topic):
+    if service_topic in services:
+        _LOGGER.debug(f"Service remove: {service_topic}")
+        del services[service_topic]
 
 # --------------------------------------------------------------------------- #
 
@@ -136,6 +170,7 @@ def main():
 
 # TODO: Add discovery protocol handler to keep a list of Registrars
 
+    aiko.add_topic_in_handler(topic_in_handler)
     aiko.set_protocol(aiko.REGISTRAR_PROTOCOL)
     aiko.set_registrar_handler(registrar_handler)
     state_machine.transition("initialize", None)
