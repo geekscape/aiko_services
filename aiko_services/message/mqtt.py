@@ -126,35 +126,35 @@ class MQTT(Message):
     def wait_disconnected(self) -> None:
         global _CONNECTED  # pylint: disable=global-statement
 # TODO: Only wait a limited time and either carry on without failing ... or fail and choose to reconnect to MQTT
-        _LOGGER.debug("wait disconnected")
+#       _LOGGER.debug("wait disconnected")
         for counter in range(_MAXIMUM_WAIT_TIME + 1):
             if not _CONNECTED: break
             time.sleep(0.001)
-        if counter < _MAXIMUM_WAIT_TIME:
-            _LOGGER.debug(f"wait disconnected: {counter}")
-        else:
+        if counter >= _MAXIMUM_WAIT_TIME:
             _LOGGER.error(f"wait disconnected timeout: {counter}")
+#       else:
+#           _LOGGER.debug(f"wait disconnected: {counter}")
 
     def wait_connected(self) -> None:
         global _CONNECTED  # pylint: disable=global-statement
 # TODO: Only wait a limited time and either carry on without failing ... or fail and choose to reconnect to MQTT
-        _LOGGER.debug("wait connected")
+#       _LOGGER.debug("wait connected")
         for counter in range(_MAXIMUM_WAIT_TIME + 1):
             if _CONNECTED: break
             time.sleep(0.001)
-        if counter < _MAXIMUM_WAIT_TIME:
-            _LOGGER.debug(f"wait connected: {counter}")
-        else:
+        if counter >= _MAXIMUM_WAIT_TIME:
             _LOGGER.error(f"wait connected timeout: {counter}")
+#       else:
+#           _LOGGER.debug(f"wait connected: {counter}")
 
     def wait_published(self) -> None:
         global _PUBLISHED  # pylint: disable=global-statement
 # TODO: Only wait a limited time and either carry on without failing ... or fail and choose to reconnect to MQTT
-        _LOGGER.debug("wait published")
+#       _LOGGER.debug("wait published")
         for counter in range(_MAXIMUM_WAIT_TIME + 1):
             if _PUBLISHED: break
             time.sleep(0.001)
-        if counter < _MAXIMUM_WAIT_TIME:
-            _LOGGER.debug(f"wait published: {counter}")
-        else:
+        if counter >= _MAXIMUM_WAIT_TIME:
             _LOGGER.error(f"wait published timeout: {counter}")
+#       else:
+#           _LOGGER.debug(f"wait published: {counter}")
