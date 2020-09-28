@@ -1,5 +1,10 @@
 # To Do
 # ~~~~~
+# - For standalone applications, i.e not using messages or services,
+#     don't start-up MQTT instance, because it takes time to connect
+#
+# - Add __all__ for all public functions
+#
 # - Rename "framework.py" to "service.py" and create a Service class ?
 # - Implement Aiko class with "class public variables" becoming Aiko class instance variables
 #   - "class private" becomes one of the Aiko class instance variables
@@ -66,8 +71,11 @@ class public:
     protocol = None
     service_name = None
     tags = []
+    terminate_registrar_not_found = False
     topic_path = get_namespace() + "/" + get_hostname() + "/" + get_pid()
     topic_in = topic_path + "/in"
+    topic_log = topic_path + "/log"
+    topic_out = topic_path + "/out"
     topic_state = topic_path + "/state"
 
 _LOGGER = get_logger(__name__)
@@ -79,6 +87,9 @@ def add_message_handler(topic, message_handler):
     if not topic in private.message_handlers:
         private.message_handlers[topic] = []
     private.message_handlers[topic].append(message_handler)
+
+def add_topic_in_handler(topic_handler):
+    add_message_handler(public.topic_in, topic_handler)
 
 # TODO: Consider moving all registrar related code into the Registar
 def on_registrar_message(aiko_, topic, payload_in):
@@ -99,12 +110,16 @@ def on_registrar_message(aiko_, topic, payload_in):
     if private.registrar_handler:
         handler_finished = private.registrar_handler(public, action, registrar)
 
+# TODO: Need to implement message queue processing, otherwise mqtt.wait_disconnected() doesn't work properly
+#       occasionally causing to "(primary started ...)" messages to be received, possibly because two MQTT
+#       clients are running at the same time (first one hasn't fully disconnected yet)
     if not handler_finished:
-        if action == "started":
-            print("REGISTRAR FOUND: JOIN")
-# TODO: If Service requires the Registrar, e.g "aiko list_services",
-#       then provide immediate callback or termination of Service
-        if action == "stopped":
+        if action == "started":  # TODO: Temporary workaround, watch out for duplicate messages !
+            if public.protocol:
+                tags = ' '.join([str(tag) for tag in public.tags])
+                payload_out = f"(add {public.topic_path} {public.protocol} {get_username()} ({tags}))"
+                public.message.publish(registrar["topic_path"] + "/in", payload=payload_out)
+        if action == "stopped" and public.terminate_registrar_not_found == True:
             terminate(1)
 
 def set_registrar_handler(registrar_handler):
@@ -133,8 +148,8 @@ def on_message_stream(topic, payload_in):
 def on_message(mqtt_client, userdata, message):
     try:
         payload_in = message.payload.decode("utf-8")
-#       if _LOGGER.isEnabledFor(DEBUG):
-#           _LOGGER.debug(f"message: {message.topic}: {message.payload}")
+        if _LOGGER.isEnabledFor(DEBUG):
+            _LOGGER.debug(f"message: {message.topic}: {payload_in}")
 
         message_handler_list = []
         for match_topic in message.topic, "#":
@@ -182,10 +197,8 @@ def initialize(pipeline=None):
 #       tags=public.tags
 #   )
 
-# TODO: check_service_manager ?
 # TODO: on_connect user handler ?
 # TODO: on_message user handler ?  Note: Aiko V2 provides add_message_handler() instead
-# TODO: on_registrar user handler ?
 # TODO: Implement protocol stuff, see set_protocol()
 # TODO: Implement tags stuff, e.g set_tags() ?
 
@@ -200,8 +213,6 @@ def initialize(pipeline=None):
 # TODO: Wait for and connect to message broker and handle failure, discovery and reconnection
 
 #   public.parameters = public.aks_info.parameters           # TODO: Replace V1
-#   public.topic_log = public.aks_info.TOPIC_LOG             # TODO: Replace V1
-#   public.topic_out = public.aks_info.TOPIC_OUT             # TODO: Replace V1
 
 def process(loop_when_no_handlers=False, pipeline=None):
     initialize(pipeline)
@@ -211,6 +222,9 @@ def process(loop_when_no_handlers=False, pipeline=None):
     if private.exit_status:
         sys.exit(private.exit_status)
 
+def add_tags(tags):
+    for tag in tags: public.tags.append(tag)
+
 def get_parameter(name):                                     # TODO: Replace V1
 #   return aks.get_parameter(name)
     return None
@@ -218,13 +232,16 @@ def get_parameter(name):                                     # TODO: Replace V1
 def parse_tags(tags_string):
     if tags_string:
         tags = tags_string.split(",")
-        for tag in tags: public.tags.append(tag)
+        add_tags(tags)
 
 def set_last_will_and_testament(lwt_topic, lwt_payload="(stopped)", lwt_retain=False):
     public.message.set_last_will_and_testament(lwt_topic, lwt_payload, lwt_retain)
 
 def set_protocol(protocol):
     public.protocol = protocol
+
+def set_terminate_registrar_not_found(terminate_registrar_not_found):
+    public.terminate_registrar_not_found = terminate_registrar_not_found
 
 def terminate(exit_status=0):
     private.exit_status = exit_status
