@@ -3,10 +3,11 @@
 # - Implement discovery for finding the default namespace
 #   - Define a NameSpace class for holding information about a specific namespace
 
+import getpass
 import os
 import socket
 
-__all__ = ["get_hostname", "get_namespace", "get_pid"]
+__all__ = ["get_hostname", "get_namespace", "get_pid", "get_username"]
 
 DEFAULT_NAMESPACE="test"
 
@@ -20,4 +21,7 @@ def get_namespace():
     return DEFAULT_NAMESPACE
 
 def get_pid():
-  return str(os.getpid())
+    return str(os.getpid())
+
+def get_username():
+    return getpass.getuser()
