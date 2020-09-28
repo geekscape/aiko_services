@@ -146,8 +146,18 @@ def on_message_stream(topic, payload_in):
     return False
 
 def on_message(mqtt_client, userdata, message):
+    payload_in = message.payload.decode("utf-8")
+    _LOGGER.info(f"### on_message(): {message.topic}: {payload_in}")
     try:
+        event.queue_message(message)
+    except Exception as exception:
+        print(traceback.format_exc())
+
+def process_message_queue(message_queue):
+    while message_queue.qsize():
+        message = message_queue.get()
         payload_in = message.payload.decode("utf-8")
+        _LOGGER.info(f"### process_message_queue(): {message.topic}: {payload_in}")
         if _LOGGER.isEnabledFor(DEBUG):
             _LOGGER.debug(f"message: {message.topic}: {payload_in}")
 
@@ -165,8 +175,6 @@ def on_message(mqtt_client, userdata, message):
                     payload_out = traceback.format_exc()
                     print(payload_out)
 #                   public.message.publish(public.topic_log, payload=payload_out)
-    except Exception as exception:
-        print(traceback.format_exc())
 
 def process_pipeline_arguments(pipeline=None):
     if pipeline:
@@ -203,6 +211,7 @@ def initialize(pipeline=None):
 # TODO: Implement tags stuff, e.g set_tags() ?
 
     add_message_handler(REGISTRAR_TOPIC, on_registrar_message)
+    event.set_message_queue_handler(process_message_queue)
 
     lwt_topic = public.topic_state
     lwt_payload = "(stopped)"
