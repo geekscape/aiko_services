@@ -37,6 +37,10 @@ _CONFIGURATION = {
             "handlers": ["h"],
             "level": "DEBUG"
         },
+        "MESSAGE": { 
+            "handlers": ["h"],
+            "level": "INFO"
+        },
         "MQTT": { 
             "handlers": ["h"],
             "level": "INFO"

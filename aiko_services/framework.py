@@ -79,6 +79,7 @@ class public:
     topic_state = topic_path + "/state"
 
 _LOGGER = get_logger(__name__)
+_LOGGER_MESSAGE = get_logger("MESSAGE")
 
 REGISTRAR_PROTOCOL = "au.com.silverpond.protocol.registrar:0"
 REGISTRAR_TOPIC = f"{public.namespace}/service/registrar"
@@ -146,8 +147,6 @@ def on_message_stream(topic, payload_in):
     return False
 
 def on_message(mqtt_client, userdata, message):
-    payload_in = message.payload.decode("utf-8")
-    _LOGGER.info(f"### on_message(): {message.topic}: {payload_in}")
     try:
         event.queue_message(message)
     except Exception as exception:
@@ -157,9 +156,8 @@ def process_message_queue(message_queue):
     while message_queue.qsize():
         message = message_queue.get()
         payload_in = message.payload.decode("utf-8")
-        _LOGGER.info(f"### process_message_queue(): {message.topic}: {payload_in}")
-        if _LOGGER.isEnabledFor(DEBUG):
-            _LOGGER.debug(f"message: {message.topic}: {payload_in}")
+        if _LOGGER_MESSAGE.isEnabledFor(DEBUG):
+            _LOGGER_MESSAGE.debug(f"topic: {message.topic}, payload: {payload_in}")
 
         message_handler_list = []
         for match_topic in message.topic, "#":
