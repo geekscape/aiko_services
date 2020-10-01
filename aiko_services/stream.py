@@ -6,7 +6,7 @@
 # ~~~~~~~~~~~~~
 # swag: One's personal bundle of belongings (Australian lingo)
 # SWAG: Stuff We All Get
-# SWAG: Scientific Wild Arse Guess :)
+# SWAG: https://en.wikipedia.org/wiki/Scientific_wild-ass_guess :)
 
 import abc
 from enum import Enum

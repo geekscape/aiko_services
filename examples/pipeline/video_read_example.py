@@ -7,6 +7,9 @@
 # To Do
 # ~~~~~
 # - Add CLI arguments !
+# - Put try...except around "import opencv" to provide simple error message
+# - Split into video_opencv.py, video_scikit.py, video_gstreamer.py, etc
+# - Ensure video_opencv.py uses asyncio and doesn't block !
 
 import aiko_services.event as event
 # import aiko_services.framework as aiko
@@ -19,7 +22,8 @@ VIDEO_PATHNAME = "astra.mp4"
 WINDOW_LOCATION = (50, 50)
 WINDOW_TITLE = "Astra"
 
-COMPONENT_SOURCE_VIDEO = "../../aiko_services/media/video.py"
+AIKO_SERVICES_PATHNAME = "../../aiko_services/"
+COMPONENT_SOURCE_VIDEO = AIKO_SERVICES_PATHNAME + "media/video.py"
 
 pipeline_definition = [
     {   "name": "VideoReadFile", "source": COMPONENT_SOURCE_VIDEO,

@@ -54,7 +54,6 @@ class Pipeline():
         head_node_name = None
         if self.graph.number_of_nodes():
             head_node_name = self.get_node_names()[0]
-        head_node_name = "VideoReadFile"
         return head_node_name
 
     def get_module_pathnames(self):
