@@ -23,7 +23,7 @@ WINDOW_LOCATION = (50, 50)
 WINDOW_TITLE = "Astra"
 
 AIKO_SERVICES_PATHNAME = "../../aiko_services/"
-COMPONENT_SOURCE_VIDEO = AIKO_SERVICES_PATHNAME + "media/video.py"
+COMPONENT_SOURCE_VIDEO = AIKO_SERVICES_PATHNAME + "media/video_io.py"
 
 pipeline_definition = [
     {   "name": "VideoReadFile", "source": COMPONENT_SOURCE_VIDEO,
