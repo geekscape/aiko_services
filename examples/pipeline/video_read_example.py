@@ -22,8 +22,8 @@ VIDEO_PATHNAME = "astra.mp4"
 WINDOW_LOCATION = (50, 50)
 WINDOW_TITLE = "Astra"
 
-AIKO_SERVICES_PATHNAME = "../../aiko_services/"
-COMPONENT_SOURCE_VIDEO = AIKO_SERVICES_PATHNAME + "media/video_io.py"
+# TODO [Josh]: Import from module.path syntax
+COMPONENT_SOURCE_VIDEO = "../../aiko_services/media/video_io.py"
 
 pipeline_definition = [
     {   "name": "VideoReadFile", "source": COMPONENT_SOURCE_VIDEO,

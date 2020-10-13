@@ -1,6 +1,6 @@
 import os
 import re
-from setuptools import setup
+from setuptools import find_packages, setup
 
 re_version = re.compile(r".*__version__ = [\'\"](.*?)[\'\"]", re.S)
 base_path = os.path.dirname(__file__)
@@ -23,7 +23,7 @@ setup(
     author="Andy Gelme",
     author_email="info@silverpond.com.au",
     packages=[
-        base_package,
+        find_packages(),
     ],
     install_requires=[
         "click>=7.0",
