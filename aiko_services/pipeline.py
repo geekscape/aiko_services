@@ -27,19 +27,29 @@ class Pipeline():
     def __init__(self, pipeline_definition, frame_rate = 0):
         self.frame_rate = frame_rate
 
-# TODO: Ensure that all nodes have a "source" attribute
         self.graph = nx.DiGraph(version=0)
+        nodes = self.graph.nodes
         for node in pipeline_definition:
             node_name = node["name"]
-            node_source = node["source"]
-            node_successors = node["successors"]
-            self.graph.add_node(node_name, source=node_source)
-            if node_successors:
-                for node_successor in node_successors:
+            if node_name in nodes and "source" in self.get_node(node_name):
+                raise ValueError(f"Duplicate pipeline element: {node_name}")
+
+            if "source" in node:
+                self.graph.add_node(node_name, source=node["source"])
+            else:
+                raise ValueError(f"Pipeline element missing 'source': {node_name}")
+
+            if "successors" in node:
+                for node_successor in node["successors"]:
                     self.graph.add_edge(node_name, node_successor)
+
             if "parameters" in node:
                 self.get_node(node_name)["parameters"] = node["parameters"]
-# TODO: pass "parameters" to StreamElement.__init__() ?
+
+        for node_name in self.get_node_names():
+          for successor in self.get_node_successors(node_name):
+              if "source" not in self.get_node(successor):
+                  raise ValueError(f"Pipeline element successor not defined: {node_name} --> {successor}")
 
         self.load_node_modules()
         self.pipeline_start()
@@ -86,9 +96,7 @@ class Pipeline():
         for node_name, module in node_names_modules.items():
             if module:
                 node = self.get_node(node_name)
-                node_parameters = {}
-                if "parameters" in node:
-                    node_parameters = node.get("parameters", None)
+                node_parameters = node.get("parameters", {})
                 node_predecessors = self.get_node_predecessors(node_name)
                 class_ = getattr(module, node_name)
                 node["instance"] = class_(node_name, node_parameters, node_predecessors)
