@@ -18,7 +18,7 @@
 
 # this import allows us to specify the class itself as return type
 # eg  def activate(self) -> ContextManager
-from __future__ import annotations
+
 from typing import Any
 
 __all__ = ["ContextManager", "get_context"]
@@ -32,13 +32,13 @@ class ContextManager:
         self.message = message
         self.activate()
 
-    def activate(self) -> ContextManager:
+    def activate(self) -> "ContextManager":
         # pylint: disable=global-statement
         global _CONTEXT
         _CONTEXT = self
         return self
 
-    def __enter__(self) -> ContextManager:
+    def __enter__(self) -> "ContextManager":
         return self.activate()
 
     def __exit__(self, *args: Any) -> None:
