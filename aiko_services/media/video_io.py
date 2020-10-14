@@ -65,8 +65,10 @@ class VideoShow(StreamElement):
 class VideoWriteFile(StreamElement):
     def stream_start_handler(self, swag):
         self.logger.debug("stream_start_handler()")
-        self.video_format = self.parameters.get("video_format", "MP4V")
         self.image_shape = None
+        self.video_format = self.parameters.get("video_format", "MP4V")
+        self.video_frame_rate = self.parameters["video_frame_rate"]
+        self.video_pathname = self.parameters["video_pathname"]
         self.video_writer = None
         return True, None
 
@@ -88,9 +90,9 @@ class VideoWriteFile(StreamElement):
             if self.image_shape is None:
                 self.image_shape = (image_rgb.shape[1], image_rgb.shape[0])
             self.video_writer = self._init_video_writer(
-                    self.parameters["video_pathname"],
-                    self.parameters["video_format"],
-                    self.parameters["frame_rate"],
+                    self.video_pathname,
+                    self.video_format,
+                    self.video_frame_rate,
                     self.image_shape)
 
         self.video_writer.write(image_bgr)
