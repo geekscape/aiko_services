@@ -2,7 +2,7 @@
 #
 # Usage
 # ~~~~~
-# LOG_LEVEL=DEBUG ./video_read_example.py
+# LOG_LEVEL=DEBUG ./video_example.py
 #
 # To Do
 # ~~~~~
@@ -18,31 +18,31 @@ from aiko_services.utilities import get_logger
 
 # FRAME_RATE = 0   # Process flat-out without delay
 FRAME_RATE = 0.05  # 20 FPS
-VIDEO_PATHNAME = "astra.mp4"
+VIDEO_INPUT_PATHNAME = "astra.mp4"
 WINDOW_LOCATION = (50, 50)
 WINDOW_TITLE = "Astra"
 
 # TODO [Josh]: Import from module.path syntax
+COMPONENT_SOURCE_IMAGE = "../../aiko_services/media/image_io.py"
 COMPONENT_SOURCE_VIDEO = "../../aiko_services/media/video_io.py"
 
 pipeline_definition = [
     {   "name": "VideoReadFile", "source": COMPONENT_SOURCE_VIDEO,
         "successors": ["ImageAnnotate1", "ImageAnnotate2"],
         "parameters": {
-            "video_pathname": VIDEO_PATHNAME
+            "video_pathname": VIDEO_INPUT_PATHNAME
         }
     },
-    {   "name": "ImageAnnotate1", "source": COMPONENT_SOURCE_VIDEO,
+    {   "name": "ImageAnnotate1", "source": COMPONENT_SOURCE_IMAGE,
         "successors": ["ImageOverlay"]
     },
-    {   "name": "ImageAnnotate2", "source": COMPONENT_SOURCE_VIDEO,
+    {   "name": "ImageAnnotate2", "source": COMPONENT_SOURCE_IMAGE,
         "successors": ["ImageOverlay"]
     },
-    {   "name": "ImageOverlay", "source": COMPONENT_SOURCE_VIDEO,
-        "successors": ["ImageShow"]
+    {   "name": "ImageOverlay", "source": COMPONENT_SOURCE_IMAGE,
+        "successors": ["VideoShow"]
     },
-    {   "name": "ImageShow", "source": COMPONENT_SOURCE_VIDEO,
-        "successors": None,
+    {   "name": "VideoShow", "source": COMPONENT_SOURCE_VIDEO,
         "parameters": {
             "window_location": WINDOW_LOCATION,
             "window_title": WINDOW_TITLE

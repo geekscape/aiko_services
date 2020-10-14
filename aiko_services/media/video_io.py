@@ -25,12 +25,13 @@ class VideoReadFile(StreamElement):
 
     def stream_frame_handler(self, swag):
         if self.video_capture.isOpened():
-            success, image = self.video_capture.read()
+            success, image_bgr = self.video_capture.read()
             if success == True:
                 self.logger.debug(f"stream_frame_handler(): frame_id: {self.frame_id}")
+                image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
                 if self.frame_id % 10 == 0:
                     print(f"Frame Id: {self.frame_id}", end="\r")
-                return True, {"image": image}
+                return True, {"image": image_rgb}
             else:
                 self.logger.debug(f"End of video")
         return False, None
@@ -44,16 +45,17 @@ class VideoReadFile(StreamElement):
 class VideoShow(StreamElement):
     def stream_frame_handler(self, swag):
         self.logger.debug(f"stream_frame_handler(): frame_id: {self.frame_id}")
-        image = swag[self.predecessor]["image"]
         title = self.parameters["window_title"]
-        cv2.imshow(title, image)
+        image_rgb = swag[self.predecessor]["image"]
+        image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2RGB)
+        cv2.imshow(title, image_bgr)
         if self.frame_id == 0:
             window_x = self.parameters["window_location"][0]
             window_y = self.parameters["window_location"][1]
             cv2.moveWindow(title, window_x, window_y)
         if cv2.waitKey(1) & 0xFF == ord("q"):
             return False, None
-        return True, None
+        return True, {"image": image_rgb}
 
     def stream_stop_handler(self, swag):
         self.logger.debug("stream_stop()")
@@ -79,19 +81,20 @@ class VideoWriteFile(StreamElement):
 
     def stream_frame_handler(self, swag):
         self.logger.debug(f"stream_frame_handler(): frame_id: {self.frame_id}")
-        image = swag[self.predecessor]["image"]
+        image_rgb = swag[self.predecessor]["image"]
+        image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2RGB)
 
         if self.video_writer is None:
             if self.image_shape is None:
-                self.image_shape = (image.shape[1], image.shape[0])
+                self.image_shape = (image_rgb.shape[1], image_rgb.shape[0])
             self.video_writer = self._init_video_writer(
                     self.parameters["video_pathname"],
                     self.parameters["video_format"],
                     self.parameters["frame_rate"],
                     self.image_shape)
 
-        self.video_writer.write(image)
-        return True, None
+        self.video_writer.write(image_bgr)
+        return True, {"image": image_rgb}
 
     def stream_stop_handler(self, swag):
         self.logger.debug("stream_stop()")
