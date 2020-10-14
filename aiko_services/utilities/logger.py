@@ -32,24 +32,28 @@ _CONFIGURATION = {
                "formatter": "f"
         }
     },
-    "loggers": { 
-        "": { 
+    "loggers": {
+        "": {
             "handlers": ["h"],
             "level": "DEBUG"
         },
-        "MESSAGE": { 
+        "MESSAGE": {
             "handlers": ["h"],
             "level": "INFO"
         },
-        "MQTT": { 
+        "MQTT": {
             "handlers": ["h"],
             "level": "INFO"
         },
-        "STATE": { 
+        "PIL.PngImagePlugin": {
             "handlers": ["h"],
             "level": "INFO"
         },
-        "transitions.core": { 
+        "STATE": {
+            "handlers": ["h"],
+            "level": "INFO"
+        },
+        "transitions.core": {
             "level": "ERROR"
         }
     }
