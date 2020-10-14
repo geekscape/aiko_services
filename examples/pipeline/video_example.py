@@ -51,11 +51,11 @@ pipeline_definition = [
 ]
 
 _LOGGER = get_logger(__name__)
+pipeline = Pipeline(pipeline_definition, FRAME_RATE)
 
 def timer_test():
     _LOGGER.debug("Timer test")
 # event.add_timer_handler(timer_test, 0.1)
 
-pipeline = Pipeline(pipeline_definition, FRAME_RATE)
 _LOGGER.debug(f"pipeline: {pipeline}")
 event.loop()  # aiko.process()

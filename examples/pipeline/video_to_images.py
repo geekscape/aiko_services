@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+#
+# Usage
+# ~~~~~
+# LOG_LEVEL=DEBUG ./video_to_images.py
+#
+# To Do
+# ~~~~~
+# - Add CLI arguments !
+
+import aiko_services.event as event
+# import aiko_services.framework as aiko
+from aiko_services.pipeline import Pipeline
+from aiko_services.utilities import get_logger
+
+FRAME_RATE = 0   # Process flat-out without delay
+IMAGE_OUTPUT_PATHNAME = "z_output/image_{:06d}.jpg"
+VIDEO_INPUT_PATHNAME = "astra_brief.mp4"
+
+COMPONENT_SOURCE_VIDEO = "../../aiko_services/media/video_io.py"
+COMPONENT_SOURCE_IMAGE = "../../aiko_services/media/image_io.py"
+
+pipeline_definition = [
+    {   "name": "VideoReadFile", "source": COMPONENT_SOURCE_VIDEO,
+        "successors": ["ImageOverlay"],
+        "parameters": {
+            "video_pathname": VIDEO_INPUT_PATHNAME
+        }
+    },
+    {   "name": "ImageOverlay", "source": COMPONENT_SOURCE_IMAGE,
+        "successors": ["ImageWriteFile"],
+        "parameters": {
+        "colors": {
+            "astra": (100, 0, 0),
+            "bailey": (0, 100, 0),
+            "ty": (0, 0, 100)
+            },
+        "text_color": "yellow"
+        }
+    },
+    {   "name": "ImageWriteFile", "source": COMPONENT_SOURCE_IMAGE,
+        "parameters": {
+            "image_pathname": IMAGE_OUTPUT_PATHNAME
+        }
+    }
+]
+
+_LOGGER = get_logger(__name__)
+pipeline = Pipeline(pipeline_definition, FRAME_RATE)
+
+_LOGGER.debug(f"pipeline: {pipeline}")
+event.loop()  # aiko.process()
