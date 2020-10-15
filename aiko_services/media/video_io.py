@@ -101,6 +101,7 @@ class VideoWriteFile(StreamElement):
 
     def stream_stop_handler(self, swag):
         self.logger.debug("stream_stop()")
-        self.video_writer.release()
-        self.video_writer = None
+        if self.video_writer:
+            self.video_writer.release()
+            self.video_writer = None
         return True, None
