@@ -19,13 +19,15 @@ from queue import Queue
 import time
 
 import aiko_services.event as event
+from aiko_services.stream import StreamElementState
 from aiko_services.utilities import load_modules
 
 __all__ = ["Pipeline"]
 
 class Pipeline():
-    def __init__(self, pipeline_definition, frame_rate = 0):
+    def __init__(self, pipeline_definition, frame_rate = 0, state_machine = None):
         self.frame_rate = frame_rate
+        self.state_machine = state_machine
 
         self.graph = nx.DiGraph(version=0)
         nodes = self.graph.nodes
@@ -34,20 +36,28 @@ class Pipeline():
             if node_name in nodes and "module" in self.get_node(node_name):
                 raise ValueError(f"Duplicate pipeline element: {node_name}")
 
+            if "successors" not in node:
+                node["successors"] = {"default": []}
+            if isinstance(node["successors"], list):
+                node["successors"] = {"default": node["successors"]}
+            if not isinstance(node["successors"], dict):
+                raise ValueError(f"Pipeline element successor must be list or dict: {node_name}")
+
             if "module" in node:
-                self.graph.add_node(node_name, module=node["module"])
+                self.graph.add_node(node_name, module=node["module"], successors=node["successors"])
             else:
                 raise ValueError(f"Pipeline element missing 'module': {node_name}")
 
             if "successors" in node:
-                for node_successor in node["successors"]:
-                    self.graph.add_edge(node_name, node_successor)
+                for successors in node["successors"].values():
+                    for successor in successors:
+                        self.graph.add_edge(node_name, successor)
 
             if "parameters" in node:
                 self.get_node(node_name)["parameters"] = node["parameters"]
 
         for node_name in self.get_node_names():
-          for successor in self.get_node_successors(node_name):
+          for successor in self.get_node_successors(node_name, based_on_state=False):
               if "module" not in self.get_node(successor):
                   raise ValueError(f"Pipeline element successor not defined: {node_name} --> {successor}")
 
@@ -85,21 +95,29 @@ class Pipeline():
     def get_node_predecessors(self, node_name):
         return list(self.graph.predecessors(node_name))
 
-    def get_node_successors(self, node_name):
-        return list(self.graph.successors(node_name))
+    def get_node_successors(self, node_name, based_on_state=True):
+        if based_on_state and self.state_machine:
+            state = self.state_machine.get_state()
+            node_successors = self.get_node(node_name)["successors"]
+            if state not in node_successors:
+                state = "default"
+            successors = node_successors[state]
+        else:
+            successors = list(self.graph.successors(node_name))
+        return successors
 
     def load_node_modules(self):
         module_pathnames = self.get_module_pathnames()
         modules = load_modules(module_pathnames)
 
-        node_names_modules = dict(zip(self.get_node_names(), modules)) 
+        node_names_modules = dict(zip(self.get_node_names(), modules))
         for node_name, module in node_names_modules.items():
             if module:
                 node = self.get_node(node_name)
                 node_parameters = node.get("parameters", {})
                 node_predecessors = self.get_node_predecessors(node_name)
                 class_ = getattr(module, node_name)
-                node["instance"] = class_(node_name, node_parameters, node_predecessors)
+                node["instance"] = class_(node_name, node_parameters, node_predecessors, self.state_machine)
 
     def pipeline_handler(self):
         head_node_name = self.get_head_node_name()
@@ -122,17 +140,17 @@ class Pipeline():
 
             if node_name not in processed_nodes:
                 node = self.get_node(node_name)
-                if node["instance"].handler:
-                    if not stream_processing:
-                        node["instance"].update_state(stream_processing)
-                    okay, output = node["instance"].handler(process_frame.swag)
-                    if not okay:
-                        break
-                    node["instance"].update_state(stream_processing)
-                    process_frame.swag[node_name] = output
-                    processed_nodes.add(node_name)
-                for successor_name in self.get_node_successors(node_name):
+                if not stream_processing:
+                    node["instance"].update_stream_state(stream_processing)
+                okay, output = node["instance"].handler(process_frame.swag)
+                processed_nodes.add(node_name)
+                process_frame.swag[node_name] = output
+                if not okay:
+                    break
+                based_on_state = node["instance"].get_stream_state() == StreamElementState.RUN
+                for successor_name in self.get_node_successors(node_name, based_on_state=based_on_state):
                     process_queue.put(ProcessFrame(successor_name), block=False)
+                node["instance"].update_stream_state(stream_processing)
         return okay
 
     def pipeline_start(self):

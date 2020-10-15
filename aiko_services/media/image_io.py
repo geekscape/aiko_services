@@ -13,19 +13,19 @@ __all__ = ["ImageAnnotate1", "ImageAnnotate2", "ImageOverlay", "ImageReadFile", 
 
 class ImageAnnotate1(StreamElement):
     def stream_frame_handler(self, swag):
-        self.logger.debug(f"stream_frame_handler(): frame_id: {self.frame_id}")
+        self.logger.debug(f"stream_frame_handler(): frame_count: {self.frame_count}")
         image = swag[self.predecessor]["image"]
         return True, {"image": image}
 
 class ImageAnnotate2(StreamElement):
     def stream_frame_handler(self, swag):
-        self.logger.debug(f"stream_frame_handler(): frame_id: {self.frame_id}")
+        self.logger.debug(f"stream_frame_handler(): frame_count: {self.frame_count}")
         image = swag[self.predecessor]["image"]
         return True, {"image": image}
 
 class ImageOverlay(StreamElement):
     def stream_frame_handler(self, swag):
-        self.logger.debug(f"stream_frame_handler(): frame_id: {self.frame_id}")
+        self.logger.debug(f"stream_frame_handler(): frame_count: {self.frame_count}")
         image = swag[self.predecessor]["image"]
         return True, {"image": image}
 
@@ -40,16 +40,16 @@ class ImageReadFile(StreamElement):
         return True, None
 
     def stream_frame_handler(self, swag):
-        image_path = self.image_pathname.format(self.frame_id)
+        image_path = self.image_pathname.format(self.frame_count)
         try:
             image = np.asarray(Image.open(image_path), dtype=np.uint8)
         except Exception:
             self.logger.debug(f"End of images")
             return False, None
 
-        self.logger.debug(f"stream_frame_handler(): frame_id: {self.frame_id}")
-        if self.frame_id % 10 == 0:
-            print(f"Frame Id: {self.frame_id}", end="\r")
+        self.logger.debug(f"stream_frame_handler(): frame_count: {self.frame_count}")
+        if self.frame_count % 10 == 0:
+            print(f"Frame Id: {self.frame_count}", end="\r")
         return True, {"image": image}
 
 class ImageWriteFile(StreamElement):
@@ -60,9 +60,9 @@ class ImageWriteFile(StreamElement):
         return True, None
 
     def stream_frame_handler(self, swag):
-        self.logger.debug(f"stream_frame_handler(): frame_id: {self.frame_id}")
+        self.logger.debug(f"stream_frame_handler(): frame_count: {self.frame_count}")
         image = swag[self.predecessor]["image"]
         pil_image = Image.fromarray(image)
 # TODO: Error handling
-        pil_image.save(self.image_pathname.format(self.frame_id))
+        pil_image.save(self.image_pathname.format(self.frame_count))
         return True, None

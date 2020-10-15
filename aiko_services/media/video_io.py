@@ -28,10 +28,10 @@ class VideoReadFile(StreamElement):
         if self.video_capture.isOpened():
             success, image_bgr = self.video_capture.read()
             if success == True:
-                self.logger.debug(f"stream_frame_handler(): frame_id: {self.frame_id}")
+                self.logger.debug(f"stream_frame_handler(): frame_count: {self.frame_count}")
                 image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-                if self.frame_id % 10 == 0:
-                    print(f"Frame Id: {self.frame_id}", end="\r")
+                if self.frame_count % 10 == 0:
+                    print(f"Frame Id: {self.frame_count}", end="\r")
                 return True, {"image": image_rgb}
             else:
                 self.logger.debug(f"End of video")
@@ -45,12 +45,12 @@ class VideoReadFile(StreamElement):
 
 class VideoShow(StreamElement):
     def stream_frame_handler(self, swag):
-        self.logger.debug(f"stream_frame_handler(): frame_id: {self.frame_id}")
+        self.logger.debug(f"stream_frame_handler(): frame_count: {self.frame_count}")
         title = self.parameters["window_title"]
         image_rgb = swag[self.predecessor]["image"]
         image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2RGB)
         cv2.imshow(title, image_bgr)
-        if self.frame_id == 0:
+        if self.frame_count == 0:
             window_x = self.parameters["window_location"][0]
             window_y = self.parameters["window_location"][1]
             cv2.moveWindow(title, window_x, window_y)
@@ -83,7 +83,7 @@ class VideoWriteFile(StreamElement):
                 image_shape)
 
     def stream_frame_handler(self, swag):
-        self.logger.debug(f"stream_frame_handler(): frame_id: {self.frame_id}")
+        self.logger.debug(f"stream_frame_handler(): frame_count: {self.frame_count}")
         image_rgb = swag[self.predecessor]["image"]
         image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2RGB)
 

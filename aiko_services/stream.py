@@ -22,28 +22,32 @@ class StreamElementState(Enum):
     COMPLETE = 3
 
 class StreamElement(abc.ABC):
-    def __init__(self, name, parameters, predecessors):
+    def __init__(self, name, parameters, predecessors, pipeline_state_machine):
         self.name = name
         self.parameters = parameters
         self.predecessors = predecessors
         if predecessors:
             self.predecessor = predecessors[0]
-        self.frame_id = 0
+        self.pipeline_state_machine = pipeline_state_machine
+        self.frame_count = 0
         self.handler = self.stream_start_handler
         self.logger = get_logger(self.name)
-        self.state = StreamElementState.START
+        self.stream_state = StreamElementState.START
 
-    def update_state(self, stream_processing):
+    def get_stream_state(self):
+        return self.stream_state
+
+    def update_stream_state(self, stream_processing):
         if stream_processing:
-            if self.state == StreamElementState.START:
+            if self.stream_state == StreamElementState.START:
                 self.handler = self.stream_frame_handler
-                self.state = StreamElementState.RUN
+                self.stream_state = StreamElementState.RUN
             else:
-                self.frame_id += 1
+                self.frame_count += 1
         else:
-            if self.state == StreamElementState.STOP:
+            if self.stream_state == StreamElementState.STOP:
                 self.handler = None
-                self.state = StreamElementState.COMPLETE
+                self.stream_state = StreamElementState.COMPLETE
             else:
                 self.handler = self.stream_stop_handler
                 self.state = StreamElementState.STOP
@@ -53,7 +57,7 @@ class StreamElement(abc.ABC):
         return True, None
 
     def stream_frame_handler(self, swag):
-        self.logger.debug(f"stream_frame_handler(): frame_id: {self.frame_id}")
+        self.logger.debug(f"stream_frame_handler(): frame_count: {self.frame_count}")
         return True, None
 
     def stream_stop_handler(self, swag):
