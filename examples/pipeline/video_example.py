@@ -23,8 +23,8 @@ WINDOW_LOCATION = (50, 50)
 WINDOW_TITLE = "Astra"
 
 # TODO [Josh]: Import from module.path syntax
-ELEMENTS_IMAGE = "../../aiko_services/media/image_io.py"
-ELEMENTS_VIDEO = "../../aiko_services/media/video_io.py"
+ELEMENTS_IMAGE = "aiko_services.media.image_io"
+ELEMENTS_VIDEO = "aiko_services.media.video_io"
 
 pipeline_definition = [
     {   "name": "VideoReadFile", "module": ELEMENTS_VIDEO,

@@ -17,8 +17,8 @@ FRAME_RATE = 0   # Process flat-out without delay
 IMAGE_OUTPUT_PATHNAME = "z_output/image_{:06d}.jpg"
 VIDEO_INPUT_PATHNAME = "astra_brief.mp4"
 
-ELEMENTS_VIDEO = "../../aiko_services/media/video_io.py"
-ELEMENTS_IMAGE = "../../aiko_services/media/image_io.py"
+ELEMENTS_VIDEO = "aiko_services.media.video_io"
+ELEMENTS_IMAGE = "aiko_services.media.image_io"
 
 pipeline_definition = [
     {   "name": "VideoReadFile", "module": ELEMENTS_VIDEO,
