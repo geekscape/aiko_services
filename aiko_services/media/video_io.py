@@ -22,6 +22,10 @@ class VideoReadFile(StreamElement):
         if (self.video_capture.isOpened() == False):
             self.logger.error(f"Couldn't open video file: {video_pathname}")
             return False, None
+
+        self.state_change = None
+        if self.pipeline_state_machine and "state_change" in self.parameters:
+            self.state_change = self.parameters["state_change"]
         return True, None
 
     def stream_frame_handler(self, swag):
@@ -32,6 +36,10 @@ class VideoReadFile(StreamElement):
                 image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
                 if self.frame_count % 10 == 0:
                     print(f"Frame Id: {self.frame_count}", end="\r")
+
+                if self.state_change:
+                    if self.frame_count == self.state_change[0]:
+                        self.pipeline_state_machine.transition(self.state_change[1], None)
                 return True, {"image": image_rgb}
             else:
                 self.logger.debug(f"End of video")
