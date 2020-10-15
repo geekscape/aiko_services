@@ -31,13 +31,13 @@ class Pipeline():
         nodes = self.graph.nodes
         for node in pipeline_definition:
             node_name = node["name"]
-            if node_name in nodes and "source" in self.get_node(node_name):
+            if node_name in nodes and "module" in self.get_node(node_name):
                 raise ValueError(f"Duplicate pipeline element: {node_name}")
 
-            if "source" in node:
-                self.graph.add_node(node_name, source=node["source"])
+            if "module" in node:
+                self.graph.add_node(node_name, module=node["module"])
             else:
-                raise ValueError(f"Pipeline element missing 'source': {node_name}")
+                raise ValueError(f"Pipeline element missing 'module': {node_name}")
 
             if "successors" in node:
                 for node_successor in node["successors"]:
@@ -48,7 +48,7 @@ class Pipeline():
 
         for node_name in self.get_node_names():
           for successor in self.get_node_successors(node_name):
-              if "source" not in self.get_node(successor):
+              if "module" not in self.get_node(successor):
                   raise ValueError(f"Pipeline element successor not defined: {node_name} --> {successor}")
 
         self.load_node_modules()
@@ -69,7 +69,7 @@ class Pipeline():
     def get_module_pathnames(self):
         module_pathnames = []
         for node in list(self.graph.nodes.data()):
-            module_pathname = node[1].get("source", None)
+            module_pathname = node[1].get("module", None)
             module_pathnames.append(module_pathname)
         return module_pathnames
 

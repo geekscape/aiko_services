@@ -23,26 +23,26 @@ WINDOW_LOCATION = (50, 50)
 WINDOW_TITLE = "Astra"
 
 # TODO [Josh]: Import from module.path syntax
-COMPONENT_SOURCE_IMAGE = "../../aiko_services/media/image_io.py"
-COMPONENT_SOURCE_VIDEO = "../../aiko_services/media/video_io.py"
+ELEMENTS_IMAGE = "../../aiko_services/media/image_io.py"
+ELEMENTS_VIDEO = "../../aiko_services/media/video_io.py"
 
 pipeline_definition = [
-    {   "name": "VideoReadFile", "source": COMPONENT_SOURCE_VIDEO,
+    {   "name": "VideoReadFile", "module": ELEMENTS_VIDEO,
         "successors": ["ImageAnnotate1", "ImageAnnotate2"],
         "parameters": {
             "video_pathname": VIDEO_INPUT_PATHNAME
         }
     },
-    {   "name": "ImageAnnotate1", "source": COMPONENT_SOURCE_IMAGE,
+    {   "name": "ImageAnnotate1", "module": ELEMENTS_IMAGE,
         "successors": ["ImageOverlay"]
     },
-    {   "name": "ImageAnnotate2", "source": COMPONENT_SOURCE_IMAGE,
+    {   "name": "ImageAnnotate2", "module": ELEMENTS_IMAGE,
         "successors": ["ImageOverlay"]
     },
-    {   "name": "ImageOverlay", "source": COMPONENT_SOURCE_IMAGE,
+    {   "name": "ImageOverlay", "module": ELEMENTS_IMAGE,
         "successors": ["VideoShow"]
     },
-    {   "name": "VideoShow", "source": COMPONENT_SOURCE_VIDEO,
+    {   "name": "VideoShow", "module": ELEMENTS_VIDEO,
         "parameters": {
             "window_location": WINDOW_LOCATION,
             "window_title": WINDOW_TITLE

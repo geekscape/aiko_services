@@ -17,17 +17,17 @@ FRAME_RATE = 0   # Process flat-out without delay
 IMAGE_OUTPUT_PATHNAME = "z_output/image_{:06d}.jpg"
 VIDEO_INPUT_PATHNAME = "astra_brief.mp4"
 
-COMPONENT_SOURCE_VIDEO = "../../aiko_services/media/video_io.py"
-COMPONENT_SOURCE_IMAGE = "../../aiko_services/media/image_io.py"
+ELEMENTS_VIDEO = "../../aiko_services/media/video_io.py"
+ELEMENTS_IMAGE = "../../aiko_services/media/image_io.py"
 
 pipeline_definition = [
-    {   "name": "VideoReadFile", "source": COMPONENT_SOURCE_VIDEO,
+    {   "name": "VideoReadFile", "module": ELEMENTS_VIDEO,
         "successors": ["ImageOverlay"],
         "parameters": {
             "video_pathname": VIDEO_INPUT_PATHNAME
         }
     },
-    {   "name": "ImageOverlay", "source": COMPONENT_SOURCE_IMAGE,
+    {   "name": "ImageOverlay", "module": ELEMENTS_IMAGE,
         "successors": ["ImageWriteFile"],
         "parameters": {
         "colors": {
@@ -38,7 +38,7 @@ pipeline_definition = [
         "text_color": "yellow"
         }
     },
-    {   "name": "ImageWriteFile", "source": COMPONENT_SOURCE_IMAGE,
+    {   "name": "ImageWriteFile", "module": ELEMENTS_IMAGE,
         "parameters": {
             "image_pathname": IMAGE_OUTPUT_PATHNAME
         }
