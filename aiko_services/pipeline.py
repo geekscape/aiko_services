@@ -46,7 +46,7 @@ class Pipeline():
             if "module" in node:
                 self.graph.add_node(node_name, module=node["module"], successors=node["successors"])
             else:
-                raise ValueError(f"Pipeline element missing 'module': {node_name}")
+                raise ValueError(f"Pipeline element must declare a 'module': {node_name}")
 
             if "successors" in node:
                 for successors in node["successors"].values():
