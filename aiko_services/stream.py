@@ -37,20 +37,22 @@ class StreamElement(abc.ABC):
     def get_stream_state(self):
         return self.stream_state
 
-    def update_stream_state(self, stream_processing):
-        if stream_processing:
-            if self.stream_state == StreamElementState.START:
+    def update_stream_state(self, stream_stop_flag):
+        if not stream_stop_flag:
+            if self.stream_state is StreamElementState.START:
                 self.handler = self.stream_frame_handler
                 self.stream_state = StreamElementState.RUN
-            else:
+            elif self.stream_state is StreamElementState.RUN:
                 self.frame_count += 1
         else:
-            if self.stream_state == StreamElementState.STOP:
+            if self.stream_state is StreamElementState.COMPLETE:
+                pass
+            elif self.stream_state is StreamElementState.STOP:
                 self.handler = None
                 self.stream_state = StreamElementState.COMPLETE
             else:
                 self.handler = self.stream_stop_handler
-                self.state = StreamElementState.STOP
+                self.stream_state = StreamElementState.STOP
 
     def stream_start_handler(self, swag):
         self.logger.debug("stream_start_handler()")

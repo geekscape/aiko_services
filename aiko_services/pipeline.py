@@ -122,13 +122,13 @@ class Pipeline():
     def pipeline_handler(self):
         head_node_name = self.get_head_node_name()
         if head_node_name:
-            if not self.pipeline_process(head_node_name, True):
-                self.pipeline_process(head_node_name, False)
+            if not self.pipeline_process(head_node_name, False):
+                self.pipeline_process(head_node_name, True)
                 self.pipeline_stop()
         else:
             self.pipeline_stop()
 
-    def pipeline_process(self, node_name, stream_processing):
+    def pipeline_process(self, node_name, stream_stop_flag):
         process_queue = Queue(maxsize=self.graph.number_of_nodes())
         process_queue.put(ProcessFrame(node_name), block=False)
         processed_nodes = set()  # Only process each node once per frame
@@ -140,17 +140,17 @@ class Pipeline():
 
             if node_name not in processed_nodes:
                 node = self.get_node(node_name)
-                if not stream_processing:
-                    node["instance"].update_stream_state(stream_processing)
+                if stream_stop_flag:
+                    node["instance"].update_stream_state(stream_stop_flag)
                 okay, output = node["instance"].handler(process_frame.swag)
-                processed_nodes.add(node_name)
-                process_frame.swag[node_name] = output
                 if not okay:
                     break
+                process_frame.swag[node_name] = output
+                processed_nodes.add(node_name)
                 based_on_state = node["instance"].get_stream_state() == StreamElementState.RUN
                 for successor_name in self.get_node_successors(node_name, based_on_state=based_on_state):
                     process_queue.put(ProcessFrame(successor_name), block=False)
-                node["instance"].update_stream_state(stream_processing)
+                node["instance"].update_stream_state(stream_stop_flag)
         return okay
 
     def pipeline_start(self):
