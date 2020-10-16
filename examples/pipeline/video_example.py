@@ -22,6 +22,8 @@ FRAME_RATE = 0.05  # 20 FPS
 # VIDEO_INPUT_PATHNAME = "astra.mp4"
 VIDEO_INPUT_PATHNAME = "astra_brief.mp4"
 # VIDEO_INPUT_PATHNAME = "astra_short.mp4"
+VIDEO_FRAME_RATE = 29.97
+VIDEO_OUTPUT_PATHNAME = "z_output.mp4"
 WINDOW_LOCATION = (50, 50)
 WINDOW_TITLE = "Astra"
 
@@ -42,7 +44,7 @@ class StateMachineModel(object):
 pipeline_definition = [
     {   "name": "VideoReadFile", "module": ELEMENTS_VIDEO,
         "parameters": {
-            "state_change": (10, "alternate"),
+#           "state_change": (10, "alternate"),
             "video_pathname": VIDEO_INPUT_PATHNAME
         },
         "successors": {
@@ -63,6 +65,20 @@ pipeline_definition = [
         "parameters": {
             "window_location": WINDOW_LOCATION,
             "window_title": WINDOW_TITLE
+        },
+        "successors": ["ImageResize"]
+    },
+    {   "name": "ImageResize", "module": ELEMENTS_IMAGE,
+        "parameters": {
+            "new_width": 640,
+            "new_height": 360
+        },
+        "successors": ["VideoWriteFile"]
+    },
+    {   "name": "VideoWriteFile", "module": ELEMENTS_VIDEO,
+        "parameters": {
+            "video_frame_rate": VIDEO_FRAME_RATE,
+            "video_pathname": VIDEO_OUTPUT_PATHNAME
         }
     }
 ]
