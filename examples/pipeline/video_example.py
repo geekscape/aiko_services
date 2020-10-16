@@ -19,7 +19,9 @@ from aiko_services.utilities import get_logger
 
 # FRAME_RATE = 0   # Process flat-out without delay
 FRAME_RATE = 0.05  # 20 FPS
+# VIDEO_INPUT_PATHNAME = "astra.mp4"
 VIDEO_INPUT_PATHNAME = "astra_brief.mp4"
+# VIDEO_INPUT_PATHNAME = "astra_short.mp4"
 WINDOW_LOCATION = (50, 50)
 WINDOW_TITLE = "Astra"
 
