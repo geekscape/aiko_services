@@ -54,14 +54,14 @@ class StreamElement(abc.ABC):
                 self.handler = self.stream_stop_handler
                 self.stream_state = StreamElementState.STOP
 
-    def stream_start_handler(self, swag):
+    def stream_start_handler(self, stream_id, frame_id, swag):
         self.logger.debug("stream_start_handler()")
         return True, None
 
-    def stream_frame_handler(self, swag):
+    def stream_frame_handler(self, stream_id, frame_id, swag):
         self.logger.debug(f"stream_frame_handler(): frame_count: {self.frame_count}")
         return True, None
 
-    def stream_stop_handler(self, swag):
+    def stream_stop_handler(self, stream_id, frame_id, swag):
         self.logger.debug("stream_stop()")
         return True, None

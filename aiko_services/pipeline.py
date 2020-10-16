@@ -25,9 +25,11 @@ from aiko_services.utilities import load_modules
 __all__ = ["Pipeline"]
 
 class Pipeline():
-    def __init__(self, pipeline_definition, frame_rate = 0, state_machine = None):
+    def __init__(self, pipeline_definition, frame_rate = 0, state_machine = None, stream_id = "nil"):
         self.frame_rate = frame_rate
         self.state_machine = state_machine
+        self.stream_id = stream_id
+        self.frame_id = -1  # first time through is for start_start_handler()
 
         self.graph = nx.DiGraph(version=0)
         nodes = self.graph.nodes
@@ -125,6 +127,7 @@ class Pipeline():
             if not self.pipeline_process(head_node_name, False):
                 self.pipeline_process(head_node_name, True)
                 self.pipeline_stop()
+            self.frame_id += 1
         else:
             self.pipeline_stop()
 
@@ -142,7 +145,7 @@ class Pipeline():
                 node = self.get_node(node_name)
                 if stream_stop_flag:
                     node["instance"].update_stream_state(stream_stop_flag)
-                okay, output = node["instance"].handler(process_frame.swag)
+                okay, output = node["instance"].handler(self.stream_id, self.frame_id, process_frame.swag)
                 if not okay:
                     break
                 process_frame.swag[node_name] = output

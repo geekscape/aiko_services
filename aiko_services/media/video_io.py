@@ -15,7 +15,7 @@ from aiko_services.stream import StreamElement
 __all__ = ["VideoReadFile", "VideoShow", "VideoWriteFile"]
 
 class VideoReadFile(StreamElement):
-    def stream_start_handler(self, swag):
+    def stream_start_handler(self, stream_id, frame_id, swag):
         self.logger.debug("stream_start_handler()")
         video_pathname = self.parameters["video_pathname"]
         self.video_capture = cv2.VideoCapture(video_pathname)
@@ -28,37 +28,37 @@ class VideoReadFile(StreamElement):
             self.state_change = self.parameters["state_change"]
         return True, None
 
-    def stream_frame_handler(self, swag):
+    def stream_frame_handler(self, stream_id, frame_id, swag):
         if self.video_capture.isOpened():
             success, image_bgr = self.video_capture.read()
             if success == True:
-                self.logger.debug(f"stream_frame_handler(): frame_count: {self.frame_count}")
+                self.logger.debug(f"stream_frame_handler(): frame_id: {frame_id}")
                 image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-                if self.frame_count % 10 == 0:
-                    print(f"Frame Id: {self.frame_count}", end="\r")
+                if frame_id % 10 == 0:
+                    print(f"Frame Id: {frame_id}", end="\r")
 
                 if self.state_change:
-                    if self.frame_count == self.state_change[0]:
+                    if frame_id == self.state_change[0]:
                         self.pipeline_state_machine.transition(self.state_change[1], None)
                 return True, {"image": image_rgb}
             else:
                 self.logger.debug(f"End of video")
         return False, None
 
-    def stream_stop_handler(self, swag):
+    def stream_stop_handler(self, stream_id, frame_id, swag):
         self.logger.debug("stream_stop()")
         self.video_capture.release()
         self.video_capture = None
         return True, None
 
 class VideoShow(StreamElement):
-    def stream_frame_handler(self, swag):
-        self.logger.debug(f"stream_frame_handler(): frame_count: {self.frame_count}")
+    def stream_frame_handler(self, stream_id, frame_id, swag):
+        self.logger.debug(f"stream_frame_handler(): frame_id: {frame_id}")
         title = self.parameters["window_title"]
         image_rgb = swag[self.predecessor]["image"]
         image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2RGB)
         cv2.imshow(title, image_bgr)
-        if self.frame_count == 0:
+        if frame_id == 0:
             window_x = self.parameters["window_location"][0]
             window_y = self.parameters["window_location"][1]
             cv2.moveWindow(title, window_x, window_y)
@@ -66,13 +66,13 @@ class VideoShow(StreamElement):
             return False, None
         return True, {"image": image_rgb}
 
-    def stream_stop_handler(self, swag):
+    def stream_stop_handler(self, stream_id, frame_id, swag):
         self.logger.debug("stream_stop()")
         cv2.destroyAllWindows()
         return True, None
 
 class VideoWriteFile(StreamElement):
-    def stream_start_handler(self, swag):
+    def stream_start_handler(self, stream_id, frame_id, swag):
         self.logger.debug("stream_start_handler()")
         self.image_shape = None
         self.video_format = self.parameters.get("video_format", "MP4V")
@@ -90,8 +90,8 @@ class VideoWriteFile(StreamElement):
                 frame_rate,
                 image_shape)
 
-    def stream_frame_handler(self, swag):
-        self.logger.debug(f"stream_frame_handler(): frame_count: {self.frame_count}")
+    def stream_frame_handler(self, stream_id, frame_id, swag):
+        self.logger.debug(f"stream_frame_handler(): frame_id: {frame_id}")
         image_rgb = swag[self.predecessor]["image"]
         image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2RGB)
 
@@ -107,7 +107,7 @@ class VideoWriteFile(StreamElement):
         self.video_writer.write(image_bgr)
         return True, {"image": image_rgb}
 
-    def stream_stop_handler(self, swag):
+    def stream_stop_handler(self, stream_id, frame_id, swag):
         self.logger.debug("stream_stop()")
         if self.video_writer:
             self.video_writer.release()
