@@ -23,7 +23,7 @@ setup(
     author="Andy Gelme",
     author_email="info@silverpond.com.au",
     packages=[
-        find_packages(),
+        base_package,  # find_packages()
     ],
     install_requires=[
         "click>=7.0",
