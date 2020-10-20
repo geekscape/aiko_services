@@ -55,8 +55,9 @@ class Pipeline():
                     for successor in successors:
                         self.graph.add_edge(node_name, successor)
 
-            if "parameters" in node:
-                self.get_node(node_name)["parameters"] = node["parameters"]
+            if "parameters" not in node:
+                node["parameters"] = {}
+            self.get_node(node_name)["parameters"] = node["parameters"]
 
         for node_name in self.get_node_names():
           for successor in self.get_node_successors(node_name, based_on_state=False):
@@ -94,6 +95,9 @@ class Pipeline():
     def get_node_names(self):
         return list(self.graph.nodes)
 
+    def get_node_parameters(self, node_name):
+        return self.get_node(node_name)["parameters"]
+
     def get_node_predecessors(self, node_name):
         return list(self.graph.predecessors(node_name))
 
@@ -121,7 +125,7 @@ class Pipeline():
                 class_ = getattr(module, node_name)
                 node["instance"] = class_(node_name, node_parameters, node_predecessors, self.state_machine)
 
-    def pipeline_handler(self):
+    def pipeline_handler(self, queue_item = None, queue_item_type = None):
         head_node_name = self.get_head_node_name()
         if head_node_name:
             if not self.pipeline_process(head_node_name, False):
@@ -167,6 +171,13 @@ class Pipeline():
             event.remove_timer_handler(self.pipeline_handler)
         else:
             event.remove_flatout_handler(self.pipeline_handler)
+
+    def update_node_parameter(self, node_name, parameter_name, parameter_value):
+        node_parameters = self.get_node_parameters(node_name)
+        if parameter_name in node_parameters:
+            node_parameters[parameter_name] = parameter_value
+        else:
+            raise KeyError(f"Pipeline element {node_name}: Unknown parameter name: {parameter_name}")
 
     def __str__(self):
         return str(self.get_nodes())
