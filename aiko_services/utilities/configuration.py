@@ -9,7 +9,7 @@ import socket
 
 __all__ = ["get_hostname", "get_namespace", "get_pid", "get_username"]
 
-DEFAULT_NAMESPACE="test"
+DEFAULT_NAMESPACE="aiko"
 
 def get_hostname():
     hostname = socket.gethostname()

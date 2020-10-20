@@ -66,7 +66,6 @@ class private:
 class public:
 #   aks_info = None                                          # TODO: Replace V1
     message = None
-    namespace = "test"  # TODO: Determine namespace value
     parameters = None
     protocol = None
     service_name = None
@@ -82,7 +81,7 @@ _LOGGER = get_logger(__name__)
 _LOGGER_MESSAGE = get_logger("MESSAGE")
 
 REGISTRAR_PROTOCOL = "au.com.silverpond.protocol.registrar:0"
-REGISTRAR_TOPIC = f"{public.namespace}/service/registrar"
+REGISTRAR_TOPIC = f"{get_namespace()}/service/registrar"
 
 def add_message_handler(topic, message_handler):
     if not topic in private.message_handlers:

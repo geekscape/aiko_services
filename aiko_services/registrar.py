@@ -141,8 +141,8 @@ def topic_in_handler(aiko, topic, payload_in):
         aiko.message.publish(aiko.topic_out, payload_out)
 
     if command == "query":                         # TODO: TO BE COMPLETED
-        for service_name, service_details in services.items():
-            _LOGGER.info(f"QUERY: {service_name}: {service_details}") 
+        for service_topic, service_details in services.items():
+            _LOGGER.info(f"QUERY: {service_topic}: {service_details}")
 
 def service_add(service_topic, protocol, owner, tags):
     _LOGGER.debug(f"Service add: {service_topic}")
