@@ -21,15 +21,14 @@ setup(
     version=version,
     description="Asynchronous message service framework",
     author="Andy Gelme",
-    author_email="info@silverpond.com.au",
-    packages=[
-        base_package,  # find_packages()
-    ],
+    author_email="geekscape@gmail.com",
+    packages=find_packages(),
     install_requires=[
         "click>=7.0",
         "networkx>=2.1",
         "numpy>=1.19.1",
         "paho-mqtt>=1.3",
+        "Pillow>=7.2.0",
         "pyyaml>=5.3.1",
         "transitions>=0.8.2"
     ],
