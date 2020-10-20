@@ -35,7 +35,7 @@
 # - All Services should have initialise() and stream event handler()
 #   - All Streams also have task_start() and task_stop()
 # - Since handlers take time, need to adjust time.sleep() period
-# - New event types: Messages, GStreamer appsink, appsrc, serial
+# - New event types: Queue, Messages, GStreamer appsink, appsrc, serial
 
 from queue import Queue
 import time
@@ -112,9 +112,11 @@ class EventList:
 
 event_enabled = False
 event_list = EventList()
+event_queue = Queue()
 flatout_handlers = []
-message_queue = Queue()
-message_queue_handler = None
+queue_handlers = {}
+
+__all__ = ["add_flatout_handler", "add_queue_handler", "add_timer_handler", "loop", "queue_put", "remove_flatout_handler", "remove_queue_handler", "remove_timer_handler", "terminate"]
 
 def add_flatout_handler(handler):
     global handler_count
@@ -137,12 +139,20 @@ def remove_timer_handler(handler):
     event_list.remove(handler)
     handler_count -= 1
 
-def set_message_queue_handler(queue_handler):
-    global message_queue_handler
-    message_queue_handler = queue_handler
+def add_queue_handler(queue_handler, item_type="default"):
+    if not item_type in queue_handlers:
+        queue_handlers[item_type] = []
+    queue_handlers[item_type].append(queue_handler)
 
-def queue_message(message):
-    message_queue.put(message)
+def remove_queue_handler(queue_handler, item_type):
+    if item_type in queue_handlers:
+        if queue_handler in queue_handlers[item_type]:
+            queue_handlers[item_type].remove(queue_handler)
+        if len(queue_handlers[item_type]) == 0:
+            del queue_handlers[item_type]
+
+def queue_put(item, item_type="default"):
+    event_queue.put((item, item_type))
 
 def loop(loop_when_no_handlers=False):
     global event_enabled, timer_counter
@@ -158,8 +168,11 @@ def loop(loop_when_no_handlers=False):
                     event_list.update()
             sleep_time = 0.001
 
-            if message_queue_handler and message_queue.qsize():
-                message_queue_handler(message_queue)
+            if event_queue.qsize():
+                (item, item_type) = event_queue.get()
+                if item_type in queue_handlers:
+                    for queue_handler in queue_handlers[item_type]:
+                        queue_handler(item, item_type)
 
             if len(flatout_handlers):
                 time_start = time.time()
