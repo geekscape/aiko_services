@@ -27,13 +27,13 @@
 #     - Another ML Design Pattern !
 #
 # - on_message() ...
-#   - messages should be queued and handled by a background thread
 #   - try ... except: around common exceptions, e.g get unknown parameter
 #   - Debug options (set via topic_control) ...
 #     - Print incoming message topic and payload_in
 #     - Print or publish(topic_log) any exceptions raised
 #
 # - Move silverbrane-worker/silverbrane/services/utilities/artifacts.py here
+#   - See aiko_services/z_miscellaneous/artifacts.py
 #
 # - Iterator as frames are received, e.g telemetry, video
 # - Correct use of /control, /state, /in, /out
@@ -83,13 +83,20 @@ _LOGGER_MESSAGE = get_logger("MESSAGE")
 REGISTRAR_PROTOCOL = "au.com.silverpond.protocol.registrar:0"
 REGISTRAR_TOPIC = f"{get_namespace()}/service/registrar"
 
-def add_message_handler(topic, message_handler):
+def add_message_handler(message_handler, topic):
     if not topic in private.message_handlers:
         private.message_handlers[topic] = []
     private.message_handlers[topic].append(message_handler)
 
+def remove_message_handler(message_handler, topic):
+    if topic in private.message_handlers:
+        if message_handler in private.message_handlers[topic]:
+            private.message_handlers[topic].remove(message_handler)
+        if len(private.message_handlers[topic]) == 0:
+            del private.message_handlers[topic]
+
 def add_topic_in_handler(topic_handler):
-    add_message_handler(public.topic_in, topic_handler)
+    add_message_handler(topic_handler, public.topic_in)
 
 # TODO: Consider moving all registrar related code into the Registar
 def on_registrar_message(aiko_, topic, payload_in):
@@ -110,9 +117,6 @@ def on_registrar_message(aiko_, topic, payload_in):
     if private.registrar_handler:
         handler_finished = private.registrar_handler(public, action, registrar)
 
-# TODO: Need to implement message queue processing, otherwise mqtt.wait_disconnected() doesn't work properly
-#       occasionally causing to "(primary started ...)" messages to be received, possibly because two MQTT
-#       clients are running at the same time (first one hasn't fully disconnected yet)
     if not handler_finished:
         if action == "started":  # TODO: Temporary workaround, watch out for duplicate messages !
             if public.protocol:
@@ -130,7 +134,7 @@ def add_stream_handlers(
     add_task_start_handler(task_start_handler)
     add_stream_frame_handler(stream_frame_handler)
     add_task_stop_handler(task_stop_handler)
-    add_message_handler(on_message_stream)
+    add_message_handler(on_message_stream, SOME_TOPIC)
 
 def add_stream_frame_handler(stream_frame_handler):
     private.stream_frame_handler = stream_frame_handler
@@ -147,31 +151,29 @@ def on_message_stream(topic, payload_in):
 
 def on_message(mqtt_client, userdata, message):
     try:
-        event.queue_message(message)
+        event.queue_put(message, "message")
     except Exception as exception:
         print(traceback.format_exc())
 
-def process_message_queue(message_queue):
-    while message_queue.qsize():
-        message = message_queue.get()
-        payload_in = message.payload.decode("utf-8")
-        if _LOGGER_MESSAGE.isEnabledFor(DEBUG):
-            _LOGGER_MESSAGE.debug(f"topic: {message.topic}, payload: {payload_in}")
+def message_queue_handler(message, _):
+    payload_in = message.payload.decode("utf-8")
+    if _LOGGER_MESSAGE.isEnabledFor(DEBUG):
+        _LOGGER_MESSAGE.debug(f"topic: {message.topic}, payload: {payload_in}")
 
-        message_handler_list = []
-        for match_topic in message.topic, "#":
-            if match_topic in private.message_handlers:
-                message_handler_list.extend(private.message_handlers[match_topic])
+    message_handler_list = []
+    for match_topic in message.topic, "#":
+        if match_topic in private.message_handlers:
+            message_handler_list.extend(private.message_handlers[match_topic])
 
-        if len(message_handler_list) > 0:
-            for message_handler in message_handler_list:
-                try:
-                    if message_handler(public, message.topic, payload_in):
-                        return
-                except Exception as exception:
-                    payload_out = traceback.format_exc()
-                    print(payload_out)
-#                   public.message.publish(public.topic_log, payload=payload_out)
+    if len(message_handler_list) > 0:
+        for message_handler in message_handler_list:
+            try:
+                if message_handler(public, message.topic, payload_in):
+                    return
+            except Exception as exception:
+                payload_out = traceback.format_exc()
+                print(payload_out)
+#               public.message.publish(public.topic_log, payload=payload_out)
 
 def process_pipeline_arguments(pipeline=None):
     if pipeline:
@@ -207,8 +209,8 @@ def initialize(pipeline=None):
 # TODO: Implement protocol stuff, see set_protocol()
 # TODO: Implement tags stuff, e.g set_tags() ?
 
-    add_message_handler(REGISTRAR_TOPIC, on_registrar_message)
-    event.set_message_queue_handler(process_message_queue)
+    add_message_handler(on_registrar_message, REGISTRAR_TOPIC)
+    event.add_queue_handler(message_queue_handler, "message")
 
     lwt_topic = public.topic_state
     lwt_payload = "(stopped)"

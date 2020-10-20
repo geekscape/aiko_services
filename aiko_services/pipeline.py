@@ -29,7 +29,7 @@ class Pipeline():
         self.frame_rate = frame_rate
         self.state_machine = state_machine
         self.stream_id = stream_id
-        self.frame_id = -1  # first time through is for start_start_handler()
+        self.frame_id = -1  # first time through is for stream_start_handler()
 
         self.graph = nx.DiGraph(version=0)
         nodes = self.graph.nodes
