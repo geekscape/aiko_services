@@ -13,7 +13,7 @@ from enum import Enum
 
 from aiko_services.utilities import get_logger
 
-__all__ = ["StreamElement", "StreamElementState"]
+__all__ = ["StreamElementState", "StreamElement", "StreamQueueElement"]
 
 class StreamElementState(Enum):
     START = 0
@@ -65,3 +65,7 @@ class StreamElement(abc.ABC):
     def stream_stop_handler(self, stream_id, frame_id, swag):
         self.logger.debug("stream_stop()")
         return True, None
+
+class StreamQueueElement(StreamElement):
+    def __init__(self, name, parameters, predecessors, pipeline_state_machine):
+        super().__init__(name, parameters, predecessors, pipeline_state_machine)
