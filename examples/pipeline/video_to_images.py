@@ -3,13 +3,8 @@
 # Usage
 # ~~~~~
 # LOG_LEVEL=DEBUG ./video_to_images.py
-#
-# To Do
-# ~~~~~
-# - Add CLI arguments !
 
 import aiko_services.event as event
-# import aiko_services.framework as aiko
 from aiko_services.pipeline import Pipeline
 
 FRAME_RATE = 0   # Process flat-out without delay
