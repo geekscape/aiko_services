@@ -140,12 +140,14 @@ def remove_timer_handler(handler):
     handler_count -= 1
 
 def add_queue_handler(queue_handler, item_type="default"):
+    global handler_count
     if not item_type in queue_handlers:
         queue_handlers[item_type] = []
     queue_handlers[item_type].append(queue_handler)
     handler_count += 1
 
 def remove_queue_handler(queue_handler, item_type):
+    global handler_count
     if item_type in queue_handlers:
         if queue_handler in queue_handlers[item_type]:
             queue_handlers[item_type].remove(queue_handler)
