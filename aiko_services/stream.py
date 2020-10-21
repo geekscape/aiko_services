@@ -37,8 +37,8 @@ class StreamElement(abc.ABC):
     def get_stream_state(self):
         return self.stream_state
 
-    def update_stream_state(self, stream_stop_flag):
-        if not stream_stop_flag:
+    def update_stream_state(self, stream_stop):
+        if not stream_stop:
             if self.stream_state is StreamElementState.START:
                 self.handler = self.stream_frame_handler
                 self.stream_state = StreamElementState.RUN
@@ -63,7 +63,7 @@ class StreamElement(abc.ABC):
         return True, None
 
     def stream_stop_handler(self, stream_id, frame_id, swag):
-        self.logger.debug("stream_stop()")
+        self.logger.debug("stream_stop_handler()")
         return True, None
 
 class StreamQueueElement(StreamElement):
