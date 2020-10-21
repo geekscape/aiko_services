@@ -66,7 +66,7 @@ class Pipeline():
               if "module" not in self.get_node(successor):
                   raise ValueError(f"Pipeline element successor not defined: {node_name} --> {successor}")
 
-        _LOGGER.debug(f"Pipeline: {self}")
+        _LOGGER.debug(f"Pipeline definition: {self}")
         self.load_node_modules()
         self.pipeline_start()
 
@@ -131,46 +131,58 @@ class Pipeline():
     def pipeline_handler(self, queue_item = None, queue_item_type = None):
         head_node_name = self.get_head_node_name()
         if head_node_name:
-            if not self.pipeline_process(head_node_name, False):
-                self.pipeline_process(head_node_name, True)
+            if not self.pipeline_process(head_node_name, queue_item, queue_item_type):
+                self.pipeline_process(head_node_name, queue_item, queue_item_type, stream_stop=True)
                 self.pipeline_stop()
             self.frame_id += 1
         else:
             self.pipeline_stop()
 
-    def pipeline_process(self, node_name, stream_stop_flag):
+    def pipeline_process(self, node_name, queue_item = None, queue_item_type = None, stream_stop = False):
+        swag = {}
+        if queue_item:
+            swag["frame"] = {"data": queue_item, "type": queue_item_type}
+
         process_queue = Queue(maxsize=self.graph.number_of_nodes())
-        process_queue.put(ProcessFrame(node_name), block=False)
+        process_queue.put(node_name, block=False)
         processed_nodes = set()  # Only process each node once per frame
         okay = True
 
         while process_queue.qsize():
-            process_frame = process_queue.get()
-            node_name = process_frame.pipeline_node_name
+            node_name = process_queue.get()
 
             if node_name not in processed_nodes:
                 node = self.get_node(node_name)
-                if stream_stop_flag:
-                    node["instance"].update_stream_state(stream_stop_flag)
-                okay, output = node["instance"].handler(self.stream_id, self.frame_id, process_frame.swag)
+                if stream_stop:
+                    node["instance"].update_stream_state(stream_stop)
+                okay, output = node["instance"].handler(self.stream_id, self.frame_id, swag)
                 if not okay:
                     break
-                process_frame.swag[node_name] = output
+                swag[node_name] = output
                 processed_nodes.add(node_name)
                 based_on_state = node["instance"].get_stream_state() == StreamElementState.RUN
                 for successor_name in self.get_node_successors(node_name, based_on_state=based_on_state):
-                    process_queue.put(ProcessFrame(successor_name), block=False)
-                node["instance"].update_stream_state(stream_stop_flag)
+                    process_queue.put(successor_name, block=False)
+                node["instance"].update_stream_state(stream_stop)
         return okay
 
+    def queue_handler_required(self):
+        head_node_type = type(self.get_head_node()["instance"])
+        return issubclass(head_node_type, StreamQueueElement)
+
     def pipeline_start(self):
-        if self.frame_rate:
+        if self.queue_handler_required():
+            event.add_queue_handler(self.pipeline_handler, ["frame", "state"])
+            self.pipeline_handler("start", "state")
+        elif self.frame_rate:
             event.add_timer_handler(self.pipeline_handler, self.frame_rate, True)
         else:
             event.add_flatout_handler(self.pipeline_handler)
 
     def pipeline_stop(self):
-        if self.frame_rate:
+        if self.queue_handler_required():
+            event.remove_queue_handler(self.pipeline_handler, ["frame", "state"])
+        elif self.frame_rate:
             event.remove_timer_handler(self.pipeline_handler)
         else:
             event.remove_flatout_handler(self.pipeline_handler)
@@ -184,8 +196,3 @@ class Pipeline():
 
     def __str__(self):
         return str(self.get_nodes())
-
-class ProcessFrame():
-    def __init__(self, pipeline_node_name, swag = {}):
-        self.pipeline_node_name = pipeline_node_name
-        self.swag = swag
