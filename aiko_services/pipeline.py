@@ -19,10 +19,12 @@ from queue import Queue
 import time
 
 import aiko_services.event as event
-from aiko_services.stream import StreamElementState
-from aiko_services.utilities import load_modules
+from aiko_services.stream import StreamElementState, StreamQueueElement, StreamElement
+from aiko_services.utilities import get_logger, load_modules
 
 __all__ = ["Pipeline"]
+
+_LOGGER = get_logger(__name__)
 
 class Pipeline():
     def __init__(self, pipeline_definition, frame_rate = 0, state_machine = None, stream_id = "nil"):
@@ -64,6 +66,7 @@ class Pipeline():
               if "module" not in self.get_node(successor):
                   raise ValueError(f"Pipeline element successor not defined: {node_name} --> {successor}")
 
+        _LOGGER.debug(f"Pipeline: {self}")
         self.load_node_modules()
         self.pipeline_start()
 

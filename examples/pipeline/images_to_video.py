@@ -11,7 +11,6 @@
 import aiko_services.event as event
 # import aiko_services.framework as aiko
 from aiko_services.pipeline import Pipeline
-from aiko_services.utilities import get_logger
 
 FRAME_RATE = 0   # Process flat-out without delay
 IMAGE_INPUT_PATHNAME = "z_input/image_{:06d}.jpg"
@@ -36,8 +35,5 @@ pipeline_definition = [
     }
 ]
 
-_LOGGER = get_logger(__name__)
 pipeline = Pipeline(pipeline_definition, FRAME_RATE)
-
-_LOGGER.debug(f"pipeline: {pipeline}")
 event.loop()  # aiko.process()
