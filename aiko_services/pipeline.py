@@ -67,8 +67,6 @@ class Pipeline():
                   raise ValueError(f"Pipeline element successor not defined: {node_name} --> {successor}")
 
         _LOGGER.debug(f"Pipeline definition: {self}")
-        self.load_node_modules()
-        self.pipeline_start()
 
     def get_head_node(self):
         head_node = None
@@ -166,10 +164,6 @@ class Pipeline():
                 node["instance"].update_stream_state(stream_stop)
         return okay
 
-    def queue_handler_required(self):
-        head_node_type = type(self.get_head_node()["instance"])
-        return issubclass(head_node_type, StreamQueueElement)
-
     def pipeline_start(self):
         if self.queue_handler_required():
             event.add_queue_handler(self.pipeline_handler, ["frame", "state"])
@@ -186,6 +180,15 @@ class Pipeline():
             event.remove_timer_handler(self.pipeline_handler)
         else:
             event.remove_flatout_handler(self.pipeline_handler)
+
+    def queue_handler_required(self):
+        head_node_type = type(self.get_head_node()["instance"])
+        return issubclass(head_node_type, StreamQueueElement)
+
+    def run(self):
+        self.load_node_modules()
+        self.pipeline_start()
+        event.loop()  # aiko.process()
 
     def update_node_parameter(self, node_name, parameter_name, parameter_value):
         node_parameters = self.get_node_parameters(node_name)
