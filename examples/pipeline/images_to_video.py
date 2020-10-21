@@ -4,7 +4,6 @@
 # ~~~~~
 # LOG_LEVEL=DEBUG ./images_to_video.py
 
-import aiko_services.event as event
 from aiko_services.pipeline import Pipeline
 
 FRAME_RATE = 0   # Process flat-out without delay
@@ -30,5 +29,4 @@ pipeline_definition = [
     }
 ]
 
-pipeline = Pipeline(pipeline_definition, FRAME_RATE)
-event.loop()  # aiko.process()
+Pipeline(pipeline_definition, FRAME_RATE).run()

@@ -10,7 +10,6 @@
 # - Split into video_opencv.py, video_scikit.py, video_gstreamer.py, etc
 # - Ensure video_opencv.py uses asyncio and doesn't block !
 
-import aiko_services.event as event
 from aiko_services.pipeline import Pipeline
 from aiko_services.state import StateMachine
 from aiko_services.utilities import get_logger
@@ -87,5 +86,4 @@ def timer_test():
 # event.add_timer_handler(timer_test, 0.1)
 
 state_machine = StateMachine(StateMachineModel())
-pipeline = Pipeline(pipeline_definition, FRAME_RATE, state_machine=state_machine)
-event.loop()  # aiko.process()
+Pipeline(pipeline_definition, FRAME_RATE, state_machine=state_machine).run()
