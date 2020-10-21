@@ -40,7 +40,7 @@
 from queue import Queue
 import time
 
-__all__ = ["add_timer_handler", "remove_timer_handler", "loop", "terminate"]
+__all__ = ["add_flatout_handler", "add_queue_handler", "add_timer_handler", "loop", "queue_put", "remove_flatout_handler", "remove_queue_handler", "remove_timer_handler", "terminate"]
 
 handler_count = 0
 timer_counter = 0
@@ -116,8 +116,6 @@ event_queue = Queue()
 flatout_handlers = []
 queue_handlers = {}
 
-__all__ = ["add_flatout_handler", "add_queue_handler", "add_timer_handler", "loop", "queue_put", "remove_flatout_handler", "remove_queue_handler", "remove_timer_handler", "terminate"]
-
 def add_flatout_handler(handler):
     global handler_count
     flatout_handlers.append(handler)
@@ -139,21 +137,23 @@ def remove_timer_handler(handler):
     event_list.remove(handler)
     handler_count -= 1
 
-def add_queue_handler(queue_handler, item_type="default"):
+def add_queue_handler(queue_handler, item_types=["default"]):
     global handler_count
-    if not item_type in queue_handlers:
-        queue_handlers[item_type] = []
-    queue_handlers[item_type].append(queue_handler)
-    handler_count += 1
+    for item_type in item_types:
+        if not item_type in queue_handlers:
+            queue_handlers[item_type] = []
+        queue_handlers[item_type].append(queue_handler)
+        handler_count += 1
 
-def remove_queue_handler(queue_handler, item_type):
+def remove_queue_handler(queue_handler, item_types=["default"]):
     global handler_count
-    if item_type in queue_handlers:
-        if queue_handler in queue_handlers[item_type]:
-            queue_handlers[item_type].remove(queue_handler)
-        if len(queue_handlers[item_type]) == 0:
-            del queue_handlers[item_type]
-    handler_count -= 1
+    for item_type in item_types:
+        if item_type in queue_handlers:
+            if queue_handler in queue_handlers[item_type]:
+                queue_handlers[item_type].remove(queue_handler)
+                handler_count -= 1
+            if len(queue_handlers[item_type]) == 0:
+                del queue_handlers[item_type]
 
 def queue_put(item, item_type="default"):
     event_queue.put((item, item_type))
