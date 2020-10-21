@@ -23,9 +23,9 @@ class VideoReadFile(StreamElement):
             self.logger.error(f"Couldn't open video file: {video_pathname}")
             return False, None
 
-        self.state_change = None
-        if self.pipeline_state_machine and "state_change" in self.parameters:
-            self.state_change = self.parameters["state_change"]
+        self.state_action = None
+        if self.pipeline_state_machine and "state_action" in self.parameters:
+            self.state_action = self.parameters["state_action"]
         return True, None
 
     def stream_frame_handler(self, stream_id, frame_id, swag):
@@ -37,16 +37,16 @@ class VideoReadFile(StreamElement):
                 if frame_id % 10 == 0:
                     print(f"Frame Id: {frame_id}", end="\r")
 
-                if self.state_change:
-                    if frame_id == self.state_change[0]:
-                        self.pipeline_state_machine.transition(self.state_change[1], None)
+                if self.state_action:
+                    if frame_id == self.state_action[0]:
+                        self.pipeline_state_machine.transition(self.state_action[1], None)
                 return True, {"image": image_rgb}
             else:
                 self.logger.debug(f"End of video")
         return False, None
 
     def stream_stop_handler(self, stream_id, frame_id, swag):
-        self.logger.debug("stream_stop()")
+        self.logger.debug("stream_stop_handler()")
         self.video_capture.release()
         self.video_capture = None
         return True, None
@@ -67,7 +67,7 @@ class VideoShow(StreamElement):
         return True, {"image": image_rgb}
 
     def stream_stop_handler(self, stream_id, frame_id, swag):
-        self.logger.debug("stream_stop()")
+        self.logger.debug("stream_stop_handler()")
         cv2.destroyAllWindows()
         return True, None
 
@@ -108,7 +108,7 @@ class VideoWriteFile(StreamElement):
         return True, {"image": image_rgb}
 
     def stream_stop_handler(self, stream_id, frame_id, swag):
-        self.logger.debug("stream_stop()")
+        self.logger.debug("stream_stop_handler()")
         if self.video_writer:
             self.video_writer.release()
             self.video_writer = None
