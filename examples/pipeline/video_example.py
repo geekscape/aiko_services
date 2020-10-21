@@ -83,13 +83,10 @@ pipeline_definition = [
     }
 ]
 
-_LOGGER = get_logger(__name__)
-state_machine = StateMachine(StateMachineModel())
-pipeline = Pipeline(pipeline_definition, FRAME_RATE, state_machine=state_machine)
-
 def timer_test():
-    _LOGGER.debug("Timer test")
+    get_logger(__name__).info("Timer test")
 # event.add_timer_handler(timer_test, 0.1)
 
-_LOGGER.debug(f"pipeline: {pipeline}")
+state_machine = StateMachine(StateMachineModel())
+pipeline = Pipeline(pipeline_definition, FRAME_RATE, state_machine=state_machine)
 event.loop()  # aiko.process()
