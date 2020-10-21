@@ -16,6 +16,9 @@ import sys
 
 __all__ = ["load_module", "load_modules"]
 
+if os.environ.get("AIKO_IMPORTER_USE_CURRENT_DIRECTORY"):
+    sys.path.append(os.getcwd())
+
 def load_module(module_descriptor):
     if module_descriptor.endswith(".py"):
         # Load module from Python source pathname, e.g "directory/file.py"
