@@ -143,6 +143,7 @@ def add_queue_handler(queue_handler, item_type="default"):
     if not item_type in queue_handlers:
         queue_handlers[item_type] = []
     queue_handlers[item_type].append(queue_handler)
+    handler_count += 1
 
 def remove_queue_handler(queue_handler, item_type):
     if item_type in queue_handlers:
@@ -150,6 +151,7 @@ def remove_queue_handler(queue_handler, item_type):
             queue_handlers[item_type].remove(queue_handler)
         if len(queue_handlers[item_type]) == 0:
             del queue_handlers[item_type]
+    handler_count -= 1
 
 def queue_put(item, item_type="default"):
     event_queue.put((item, item_type))
