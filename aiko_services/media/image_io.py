@@ -13,25 +13,25 @@ __all__ = ["ImageAnnotate1", "ImageAnnotate2", "ImageOverlay", "ImageReadFile", 
 
 class ImageAnnotate1(StreamElement):
     def stream_frame_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"stream_frame_handler(): frame_id: {frame_id}")
+        self.logger.debug(f"stream_frame_handler(): stream_id: {stream_id}, frame_id: {frame_id}")
         image = swag[self.predecessor]["image"]
         return True, {"image": image}
 
 class ImageAnnotate2(StreamElement):
     def stream_frame_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"stream_frame_handler(): frame_id: {frame_id}")
+        self.logger.debug(f"stream_frame_handler(): stream_id: {stream_id}, frame_id: {frame_id}")
         image = swag[self.predecessor]["image"]
         return True, {"image": image}
 
 class ImageOverlay(StreamElement):
     def stream_frame_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"stream_frame_handler(): frame_id: {frame_id}")
+        self.logger.debug(f"stream_frame_handler(): stream_id: {stream_id}, frame_id: {frame_id}")
         image = swag[self.predecessor]["image"]
         return True, {"image": image}
 
 class ImageReadFile(StreamElement):
     def stream_start_handler(self, stream_id, frame_id, swag):
-        self.logger.debug("stream_start_handler()")
+        self.logger.debug("stream_start_handler(): stream_id: {stream_id}")
         self.image_pathname = self.parameters["image_pathname"]
         image_directory = Path(self.image_pathname).parent
         if not image_directory.exists:
@@ -48,7 +48,7 @@ class ImageReadFile(StreamElement):
             self.logger.debug(f"End of images")
             return False, None
 
-        self.logger.debug(f"stream_frame_handler(): frame_id: {frame_id}")
+        self.logger.debug(f"stream_frame_handler(): stream_id: {stream_id}, frame_id: {frame_id}")
         if frame_id % 10 == 0:
             print(f"Frame Id: {frame_id}", end="\r")
         return True, {"image": image}
@@ -60,7 +60,7 @@ class ImageResize(StreamElement):
         return True, None
 
     def stream_frame_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"stream_frame_handler(): frame_id: {frame_id}")
+        self.logger.debug(f"stream_frame_handler(): stream_id: {stream_id}, frame_id: {frame_id}")
         pil_image = Image.fromarray(swag[self.predecessor]["image"])
         pil_image = pil_image.resize((self.new_width, self.new_height))
         image = np.asarray(pil_image, dtype=np.uint8)
@@ -74,7 +74,7 @@ class ImageWriteFile(StreamElement):
         return True, None
 
     def stream_frame_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"stream_frame_handler(): frame_id: {frame_id}")
+        self.logger.debug(f"stream_frame_handler(): stream_id: {stream_id}, frame_id: {frame_id}")
         pil_image = Image.fromarray(swag[self.predecessor]["image"])
 # TODO: Error handling: 1) format image, 2) save image
         pil_image.save(self.image_pathname.format(frame_id))
