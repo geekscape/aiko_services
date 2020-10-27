@@ -181,9 +181,8 @@ class Pipeline():
         if self.queue_handler_required():
             queue_item_types = self.get_queue_item_types()
             event.add_queue_handler(self.pipeline_handler, list(queue_item_types.values()))
-#           self.pipeline_handler("start", queue_item_types["state"])
             event.queue_put("start", queue_item_types["state"])
-        elif self.state_rate:
+        elif self.frame_rate:
             event.add_timer_handler(self.pipeline_handler, self.frame_rate, True)
         else:
             event.add_flatout_handler(self.pipeline_handler)
