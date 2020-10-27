@@ -16,7 +16,7 @@ __all__ = ["VideoReadFile", "VideoShow", "VideoWriteFile"]
 
 class VideoReadFile(StreamElement):
     def stream_start_handler(self, stream_id, frame_id, swag):
-        self.logger.debug("stream_start_handler(): stream_id: {stream_id}")
+        self.logger.debug(f"stream_start_handler(): stream_id: {stream_id}")
         video_pathname = self.parameters["video_pathname"]
         self.video_capture = cv2.VideoCapture(video_pathname)
         if (self.video_capture.isOpened() == False):
@@ -42,11 +42,11 @@ class VideoReadFile(StreamElement):
                         self.pipeline_state_machine.transition(self.state_action[1], None)
                 return True, {"image": image_rgb}
             else:
-                self.logger.debug(f"End of video")
+                self.logger.debug("End of video")
         return False, None
 
     def stream_stop_handler(self, stream_id, frame_id, swag):
-        self.logger.debug("stream_stop_handler(): stream_id: {stream_id}")
+        self.logger.debug(f"stream_stop_handler(): stream_id: {stream_id}")
         self.video_capture.release()
         self.video_capture = None
         return True, None
@@ -67,13 +67,13 @@ class VideoShow(StreamElement):
         return True, {"image": image_rgb}
 
     def stream_stop_handler(self, stream_id, frame_id, swag):
-        self.logger.debug("stream_stop_handler(): stream_id: {stream_id}")
+        self.logger.debug(f"stream_stop_handler(): stream_id: {stream_id}")
         cv2.destroyAllWindows()
         return True, None
 
 class VideoWriteFile(StreamElement):
     def stream_start_handler(self, stream_id, frame_id, swag):
-        self.logger.debug("stream_start_handler(): stream_id: {stream_id}")
+        self.logger.debug(f"stream_start_handler(): stream_id: {stream_id}")
         self.image_shape = None
         self.video_format = self.parameters.get("video_format", "MP4V")
         self.video_frame_rate = self.parameters["video_frame_rate"]
@@ -108,7 +108,7 @@ class VideoWriteFile(StreamElement):
         return True, {"image": image_rgb}
 
     def stream_stop_handler(self, stream_id, frame_id, swag):
-        self.logger.debug("stream_stop_handler(): stream_id: {stream_id}")
+        self.logger.debug(f"stream_stop_handler(): stream_id: {stream_id}")
         if self.video_writer:
             self.video_writer.release()
             self.video_writer = None

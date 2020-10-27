@@ -31,7 +31,7 @@ class ImageOverlay(StreamElement):
 
 class ImageReadFile(StreamElement):
     def stream_start_handler(self, stream_id, frame_id, swag):
-        self.logger.debug("stream_start_handler(): stream_id: {stream_id}")
+        self.logger.debug(f"stream_start_handler(): stream_id: {stream_id}")
         self.image_pathname = self.parameters["image_pathname"]
         image_directory = Path(self.image_pathname).parent
         if not image_directory.exists:
@@ -45,7 +45,7 @@ class ImageReadFile(StreamElement):
             pil_image = Image.open(image_path)
             image = np.asarray(pil_image, dtype=np.uint8)
         except Exception:
-            self.logger.debug(f"End of images")
+            self.logger.debug("End of images")
             return False, None
 
         self.logger.debug(f"stream_frame_handler(): stream_id: {stream_id}, frame_id: {frame_id}")
@@ -55,6 +55,7 @@ class ImageReadFile(StreamElement):
 
 class ImageResize(StreamElement):
     def stream_start_handler(self, stream_id, frame_id, swag):
+        self.logger.debug(f"stream_start_handler(): stream_id: {stream_id}")
         self.new_height = self.parameters["new_height"]
         self.new_width = self.parameters["new_width"]
         return True, None
@@ -68,6 +69,7 @@ class ImageResize(StreamElement):
 
 class ImageWriteFile(StreamElement):
     def stream_start_handler(self, stream_id, frame_id, swag):
+        self.logger.debug(f"stream_start_handler(): stream_id: {stream_id}")
         self.image_pathname = self.parameters["image_pathname"]
 # TODO: Error handling
         Path(self.image_pathname).parent.mkdir(exist_ok=True, parents=True)
