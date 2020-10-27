@@ -39,6 +39,7 @@
 
 from queue import Queue
 import time
+import threading
 
 __all__ = ["add_flatout_handler", "add_queue_handler", "add_timer_handler", "loop", "queue_put", "remove_flatout_handler", "remove_queue_handler", "remove_timer_handler", "terminate"]
 
@@ -112,6 +113,8 @@ class EventList:
 
 event_enabled = False
 event_list = EventList()
+event_loop_lock = threading.Lock()
+event_loop_running = False
 event_queue = Queue()
 flatout_handlers = []
 queue_handlers = {}
@@ -159,7 +162,14 @@ def queue_put(item, item_type="default"):
     event_queue.put((item, item_type))
 
 def loop(loop_when_no_handlers=False):
-    global event_enabled, timer_counter
+    global event_enabled, event_loop_running, timer_counter
+
+    event_loop_lock.acquire()
+    if event_loop_running:
+        return
+    event_loop_running = True
+    event_loop_lock.release()
+
     event_list.reset()
 
     try:
@@ -189,6 +199,10 @@ def loop(loop_when_no_handlers=False):
                 timer_counter -= sleep_time
     except KeyboardInterrupt:
         raise SystemExit("KeyboardInterrupt: abort !")
+    finally:
+        event_loop_lock.acquire()
+        event_loop_running = False
+        event_loop_lock.release()
 
 def terminate():
     global event_enabled
