@@ -36,28 +36,17 @@ _CONFIGURATION = {
         "": {
             "handlers": ["h"],
             "level": "DEBUG"
-        },
-        "MESSAGE": {
-            "handlers": ["h"],
-            "level": "INFO"
-        },
-        "MQTT": {
-            "handlers": ["h"],
-            "level": "INFO"
-        },
-        "PIL.PngImagePlugin": {
-            "handlers": ["h"],
-            "level": "INFO"
-        },
-        "STATE": {
-            "handlers": ["h"],
-            "level": "INFO"
-        },
-        "transitions.core": {
-            "level": "ERROR"
         }
     }
 }
+
+logging_handlers = [ "asyncio", "matplotlib", "MESSAGE", "MQTT", "PIL.PngImagePlugin", "shapely.geos", "sgqlc.endpoint", "STATE", "transitions.core", "websockets.protocol" ]
+
+for logging_handler in logging_handlers:
+    _CONFIGURATION["loggers"][logging_handler] = {
+            "handlers": ["h"],
+            "level": "INFO"
+    }
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", False)
 
