@@ -20,9 +20,9 @@ import time
 
 import aiko_services.event as event
 from aiko_services.stream import StreamElementState, StreamQueueElement, StreamElement
-from aiko_services.utilities import get_logger, load_modules
+from aiko_services.utilities import get_logger, load_module, load_modules
 
-__all__ = ["Pipeline"]
+__all__ = ["Pipeline", "load_pipeline_definition"]
 
 _LOGGER = get_logger(__name__)
 
@@ -126,7 +126,12 @@ class Pipeline():
                 class_ = getattr(module, node_name)
                 node["instance"] = class_(node_name, node_parameters, node_predecessors, self.state_machine)
 
-    def pipeline_handler(self, queue_item = None, queue_item_type = None):
+    def pipeline_handler(self, queue_item = None, queue_item_type = "none"):
+#       event_type = f", event: {queue_item_type}"
+#       if queue_item_type.startswith("state_"):
+#           event_type = f"{event_type}: {queue_item}"
+#       _LOGGER.debug(f"pipeline_handler(): stream_id: {self.stream_id}{event_type}")
+
         head_node_name = self.get_head_node_name()
         if head_node_name:
             if not self.pipeline_process(head_node_name, queue_item, queue_item_type):
@@ -153,6 +158,7 @@ class Pipeline():
                 node = self.get_node(node_name)
                 if stream_stop:
                     node["instance"].update_stream_state(stream_stop)
+
                 okay, output = node["instance"].handler(self.stream_id, self.frame_id, swag)
                 if not okay:
                     break
@@ -164,18 +170,27 @@ class Pipeline():
                 node["instance"].update_stream_state(stream_stop)
         return okay
 
+    def get_queue_item_types(self):
+        queue_item_types = {
+            "frame": f"frame_{self.stream_id}",
+            "state": f"state_{self.stream_id}"
+        }
+        return queue_item_types
+
     def pipeline_start(self):
         if self.queue_handler_required():
-            event.add_queue_handler(self.pipeline_handler, ["frame", "state"])
-            self.pipeline_handler("start", "state")
-        elif self.frame_rate:
+            queue_item_types = self.get_queue_item_types()
+            event.add_queue_handler(self.pipeline_handler, list(queue_item_types.values()))
+#           self.pipeline_handler("start", queue_item_types["state"])
+            event.queue_put("start", queue_item_types["state"])
+        elif self.state_rate:
             event.add_timer_handler(self.pipeline_handler, self.frame_rate, True)
         else:
             event.add_flatout_handler(self.pipeline_handler)
 
     def pipeline_stop(self):
         if self.queue_handler_required():
-            event.remove_queue_handler(self.pipeline_handler, ["frame", "state"])
+            event.remove_queue_handler(self.pipeline_handler, self.get_queue_item_types())
         elif self.frame_rate:
             event.remove_timer_handler(self.pipeline_handler)
         else:
@@ -199,3 +214,11 @@ class Pipeline():
 
     def __str__(self):
         return str(self.get_nodes())
+
+PIPELINE_DEFINITION_NAME = "pipeline_definition"
+
+def load_pipeline_definition(pipeline_pathname, pipeline_definition_name=PIPELINE_DEFINITION_NAME):
+    module = load_module(pipeline_pathname)
+    pipeline_definition =  getattr(module, pipeline_definition_name)
+    state_machine_model = getattr(module, "StateMachineModel")
+    return pipeline_definition, state_machine_model
