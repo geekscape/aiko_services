@@ -38,4 +38,5 @@ pipeline_definition = [
     }
 ]
 
-Pipeline(pipeline_definition, FRAME_RATE).run()
+if __name__ == "__main__":
+    Pipeline(pipeline_definition, FRAME_RATE).run()

@@ -83,7 +83,8 @@ pipeline_definition = [
 
 def timer_test():
     get_logger(__name__).info("Timer test")
-# event.add_timer_handler(timer_test, 0.1)
 
-state_machine = StateMachine(StateMachineModel())
-Pipeline(pipeline_definition, FRAME_RATE, state_machine=state_machine).run()
+if __name__ == "__main__":
+#   event.add_timer_handler(timer_test, 0.1)
+    state_machine = StateMachine(StateMachineModel())
+    Pipeline(pipeline_definition, FRAME_RATE, state_machine=state_machine).run()
