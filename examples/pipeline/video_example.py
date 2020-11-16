@@ -26,8 +26,8 @@ VIDEO_OUTPUT_PATHNAME = "z_output.mp4"
 WINDOW_LOCATION = (50, 50)
 WINDOW_TITLE = "Astra"
 
-ELEMENTS_IMAGE = "aiko_services.media.image_io"
-ELEMENTS_VIDEO = "aiko_services.media.video_io"
+ELEMENTS_IMAGE = "aiko_services.elements.image_io"
+ELEMENTS_VIDEO = "aiko_services.elements.video_io"
 
 class StateMachineModel(object):
     states = [

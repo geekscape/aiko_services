@@ -11,8 +11,8 @@ IMAGE_INPUT_PATHNAME = "z_input/image_{:06d}.jpg"
 VIDEO_FRAME_RATE = 29.97
 VIDEO_OUTPUT_PATHNAME = "z_output.mp4"
 
-ELEMENTS_VIDEO = "aiko_services.media.video_io"
-ELEMENTS_IMAGE = "aiko_services.media.image_io"
+ELEMENTS_VIDEO = "aiko_services.elements.video_io"
+ELEMENTS_IMAGE = "aiko_services.elements.image_io"
 
 pipeline_definition = [
     {   "name": "ImageReadFile", "module": ELEMENTS_IMAGE,

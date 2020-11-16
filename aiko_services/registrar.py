@@ -43,6 +43,8 @@
 # - Rename "framework.py" to "service.py" and create a Service class ?
 # - Implement protocol.py and state_machine.py !
 # - Primary and secondaries Registrars
+#   - https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type
+#   - Eventual consistency and optimistic replication
 # - Primary Registrar supports discovery protocol
 # - Implement protocol matching similar to programming language interfaces with inheritance
 
