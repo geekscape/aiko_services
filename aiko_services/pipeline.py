@@ -142,6 +142,14 @@ class Pipeline():
             self.pipeline_stop()
 
     def pipeline_process(self, node_name, queue_item = None, queue_item_type = None, stream_stop = False):
+        node = self.get_node(node_name)
+        if node["instance"].get_stream_state() == StreamElementState.COMPLETE:
+            event_type = f", event: {queue_item_type}"
+            if queue_item_type.startswith("state_"):
+                event_type = f"{event_type}: {queue_item}"
+            _LOGGER.error(f"pipeline_process(): Can't process pipeline: StreamElementState is COMPLETE: stream_id: {self.stream_id}{event_type}")
+            return False
+
         swag = {}
         if queue_item:
             swag["frame"] = {"data": queue_item, "type": queue_item_type}
@@ -156,18 +164,23 @@ class Pipeline():
 
             if node_name not in processed_nodes:
                 node = self.get_node(node_name)
+                node_instance = node["instance"]
                 if stream_stop:
-                    node["instance"].update_stream_state(stream_stop)
+                    node_instance.update_stream_state(stream_stop)
 
-                okay, output = node["instance"].handler(self.stream_id, self.frame_id, swag)
+                try:
+                    okay, output = node_instance.handler(self.stream_id, self.frame_id, swag)
+                except TypeError as exception:
+                    _LOGGER.error(f"pipeline_process(): {node_name} handler state: {node_instance.get_stream_state()} doesn't return (okay, output)")
+                    okay = False
                 if not okay:
                     break
                 swag[node_name] = output
                 processed_nodes.add(node_name)
-                based_on_state = node["instance"].get_stream_state() == StreamElementState.RUN
+                based_on_state = node_instance.get_stream_state() == StreamElementState.RUN
                 for successor_name in self.get_node_successors(node_name, based_on_state=based_on_state):
                     process_queue.put(successor_name, block=False)
-                node["instance"].update_stream_state(stream_stop)
+                node_instance.update_stream_state(stream_stop)
         return okay
 
     def get_queue_item_types(self):
