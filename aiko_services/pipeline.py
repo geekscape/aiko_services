@@ -130,7 +130,17 @@ class Pipeline():
 #       event_type = f", event: {queue_item_type}"
 #       if queue_item_type.startswith("state_"):
 #           event_type = f"{event_type}: {queue_item}"
-#       _LOGGER.debug(f"pipeline_handler(): stream_id: {self.stream_id}{event_type}")
+#       _LOGGER.info(f"pipeline_handler(): stream_id: {self.stream_id}{event_type}")
+
+        if queue_item_type.startswith("parameters_"):
+            parameters = queue_item
+            for name, parameter_value in queue_item.items():
+                try:
+                    node_name, parameter_name = name.split(":")
+                    self.update_node_parameter(node_name, parameter_name, parameter_value)
+                except ValueError:
+                    _LOGGER.error(f"pipeline_handler(): Invalid parameter name: {name}")
+            return
 
         head_node_name = self.get_head_node_name()
         if head_node_name:
@@ -186,6 +196,7 @@ class Pipeline():
     def get_queue_item_types(self):
         queue_item_types = {
             "frame": f"frame_{self.stream_id}",
+            "parameters": f"parameters_{self.stream_id}",
             "state": f"state_{self.stream_id}"
         }
         return queue_item_types
