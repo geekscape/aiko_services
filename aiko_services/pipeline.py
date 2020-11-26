@@ -17,12 +17,15 @@
 import networkx as nx
 from queue import Queue
 import time
+import os
 
 import aiko_services.event as event
 from aiko_services.stream import StreamElementState, StreamQueueElement, StreamElement
 from aiko_services.utilities import get_logger, load_module, load_modules
 
 __all__ = ["Pipeline", "load_pipeline_definition"]
+
+DELIMITER = "$"
 
 _LOGGER = get_logger(__name__)
 
@@ -35,6 +38,8 @@ class Pipeline():
 
         self.graph = nx.DiGraph(version=0)
         nodes = self.graph.nodes
+        self.swag_map = {node["name"]: [] for node in pipeline_definition}
+        self.swags = {node["name"]: {} for node in pipeline_definition}
         for node in pipeline_definition:
             node_name = node["name"]
             if node_name in nodes and "module" in self.get_node(node_name):
@@ -61,10 +66,60 @@ class Pipeline():
                 node["parameters"] = {}
             self.get_node(node_name)["parameters"] = node["parameters"]
 
+
+            """
+            # Output from another node
+            image: "$GetImages.image"
+
+            self.swag_map takes the form of:
+            {src_node: [(src_key, dest_node, dest_key), (...)]
+            """
+
+            def map_node_outputs(dest_node, dest_key, val):
+                if isinstance(val, str) and val.startswith(DELIMITER):
+                    if DELIMITER in val:
+                        split = val[1:].split('.')
+                        if (val.startswith(DELIMITER) and
+                            len(split) == 2 and
+                            split[0] in self.get_node_names() ):
+                            source_node, source_key = split
+                            _LOGGER.debug(f"Mapping output {source_node}.{source_key} to {dest_node}.{dest_key}")
+                            self.swag_map[source_node].append((source_key, dest_node, dest_key))
+
+            """
+            # Using environment variables
+            thing:  "some/$STRING/is_a:${THING}
+
+            ToDo:
+            Allow for nested lists or other supported iterables
+            to contain evnironmnet variables
+            """
+            def expand_env_vars(dest_node, dest_key, val):
+                if isinstance(val, str):
+                    _LOGGER.debug(f"expanding: {dest_node}.{dest_key}: {val}")
+                    expanded = os.path.expandvars(val)
+                    if expanded != val:
+                        _LOGGER.debug(f"expanded {val} to {expanded}")
+                    self.get_node(dest_node)["parameters"][dest_key] = expanded
+                elif isinstance(val, list):
+                    for i, v in enumerate(val):
+                        if isinstance(v, str):
+                            _LOGGER.debug(f"expanding list element: {dest_node}.{dest_key}[{i}]: {v}")
+                            expanded = os.path.expandvars(v)
+                            if expanded != v:
+                                _LOGGER.debug(f"expanded {v} to {expanded}")
+                            self.get_node(dest_node)["parameters"][dest_key][i] = expanded
+
+
+            dest_node = node_name
+            for dest_key, val in node["parameters"].items():
+                map_node_outputs(dest_node, dest_key, val)
+                expand_env_vars(dest_node, dest_key, val)
+
         for node_name in self.get_node_names():
-          for successor in self.get_node_successors(node_name, based_on_state=False):
-              if "module" not in self.get_node(successor):
-                  raise ValueError(f"Pipeline element successor not defined: {node_name} --> {successor}")
+            for successor in self.get_node_successors(node_name, based_on_state=False):
+                if "module" not in self.get_node(successor):
+                    raise ValueError(f"Pipeline element successor not defined: {node_name} --> {successor}")
 
         _LOGGER.debug(f"Pipeline definition: {self}")
 
@@ -130,17 +185,7 @@ class Pipeline():
 #       event_type = f", event: {queue_item_type}"
 #       if queue_item_type.startswith("state_"):
 #           event_type = f"{event_type}: {queue_item}"
-#       _LOGGER.info(f"pipeline_handler(): stream_id: {self.stream_id}{event_type}")
-
-        if queue_item_type.startswith("parameters_"):
-            parameters = queue_item
-            for name, parameter_value in queue_item.items():
-                try:
-                    node_name, parameter_name = name.split(":")
-                    self.update_node_parameter(node_name, parameter_name, parameter_value)
-                except ValueError:
-                    _LOGGER.error(f"pipeline_handler(): Invalid parameter name: {name}")
-            return
+#       _LOGGER.debug(f"pipeline_handler(): stream_id: {self.stream_id}{event_type}")
 
         head_node_name = self.get_head_node_name()
         if head_node_name:
@@ -152,15 +197,11 @@ class Pipeline():
             self.pipeline_stop()
 
     def pipeline_process(self, node_name, queue_item = None, queue_item_type = None, stream_stop = False):
-        node = self.get_node(node_name)
-        if node["instance"].get_stream_state() == StreamElementState.COMPLETE:
-            event_type = f", event: {queue_item_type}"
-            if queue_item_type.startswith("state_"):
-                event_type = f"{event_type}: {queue_item}"
-            _LOGGER.error(f"pipeline_process(): Can't process pipeline: StreamElementState is COMPLETE: stream_id: {self.stream_id}{event_type}")
-            return False
 
-        swag = {}
+        # For backwrad compatability {"PrevNode": {k:v}}
+        # will be added to the new and imporved mapped value swag
+        previous_swag = {}
+        swag = self.swags[node_name]
         if queue_item:
             swag["frame"] = {"data": queue_item, "type": queue_item_type}
 
@@ -171,32 +212,41 @@ class Pipeline():
 
         while process_queue.qsize():
             node_name = process_queue.get()
+            swag = self.swags[node_name]
+
+            # For backward compatability with self.swag[self.predecessor][xxx] syntax
+            swag.update(previous_swag)
 
             if node_name not in processed_nodes:
                 node = self.get_node(node_name)
-                node_instance = node["instance"]
                 if stream_stop:
-                    node_instance.update_stream_state(stream_stop)
+                    node["instance"].update_stream_state(stream_stop)
 
-                try:
-                    okay, output = node_instance.handler(self.stream_id, self.frame_id, swag)
-                except TypeError as exception:
-                    _LOGGER.error(f"pipeline_process(): {node_name} handler state: {node_instance.get_stream_state()} doesn't return (okay, output)")
-                    okay = False
+                okay, output = node["instance"].handler(self.stream_id, self.frame_id, swag)
                 if not okay:
                     break
-                swag[node_name] = output
+
+                # Update swag for specific nodes as indicated by swag_map
+                #{src_node: [(src_key, dest_node, dest_key), (...)]
+                src_node = node_name
+                if isinstance(output, dict):
+                    for (src_key, dest_node, dest_key) in self.swag_map[src_node]:
+                        if src_key in output:
+                            self.swags[dest_node][dest_key] = output[src_key]
+
                 processed_nodes.add(node_name)
-                based_on_state = node_instance.get_stream_state() == StreamElementState.RUN
+                based_on_state = node["instance"].get_stream_state() == StreamElementState.RUN
                 for successor_name in self.get_node_successors(node_name, based_on_state=based_on_state):
                     process_queue.put(successor_name, block=False)
-                node_instance.update_stream_state(stream_stop)
+                node["instance"].update_stream_state(stream_stop)
+
+                # Maintain backward compatability
+                previous_swag = {node_name: output}
         return okay
 
     def get_queue_item_types(self):
         queue_item_types = {
             "frame": f"frame_{self.stream_id}",
-            "parameters": f"parameters_{self.stream_id}",
             "state": f"state_{self.stream_id}"
         }
         return queue_item_types

@@ -26,13 +26,20 @@ class StreamElement(abc.ABC):
         self.name = name
         self.parameters = parameters
         self.predecessors = predecessors
-        if predecessors:
-            self.predecessor = predecessors[0]
         self.pipeline_state_machine = pipeline_state_machine
         self.frame_count = 0
         self.handler = self.stream_start_handler
         self.logger = get_logger(self.name)
         self.stream_state = StreamElementState.START
+
+    @property
+    def predecessor(self):
+        self.logger.warning((
+            "DEPRECATION WARNING: StreamElement.predecessor will be"
+            " deprecated soon. Use swag mapping in future."
+        ))
+        if self.predecessors:
+            return self.predecessors[0]
 
     def get_stream_state(self):
         return self.stream_state
