@@ -6,6 +6,14 @@ from aiko_services.utilities import get_logger
 
 __all__ = ["StateMachine"]
 
+STATES = "states"
+TRANSITIONS = "transitions"
+
+class StateMachineModel(object):
+    def __init__(self, states, transitions):
+        self.states = states
+        self.transitions = transitions
+
 class StateMachine(object):
     def __init__(self, model):
         self.logger = get_logger(__name__)
@@ -17,6 +25,17 @@ class StateMachine(object):
             initial="start",
             send_event=True
         )
+
+    @classmethod
+    def from_dict(cls, d):
+        model = StateMachineModel(d[STATES], d[TRANSITIONS])
+        return cls(model)
+
+    def to_dict(self):
+        return {
+            STATES: self.model.states,
+            TRANSITIONS: self.model.transitions
+        }
 
     def get_state(self):
         return self.model.state
