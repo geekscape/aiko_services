@@ -24,9 +24,9 @@ pipeline_definition = [
         "successors": ["ImageWriteFile"],
         "parameters": {
         "colors": {
-            "astra": (100, 0, 0),
-            "bailey": (0, 100, 0),
-            "ty": (0, 0, 100)
+            "astra": [100, 0, 0],
+            "bailey": [0, 100, 0],
+            "ty": [0, 0, 100]
             },
         "text_color": "yellow"
         }

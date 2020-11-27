@@ -17,6 +17,8 @@
 import networkx as nx
 from queue import Queue
 import time
+import json
+import yaml
 
 import aiko_services.event as event
 from aiko_services.stream import StreamElementState, StreamQueueElement, StreamElement
@@ -240,8 +242,17 @@ class Pipeline():
 
 PIPELINE_DEFINITION_NAME = "pipeline_definition"
 
-def load_pipeline_definition(pipeline_pathname, pipeline_definition_name=PIPELINE_DEFINITION_NAME):
-    module = load_module(pipeline_pathname)
-    pipeline_definition =  getattr(module, pipeline_definition_name)
-    state_machine_model = getattr(module, "StateMachineModel")
-    return pipeline_definition, state_machine_model
+def load_pipeline_definition(pipeline_pathname, pipeline_name=PIPELINE_DEFINITION_NAME):
+    if pipeline_pathname.endswith(".py"):
+        mod = load_module(pipeline_pathname)
+        pipeline_def =  getattr(mod, pipeline_name)
+    elif pipeline_pathname.endswith(".json"):
+        with open(pipeline_pathname, "r") as f:
+            pipeline_def = json.load(f)[pipeline_name]
+    elif pipeline_pathname.endswith(".yaml") or pipeline_pathname.endswith(".yml"):
+        with open(pipeline_pathname, "r") as f:
+            pipeline_def = yaml.load(f, Loader=yaml.FullLoader)[pipeline_name]
+    else:
+        raise ValueError(f"Unsupported pipeline definition format: {pipeline_pathname}")
+
+    return pipeline_def
