@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "aiko_services"
+version = "0.1"
+description = "Asynchronous message service framework"
+authors = ["Andy Gelme <geekscape@gmail.com>"]
+
+[[tool.poetry.source]]
+name = "silverpond"
+url = "https://pypi.silverpond.com.au/simple"
+
+[tool.poetry.dependencies]
+python = ">=3.6,<4.0.0"
+click = "^7.0"
+networkx = "^2.1"
+numpy = "^1.19.1"
+paho-mqtt = "^1.3"
+Pillow = "^7.2.0"
+pyyaml = "^5.3.1"
+transitions= "^0.8.2"
+opencv-python = { version = "^4.4.0", optional = true }
+
+[tool.poetry.extras]
+opencv = ["opencv-python"]
+
+[tool.poetry.scripts]
+aiko = 'aiko_services.cli:main'
+registrar = 'aiko_services.registrar:main'
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.0" 
+ipython = "*"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
+

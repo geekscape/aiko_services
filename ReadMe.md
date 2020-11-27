@@ -5,6 +5,11 @@ IoT, Machine Learning and Video
 
 # Development set-up
 
+```
+poetry install [--extras opencv]
+poety shell
+```
+
 # CLI
 
 Works with pipeline definitions in `.py`, `.yaml` or `.json` format.
@@ -16,4 +21,4 @@ aiko <path-to-pipeline-def> --help
 
 # To Do
 
-- [ ] Poetry pyproject.toml
+- [ ] None, yet !
