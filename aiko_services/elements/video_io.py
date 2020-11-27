@@ -7,7 +7,15 @@
 #     length = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
 #     frame_rate = int(video_capture.get(cv2.CAP_PROP_FPS))
 
-import cv2
+try:
+    import cv2
+except ModuleNotFoundError:
+    raise ModuleNotFoundError((
+        "opencv-python package not installed. "
+        'Install aiko_services with --extras "opencv" '
+        "or install opencv-python manually to use this "
+        "module."))
+
 from pathlib import Path
 
 from aiko_services.stream import StreamElement
