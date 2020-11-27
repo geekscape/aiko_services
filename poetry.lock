@@ -6,6 +6,11 @@ category = "dev"
 optional = false
 python-versions = "*"
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "atomicwrites"
 version = "1.4.0"
@@ -13,6 +18,11 @@ description = "Atomic file writes."
 category = "dev"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
 
 [[package]]
 name = "attrs"
@@ -28,6 +38,11 @@ docs = ["furo", "sphinx", "zope.interface"]
 tests = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>=4.3.0)", "six", "zope.interface"]
 tests_no_zope = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>=4.3.0)", "six"]
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "backcall"
 version = "0.2.0"
@@ -35,6 +50,11 @@ description = "Specifications for callback functions passed in to an API"
 category = "dev"
 optional = false
 python-versions = "*"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
 
 [[package]]
 name = "click"
@@ -44,6 +64,11 @@ category = "main"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "colorama"
 version = "0.4.4"
@@ -52,6 +77,11 @@ category = "dev"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "decorator"
 version = "4.4.2"
@@ -59,6 +89,11 @@ description = "Decorators for Humans"
 category = "main"
 optional = false
 python-versions = ">=2.6, !=3.0.*, !=3.1.*"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
 
 [[package]]
 name = "importlib-metadata"
@@ -75,13 +110,18 @@ zipp = ">=0.5"
 docs = ["sphinx", "rst.linker"]
 testing = ["packaging", "pep517", "unittest2", "importlib-resources (>=1.3)"]
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "ipython"
-version = "7.19.0"
+version = "7.16.1"
 description = "IPython: Productive Interactive Computing"
 category = "dev"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.6"
 
 [package.dependencies]
 appnope = {version = "*", markers = "sys_platform == \"darwin\""}
@@ -89,7 +129,7 @@ backcall = "*"
 colorama = {version = "*", markers = "sys_platform == \"win32\""}
 decorator = "*"
 jedi = ">=0.10"
-pexpect = {version = ">4.3", markers = "sys_platform != \"win32\""}
+pexpect = {version = "*", markers = "sys_platform != \"win32\""}
 pickleshare = "*"
 prompt-toolkit = ">=2.0.0,<3.0.0 || >3.0.0,<3.0.1 || >3.0.1,<3.1.0"
 pygments = "*"
@@ -106,6 +146,11 @@ parallel = ["ipyparallel"]
 qtconsole = ["qtconsole"]
 test = ["nose (>=0.10.1)", "requests", "testpath", "pygments", "nbformat", "ipykernel", "numpy (>=1.14)"]
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "ipython-genutils"
 version = "0.2.0"
@@ -113,6 +158,11 @@ description = "Vestigial utilities from IPython"
 category = "dev"
 optional = false
 python-versions = "*"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
 
 [[package]]
 name = "jedi"
@@ -126,8 +176,13 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 parso = ">=0.7.0,<0.8.0"
 
 [package.extras]
-qa = ["flake8 (3.7.9)"]
+qa = ["flake8 (==3.7.9)"]
 testing = ["Django (<3.1)", "colorama", "docopt", "pytest (>=3.9.0,<5.0.0)"]
+
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
 
 [[package]]
 name = "more-itertools"
@@ -136,6 +191,11 @@ description = "More routines for operating on iterables, beyond itertools"
 category = "dev"
 optional = false
 python-versions = ">=3.5"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
 
 [[package]]
 name = "networkx"
@@ -161,6 +221,11 @@ pytest = ["pytest"]
 pyyaml = ["pyyaml"]
 scipy = ["scipy"]
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "numpy"
 version = "1.19.4"
@@ -169,16 +234,26 @@ category = "main"
 optional = false
 python-versions = ">=3.6"
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "opencv-python"
 version = "4.4.0.46"
 description = "Wrapper package for OpenCV python bindings."
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.6"
 
 [package.dependencies]
-numpy = ">=1.14.5"
+numpy = ">=1.19.3"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
 
 [[package]]
 name = "packaging"
@@ -192,6 +267,11 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 pyparsing = ">=2.0.2"
 six = "*"
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "paho-mqtt"
 version = "1.5.1"
@@ -202,6 +282,11 @@ python-versions = "*"
 
 [package.extras]
 proxy = ["pysocks"]
+
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
 
 [[package]]
 name = "parso"
@@ -214,6 +299,11 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 [package.extras]
 testing = ["docopt", "pytest (>=3.0.7)"]
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "pexpect"
 version = "4.8.0"
@@ -225,6 +315,11 @@ python-versions = "*"
 [package.dependencies]
 ptyprocess = ">=0.5"
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "pickleshare"
 version = "0.7.5"
@@ -233,6 +328,11 @@ category = "dev"
 optional = false
 python-versions = "*"
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "pillow"
 version = "7.2.0"
@@ -240,6 +340,11 @@ description = "Python Imaging Library (Fork)"
 category = "main"
 optional = false
 python-versions = ">=3.5"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
 
 [[package]]
 name = "pluggy"
@@ -255,16 +360,26 @@ importlib-metadata = {version = ">=0.12", markers = "python_version < \"3.8\""}
 [package.extras]
 dev = ["pre-commit", "tox"]
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "prompt-toolkit"
-version = "3.0.8"
+version = "3.0.3"
 description = "Library for building powerful interactive command lines in Python"
 category = "dev"
 optional = false
-python-versions = ">=3.6.1"
+python-versions = ">=3.6"
 
 [package.dependencies]
 wcwidth = "*"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
 
 [[package]]
 name = "ptyprocess"
@@ -274,6 +389,11 @@ category = "dev"
 optional = false
 python-versions = "*"
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "py"
 version = "1.9.0"
@@ -281,6 +401,11 @@ description = "library with cross-python path, ini-parsing, io, code, log facili
 category = "dev"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
 
 [[package]]
 name = "pygments"
@@ -290,6 +415,11 @@ category = "dev"
 optional = false
 python-versions = ">=3.5"
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "pyparsing"
 version = "2.4.7"
@@ -297,6 +427,11 @@ description = "Python parsing module"
 category = "dev"
 optional = false
 python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
 
 [[package]]
 name = "pytest"
@@ -318,8 +453,13 @@ py = ">=1.5.0"
 wcwidth = "*"
 
 [package.extras]
-checkqa-mypy = ["mypy (v0.761)"]
+checkqa-mypy = ["mypy (==v0.761)"]
 testing = ["argcomplete", "hypothesis (>=3.56)", "mock", "nose", "requests", "xmlschema"]
+
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
 
 [[package]]
 name = "pyyaml"
@@ -329,6 +469,11 @@ category = "main"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "six"
 version = "1.15.0"
@@ -337,19 +482,31 @@ category = "main"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "traitlets"
-version = "5.0.5"
-description = "Traitlets Python configuration system"
+version = "4.3.3"
+description = "Traitlets Python config system"
 category = "dev"
 optional = false
-python-versions = ">=3.7"
+python-versions = "*"
 
 [package.dependencies]
+decorator = "*"
 ipython-genutils = "*"
+six = "*"
 
 [package.extras]
-test = ["pytest"]
+test = ["pytest", "mock"]
+
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
 
 [[package]]
 name = "transitions"
@@ -366,6 +523,11 @@ six = "*"
 diagrams = ["pygraphviz"]
 test = ["pytest"]
 
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
 [[package]]
 name = "wcwidth"
 version = "0.2.5"
@@ -373,6 +535,11 @@ description = "Measures the displayed width of unicode strings in a terminal"
 category = "dev"
 optional = false
 python-versions = "*"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
 
 [[package]]
 name = "zipp"
@@ -384,12 +551,20 @@ python-versions = ">=3.6"
 
 [package.extras]
 docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
-testing = ["pytest (>=3.5,<3.7.3 || >3.7.3)", "pytest-checkdocs (>=1.2.3)", "pytest-flake8", "pytest-cov", "jaraco.test (>=3.2.0)", "jaraco.itertools", "func-timeout", "pytest-black (>=0.3.7)", "pytest-mypy"]
+testing = ["pytest (>=3.5,!=3.7.3)", "pytest-checkdocs (>=1.2.3)", "pytest-flake8", "pytest-cov", "jaraco.test (>=3.2.0)", "jaraco.itertools", "func-timeout", "pytest-black (>=0.3.7)", "pytest-mypy"]
+
+[package.source]
+type = "legacy"
+url = "https://pypi.silverpond.com.au/simple"
+reference = "silverpond"
+
+[extras]
+opencv = ["opencv-python"]
 
 [metadata]
 lock-version = "1.1"
-python-versions = ">=3.7,<4.0.0"
-content-hash = "1ac2196cb462f695457d20909123e70f51043a3ad0e2620b38774936292522fe"
+python-versions = ">=3.6,<3.9"
+content-hash = "b692a54559e59f1f64c9ed954c04488d8f5e379a815ba8c31ce3c83aad95ef59"
 
 [metadata.files]
 appnope = [
@@ -414,6 +589,7 @@ click = [
 ]
 colorama = [
     {file = "colorama-0.4.4-py2.py3-none-any.whl", hash = "sha256:9f47eda37229f68eee03b24b9748937c7dc3868f906e8ba69fbcbdd3bc5dc3e2"},
+    {file = "colorama-0.4.4.tar.gz", hash = "sha256:5941b2b48a20143d2267e95b1c2a7603ce057ee39fd88e7329b0c292aa16869b"},
 ]
 decorator = [
     {file = "decorator-4.4.2-py2.py3-none-any.whl", hash = "sha256:41fa54c2a0cc4ba648be4fd43cff00aedf5b9465c9bf18d64325bc225f08f760"},
@@ -424,8 +600,8 @@ importlib-metadata = [
     {file = "importlib_metadata-3.1.0.tar.gz", hash = "sha256:d9b8a46a0885337627a6430db287176970fff18ad421becec1d64cfc763c2099"},
 ]
 ipython = [
-    {file = "ipython-7.19.0-py3-none-any.whl", hash = "sha256:c987e8178ced651532b3b1ff9965925bfd445c279239697052561a9ab806d28f"},
-    {file = "ipython-7.19.0.tar.gz", hash = "sha256:cbb2ef3d5961d44e6a963b9817d4ea4e1fa2eb589c371a470fed14d8d40cbd6a"},
+    {file = "ipython-7.16.1-py3-none-any.whl", hash = "sha256:2dbcc8c27ca7d3cfe4fcdff7f45b27f9a8d3edfa70ff8024a71c7a8eb5f09d64"},
+    {file = "ipython-7.16.1.tar.gz", hash = "sha256:9f4fcb31d3b2c533333893b9172264e4821c1ac91839500f31bd43f2c59b3ccf"},
 ]
 ipython-genutils = [
     {file = "ipython_genutils-0.2.0-py2.py3-none-any.whl", hash = "sha256:72dd37233799e619666c9f639a9da83c34013a73e8bbc79a7a6348d93c61fab8"},
@@ -556,8 +732,8 @@ pluggy = [
     {file = "pluggy-0.13.1.tar.gz", hash = "sha256:15b2acde666561e1298d71b523007ed7364de07029219b604cf808bfa1c765b0"},
 ]
 prompt-toolkit = [
-    {file = "prompt_toolkit-3.0.8-py3-none-any.whl", hash = "sha256:7debb9a521e0b1ee7d2fe96ee4bd60ef03c6492784de0547337ca4433e46aa63"},
-    {file = "prompt_toolkit-3.0.8.tar.gz", hash = "sha256:25c95d2ac813909f813c93fde734b6e44406d1477a9faef7c915ff37d39c0a8c"},
+    {file = "prompt_toolkit-3.0.3-py3-none-any.whl", hash = "sha256:c93e53af97f630f12f5f62a3274e79527936ed466f038953dfa379d4941f651a"},
+    {file = "prompt_toolkit-3.0.3.tar.gz", hash = "sha256:a402e9bf468b63314e37460b68ba68243d55b2f8c4d0192f85a019af3945050e"},
 ]
 ptyprocess = [
     {file = "ptyprocess-0.6.0-py2.py3-none-any.whl", hash = "sha256:d7cc528d76e76342423ca640335bd3633420dc1366f258cb31d05e865ef5ca1f"},
@@ -590,6 +766,8 @@ pyyaml = [
     {file = "PyYAML-5.3.1-cp37-cp37m-win_amd64.whl", hash = "sha256:73f099454b799e05e5ab51423c7bcf361c58d3206fa7b0d555426b1f4d9a3eaf"},
     {file = "PyYAML-5.3.1-cp38-cp38-win32.whl", hash = "sha256:06a0d7ba600ce0b2d2fe2e78453a470b5a6e000a985dd4a4e54e436cc36b0e97"},
     {file = "PyYAML-5.3.1-cp38-cp38-win_amd64.whl", hash = "sha256:95f71d2af0ff4227885f7a6605c37fd53d3a106fcab511b8860ecca9fcf400ee"},
+    {file = "PyYAML-5.3.1-cp39-cp39-win32.whl", hash = "sha256:ad9c67312c84def58f3c04504727ca879cb0013b2517c85a9a253f0cb6380c0a"},
+    {file = "PyYAML-5.3.1-cp39-cp39-win_amd64.whl", hash = "sha256:6034f55dab5fea9e53f436aa68fa3ace2634918e8b5994d82f3621c04ff5ed2e"},
     {file = "PyYAML-5.3.1.tar.gz", hash = "sha256:b8eac752c5e14d3eca0e6dd9199cd627518cb5ec06add0de9d32baeee6fe645d"},
 ]
 six = [
@@ -597,8 +775,8 @@ six = [
     {file = "six-1.15.0.tar.gz", hash = "sha256:30639c035cdb23534cd4aa2dd52c3bf48f06e5f4a941509c8bafd8ce11080259"},
 ]
 traitlets = [
-    {file = "traitlets-5.0.5-py3-none-any.whl", hash = "sha256:69ff3f9d5351f31a7ad80443c2674b7099df13cc41fc5fa6e2f6d3b0330b0426"},
-    {file = "traitlets-5.0.5.tar.gz", hash = "sha256:178f4ce988f69189f7e523337a3e11d91c786ded9360174a3d9ca83e79bc5396"},
+    {file = "traitlets-4.3.3-py2.py3-none-any.whl", hash = "sha256:70b4c6a1d9019d7b4f6846832288f86998aa3b9207c6821f3578a6a6a467fe44"},
+    {file = "traitlets-4.3.3.tar.gz", hash = "sha256:d023ee369ddd2763310e4c3eae1ff649689440d4ae59d7485eb4cfbbe3e359f7"},
 ]
 transitions = [
     {file = "transitions-0.8.5-py2.py3-none-any.whl", hash = "sha256:bb05d3283c91e091046ed5484da2e4f8b489eb5f1bca1a5c76d47d19d703b3ff"},
