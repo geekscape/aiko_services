@@ -68,10 +68,9 @@ import click
 import re
 import sys
 import yaml
-import json
 
 import aiko_services.event as event
-from aiko_services.pipeline import Pipeline
+from aiko_services.pipeline import Pipeline, load_pipeline_definition
 from aiko_services.utilities import get_logger, load_module
 
 MATCH_CAMEL_CASE = re.compile(r"(?<!^)(?=[A-Z])")
@@ -80,20 +79,6 @@ DEFAULT_PIPELINE_FRAME_RATE = 0.05 # 20 FPS, 0 for flat-out!
 SEP = "_SEP_"
 pipeline_definition = []
 
-def load_pipeline_definition(pipeline_pathname, pipeline_name=DEFAULT_PIPELINE_NAME):
-    if pipeline_pathname.endswith(".py"):
-        mod = load_module(pipeline_pathname)
-        pipeline_def =  getattr(mod, pipeline_name)
-    elif pipeline_pathname.endswith(".json"):
-        with open(pipeline_pathname, "r") as f:
-            pipeline_def = json.load(f)[pipeline_name]
-    elif pipeline_pathname.endswith(".yaml") or pipeline_pathname.endswith(".yml"):
-        with open(pipeline_pathname, "r") as f:
-            pipeline_def = yaml.load(f, Loader=yaml.SafeLoader)[pipeline_name]
-    else:
-        raise ValueError(f"Unsupported pipeline definition format: {pipeline_pathname}")
-
-    return pipeline_def
 
 def to_snake_case(val):
   return MATCH_CAMEL_CASE.sub("_", val).lower()
