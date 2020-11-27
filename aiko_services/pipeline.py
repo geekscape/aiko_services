@@ -251,7 +251,7 @@ def load_pipeline_definition(pipeline_pathname, pipeline_name=PIPELINE_DEFINITIO
             pipeline_def = json.load(f)[pipeline_name]
     elif pipeline_pathname.endswith(".yaml") or pipeline_pathname.endswith(".yml"):
         with open(pipeline_pathname, "r") as f:
-            pipeline_def = yaml.load(f, Loader=yaml.SafeLoader)[pipeline_name]
+            pipeline_def = yaml.load(f, Loader=yaml.FullLoader)[pipeline_name]
     else:
         raise ValueError(f"Unsupported pipeline definition format: {pipeline_pathname}")
 

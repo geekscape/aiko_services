@@ -1,0 +1,48 @@
+{
+  "pipeline_definition": [
+    {
+      "name": "VideoReadFile",
+      "module": "aiko_services.elements.video_io",
+      "successors": [
+        "ImageOverlay"
+      ],
+      "parameters": {
+        "video_pathname": "astra_brief.mp4"
+      }
+    },
+    {
+      "name": "ImageOverlay",
+      "module": "aiko_services.elements.image_io",
+      "successors": [
+        "ImageWriteFile"
+      ],
+      "parameters": {
+        "colors": {
+          "astra": [
+            100,
+            0,
+            0
+          ],
+          "bailey": [
+            0,
+            100,
+            0
+          ],
+          "ty": [
+            0,
+            0,
+            100
+          ]
+        },
+        "text_color": "yellow"
+      }
+    },
+    {
+      "name": "ImageWriteFile",
+      "module": "aiko_services.elements.image_io",
+      "parameters": {
+        "image_pathname": "z_output/image_{:06d}.jpg"
+      }
+    }
+  ]
+}
