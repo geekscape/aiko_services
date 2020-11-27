@@ -9,15 +9,15 @@ pipeline_definition:
   name: ImageOverlay
   parameters:
     colors:
-      astra: !!python/tuple
+      astra:
       - 100
       - 0
       - 0
-      bailey: !!python/tuple
+      bailey:
       - 0
       - 100
       - 0
-      ty: !!python/tuple
+      ty:
       - 0
       - 0
       - 100

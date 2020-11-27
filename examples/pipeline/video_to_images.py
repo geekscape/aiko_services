@@ -24,9 +24,9 @@ pipeline_definition = [
         "successors": ["ImageWriteFile"],
         "parameters": {
         "colors": {
-            "astra": (100, 0, 0),
-            "bailey": (0, 100, 0),
-            "ty": (0, 0, 100)
+            "astra": [100, 0, 0],
+            "bailey": [0, 100, 0],
+            "ty": [0, 0, 100]
             },
         "text_color": "yellow"
         }
@@ -37,14 +37,6 @@ pipeline_definition = [
         }
     }
 ]
-
-import json
-import yaml
-with open("video_to_images.json", 'w') as f:
-    json.dump({"pipeline_definition": pipeline_definition}, f, indent=2)
-
-with open("video_to_images.yaml", 'w') as f:
-    yaml.dump({"pipeline_definition": pipeline_definition}, f)
 
 if __name__ == "__main__":
     Pipeline(pipeline_definition, FRAME_RATE).run()

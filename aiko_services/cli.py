@@ -68,6 +68,7 @@ import click
 import re
 import sys
 import yaml
+import json
 
 import aiko_services.event as event
 from aiko_services.pipeline import Pipeline, load_pipeline_definition
@@ -204,9 +205,24 @@ pipeline_definition = cli_shim()
 @click.option("--pipeline-frame-rate", "-fps", type=int,
   required=False, default=DEFAULT_PIPELINE_FRAME_RATE,
   help=f"Rate at which to run the pipeline over frames [{DEFAULT_PIPELINE_FRAME_RATE}]")
-@click.option("--show", is_flag=True, 
+@click.option("--show", is_flag=True,
   help="Only print the pipeline, dont run it.")
+@click.option("--dump", type=str, default=None,
+  help="Save the file to yaml or json")
 def main(**kwargs):
+
+    dump = kwargs["dump"]
+    if dump is not None:
+        to_dump = {"pipeline_definition": pipeline_definition}
+        if dump.endswith((".yaml", ".yml")):
+            with open(dump, "w") as f:
+                yaml.dump(to_dump, f)
+        elif dump.endswith(".json"):
+            with open(dump, "w") as f:
+                json.dump(to_dump, f, indent=2)
+        else:
+            raise ValueError(f"Invalid file type: got {dump}")
+        return 0
 
     _pipeline_def = clean_cli_params(pipeline_definition)
     pipeline = Pipeline(_pipeline_def, kwargs["pipeline_frame_rate"])
