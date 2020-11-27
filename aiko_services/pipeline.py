@@ -66,8 +66,7 @@ class Pipeline():
         for node_name in self.get_node_names():
           for successor in self.get_node_successors(node_name, based_on_state=False):
               if "module" not in self.get_node(successor):
-                  x = self.get_node(successor)
-                  raise ValueError(f"Pipeline element successor not defined: {node_name} --> {successor}: {x}")
+                  raise ValueError(f"Pipeline element successor not defined: {node_name} --> {successor}")
 
         _LOGGER.debug(f"Pipeline definition: {self}")
 
