@@ -1,0 +1,30 @@
+pipeline_definition:
+- module: aiko_services.elements.video_io
+  name: VideoReadFile
+  parameters:
+    video_pathname: astra_brief.mp4
+  successors:
+  - ImageOverlay
+- module: aiko_services.elements.image_io
+  name: ImageOverlay
+  parameters:
+    colors:
+      astra:
+      - 100
+      - 0
+      - 0
+      bailey:
+      - 0
+      - 100
+      - 0
+      ty:
+      - 0
+      - 0
+      - 100
+    text_color: yellow
+  successors:
+  - ImageWriteFile
+- module: aiko_services.elements.image_io
+  name: ImageWriteFile
+  parameters:
+    image_pathname: z_output/image_{:06d}.jpg
