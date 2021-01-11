@@ -210,7 +210,7 @@ def initialize(pipeline=None):
 # TODO: Implement tags stuff, e.g set_tags() ?
 
     add_message_handler(on_registrar_message, REGISTRAR_TOPIC)
-    event.add_queue_handler(message_queue_handler, "message")
+    event.add_queue_handler(message_queue_handler, ["message"])
 
     lwt_topic = public.topic_state
     lwt_payload = "(stopped)"
