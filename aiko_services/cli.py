@@ -73,11 +73,11 @@ import json
 import aiko_services.event as event
 from aiko_services.pipeline import Pipeline, load_pipeline_definition
 from aiko_services.utilities import get_logger, load_module
+from aiko_services.__tokens import CLI_TOKEN, SEPARATOR_TOKEN
 
 MATCH_CAMEL_CASE = re.compile(r"(?<!^)(?=[A-Z])")
 DEFAULT_PIPELINE_NAME = "pipeline_definition"
 DEFAULT_PIPELINE_FRAME_RATE = 0.05 # 20 FPS, 0 for flat-out!
-SEP = "_SEP_"
 pipeline_definition = []
 
 
@@ -157,10 +157,10 @@ def options_from_pipeline_def(pipeline_definition):
             component_name = ele["name"]
 
             # Required cli params
-            params = {k:v for k,v in ele["parameters"].items() if not k.endswith("_cli")}
-            cli_attrs = {k:v for k,v in ele["parameters"].items() if k.endswith("_cli")}
+            params = {k:v for k,v in ele["parameters"].items() if (not k.endswith(CLI_TOKEN)) or (not k.startswith(OUT_TOKEN))}
+            cli_attrs = {k:v for k,v in ele["parameters"].items() if k.endswith(CLI_TOKEN)}
             for param_name, value in params.items():
-                attributes = cli_attrs.pop(f"{param_name}_cli", {})
+                attributes = cli_attrs.pop(f"{param_name}{CLI_TOKEN}", {})
                 if attributes.get("hidden", False):
                     continue
                 validate_attributes(attributes, component_name, param_name)
@@ -179,7 +179,7 @@ def options_from_pipeline_def(pipeline_definition):
                 flags = attributes.get("name", infered_flag).split()
 
                 validate_value_type(value, attributes, component_name, param_name)
-                variable_name = f"{component_name}{SEP}{param_name}"
+                variable_name = f"{component_name}{SEPARATOR_TOKEN}{param_name}"
                 flags += [variable_name]
                 click.option(*flags, **attributes)(f)
         return f
@@ -190,7 +190,7 @@ def clean_cli_params(pipeline_definition):
     for component in [e for e in pipeline_definition if "parameters" in e]:
         param_names = list(component["parameters"].keys())
         for param_name in param_names:
-            if param_name.endswith("_cli"):
+            if param_name.endswith(CLI_TOKEN):
                 component["parameters"].pop(param_name)
     return pipeline_definition
 
@@ -228,8 +228,8 @@ def main(**kwargs):
     pipeline = Pipeline(_pipeline_def, kwargs["pipeline_frame_rate"])
 
     for k,v in kwargs.items():
-        if SEP in k:
-            node_name, param_name = k.split(SEP)
+        if SEPARATOR_TOKEN in k:
+            node_name, param_name = k.split(SEPARATOR_TOKEN)
             pipeline.update_node_parameter(node_name, param_name, v)
 
     if kwargs["show"]:

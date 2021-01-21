@@ -1,0 +1,3 @@
+OUT_TOKEN = "OUT:"
+CLI_TOKEN = "_cli"
+SEPARATOR_TOKEN = "_SEP_"
