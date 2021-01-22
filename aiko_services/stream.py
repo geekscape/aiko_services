@@ -27,12 +27,16 @@ class StreamElementState(Enum):
 
 class StreamElement(abc.ABC):
 
-    parameter_names = ()
+    expected_parameters: Tuple[str]
+    expected_inputs: Tuple[str]
+    expected_outputs: Tuple[str]
 
     def __init__(
         self,
         name,
         parameters,
+        input_map,
+        outputs,
         predecessors,
         pipeline_state_machine,
     ):
@@ -44,52 +48,29 @@ class StreamElement(abc.ABC):
             self.predecessor = predecessors[0]
         self.pipeline_state_machine = pipeline_state_machine
         self.frame_count = 0
-        self.handler = self._stream_start_handler
+        self.handler = self.stream_start_handler
         self.logger = get_logger(self.name)
         self.stream_state = StreamElementState.START
 
-        # Dynamically setup attributes
-        for parameter_name, val in parameters.items():
-            if parameter_name.startswith(OUT_TOKEN):
-                parameter_name = parameter_name[len(OUT_TOKEN) :]
+        # ToDo Sanity Check
+        self.input_map = input_map
+        self.outputs = outputs
 
-                if (self.parameter_names) and (
-                    parameter_name not in self.parameter_names
-                ):
-                    raise ValueError(
-                        f"Unexpected parameter_name in {self.__class__.__name__} StreamElement declaration are not accounted for. Got: '{parameter_name}' expected: '{self.parameter_names}'"
-                    )
-
-                if isinstance(val, list):
-                    # If both element and output_key are defined
-                    element_name = val[0]
-                    output_name = val[1]
-                elif isinstance(val, str):
-                    # If only output_key is defined assume predecessor
-
-                    # ToDo make sure only 1 predecessor exists for this use
-                    element_name = self.predecessor
-                    output_name = val
-
-                setattr(
-                    StreamElement,
-                    parameter_name,
-                    property(
-                        lambda StreamElement: self.get_element_from_swag(
-                            element_name,
-                            output_name,
-                        )
-                    ),
-                )
+        for expected_parameter in self.expected_parameters:
+            if isinstance(expected_parameter, str):
+                parameter_name = expected_parameter
+                val = parameters[parameter_name]
             else:
-                setattr(
-                    StreamElement,
-                    parameter_name,
-                    val,
-                )
-
-    def get_element_from_swag(self, element_name, output_name):
-        return self.swag[element_name][output_name]
+                parameter_name, default_val = expected_parameter
+                if parameter_name in parameters:
+                    val = parameters[parameter_name]
+                else:
+                    val = default_val
+            setattr(
+                self,
+                parameter_name,
+                val,
+            )
 
     def get_stream_state(self):
         return self.stream_state
@@ -97,7 +78,7 @@ class StreamElement(abc.ABC):
     def update_stream_state(self, stream_stop):
         if not stream_stop:
             if self.stream_state is StreamElementState.START:
-                self.handler = self._stream_frame_handler
+                self.handler = self.stream_frame_handler
                 self.stream_state = StreamElementState.RUN
             elif self.stream_state is StreamElementState.RUN:
                 self.frame_count += 1
@@ -108,32 +89,20 @@ class StreamElement(abc.ABC):
                 self.handler = None
                 self.stream_state = StreamElementState.COMPLETE
             else:
-                self.handler = self._stream_stop_handler
+                self.handler = self.stream_stop_handler
                 self.stream_state = StreamElementState.STOP
 
-    def stream_start_handler(self, stream_id, frame_id, swag=None) -> Tuple[bool, Any]:
-        return True, None
-
-    def stream_frame_handler(self, stream_id, frame_id, swag=None) -> Tuple[bool, Any]:
-        return True, None
-
-    def stream_stop_handler(self, stream_id, frame_id, swag=None) -> Tuple[bool, Any]:
-        return True, None
-
-    def _stream_start_handler(self, stream_id, frame_id, swag):
-        self.swag = swag
+    def stream_start_handler(self, stream_id, frame_id, inputs):
         self.logger.debug(f"stream_start_handler(): stream_id: {stream_id}")
-        return self.stream_start_handler(stream_id, frame_id, swag=swag)
+        return True, None
 
-    def _stream_frame_handler(self, stream_id, frame_id, swag):
-        self.swag = swag
+    def stream_frame_handler(self, stream_id, frame_id, inputs):
         self.logger.debug(f"stream_frame_handler(): stream_id: {stream_id}")
-        return self.stream_frame_handler(stream_id, frame_id, swag=swag)
+        return True, None
 
-    def _stream_stop_handler(self, stream_id, frame_id, swag):
-        self.swag = swag
+    def stream_stop_handler(self, stream_id, frame_id, inputs):
         self.logger.debug(f"stream_stop_handler(): stream_id: {stream_id}")
-        return self.stream_stop_handler(stream_id, frame_id, swag=swag)
+        return True, None
 
 
 class StreamQueueElement(StreamElement):
