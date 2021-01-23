@@ -10,10 +10,13 @@
 
 import abc
 from enum import Enum
+from typing import Tuple, Any
 
 from aiko_services.utilities import get_logger
+from aiko_services.__tokens import CLI_TOKEN
 
 __all__ = ["StreamElementState", "StreamElement", "StreamQueueElement"]
+
 
 class StreamElementState(Enum):
     START = 0
@@ -21,8 +24,23 @@ class StreamElementState(Enum):
     STOP = 2
     COMPLETE = 3
 
+
 class StreamElement(abc.ABC):
-    def __init__(self, name, parameters, predecessors, pipeline_state_machine):
+
+    expected_parameters: Tuple[str]
+    expected_inputs: Tuple[str]
+    expected_outputs: Tuple[str]
+
+    def __init__(
+        self,
+        name,
+        parameters,
+        input_map,
+        outputs,
+        predecessors,
+        pipeline_state_machine,
+    ):
+
         self.name = name
         self.parameters = parameters
         self.predecessors = predecessors
@@ -33,6 +51,26 @@ class StreamElement(abc.ABC):
         self.handler = self.stream_start_handler
         self.logger = get_logger(self.name)
         self.stream_state = StreamElementState.START
+
+        # ToDo Sanity Check
+        self.input_map = input_map
+        self.outputs = outputs
+
+        for expected_parameter in self.expected_parameters:
+            if isinstance(expected_parameter, str):
+                parameter_name = expected_parameter
+                val = parameters[parameter_name]
+            else:
+                parameter_name, default_val = expected_parameter
+                if parameter_name in parameters:
+                    val = parameters[parameter_name]
+                else:
+                    val = default_val
+            setattr(
+                self,
+                parameter_name,
+                val,
+            )
 
     def get_stream_state(self):
         return self.stream_state
@@ -54,17 +92,18 @@ class StreamElement(abc.ABC):
                 self.handler = self.stream_stop_handler
                 self.stream_state = StreamElementState.STOP
 
-    def stream_start_handler(self, stream_id, frame_id, swag):
+    def stream_start_handler(self, stream_id, frame_id, inputs):
         self.logger.debug(f"stream_start_handler(): stream_id: {stream_id}")
         return True, None
 
-    def stream_frame_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"stream_frame_handler(): stream_id: {stream_id}, frame_id: {frame_id}")
+    def stream_frame_handler(self, stream_id, frame_id, inputs):
+        self.logger.debug(f"stream_frame_handler(): stream_id: {stream_id}")
         return True, None
 
-    def stream_stop_handler(self, stream_id, frame_id, swag):
+    def stream_stop_handler(self, stream_id, frame_id, inputs):
         self.logger.debug(f"stream_stop_handler(): stream_id: {stream_id}")
         return True, None
+
 
 class StreamQueueElement(StreamElement):
     def __init__(self, name, parameters, predecessors, pipeline_state_machine):
