@@ -73,7 +73,7 @@ import json
 import aiko_services.event as event
 from aiko_services.pipeline import Pipeline, load_pipeline_definition
 from aiko_services.utilities import get_logger, load_module
-from aiko_services.__tokens import CLI_TOKEN, SEPARATOR_TOKEN, OUT_TOKEN
+from aiko_services.__tokens import CLI_TOKEN, SEPARATOR_TOKEN
 
 MATCH_CAMEL_CASE = re.compile(r"(?<!^)(?=[A-Z])")
 DEFAULT_PIPELINE_NAME = "pipeline_definition"
@@ -157,7 +157,7 @@ def options_from_pipeline_def(pipeline_definition):
             component_name = ele["name"]
 
             # Required cli params
-            params = {k:v for k,v in ele["parameters"].items() if (not k.endswith(CLI_TOKEN)) or (not k.startswith(OUT_TOKEN))}
+            params = {k:v for k,v in ele["parameters"].items() if not k.endswith(CLI_TOKEN)}
             cli_attrs = {k:v for k,v in ele["parameters"].items() if k.endswith(CLI_TOKEN)}
             for param_name, value in params.items():
                 attributes = cli_attrs.pop(f"{param_name}{CLI_TOKEN}", {})

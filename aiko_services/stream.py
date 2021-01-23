@@ -13,7 +13,7 @@ from enum import Enum
 from typing import Tuple, Any
 
 from aiko_services.utilities import get_logger
-from aiko_services.__tokens import CLI_TOKEN, OUT_TOKEN
+from aiko_services.__tokens import CLI_TOKEN
 
 __all__ = ["StreamElementState", "StreamElement", "StreamQueueElement"]
 
