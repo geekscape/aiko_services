@@ -90,7 +90,11 @@ class Pipeline():
         return module_pathnames
 
     def get_node(self, node_name):
-        return self.graph.nodes[node_name]
+        try:
+            node = self.graph.nodes[node_name]
+        except KeyError:
+            raise KeyError(f"Invalid Pipeline Element: {node_name}")
+        return node
 
     def get_nodes(self):
         return list(self.graph.nodes.data())
@@ -140,10 +144,8 @@ class Pipeline():
                 try:
                     node_name, parameter_name = name.split(":")
                     self.update_node_parameter(node_name, parameter_name, parameter_value)
-                except KeyError:
-                    _LOGGER.error(f"pipeline_handler(): Invalid Pipeline Element: {node_name}")
-                except ValueError:
-                    _LOGGER.error(f"pipeline_handler(): Invalid parameter name: {name}")
+                except KeyError as exception:
+                    _LOGGER.error(f"pipeline_handler(): {exception}")
             return
 
         head_node_name = self.get_head_node_name()
