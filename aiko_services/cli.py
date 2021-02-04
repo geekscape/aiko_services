@@ -99,9 +99,9 @@ def cli_shim():
     little hands on it.
     """
     if len(sys.argv) >= 2 and sys.argv[1].endswith((".py", ".yaml", ".yml", ".json")):
-        pipeline_def_path = sys.argv[1]
-        pipeline_definition = load_pipeline_definition(pipeline_def_path)
-        sys.argv.remove(pipeline_def_path)
+        pipeline_definition_pathname = sys.argv[1]
+        pipeline_definition, state_machine_model = load_pipeline_definition(pipeline_definition_pathname)
+        sys.argv.remove(pipeline_definition_pathname)
     else:
         pipeline_definition = []
         sys.argv = ["aiko", "--help"]
