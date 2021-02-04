@@ -1,5 +1,6 @@
 # To Do
 # ~~~~~
+# - Implement discovery for finding the default MQTT hostname
 # - Implement discovery for finding the default namespace
 #   - Define a NameSpace class for holding information about a specific namespace
 

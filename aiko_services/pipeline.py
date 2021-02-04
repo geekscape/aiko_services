@@ -14,10 +14,10 @@
 # - Add Pipeline.state ...
 #   - When pipeline stopped ... event.remove_timer_handler(timer_test)
 
+import json
 import networkx as nx
 from queue import Queue
 import time
-import json
 import yaml
 
 import aiko_services.event as event
@@ -140,6 +140,8 @@ class Pipeline():
                 try:
                     node_name, parameter_name = name.split(":")
                     self.update_node_parameter(node_name, parameter_name, parameter_value)
+                except KeyError:
+                    _LOGGER.error(f"pipeline_handler(): Invalid Pipeline Element: {node_name}")
                 except ValueError:
                     _LOGGER.error(f"pipeline_handler(): Invalid parameter name: {name}")
             return
@@ -242,17 +244,22 @@ class Pipeline():
 
 PIPELINE_DEFINITION_NAME = "pipeline_definition"
 
-def load_pipeline_definition(pipeline_pathname, pipeline_name=PIPELINE_DEFINITION_NAME):
+def load_pipeline_definition(pipeline_pathname, pipeline_definition_name=PIPELINE_DEFINITION_NAME):
+    state_machine_model = None
     if pipeline_pathname.endswith(".py"):
-        mod = load_module(pipeline_pathname)
-        pipeline_def =  getattr(mod, pipeline_name)
+        module = load_module(pipeline_pathname)
+        pipeline_definition =  getattr(module, pipeline_definition_name)
+        try:
+            state_machine_model = getattr(module, "StateMachineModel")
+        except AttributeError:
+            pass
     elif pipeline_pathname.endswith(".json"):
-        with open(pipeline_pathname, "r") as f:
-            pipeline_def = json.load(f)[pipeline_name]
+        with open(pipeline_pathname, "r") as file:
+            pipeline_definition = json.load(file)[pipeline_definition_name]
     elif pipeline_pathname.endswith(".yaml") or pipeline_pathname.endswith(".yml"):
-        with open(pipeline_pathname, "r") as f:
-            pipeline_def = yaml.load(f, Loader=yaml.FullLoader)[pipeline_name]
+        with open(pipeline_pathname, "r") as file:
+            pipeline_definition = yaml.load(file, Loader=yaml.FullLoader)[pipeline_definition_name]
     else:
         raise ValueError(f"Unsupported pipeline definition format: {pipeline_pathname}")
 
-    return pipeline_def
+    return pipeline_definition, state_machine_model

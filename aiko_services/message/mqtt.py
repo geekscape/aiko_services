@@ -1,15 +1,21 @@
 # To Do
 # ~~~~~
-# - BUG: If on MQTT thread, then if waiting for a condition to change that depends upon an incoming
-#        message, then wait will timeout, because that incoming message can't be processed.
-#        For example, if wait_disconnected() called whilst on MQTT thread, then the MQTT broker
-#        message for "disconnect" --> on_disconnect() won't happen.
-#        For example, when Registrar processed "(primary stopped)" message and attempts
-#        set_last_will_and_testament(), which causes a wait_disconnected() whilst on the MQTT thread.
-# - SOLUTION: By default queue all incoming MQTT messages and process on the main event.loop() !
+# - BUG: If on MQTT thread, then if waiting for a condition to change that
+#        depends upon an incoming message, then wait will timeout, because
+#        that incoming message can't be processed.
+#        For example, if wait_disconnected() called whilst on MQTT thread,
+#        then the MQTT broker message for "disconnect" --> on_disconnect()
+#        won't happen.
+#        For example, when Registrar processed "(primary stopped)" message
+#        and attempts set_last_will_and_testament(), which causes a
+#        wait_disconnected() whilst on the MQTT thread.
+# - SOLUTION: By default queue all incoming MQTT messages and process on the
+#        main event.loop() !
 #
-# - Refactor wait_disconnected(), wait_connected() and wait_published(self) into a single function
-#   - Parameter is a variable condition to test, e.g not _CONNECTED, _CONNECTED and _PUBLISHED
+# - Refactor wait_disconnected(), wait_connected() and wait_published(self)
+#     into a single function
+#   - Parameter is a variable condition to test,
+#       e.g not _CONNECTED, _CONNECTED and _PUBLISHED
 #
 # - Implement message to change logging level !
 # - Allow default MQTT_HOST and MQTT_PORT to be overridden by CLI parameters
@@ -33,8 +39,8 @@ __all__ = ["MQTT"]
 
 # MQTT_HOST = "mqtt.fluux.io"
 # MQTT_HOST = "test.mosquitto.org"
-# MQTT_HOST = "localhost"
-MQTT_HOST = "lounge.local"
+MQTT_HOST = "localhost"
+# MQTT_HOST = "lounge.local"
 MQTT_PORT = 1883
 
 _CONNECTED = False

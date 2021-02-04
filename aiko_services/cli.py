@@ -1,6 +1,14 @@
+#!/usr/bin/env python3
+#
+# Aiko Service: Command Line Interface
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
 # Usage
 # ~~~~~
+# aiko <pipeline_definition_pathname> [--help]
 #
+# Description
+# ~~~~~~~~~~~
 # The Pipeline CLI is designed to slip ontop of existing 
 # pipeline definitions. I learn best with an exaple:
 # 
