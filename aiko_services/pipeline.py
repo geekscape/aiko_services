@@ -29,8 +29,9 @@ __all__ = ["Pipeline", "load_pipeline_definition"]
 _LOGGER = get_logger(__name__)
 
 class Pipeline():
-    def __init__(self, pipeline_definition, frame_rate = 0, state_machine = None, stream_id = "nil"):
+    def __init__(self, pipeline_definition, frame_rate = 0, response_queue = None, state_machine = None, stream_id = "nil"):
         self.frame_rate = frame_rate
+        self.response_queue = response_queue
         self.state_machine = state_machine
         self.stream_id = stream_id
         self.frame_id = -1  # first time through is for stream_start_handler()
@@ -159,17 +160,19 @@ class Pipeline():
 
     def pipeline_process(self, node_name, queue_item = None, queue_item_type = None, stream_stop = False):
         node = self.get_node(node_name)
-        if node["instance"].get_stream_state() == StreamElementState.COMPLETE:
+        stream_state = node["instance"].get_stream_state()
+        if stream_state == StreamElementState.COMPLETE:
             event_type = f", event: {queue_item_type}"
             if queue_item_type.startswith("state_"):
                 event_type = f"{event_type}: {queue_item}"
-            _LOGGER.error(f"pipeline_process(): Can't process pipeline: StreamElementState is COMPLETE: stream_id: {self.stream_id}{event_type}")
+            _LOGGER.error(f"pipeline_process(): Can't process pipeline: StreamElementState is COMPLETE: stream_id: {self.stream_id} {event_type}")
             return False
 
         swag = {}
         if queue_item:
             swag["frame"] = {"data": queue_item, "type": queue_item_type}
 
+        last_node_name = None
         process_queue = Queue(maxsize=self.graph.number_of_nodes())
         process_queue.put(node_name, block=False)
         processed_nodes = set()  # Only process each node once per frame
@@ -192,11 +195,18 @@ class Pipeline():
                 if not okay:
                     break
                 swag[node_name] = output
+                last_node_name = node_name
                 processed_nodes.add(node_name)
                 based_on_state = node_instance.get_stream_state() == StreamElementState.RUN
                 for successor_name in self.get_node_successors(node_name, based_on_state=based_on_state):
                     process_queue.put(successor_name, block=False)
                 node_instance.update_stream_state(stream_stop)
+
+        if self.response_queue and stream_state == StreamElementState.RUN:
+            if okay and last_node_name:
+                self.response_queue.put(swag[last_node_name])
+            else:
+                self.response_queue.put("<empty response>")
         return okay
 
     def get_queue_item_types(self):
@@ -228,6 +238,9 @@ class Pipeline():
     def queue_handler_required(self):
         head_node_type = type(self.get_head_node()["instance"])
         return issubclass(head_node_type, StreamQueueElement)
+
+    def queue_put(self, item, item_type):
+        event.queue_put(item, item_type)
 
     def run(self):
         self.load_node_modules()
