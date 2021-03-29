@@ -9,6 +9,10 @@
 #
 #   --primary: Force take over of the primary registrar role
 #
+# mosquitto_pub -t registrar_topic_prefix/in -m "(add topic_prefix protocol owner (tags))"
+#
+# mosquitto_pub -t registrar_topic_prefix/in -m "(remove topic_prefix)"
+#
 # Notes
 # ~~~~~
 # Registrar listens for ...
@@ -132,6 +136,7 @@ def topic_in_handler(aiko, topic, payload_in):
         protocol = parameters[1]
         owner = parameters[2]
         tags = parameters[3]
+
         service_add(service_topic, protocol, owner, tags)
         payload_out = payload_in
         aiko.message.publish(aiko.topic_out, payload_out)
@@ -142,9 +147,54 @@ def topic_in_handler(aiko, topic, payload_in):
         payload_out = payload_in
         aiko.message.publish(aiko.topic_out, payload_out)
 
-    if command == "query":                         # TODO: TO BE COMPLETED
+    if command == "query" and len(parameters) == 4:
+        response_topic  = parameters[0]
+        match_protocol  = parameters[1]
+        match_owner     = parameters[2]
+        match_tags      = parameters[3]
+
+        services_out = {}
+
         for service_topic, service_details in services.items():
-            _LOGGER.info(f"QUERY: {service_topic}: {service_details}")
+            matches = 0
+
+            if match_protocol == "*":
+                matches += 1
+            else:
+                if match_protocol == service_details["protocol"]:
+                    matches += 1
+
+            if match_owner == "*":
+                matches += 1
+            else:
+                if match_owner == service_details["owner"]:
+                    matches += 1
+
+            if match_tags == "*":
+                matches += 1
+            else:
+                service_tags = service_details["tags"]
+                if all([tag in service_tags for tag in match_tags]):
+                    matches += 1
+
+            if matches == 3:
+                services_out[service_topic] = service_details
+
+        payload_out = str(len(services_out))
+        aiko.message.publish(response_topic, payload=payload_out)
+
+        for service_topic, service_details in services_out.items():
+            service_tags = " ".join(service_details["tags"])
+            payload_out = f"({service_topic}"                \
+                          f" {service_details['protocol']}"  \
+                          f" {service_details['owner']}"     \
+                          f" ({service_tags}))"
+            aiko.message.publish(response_topic, payload_out)
+            _LOGGER.debug(f"QUERY: {payload_out}")
+
+        payload_out = "(sync " + response_topic + ")"
+        aiko.message.publish(aiko.topic_out, payload_out)
+        _LOGGER.debug(f"QUERY: {payload_out}")
 
 def service_add(service_topic, protocol, owner, tags):
     _LOGGER.debug(f"Service add: {service_topic}")
