@@ -128,7 +128,7 @@ def registrar_handler(_aiko, action, registrar):
     return False  # Registrar message handling not finished
 
 def topic_in_handler(aiko, topic, payload_in):
-    command, parameters = parse(payload_in)         # TODO: FIX TO HANDLE TAGS
+    command, parameters = parse(payload_in)
 #   _LOGGER.debug(f"topic_in_handler(): {command}: {parameters}")
 
     if command == "add" and len(parameters) == 4:
