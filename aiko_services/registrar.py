@@ -81,6 +81,7 @@ class StateMachineModel(object):
         {"source": "start", "trigger": "initialize", "dest": "primary_search"},
         {"source": "primary_search", "trigger": "primary_found", "dest": "secondary"},
         {"source": "primary_search", "trigger": "primary_promotion", "dest": "primary"},
+        {"source": "primary", "trigger": "primary_failed", "dest": "primary_search"},
         {"source": "secondary", "trigger": "primary_failed", "dest": "primary_search"}
     ]
 
@@ -122,8 +123,8 @@ def registrar_handler(_aiko, action, registrar):
         if state_machine.get_state() == "primary_search":
             state_machine.transition("primary_promotion", None)
         else:
-            if state_machine.get_state() == "secondary":
-                state_machine.transition("primary_failed", None)
+            services = {}
+            state_machine.transition("primary_failed", None)
 
     return False  # Registrar message handling not finished
 
