@@ -23,8 +23,8 @@ _CONFIGURATION = {
     "formatters": {
         "f": { "format":
                "%(asctime)s %(levelname)s %(name)s %(message)s",
-#              "datefmt": "%Y-%m-%d_%H:%M:%S"
-               "datefmt": "%H:%M:%S"
+               "datefmt": "%Y-%m-%d_%H:%M:%S"
+#              "datefmt": "%H:%M:%S"
         }
     },
     "handlers": {
@@ -63,6 +63,6 @@ if _LOG_LEVEL == "DEBUG":
 def get_logger(name: str) -> Any:
 #   logging.basicConfig(filename="aiko.log")
     name = name.rpartition('.')[-1].upper()
-#   logging.debug(f"create logger {name}")
+#   print(f"Create logger {name}")  # logging.debug()
     logger = logging.getLogger(name)
     return logger
