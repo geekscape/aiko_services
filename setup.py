@@ -15,7 +15,6 @@ with open(init_path, "r") as init_file:
     else:
         raise RuntimeError("Cannot find __version__ in {}".format(init_path))
 
-
 setup(
     name="aiko-services",
     version=version,
@@ -28,9 +27,11 @@ setup(
         "networkx>=2.1",
         "numpy>=1.19.1",
         "paho-mqtt>=1.3",
-        "Pillow>=7.2.0",
+        "Pillow>=8.3.2",
         "pyyaml>=5.3.1",
-        "transitions>=0.8.2"
+        "requests>=2.25.1",
+        "transitions>=0.8.10",
+        "wrapt>=1.12.1"
     ],
     entry_points={
         "console_scripts": [
