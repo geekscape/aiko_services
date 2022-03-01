@@ -225,21 +225,22 @@ def loop(loop_when_no_handlers=False):
                     for queue_handler in queue_handlers[item_type]:
                         queue_handler(item, item_type)
 
-            # First mailbox added has priority for all posted messages
-            _, priority_queue = mailboxes[list(mailboxes)[0]]
-            handle_mailboxes = True
-            while handle_mailboxes:
-                for mailbox_name in mailboxes:
-                    mailbox_handler, mailbox_queue = mailboxes[mailbox_name]
-                    while mailbox_queue.qsize() > 0:
-                        item, time_posted = mailbox_queue.get()
-                        mailbox_handler(mailbox_name, item, time_posted)
-                        if mailbox_queue != priority_queue:
-                            if priority_queue.qsize() > 0:
-                                break
-                    if priority_queue.qsize() > 0:
-                        break
-                handle_mailboxes = False
+            if len(mailboxes) > 0:
+                # First mailbox added has priority for all posted messages
+                _, priority_queue = mailboxes[list(mailboxes)[0]]
+                handle_mailboxes = True
+                while handle_mailboxes:
+                    for mailbox_name in mailboxes:
+                        mailbox_handler, mailbox_queue = mailboxes[mailbox_name]
+                        while mailbox_queue.qsize() > 0:
+                            item, time_posted = mailbox_queue.get()
+                            mailbox_handler(mailbox_name, item, time_posted)
+                            if mailbox_queue != priority_queue:
+                                if priority_queue.qsize() > 0:
+                                    break
+                        if priority_queue.qsize() > 0:
+                            break
+                    handle_mailboxes = False
 
             if len(flatout_handlers):
                 time_start = time.time()
