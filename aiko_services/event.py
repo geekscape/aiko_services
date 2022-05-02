@@ -23,6 +23,8 @@
 # ~~~~~
 # - Make function names consistently verb_noun() or noun_verb(), but not both !
 #
+# - BUG: Handle case of calling event.terminate() before entering event.loop()
+#        Due to event_enabled being overwritten at the start of event.loop()
 # - BUG: Make _handler_count thread-safe, when adding and removing handlers !
 #   - See "mutex": https://hg.python.org/cpython/file/3.5/Lib/queue.py
 # - BUG: Why isn't event.add_timer_handler(_, _, True) firing immediately ?
