@@ -65,7 +65,6 @@ class Message:
         return f"Message: {self.command}({str(self.arguments)[1:-1]})"
 
     def invoke(self):
-        print(f"******** Aiko message.invoke: {self} ******")
         target_function = self.target_function
         if not target_function:
             try:
@@ -135,7 +134,6 @@ class Actor(LifeCycleClient):  # Base class
         target_object = self
         message = Message(
             target_object, command, args, target_function=target_function)
-        print(f"****** Aiko actor._post_message: {message}")
         event.mailbox_put(self._actor_mailbox_name(topic), message)
 
     def __repr__(self):
