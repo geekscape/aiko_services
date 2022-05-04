@@ -78,6 +78,7 @@ class Message:
             raise RuntimeError(diagnostic)
 
         if callable(target_function):
+        #   print(f"### Invoke: {self.command}{self.arguments} ###")
             target_function(*self.arguments)
         else:
             raise RuntimeError(f"Message: {self}: isn't callable")

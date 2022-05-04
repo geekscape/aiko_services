@@ -18,7 +18,7 @@ from .actor import (Actor)
 
 from .pipeline import *
 
-from .proxy import ProxyAllMethods, proxy_trace
+from .proxy import (is_callable, ProxyAllMethods, proxy_trace)
 
 from .state import *
 

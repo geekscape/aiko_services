@@ -27,10 +27,13 @@
 #   - Intercept: security access
 #   - Intercept: timing (performance)
 
-from inspect import getmembers, ismethod
+from inspect import getmembers, isfunction, ismethod
 import wrapt
 
-__all__ = ["ProxyAllMethods", "proxy_trace"]
+__all__ = ["is_callable", "ProxyAllMethods", "proxy_trace"]
+
+def is_callable(attribute):
+    return isfunction(attribute) or ismethod(attribute)
 
 class ProxyAllMethods(wrapt.ObjectProxy):
     def __init__(
@@ -39,30 +42,33 @@ class ProxyAllMethods(wrapt.ObjectProxy):
 
         super(ProxyAllMethods, self).__init__(actual_object)
 
-        def make_closure(actual_function):
+        def make_closure(actual_function, actual_function_name):
             def closure(*args, **kwargs):
                 return proxy_function(
                     proxy_name, actual_object, actual_function,
-                    *args, **kwargs
+                    actual_function_name, *args, **kwargs
                 )
             return closure
 
         members = getmembers(actual_object, attribute_filter)
         for name, actual_function in members:
             if ignore_prefix is None or not name.startswith(ignore_prefix):
-                setattr(self, name, make_closure(actual_function))
+                closure = make_closure(actual_function, name)
+                setattr(self, name, closure)
 
     def __repr__(self):
         return f"[{self.__module__}.{type(self).__name__} " \
                f"object at {hex(id(self))}]"
 
-def proxy_trace(proxy_name, actual_object, actual_function, *args, **kwargs):
-      function_name = actual_function.__name__
-      print(f"### Enter: {proxy_name}.{function_name} {args} {kwargs} ###")
-      try:
-          return actual_function(*args, **kwargs)
-      finally:
-          print(f"### Exit:  {proxy_name}.{function_name} ###")
+def proxy_trace(
+    proxy_name, actual_object, actual_function,
+    actual_function_name, *args, **kwargs):
+
+    print(f"### Enter: {proxy_name}.{actual_function_name}{args} {kwargs} ###")
+    try:
+        return actual_function(*args, **kwargs)
+    finally:
+        print(f"### Exit:  {proxy_name}.{actual_function_name} ###")
 
 class Example:
     def __init__(self, argument_0):
