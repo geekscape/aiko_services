@@ -35,7 +35,7 @@ __all__ = ["ProxyAllMethods", "proxy_trace"]
 class ProxyAllMethods(wrapt.ObjectProxy):
     def __init__(
         self, proxy_name, actual_object, proxy_function,
-        ignore="_"):
+        attribute_filter=ismethod, ignore_prefix="_"):
 
         super(ProxyAllMethods, self).__init__(actual_object)
 
@@ -47,8 +47,9 @@ class ProxyAllMethods(wrapt.ObjectProxy):
                 )
             return closure
 
-        for name, actual_function in getmembers(actual_object, ismethod):
-            if ignore is None or not name.startswith(ignore):
+        members = getmembers(actual_object, attribute_filter)
+        for name, actual_function in members:
+            if ignore_prefix is None or not name.startswith(ignore_prefix):
                 setattr(self, name, make_closure(actual_function))
 
     def __repr__(self):

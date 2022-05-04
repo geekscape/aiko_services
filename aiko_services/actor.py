@@ -22,6 +22,12 @@
 #
 # To Do
 # ~~~~~
+# - State Machine ...
+#   - Turn "self.running" into "self.state"
+#   - Turn "self._is_running()" into "self._get_state()"
+#   - Stop Actor by changing "self.state" to "STOP"
+#   - Hard terminate Actor using "self._terminate()"
+#
 # - function() > Remote Actor >  Message > Mailbox > Event loop > function()
 # - Wrapper for function tracing (enter:count, exit:time+average)
 # - Optionally add Leases to Messages ... what does this mean ?
@@ -39,7 +45,7 @@
 # - Eventual consistency: add, update (dictionary only), remove
 # - Logging: Distributed collection and distribution --> Kafka ?
 # - Multiple threads and multithreading support
-# - State
+# - State Machine
 
 from aiko_services import *
 
@@ -59,6 +65,7 @@ class Message:
         return f"Message: {self.command}({str(self.arguments)[1:-1]})"
 
     def invoke(self):
+        print(f"******** Aiko message.invoke: {self} ******")
         target_function = self.target_function
         if not target_function:
             try:
@@ -104,6 +111,7 @@ class Actor(LifeCycleClient):  # Base class
 
     def __init__(self, actor_name):
         self.actor_name = actor_name
+        self.running = False
         # First mailbox added has priority handling for all posted messages
         for topic in [Topic.CONTROL, Topic.IN]:
             mailbox_name = self._actor_mailbox_name(topic)
@@ -112,18 +120,30 @@ class Actor(LifeCycleClient):  # Base class
     def _actor_mailbox_name(self, topic):
         return f"{self.actor_name}/{topic}"
 
+    def _is_running(self):
+        return self.running
+
     def _mailbox_handler(self, topic, message, time_posted):
         message.invoke()
+
+    def _run(self):
+        self.running = True
+        event.loop()
+        self.running = False
 
     def _post_message(self, topic, command, args, target_function=None):
         target_object = self
         message = Message(
             target_object, command, args, target_function=target_function)
+        print(f"****** Aiko actor._post_message: {message}")
         event.mailbox_put(self._actor_mailbox_name(topic), message)
 
     def __repr__(self):
         return f"[{self.__module__}.{type(self).__name__} " \
                f"object at {hex(id(self))}]"
+
+    def _stop(self):
+        event.terminate()
 
 class TestActor(Actor):  # class
     def __init__(self, actor_name):
