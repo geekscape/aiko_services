@@ -113,7 +113,7 @@ def on_registrar_message(aiko_, topic, payload_in):
             if action == "stopped":
                 parse_okay = True
 
-    handler_finished = True
+    handler_finished = False
     if private.registrar_handler:
         handler_finished = private.registrar_handler(public, action, registrar)
 
