@@ -41,7 +41,7 @@ __all__ = ["ProcessManager"]
 
 PROCESS_POLL_TIME = 0.2  # seconds
 
-PROTOCOL = "au.com.silverpond.protocol.process_manager:0"
+PROTOCOL = "github.com/geekscape/aiko_services/protocol/process_manager:0"
 
 # --------------------------------------------------------------------------- #
 

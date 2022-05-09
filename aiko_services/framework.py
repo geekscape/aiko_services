@@ -89,7 +89,7 @@ class public:
 _LOGGER = get_logger(__name__)
 _LOGGER_MESSAGE = get_logger("MESSAGE")
 
-REGISTRAR_PROTOCOL = "au.com.silverpond.protocol.registrar:0"
+REGISTRAR_PROTOCOL = "github.com/geekscape/aiko_services/protocol/registrar:0"
 REGISTRAR_TOPIC = f"{get_namespace()}/service/registrar"
 
 def add_message_handler(message_handler, topic):
