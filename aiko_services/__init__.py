@@ -50,8 +50,8 @@ from .actor import (
     Actor, TestActor
 )
 
-from .process_controller import (
-    ProcessController
+from .process_manager import (
+    ProcessManager
 )
 
 from .registrar import *

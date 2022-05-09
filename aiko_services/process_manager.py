@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 #
-# Aiko Service: Process Controller
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Aiko Service: Process Manager
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Create and destroy system processes.
 # Not designed to run as part of an Aiko Service Pipeline.
 #
 # Example usage
 # ~~~~~~~~~~~~~
-# ./process_controller.py  # run as an Aiko Service
+# ./process_manager.py  # run as an Aiko Service
 #
-# ./process_controller.py --example python
-# ./process_controller.py --example shell
+# ./process_manager.py --example python
+# ./process_manager.py --example shell
 #
 # To Do
 # ~~~~~
@@ -36,18 +36,18 @@ from threading import Thread
 
 import aiko_services.framework as aiko
 
-__all__ = ["ProcessController"]
+__all__ = ["ProcessManager"]
 
 
 PROCESS_POLL_TIME = 0.2  # seconds
 
-PROTOCOL = "au.com.silverpond.protocol.process_controller:0"
+PROTOCOL = "au.com.silverpond.protocol.process_manager:0"
 
 # --------------------------------------------------------------------------- #
 
 poll = select.poll
 
-class ProcessController(object):
+class ProcessManager(object):
   def __init__(self, handler=None):
     self.handler = handler
     self.processes = {}
@@ -140,26 +140,26 @@ def topic_in_handler(aiko, topic, payload_in):
 
 # --------------------------------------------------------------------------- #
 
-def example_code(process_controller, example):
+def example_code(process_manager, example):
   if example == "ls":
     command_line = [ "ls", "-l" ]
     process = Popen(command_line, bufsize=0, shell=False)
 
   if example == "python":
-    command = "./process_controller.py"
+    command = "./process_manager.py"
     arguments = [ "--example", "ls" ]
-    process_controller.create("test_1", command, arguments)
+    process_manager.create("test_1", command, arguments)
 
   if example == "shell":
     command = "/bin/sh"
     arguments = [ "-c", "echo Start A; sleep  1; echo Stop A" ]
-    process_controller.create("A", command, arguments)
+    process_manager.create("A", command, arguments)
     arguments = [ "-c", "echo Start B; sleep  2; echo Stop B" ]
-    process_controller.create("B", command, arguments)
+    process_manager.create("B", command, arguments)
     arguments = [ "-c", "echo Start C; sleep 10; echo Stop C" ]
-    process_controller.create("C", command, arguments)
+    process_manager.create("C", command, arguments)
     time.sleep(5)
-    process_controller.delete("C")
+    process_manager.delete("C")
 
 # --------------------------------------------------------------------------- #
 
@@ -169,10 +169,10 @@ def example_code(process_controller, example):
 def main(example, tags):
   global aks_info
 
-  process_controller = ProcessController(process_exit_handler)
+  process_manager = ProcessManager(process_exit_handler)
 
   if example:
-    example_code(process_controller, example)
+    example_code(process_manager, example)
   else:
     aiko.set_protocol(PROTOCOL)
     aiko.add_topic_in_handler(topic_in_handler)
