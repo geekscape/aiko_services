@@ -11,9 +11,10 @@
 import abc
 from enum import Enum
 
-from aiko_services.utilities import get_logger
+from aiko_services.utilities import *
 
 __all__ = ["StreamElementState", "StreamElement", "StreamQueueElement"]
+
 
 class StreamElementState(Enum):
     START = 0

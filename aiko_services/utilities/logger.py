@@ -5,8 +5,8 @@
 #
 # To Do
 # ~~~~~
-# - BUG: If LOG_LEVEL=DEBUG, then get_logger.debug(message) message may appear twice, but ...
-#        not if LOG_LEVEL=DEBUG_ALL
+# - BUG: If LOG_LEVEL=DEBUG, then get_logger.debug(message) message may appear
+#     twice, but not if LOG_LEVEL=DEBUG_ALL
 # - BUG: get_logger.info(message) doesn't display for LOG_LEVEL=INFO
 # - Set logging level and log file from command line argument
 # - Implement message to change logging level !

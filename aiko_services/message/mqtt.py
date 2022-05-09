@@ -37,10 +37,11 @@ from .message import Message
 
 __all__ = ["MQTT"]
 
+MQTT_HOST = "localhost"
+# MQTT_HOST = "202.130.215.177"  # "lounge.local"
+# MQTT_HOST = "zeus_t"
 # MQTT_HOST = "mqtt.fluux.io"
 # MQTT_HOST = "test.mosquitto.org"
-MQTT_HOST = "localhost"
-# MQTT_HOST = "lounge.local"
 MQTT_PORT = 1883
 
 _CONNECTED = False

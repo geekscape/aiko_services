@@ -19,6 +19,8 @@ from threading import Thread
 
 import aiko_services_internal.video.gstreamer.utilities as utilities
 
+__all__ = ["VideoStreamWriter"]
+
 # -----------------------------------------------------------------------------
 
 data = None

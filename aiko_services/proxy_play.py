@@ -37,6 +37,7 @@ from inspect import isfunction
 
 __all__ = ["Proxy"]
 
+
 class Proxy(object):
     intercept = None  # TODO: More flexible, if this isn't a class variable ?
 

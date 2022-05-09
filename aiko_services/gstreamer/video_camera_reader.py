@@ -15,6 +15,8 @@ import os
 import aiko_services_internal.video.gstreamer.video_reader as video_reader
 import aiko_services_internal.video.gstreamer.utilities as utilities
 
+__all__ = ["VideoCameraReader"]
+
 # -----------------------------------------------------------------------------
 
 class VideoCameraReader:

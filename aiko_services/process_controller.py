@@ -34,9 +34,12 @@ import time
 from subprocess import Popen
 from threading import Thread
 
-PROCESS_POLL_TIME = 0.2  # seconds
-
 import aiko_services.framework as aiko
+
+__all__ = ["ProcessController"]
+
+
+PROCESS_POLL_TIME = 0.2  # seconds
 
 PROTOCOL = "au.com.silverpond.protocol.process_controller:0"
 

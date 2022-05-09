@@ -1,6 +1,6 @@
 # Usage
 # ~~~~~
-# from aiko_services.utilities import ContextManager, get_context
+# from aiko_services.utilities import *
 #
 # with ContextManager({}) as context:
 #     print(context.aiko, context.message)
@@ -16,8 +16,8 @@
 # ~~~~~
 # - Thread local context example
 
-# this import allows us to specify the class itself as return type
-# eg  def activate(self) -> ContextManager
+# This import allows us to specify the class itself as return type,
+# e.g def activate(self) -> ContextManager
 
 from typing import Any
 

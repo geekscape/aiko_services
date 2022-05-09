@@ -2,9 +2,10 @@ import traceback
 from transitions import Machine
 from transitions.core import MachineError
 
-from aiko_services.utilities import get_logger
+from aiko_services.utilities import *
 
 __all__ = ["StateMachine"]
+
 
 class StateMachine(object):
     def __init__(self, model):

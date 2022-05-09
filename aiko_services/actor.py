@@ -49,7 +49,7 @@
 
 from aiko_services import *
 
-__all__ = ["Actor"]
+__all__ = ["Actor", "TestActor"]
 
 class LifeCycleClient:  # Interface
     pass

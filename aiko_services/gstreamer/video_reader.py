@@ -19,6 +19,8 @@ else:
 
 import aiko_services_internal.video.gstreamer.utilities as utilities
 
+__all__ = ["VideoReader"]
+
 # -----------------------------------------------------------------------------
 
 Gst = utilities.gst_initialise()

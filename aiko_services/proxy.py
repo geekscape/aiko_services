@@ -32,6 +32,7 @@ import wrapt
 
 __all__ = ["is_callable", "ProxyAllMethods", "proxy_trace"]
 
+
 def is_callable(attribute):
     return isfunction(attribute) or ismethod(attribute)
 

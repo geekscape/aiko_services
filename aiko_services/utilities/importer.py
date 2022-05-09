@@ -1,6 +1,6 @@
 # Usage
 # -----
-# from aiko_services.utilities import load_module
+# from aiko_services.utilities import *
 # module_descriptor = "pathname/filename.py"  # or "package.module"
 # module = load_module(module_descriptor)
 # module.some_class()

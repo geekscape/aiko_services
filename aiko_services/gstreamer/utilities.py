@@ -1,5 +1,11 @@
 from sys import platform
 
+__all__ = [
+    "get_format",
+    "get_h264_decoder", "get_h264_encoder", "get_h264_encoder_options",
+    "gst_initialise", "enable_opencv", "process_video"
+]
+
 operating_system = "unknown"
 
 if platform == "linux" or platform == "linux2":
