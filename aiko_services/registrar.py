@@ -183,12 +183,13 @@ def topic_in_handler(aiko, topic, payload_in):
             if matches == 3:
                 services_out[service_topic] = service_details
 
-        payload_out = str(len(services_out))
+        payload_out = f"(item_count {len(services_out)})"
         aiko.message.publish(response_topic, payload=payload_out)
 
         for service_topic, service_details in services_out.items():
             service_tags = " ".join(service_details["tags"])
-            payload_out = f"({service_topic}"                \
+            payload_out =  "(add"                            \
+                          f" {service_topic}"                \
                           f" {service_details['protocol']}"  \
                           f" {service_details['owner']}"     \
                           f" ({service_tags}))"
