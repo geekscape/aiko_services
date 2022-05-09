@@ -65,6 +65,7 @@ class Message:
         return f"Message: {self.command}({str(self.arguments)[1:-1]})"
 
     def invoke(self):
+    #   _LOGGER.debug(f"### Invoke: {self} ###")
         target_function = self.target_function
         if not target_function:
             try:
@@ -73,15 +74,20 @@ class Message:
             except AttributeError:
                 pass
 
+        diagnostic = None
         if target_function is None:
-            diagnostic = f"{self}: No matching function in: {target_object}"
-            raise RuntimeError(diagnostic)
-
-        if callable(target_function):
-        #   print(f"### Invoke: {self.command}{self.arguments} ###")
-            target_function(*self.arguments)
+            diagnostic = f"{self}: Function not found in: {self.target_object}"
         else:
-            raise RuntimeError(f"Message: {self}: isn't callable")
+            if callable(target_function):
+                try:
+                    target_function(*self.arguments)
+                except TypeError as type_error:
+                    diagnostic = f"{self}: {type_error}"
+            else:
+                diagnostic = f"{self}: isn't callable"
+        if diagnostic:
+            _LOGGER.error(diagnostic)
+        #   raise RuntimeError(diagnostic)
 
 class Topic:
     # Application topics
