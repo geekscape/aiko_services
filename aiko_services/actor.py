@@ -48,8 +48,12 @@
 # - State Machine
 
 from aiko_services import *
+from aiko_services.utilities import *
 
 __all__ = ["Actor", "TestActor"]
+
+
+_LOGGER = get_logger(__name__)
 
 class LifeCycleClient:  # Interface
     pass
