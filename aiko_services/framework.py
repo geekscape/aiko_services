@@ -1,5 +1,8 @@
 # To Do
 # ~~~~~
+# - Supporting "#" wildcard message handlers causes
+#   Services to be added to the Registrar twice !?!
+#
 # - For standalone applications, i.e not using messages or services,
 #     don't start-up MQTT instance, because it takes time to connect
 #
@@ -46,7 +49,6 @@ import sys
 import time
 import traceback
 
-import aiko_services.event as event
 from aiko_services import *
 from aiko_services.message import *
 from aiko_services.utilities import *
@@ -67,6 +69,7 @@ __all__ = [
 class private:
     exit_status = 0
     message_handlers = {}
+    message_handlers_wildcard_topics = []
     registrar_handler = None
     stream_frame_handler = None
     task_start_handler = None
@@ -91,10 +94,13 @@ _LOGGER_MESSAGE = get_logger("MESSAGE")
 
 REGISTRAR_PROTOCOL = "github.com/geekscape/aiko_services/protocol/registrar:0"
 REGISTRAR_TOPIC = f"{get_namespace()}/service/registrar"
+SERVICE_STATE_TOPIC = f"{get_namespace()}/+/+/state"
 
 def add_message_handler(message_handler, topic):
     if not topic in private.message_handlers:
         private.message_handlers[topic] = []
+        if "+" in topic:
+            private.message_handlers_wildcard_topics.append(topic)
     private.message_handlers[topic].append(message_handler)
 
 def remove_message_handler(message_handler, topic):
@@ -103,37 +109,43 @@ def remove_message_handler(message_handler, topic):
             private.message_handlers[topic].remove(message_handler)
         if len(private.message_handlers[topic]) == 0:
             del private.message_handlers[topic]
+        if topic in private.message_handlers_wildcard_topics:
+            del private.message_handlers_wildcard_topics[topic]
 
 def add_topic_in_handler(topic_handler):
     add_message_handler(topic_handler, public.topic_in)
 
 # TODO: Consider moving all registrar related code into the Registar
 def on_registrar_message(aiko_, topic, payload_in):
-    parse_okay = False
-    registrar = {}
     command, parameters = parse(payload_in)
+    action = None
+    registrar = {}
+    parse_okay = False
     if len(parameters) > 0:
         action = parameters[0]
-        if command == "primary" and len(parameters) == 3:
-            if action == "started":
+        if command == "primary":
+            if len(parameters) == 3 and action == "started":
                 registrar["topic_path"] = parameters[1]
                 registrar["timestamp"] = parameters[2]
                 parse_okay = True
-            if action == "stopped":
+            if len(parameters) == 1 and action == "stopped":
                 parse_okay = True
 
-    handler_finished = False
-    if private.registrar_handler:
-        handler_finished = private.registrar_handler(public, action, registrar)
+    if parse_okay:
+        handler_done = False
+        if private.registrar_handler:
+            handler_done = private.registrar_handler(public, action, registrar)
 
-    if not handler_finished:
-        if action == "started":  # TODO: Temporary workaround, watch out for duplicate messages !
-            if public.protocol:
-                tags = ' '.join([str(tag) for tag in public.tags])
-                payload_out = f"(add {public.topic_path} {public.protocol} {get_username()} ({tags}))"
-                public.message.publish(registrar["topic_path"] + "/in", payload=payload_out)
-        if action == "stopped" and public.terminate_registrar_not_found == True:
-            terminate(1)
+        if not handler_done:
+            # TODO: Temporary workaround, watch out for duplicate messages !
+            if action == "started":
+                if public.protocol:
+                    tags = ' '.join([str(tag) for tag in public.tags])
+                    topic = registrar["topic_path"] + "/in"
+                    payload_out = f"(add {public.topic_path} {public.protocol} {get_username()} ({tags}))"
+                    public.message.publish(topic, payload=payload_out)
+            if action == "stopped" and public.terminate_registrar_not_found == True:
+                terminate(1)
 
 def set_registrar_handler(registrar_handler):
     private.registrar_handler = registrar_handler
@@ -164,15 +176,35 @@ def on_message(mqtt_client, userdata, message):
     except Exception as exception:
         print(traceback.format_exc())
 
+def topic_search(topic, topics):
+    found = topic in topics
+    topic_found = topic
+
+    if not found:
+        for wildcard_topic in private.message_handlers_wildcard_topics:
+            tokens = topic.split("/")
+            wildcard_tokens = wildcard_topic.split("/")
+            found = tokens[0] == wildcard_tokens[0] and  \
+                    tokens[-1] == wildcard_tokens[-1]
+            topic_found = wildcard_topic
+    return found, topic_found
+
 def message_queue_handler(message, _):
     payload_in = message.payload.decode("utf-8")
     if _LOGGER_MESSAGE.isEnabledFor(DEBUG):
         _LOGGER_MESSAGE.debug(f"topic: {message.topic}, payload: {payload_in}")
 
     message_handler_list = []
-    for match_topic in message.topic, "#":
-        if match_topic in private.message_handlers:
-            message_handler_list.extend(private.message_handlers[match_topic])
+# BUG: Supporting "#" wildcard message handlers causes
+#      Services to be added to the Registrar twice !?!
+#   for topic in message.topic, "#":
+#       found, topic_match =  topic_search(topic, private.message_handlers)
+#       if found:
+#           message_handler_list.extend(private.message_handlers[topic_match])
+
+    found, topic_match =  topic_search(message.topic, private.message_handlers)
+    if found:
+        message_handler_list.extend(private.message_handlers[topic_match])
 
     if len(message_handler_list) > 0:
         for message_handler in message_handler_list:

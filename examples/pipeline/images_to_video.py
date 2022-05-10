@@ -4,7 +4,7 @@
 # ~~~~~
 # LOG_LEVEL=DEBUG ./images_to_video.py
 
-from aiko_services.pipeline import Pipeline
+from aiko_services import *
 
 FRAME_RATE = 0   # Process flat-out without delay
 IMAGE_INPUT_PATHNAME = "z_input/image_{:06d}.jpg"

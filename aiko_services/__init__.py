@@ -10,7 +10,8 @@ from .state import (
     StateMachine
 )
 
-import aiko_services.event as event  # TODO: Remove this
+import aiko_services.event as event     # TODO: Remove this
+import aiko_services.framework as aiko  # TODO: Remove this
 
 from .event import (
     add_flatout_handler, add_mailbox_handler,
@@ -44,7 +45,7 @@ from .pipeline import (
     Pipeline, load_pipeline_definition
 )
 
-from .services import *
+# from .services import *
 
 from .actor import (
     Actor, TestActor

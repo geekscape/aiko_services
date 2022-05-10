@@ -34,7 +34,7 @@ import time
 from subprocess import Popen
 from threading import Thread
 
-import aiko_services.framework as aiko
+from aiko_services import *
 
 __all__ = ["ProcessManager"]
 

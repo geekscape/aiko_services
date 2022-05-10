@@ -9,33 +9,34 @@
 #
 #   --primary: Force take over of the primary registrar role
 #
-# mosquitto_pub -t registrar_topic_prefix/in -m "(add topic_prefix protocol owner (tags))"
+# NAMESPACE=aiko
+# HOST=localhost
+# PID=`ps ax | grep python | grep registrar | cut -d" " -f1`
+# TOPIC_PATH=$NAMESPACE/$HOST/$PID
 #
-# mosquitto_pub -t registrar_topic_prefix/in -m "(remove topic_prefix)"
+# TAGS="(key1=value1 key2=value2)"
+# mosquitto_pub -t $TOPIC_PATH/in -m "(add topic_prefix protocol owner $TAGS)"
+# mosquitto_pub -t $TOPIC_PATH/in -m "(remove topic_prefix)"
+# mosquitto_pub -t $TOPIC_PATH/in -m "(query response * * $TAGS)"
 #
 # Notes
 # ~~~~~
-# Registrar listens for ...
-#
-# - REGISTRAR_TOPIC: "(primary started ...)" and "(primary stopped)" messages
-#
-# - {topic_path}/in: "(add ...)", "(query ...)", "(remove ...)" messages
-#
-# - {namespace}/+/+/state: "(stopped)" from register Aiko Services
-#   - Will need a change to framework.py:on_message() regarding "for match_topic ..."
-#   - Need to handle endsWith("/state")
+# Registrar subscribes to ...
+# - REGISTRAR_TOPIC: "(primary started ...)" and "(primary stopped)"
+# - {topic_path}/in: "(add ...)", "(query ...)", "(remove ...)"
+# - {namespace}/+/+/state: "(stopped)"
 #
 # To Do
 # ~~~~~
+# - Primary Registrar supports discovery protocol
 # - Make this a sub-command of Aiko CLI
 #
 # - Handle MQTT restart
 # - Handle MQTT stop and start on a different host
-# - Handle if system crashes, then mosquitto doesn't get to send a LWT messages for
-#   the Registrar leaving a stale reference to a Registrar now longer exists.
-#   If a new Registrar't started when the system restarts, then Aiko Clients try
-#   to use the defunct Registrar
-#
+# - Handle if system crashes, then mosquitto doesn't get to send a LWT messages
+#   for the Registrar leaving a stale reference to a Registrar now longer exists
+#   If a new Registrar isn't started when the system restarts, then Aiko Clients
+#   try to use the defunct Registrar
 # - Consider the ability to add, change or remove a Service's tag
 # - Implement as a sub-class of Category ?
 # - When Service fails with LWT, publish timestamp on "topic_path/state"
@@ -47,16 +48,23 @@
 # - Rename "framework.py" to "service.py" and create a Service class ?
 # - Implement protocol.py and state_machine.py !
 # - Primary and secondaries Registrars
+#   - https://en.wikipedia.org/wiki/Raft_(algorithm)
 #   - https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type
 #   - Eventual consistency and optimistic replication
-# - Primary Registrar supports discovery protocol
-# - Implement protocol matching similar to programming language interfaces with inheritance
+# - Implement protocol matching similar to programming language interfaces
+#     with inheritance
+# - Add on_message_broker() handler to track MQTT connection status
+#   - Events: "add", "remove", "timeout" (waiting for connection)
+# - Add message handler for listening for other Registars ?
+#     Add discovery protocol handler to keep a list of Registrars
+#     This means the Aiko V2 framework should do the subscription automagically
+#     - Find the primary registrar (if it exists ?)
+#     - Query to find all other registars
+
 
 import click
 import time
 
-import aiko_services.event as event
-import aiko_services.framework as aiko
 from aiko_services import *
 from aiko_services.utilities import *
 
@@ -107,6 +115,8 @@ class StateMachineModel(object):
 
     def on_enter_primary(self, event_data):
         _LOGGER.debug("do enter_primary")
+        # Clear LWT, so this registrar doesn't receive another LWT on reconnect
+        aiko.public.message.publish(aiko.REGISTRAR_TOPIC, "", retain=True)
         lwt_payload = "(primary stopped)"
         aiko.set_last_will_and_testament(aiko.REGISTRAR_TOPIC, lwt_payload, True)
         payload_out = f"(primary started {aiko.public.topic_path} {time_started})"
@@ -116,7 +126,7 @@ state_machine = StateMachine(StateMachineModel())
 
 # --------------------------------------------------------------------------- #
 
-def registrar_handler(_aiko, action, registrar):
+def registrar_handler(aiko, action, registrar):
     if action == "started":
         if state_machine.get_state() == "primary_search":
             state_machine.transition("primary_found", None)
@@ -129,6 +139,11 @@ def registrar_handler(_aiko, action, registrar):
             state_machine.transition("primary_failed", None)
 
     return False  # Registrar message handling not finished
+
+def service_state_handler(aiko, topic, payload_in):
+    command, parameters = parse(payload_in)
+    if command == "stopped" and topic.endswith("/state"):
+        service_remove(topic[:-len("/state")])
 
 def topic_in_handler(aiko, topic, payload_in):
     command, parameters = parse(payload_in)
@@ -159,28 +174,18 @@ def topic_in_handler(aiko, topic, payload_in):
         services_out = {}
 
         for service_topic, service_details in services.items():
-            matches = 0
-
-            if match_protocol == "*":
-                matches += 1
-            else:
-                if match_protocol == service_details["protocol"]:
-                    matches += 1
-
-            if match_owner == "*":
-                matches += 1
-            else:
-                if match_owner == service_details["owner"]:
-                    matches += 1
-
-            if match_tags == "*":
-                matches += 1
-            else:
+            matches = True
+            if match_protocol != "*":
+                if match_protocol != service_details["protocol"]:
+                    matches = False
+            if match_owner != "*":
+                if match_owner != service_details["owner"]:
+                    matches = False
+            if match_tags != "*":
                 service_tags = service_details["tags"]
-                if all([tag in service_tags for tag in match_tags]):
-                    matches += 1
-
-            if matches == 3:
+                if not all([tag in service_tags for tag in match_tags]):
+                    matches = False
+            if matches:
                 services_out[service_topic] = service_details
 
         payload_out = f"(item_count {len(services_out)})"
@@ -194,11 +199,9 @@ def topic_in_handler(aiko, topic, payload_in):
                           f" {service_details['owner']}"     \
                           f" ({service_tags}))"
             aiko.message.publish(response_topic, payload_out)
-            _LOGGER.debug(f"QUERY: {payload_out}")
 
         payload_out = "(sync " + response_topic + ")"
         aiko.message.publish(aiko.topic_out, payload_out)
-        _LOGGER.debug(f"QUERY: {payload_out}")
 
 def service_add(service_topic, protocol, owner, tags):
     _LOGGER.debug(f"Service add: {service_topic}")
@@ -212,18 +215,10 @@ def service_remove(service_topic):
 
 # --------------------------------------------------------------------------- #
 
-# TODO: Add message handler for listening for other Registars ?
-#       Add discovery protocol handler to keep a list of Registrars
-#       This means that the Aiko V2 framework should do the subscription automagically
-#       - Find the primary registrar (if it exists ?)
-#       - Query to find all other registars
-#
-# TODO: Add on_message_broker() handler to track MQTT connection status
-#       - Events: "add", "remove", "timeout" (waiting for connection)
-
 @click.command()
 def main():
     aiko.set_protocol(aiko.REGISTRAR_PROTOCOL)
+    aiko.add_message_handler(service_state_handler, aiko.SERVICE_STATE_TOPIC)
     aiko.set_registrar_handler(registrar_handler)
     aiko.add_topic_in_handler(topic_in_handler)
     state_machine.transition("initialize", None)

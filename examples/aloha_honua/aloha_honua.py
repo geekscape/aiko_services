@@ -22,10 +22,8 @@
 
 import click
 
-import aiko_services.framework as aiko
 from aiko_services import *
 from aiko_services.utilities import *
-from aiko_services.transport import *
 
 PROTOCOL = "github.com/geekscape/aiko_services/protocol/aloha_honua:0"
 
@@ -40,8 +38,15 @@ class AlohaHonuaActor(actor.Actor):
 
     def test(self, value):
         _LOGGER.debug(f"{_ACTOR_NAME}: test({value})")
-    #   payload_out = payload_in
-    #   aiko.message.publish(aiko.topic_out, payload_out)
+        payload_out = f"(test {value})"
+        aiko.public.message.publish(aiko.public.topic_out, payload_out)
+
+    def topic_all_handler(self, aiko, topic, payload_in):
+        command, parameters = parse(payload_in)
+        _LOGGER.debug(
+            f"topic_all_handler(): topic: {topic}, {command}:{parameters}"
+        )
+        breakpoint()
 
     def topic_in_handler(self, aiko, topic, payload_in):
         command, parameters = parse(payload_in)
@@ -62,6 +67,8 @@ def main():
         f"class={AlohaHonuaActor.__name__}",  # TODO: Use full class pathname
         f"name={_ACTOR_NAME}"
     ])
+# BUG: Causes AlohaHonua Service to be added twice !?!
+#   aiko.add_message_handler(aloha_honua.topic_all_handler, "#")
     aiko.add_topic_in_handler(aloha_honua.topic_in_handler)
     aiko.process(True)
 

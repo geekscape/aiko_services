@@ -10,9 +10,7 @@
 # - Split into video_opencv.py, video_scikit.py, video_gstreamer.py, etc
 # - Ensure video_opencv.py uses asyncio and doesn't block !
 
-from aiko_services.pipeline import Pipeline
-from aiko_services.state import StateMachine
-from aiko_services.utilities import get_logger
+from aiko_services import *
 
 # FRAME_RATE = 0   # Process flat-out without delay
 FRAME_RATE = 0.05  # 20 FPS

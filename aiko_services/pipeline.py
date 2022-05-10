@@ -20,9 +20,7 @@ from queue import Queue
 import time
 import yaml
 
-import aiko_services.event as event
 from aiko_services import *
-from aiko_services.stream import *
 from aiko_services.utilities import *
 
 __all__ = ["Pipeline", "load_pipeline_definition"]
