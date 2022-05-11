@@ -138,7 +138,7 @@ def registrar_handler(aiko, action, registrar):
             services = {}
             state_machine.transition("primary_failed", None)
 
-    return False  # Registrar message handling not finished
+    return False
 
 def service_state_handler(aiko, topic, payload_in):
     command, parameters = parse(payload_in)
@@ -210,14 +210,15 @@ def topic_in_handler(aiko, topic, payload_in):
         aiko.message.publish(aiko.topic_out, payload_out)
 
 def service_add(service_topic, protocol, transport, owner, tags):
-    _LOGGER.debug(f"Service add: {service_topic}")
-    service_details = {
-        "protocol": protocol,
-        "transport": transport,
-        "owner": owner,
-        "tags": tags
-    }
-    services[service_topic] = service_details
+    if service_topic not in services:
+        _LOGGER.debug(f"Service add: {service_topic}")
+        service_details = {
+            "protocol": protocol,
+            "transport": transport,
+            "owner": owner,
+            "tags": tags
+        }
+        services[service_topic] = service_details
 
 def service_remove(service_topic):
     if service_topic in services:
