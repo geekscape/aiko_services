@@ -1,8 +1,8 @@
 # To Do
 # ~~~~~
-# - BUG: Supporting "#" wildcard message handlers causes
-#   Services to be added to the Registrar twice !?!
-#
+# - Turn into a Service Class with methods
+#   - How to provide "aiko" reference to an instance of the Class ?
+#   - Rename "framework.py" to "service.py"
 # - Add __all__ for all public functions
 #
 # - For standalone applications, i.e not using messages or services,
@@ -122,6 +122,7 @@ def add_topic_in_handler(topic_handler):
     add_message_handler(topic_handler, public.topic_in)
 
 # TODO: Consider moving all registrar related code into the Registar
+
 def on_registrar_message(aiko_, topic, payload_in):
     command, parameters = parse(payload_in)
     action = None
@@ -143,7 +144,6 @@ def on_registrar_message(aiko_, topic, payload_in):
             handler_done = private.registrar_handler(public, action, registrar)
 
         if not handler_done:
-            # TODO: Temporary workaround, watch out for duplicate messages !
             if action == "started":
                 if public.protocol:
                     tags = ' '.join([str(tag) for tag in public.tags])
@@ -202,16 +202,10 @@ def message_queue_handler(message, _):
         _LOGGER_MESSAGE.debug(f"topic: {message.topic}, payload: {payload_in}")
 
     message_handler_list = []
-# BUG: Supporting "#" wildcard message handlers causes
-#      Services to be added to the Registrar twice !?!
-#   for topic in message.topic, "#":
-#       found, topic_match =  topic_search(topic, private.message_handlers)
-#       if found:
-#           message_handler_list.extend(private.message_handlers[topic_match])
-
-    found, topic_match =  topic_search(message.topic, private.message_handlers)
-    if found:
-        message_handler_list.extend(private.message_handlers[topic_match])
+    for topic in message.topic, "#":
+        found, topic_match =  topic_search(topic, private.message_handlers)
+        if found:
+            message_handler_list.extend(private.message_handlers[topic_match])
 
     if len(message_handler_list) > 0:
         for message_handler in message_handler_list:

@@ -63,6 +63,8 @@ class MQTT(Message):
         self.connected = False
         self.published = True
         self.topics_subscribe = []
+        self.wildcard_topic = False
+        self.wildcard_subscribed = False
         self.subscribe(topics_subscribe)
         self._connect(lwt_topic, lwt_payload, lwt_retain)
 
@@ -166,25 +168,44 @@ class MQTT(Message):
             if type(topics) == dict:
                 topics = topics.keys()
             for topic in topics:
-                self.topics_subscribe.append(topic)
+                if topic == "#":
+                    self.wildcard_topic = True
+                    self.unsubscribe(self.topics_subscribe, remove=False)
+                else:
+                    self.topics_subscribe.append(topic)
 
             self._subscribe_if_connected(topics)
 
     def _subscribe_if_connected(self, topics: Any):
-        if topics and self.connected:
-            for topic in topics:
-                self.mqtt_client.subscribe(topic)
-                _LOGGER.debug(f"subscribed from {MQTT_HOST}: {topic}")
+        if self.connected:
+            if self.wildcard_topic:
+                if not self.wildcard_subscribed:
+                    self.mqtt_client.subscribe("#")
+                    self.wildcard_subscribed = True
+                    _LOGGER.debug(f"subscribed to {MQTT_HOST}: #")
+            elif topics:
+                for topic in topics:
+                    self.mqtt_client.subscribe(topic)
+                    _LOGGER.debug(f"subscribed to {MQTT_HOST}: {topic}")
 
-    def unsubscribe(self: Any, topics: Any) -> None:
+    def unsubscribe(self: Any, topics: Any, remove=True) -> None:
         if topics:
             if type(topics) == str:
                 topics = [topics]
             if type(topics) == dict:
                 topics = topics.keys()
             for topic in topics:
-                if topic in self.topics_subscribe:
-                    self.topics_subscribe.remove(topic)
+                if topic == "#":
+                    if self.wildcard_topic:
+                        self.wildcard_topic = False
+                        if self.wildcard_subscribed:
+                            self.mqtt_client.unsubscribe("#")
+                            self.wildcard_subscribed = False
+                            _LOGGER.debug(f"unsubscribed from {MQTT_HOST}: #")
+                        self._subscribe_if_connected(self.topics_subscribe)
+                elif topic in self.topics_subscribe:
+                    if remove:
+                        self.topics_subscribe.remove(topic)
                     if self.connected:
                         self.mqtt_client.unsubscribe(topic)
                         _LOGGER.debug(f"unsubscribed from {MQTT_HOST}: {topic}")

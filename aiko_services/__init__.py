@@ -45,7 +45,7 @@ from .pipeline import (
     Pipeline, load_pipeline_definition
 )
 
-# from .services import *
+# from .service import *
 
 from .actor import (
     Actor, TestActor

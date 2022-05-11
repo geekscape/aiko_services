@@ -66,7 +66,6 @@ def main():
         f"class={AlohaHonuaActor.__name__}",  # TODO: Use full class pathname
         f"name={_ACTOR_NAME}"
     ])
-# BUG: Causes AlohaHonua Service to be added twice !?!
 #   aiko.add_message_handler(aloha_honua.topic_all_handler, "#")
     aiko.add_topic_in_handler(aloha_honua.topic_in_handler)
     aiko.process(True)
