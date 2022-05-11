@@ -37,8 +37,8 @@ from .framework import (
     add_task_start_handler, add_task_stop_handler,
     process, add_tags, get_parameter, parse_tags,
     set_last_will_and_testament, set_protocol,
-    set_terminate_registrar_not_found, terminate,
-    wait_connected, wait_parameters
+    set_terminate_registrar_not_found, set_transport,
+    terminate, wait_connected, wait_parameters
 )
 
 from .pipeline import (

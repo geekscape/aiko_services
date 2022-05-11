@@ -15,9 +15,9 @@
 # TOPIC_PATH=$NAMESPACE/$HOST/$PID
 #
 # TAGS="(key1=value1 key2=value2)"
-# mosquitto_pub -t $TOPIC_PATH/in -m "(add topic_prefix protocol owner $TAGS)"
+# mosquitto_pub -t $TOPIC_PATH/in -m "(add topic_prefix protocol transport owner $TAGS)"
 # mosquitto_pub -t $TOPIC_PATH/in -m "(remove topic_prefix)"
-# mosquitto_pub -t $TOPIC_PATH/in -m "(query response * * $TAGS)"
+# mosquitto_pub -t $TOPIC_PATH/in -m "(query response * * * $TAGS)"
 #
 # Notes
 # ~~~~~
@@ -149,13 +149,14 @@ def topic_in_handler(aiko, topic, payload_in):
     command, parameters = parse(payload_in)
 #   _LOGGER.debug(f"topic_in_handler(): {command}: {parameters}")
 
-    if command == "add" and len(parameters) == 4:
+    if command == "add" and len(parameters) == 5:
         service_topic = parameters[0]
         protocol = parameters[1]
-        owner = parameters[2]
-        tags = parameters[3]
+        transport = parameters[2]
+        owner = parameters[3]
+        tags = parameters[4]
 
-        service_add(service_topic, protocol, owner, tags)
+        service_add(service_topic, protocol, transport, owner, tags)
         payload_out = payload_in
         aiko.message.publish(aiko.topic_out, payload_out)
 
@@ -165,11 +166,12 @@ def topic_in_handler(aiko, topic, payload_in):
         payload_out = payload_in
         aiko.message.publish(aiko.topic_out, payload_out)
 
-    if command == "query" and len(parameters) == 4:
-        response_topic  = parameters[0]
-        match_protocol  = parameters[1]
-        match_owner     = parameters[2]
-        match_tags      = parameters[3]
+    if command == "query" and len(parameters) == 5:
+        response_topic = parameters[0]
+        match_protocol = parameters[1]
+        match_transport = parameters[2]
+        match_owner = parameters[3]
+        match_tags = parameters[4]
 
         services_out = {}
 
@@ -177,6 +179,9 @@ def topic_in_handler(aiko, topic, payload_in):
             matches = True
             if match_protocol != "*":
                 if match_protocol != service_details["protocol"]:
+                    matches = False
+            if match_transport != "*":
+                if match_transport != service_details["transport"]:
                     matches = False
             if match_owner != "*":
                 if match_owner != service_details["owner"]:
@@ -193,19 +198,25 @@ def topic_in_handler(aiko, topic, payload_in):
 
         for service_topic, service_details in services_out.items():
             service_tags = " ".join(service_details["tags"])
-            payload_out =  "(add"                            \
-                          f" {service_topic}"                \
-                          f" {service_details['protocol']}"  \
-                          f" {service_details['owner']}"     \
+            payload_out =  "(add"                             \
+                          f" {service_topic}"                 \
+                          f" {service_details['protocol']}"   \
+                          f" {service_details['transport']}"  \
+                          f" {service_details['owner']}"      \
                           f" ({service_tags}))"
             aiko.message.publish(response_topic, payload_out)
 
         payload_out = "(sync " + response_topic + ")"
         aiko.message.publish(aiko.topic_out, payload_out)
 
-def service_add(service_topic, protocol, owner, tags):
+def service_add(service_topic, protocol, transport, owner, tags):
     _LOGGER.debug(f"Service add: {service_topic}")
-    service_details = { "protocol": protocol, "owner": owner, "tags": tags }
+    service_details = {
+        "protocol": protocol,
+        "transport": transport,
+        "owner": owner,
+        "tags": tags
+    }
     services[service_topic] = service_details
 
 def service_remove(service_topic):

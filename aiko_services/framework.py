@@ -63,8 +63,8 @@ __all__ = [
     "add_task_start_handler", "add_task_stop_handler",
     "process", "add_tags", "get_parameter", "parse_tags",
     "set_last_will_and_testament", "set_protocol",
-    "set_terminate_registrar_not_found", "terminate",
-    "wait_connected", "wait_parameters"
+    "set_terminate_registrar_not_found", "set_transport",
+    "terminate", "wait_connected", "wait_parameters"
 ]
 
 class private:
@@ -89,6 +89,7 @@ class public:
     topic_log = topic_path + "/log"
     topic_out = topic_path + "/out"
     topic_state = topic_path + "/state"
+    transport = "mqtt"
 
 _LOGGER = get_logger(__name__)
 _LOGGER_MESSAGE = get_logger("MESSAGE")
@@ -147,7 +148,8 @@ def on_registrar_message(aiko_, topic, payload_in):
                 if public.protocol:
                     tags = ' '.join([str(tag) for tag in public.tags])
                     topic = registrar["topic_path"] + "/in"
-                    payload_out = f"(add {public.topic_path} {public.protocol} {get_username()} ({tags}))"
+                    owner = get_username()
+                    payload_out = f"(add {public.topic_path} {public.protocol} {public.transport} {owner} ({tags}))"
                     public.message.publish(topic, payload=payload_out)
             if action == "stopped" and public.terminate_registrar_not_found == True:
                 terminate(1)
@@ -253,6 +255,7 @@ def initialize(pipeline=None):
 # TODO: on_connect user handler ?
 # TODO: on_message user handler ?  Note: Aiko V2 provides add_message_handler() instead
 # TODO: Implement protocol stuff, see set_protocol()
+# TODO: Implement transport stuff, see set_transport()
 # TODO: Implement tags stuff, e.g set_tags() ?
 
     add_message_handler(on_registrar_message, REGISTRAR_TOPIC)
@@ -302,6 +305,9 @@ def set_protocol(protocol):
 
 def set_terminate_registrar_not_found(terminate_registrar_not_found):
     public.terminate_registrar_not_found = terminate_registrar_not_found
+
+def set_transport(transport):
+    public.transport = transport
 
 def terminate(exit_status=0):
     private.exit_status = exit_status
