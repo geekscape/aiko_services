@@ -41,14 +41,13 @@ class AlohaHonuaActor(actor.Actor):
         payload_out = f"(test {value})"
         aiko.public.message.publish(aiko.public.topic_out, payload_out)
 
-    def topic_all_handler(self, aiko, topic, payload_in):
+    def topic_all_handler(self, _aiko, topic, payload_in):
         command, parameters = parse(payload_in)
         _LOGGER.debug(
             f"topic_all_handler(): topic: {topic}, {command}:{parameters}"
         )
-        breakpoint()
 
-    def topic_in_handler(self, aiko, topic, payload_in):
+    def topic_in_handler(self, _aiko, topic, payload_in):
         command, parameters = parse(payload_in)
         _LOGGER.debug(
             f"{_ACTOR_NAME}: topic_in_handler(): {command}:{parameters}"

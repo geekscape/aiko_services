@@ -1,15 +1,16 @@
 # To Do
 # ~~~~~
-# - Supporting "#" wildcard message handlers causes
+# - BUG: Supporting "#" wildcard message handlers causes
 #   Services to be added to the Registrar twice !?!
+#
+# - Add __all__ for all public functions
 #
 # - For standalone applications, i.e not using messages or services,
 #     don't start-up MQTT instance, because it takes time to connect
 #
-# - Add __all__ for all public functions
-#
 # - Rename "framework.py" to "service.py" and create a Service class ?
-# - Implement Aiko class with "class public variables" becoming Aiko class instance variables
+# - Implement Aiko class with "class public variables" becoming Aiko class
+#   instance variables
 #   - "class private" becomes one of the Aiko class instance variables
 #
 # - Store Aiko class instance as the "ContextManager.__init__(aiko=)" parameter
@@ -102,6 +103,8 @@ def add_message_handler(message_handler, topic):
         if "+" in topic:
             private.message_handlers_wildcard_topics.append(topic)
     private.message_handlers[topic].append(message_handler)
+    if public.message:
+        public.message.subscribe(topic)
 
 def remove_message_handler(message_handler, topic):
     if topic in private.message_handlers:
@@ -109,6 +112,8 @@ def remove_message_handler(message_handler, topic):
             private.message_handlers[topic].remove(message_handler)
         if len(private.message_handlers[topic]) == 0:
             del private.message_handlers[topic]
+            if public.message:
+                public.message.unsubscribe(topic)
         if topic in private.message_handlers_wildcard_topics:
             del private.message_handlers_wildcard_topics[topic]
 
@@ -257,9 +262,13 @@ def initialize(pipeline=None):
     lwt_payload = "(stopped)"
     lwt_retain = False
 
-    public.message = MQTT(on_message, private.message_handlers, lwt_topic, lwt_payload, lwt_retain)
+    public.message = MQTT(
+        on_message, private.message_handlers, lwt_topic, lwt_payload, lwt_retain
+    )
     context = ContextManager(public, public.message)
-# TODO: Wait for and connect to message broker and handle failure, discovery and reconnection
+
+# TODO: Wait for and connect to message broker and handle failure,
+#       discovery and reconnection
 
 #   public.parameters = public.aks_info.parameters           # TODO: Replace V1
 
@@ -283,7 +292,9 @@ def parse_tags(tags_string):
         tags = tags_string.split(",")
         add_tags(tags)
 
-def set_last_will_and_testament(lwt_topic, lwt_payload="(stopped)", lwt_retain=False):
+def set_last_will_and_testament(
+    lwt_topic, lwt_payload="(stopped)", lwt_retain=False):
+
     public.message.set_last_will_and_testament(lwt_topic, lwt_payload, lwt_retain)
 
 def set_protocol(protocol):

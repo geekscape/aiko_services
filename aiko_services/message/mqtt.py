@@ -28,7 +28,7 @@
 from logging import DEBUG
 import paho.mqtt.client as mqtt
 import time
-from typing import Any
+from typing import Any, List
 
 from aiko_services.message import *
 from aiko_services.utilities import *
@@ -51,7 +51,7 @@ def _on_message(mqtt_client: Any, userdata: Any, message: Any) -> None:
 
 class MQTT(Message):
     def __init__(
-        self,
+        self: Any,
         message_handler: Any = _on_message,
         topics_subscribe: Any = None,
         lwt_topic: str = None,
@@ -60,11 +60,10 @@ class MQTT(Message):
         ) -> None:
 
         self.message_handler = message_handler
-        self.topics_subscribe = topics_subscribe
-
         self.connected = False
         self.published = True
-
+        self.topics_subscribe = []
+        self.subscribe(topics_subscribe)
         self._connect(lwt_topic, lwt_payload, lwt_retain)
 
     def _connect(
@@ -102,7 +101,7 @@ class MQTT(Message):
 
     # pylint: disable=unused-argument
     def _on_connect(
-        self,
+        self: Any,
         mqtt_client: Any,
         user_data: Any,
         dict_flags: Any,
@@ -111,16 +110,10 @@ class MQTT(Message):
 
         _LOGGER.debug(f"connected to {MQTT_HOST}")
         self.connected = True
-        if self.topics_subscribe:
-            topics = self.topics_subscribe
-            if type(topics) is dict:
-                topics = topics.keys()
-            for topic in topics:
-                mqtt_client.subscribe(topic)
-                _LOGGER.debug(f"subscribed to {MQTT_HOST}: {topic}")
+        self._subscribe_if_connected(self.topics_subscribe)
 
     def _on_disconnect(
-        self,
+        self: Any,
         mqtt_client: Any,
         user_data: Any,
         return_code: Any
@@ -133,7 +126,7 @@ class MQTT(Message):
 
     # pylint: disable=unused-argument
     def _on_publish(
-        self,
+        self: Any,
         mqtt_client: Any,
         userdata: Any,
         result: Any
@@ -143,7 +136,7 @@ class MQTT(Message):
 
     def publish(
         self: Any,
-        topic: Any,
+        topic: str,
         payload: Any,
         retain: bool = False,
         wait: bool = False
@@ -156,7 +149,8 @@ class MQTT(Message):
             self.wait_published()
 
     def set_last_will_and_testament(
-        self, lwt_topic: str = None,
+        self: Any,
+        lwt_topic: str = None,
         lwt_payload: str = None,
         lwt_retain: bool = False
         ) -> None:
@@ -165,10 +159,40 @@ class MQTT(Message):
         self.wait_disconnected()
         self._connect(lwt_topic, lwt_payload, lwt_retain)
 
+    def subscribe(self: Any, topics: Any) -> None:
+        if topics:
+            if type(topics) == str:
+                topics = [topics]
+            if type(topics) == dict:
+                topics = topics.keys()
+            for topic in topics:
+                self.topics_subscribe.append(topic)
+
+            self._subscribe_if_connected(topics)
+
+    def _subscribe_if_connected(self, topics: Any):
+        if topics and self.connected:
+            for topic in topics:
+                self.mqtt_client.subscribe(topic)
+                _LOGGER.debug(f"subscribed from {MQTT_HOST}: {topic}")
+
+    def unsubscribe(self: Any, topics: Any) -> None:
+        if topics:
+            if type(topics) == str:
+                topics = [topics]
+            if type(topics) == dict:
+                topics = topics.keys()
+            for topic in topics:
+                if topic in self.topics_subscribe:
+                    self.topics_subscribe.remove(topic)
+                    if self.connected:
+                        self.mqtt_client.unsubscribe(topic)
+                        _LOGGER.debug(f"unsubscribed from {MQTT_HOST}: {topic}")
+
 # TODO: Only wait a limited time and either carry on without failing ...
 #       or fail and choose to reconnect to MQTT
 
-    def wait_disconnected(self) -> None:
+    def wait_disconnected(self: Any) -> None:
 #       _LOGGER.debug("wait disconnected")
         for counter in range(_MAXIMUM_WAIT_TIME + 1):
             if not self.connected: break
@@ -181,7 +205,7 @@ class MQTT(Message):
 # TODO: Only wait a limited time and either carry on without failing ...
 #       or fail and choose to reconnect to MQTT
 
-    def wait_connected(self) -> None:
+    def wait_connected(self: Any) -> None:
 #       _LOGGER.debug("wait connected")
         for counter in range(_MAXIMUM_WAIT_TIME + 1):
             if self.connected: break
@@ -194,7 +218,7 @@ class MQTT(Message):
 # TODO: Only wait a limited time and either carry on without failing ...
 #       or fail and choose to reconnect to MQTT
 
-    def wait_published(self) -> None:
+    def wait_published(self: Any) -> None:
 #       _LOGGER.debug("wait published")
         for counter in range(_MAXIMUM_WAIT_TIME + 1):
             if self.published: break
