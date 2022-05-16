@@ -57,6 +57,7 @@ from aiko_services.utilities import *
 # import aiko_services.framework as aks                      # TODO: Replace V1
 
 __all__ = [
+    "ConnectionState",
     "public", "add_message_handler", "remove_message_handler",
     "add_topic_in_handler", "set_registrar_handler",
     "add_stream_handlers", "add_stream_frame_handler",
@@ -68,6 +69,7 @@ __all__ = [
 ]
 
 class private:
+    connection_state_handlers = []
     exit_status = 0
     message_handlers = {}
     message_handlers_wildcard_topics = []
@@ -85,6 +87,7 @@ class public:
     tags = []
     terminate_registrar_not_found = False
     topic_path = get_namespace() + "/" + get_hostname() + "/" + get_pid()
+    topic_control = topic_path + "/control"
     topic_in = topic_path + "/in"
     topic_log = topic_path + "/log"
     topic_out = topic_path + "/out"
@@ -97,6 +100,22 @@ _LOGGER_MESSAGE = get_logger("MESSAGE")
 REGISTRAR_PROTOCOL = "github.com/geekscape/aiko_services/protocol/registrar:0"
 REGISTRAR_TOPIC = f"{get_namespace()}/service/registrar"
 SERVICE_STATE_TOPIC = f"{get_namespace()}/+/+/state"
+
+class ConnectionState:
+    NONE = "NONE"
+    NETWORK = "NETWORK"
+    TRANSPORT = "TRANSPORT"
+    REGISTRAR = "REGISTRAR"
+
+    states = [NONE, NETWORK, TRANSPORT, REGISTRAR]
+
+def add_connection_state_handler(connection_state_handler):
+    if not connection_state_handler in private.connection_state_handlers:
+        private.connection_state_handlers.append(connection_state_handler)
+
+def remove_connection_state_handler(connection_state_handler):
+    if connection_state_handler in private.connection_state_handlers:
+       private.connection_state_handlers.remove(connection_state_handler)
 
 def add_message_handler(message_handler, topic):
     if not topic in private.message_handlers:
@@ -139,20 +158,24 @@ def on_registrar_message(aiko_, topic, payload_in):
                 parse_okay = True
 
     if parse_okay:
-        handler_done = False
+        if action == "started":
+            if public.protocol:
+                tags = ' '.join([str(tag) for tag in public.tags])
+                topic = registrar["topic_path"] + "/in"
+                owner = get_username()
+                payload_out = f"(add {public.topic_path} {public.protocol} {public.transport} {owner} ({tags}))"
+                public.message.publish(topic, payload=payload_out)
+            for connection_state_handler in private.connection_state_handlers:
+                connection_state_handler(ConnectionState.REGISTRAR)
+
+        if action == "stopped":
+            for connection_state_handler in private.connection_state_handlers:
+                connection_state_handler(ConnectionState.TRANSPORT)
+            if public.terminate_registrar_not_found == True:
+                terminate(1)
+
         if private.registrar_handler:
             handler_done = private.registrar_handler(public, action, registrar)
-
-        if not handler_done:
-            if action == "started":
-                if public.protocol:
-                    tags = ' '.join([str(tag) for tag in public.tags])
-                    topic = registrar["topic_path"] + "/in"
-                    owner = get_username()
-                    payload_out = f"(add {public.topic_path} {public.protocol} {public.transport} {owner} ({tags}))"
-                    public.message.publish(topic, payload=payload_out)
-            if action == "stopped" and public.terminate_registrar_not_found == True:
-                terminate(1)
 
 def set_registrar_handler(registrar_handler):
     private.registrar_handler = registrar_handler

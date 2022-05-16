@@ -31,7 +31,8 @@ from .stream import (
 )
 
 from .framework import (
-    public, add_message_handler, remove_message_handler,
+    public, ConnectionState,
+    add_message_handler, remove_message_handler,
     add_topic_in_handler, set_registrar_handler,
     add_stream_handlers, add_stream_frame_handler,
     add_task_start_handler, add_task_stop_handler,

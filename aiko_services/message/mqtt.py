@@ -37,7 +37,7 @@ __all__ = ["MQTT"]
 
 MQTT_HOST = "localhost"
 # MQTT_HOST = "202.130.215.177"  # "lounge.local"
-# MQTT_HOST = "zeus_t"
+# MQTT_HOST = "zeus.silverpond.com.au"
 # MQTT_HOST = "mqtt.fluux.io"
 # MQTT_HOST = "test.mosquitto.org"
 MQTT_PORT = 1883
