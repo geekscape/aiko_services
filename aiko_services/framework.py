@@ -278,8 +278,12 @@ def initialize(pipeline=None):
     add_message_handler(on_registrar_message, REGISTRAR_TOPIC)
     event.add_queue_handler(message_queue_handler, ["message"])
 
-    lwt_topic = public.topic_state
-    lwt_payload = "(stopped)"
+    if public.protocol:
+        lwt_topic = public.topic_state
+        lwt_payload = "(stopped)"
+    else:
+        lwt_topic = None
+        lwt_payload = None
     lwt_retain = False
 
     public.message = MQTT(
