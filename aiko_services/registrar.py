@@ -143,7 +143,10 @@ def registrar_handler(aiko, action, registrar):
 def service_state_handler(aiko, topic, payload_in):
     command, parameters = parse(payload_in)
     if command == "stopped" and topic.endswith("/state"):
-        service_remove(topic[:-len("/state")])
+        topic_path = topic[:-len("/state")]
+        service_remove(topic_path)
+        payload_out = f"(remove {topic_path})"
+        aiko.message.publish(aiko.topic_out, payload_out)
 
 def topic_in_handler(aiko, topic, payload_in):
     command, parameters = parse(payload_in)
