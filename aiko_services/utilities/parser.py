@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+#
 # Notes
 # ~~~~~
 # Parses ...
@@ -13,9 +15,22 @@
 # ~~~~~
 # - Implement JSON parsing
 
+import sys
 from typing import List
 
-__all__ = ["parse"]
+__all__ = ["generate", "parse"]
+
+def generate(expression: List) -> str:
+    character = ""
+    payload = "("
+    for element in expression:
+        if type(element) == list:
+            element = generate(element)
+        payload = f"{payload}{character}{element}"
+        character = " "
+    payload = f"{payload})"
+    print(f"generate(): {expression} --> {payload}")
+    return payload
 
 def parse(payload: str) -> List:
     command = ""
@@ -44,3 +59,15 @@ def parse(payload: str) -> List:
                 sublist.append(token)
 
     return command, parameters
+
+def main():
+    payloads = [ "(a b ())", "(a b (c d))" ]
+
+    for payload_in in payloads:
+        expression = parse(payload_in)
+        print(f"Payload: {payload_in} --> Expression: {expression}")
+        payload_out = generate(expression)
+        print(f"Expression: {expression} --> Payload: {payload_out}\n")
+
+if __name__ == "__main__":
+    main()

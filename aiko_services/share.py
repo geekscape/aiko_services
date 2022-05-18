@@ -181,7 +181,7 @@ class ECProducer:
                     for subitem_name in item.keys():
                         name = f"{item_name}.{subitem_name}"
                         subitem = self.state[item_name][subitem_name]
-                        items.append(f"(add {name} {subitem})")
+                        items.append(generate(["add", name, subitem]))
 
         item_count = len(items)
         payload_out = f"(item_count {item_count})"
