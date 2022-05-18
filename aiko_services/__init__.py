@@ -22,6 +22,10 @@ from .event import (
     terminate
 )
 
+from .lease import (
+    Lease
+)
+
 from .proxy import (
     is_callable, ProxyAllMethods, proxy_trace
 )
@@ -40,6 +44,10 @@ from .framework import (
     set_last_will_and_testament, set_protocol,
     set_terminate_registrar_not_found, set_transport,
     terminate, wait_connected, wait_parameters
+)
+
+from .share import (
+    ECConsumer, ECProducer
 )
 
 from .pipeline import (
