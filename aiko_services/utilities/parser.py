@@ -29,7 +29,6 @@ def generate(expression: List) -> str:
         payload = f"{payload}{character}{element}"
         character = " "
     payload = f"{payload})"
-    print(f"generate(): {expression} --> {payload}")
     return payload
 
 def parse(payload: str) -> List:
