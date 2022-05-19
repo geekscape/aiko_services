@@ -74,7 +74,7 @@ class DashboardFrame(Frame):
         box_rows = 16
         self._services_widget = MultiColumnListBox(
             box_rows,
-            ["<20", "<16", "<12", "<8", "0"],
+            ["<24", "<16", "<12", "<8", "0"],
             [],
             titles=["Service", "Protocol", "Transport", "Owner", "Tags"],
             on_change=self._on_change_service,

@@ -13,6 +13,7 @@
 #
 # To Do
 # ~~~~~
+# - Provide unit tests !
 # - Implement JSON parsing
 
 import sys
@@ -20,12 +21,16 @@ from typing import List
 
 __all__ = ["generate", "parse"]
 
-def generate(expression: List) -> str:
+def generate(command: str, parameters: List) -> str:
+    expression = [command] + parameters
+    return generate_s_expression(expression)
+
+def generate_s_expression(expression: List) -> str:
     character = ""
     payload = "("
     for element in expression:
         if type(element) == list:
-            element = generate(element)
+            element = generate_s_expression(element)
         payload = f"{payload}{character}{element}"
         character = " "
     payload = f"{payload})"
@@ -63,10 +68,10 @@ def main():
     payloads = [ "(a b ())", "(a b (c d))" ]
 
     for payload_in in payloads:
-        expression = parse(payload_in)
-        print(f"Payload: {payload_in} --> Expression: {expression}")
-        payload_out = generate(expression)
-        print(f"Expression: {expression} --> Payload: {payload_out}\n")
+        command, parameters = parse(payload_in)
+        print(f"{payload_in} --> command: {command}, parameters: {parameters}")
+        payload_out = generate(command, parameters)
+        print(f"{command}, {parameters} --> payload: {payload_out}\n")
 
 if __name__ == "__main__":
     main()
