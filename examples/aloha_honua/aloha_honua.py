@@ -6,7 +6,7 @@
 # Usage
 # ~~~~~
 # LOG_LEVEL=DEBUG registrar &
-# LOG_LEVEL=DEBUG ./aloha_honua.py
+# LOG_LEVEL=DEBUG ./aloha_honua.py [test_value]
 #
 # mosquitto_sub -t '#' -v
 #
@@ -25,7 +25,7 @@ import click
 from aiko_services import *
 from aiko_services.utilities import *
 
-PROTOCOL = "github.com/geekscape/aiko_services/protocol/aloha_honua:0"
+PROTOCOL = f"{AIKO_PROTOCOL_PREFIX}/aloha_honua:0"
 
 _ACTOR_NAME = "AlohaHonua"
 _LOGGER = get_logger(__name__)
@@ -33,8 +33,18 @@ _LOGGER = get_logger(__name__)
 # --------------------------------------------------------------------------- #
 
 class AlohaHonuaActor(actor.Actor):
-    def __init__(self, actor_name):
+    def __init__(self, actor_name, test_value=0):
         super().__init__(actor_name)
+        self.state = {
+            "lifecycle": "initialize",
+            "log_level": "info",
+            "test_value": test_value,
+            "test_dict": {
+                "item_1": ["value_a"],
+                "item_2": ["value_b"]
+            },
+        }
+        ECProducer(self.state)
 
     def test(self, value):
         _LOGGER.debug(f"{_ACTOR_NAME}: test({value})")
@@ -56,17 +66,18 @@ class AlohaHonuaActor(actor.Actor):
 
 # --------------------------------------------------------------------------- #
 
-@click.command()
-def main():
+@click.command("main", help=("Hello World Actor"))
+@click.argument("test_value", nargs=1, default=0, required=False)
+def main(test_value):
     actor_name = aiko.public.topic_path
-    aloha_honua = AlohaHonuaActor(actor_name)
+    aloha_honua = AlohaHonuaActor(actor_name, test_value)
 
     aiko.set_protocol(PROTOCOL)
     aiko.add_tags([
         f"class={AlohaHonuaActor.__name__}",  # TODO: Use full class pathname
-        f"name={_ACTOR_NAME}"
+        f"name={_ACTOR_NAME}",
     ])
-#   aiko.add_message_handler(aloha_honua.topic_all_handler, "#")
+#   aiko.add_message_handler(aloha_honua.topic_all_handler, "#")  # For testing
     aiko.add_topic_in_handler(aloha_honua.topic_in_handler)
     aiko.process(True)
 
