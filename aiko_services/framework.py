@@ -1,5 +1,7 @@
 # To Do
 # ~~~~~
+# - Use ServiceField everywhere to elimate service[?] literal integers !
+#
 # - Turn into a Service Class with methods
 #   - How to provide "aiko" reference to an instance of the Class ?
 #   - Rename "framework.py" to "service.py"
@@ -57,18 +59,36 @@ from aiko_services.utilities import *
 # import aiko_services.framework as aks                      # TODO: Replace V1
 
 __all__ = [
-    "ConnectionState",
-    "public", "add_message_handler", "remove_message_handler",
+    "AIKO_PROTOCOL_PREFIX", "ConnectionState", "ServiceField", "public",
+    "add_message_handler", "remove_message_handler",
     "add_topic_in_handler", "set_registrar_handler",
     "add_stream_handlers", "add_stream_frame_handler",
     "add_task_start_handler", "add_task_stop_handler",
-    "process", "add_tags", "get_parameter", "parse_tags",
+    "process", "add_tags", "get_parameter", "match_tags", "parse_tags",
     "set_last_will_and_testament", "set_protocol",
     "set_terminate_registrar_not_found", "set_transport",
     "terminate", "wait_connected", "wait_parameters"
 ]
 
+class ConnectionState:
+    NONE = "NONE"
+    NETWORK = "NETWORK"
+    TRANSPORT = "TRANSPORT"
+    REGISTRAR = "REGISTRAR"
+
+    states = [NONE, NETWORK, TRANSPORT, REGISTRAR]
+
+class ServiceField:
+    TOPIC = "TOPIC"
+    PROTOCOL = "PROTOCOL"
+    TRANSPORT = "TRANSPORT"
+    OWNER = "OWNER"
+    TAGS = "TAGS"
+
+    fields = [TOPIC, PROTOCOL, TRANSPORT, OWNER, TAGS]
+
 class private:
+    connection_state = ConnectionState.NONE
     connection_state_handlers = []
     exit_status = 0
     message_handlers = {}
@@ -97,19 +117,13 @@ class public:
 _LOGGER = get_logger(__name__)
 _LOGGER_MESSAGE = get_logger("MESSAGE")
 
-REGISTRAR_PROTOCOL = "github.com/geekscape/aiko_services/protocol/registrar:0"
+AIKO_PROTOCOL_PREFIX = "github.com/geekscape/aiko_services/protocol"
+REGISTRAR_PROTOCOL = f"{AIKO_PROTOCOL_PREFIX}/registrar:0"
 REGISTRAR_TOPIC = f"{get_namespace()}/service/registrar"
 SERVICE_STATE_TOPIC = f"{get_namespace()}/+/+/state"
 
-class ConnectionState:
-    NONE = "NONE"
-    NETWORK = "NETWORK"
-    TRANSPORT = "TRANSPORT"
-    REGISTRAR = "REGISTRAR"
-
-    states = [NONE, NETWORK, TRANSPORT, REGISTRAR]
-
 def add_connection_state_handler(connection_state_handler):
+    connection_state_handler(private.connection_state)
     if not connection_state_handler in private.connection_state_handlers:
         private.connection_state_handlers.append(connection_state_handler)
 
@@ -160,17 +174,20 @@ def on_registrar_message(aiko_, topic, payload_in):
     if parse_okay:
         if action == "started":
             if public.protocol:
+                # TODO: Use aiko_services.utilities.parser.generate() ?
                 tags = ' '.join([str(tag) for tag in public.tags])
                 topic = registrar["topic_path"] + "/in"
                 owner = get_username()
                 payload_out = f"(add {public.topic_path} {public.protocol} {public.transport} {owner} ({tags}))"
                 public.message.publish(topic, payload=payload_out)
+            private.connection_state = ConnectionState.REGISTRAR
             for connection_state_handler in private.connection_state_handlers:
-                connection_state_handler(ConnectionState.REGISTRAR)
+                connection_state_handler(private.connection_state)
 
         if action == "stopped":
+            private.connection_state = ConnectionState.TRANSPORT
             for connection_state_handler in private.connection_state_handlers:
-                connection_state_handler(ConnectionState.TRANSPORT)
+                connection_state_handler(private.connection_state)
             if public.terminate_registrar_not_found == True:
                 terminate(1)
 
@@ -310,6 +327,9 @@ def add_tags(tags):
 def get_parameter(name):                                     # TODO: Replace V1
 #   return aks.get_parameter(name)
     return None
+
+def match_tags(service_tags, match_tags):
+    return all([tag in service_tags for tag in match_tags])
 
 def parse_tags(tags_string):
     if tags_string:

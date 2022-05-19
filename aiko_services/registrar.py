@@ -28,6 +28,9 @@
 #
 # To Do
 # ~~~~~
+# - Use ServiceField everywhere to elimate service[?] literal integers !
+# - Registrar should migrate use of ServiceCache to ECProducer
+#
 # - Primary Registrar supports discovery protocol
 # - Make this a sub-command of Aiko CLI
 #
@@ -191,7 +194,7 @@ def topic_in_handler(aiko, topic, payload_in):
                     matches = False
             if match_tags != "*":
                 service_tags = service_details["tags"]
-                if not all([tag in service_tags for tag in match_tags]):
+                if not aiko.match_tags(service_tags, match_tags):
                     matches = False
             if matches:
                 services_out[service_topic] = service_details

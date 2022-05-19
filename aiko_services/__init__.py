@@ -35,19 +35,21 @@ from .stream import (
 )
 
 from .framework import (
-    public, ConnectionState,
+    AIKO_PROTOCOL_PREFIX, ConnectionState, ServiceField, public,
     add_message_handler, remove_message_handler,
     add_topic_in_handler, set_registrar_handler,
     add_stream_handlers, add_stream_frame_handler,
     add_task_start_handler, add_task_stop_handler,
-    process, add_tags, get_parameter, parse_tags,
+    process, add_tags, get_parameter, match_tags, parse_tags,
     set_last_will_and_testament, set_protocol,
     set_terminate_registrar_not_found, set_transport,
     terminate, wait_connected, wait_parameters
 )
 
 from .share import (
-    ECConsumer, ECProducer
+    ECConsumer, PROTOCOL_EC_CONSUMER,
+    ECProducer, PROTOCOL_EC_PRODUCER,
+    service_cache_create_singleton, service_cache_delete
 )
 
 from .pipeline import (
