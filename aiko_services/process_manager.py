@@ -41,7 +41,7 @@ __all__ = ["ProcessManager"]
 
 PROCESS_POLL_TIME = 0.2  # seconds
 
-PROTOCOL = "github.com/geekscape/aiko_services/protocol/process_manager:0"
+PROTOCOL_PROCESS_MANAGER = f"AIKO_PROTOCOL_PREFIX/process_manager:0"
 
 # --------------------------------------------------------------------------- #
 
@@ -174,7 +174,7 @@ def main(example, tags):
   if example:
     example_code(process_manager, example)
   else:
-    aiko.set_protocol(PROTOCOL)
+    aiko.set_protocol(PROTOCOL_PROCESS_MANAGER)
     aiko.add_topic_in_handler(topic_in_handler)
 #   aiko.parse_tags(tags)
     aiko.process(True)
