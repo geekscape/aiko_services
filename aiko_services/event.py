@@ -91,6 +91,12 @@ class EventList:
             event.next = current.next
             current.next = event
 
+    def print_event_list(self):
+        current = self.head
+        while current:
+            print(current)
+            current = current.next
+
     def remove(self, handler):
         previous = None
         current = self.head

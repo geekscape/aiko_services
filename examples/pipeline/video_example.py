@@ -80,7 +80,7 @@ pipeline_definition = [
 ]
 
 def timer_test():
-    get_logger(__name__).info("Timer test")
+    aiko.logger(__name__).info("Timer test")
 
 if __name__ == "__main__":
 #   event.add_timer_handler(timer_test, 0.1)

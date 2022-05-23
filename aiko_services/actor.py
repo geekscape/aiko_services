@@ -52,8 +52,7 @@ from aiko_services.utilities import *
 
 __all__ = ["Actor", "TestActor"]
 
-
-_LOGGER = get_logger(__name__)
+_LOGGER = aiko.logger(__name__)
 
 class LifeCycleClient:  # Interface
     pass

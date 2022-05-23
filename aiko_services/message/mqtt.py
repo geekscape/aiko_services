@@ -42,7 +42,7 @@ MQTT_HOST = "localhost"
 # MQTT_HOST = "test.mosquitto.org"
 MQTT_PORT = 1883
 
-_LOGGER = get_logger(__name__)
+_LOGGER = logger.get_logger(__name__)  # deliberately don't use aiko.logger
 _MAXIMUM_WAIT_TIME = 2000  # milliseconds
 
 def _on_message(mqtt_client: Any, userdata: Any, message: Any) -> None:

@@ -33,6 +33,11 @@
 #
 # To Do
 # ~~~~~
+# - ECProducerBase class provides absolute minimum implementation
+#   - Responds to all "(stream ...)" requests with "(item_count 0)"
+#     Ignores all other requests
+#   - ECProducer extends EXProducerBase
+#
 # - Provide unit tests !
 # - Registrar should migrate use of ServiceCache to ECProducer
 # - ECProducer and ECConsumer should handle Registrar not available
@@ -58,7 +63,7 @@ PROTOCOL_EC_CONSUMER = f"{AIKO_PROTOCOL_PREFIX}/ec_consumer:0"
 PROTOCOL_EC_PRODUCER = f"{AIKO_PROTOCOL_PREFIX}/ec_producer:0"
 
 _LEASE_TIME = 300  # seconds
-_LOGGER = get_logger(__name__)
+_LOGGER = aiko.logger(__name__)
 
 # --------------------------------------------------------------------------- #
 
@@ -279,7 +284,7 @@ class ECConsumer:
         self.topic_stream_in = \
             f"{aiko.public.topic_path}/{self.topic_in}/in"
         aiko.add_message_handler(self._consumer_handler, self.topic_stream_in)
-        aiko.add_connection_state_handler(self._connection_state_handler)
+        aiko.public.connection.add_handler(self._connection_state_handler)
 
     def _consumer_handler(self, aiko, topic, payload_in):
         command, parameters = parse(payload_in)
@@ -318,8 +323,8 @@ class ECConsumer:
             _LOGGER.debug(f"ECConsumer cache {item_name}: {item}")
         _LOGGER.debug("----------------------------")
 
-    def _connection_state_handler(self, connection_state):
-        if connection_state == ConnectionState.REGISTRAR:
+    def _connection_state_handler(self, connection, connection_state):
+        if connection.is_connected(ConnectionState.REGISTRAR):
             if not self.lease:
                 self.lease = Lease(
                     _LEASE_TIME, None,
@@ -336,7 +341,7 @@ class ECConsumer:
 
     def terminate(self):
         aiko.remove_message_handler(self._consumer_handler,self.topic_stream_in)
-        aiko.remove_connection_state_handler(self._connection_state_handler)
+        aiko.public.connection.remove_handler(self._connection_state_handler)
         self.cache = {}
         self.cache_state = "empty"
 

@@ -73,8 +73,7 @@ from aiko_services.utilities import *
 
 __all__ = []
 
-
-_LOGGER = get_logger(__name__)
+_LOGGER = aiko.logger(__name__)
 _PRIMARY_SEARCH_TIMEOUT = 2.0  # seconds
 
 services = {}

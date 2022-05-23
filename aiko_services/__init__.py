@@ -35,12 +35,13 @@ from .stream import (
 )
 
 from .framework import (
-    AIKO_PROTOCOL_PREFIX, ConnectionState, ServiceField, public,
+    AIKO_PROTOCOL_PREFIX, ServiceField, public,
     add_message_handler, remove_message_handler,
     add_topic_in_handler, set_registrar_handler,
     add_stream_handlers, add_stream_frame_handler,
     add_task_start_handler, add_task_stop_handler,
-    process, add_tags, get_parameter, match_tags, parse_tags,
+    add_tags, get_parameter, logger, match_tags,
+    parse_tags, process,
     set_last_will_and_testament, set_protocol,
     set_terminate_registrar_not_found, set_transport,
     terminate, wait_connected, wait_parameters

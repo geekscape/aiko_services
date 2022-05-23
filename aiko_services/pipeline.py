@@ -25,7 +25,7 @@ from aiko_services.utilities import *
 
 __all__ = ["Pipeline", "load_pipeline_definition"]
 
-_LOGGER = get_logger(__name__)
+_LOGGER = aiko.logger(__name__)
 
 class Pipeline():
     def __init__(self, pipeline_definition, frame_rate = 0, response_queue = None, state_machine = None, stream_id = "nil"):

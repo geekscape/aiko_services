@@ -6,10 +6,9 @@ from aiko_services.utilities import *
 
 __all__ = ["StateMachine"]
 
-
 class StateMachine(object):
     def __init__(self, model):
-        self.logger = get_logger(__name__)
+        self.logger = logger.get_logger(__name__)  # don't use aiko.logger
         self.model = model
         self.state_machine = Machine(
             model=self.model,

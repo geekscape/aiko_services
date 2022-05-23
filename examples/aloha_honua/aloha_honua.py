@@ -5,16 +5,26 @@
 #
 # Usage
 # ~~~~~
-# LOG_LEVEL=DEBUG registrar &
-# LOG_LEVEL=DEBUG ./aloha_honua.py [test_value]
-#
 # mosquitto_sub -t '#' -v
+# REGISTRAR=0 LOG_LEVEL=DEBUG registrar &
+# ALOHA_HONUA=0 LOG_LEVEL=DEBUG ./aloha_honua.py [test_value] &
 #
 # NAMESPACE=aiko
 # HOST=localhost
-# PID=`ps ax | grep python | grep aloha_honua | cut -d" " -f1`
+# PID=`ps ax | grep python | grep aloha_honua.py | cut -d" " -f1`
 # TOPIC_PATH=$NAMESPACE/$HOST/$PID
+#
+# ALOHA_HONUA=0 LOG_LEVEL=DEBUG ./aloha_honua.py 0 & PID=`echo $!`; TOPIC_PATH=$NAMESPACE/`hostname`/$PID; echo ALOHA_HONUA: $TOPIC_PATH
+#
 # mosquitto_pub -t $TOPIC_PATH/in -m '(test hello)'
+# mosquitto_pub -t $TOPIC_PATH/contol -m '(update test_value 0)'
+#
+# count=0
+# while true; do
+#   mosquitto_pub -t $TOPIC_PATH/control -m "(update test_value $count)"
+#   count=$((count+1))
+#   sleep 0.001
+# done
 #
 # To Do
 # ~~~~~
@@ -28,7 +38,7 @@ from aiko_services.utilities import *
 PROTOCOL = f"{AIKO_PROTOCOL_PREFIX}/aloha_honua:0"
 
 _ACTOR_NAME = "AlohaHonua"
-_LOGGER = get_logger(__name__)
+_LOGGER = aiko.logger(__name__)
 
 # --------------------------------------------------------------------------- #
 

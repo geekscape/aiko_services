@@ -47,7 +47,8 @@
 
 # --------------------------------------------------------------------------- #
 
-from logging import DEBUG
+import logging
+import os
 import sys
 import time
 import traceback
@@ -59,24 +60,22 @@ from aiko_services.utilities import *
 # import aiko_services.framework as aks                      # TODO: Replace V1
 
 __all__ = [
-    "AIKO_PROTOCOL_PREFIX", "ConnectionState", "ServiceField", "public",
+    "AIKO_PROTOCOL_PREFIX", "ServiceField", "public",
     "add_message_handler", "remove_message_handler",
     "add_topic_in_handler", "set_registrar_handler",
     "add_stream_handlers", "add_stream_frame_handler",
     "add_task_start_handler", "add_task_stop_handler",
-    "process", "add_tags", "get_parameter", "match_tags", "parse_tags",
+    "add_tags", "get_parameter", "logger",
+    "match_tags", "parse_tags", "process",
     "set_last_will_and_testament", "set_protocol",
     "set_terminate_registrar_not_found", "set_transport",
     "terminate", "wait_connected", "wait_parameters"
 ]
 
-class ConnectionState:
-    NONE = "NONE"
-    NETWORK = "NETWORK"
-    TRANSPORT = "TRANSPORT"
-    REGISTRAR = "REGISTRAR"
-
-    states = [NONE, NETWORK, TRANSPORT, REGISTRAR]
+AIKO_PROTOCOL_PREFIX = "github.com/geekscape/aiko_services/protocol"
+REGISTRAR_PROTOCOL = f"{AIKO_PROTOCOL_PREFIX}/registrar:0"
+REGISTRAR_TOPIC = f"{get_namespace()}/service/registrar"
+SERVICE_STATE_TOPIC = f"{get_namespace()}/+/+/state"
 
 class ServiceField:
     TOPIC = "TOPIC"
@@ -88,8 +87,6 @@ class ServiceField:
     fields = [TOPIC, PROTOCOL, TRANSPORT, OWNER, TAGS]
 
 class private:
-    connection_state = ConnectionState.NONE
-    connection_state_handlers = []
     exit_status = 0
     message_handlers = {}
     message_handlers_wildcard_topics = []
@@ -100,6 +97,7 @@ class private:
 
 class public:
 #   aks_info = None                                          # TODO: Replace V1
+    connection = Connection()
     message = None
     parameters = None
     protocol = None
@@ -114,22 +112,21 @@ class public:
     topic_state = topic_path + "/state"
     transport = "mqtt"
 
-_LOGGER = get_logger(__name__)
-_LOGGER_MESSAGE = get_logger("MESSAGE")
+def logger(
+    name,
+    logging_handler_class=LoggingHandlerMQTT,
+    topic=public.topic_log):
 
-AIKO_PROTOCOL_PREFIX = "github.com/geekscape/aiko_services/protocol"
-REGISTRAR_PROTOCOL = f"{AIKO_PROTOCOL_PREFIX}/registrar:0"
-REGISTRAR_TOPIC = f"{get_namespace()}/service/registrar"
-SERVICE_STATE_TOPIC = f"{get_namespace()}/+/+/state"
+    log_mqtt_env = os.environ.get("LOG_MQTT", False)
+    if log_mqtt_env:
+        logging_handler = logging_handler_class(public, topic)
+        aiko_logger = get_logger(name, logging_handler, log_mqtt_env)
+    else:
+        aiko_logger = get_logger(name)
+    return aiko_logger
 
-def add_connection_state_handler(connection_state_handler):
-    connection_state_handler(private.connection_state)
-    if not connection_state_handler in private.connection_state_handlers:
-        private.connection_state_handlers.append(connection_state_handler)
-
-def remove_connection_state_handler(connection_state_handler):
-    if connection_state_handler in private.connection_state_handlers:
-       private.connection_state_handlers.remove(connection_state_handler)
+_LOGGER = logger(__name__)
+_LOGGER_MESSAGE = logger("MESSAGE")
 
 def add_message_handler(message_handler, topic):
     if not topic in private.message_handlers:
@@ -180,14 +177,10 @@ def on_registrar_message(aiko_, topic, payload_in):
                 owner = get_username()
                 payload_out = f"(add {public.topic_path} {public.protocol} {public.transport} {owner} ({tags}))"
                 public.message.publish(topic, payload=payload_out)
-            private.connection_state = ConnectionState.REGISTRAR
-            for connection_state_handler in private.connection_state_handlers:
-                connection_state_handler(private.connection_state)
+            public.connection.update_state(ConnectionState.REGISTRAR)
 
         if action == "stopped":
-            private.connection_state = ConnectionState.TRANSPORT
-            for connection_state_handler in private.connection_state_handlers:
-                connection_state_handler(private.connection_state)
+            public.connection.update_state(ConnectionState.TRANSPORT)
             if public.terminate_registrar_not_found == True:
                 terminate(1)
 
@@ -238,7 +231,7 @@ def topic_search(topic, topics):
 
 def message_queue_handler(message, _):
     payload_in = message.payload.decode("utf-8")
-    if _LOGGER_MESSAGE.isEnabledFor(DEBUG):
+    if _LOGGER_MESSAGE.isEnabledFor(logging.DEBUG):
         _LOGGER_MESSAGE.debug(f"topic: {message.topic}, payload: {payload_in}")
 
     message_handler_list = []

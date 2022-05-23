@@ -17,15 +17,17 @@
 #
 # To Do
 # ~~~~~
-# - None, yet !
+# - Lease request rejected ...
+#   - Response (lease_rejected maximum_time 60
+#   - Response (lease_rejected no_resource memory)
 
 from aiko_services import *
 from aiko_services.utilities import *
 
-__all__ = [ "Lease" ]
+__all__ = ["Lease"]
 
 _LEASE_EXTEND_TIME_FACTOR = 0.8
-_LOGGER = get_logger(__name__)
+_LOGGER = aiko.logger(__name__)
 
 class Lease:
     def __init__(

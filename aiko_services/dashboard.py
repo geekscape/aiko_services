@@ -2,8 +2,6 @@
 #
 # To Do
 # ~~~~~
-# * Move Service tags into Service variables section, where there is more room
-#
 # * BUG: Dashboard isn't terminating ECConsumer lease extend timer :(
 #
 # * Turn Registrar into an ECProducer
@@ -11,13 +9,14 @@
 #
 # * Automatically change Service summary rows to be 1/3 of screen height
 #
-# * Provide Historical Service add / remove section
+# * Provide Historical Service add / remove section (circular buffer)
 # - Consider how to efficiently provide Service summary lifecycle states
 #
 # - Selecting (mouse or tab key) Service allows ...
 #   * Toggle show/hide Services with specific field values (query * * * *)
 #   - Service to be terminated / killed ("k" key)
 #   * Subscribe to MQTT messages ("s" key) from topic (/#, /out, /state, /log)
+#   *** Subscribe to "+/+/+/log" ("l" key), circular buffer --> new page ?
 #   - Publish MQTT message ("p" key) to topic (/#, /in, /control, ...)
 #
 # - Service variable details should sort variable names alphabetically
@@ -62,6 +61,7 @@ class DashboardFrame(Frame):
         self.service_row = -1
         self.service_tags = None
         self.services_cache = service_cache_create_singleton()
+        self.adjust_palette_required = True
 
         super(DashboardFrame, self).__init__(
             screen,
@@ -95,6 +95,8 @@ class DashboardFrame(Frame):
         layout.add_widget(Divider())
         layout.add_widget(self._service_widget)
 
+    def _adjust_palette(self):
+        self.adjust_palette_required = False
         self.palette = defaultdict(
             lambda: (Screen.COLOUR_WHITE, Screen.A_NORMAL, Screen.COLOUR_BLACK)
         )
@@ -125,6 +127,8 @@ class DashboardFrame(Frame):
                     self.ec_consumer = ECConsumer(self.service_cache, topic_in)
 
     def _update(self, frame_no):
+        if self.adjust_palette_required:
+            self._adjust_palette()
         services = self.services_cache.get_services()
         services_formatted = []
         for service in services.values():
