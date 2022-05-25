@@ -21,6 +21,7 @@
 #
 # To Do
 # ~~~~~
+# - Provide unit tests !  For all add / remove all the various handler types.
 # - Make function names consistently verb_noun() or noun_verb(), but not both !
 #
 # - BUG: Handle case of calling event.terminate() before entering event.loop()

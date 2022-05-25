@@ -36,7 +36,8 @@ setup(
     entry_points={
         "console_scripts": [
             "aiko = aiko_services.cli:main",
-            "registrar = aiko_services.registrar:main"
+            "aiko_dashboard = aiko_services.dashboard:main"
+            "aiko_registrar = aiko_services.registrar:main"
         ]
     }
 )

@@ -22,6 +22,16 @@
 #
 # To Do
 # ~~~~~
+# * Support multiple Actors per process, e.g Pipeline --> PipelineElements
+#   * Specify framework generated unique Actor name as ...
+#         Fully Qualified Name: (actortype namespace/host/pid[.id])
+#         Short Name: actortype_pid[.id]  # for human input and display
+#     * Improve Topic Path to support multiple Actors in the same process ...
+#           namespace/host/pid[.id]
+#     - Allow multiple Actors in the same process to share ECConsumer instance
+#       - Must support Pipeline --> PipelineElements in the same process !
+#         All would share ECConsumers for ServiceDiscovery and LifeCycleClient
+#
 # - State Machine ...
 #   - Turn "self.running" into "self.state"
 #   - Turn "self._is_running()" into "self._get_state()"

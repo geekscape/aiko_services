@@ -1,6 +1,19 @@
 # To Do
 # ~~~~~
-# - Use ServiceField everywhere to elimate service[?] literal integers !
+# * Support multiple Services per process, e.g Registrar and LifeCycleState
+#   * Specify framework generated unique Service name as ...
+#         Fully Qualified Name: (servicetype namespace/host/pid[.id])
+#         Short Name: servicetype_pid[.id]  # for human input and display
+#     * Improve Topic Path to support multiple Services in the same process ...
+#           namespace/host/pid[.id]
+#     - Allow multiple Services in the same process to share ECConsumer instance
+#       - Could have Registrar plus LifecycleState in the same process !
+#         Both would monitor "namespace/+/+/state" for difference reasons
+#
+# * Improve Topic Path to support multiple Services in the same process  ...
+#       namespace/host/pid[.id]
+#
+# * Use ServiceField everywhere to elimate service[?] literal integers !
 #
 # - Turn into a Service Class with methods
 #   - How to provide "aiko" reference to an instance of the Class ?
@@ -77,12 +90,12 @@ REGISTRAR_PROTOCOL = f"{AIKO_PROTOCOL_PREFIX}/registrar:0"
 REGISTRAR_TOPIC = f"{get_namespace()}/service/registrar"
 SERVICE_STATE_TOPIC = f"{get_namespace()}/+/+/state"
 
-class ServiceField:
-    TOPIC = "TOPIC"
-    PROTOCOL = "PROTOCOL"
-    TRANSPORT = "TRANSPORT"
-    OWNER = "OWNER"
-    TAGS = "TAGS"
+class ServiceField:  # TODO: Support integer index plus string name
+    TOPIC = "TOPIC"          # 0
+    PROTOCOL = "PROTOCOL"    # 1
+    TRANSPORT = "TRANSPORT"  # 2
+    OWNER = "OWNER"          # 3
+    TAGS = "TAGS"            # 4
 
     fields = [TOPIC, PROTOCOL, TRANSPORT, OWNER, TAGS]
 
@@ -105,6 +118,7 @@ class public:
     tags = []
     terminate_registrar_not_found = False
     topic_path = get_namespace() + "/" + get_hostname() + "/" + get_pid()
+    topic_path_registrar = None
     topic_control = topic_path + "/control"
     topic_in = topic_path + "/in"
     topic_log = topic_path + "/log"
@@ -177,9 +191,11 @@ def on_registrar_message(aiko_, topic, payload_in):
                 owner = get_username()
                 payload_out = f"(add {public.topic_path} {public.protocol} {public.transport} {owner} ({tags}))"
                 public.message.publish(topic, payload=payload_out)
+            public.topic_path_registrar = registrar["topic_path"]
             public.connection.update_state(ConnectionState.REGISTRAR)
 
         if action == "stopped":
+            public.topic_path_registrar = None
             public.connection.update_state(ConnectionState.TRANSPORT)
             if public.terminate_registrar_not_found == True:
                 terminate(1)

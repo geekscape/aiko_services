@@ -50,6 +50,9 @@ from .framework import (
 from .share import (
     ECConsumer, PROTOCOL_EC_CONSUMER,
     ECProducer, PROTOCOL_EC_PRODUCER,
+    ServiceFilter,
+    filter_services, filter_services_by_actor_names,
+    filter_services_by_attributes, filter_services_by_topic_paths,
     service_cache_create_singleton, service_cache_delete
 )
 

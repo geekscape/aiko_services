@@ -26,7 +26,8 @@ opencv = ["opencv-python"]
 
 [tool.poetry.scripts]
 aiko = 'aiko_services.cli:main'
-registrar = 'aiko_services.registrar:main'
+aiko_dashboard = 'aiko_services.dashboard:main'
+aiko_registrar = 'aiko_services.registrar:main'
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.0"

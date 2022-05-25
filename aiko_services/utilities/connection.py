@@ -7,8 +7,6 @@
 # ~~~~~
 # - Add support for ConnectionState.TRANSPORT (MQTT) connection state updates
 
-import logging
-
 __all__ = ["ConnectionState", "Connection"]
 
 class ConnectionState:

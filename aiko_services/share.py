@@ -14,16 +14,16 @@
 #     TOPIC_PATH=$NAMESPACE/$HOST/$PID
 #
 # mosquitto_pub -t $TOPIC_PATH/control -m "(invalid)"
-# mosquitto_pub -t $TOPIC_PATH/control -m "(stream)"
-# mosquitto_pub -t $TOPIC_PATH/control -m "(stream topic)"
-# mosquitto_pub -t $TOPIC_PATH/control -m "(stream topic 0)"
-# mosquitto_pub -t $TOPIC_PATH/control -m "(stream topic a *)"
-# mosquitto_pub -t $TOPIC_PATH/control -m "(stream topic 0 *)"
-# mosquitto_pub -t $TOPIC_PATH/control -m "(stream topic 0 lifecycle)"
-# mosquitto_pub -t $TOPIC_PATH/control -m "(stream topic 0 services)"
-# mosquitto_pub -t $TOPIC_PATH/control -m "(stream topic 0 x)"
-# mosquitto_pub -t $TOPIC_PATH/control -m "(stream topic 0 (lifecycle))"
-# mosquitto_pub -t $TOPIC_PATH/control -m "(stream topic 0 (lifecycle x))"
+# mosquitto_pub -t $TOPIC_PATH/control -m "(share)"
+# mosquitto_pub -t $TOPIC_PATH/control -m "(share topic)"
+# mosquitto_pub -t $TOPIC_PATH/control -m "(share topic 0)"
+# mosquitto_pub -t $TOPIC_PATH/control -m "(share topic a *)"
+# mosquitto_pub -t $TOPIC_PATH/control -m "(share topic 0 *)"
+# mosquitto_pub -t $TOPIC_PATH/control -m "(share topic 0 lifecycle)"
+# mosquitto_pub -t $TOPIC_PATH/control -m "(share topic 0 services)"
+# mosquitto_pub -t $TOPIC_PATH/control -m "(share topic 0 x)"
+# mosquitto_pub -t $TOPIC_PATH/control -m "(share topic 0 (lifecycle))"
+# mosquitto_pub -t $TOPIC_PATH/control -m "(share topic 0 (lifecycle x))"
 # mosquitto_pub -t $TOPIC_PATH/control -m "(add count 0)"
 # mosquitto_pub -t $TOPIC_PATH/control -m "(update count 1)"
 # mosquitto_pub -t $TOPIC_PATH/control -m "(remove count)"
@@ -34,7 +34,7 @@
 # To Do
 # ~~~~~
 # - ECProducerBase class provides absolute minimum implementation
-#   - Responds to all "(stream ...)" requests with "(item_count 0)"
+#   - Responds to all "(share ...)" requests with "(item_count 0)"
 #     Ignores all other requests
 #   - ECProducer extends EXProducerBase
 #
@@ -42,7 +42,7 @@
 # - Registrar should migrate use of ServiceCache to ECProducer
 # - ECProducer and ECConsumer should handle Registrar not available
 # - ECProducer and ECConsumer should handle Registrar stop and restart
-# - Allow ECConsumer to change stream filter, with or without existing lease
+# - Allow ECConsumer to change share filter, with or without existing lease
 # - Fix ECConsumer to handle _ec_remove_item()/_ec_update_item() exceptions
 # - Improve EC state/cache to work recursively beyond just two levels
 # - When subscribed to a component of a dictionary, removal of the dictionary
@@ -56,6 +56,9 @@ from aiko_services.utilities import *
 __all__ = [
     "ECConsumer", "PROTOCOL_EC_CONSUMER",
     "ECProducer", "PROTOCOL_EC_PRODUCER",
+    "ServiceFilter",
+    "filter_services", "filter_services_by_actor_names",
+    "filter_services_by_attributes", "filter_services_by_topic_paths",
     "service_cache_create_singleton", "service_cache_delete"
 ]
 
@@ -64,6 +67,78 @@ PROTOCOL_EC_PRODUCER = f"{AIKO_PROTOCOL_PREFIX}/ec_producer:0"
 
 _LEASE_TIME = 300  # seconds
 _LOGGER = aiko.logger(__name__)
+
+# --------------------------------------------------------------------------- #
+
+class ServiceFilter:
+    def __init__(self, topic_paths, protocol, transport, owner, tags):
+        self.topic_paths = topic_paths
+        self.protocol = protocol
+        self.transport = transport
+        self.owner = owner
+        self.tags = tags
+
+def filter_services(services_in, filter):
+    services = filter_services_by_topic_paths(services_in, filter.topic_paths)
+    services = filter_services_by_attributes(services, filter)
+    return services
+
+def filter_services_by_actor_names(services_in, actor_names):
+    actors = {}
+    for actor_name in actor_names:
+        actor_topic = ".".join(actor_name.split(".")[:-1])  # WIP: Actor name
+        if actor_topic in services_in.keys():
+            service = services_in[actor_topic]
+            match_tag = f"actor={actor_name}"
+            if aiko.match_tags(service[4], [match_tag]):
+                actors[actor_name] = service
+    return actors
+
+# TODO: Make this a more general "filter" that is compatible with
+#       "aiko_services/share.py:_filter_compare()" and keep them together
+# TODO: Note this code is copied from "aiko_services/registrar.py"
+#       The registrar should also use general filters
+
+def filter_services_by_attributes(services_in, filter):
+    services = {}
+    for service_topic, service_details in services_in.items():
+        matches = True
+        if filter.protocol != "*":
+            if filter.protocol != service_details[1]:
+                matches = False
+        if filter.transport != "*":
+            if filter.transport != service_details[2]:
+                matches = False
+        if filter.owner != "*":
+            if filter.owner != service_details[3]:
+                matches = False
+        if filter.tags != "*":
+            if not aiko.match_tags(service_details[4], filter.tags):
+                matches = False
+        if matches:
+            services[service_topic] = service_details
+    return services
+
+def filter_services_by_topic_paths(services_in, topic_paths):
+    services = {}
+    if topic_paths == "*":
+        services = services_in
+    else:
+        for topic_path in topic_paths:
+            if topic_path in services_in.keys():
+                services[topic_path] = services_in[topic_path]
+    return services
+
+def _update_handlers(handlers, command, service_details=None):
+    topic_path = service_details[0] if service_details else None
+    for handler, filter in handlers:
+        if topic_path:
+            services = filter_services({topic_path: service_details}, filter)
+            service = services.get(service_details[0])
+        else:
+            service = True
+        if service:
+            handler(command, service_details)
 
 # --------------------------------------------------------------------------- #
 
@@ -130,12 +205,12 @@ class ECProducer:
         aiko.add_message_handler(self._producer_handler, topic_in)
         aiko.add_tags(["ecproducer=true"])
 
-    def _ec_parse_stream(self, command, parameters):
+    def _ec_parse_share(self, command, parameters):
         response_topic = None
         lease_time = None
         filter = []
 
-        if command == "stream" and len(parameters) == 3:
+        if command == "share" and len(parameters) == 3:
             try:
                 lease_time = int(parameters[1])
             except Exception:
@@ -169,8 +244,8 @@ class ECProducer:
 
         if (command == "add" or command == "update") and len(parameters) == 2:
             item_name = parameters[0]
-            item_path = _ec_parse_item_path(item_name)
             item_value = parameters[1]
+            item_path = _ec_parse_item_path(item_name)
 
             success = False
             try:
@@ -198,8 +273,8 @@ class ECProducer:
                 aiko.message.publish(self.topic_out, payload_out)
                 self._update_consumers(item_name, payload_out)
 
-        if command == "stream":
-            response_topic, lease_time, filter = self._ec_parse_stream(
+        if command == "share":
+            response_topic, lease_time, filter = self._ec_parse_share(
                 command, parameters)
             if response_topic:
                 if lease_time == 0:
@@ -221,37 +296,37 @@ class ECProducer:
                         self.leases[response_topic] = lease
                         self._synchronize(response_topic, filter)
 
-    def _filter_dict(self, dictionary, filter, path):
-        filtered_state = {}
+    def _filter_dictionary(self, dictionary, filter, path):
+        state = {}
         for item_name, item in dictionary.items():
             item_path = path + [str(item_name)]
             if type(item) != dict:
                 item_path_str = ".".join(item_path)
                 if self._filter_compare(filter, item_path_str):
-                    filtered_state[item_name] = item
+                    state[item_name] = item
             else:
-                filtered_item = self._filter_dict(item, filter, item_path)
+                filtered_item = self._filter_dictionary(item, filter, item_path)
                 if filtered_item != {}:
-                    filtered_state[item_name] = filtered_item
-        return filtered_state
+                    state[item_name] = filtered_item
+        return state
 
     def _filter_state(self, filter):
-        return self._filter_dict(self.state, filter, [])
+        return self._filter_dictionary(self.state, filter, [])
 
-    def _dict_to_commands(self, dictionary):
-        commands = []
+    def _dictionary_to_payloads(self, dictionary):
+        payloads = []
         for item_name, item in dictionary.items():
             if type(item) != dict:
-                commands.append(f"(add {item_name} {item})")
+                payloads.append(f"(add {item_name} {item})")
             else:
                 for subitem_name, subitem in item.items():
                     name = f"{item_name}.{subitem_name}"
-                    commands.append(generate("add", [name, subitem]))
-        return commands
+                    payloads.append(generate("add", [name, subitem]))
+        return payloads
 
     def _synchronize(self, response_topic, filter):
         filtered_state = self._filter_state(filter)
-        items = self._dict_to_commands(filtered_state)
+        items = self._dictionary_to_payloads(filtered_state)
 
         item_count = len(items)
         payload_out = f"(item_count {item_count})"
@@ -281,9 +356,9 @@ class ECConsumer:
         self.items_received = 0
         self.lease = None
 
-        self.topic_stream_in = \
+        self.topic_share_in = \
             f"{aiko.public.topic_path}/{self.topic_in}/in"
-        aiko.add_message_handler(self._consumer_handler, self.topic_stream_in)
+        aiko.add_message_handler(self._consumer_handler, self.topic_share_in)
         aiko.public.connection.add_handler(self._connection_state_handler)
 
     def _consumer_handler(self, aiko, topic, payload_in):
@@ -314,7 +389,7 @@ class ECConsumer:
 # TODO: Catch ValueError and provide better console log (see ECProducer)
             _ec_update_item(self.cache, item_path, item_value)
         elif command == "sync":
-            pass  # ECConsumer doesn't use the stream "(sync ...)" command
+            pass  # ECConsumer doesn't use the share "(sync ...)" command
         else:
             diagnostic = f"Unknown command: {command}, {parameters}"
             _LOGGER.debug(f"_consumer_handler(): {diagnostic}")
@@ -328,19 +403,19 @@ class ECConsumer:
             if not self.lease:
                 self.lease = Lease(
                     _LEASE_TIME, None,
-                    lease_extend_handler=self._stream_request,
+                    lease_extend_handler=self._share_request,
                     automatic_extend=True
                 )
-                self._stream_request()
+                self._share_request()
 
-    def _stream_request(self, lease_time=_LEASE_TIME, lease_uuid=None):
+    def _share_request(self, lease_time=_LEASE_TIME, lease_uuid=None):
         aiko.public.message.publish(
             self.topic_in,
-            f"(stream {self.topic_stream_in} {lease_time} {self.filter})"
+            f"(share {self.topic_share_in} {lease_time} {self.filter})"
         )
 
     def terminate(self):
-        aiko.remove_message_handler(self._consumer_handler,self.topic_stream_in)
+        aiko.remove_message_handler(self._consumer_handler,self.topic_share_in)
         aiko.public.connection.remove_handler(self._connection_state_handler)
         self.cache = {}
         self.cache_state = "empty"
@@ -348,7 +423,7 @@ class ECConsumer:
         if self.lease:
             self.lease.terminate()
             self.lease = None
-            self._stream_request(lease_time=0)  # cancel stream request
+            self._share_request(lease_time=0)  # cancel share request
 
 # --------------------------------------------------------------------------- #
 # Service cache states
@@ -368,63 +443,73 @@ import time
 _REGISTRAR_TOPIC_QUERY = aiko.public.topic_path + "/registrar_query"
 
 class ServiceCache():
-    def __init__(self):
-        self.cache_reset()
-        self.event_loop_owner = False
-        aiko.set_registrar_handler(self.registrar_handler)
+    def __init__(self, event_loop_start=False):
+        self._event_loop_start = event_loop_start
+        self._event_loop_owner = False
+        self._cache_reset()
+        self._handlers = set()
+        self._registrar_topic_out = None
+        aiko.public.connection.add_handler(self._connection_state_handler)
 
-    def cache_reset(self):
-        self.query_items_expected = 0
-        self.query_items_received = 0
-        self.registrar_topic_out = None
-        self.services = {}
-        self.state = "empty"
-    #   _LOGGER.debug(f"Service cache state: {self.state}")
+    def add_handler(self, service_change_handler, service_filter):
+        self._handlers.add((service_change_handler, service_filter))
 
-    def get_services(self):
-        return self.services
+    def remove_handler(self, service_change_handler, service_filter):
+        self._handlers.remove((service_change_handler, service_filter))
 
-    def get_services_topics(self):
-        return list(self.services.keys())
+    def _cache_reset(self):
+        self._query_items_expected = 0
+        self._query_items_received = 0
+        self._registrar_topic_out = None
+        self._services = {}
+        self._state = "empty"
 
-    def get_state(self):
-        return self.state
-
-    def registrar_handler(self, public, action, registrar):
-        if action == "started":
-            self.registrar_topic_out = registrar["topic_path"] + "/out"
+    def _connection_state_handler(self, connection, connection_state):
+        if connection.is_connected(ConnectionState.REGISTRAR):
+            self._registrar_topic_out =  \
+                aiko.public.topic_path_registrar + "/out"
             aiko.add_message_handler(
-                self.registrar_out_handler, self.registrar_topic_out
+                self.registrar_out_handler, self._registrar_topic_out
             )
             aiko.add_message_handler(
-                self.registrar_query_handler, _REGISTRAR_TOPIC_QUERY,
+                self.registrar_query_handler, _REGISTRAR_TOPIC_QUERY
             )
             aiko.public.message.publish(
-                registrar["topic_path"] + "/in",
-                f"(query {_REGISTRAR_TOPIC_QUERY} * * * *)",
+                aiko.public.topic_path_registrar + "/in",
+                f"(query {_REGISTRAR_TOPIC_QUERY} * * * *)"
             )
+        else:
+            if self._registrar_topic_out:
+                aiko.remove_message_handler(
+                    self.registrar_out_handler, self._registrar_topic_out
+                )
+                aiko.remove_message_handler(
+                    self.registrar_query_handler, _REGISTRAR_TOPIC_QUERY
+                )
+                self._cache_reset()
 
-        if action == "stopped":
-            if self.registrar_topic_out:
-                aiko.remove_message_handler(
-                    self.registrar_out_handler, self.registrar_topic_out
-                )
-                aiko.remove_message_handler(
-                    self.registrar_query_handler, _REGISTRAR_TOPIC_QUERY,
-                )
-                self.cache_reset()
+    def get_services(self):
+        return self._services
+
+    def get_services_topics(self):
+        return list(self._services.keys())
+
+    def get_state(self):
+        return self._state
 
     def registrar_query_handler(self, aiko, topic, payload_in):
         command, parameters = parse(payload_in)
         if command == "item_count" and len(parameters) == 1:
-            self.query_items_expected = int(parameters[0])
+            self._query_items_expected = int(parameters[0])
         elif command == "add" and len(parameters) == 5:
             service_details = parameters
-            self.services[service_details[0]] = service_details
-            self.query_items_received += 1
-            if self.query_items_received == self.query_items_expected:
-                self.state = "loaded"
-            #   _LOGGER.debug(f"Service cache state: {self.state}")
+            self._services[service_details[0]] = service_details
+            self._query_items_received += 1
+            if self._query_items_received == self._query_items_expected:
+                self._state = "loaded"
+                _update_handlers(self._handlers, "sync")
+                for service_details in self._services.values():
+                    _update_handlers(self._handlers, "add", service_details)
         else:
             _LOGGER.debug(f"Service cache: registrar_query_handler(): Unhandled message topic: {topic}, payload: {payload_in}")
 
@@ -432,48 +517,41 @@ class ServiceCache():
         command, parameters = parse(payload_in)
         if command == "sync" and len(parameters) == 1:
             sync_topic = parameters[0]
-            if sync_topic == _REGISTRAR_TOPIC_QUERY and self.state == "loaded":
-                self.state = "live"
-            #   _LOGGER.debug(f"Service cache state: {self.state}")
+            if sync_topic == _REGISTRAR_TOPIC_QUERY and self._state == "loaded":
+                self._state = "live"
         elif command == "add" and len(parameters) == 5:
             service_details = parameters
-        #   _LOGGER.debug(f"registry delta: {command} {service_details}")
-            self.services[service_details[0]] = service_details
+            self._services[service_details[0]] = service_details
+            _update_handlers(self._handlers, command, service_details)
         elif command == "remove":
             topic = parameters[0]
-            if topic in self.services:
-                del self.services[topic]
+            if topic in self._services:
+                service_details = self._services[topic]
+                _update_handlers(self._handlers, command, service_details)
+                del self._services[topic]
         else:
             _LOGGER.debug(f"Service cache: registrar_out_handler(): Unknown command: topic: {topic}, payload: {payload_in}")
 
-    #   _LOGGER.debug(f"Service cache contents ...")
-    #   for service in self.services.values():
-    #       after_slash = service[1].rfind("/") + 1
-    #       if after_slash >= 0:
-    #           protocol = service[1][after_slash:]
-    #       _LOGGER.debug(f"    {service[0]} {protocol}")
-
     def run(self):
-        if not event.event_loop_running:
-            self.event_loop_owner = True
+        if self._event_loop_start and not event.event_loop_running:
+            self._event_loop_owner = True
             aiko.process()
 
     def terminate(self):
-        if self.event_loop_owner:
+        if self._event_loop_owner:
             event.terminate()
 
     def wait_live(self):
-    #   _LOGGER.debug(f"Service cache: wait until live")
-        while self.state != "live":
+        while self._state != "live":
             time.sleep(1)
 
 service_cache = None
 
-def service_cache_create_singleton():
+def service_cache_create_singleton(event_loop_start=False):
     global service_cache
 
     if not service_cache:
-        service_cache = ServiceCache()
+        service_cache = ServiceCache(event_loop_start)
         Thread(target=service_cache.run).start()
     return service_cache
 
