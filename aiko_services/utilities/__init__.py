@@ -8,10 +8,6 @@ from .configuration import (
     get_hostname, get_namespace, get_pid, get_username
 )
 
-from .connection import (
-    ConnectionState, Connection
-)
-
 from .context import (
     ContextManager, get_context
 )

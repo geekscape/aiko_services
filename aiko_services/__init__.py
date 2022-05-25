@@ -6,6 +6,10 @@
 
 __version__ = "0"
 
+from .connection import (
+    ConnectionState, Connection
+)
+
 from .state import (
     StateMachine
 )

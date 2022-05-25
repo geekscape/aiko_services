@@ -11,9 +11,10 @@ __all__ = ["ConnectionState", "Connection"]
 
 class ConnectionState:
     NONE = "NONE"
-    NETWORK = "NETWORK"
+    NETWORK = "NETWORK"      # Wi-Fi or Ethernet available
+    BOOTSTRAP = "BOOTSTRAP"  # MQTT configuration found
     TRANSPORT = "TRANSPORT"  # MQTT, Ray, ROS2, etc
-    REGISTRAR = "REGISTRAR"
+    REGISTRAR = "REGISTRAR"  # Registrar available for use
 
     states = [NONE, NETWORK, TRANSPORT, REGISTRAR]  # order matters
 
