@@ -28,10 +28,12 @@
 #
 # To Do
 # ~~~~~
-# - Use ServiceField everywhere to elimate service[?] literal integers !
-# - Registrar should migrate use of ServiceCache to ECProducer
+# * Create "Service" class, use everywhere and include "__str__()"
+#   - Includes topic_path, protocol, transport, owner and tags
+# * Use ServiceField everywhere to elimate service[?] literal integers !
+# * Registrar should ECProducer when it is has subsumed ServiceCache
 #
-# - Primary Registrar supports discovery protocol
+# - Primary Registrar supports discovery protocol for finding MQTT server, etc
 # - Make this a sub-command of Aiko CLI
 #
 # - Handle MQTT restart
@@ -154,52 +156,30 @@ def topic_in_handler(aiko, topic, payload_in):
     command, parameters = parse(payload_in)
 #   _LOGGER.debug(f"topic_in_handler(): {command}: {parameters}")
 
-    if command == "add" and len(parameters) == 5:
-        service_topic = parameters[0]
-        protocol = parameters[1]
-        transport = parameters[2]
-        owner = parameters[3]
-        tags = parameters[4]
+    if len(parameters) > 0:
+        topic_path = parameters[0]
+        if len(parameters) == 5:
+            protocol = parameters[1]
+            transport = parameters[2]
+            owner = parameters[3]
+            tags = parameters[4]
 
-        service_add(service_topic, protocol, transport, owner, tags)
+    if command == "add" and len(parameters) == 5:
+        service_add(topic_path, protocol, transport, owner, tags)
         payload_out = payload_in
         aiko.message.publish(aiko.topic_out, payload_out)
 
     if command == "remove" and len(parameters) == 1:
-        service_topic = parameters[0]
-        service_remove(service_topic)
+        service_remove(topic_path)
         payload_out = payload_in
         aiko.message.publish(aiko.topic_out, payload_out)
 
     if command == "query" and len(parameters) == 5:
-        response_topic = parameters[0]
-        match_protocol = parameters[1]
-        match_transport = parameters[2]
-        match_owner = parameters[3]
-        match_tags = parameters[4]
-
-        services_out = {}
-
-        for service_topic, service_details in services.items():
-            matches = True
-            if match_protocol != "*":
-                if match_protocol != service_details["protocol"]:
-                    matches = False
-            if match_transport != "*":
-                if match_transport != service_details["transport"]:
-                    matches = False
-            if match_owner != "*":
-                if match_owner != service_details["owner"]:
-                    matches = False
-            if match_tags != "*":
-                service_tags = service_details["tags"]
-                if not aiko.match_tags(service_tags, match_tags):
-                    matches = False
-            if matches:
-                services_out[service_topic] = service_details
+        filter = ServiceFilter("*", protocol, transport, owner, tags)
+        services_out = filter_services_by_attributes(services, filter)
 
         payload_out = f"(item_count {len(services_out)})"
-        aiko.message.publish(response_topic, payload=payload_out)
+        aiko.message.publish(topic_path, payload=payload_out)
 
         for service_topic, service_details in services_out.items():
             service_tags = " ".join(service_details["tags"])
@@ -209,9 +189,9 @@ def topic_in_handler(aiko, topic, payload_in):
                           f" {service_details['transport']}"  \
                           f" {service_details['owner']}"      \
                           f" ({service_tags}))"
-            aiko.message.publish(response_topic, payload_out)
+            aiko.message.publish(topic_path, payload_out)
 
-        payload_out = "(sync " + response_topic + ")"
+        payload_out = "(sync " + topic_path + ")"
         aiko.message.publish(aiko.topic_out, payload_out)
 
 def service_add(service_topic, protocol, transport, owner, tags):
