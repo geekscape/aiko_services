@@ -31,7 +31,7 @@ from .lease import (
 )
 
 from .proxy import (
-    is_callable, ProxyAllMethods, proxy_trace
+    ProxyAllMethods, is_callable, proxy_trace
 )
 
 from .stream import (
@@ -44,8 +44,8 @@ from .framework import (
     add_topic_in_handler, set_registrar_handler,
     add_stream_handlers, add_stream_frame_handler,
     add_task_start_handler, add_task_stop_handler,
-    add_tags, get_parameter, logger, match_tags,
-    parse_tags, process,
+    add_tags, add_tags_string, get_parameter, logger,
+    get_tag, match_tags, parse_tags, process,
     set_last_will_and_testament, set_protocol,
     set_terminate_registrar_not_found, set_transport,
     terminate, wait_connected, wait_parameters

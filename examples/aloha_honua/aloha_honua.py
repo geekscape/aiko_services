@@ -45,6 +45,8 @@ _LOGGER = aiko.logger(__name__)
 class AlohaHonuaActor(actor.Actor):
     def __init__(self, actor_name, test_value=0):
         super().__init__(actor_name)
+        aiko.set_protocol(PROTOCOL)  # TODO: Move into actor.py
+
         self.state = {
             "lifecycle": "initialize",
             "log_level": "info",
@@ -55,6 +57,9 @@ class AlohaHonuaActor(actor.Actor):
             },
         }
         ECProducer(self.state)
+
+    #   aiko.add_message_handler(self.topic_all_handler, "#")  # for testing
+        aiko.add_topic_in_handler(self.topic_in_handler)
 
     def test(self, value):
         _LOGGER.debug(f"{self.actor_name}: test({value})")
@@ -81,16 +86,12 @@ class AlohaHonuaActor(actor.Actor):
 @click.argument("test_value", nargs=1, default=0, required=False)
 def main(test_value):
     actor_name = f"{aiko.public.topic_path}.{ACTOR_TYPE}"  # WIP: Actor name
-    aloha_honua = AlohaHonuaActor(actor_name, test_value)
-
-    aiko.set_protocol(PROTOCOL)
     aiko.add_tags([
         f"actor={actor_name}",               # WIP: Actor name
-        f"class={AlohaHonuaActor.__name__}"  # TODO: Use full class pathname ?
+    #   f"class={AlohaHonuaActor.__name__}"  # TODO: Use full class pathname ?
     ])
-#   aiko.add_message_handler(aloha_honua.topic_all_handler, "#")  # For testing
-    aiko.add_topic_in_handler(aloha_honua.topic_in_handler)
-    aiko.process()
+    aloha_honua = AlohaHonuaActor(actor_name, test_value)
+    aloha_honua._run()
 
 if __name__ == "__main__":
     main()

@@ -78,8 +78,8 @@ __all__ = [
     "add_topic_in_handler", "set_registrar_handler",
     "add_stream_handlers", "add_stream_frame_handler",
     "add_task_start_handler", "add_task_stop_handler",
-    "add_tags", "get_parameter", "logger",
-    "match_tags", "parse_tags", "process",
+    "add_tags", "add_tags_string", "get_parameter", "logger",
+    "get_tag", "match_tags", "parse_tags", "process",
     "set_last_will_and_testament", "set_protocol",
     "set_terminate_registrar_not_found", "set_transport",
     "terminate", "wait_connected", "wait_parameters"
@@ -333,6 +333,11 @@ def process(loop_when_no_handlers=False, pipeline=None):
 def add_tags(tags):
     for tag in tags: public.tags.append(tag)
 
+def add_tags_string(tags_string):
+    if tags_string:
+        tags = tags_string.split(",")
+        add_tags(tags)
+
 def get_parameter(name):                                     # TODO: Replace V1
 #   return aks.get_parameter(name)
     return None
@@ -340,10 +345,16 @@ def get_parameter(name):                                     # TODO: Replace V1
 def match_tags(service_tags, match_tags):
     return all([tag in service_tags for tag in match_tags])
 
-def parse_tags(tags_string):
-    if tags_string:
-        tags = tags_string.split(",")
-        add_tags(tags)
+def get_tag(key, tags):
+    tags = parse_tags(tags)
+    return tags.get(key)
+
+def parse_tags(tags_list):
+    tags = {}
+    for tag in tags_list:
+        key, value = tag.split("=")
+        tags[key] = value
+    return tags
 
 def set_last_will_and_testament(
     lwt_topic, lwt_payload="(stopped)", lwt_retain=False):

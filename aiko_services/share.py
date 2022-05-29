@@ -205,6 +205,32 @@ class ECProducer:
         aiko.add_message_handler(self._producer_handler, topic_in)
         aiko.add_tags(["ecproducer=true"])
 
+    def update(self, item_name, item_value):
+        item_path = _ec_parse_item_path(item_name)
+        success = False
+        try:
+            _ec_update_item(self.state, item_path, item_value)
+            success = True
+        except ValueError as value_error:
+            diagnostic = f'update {item_name}: {value_error}'
+            _LOGGER.error(f"update(): {diagnostic}")
+        if success:
+            payload_out = f"(update {item_name} {item_value})"
+            self._update_consumers(item_name, payload_out)
+
+    def remove(self, item_name):
+        item_path = _ec_parse_item_path(item_name)
+        success = False
+        try:
+            _ec_remove_item(self.state, item_path)
+            success = True
+        except ValueError as value_error:
+            diagnostic = f'remove {item_name}: {value_error}'
+            _LOGGER.error(f"remove(): {diagnostic}")
+        if success:
+            payload_out = f"(remove {item_name})"
+            self._update_consumers(item_name, payload_out)
+
     def _ec_parse_share(self, command, parameters):
         response_topic = None
         lease_time = None

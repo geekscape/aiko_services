@@ -147,7 +147,7 @@ class Actor(LifeCycleClient):  # Base class
 
     def _run(self):
         self.running = True
-        event.loop()
+        aiko.process()
         self.running = False
 
     def _post_message(self, topic, command, args, target_function=None):
