@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 #
+# Note
+# ~~~~
+# Debugging: aiko.public.message.publish("DASHBOARD", f"Debug message")
+#
 # To Do
 # ~~~~~
 # * BUG: Dashboard isn't terminating ECConsumer lease extend timer :(
@@ -42,7 +46,7 @@
 # - Pipeline(s) / PipelineElement(s)
 # - Ray node(s)
 
-from collections import defaultdict
+from collections import defaultdict, deque
 
 from asciimatics.event import KeyboardEvent
 from asciimatics.exceptions import (
@@ -62,6 +66,11 @@ WHITE = Screen.COLOUR_WHITE
 GREEN = Screen.COLOUR_GREEN
 FONT_BOLD = Screen.A_BOLD
 FONT_NORMAL = Screen.A_NORMAL
+
+_LOG_RING_BUFFER_SIZE = 128
+
+_SERVICE_SELECTED = None  # written by Dashboard._on_change_services()
+_SERVICE_SUBSCRIBED = None  # written by LogFrame._update() and process_event()
 
 class FrameCommon:
     def __init__(self, screen, height, width, has_border, name):
@@ -90,14 +99,28 @@ class FrameCommon:
         if isinstance(event, KeyboardEvent):
             if event.key_code in [ord("?")]:
                 message ="Help\n"  \
-                         "d: Show Dashboard page\n"  \
-                         "l: Show Log page"
+                         "D: Show Dashboard page\n"  \
+                         "L: Show Log page"
                 self.scene.add_effect(
                     PopUpDialog(self._screen, message, ["OK"], theme="nice"))
             if event.key_code in [ord("q"), ord("Q"), Screen.ctrl("c")]:
                 self.services_cache = None
                 service_cache_delete()
                 raise StopApplication("User quit request")
+
+    def _update_field(self, list, name, value, width):  # wrap long lines
+        value = str(value)
+        padding = 0
+        while len(value):
+            if type(name) == str:
+                field = (name, " "*padding + value[0:width-padding])
+                name = ""
+            else:
+                field = (" "*padding + value[0:width-padding],)
+            list.append(field)
+            value = value[width-padding:]
+            if padding == 0:
+                padding = 2
 
 class DashboardFrame(FrameCommon, Frame):
     def __init__(self, screen):
@@ -135,8 +158,10 @@ class DashboardFrame(FrameCommon, Frame):
         layout_1.add_widget(Divider())
         layout_1.add_widget(self._service_widget)
         self.fix()  # Prepare Frame for use
+        self._value_width = self._service_widget.width - 16
 
     def _on_change_services(self):
+        global _SERVICE_SELECTED
         row = self._services_widget.value
         if row != self.service_row:
             if self.ec_consumer:
@@ -147,11 +172,12 @@ class DashboardFrame(FrameCommon, Frame):
 
             self.service_row = row
             services_topics = self.services_cache.get_services_topics()
+            _SERVICE_SELECTED = None
             if len(services_topics) > 0:
                 service_topic_path = services_topics[row]
                 services = self.services_cache.get_services()
-                service = services[service_topic_path]
-                self.service_tags = service[4]
+                _SERVICE_SELECTED = services[service_topic_path]
+                self.service_tags = _SERVICE_SELECTED[4]
                 if aiko.match_tags(self.service_tags, ["ecproducer=true"]):
                     topic_in = f"{service_topic_path}/control"
                     self.ec_consumer = ECConsumer(self.service_cache, topic_in)
@@ -177,7 +203,10 @@ class DashboardFrame(FrameCommon, Frame):
             service_variables = self.service_cache.items()
             for variable_name, variable_value in service_variables:
                 if type(variable_value) != dict:
-                    variables.append((variable_name, variable_value))
+                #   variables.append((variable_name, variable_value))
+                    self._update_field(
+                        variables, variable_name,
+                        variable_value, self._value_width)
                 else:
                     variables.append((f"{variable_name} ...", ""))
                     for name, value in variable_value.items():
@@ -186,7 +215,9 @@ class DashboardFrame(FrameCommon, Frame):
 
         if self.service_tags:
             for service_tag in self.service_tags:
-                variables.append(("Tag:", service_tag))
+            #   variables.append(("Tag:", service_tag))
+                self._update_field(
+                    variables, "Tag:", service_tag, self._value_width)
 
         self._service_widget.options = [
             (variable, row_index)
@@ -197,7 +228,7 @@ class DashboardFrame(FrameCommon, Frame):
 
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
-            if event.key_code in [ord("l"), ord("L")]:
+            if event.key_code in [ord("L")]:
                 raise NextScene("Log")
         self._process_event_common(event)
         return super(DashboardFrame, self).process_event(event)
@@ -208,6 +239,8 @@ class LogFrame(FrameCommon, Frame):
             screen, screen.height, screen.width, has_border=False,
             name="AikoServices Log"
         )
+        self.ring_buffer = None
+        self.topic_log = None
 
         self._log_widget = MultiColumnListBox(
             Widget.FILL_FRAME,
@@ -224,14 +257,29 @@ class LogFrame(FrameCommon, Frame):
         layout_1.add_widget(Divider())
         layout_1.add_widget(self._log_widget)
         self.fix()  # Prepare Frame for use
+        self._value_width = self._log_widget.width
+
+    def _topic_log_handler(self, _aiko, topic, payload_in):
+        self.ring_buffer.append(payload_in)
 
     def _update(self, frame_no):
+        global _SERVICE_SUBSCRIBED
+
         if self.adjust_palette_required:
             self._adjust_palette()
 
+        if _SERVICE_SELECTED != _SERVICE_SUBSCRIBED:
+            _SERVICE_SUBSCRIBED = _SERVICE_SELECTED
+            self.ring_buffer = deque(maxlen=_LOG_RING_BUFFER_SIZE)
+            self.topic_log = f"{_SERVICE_SELECTED[0]}/log"
+            aiko.add_message_handler(self._topic_log_handler, self.topic_log)
+
         log_records = []
-        for count in range(100):
-            log_records.append((f"Log record {count}",))
+        if self.ring_buffer:
+            for log_record in self.ring_buffer:
+            #   log_records.append((log_record,))
+                self._update_field(
+                    log_records, None, log_record, self._value_width)
         self._log_widget.options = [
             (log_record, row_index)
             for row_index, log_record in enumerate(log_records)
@@ -240,8 +288,14 @@ class LogFrame(FrameCommon, Frame):
         super(LogFrame, self)._update(frame_no)
 
     def process_event(self, event):
+        global _SERVICE_SUBSCRIBED
         if isinstance(event, KeyboardEvent):
-            if event.key_code in [ord("d"), ord("D")]:
+            if event.key_code in [ord("D")]:
+                aiko.remove_message_handler(
+                    self._topic_log_handler, self.topic_log)
+                self.ring_buffer = None
+                self.topic_log = None
+                _SERVICE_SUBSCRIBED = None
                 raise NextScene("Dashboard")
         self._process_event_common(event)
         return super(LogFrame, self).process_event(event)
