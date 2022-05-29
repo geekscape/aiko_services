@@ -40,6 +40,7 @@ from logging.config import dictConfig
 import os
 from typing import Any
 
+from aiko_services.connection import ConnectionState
 from aiko_services.utilities import *
 
 __all__ = ["get_logger", "LoggingHandlerMQTT"]
