@@ -24,6 +24,9 @@
 # - Provide unit tests !  For all add / remove all the various handler types.
 # - Make function names consistently verb_noun() or noun_verb(), but not both !
 #
+# - BUG: With multiple timer handlers using the same handler function,
+#        then remove_timer_handler() make remove the wrong one.
+#        Need an identifier to specific exactly which handler instance
 # - BUG: Handle case of calling event.terminate() before entering event.loop()
 #        Due to event_enabled being overwritten at the start of event.loop()
 # - BUG: Make _handler_count thread-safe, when adding and removing handlers !
@@ -233,7 +236,7 @@ def loop(loop_when_no_handlers=False):
                 if time.time() >= event.time_next:
                     event.handler()
                     event_list.update()
-            sleep_time = 0.001
+            sleep_time = 0.01
 
             if event_queue.qsize():
                 (item, item_type) = event_queue.get()
