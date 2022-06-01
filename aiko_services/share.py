@@ -33,10 +33,17 @@
 #
 # To Do
 # ~~~~~
+# - BUG: Provide filtered Services to "service_change_handler"
+#
 # - ECProducerBase class provides absolute minimum implementation
 #   - Responds to all "(share ...)" requests with "(item_count 0)"
 #     Ignores all other requests
-#   - ECProducer extends EXProducerBase
+#   - ECProducer extends ECProducerBase
+#
+# - For multiple Actors in same process, when each Actor wants to have a
+#   its own unique ECProducer shared amongst different aspects of the Actor,
+#   e.g LifeCycleClient and some other functionality, then the ECProducer
+#   constructor optionally includes the "actor_name" to disambigute
 #
 # - Provide unit tests !
 # - Registrar should migrate use of ServiceCache to ECProducer
@@ -181,6 +188,17 @@ def _ec_update_item(state, item_path, item_value):
         items[item_key] = item_value
     _ec_modify_item(state, item_path, update_item, create_path=True)
 
+def _flatten_dictionary(dictionary):
+    result = []
+    for item_name, item in dictionary.items():
+        if type(item) != dict:
+            result.append((item_name, item))
+        else:
+            for subitem_name, subitem in item.items():
+                name = f"{item_name}.{subitem_name}"
+                result.append((name, subitem))
+    return result
+
 # --------------------------------------------------------------------------- #
 
 class ECLease(Lease):
@@ -196,7 +214,8 @@ class ECProducer:
         self,
         state,
         topic_in=aiko.public.topic_control,  # aiko.public.topic_in
-        topic_out=aiko.public.topic_state):  # aiko.public.topic_out
+        topic_out=aiko.public.topic_state,   # aiko.public.topic_out
+        actor_name=None):                    # optional for specific Actor
 
         self.state = state
         self.topic_in = topic_in
@@ -204,6 +223,19 @@ class ECProducer:
         self.leases = {}
         aiko.add_message_handler(self._producer_handler, topic_in)
         aiko.add_tags(["ecproducer=true"])
+
+    def get(self, item_name):
+        success = True
+        item_path = _ec_parse_item_path(item_name)
+        item = self.state
+        for key in item_path:
+            if type(item) == dict and key in item:
+                item = item.get(key)
+            else:
+                success = False
+        if not success:
+            raise ValueError(f"Item not found: {item_name}")
+        return item
 
     def update(self, item_name, item_value):
         item_path = _ec_parse_item_path(item_name)
@@ -230,6 +262,12 @@ class ECProducer:
         if success:
             payload_out = f"(remove {item_name})"
             self._update_consumers(item_name, payload_out)
+
+    def _dictionary_to_commands(self, command, dictionary):
+        payloads = []
+        for name, subitem in _flatten_dictionary(dictionary):
+            payloads.append(generate(command, [name, subitem]))
+        return payloads
 
     def _ec_parse_share(self, command, parameters):
         response_topic = None
@@ -305,8 +343,7 @@ class ECProducer:
             if response_topic:
                 if lease_time == 0:
                     if response_topic in self.leases:
-                        lease = self.leases[response_topic]
-                        lease.terminate()
+                        self.leases[response_topic].terminate()
                         del self.leases[response_topic]
                     else:
                         self._synchronize(response_topic, filter)
@@ -339,26 +376,15 @@ class ECProducer:
     def _filter_state(self, filter):
         return self._filter_dictionary(self.state, filter, [])
 
-    def _dictionary_to_payloads(self, dictionary):
-        payloads = []
-        for item_name, item in dictionary.items():
-            if type(item) != dict:
-                payloads.append(f"(add {item_name} {item})")
-            else:
-                for subitem_name, subitem in item.items():
-                    name = f"{item_name}.{subitem_name}"
-                    payloads.append(generate("add", [name, subitem]))
-        return payloads
-
     def _synchronize(self, response_topic, filter):
         filtered_state = self._filter_state(filter)
-        items = self._dictionary_to_payloads(filtered_state)
+        commands = self._dictionary_to_commands("add", filtered_state)
 
-        item_count = len(items)
-        payload_out = f"(item_count {item_count})"
+        command_count = len(commands)
+        payload_out = f"(item_count {command_count})"
         aiko.public.message.publish(response_topic, payload=payload_out)
-        for item in items:
-            aiko.public.message.publish(response_topic, payload=item)
+        for payload_out in commands:
+            aiko.public.message.publish(response_topic, payload=payload_out)
 
         payload_out = f"(sync {response_topic})"
         aiko.public.message.publish(self.topic_out, payload_out)
@@ -372,9 +398,10 @@ class ECProducer:
 # --------------------------------------------------------------------------- #
 
 class ECConsumer:
-    def __init__(self, cache, topic_in, filter="*"):
+    def __init__(self, ec_consumer_id, cache, ec_producer_topic_control, filter="*"):
+        self.ec_consumer_id = ec_consumer_id
         self.cache = cache
-        self.topic_in = topic_in
+        self.ec_producer_topic_control = ec_producer_topic_control
         self.filter = filter
 
         self.cache_state = "empty"
@@ -382,10 +409,18 @@ class ECConsumer:
         self.items_received = 0
         self.lease = None
 
+        self.handlers = set()
+
         self.topic_share_in = \
-            f"{aiko.public.topic_path}/{self.topic_in}/in"
+            f"{aiko.public.topic_path}/{self.ec_producer_topic_control}/{ec_consumer_id}/in"
         aiko.add_message_handler(self._consumer_handler, self.topic_share_in)
         aiko.public.connection.add_handler(self._connection_state_handler)
+
+    def add_handler(self, handler):
+        for item_name, item_value in _flatten_dictionary(self.cache):
+            command = "add"
+            handler(self.ec_consumer_id, command, item_name, item_value)
+        self.handlers.add(handler)
 
     def _consumer_handler(self, aiko, topic, payload_in):
         command, parameters = parse(payload_in)
@@ -403,42 +438,50 @@ class ECConsumer:
             self.items_received += 1
             if self.items_received == self.item_count:
                 self.cache_state = "ready"
+            self._update_handlers(command, item_name, item_value)
 
         elif command == "remove" and len(parameters) == 1:
-            item_path = _ec_parse_item_path(parameters[0])
+            item_name = parameters[0]
+            item_path = _ec_parse_item_path(item_name)
 # TODO: Catch ValueError and provide better console log (see ECProducer)
             _ec_remove_item(self.cache, item_path)
+            self._update_handlers(command, item_name, None)
 
         elif command == "update" and len(parameters) == 2:
-            item_path = _ec_parse_item_path(parameters[0])
+            item_name = parameters[0]
+            item_path = _ec_parse_item_path(item_name)
             item_value = parameters[1]
 # TODO: Catch ValueError and provide better console log (see ECProducer)
             _ec_update_item(self.cache, item_path, item_value)
+            self._update_handlers(command, item_name, item_value)
         elif command == "sync":
-            pass  # ECConsumer doesn't use the share "(sync ...)" command
+            #pass  # ECConsumer doesn't use the share "(sync ...)" command
+            self._update_handlers(command, None, None)
         else:
             diagnostic = f"Unknown command: {command}, {parameters}"
             _LOGGER.debug(f"_consumer_handler(): {diagnostic}")
 
-        for item_name, item in self.cache.items():
-            _LOGGER.debug(f"ECConsumer cache {item_name}: {item}")
-        _LOGGER.debug("----------------------------")
+     #   for item_name, item in self.cache.items():
+     #       _LOGGER.debug(f"ECConsumer cache {item_name}: {item}")
+     #   _LOGGER.debug("----------------------------")
 
     def _connection_state_handler(self, connection, connection_state):
         if connection.is_connected(ConnectionState.REGISTRAR):
             if not self.lease:
                 self.lease = Lease(
-                    _LEASE_TIME, None,
-                    lease_extend_handler=self._share_request,
-                    automatic_extend=True
-                )
+                    _LEASE_TIME, None, automatic_extend=True,
+                    lease_extend_handler=self._share_request)
                 self._share_request()
 
     def _share_request(self, lease_time=_LEASE_TIME, lease_uuid=None):
         aiko.public.message.publish(
-            self.topic_in,
+            self.ec_producer_topic_control,
             f"(share {self.topic_share_in} {lease_time} {self.filter})"
         )
+
+    def _update_handlers(self, command, item_name, item_value):
+        for handler in self.handlers:
+            handler(self.ec_consumer_id, command, item_name, item_value)
 
     def terminate(self):
         aiko.remove_message_handler(self._consumer_handler,self.topic_share_in)
@@ -478,6 +521,9 @@ class ServiceCache():
         aiko.public.connection.add_handler(self._connection_state_handler)
 
     def add_handler(self, service_change_handler, service_filter):
+        if self._state in ["loaded", "live"]:
+        # TODO: Provide filtered Services to "service_change_handler"
+            service_change_handler("sync", None)
         self._handlers.add((service_change_handler, service_filter))
 
     def remove_handler(self, service_change_handler, service_filter):
@@ -596,10 +642,10 @@ def service_cache_delete():
 
 def _create_ec_consumer(ec_producer_pid, filter="*"):
     state = {}
-    topic_in = f"{get_namespace()}/{get_hostname()}/{ec_producer_pid}/control"
+    ec_producer_topic_control = f"{get_namespace()}/{get_hostname()}/{ec_producer_pid}/control"
 
     aiko.set_protocol(PROTOCOL_EC_CONSUMER)
-    ec_consumer = ECConsumer(state, topic_in, filter)
+    ec_consumer = ECConsumer(state, ec_producer_topic_control, filter)
 
 def _create_ec_producer():
     state = {

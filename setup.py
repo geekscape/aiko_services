@@ -31,7 +31,8 @@ setup(
         "pyyaml>=5.3.1",
         "requests>=2.25.1",
         "transitions>=0.8.10",
-        "wrapt>=1.12.1"
+        "wrapt>=1.12.1",
+        "xerox>=0.4.1"
     ],
     entry_points={
         "console_scripts": [
