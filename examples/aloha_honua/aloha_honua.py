@@ -91,7 +91,7 @@ def main(test_value):
     #   f"class={AlohaHonuaActor.__name__}"  # TODO: Use full class pathname ?
     ])
     aloha_honua = AlohaHonuaActor(actor_name, test_value)
-    aloha_honua._run()
+    aloha_honua.run()
 
 if __name__ == "__main__":
     main()

@@ -34,7 +34,7 @@
 #
 # - State Machine ...
 #   - Turn "self.running" into "self.state"
-#   - Turn "self._is_running()" into "self._get_state()"
+#   - Turn "self.is_running()" into "self.get_state()"
 #   - Stop Actor by changing "self.state" to "STOP"
 #   - Hard terminate Actor using "self._terminate()"
 #
@@ -139,13 +139,13 @@ class Actor(LifeCycleClient):  # Base class
     def _actor_mailbox_name(self, topic):
         return f"{self.actor_name}/{topic}"
 
-    def _is_running(self):
+    def is_running(self):
         return self.running
 
     def _mailbox_handler(self, topic, message, time_posted):
         message.invoke()
 
-    def _run(self):
+    def run(self):
         self.running = True
         aiko.process()
         self.running = False
