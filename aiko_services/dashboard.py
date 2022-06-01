@@ -1,33 +1,44 @@
 #!/usr/bin/env python3
 #
-# Note
-# ~~~~
+# Notes
+# ~~~~~
 # Debugging: aiko.public.message.publish("DASHBOARD", f"Debug message")
+#
+# Set-up ssh X11 forwarding for copy-paste support
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# # Requires Python package "xerox-0.4.1"
+# xhost +
+# ssh -Y username@hostname
+# export DISPLAY=localhost:10.0
+#
+# To Do Elsewhere !
+# ~~~~~~~~~~~~~~~~~
+# * Turn Registrar into an ECProducer
+# * Integrate into Ray HLActor ... Service, Actor, ECProducer, ECConsumer
 #
 # To Do
 # ~~~~~
 # * BUG: Dashboard isn't terminating ECConsumer lease extend timer :(
 #
-# *** Press "L" key to get Dashboard local log circular buffer on screen ***
+# * FIX: Whenever DashboardFrame or LogFrame is destroyed and recreated
+#        due to ResizeScreenError, all handlers need to be removed.
+#        Provide DashboardFrame.cleanup() and LogFrame.cleanup(),
+#        which are invoked by ResizeScreenError
 #
-# * Turn Registrar into an ECProducer
-# * Integrate into Ray HLActor ... Service, Actor, ECProducer, ECConsumer
+# - ArchiveService should record "+/+/+/log" and removed Services ...
+#   - Dashboard History section can ECConsumer the removed Services
 #
-# * Provide Historical Service add / remove section (circular buffer)
 # - Consider how to efficiently provide Service summary lifecycle states
 #
 # - Selecting (mouse or tab key) Service allows ...
-#   * Toggle show/hide Services with specific field values (query * * * *)
+#   - Toggle show/hide Services with specific field values (query * * * *)
 #   - Service to be terminated / killed ("k" key)
-#   * Subscribe to MQTT messages ("s" key) from topic (/#, /out, /state, /log)
-#   *** Subscribe to "+/+/+/log" ("l" key), circular buffer --> new page ?
+#   - Subscribe to MQTT messages ("s" key) from topic (/#, /out, /state)
 #   - Publish MQTT message ("p" key) to topic (/#, /in, /control, ...)
 #
 # - Service variable details should sort variable names alphabetically
-#   - Toggle show/hide of Service variables "services.*" visually redundant
-#   - Toggle show/hide Service variables with specific names (regex)
-# - Selecting (mouse or tab key) a Service variable allows ...
-#   * Service variable value updating, e.g enable debug logging !
+# - Toggle show/hide of Service variables "services.*" visually redundant
+# - Toggle show/hide Service variables with specific names (regex)
 # - Allow Service variables to be added and removed
 #
 # - Dashboard Web browser (JavaScript) implementation using MQTT / WebSockets
@@ -47,6 +58,7 @@
 # - Ray node(s)
 
 from collections import defaultdict, deque
+import xerox  # Clipboard support
 
 from asciimatics.event import KeyboardEvent
 from asciimatics.exceptions import (
@@ -55,7 +67,7 @@ from asciimatics.exceptions import (
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
 from asciimatics.widgets import (
-    Divider, Frame, Label, Layout, MultiColumnListBox, PopUpDialog, Widget
+    Frame, Label, Layout, MultiColumnListBox, PopUpDialog, TextBox, Widget
 )
 from asciimatics.widgets.utilities import THEMES
 
@@ -67,6 +79,7 @@ GREEN = Screen.COLOUR_GREEN
 FONT_BOLD = Screen.A_BOLD
 FONT_NORMAL = Screen.A_NORMAL
 
+_HISTORY_RING_BUFFER_SIZE = 32
 _LOG_RING_BUFFER_SIZE = 128
 
 _SERVICE_SELECTED = None  # written by Dashboard._on_change_services()
@@ -86,6 +99,7 @@ class FrameCommon:
 
     def _create_nice_colors(self):
         self._nice_colors = defaultdict(lambda: (WHITE, FONT_NORMAL, BLACK))
+        self._nice_colors["focus_button"] = (GREEN, FONT_BOLD, BLACK)
         self._nice_colors["selected_focus_field"] = (GREEN, FONT_BOLD, BLACK)
         self._nice_colors["title"] = (BLACK, FONT_BOLD, WHITE)
 
@@ -98,9 +112,12 @@ class FrameCommon:
     def _process_event_common(self, event):
         if isinstance(event, KeyboardEvent):
             if event.key_code in [ord("?")]:
-                message ="Help\n"  \
-                         "D: Show Dashboard page\n"  \
-                         "L: Show Log page"
+                message =" Help\n ----\n"  \
+                         " c:     Copy topic path to clipboard \n"  \
+                         " D:     Show Dashboard page \n"  \
+                         " L:     Show Log page \n"  \
+                         " Tab:   Move to next section \n"  \
+                         " Enter: Update variable value "
                 self.scene.add_effect(
                     PopUpDialog(self._screen, message, ["OK"], theme="nice"))
             if event.key_code in [ord("q"), ord("Q"), Screen.ctrl("c")]:
@@ -130,22 +147,33 @@ class DashboardFrame(FrameCommon, Frame):
         )
         self.ec_consumer = None
         self.service_cache = {}
-        self.service_row = -1
+        self.service_history = deque(maxlen=_HISTORY_RING_BUFFER_SIZE)
         self.service_tags = None
+        self.services_row = -1
+
         self.services_cache = service_cache_create_singleton(True)
+        filter = ServiceFilter("*", "*", "*", "*", "*")
+        self.services_cache.add_handler(self._service_change_handler, filter)
 
         self._services_widget = MultiColumnListBox(
             screen.height * 1 // 3,
-            ["<24", "<16", "<12", "<8", "<0"],
+            ["<24", "<20", "<12", "<8", "<0"],
             options=[],
             titles=["Service", "Protocol", "Transport", "Owner", "Tags"],
             on_change=self._on_change_services
         )
         self._service_widget = MultiColumnListBox(
-            Widget.FILL_FRAME,
-            ["<16", "<0"],
+            screen.height * 1 // 2,
+            ["<24", "<0"],
             options=[],
-            titles=["Variable name", "Value"]
+            titles=["Variable name", "Value"],
+            on_select=self._on_select_variable
+        )
+        self._history_widget = MultiColumnListBox(
+            Widget.FILL_FRAME,
+            ["<24", "<16", "<12", "<8", "<0"],
+            options=[],
+            titles=["Service history", "Protocol", "Transport", "Owner", "Tags"]
         )
         layout_0 = Layout([1, 1])
         self.add_layout(layout_0)
@@ -153,24 +181,23 @@ class DashboardFrame(FrameCommon, Frame):
         layout_0.add_widget(Label('Press "?" for help', align=">"), 1)
         layout_1 = Layout([1], fill_frame=True)
         self.add_layout(layout_1)
-        layout_1.add_widget(Divider())
         layout_1.add_widget(self._services_widget)
-        layout_1.add_widget(Divider())
         layout_1.add_widget(self._service_widget)
+        layout_1.add_widget(self._history_widget)
         self.fix()  # Prepare Frame for use
         self._value_width = self._service_widget.width - 16
 
     def _on_change_services(self):
         global _SERVICE_SELECTED
         row = self._services_widget.value
-        if row != self.service_row:
+        if row != self.services_row:
             if self.ec_consumer:
                 self.ec_consumer.terminate()
                 self.ec_consumer = None
                 self.service_cache = {}
                 self.service_tags = None
 
-            self.service_row = row
+            self.services_row = row
             services_topics = self.services_cache.get_services_topics()
             _SERVICE_SELECTED = None
             if len(services_topics) > 0:
@@ -179,13 +206,46 @@ class DashboardFrame(FrameCommon, Frame):
                 _SERVICE_SELECTED = services[service_topic_path]
                 self.service_tags = _SERVICE_SELECTED[4]
                 if aiko.match_tags(self.service_tags, ["ecproducer=true"]):
-                    topic_in = f"{service_topic_path}/control"
-                    self.ec_consumer = ECConsumer(self.service_cache, topic_in)
+                    topic_control = f"{service_topic_path}/control"
+                    self.ec_consumer = ECConsumer(
+                        0, self.service_cache, topic_control)
+
+    def _on_select_variable(self):
+        text_box = TextBox(1, None, None, False, False)
+        variable_name = None
+
+        def _on_close(button_index):
+            if button_index == 1:
+                topic = _SERVICE_SELECTED[0] + "/control"
+                payload_out = f"(update {variable_name} {text_box.value[0]})"
+                aiko.public.message.publish(topic, payload_out)
+
+        row = self._service_widget.value
+        variable = self._service_widget.options[row]
+        variable_name = variable[0][0]
+        if len(variable_name) > 0:
+            if variable_name != "Tag:" and not variable_name.endswith(" ..."):
+                variable_value = variable[0][1]
+                text_box.value[0] = variable_value
+                title = f"Update {variable_name}" + " "*32
+                popup_dialog = PopUpDialog(
+                    self._screen, title, ["Cancel", "OK"],
+                    on_close=_on_close, theme="nice")
+                layout = Layout([1])
+                popup_dialog.add_layout(layout)
+                layout.add_widget(text_box)
+                popup_dialog.fix()
+                self.scene.add_effect(popup_dialog)
+
+    def _service_change_handler(self, command, service_details):
+        if command == "remove":
+            self.service_history.appendleft(service_details)
 
     def _update(self, frame_no):
         if self.adjust_palette_required:
             self._adjust_palette()
-        services = self.services_cache.get_services()
+
+        services = self.services_cache.get_services().copy()
         services_formatted = []
         for service in services.values():
             after_slash = service[1].rfind("/") + 1
@@ -200,7 +260,7 @@ class DashboardFrame(FrameCommon, Frame):
 
         variables = []
         if self.ec_consumer:
-            service_variables = self.service_cache.items()
+            service_variables = list(self.service_cache.items())
             for variable_name, variable_value in service_variables:
                 if type(variable_value) != dict:
                 #   variables.append((variable_name, variable_value))
@@ -224,10 +284,25 @@ class DashboardFrame(FrameCommon, Frame):
             for row_index, variable in enumerate(variables)
         ]
 
+        services_formatted = []
+        service_history = list(self.service_history)
+        for service in service_history:
+            after_slash = service[1].rfind("/") + 1
+            protocol = service[1][after_slash:]  # protocol shortened
+            tags = str(service[4])               # [tags] stringified
+            services_formatted.append(
+                (service[0], protocol, service[2], service[3], tags))
+        self._history_widget.options = [
+            (service_info, row_index)
+            for row_index, service_info in enumerate(services_formatted)
+        ]
+
         super(DashboardFrame, self)._update(frame_no)
 
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
+            if event.key_code in [ord("c")] and _SERVICE_SELECTED:
+                xerox.copy(_SERVICE_SELECTED[0])
             if event.key_code in [ord("L")]:
                 raise NextScene("Log")
         self._process_event_common(event)
@@ -239,7 +314,7 @@ class LogFrame(FrameCommon, Frame):
             screen, screen.height, screen.width, has_border=False,
             name="AikoServices Log"
         )
-        self.ring_buffer = None
+        self.log_buffer = None
         self.topic_log = None
 
         self._log_widget = MultiColumnListBox(
@@ -254,13 +329,12 @@ class LogFrame(FrameCommon, Frame):
         layout_0.add_widget(Label('Press "?" for help', align=">"), 1)
         layout_1 = Layout([1], fill_frame=True)
         self.add_layout(layout_1)
-        layout_1.add_widget(Divider())
         layout_1.add_widget(self._log_widget)
         self.fix()  # Prepare Frame for use
         self._value_width = self._log_widget.width
 
     def _topic_log_handler(self, _aiko, topic, payload_in):
-        self.ring_buffer.append(payload_in)
+        self.log_buffer.append(payload_in)
 
     def _update(self, frame_no):
         global _SERVICE_SUBSCRIBED
@@ -270,13 +344,13 @@ class LogFrame(FrameCommon, Frame):
 
         if _SERVICE_SELECTED != _SERVICE_SUBSCRIBED:
             _SERVICE_SUBSCRIBED = _SERVICE_SELECTED
-            self.ring_buffer = deque(maxlen=_LOG_RING_BUFFER_SIZE)
+            self.log_buffer = deque(maxlen=_LOG_RING_BUFFER_SIZE)
             self.topic_log = f"{_SERVICE_SELECTED[0]}/log"
             aiko.add_message_handler(self._topic_log_handler, self.topic_log)
 
         log_records = []
-        if self.ring_buffer:
-            for log_record in self.ring_buffer:
+        if self.log_buffer:
+            for log_record in self.log_buffer:
             #   log_records.append((log_record,))
                 self._update_field(
                     log_records, None, log_record, self._value_width)
@@ -293,7 +367,7 @@ class LogFrame(FrameCommon, Frame):
             if event.key_code in [ord("D")]:
                 aiko.remove_message_handler(
                     self._topic_log_handler, self.topic_log)
-                self.ring_buffer = None
+                self.log_buffer = None
                 self.topic_log = None
                 _SERVICE_SUBSCRIBED = None
                 raise NextScene("Dashboard")
