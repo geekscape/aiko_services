@@ -20,6 +20,10 @@ from .logger import (
     get_logger, LoggingHandlerMQTT
 )
 
+from .lru_cache import (
+    LRUCache
+)
+
 from .parser import (
     generate, parse
 )

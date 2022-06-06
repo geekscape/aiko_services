@@ -247,6 +247,7 @@ class ECProducer:
             diagnostic = f'update {item_name}: {value_error}'
             _LOGGER.error(f"update(): {diagnostic}")
         if success:
+            # TODO: Use "generate()" on item_value
             payload_out = f"(update {item_name} {item_value})"
             self._update_consumers(item_name, payload_out)
 

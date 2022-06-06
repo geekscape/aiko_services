@@ -34,6 +34,10 @@ from .proxy import (
     ProxyAllMethods, is_callable, proxy_trace
 )
 
+from .component import (
+    Interface, compose_class, compose_instance
+)
+
 from .stream import (
     StreamElementState, StreamElement, StreamQueueElement
 )
@@ -64,7 +68,9 @@ from .pipeline import (
     Pipeline, load_pipeline_definition
 )
 
-# from .service import *
+from .service import (
+    Service, ServiceImpl, ServiceImpl2
+)
 
 from .actor import (
     Actor, TestActor

@@ -20,6 +20,9 @@
 #     receiving notification on every other LifeCycleClient on the
 #     Registrar topic "/out" ?!?
 #
+# - PERFORMANCE: Why does LifeCycleClient creation on AikoDashboard appear
+#   so delayed / chunky ?  Where are the bottlenecks ?
+#
 # - PRIORITY: Optionally replace ProcessManager with Ray to create Actor
 #
 # - Should be able to create LifeCycleClients as either separate processes
