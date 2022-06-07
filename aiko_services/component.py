@@ -54,9 +54,12 @@ def compose_class(impl_seed_class, impl_overrides={}):
     """
 
     implementations = {**impl_seed_class.implementations, **impl_overrides}
+    implementations = _keep_specified_implementations(
+        impl_seed_class, implementations)
 
     unimplemented_interfaces = _check_interfaces_implemented(
         impl_seed_class, implementations)
+
     if len(unimplemented_interfaces) > 0:
         interface_names = ", ".join(unimplemented_interfaces)
         raise ValueError(f"Unimplemented interfaces: {interface_names}")
@@ -110,22 +113,28 @@ def _check_interfaces_implemented(cls, implementations):
                 unimplemented_interfaces.append(ancestor.__name__)
     return unimplemented_interfaces
 
-def _class_is_abstract(cls):
-    all_abstract = True
-    methods = getmembers(cls, isfunction)
-    for method_name, method in methods:
-        if not (hasattr(method, "__isabstractmethod__")  \
-                and method.__isabstractmethod__):
-            all_abstract = False
-    is_abstract = len(methods) > 0 and all_abstract
-    return is_abstract
-
 def _is_abstract(method):
     return  \
         hasattr(method, "__isabstractmethod__") and method.__isabstractmethod__
 
 def _is_interface(cls):
-    return _class_is_abstract(cls)
+    methods = getmembers(cls, isfunction)
+    all_abstract = len(methods) > 0
+    for method_name, method in methods:
+        if not (hasattr(method, "__isabstractmethod__")  \
+                and method.__isabstractmethod__):
+            all_abstract = False
+            break
+    return all_abstract
+
+def _keep_specified_implementations(impl_seed_class, implementations):
+    """Keep implementations that correspond to inherited interfaces"""
+    specified_impls = {}
+    for ancestor in impl_seed_class.__mro__:
+        if _is_interface(ancestor) and ancestor.__name__ in implementations:
+            specified_impls[ancestor.__name__] =  \
+                implementations[ancestor.__name__]
+    return specified_impls
 
 def _load_implementations(implementations):
     """
