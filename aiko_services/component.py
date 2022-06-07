@@ -108,7 +108,7 @@ def _add_methods(base_class, implementations):
 def _check_interfaces_implemented(cls, implementations):
     unimplemented_interfaces = []
     for ancestor in cls.__mro__:
-        if _is_interface(ancestor):
+        if _is_interface(ancestor) and ancestor not in {Interface, object}:
             if not ancestor.__name__ in implementations:
                 unimplemented_interfaces.append(ancestor.__name__)
     return unimplemented_interfaces
@@ -118,14 +118,14 @@ def _is_abstract(method):
         hasattr(method, "__isabstractmethod__") and method.__isabstractmethod__
 
 def _is_interface(cls):
+    all_methods_abstract = True
     methods = getmembers(cls, isfunction)
-    all_abstract = len(methods) > 0
     for method_name, method in methods:
         if not (hasattr(method, "__isabstractmethod__")  \
                 and method.__isabstractmethod__):
-            all_abstract = False
+            all_methods_abstract = False
             break
-    return all_abstract
+    return all_methods_abstract
 
 def _keep_specified_implementations(impl_seed_class, implementations):
     """Keep implementations that correspond to inherited interfaces"""
