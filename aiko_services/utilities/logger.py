@@ -19,15 +19,25 @@
 #   _LOGGER.debug("hello")
 #   aiko.process(True)
 #
+# Usage: Logging with ECProducer
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#   def _ec_producer_change_handler(self, command, item_name, item_value):
+#       if item_name == "log_level":
+#           _LOGGER.setLevel(str(item_value).upper())
+#   self.state = {
+#       "log_level": get_log_level_name(_LOGGER)
+#   }
+#   self.ec_producer = ECProducer(self.state)
+#   self.ec_producer.add_handler(self._ec_producer_change_handler)
+#
 # To Do: Logger
 # ~~~~~~~~~~~~~
 # - Turn "logger" into a Python class, nothing global !
 #
-# - Implement message to change logging level !
-#
 # - BUG: If LOG_LEVEL=DEBUG, then get_logger.debug(message) message may appear
 #     twice, but not if LOG_LEVEL=DEBUG_ALL
 # - BUG: get_logger.info(message) doesn't display for LOG_LEVEL=INFO
+#
 # - Set logging level and log file from command line argument
 #
 # To Do: LoggingHandlerMQTT
@@ -43,7 +53,7 @@ from typing import Any
 from aiko_services.connection import ConnectionState
 from aiko_services.utilities import *
 
-__all__ = ["get_logger", "LoggingHandlerMQTT"]
+__all__ = ["get_level_name", "get_logger", "LoggingHandlerMQTT"]
 
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
 _LOG_FORMAT_DATE = "%Y-%m-%d_%H:%M:%S"
@@ -63,6 +73,14 @@ _CONFIGURATION = {
     }
 }
 
+_LEVEL_NAMES = {
+    logging.DEBUG: "DEBUG",      # 10
+    logging.INFO: "INFO",        # 20
+    logging.WARNING: "WARNING",  # 30
+    logging.ERROR: "ERROR",      # 40
+    logging.FATAL: "FATAL"       # 50
+}
+
 _LOGGING_HANDLERS_THIRD_PARTY = [
     "asyncio", "matplotlib", "MESSAGE", "MQTT", "PIL.PngImagePlugin",
     "shapely.geos", "sgqlc.endpoint", "STATE", "transitions.core",
@@ -75,7 +93,7 @@ for logging_handler in _LOGGING_HANDLERS_THIRD_PARTY:
             "level": "INFO"
     }
 
-_LOG_LEVEL = os.environ.get("LOG_LEVEL", False)
+_LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
 if _LOG_LEVEL == "DEBUG_ALL":
     _LOG_LEVEL="DEBUG"
@@ -86,6 +104,13 @@ if _LOG_LEVEL == "DEBUG_ALL":
 
 if _LOG_LEVEL == "DEBUG":
     logging.config.dictConfig(_CONFIGURATION)
+
+def get_log_level_name(logger):
+    log_level = logger.level
+    level_name = str(log_level)
+    if log_level in _LEVEL_NAMES:
+        level_name = _LEVEL_NAMES[log_level]
+    return level_name
 
 def get_logger(name: str, logging_handler=None, log_level=None) -> Any:
 #   logging.basicConfig(filename="aiko.log")

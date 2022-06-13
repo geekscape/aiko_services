@@ -92,7 +92,7 @@ class LifeCycleManager:
         aiko.add_message_handler(
             self._topic_control_handler, aiko.public.topic_control)
 
-        if self.ec_producer is not None:
+        if self.ec_producer:
             self.ec_producer.update("lifecycle_manager.clients_active", 0)
 
     def create(self, command, arguments):
@@ -132,7 +132,7 @@ class LifeCycleManager:
                 lifecycle_client_details = LifeCycleClientDetails(
                     client_id, lifecycle_client_topic_path, ec_consumer)
                 self.lifecycle_clients[client_id] = lifecycle_client_details
-                if self.ec_producer is not None:
+                if self.ec_producer:
                     self.ec_producer.update(
                         "lifecycle_manager.clients_active",
                         len(self.lifecycle_clients))
@@ -151,7 +151,7 @@ class LifeCycleManager:
                         lifecycle_client.ec_consumer = None
                     client_id = lifecycle_client.client_id
                     del self.lifecycle_clients[client_id]
-                    if self.ec_producer is not None:
+                    if self.ec_producer:
                         self.ec_producer.update(
                             "lifecycle_manager.clients_active",
                             len(self.lifecycle_clients))

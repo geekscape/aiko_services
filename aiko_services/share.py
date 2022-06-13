@@ -34,6 +34,8 @@
 # To Do
 # ~~~~~
 # - BUG: Provide filtered Services to "service_change_handler"
+# - BUG?: ECProducer remote expired leases
+# - BUG?: ECConsumer remote expired leases
 #
 # - ECProducerBase class provides absolute minimum implementation
 #   - Responds to all "(share ...)" requests with "(item_count 0)"
@@ -220,9 +222,15 @@ class ECProducer:
         self.state = state
         self.topic_in = topic_in
         self.topic_out = topic_out
+        self.handlers = set()
         self.leases = {}
         aiko.add_message_handler(self._producer_handler, topic_in)
         aiko.add_tags(["ecproducer=true"])
+
+    def add_handler(self, handler):  # TODO: Implement remove_handler()
+        for item_name, item_value in _flatten_dictionary(self.state):
+            handler("add", item_name, item_value)
+        self.handlers.add(handler)
 
     def get(self, item_name):
         success = True
@@ -247,9 +255,7 @@ class ECProducer:
             diagnostic = f'update {item_name}: {value_error}'
             _LOGGER.error(f"update(): {diagnostic}")
         if success:
-            # TODO: Use "generate()" on item_value
-            payload_out = f"(update {item_name} {item_value})"
-            self._update_consumers(item_name, payload_out)
+            self._update_consumers("update", item_name, item_value)
 
     def remove(self, item_name):
         item_path = _ec_parse_item_path(item_name)
@@ -261,8 +267,7 @@ class ECProducer:
             diagnostic = f'remove {item_name}: {value_error}'
             _LOGGER.error(f"remove(): {diagnostic}")
         if success:
-            payload_out = f"(remove {item_name})"
-            self._update_consumers(item_name, payload_out)
+            self._update_consumers("remove", item_name, None)
 
     def _dictionary_to_commands(self, command, dictionary):
         payloads = []
@@ -321,7 +326,7 @@ class ECProducer:
                 _LOGGER.error(f"_producer_hander(): {diagnostic}")
             if success:
                 aiko.message.publish(self.topic_out, payload_out)
-                self._update_consumers(item_name, payload_out)
+                self._update_consumers(command, item_name, item_value)
 
         if command == "remove" and len(parameters) == 1:
             item_name = parameters[0]
@@ -336,7 +341,7 @@ class ECProducer:
                 _LOGGER.error(f"_producer_hander(): {diagnostic}")
             if success:
                 aiko.message.publish(self.topic_out, payload_out)
-                self._update_consumers(item_name, payload_out)
+                self._update_consumers(command, item_name, None)
 
         if command == "share":
             response_topic, lease_time, filter = self._ec_parse_share(
@@ -390,7 +395,14 @@ class ECProducer:
         payload_out = f"(sync {response_topic})"
         aiko.public.message.publish(self.topic_out, payload_out)
 
-    def _update_consumers(self, item_name, payload_out):
+    def _update_consumers(self, command, item_name, item_value):
+        for handler in self.handlers:
+            handler(command, item_name, item_value)
+        if command == "remove":
+            payload_out = f"({command} {item_name})"
+        else:
+            # TODO: Use "generate()" on item_value
+            payload_out = f"({command} {item_name} {item_value})"
         for lease in self.leases.values():
             if self._filter_compare(lease.filter, item_name):
                 response_topic = lease.lease_uuid
@@ -406,21 +418,19 @@ class ECConsumer:
         self.filter = filter
 
         self.cache_state = "empty"
+        self.handlers = set()
         self.item_count = 0
         self.items_received = 0
         self.lease = None
-
-        self.handlers = set()
 
         self.topic_share_in = \
             f"{aiko.public.topic_path}/{self.ec_producer_topic_control}/{ec_consumer_id}/in"
         aiko.add_message_handler(self._consumer_handler, self.topic_share_in)
         aiko.public.connection.add_handler(self._connection_state_handler)
 
-    def add_handler(self, handler):
+    def add_handler(self, handler):  # TODO: Implement remove_handler()
         for item_name, item_value in _flatten_dictionary(self.cache):
-            command = "add"
-            handler(self.ec_consumer_id, command, item_name, item_value)
+            handler(self.ec_consumer_id, "add", item_name, item_value)
         self.handlers.add(handler)
 
     def _consumer_handler(self, aiko, topic, payload_in):

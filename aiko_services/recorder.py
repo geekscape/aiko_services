@@ -14,7 +14,7 @@
 # To Do
 # ~~~~~
 # - Improve CLI to record multiple different topic paths
-# - Archive removed Service history (duplicate code in Aiko Dashboard)
+# - Recorder remove Service history (duplicate code in Aiko Dashboard)
 #   - Aiko Dashboard should check Recorder for Service history
 #   - Keep separate last "n" historical Services LRU Cache and Ring Buffers
 # - On-the-fly configuration ...

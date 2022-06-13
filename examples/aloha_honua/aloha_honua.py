@@ -5,19 +5,21 @@
 #
 # Usage
 # ~~~~~
+# LOG_LEVEL=INFO  # DEBUG
 # mosquitto_sub -t '#' -v
-# REGISTRAR=0 LOG_LEVEL=DEBUG registrar &
-# ALOHA_HONUA=0 LOG_LEVEL=DEBUG ./aloha_honua.py [test_value] &
+# REGISTRAR=0   LOG_MQTT=$LOG_LEVEL registrar &
+# ALOHA_HONUA=0 LOG_MQTT=$LOG_LEVEL ./aloha_honua.py [test_value] &
 #
 # NAMESPACE=aiko
 # HOST=localhost
 # PID=`ps ax | grep python | grep aloha_honua.py | cut -d" " -f1`
-# TOPIC_PATH=$NAMESPACE/$HOST/$PID
+# TOPIC_PATH=$NAMESPACE/$HOST/$PID  # or copy from dashboard
 #
 # ALOHA_HONUA=0 LOG_LEVEL=DEBUG ./aloha_honua.py 0 & PID=`echo $!`; TOPIC_PATH=$NAMESPACE/`hostname`/$PID; echo ALOHA_HONUA: $TOPIC_PATH
 #
-# mosquitto_pub -t $TOPIC_PATH/in -m '(test hello)'
+# mosquitto_pub -t $TOPIC_PATH/contol -m '(update log_lebel DEBUG)'
 # mosquitto_pub -t $TOPIC_PATH/contol -m '(update test_value 0)'
+# mosquitto_pub -t $TOPIC_PATH/in -m '(test hello)'
 #
 # count=0
 # while true; do
@@ -49,17 +51,20 @@ class AlohaHonuaActor(actor.Actor):
 
         self.state = {
             "lifecycle": "initialize",
-            "log_level": "info",
+            "log_level": get_log_level_name(_LOGGER),
             "test_value": test_value,
-            "test_dict": {
-                "item_1": ["value_a"],
-                "item_2": ["value_b"]
-            },
+            "test_dict": {"item_1": ["value_a"], "item_2": ["value_b"]}
         }
-        ECProducer(self.state)
+        self.ec_producer = ECProducer(self.state)
+        self.ec_producer.add_handler(self._ec_producer_change_handler)
 
     #   aiko.add_message_handler(self.topic_all_handler, "#")  # for testing
         aiko.add_topic_in_handler(self.topic_in_handler)
+
+    def _ec_producer_change_handler(self, command, item_name, item_value):
+        _LOGGER.debug(f"ECProducer: {command} {item_name} {item_value}")
+        if item_name == "log_level":
+            _LOGGER.setLevel(str(item_value).upper())
 
     def test(self, value):
         _LOGGER.debug(f"{self.actor_name}: test({value})")
@@ -69,8 +74,7 @@ class AlohaHonuaActor(actor.Actor):
     def topic_all_handler(self, _aiko, topic, payload_in):
         command, parameters = parse(payload_in)
         _LOGGER.debug(
-            f"topic_all_handler(): topic: {topic}, {command}:{parameters}"
-        )
+            f"topic_all_handler(): topic: {topic}, {command}:{parameters}")
 
     def topic_in_handler(self, _aiko, topic, payload_in):
         command, parameters = parse(payload_in)
