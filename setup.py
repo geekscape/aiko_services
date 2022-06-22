@@ -23,10 +23,11 @@ setup(
     author_email="geekscape@gmail.com",
     packages=find_packages(),
     install_requires=[
+        "asciimatics>=1.14.0",
         "click>=7.0",
-        "networkx>=2.1",
+        "networkx>=2.8.4",
         "numpy>=1.19.1",
-        "paho-mqtt>=1.3",
+        "paho-mqtt>=1.6.1",
         "Pillow>=8.3.2",
         "pyyaml>=5.3.1",
         "requests>=2.25.1",
@@ -37,7 +38,7 @@ setup(
     entry_points={
         "console_scripts": [
             "aiko = aiko_services.cli:main",
-            "aiko_dashboard = aiko_services.dashboard:main"
+            "aiko_dashboard = aiko_services.dashboard:main",
             "aiko_registrar = aiko_services.registrar:main"
         ]
     }

@@ -10,6 +10,11 @@ poetry install [--extras opencv]  # once only
 poetry shell                      # each terminal session
 ```
 
+Alternative ...
+```
+python3 setup.py install
+```
+
 # Aiko Declarative Pipeline CLI
 
 Runs pipeline definitions in `.py`, `.yaml` or `.json` format.
