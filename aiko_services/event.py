@@ -41,6 +41,9 @@
 #
 # - BUG: Why isn't event.add_timer_handler(_, _, True) firing immediately ?
 #
+# - add_timer_handler(... count=None) to automatically expire after count
+# - add_mailbox_handler(... max_size=None) to limit maximum queue size
+#
 # - Move "_timer_counter" and "update_timer_counter()" into EventList
 # - Refactor all remaining functions into new EventEngine class
 # - Coalesce remove_flatout_handler() and remove_timer_handler() into
@@ -52,7 +55,7 @@
 # - All Services should have initialise() and stream event handler()
 #   - All Streams also have task_start() and task_stop()
 # - Since handlers take time, need to adjust time.sleep() period
-# - New event types: Mailbox, Queue, GStreamer appsink, appsrc, serial
+# - New event types: GStreamer appsink, appsrc, serial
 
 from collections import OrderedDict
 import queue

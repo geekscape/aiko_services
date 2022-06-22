@@ -57,6 +57,7 @@
 # - Pipeline(s) / PipelineElement(s)
 # - Ray node(s)
 
+import click
 from collections import defaultdict, deque
 import xerox  # Clipboard support
 
@@ -381,7 +382,8 @@ def dashboard(screen, start_scene):
     ]
     screen.play(scenes, stop_on_resize=True, start_scene=start_scene)
 
-if __name__ == "__main__":
+@click.command()
+def main():
     scene = None
 
     while True:
@@ -392,3 +394,6 @@ if __name__ == "__main__":
             break
         except ResizeScreenError as exception:
             scene = exception.scene
+
+if __name__ == "__main__":
+    main()
