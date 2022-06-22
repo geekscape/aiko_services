@@ -242,7 +242,7 @@ class ECProducer:
             else:
                 success = False
         if not success:
-            raise ValueError(f"Item not found: {item_name}")
+            item = None
         return item
 
     def update(self, item_name, item_value):
@@ -538,7 +538,8 @@ class ServiceCache():
         self._handlers.add((service_change_handler, service_filter))
 
     def remove_handler(self, service_change_handler, service_filter):
-        self._handlers.remove((service_change_handler, service_filter))
+        if (service_change_handler, service_filter) in self._handlers:
+            self._handlers.remove((service_change_handler, service_filter))
 
     def _cache_reset(self):
         self._query_items_expected = 0
