@@ -21,17 +21,26 @@
 #
 # To Do
 # ~~~~~
+# * Rename "event.py" to "handler.py" along with function and variable names.
+# * Make function names consistently verb_noun() or noun_verb(), but not both !
+# * Remove queue handler ... and replace usage with mailboxes
+#
+# * Improve event.loop() to check timer in-between every mailbox check
+#
 # - Provide unit tests !  For all add / remove all the various handler types.
-# - Make function names consistently verb_noun() or noun_verb(), but not both !
 #
 # - BUG: With multiple timer handlers using the same handler function,
 #        then remove_timer_handler() make remove the wrong one.
 #        Need an identifier to specific exactly which handler instance
+#
 # - BUG: Handle case of calling event.terminate() before entering event.loop()
 #        Due to event_enabled being overwritten at the start of event.loop()
+#
 # - BUG: Make _handler_count thread-safe, when adding and removing handlers !
 #   - See "mutex": https://hg.python.org/cpython/file/3.5/Lib/queue.py
+#
 # - BUG: Why isn't event.add_timer_handler(_, _, True) firing immediately ?
+#
 # - Move "_timer_counter" and "update_timer_counter()" into EventList
 # - Refactor all remaining functions into new EventEngine class
 # - Coalesce remove_flatout_handler() and remove_timer_handler() into
@@ -49,6 +58,7 @@ from collections import OrderedDict
 import queue
 import time
 import threading
+from typing import Any, Tuple
 
 __all__ = [
     "add_flatout_handler", "add_mailbox_handler",
@@ -59,7 +69,7 @@ __all__ = [
     "terminate"
 ]
 
-_MAILBOX_SIZE = 8
+_MAILBOX_INCREMENT_WARNING = 4
 
 _handler_count = 0
 _timer_counter = 0
@@ -139,7 +149,7 @@ event_enabled = False
 event_list = EventList()
 event_loop_lock = threading.Lock()
 event_loop_running = False
-event_queue = queue.Queue()
+event_queue: "queue.Queue[Tuple[Any, Any]]" = queue.Queue()
 flatout_handlers = []
 mailboxes = OrderedDict()
 queue_handlers = {}
@@ -154,16 +164,42 @@ def remove_flatout_handler(handler):
     flatout_handlers.remove(handler)
     _handler_count -= 1
 
+class Mailbox:
+    def __init__(
+        self, handler, name, increment_warning=_MAILBOX_INCREMENT_WARNING):
+
+        self.handler = handler
+        self.name = name
+        self.increment_warning = increment_warning
+
+        self.high_water_mark = 0
+        self.last_warned_increment = 0
+        self.queue = queue.Queue()
+        self.size = 0
+
+    def put(self, item):
+        self.queue.put(item, block=False)
+        self.size = self.queue.qsize()
+        if self.size > self.high_water_mark:
+            self.high_water_mark = self.size
+        if self.size >= self.last_warned_increment + self.increment_warning:
+            message = f"Mailbox {self.name}: size={self.size}"
+            message = "\033[91m" + message + "\033[0m"  # highlight red
+            print(message)
+            self.last_warned_increment += self.increment_warning
+
 # First mailbox added has priority handling for all posted messages
+
 def add_mailbox_handler(
     mailbox_handler,
     mailbox_name,
-    mailbox_size=_MAILBOX_SIZE):
+    mailbox_increment_warning=_MAILBOX_INCREMENT_WARNING):
 
     global _handler_count
     if mailbox_name not in mailboxes:
-        mailbox = queue.Queue(maxsize=mailbox_size)
-        mailboxes[mailbox_name] = (mailbox_handler, mailbox)
+        mailbox = Mailbox(
+            mailbox_handler, mailbox_name, mailbox_increment_warning)
+        mailboxes[mailbox_name] = mailbox
         _handler_count += 1
     else:
         raise RuntimeError(f"Mailbox {mailbox_name}: Already exists")
@@ -176,14 +212,10 @@ def remove_mailbox_handler(mailbox_handler, mailbox_name):
 
 def mailbox_put(mailbox_name, item):
     if mailbox_name in mailboxes:
-        try:
-            item = (item, time.time())
-            mailbox_queue = mailboxes[mailbox_name][1]
-            mailbox_queue.put(item, block=False)
-        except queue.Full:
-            raise RuntimeError(f"Mailbox {mailbox_name} full")
+        item = (item, time.time())
+        mailboxes[mailbox_name].put(item)
     else:
-        raise RuntimeError(f"Mailbox {mailbox_name} not found")
+        raise RuntimeError(f"Mailbox {mailbox_name}: Not found")
 
 def add_queue_handler(queue_handler, item_types=["default"]):
     global _handler_count
@@ -245,19 +277,17 @@ def loop(loop_when_no_handlers=False):
                         queue_handler(item, item_type)
 
             if len(mailboxes) > 0:
-                # First mailbox added has priority for all posted messages
-                _, priority_queue = mailboxes[list(mailboxes)[0]]
+                priority_mailbox = mailboxes[list(mailboxes)[0]]
                 handle_mailboxes = True
                 while handle_mailboxes:
-                    for mailbox_name in mailboxes:
-                        mailbox_handler, mailbox_queue = mailboxes[mailbox_name]
-                        while mailbox_queue.qsize() > 0:
-                            item, time_posted = mailbox_queue.get()
-                            mailbox_handler(mailbox_name, item, time_posted)
-                            if mailbox_queue != priority_queue:
-                                if priority_queue.qsize() > 0:
+                    for mailbox_name, mailbox in mailboxes.items():
+                        while mailbox.queue.qsize() > 0:
+                            item, time_posted = mailbox.queue.get()
+                            mailbox.handler(mailbox_name, item, time_posted)
+                            if mailbox.queue != priority_mailbox.queue:
+                                if priority_mailbox.queue.qsize() > 0:
                                     break
-                        if priority_queue.qsize() > 0:
+                        if priority_mailbox.queue.qsize() > 0:
                             break
                     handle_mailboxes = False
 

@@ -8,6 +8,8 @@
 #
 # To Do
 # ~~~~~
+# * Replace queue handler with mailboxes
+#
 # - In-memory data structure <-- convert --> Persistent storage
 # - Why is pipeline_handler() only running at half the specified time ?
 # - Why don't timer events occur when pipeline is running flatout ?
