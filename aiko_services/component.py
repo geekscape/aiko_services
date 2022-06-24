@@ -35,10 +35,13 @@ from inspect import getmembers, isclass, isfunction
 
 from aiko_services.utilities import *
 
-__all__ = ["Interface", "compose_class", "compose_instance"]
+__all__ = ["Interface", "Protocol", "compose_class", "compose_instance"]
 
 class Interface(metaclass=ABCMeta):
     implementations = {}
+
+class Protocol(Interface):
+    """Interface marker representing an Aiko Service protocol"""
 
 def compose_class(impl_seed_class, impl_overrides={}):
     """
@@ -53,9 +56,9 @@ def compose_class(impl_seed_class, impl_overrides={}):
     may be overridden as required
     """
 
-    implementations = {**impl_seed_class.implementations, **impl_overrides}
+    all_implementations = {**impl_seed_class.implementations, **impl_overrides}
     implementations = _keep_specified_implementations(
-        impl_seed_class, implementations)
+        impl_seed_class, all_implementations)
 
     unimplemented_interfaces = _check_interfaces_implemented(
         impl_seed_class, implementations)
@@ -108,7 +111,9 @@ def _add_methods(base_class, implementations):
 def _check_interfaces_implemented(cls, implementations):
     unimplemented_interfaces = []
     for ancestor in cls.__mro__:
-        if _is_interface(ancestor) and ancestor not in {Interface, object}:
+        if _is_interface(ancestor) and  \
+            ancestor not in {Interface, Protocol, object}:
+
             if not ancestor.__name__ in implementations:
                 unimplemented_interfaces.append(ancestor.__name__)
     return unimplemented_interfaces
