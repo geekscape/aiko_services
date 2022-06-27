@@ -23,13 +23,19 @@
 # get_actor(actor_name,
 #     exit_not_found = False, fail_not_found = True, wait_time = None):
 
+from abc import abstractmethod
+
 from aiko_services import *
 
-__all__ = ["TransportMQTTActor", "ActorDiscovery"]
+__all__ = ["TransportMQTT", "TransportMQTTImpl","ActorDiscovery"]
 
-class TransportMQTTActor(Actor):
-    def __init__(self, actor_name):
-        super().__init__(actor_name)
+class TransportMQTT(Actor):
+    Interface.implementations["TransportMQTT"] =  \
+        "aiko_services.transport.TransportMQTTImpl"
+
+class TransportMQTTImpl(TransportMQTT):
+    def __init__(self, implementations, actor_name):
+        implementations["Actor"].__init__(self, implementations, actor_name)
 
     def terminate(self):
         self._stop()
@@ -56,6 +62,9 @@ class ActorDiscovery(ServiceDiscovery):  # Move to actor.py or share.py ?
 
     def add_handler(self, service_change_handler, filter):
         self.services_cache.add_handler(service_change_handler, filter)
+
+    def remove_handler(self, service_change_handler, filter):
+        self.services_cache.remove_handler(service_change_handler, filter)
 
     def get_actor_mqtt(self, actor_name):
         actor_topic = ".".join(actor_name.split(".")[:-1])  # WIP: Actor name

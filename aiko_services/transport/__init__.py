@@ -5,5 +5,5 @@
 # We don't need to worry about dynamic references between Actors here.
 
 from .transport_mqtt import (
-    TransportMQTTActor, ActorDiscovery
+    TransportMQTT, TransportMQTTImpl, ActorDiscovery
 )

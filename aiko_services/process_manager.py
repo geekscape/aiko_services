@@ -177,7 +177,7 @@ def main(example, tags):
     if example:
         example_code(process_manager, example)
     else:
-        aiko.set_protocol(PROTOCOL_PROCESS_MANAGER)
+        aiko.set_protocol(PROTOCOL_PROCESS_MANAGER)  # TODO: Move into service.py
         aiko.add_topic_in_handler(topic_in_handler)
 #       aiko.parse_tags(tags)
         aiko.process(True)

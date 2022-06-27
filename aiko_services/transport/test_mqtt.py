@@ -13,6 +13,7 @@
 # - transport_mqtt.py: Complete create_actor_mqtt() and delete_actor_mqtt()
 # - transport_mqtt.py: Wrap in CLI / TUI for handy tools for finding Services
 
+from abc import abstractmethod
 import click
 
 from aiko_services import *
@@ -25,9 +26,15 @@ _LOGGER = aiko.logger(__name__)
 
 #---------------------------------------------------------------------------- #
 
-class TestMQTT(TransportMQTTActor):
-    def __init__(self, actor_name):
-        super().__init__(actor_name)
+class TestMQTT(TransportMQTT):
+    Interface.implementations["TestMQTT"] = "__main__.TestMQTTImpl"
+
+class TestMQTTImpl(TestMQTT):
+    def __init__(self, implementations, actor_name):
+        implementations["TransportMQTT"].__init__(
+            self, implementations, actor_name)
+        aiko.set_protocol(PROTOCOL)  # TODO: Move into service.py
+
         self.actor_discovery = ActorDiscovery()
         self.state = { "lifecycle": "initialize", "log_level": "info" }
         ECProducer(self.state)
@@ -52,8 +59,8 @@ class TestMQTT(TransportMQTTActor):
 def main():
     actor_name = f"{aiko.public.topic_path}.{ACTOR_TYPE}"  # WIP: Actor name
     aiko.add_tags([f"actor={actor_name}"])  # WIP: Actor name
-    test_mqtt = TestMQTT(actor_name)
-    aiko.set_protocol(PROTOCOL)
+    init_args = {"actor_name": actor_name}
+    test_mqtt = compose_instance(TestMQTTImpl, init_args)
     aiko.process()
 
 if __name__ == "__main__":

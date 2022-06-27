@@ -656,7 +656,7 @@ def _create_ec_consumer(ec_producer_pid, filter="*"):
     state = {}
     ec_producer_topic_control = f"{get_namespace()}/{get_hostname()}/{ec_producer_pid}/control"
 
-    aiko.set_protocol(PROTOCOL_EC_CONSUMER)
+    aiko.set_protocol(PROTOCOL_EC_CONSUMER)  # TODO: Move into service.py
     ec_consumer = ECConsumer(state, ec_producer_topic_control, filter)
 
 def _create_ec_producer():
@@ -668,7 +668,7 @@ def _create_ec_producer():
         }
     }
 
-    aiko.set_protocol(PROTOCOL_EC_PRODUCER)
+    aiko.set_protocol(PROTOCOL_EC_PRODUCER)  # TODO: Move into service.py
     ec_producer = ECProducer(state)
 
 @click.command("main", help=(

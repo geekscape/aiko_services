@@ -14,8 +14,8 @@ class Service(Protocol):
 #       pass
 
 class ServiceImpl(Service):
-    def __init__(self, service_parameter_1):
-        print(f"ServiceImpl.__init__({service_parameter_1})")
+    def __init__(self, implementations):
+        pass
 
 #   def service_0(self):
 #       print("ServiceImpl.service_0()")

@@ -214,7 +214,7 @@ def service_remove(service_topic):
 
 @click.command()
 def main():
-    aiko.set_protocol(aiko.REGISTRAR_PROTOCOL)
+    aiko.set_protocol(aiko.REGISTRAR_PROTOCOL)  # TODO: Move into service.py
     aiko.add_message_handler(service_state_handler, aiko.SERVICE_STATE_TOPIC)
     aiko.set_registrar_handler(registrar_handler)
     aiko.add_topic_in_handler(topic_in_handler)

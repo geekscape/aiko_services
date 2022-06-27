@@ -138,7 +138,8 @@ class ActorImpl(Actor):
         actual_object._post_message(
             topic, command, args, target_function=actual_function)
 
-    def __init__(self, actor_name):
+    def __init__(self, implementations, actor_name):
+        implementations["Service"].__init__(self, implementations)
         self.actor_name = actor_name
         self.running = False
         # First mailbox added has priority handling for all posted messages
