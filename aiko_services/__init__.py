@@ -73,7 +73,7 @@ from .service import (
 )
 
 from .actor import (
-    Actor, TestActor
+    Actor, ActorImpl, TestActor, TestActorImpl
 )
 
 from .process_manager import (

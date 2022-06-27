@@ -1,7 +1,7 @@
 # Aiko Services
 
 Distributed service framework using asynchronous messages supporting
-IoT, Machine Learning and Video
+AIoT, Machine Learning, Robotics and Video
 
 # Development set-up
 
@@ -12,7 +12,7 @@ poetry shell                      # each terminal session
 
 Alternative ...
 ```
-python3 setup.py install
+python3 setup.py install -e .     # development mode
 ```
 
 # Aiko Declarative Pipeline CLI

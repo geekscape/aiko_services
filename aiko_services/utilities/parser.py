@@ -13,6 +13,8 @@
 #
 # To Do
 # ~~~~~
+# - Incorporate Python module "sexpdata"
+# - Incorporate Python module "hy" and "hyrule"
 # - Provide unit tests !
 # - Implement JSON parsing
 

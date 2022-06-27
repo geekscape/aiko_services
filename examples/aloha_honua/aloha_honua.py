@@ -32,6 +32,7 @@
 # ~~~~~
 # - None, yet !
 
+from abc import abstractmethod
 import click
 
 from aiko_services import *
@@ -44,9 +45,16 @@ _LOGGER = aiko.logger(__name__)
 
 # --------------------------------------------------------------------------- #
 
-class AlohaHonuaActor(actor.Actor):
-    def __init__(self, actor_name, test_value=0):
-        super().__init__(actor_name)
+class AlohaHonua(Actor):
+    Interface.implementations["AlohaHonua"] = "__main__.AlohaHonuaImpl"
+
+    @abstractmethod
+    def test(self, value):
+        pass
+
+class AlohaHonuaImpl(AlohaHonua):
+    def __init__(self, implementations, actor_name, test_value=0):
+        implementations["Actor"].__init__(self, actor_name)
         aiko.set_protocol(PROTOCOL)  # TODO: Move into actor.py
 
         self.state = {
@@ -94,7 +102,8 @@ def main(test_value):
         f"actor={actor_name}",               # WIP: Actor name
     #   f"class={AlohaHonuaActor.__name__}"  # TODO: Use full class pathname ?
     ])
-    aloha_honua = AlohaHonuaActor(actor_name, test_value)
+    init_args = {"actor_name": actor_name, "test_value": 1}
+    aloha_honua = compose_instance(AlohaHonuaImpl, init_args)
     aloha_honua.run()
 
 if __name__ == "__main__":

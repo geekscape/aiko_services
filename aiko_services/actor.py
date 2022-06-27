@@ -34,7 +34,7 @@
 #
 # - State Machine ...
 #   - Turn "self.running" into "self.state"
-#   - Turn "self.is_running()" into "self.get_state()"
+#   - Turn "self._is_running()" into "self.get_state()"
 #   - Stop Actor by changing "self.state" to "STOP"
 #   - Hard terminate Actor using "self._terminate()"
 #
@@ -57,10 +57,13 @@
 # - Multiple threads and multithreading support
 # - State Machine
 
+from abc import abstractmethod
+import traceback
+
 from aiko_services import *
 from aiko_services.utilities import *
 
-__all__ = ["Actor", "TestActor"]
+__all__ = ["Actor", "ActorImpl", "TestActor", "TestActorImpl"]
 
 _LOGGER = aiko.logger(__name__)
 
@@ -113,10 +116,17 @@ class Topic:
 
     topics = [CONTROL, STATE, IN, OUT]
 
-    def __init__(self, topic_name):  # TODO: implement user defined topics
+    def __init__(self, topic_name):  # TODO: Implement user defined topics
         self.topic_name = topic_name
 
-class Actor(LifeCycleClient):  # Base class
+class Actor(Service):
+    Interface.implementations["Actor"] = "aiko_services.actor.ActorImpl"
+
+#   @abstractmethod
+#   def run(self):  # TODO: Decide what methods are required to be an Actor
+#       pass
+
+class ActorImpl(Actor):
     @classmethod
     def proxy_post_message(
         cls, proxy_name, actual_object, actual_function, *args, **kwargs):
@@ -139,7 +149,7 @@ class Actor(LifeCycleClient):  # Base class
     def _actor_mailbox_name(self, topic):
         return f"{self.actor_name}/{topic}"
 
-    def is_running(self):
+    def _is_running(self):
         return self.running
 
     def _mailbox_handler(self, topic, message, time_posted):
@@ -147,7 +157,12 @@ class Actor(LifeCycleClient):  # Base class
 
     def run(self):
         self.running = True
-        aiko.process()
+        try:
+            aiko.process()
+        except Exception as exception:
+            _LOGGER.error(f"Exception caught in {self.__class__.__name__}: {type(exception).__name__}: {exception}")
+            _LOGGER.error(traceback.format_exc())
+            raise exception
         self.running = False
 
     def _post_message(self, topic, command, args, target_function=None):
@@ -160,12 +175,28 @@ class Actor(LifeCycleClient):  # Base class
         return f"[{self.__module__}.{type(self).__name__} " \
                f"object at {hex(id(self))}]"
 
+    # TODO: make public
     def _stop(self):
         event.terminate()
 
-class TestActor(Actor):  # class
-    def __init__(self, actor_name):
-        super().__init__(actor_name)
+class TestActor(Actor):  # TODO: Move into "../examples/"
+    Interface.implementations["TestActor"] = "aiko_services.actor.TestActorImpl"
+
+    @abstractmethod
+    def initialize(self):
+        pass
+
+    @abstractmethod
+    def control_test(self, value):
+        pass
+
+    @abstractmethod
+    def test(self, value):
+        pass
+
+class TestActorImpl(TestActor):  # TODO: Move into "../examples/"
+    def __init__(self, implementations, actor_name):
+        implementations["Actor"].__init__(self, actor_name)
         self.test_count = None
 
     def initialize(self):
