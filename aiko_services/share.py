@@ -37,6 +37,9 @@
 # - BUG?: ECProducer remote expired leases
 # - BUG?: ECConsumer remote expired leases
 #
+# - BUG: ServiceCache (and also EC) should handle degradation of
+#   network (ConnectionState changes) and/or lease expiring.
+#
 # - ECProducerBase class provides absolute minimum implementation
 #   - Responds to all "(share ...)" requests with "(item_count 0)"
 #     Ignores all other requests
@@ -524,6 +527,7 @@ _REGISTRAR_TOPIC_QUERY = aiko.public.topic_path + "/registrar_query"
 
 class ServiceCache():
     def __init__(self, event_loop_start=False):
+        self._begin_registration = False
         self._event_loop_start = event_loop_start
         self._event_loop_owner = False
         self._cache_reset()
@@ -550,18 +554,20 @@ class ServiceCache():
 
     def _connection_state_handler(self, connection, connection_state):
         if connection.is_connected(ConnectionState.REGISTRAR):
-            self._registrar_topic_out =  \
-                aiko.public.topic_path_registrar + "/out"
-            aiko.add_message_handler(
-                self.registrar_out_handler, self._registrar_topic_out
-            )
-            aiko.add_message_handler(
-                self.registrar_query_handler, _REGISTRAR_TOPIC_QUERY
-            )
-            aiko.public.message.publish(
-                aiko.public.topic_path_registrar + "/in",
-                f"(query {_REGISTRAR_TOPIC_QUERY} * * * *)"
-            )
+            if not self._begin_registration:
+                self._begin_registration = True
+                self._registrar_topic_out =  \
+                    aiko.public.topic_path_registrar + "/out"
+                aiko.add_message_handler(
+                    self.registrar_out_handler, self._registrar_topic_out
+                )
+                aiko.add_message_handler(
+                    self.registrar_query_handler, _REGISTRAR_TOPIC_QUERY
+                )
+                aiko.public.message.publish(
+                    aiko.public.topic_path_registrar + "/in",
+                    f"(query {_REGISTRAR_TOPIC_QUERY} * * * *)"
+                )
         else:
             if self._registrar_topic_out:
                 aiko.remove_message_handler(

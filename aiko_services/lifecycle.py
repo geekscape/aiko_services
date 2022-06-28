@@ -23,6 +23,10 @@
 # - PERFORMANCE: Why does LifeCycleClient creation on AikoDashboard appear
 #   so delayed / chunky ?  Where are the bottlenecks ?
 #
+# - BUG: LifeCycleManager and LifeCycleClient should handle degradation of
+#   network (ConnectionState changes) and/or lease expiring.  Should LCM
+#   recreate LCCs or terminate ?  Should LCC terminate ?
+#
 # - PRIORITY: Optionally replace ProcessManager with Ray to create Actor
 #
 # - Should be able to create LifeCycleClients as either separate processes
@@ -89,7 +93,6 @@ class LifeCycleManager(Protocol):
     Interface.implementations["LifeCycleManager"] =  \
         "aiko_services.lifecycle.LifeCycleManagerImpl"
 
-# TODO: Mustn't return "client_id" value !
     @abstractmethod
     def lcm_create_client(self, parameters={}):
         """Public method for creating clients
@@ -158,7 +161,6 @@ class LifeCycleManagerImpl(LifeCycleManager, LifeCycleManagerPrivate):
         if self.lcm_ec_producer is not None:
             self.lcm_ec_producer.update("lifecycle_manager_clients_active", 0)
 
-# TODO: Mustn't return "client_id" value !
     def lcm_create_client(self, parameters={}):
         client_id = self.lcm_client_count
         self.lcm_client_count += 1
@@ -167,7 +169,6 @@ class LifeCycleManagerImpl(LifeCycleManager, LifeCycleManagerPrivate):
             self.lcm_handshake_lease_time, client_id,
             lease_expired_handler=self._lcm_handshake_lease_expired_handler)
         self.lcm_handshakes[client_id] = handshake
-        return client_id
 
     def lcm_delete_client(self, client_id):
         if client_id not in self.lcm_deletion_leases:
@@ -320,15 +321,13 @@ class LifeCycleClient(Protocol):
     Interface.implementations["LifeCycleClient"] =  \
         "aiko_services.lifecycle.LifeCycleClientImpl"
 
-# TODO: Mustn't return "LifeCycleManager topic" value !
-    #@protocol
-    @abstractmethod
-    def lcc_get_lifecycle_manager_topic(self):
-        pass
-
 class LifeCycleClientPrivate(Interface):
     Interface.implementations["LifeCycleClientPrivate"] =  \
         "aiko_services.lifecycle.LifeCycleClientImpl"
+
+    @abstractmethod
+    def _lcc_get_lifecycle_manager_topic(self):
+        pass
 
     @abstractmethod
     def _lcc_lifecycle_manager_change_handler(self, command, service_details):
@@ -338,32 +337,33 @@ class LifeCycleClientImpl(LifeCycleClient, LifeCycleClientPrivate):
     def __init__(
         self, implementations, client_id, lifecycle_manager_topic, ec_producer):
 
+        self.lcc_added_to_lcm = False
         self.lcc_client_id = client_id
         self.lcc_ec_producer = ec_producer
         self.lcc_ec_producer.update(
             "lifecycle_client.lifecycle_manager_topic", lifecycle_manager_topic)
         aiko.public.connection.add_handler(self._lcc_connection_handler)
 
-# TODO: Mustn't return "LifeCycleManager topic" value !
-    def lcc_get_lifecycle_manager_topic(self):
+    def _lcc_get_lifecycle_manager_topic(self):
         return self.lcc_ec_producer.get("lifecycle_client.lifecycle_manager_topic")
 
     def _lcc_connection_handler(self, connection, connection_state):
         if connection.is_connected(ConnectionState.REGISTRAR):
-            lifecycle_manager_topic = self.lcc_get_lifecycle_manager_topic()
-            topic = f"{lifecycle_manager_topic}/control"
-            payload_out = "(add_client "                \
-                          f"{aiko.public.topic_path} "  \
-                          f"{self.lcc_client_id})"
-            aiko.public.message.publish(topic, payload_out)
+            if not self.lcc_added_to_lcm:
+                lifecycle_manager_topic = self._lcc_get_lifecycle_manager_topic()
+                topic = f"{lifecycle_manager_topic}/control"
+                payload_out = "(add_client "                \
+                              f"{aiko.public.topic_path} "  \
+                              f"{self.lcc_client_id})"
+                aiko.public.message.publish(topic, payload_out)
+                self.lcc_added_to_lcm = True
 
-
-            # Add handler for LifeCycleManager removal from registrar
-            topic_paths = [lifecycle_manager_topic]
-            filter = ServiceFilter(topic_paths, "*", "*", "*", "*")
-            self.lcc_actor_discovery = ActorDiscovery() # TODO: Use ServiceDiscovery
-            self.lcc_actor_discovery.add_handler(
-                self._lcc_lifecycle_manager_change_handler, filter)
+                # Add handler for LifeCycleManager removal from registrar
+                topic_paths = [lifecycle_manager_topic]
+                filter = ServiceFilter(topic_paths, "*", "*", "*", "*")
+                self.lcc_actor_discovery = ActorDiscovery() # TODO: Use ServiceDiscovery
+                self.lcc_actor_discovery.add_handler(
+                    self._lcc_lifecycle_manager_change_handler, filter)
 
     def _lcc_lifecycle_manager_change_handler(self, command, service_details):
         pass
