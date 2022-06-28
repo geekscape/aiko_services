@@ -406,7 +406,7 @@ class TestLifeCycleClientImpl(TestLifeCycleClient):
 def main():
     pass
 
-@main.command(help=("LifeCycleManager Actor"))
+@main.command(help="LifeCycleManager Actor")
 @click.argument("count", default=1)
 def manager(count):
     actor_name = f"{aiko.public.topic_path}.{ACTOR_TYPE_LIFECYCLE_MANAGER}"
@@ -415,7 +415,7 @@ def manager(count):
     lifecycle_manager = compose_instance(TestLifeCycleManagerImpl, init_args)
     lifecycle_manager.run()
 
-@main.command(help=("LifeCycleClient Actor"))
+@main.command(help="LifeCycleClient Actor")
 @click.argument("client_id", default=None)
 @click.argument("lifecycle_manager_topic", default=None)
 def client(client_id, lifecycle_manager_topic):

@@ -94,7 +94,7 @@ class AlohaHonuaImpl(AlohaHonua):
 
 # --------------------------------------------------------------------------- #
 
-@click.command("main", help=("Hello World Actor"))
+@click.command("main", help="Hello World Actor")
 @click.argument("test_value", nargs=1, default=0, required=False)
 def main(test_value):
     actor_name = f"{aiko.public.topic_path}.{ACTOR_TYPE}"  # WIP: Actor name

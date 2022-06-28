@@ -55,7 +55,7 @@ class TestMQTTImpl(TestMQTT):
         else:
             _LOGGER.debug(f"{command}: {service_details}")
 
-@click.command("main", help=("Transport MQTT Test Actor"))
+@click.command("main", help="Transport MQTT Test Actor")
 def main():
     actor_name = f"{aiko.public.topic_path}.{ACTOR_TYPE}"  # WIP: Actor name
     aiko.add_tags([f"actor={actor_name}"])  # WIP: Actor name
