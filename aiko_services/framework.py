@@ -131,12 +131,13 @@ def logger(
     logging_handler_class=LoggingHandlerMQTT,
     topic=public.topic_log):
 
-    log_mqtt_env = os.environ.get("LOG_MQTT", False)
+    log_mqtt_env = os.environ.get("LOG_MQTT", None)
     if log_mqtt_env:
         logging_handler = logging_handler_class(public, topic)
-        aiko_logger = get_logger(name, logging_handler, log_mqtt_env)
+        aiko_logger = get_logger(name, log_mqtt_env, logging_handler)
     else:
-        aiko_logger = get_logger(name)
+        log_level_env = os.environ.get("LOG_LEVEL", None)
+        aiko_logger = get_logger(name, log_level_env)
     return aiko_logger
 
 _LOGGER = logger(__name__)

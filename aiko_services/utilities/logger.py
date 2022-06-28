@@ -112,7 +112,7 @@ def get_log_level_name(logger):
         level_name = _LEVEL_NAMES[log_level]
     return level_name
 
-def get_logger(name: str, logging_handler=None, log_level=None) -> Any:
+def get_logger(name: str, log_level=None, logging_handler=None) -> Any:
 #   logging.basicConfig(filename="aiko.log")
     name = name.rpartition('.')[-1].upper()
 #   print(f"Create logger {name}")  # logging.debug()
@@ -121,8 +121,7 @@ def get_logger(name: str, logging_handler=None, log_level=None) -> Any:
         formatter = logging.Formatter(_LOG_FORMAT, datefmt=_LOG_FORMAT_DATE)
         logger.addHandler(logging_handler)
         logging_handler.setFormatter(formatter)
-        if log_level:
-            logger.setLevel(log_level)
+    logger.setLevel(log_level if log_level else "INFO")
     return logger
 
 # -----------------------------------------------------------------------------
