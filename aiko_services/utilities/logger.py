@@ -84,7 +84,7 @@ _LEVEL_NAMES = {
 _LOGGING_HANDLERS_THIRD_PARTY = [
     "asyncio", "matplotlib", "MESSAGE", "MQTT", "PIL.PngImagePlugin",
     "shapely.geos", "sgqlc.endpoint", "STATE", "transitions.core",
-    "websockets.protocol"
+    "urllib3", "websockets.protocol"
 ]
 
 for logging_handler in _LOGGING_HANDLERS_THIRD_PARTY:
