@@ -73,7 +73,7 @@ def on_task_stop(aiko_):
 @click.command()
 @click.option("--pipeline", nargs=4, type=str)
 def main(pipeline):
-    aiko.set_protocol(PROTOCOL)
+    aiko.set_protocol(PROTOCOL)  # TODO: Move into service.py
     aiko.add_message_handler(on_message)
     aiko.add_stream_handlers(on_task_start, on_stream_frame, on_task_stop)
     aiko.process(pipeline)

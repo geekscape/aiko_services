@@ -80,6 +80,10 @@ from .process_manager import (
     ProcessManager
 )
 
+from .lifecycle import (
+    LifeCycleClient, LifeCycleManager
+)
+
 from .registrar import *
 
 # from .cli import *

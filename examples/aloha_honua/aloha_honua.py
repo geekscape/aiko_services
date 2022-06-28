@@ -54,8 +54,8 @@ class AlohaHonua(Actor):
 
 class AlohaHonuaImpl(AlohaHonua):
     def __init__(self, implementations, actor_name, test_value=0):
-        implementations["Actor"].__init__(self, actor_name)
-        aiko.set_protocol(PROTOCOL)  # TODO: Move into actor.py
+        implementations["Actor"].__init__(self, implementations, actor_name)
+        aiko.set_protocol(PROTOCOL)  # TODO: Move into service.py
 
         self.state = {
             "lifecycle": "initialize",
