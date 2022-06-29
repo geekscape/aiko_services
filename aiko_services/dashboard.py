@@ -59,6 +59,7 @@
 
 import click
 from collections import defaultdict, deque
+from subprocess import Popen
 import xerox  # Clipboard support
 
 from asciimatics.event import KeyboardEvent
@@ -104,6 +105,13 @@ class FrameCommon:
         self._nice_colors["selected_focus_field"] = (GREEN, FONT_BOLD, BLACK)
         self._nice_colors["title"] = (BLACK, FONT_BOLD, WHITE)
 
+    def _kill_service(self, service_topic):
+        if service_topic.count("/") == 2:
+            pid = service_topic[(service_topic.rfind("/") + 1):]
+            if pid.isnumeric():
+                command_line = ["kill", "-9", pid]
+                Popen(command_line, bufsize=0, shell=False)
+
     @property
     def frame_update_count(self):
         return 4  # assuming 20 FPS, then refresh screen at 5 Hz
@@ -116,6 +124,7 @@ class FrameCommon:
                 message =" Help\n ----\n"  \
                          " c:     Copy topic path to clipboard \n"  \
                          " D:     Show Dashboard page \n"  \
+                         " K:     Kill Service \n"  \
                          " L:     Show Log page \n"  \
                          " Tab:   Move to next section \n"  \
                          " Enter: Update variable value "
@@ -304,7 +313,9 @@ class DashboardFrame(FrameCommon, Frame):
         if isinstance(event, KeyboardEvent):
             if event.key_code in [ord("c")] and _SERVICE_SELECTED:
                 xerox.copy(_SERVICE_SELECTED[0])
-            if event.key_code in [ord("L")]:
+            if event.key_code in [ord("K")] and _SERVICE_SELECTED:
+                self._kill_service(_SERVICE_SELECTED[0])
+            if event.key_code in [ord("L")] and _SERVICE_SELECTED:
                 raise NextScene("Log")
         self._process_event_common(event)
         return super(DashboardFrame, self).process_event(event)
