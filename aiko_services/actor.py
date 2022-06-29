@@ -161,7 +161,7 @@ class ActorImpl(Actor):
         try:
             aiko.process()
         except Exception as exception:
-            _LOGGER.error(f"Exception caught in {self.__class__.__name__}: {type(exception).__name__}: {exception}")
+        #   _LOGGER.error(f"Exception caught in {self.__class__.__name__}: {type(exception).__name__}: {exception}")
             _LOGGER.error(traceback.format_exc())
             raise exception
         self.running = False

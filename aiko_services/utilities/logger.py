@@ -121,6 +121,8 @@ def get_logger(name: str, log_level=None, logging_handler=None) -> Any:
         formatter = logging.Formatter(_LOG_FORMAT, datefmt=_LOG_FORMAT_DATE)
         logger.addHandler(logging_handler)
         logging_handler.setFormatter(formatter)
+    if log_level == "DEBUG_ALL":
+        log_level="DEBUG"
     logger.setLevel(log_level if log_level else "INFO")
     return logger
 

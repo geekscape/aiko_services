@@ -625,7 +625,14 @@ class ServiceCache():
     def run(self):
         if self._event_loop_start and not event.event_loop_running:
             self._event_loop_owner = True
-            aiko.process()
+            diagnostic = None
+            try:
+                aiko.process()
+            except ConnectionResetError:
+                diagnostic = "Error: MQTT Connection Reset: Incorrect configuration or security credentials ?"
+            if diagnostic:
+                _LOGGER.error(diagnostic)
+                raise ValueError(diagnostic)  # TODO: Provide stack trackback ?
 
     def terminate(self):
         if self._event_loop_owner:

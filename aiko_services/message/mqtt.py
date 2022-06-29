@@ -1,5 +1,7 @@
 # To Do
 # ~~~~~
+# - Allow default MQTT_HOST and MQTT_PORT to be overridden by CLI parameters
+#
 # - BUG: If on MQTT thread, then if waiting for a condition to change that
 #   depends upon an incoming message, then wait will timeout, because that
 #   incoming message can't be processed.
@@ -18,7 +20,6 @@
 #       e.g not self.connected, self.connected and self.published
 #
 # - Implement message to change logging level !
-# - Allow default MQTT_HOST and MQTT_PORT to be overridden by CLI parameters
 # - Implement reconnect on disconnection from MQTT server
 #   - Maybe raise an exception if reconnection fails, rather than sys.exit(-1)
 # - Implement discovery and manual setting of AIKO_MQTT_HOST, etc
@@ -35,12 +36,8 @@ from aiko_services.utilities import *
 
 __all__ = ["MQTT"]
 
-MQTT_HOST = "localhost"
-# MQTT_HOST = "202.130.215.177"  # "lounge.local"
-# MQTT_HOST = "zeus.silverpond.com.au"
 # MQTT_HOST = "mqtt.fluux.io"
 # MQTT_HOST = "test.mosquitto.org"
-MQTT_PORT = 1883
 
 _LOGGER = logger.get_logger(__name__)  # deliberately don't use aiko.logger
 _MAXIMUM_WAIT_TIME = 2000  # milliseconds
@@ -66,7 +63,20 @@ class MQTT(Message):
         self.wildcard_topic = False
         self.wildcard_subscribed = False
         self.subscribe(topics_subscribe)
-        self._connect(lwt_topic, lwt_payload, lwt_retain)
+
+        mqtt_configuration = get_mqtt_configuration()
+        self.mqtt_host = mqtt_configuration[0]
+        self.mqtt_port = mqtt_configuration[1]
+        self.mqtt_username = mqtt_configuration[2]
+        self.mqtt_password = mqtt_configuration[3]
+        self.mqtt_tls_enabled = mqtt_configuration[4]
+        tls_state = "TLS enabled" if self.mqtt_tls_enabled else "TLS disabled"
+        self.mqtt_info = f"{self.mqtt_host}:{self.mqtt_port}:{tls_state}"
+
+        if self.mqtt_host:
+            self._connect(lwt_topic, lwt_payload, lwt_retain)
+        else:
+            _LOGGER.error(f"Error: Couldn't connect to MQTT server {self.mqtt_info}")
 
     def _connect(
         self: Any,
@@ -75,7 +85,7 @@ class MQTT(Message):
         lwt_retain: Any
         ) -> None:
 
-        _LOGGER.debug(f"connecting to {MQTT_HOST}")
+        _LOGGER.debug(f"connecting to {self.mqtt_info}")
         self.mqtt_client = mqtt.Client()
         self.mqtt_client.on_connect = self._on_connect
         self.mqtt_client.on_disconnect = self._on_disconnect
@@ -85,16 +95,24 @@ class MQTT(Message):
         if lwt_topic:
             self.mqtt_client.will_set(
                 lwt_topic, payload=lwt_payload, retain=lwt_retain)
+        if self.mqtt_tls_enabled:
+            self.mqtt_client.tls_set()
+        if self.mqtt_username:
+            self.mqtt_client.username_pw_set(
+                self.mqtt_username, self.mqtt_password)
+
+        diagnostic = None
         try:
             self.mqtt_client.connect(
-                host=MQTT_HOST, port=MQTT_PORT, keepalive=60)
+                host=self.mqtt_host, port=self.mqtt_port, keepalive=60)
             self.mqtt_client.loop_start()
         except ConnectionRefusedError:
-            diagnostic = f"Error: Couldn't connect to MQTT server {MQTT_HOST}"
+            diagnostic = f"Error: Couldn't connect to MQTT server {self.mqtt_info}"
+        if diagnostic:
             raise SystemError(diagnostic)
 
     def _disconnect(self: Any) -> None:
-        _LOGGER.debug(f"disconnect from {MQTT_HOST}")
+        _LOGGER.debug(f"disconnect from {self.mqtt_info}")
         self.wait_published()
         self.mqtt_client.loop_stop()
         self.mqtt_client.disconnect() # Note: Does not cause the LWT to be sent
@@ -110,7 +128,7 @@ class MQTT(Message):
         result_code: Any
         ) -> None:
 
-        _LOGGER.debug(f"connected to {MQTT_HOST}")
+        _LOGGER.debug(f"connected to {self.mqtt_info}")
         self.connected = True
         self._subscribe_if_connected(self.topics_subscribe)
 
@@ -182,11 +200,11 @@ class MQTT(Message):
                 if not self.wildcard_subscribed:
                     self.mqtt_client.subscribe("#")
                     self.wildcard_subscribed = True
-                    _LOGGER.debug(f"subscribed to {MQTT_HOST}: #")
+                    _LOGGER.debug(f"subscribed to {self.mqtt_info}: #")
             elif topics:
                 for topic in topics:
                     self.mqtt_client.subscribe(topic)
-                    _LOGGER.debug(f"subscribed to {MQTT_HOST}: {topic}")
+                    _LOGGER.debug(f"subscribed to {self.mqtt_info}: {topic}")
 
     def unsubscribe(self: Any, topics: Any, remove=True) -> None:
         if topics:
@@ -201,14 +219,14 @@ class MQTT(Message):
                         if self.wildcard_subscribed:
                             self.mqtt_client.unsubscribe("#")
                             self.wildcard_subscribed = False
-                            _LOGGER.debug(f"unsubscribed from {MQTT_HOST}: #")
+                            _LOGGER.debug(f"unsubscribed from {self.mqtt_info}: #")
                         self._subscribe_if_connected(self.topics_subscribe)
                 elif topic in self.topics_subscribe:
                     if remove:
                         self.topics_subscribe.remove(topic)
                     if self.connected:
                         self.mqtt_client.unsubscribe(topic)
-                        _LOGGER.debug(f"unsubscribed from {MQTT_HOST}: {topic}")
+                        _LOGGER.debug(f"unsubscribed from {self.mqtt_info}: {topic}")
 
 # TODO: Only wait a limited time and either carry on without failing ...
 #       or fail and choose to reconnect to MQTT

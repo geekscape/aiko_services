@@ -5,7 +5,8 @@
 # - None, yet !
 
 from .configuration import (
-    get_hostname, get_namespace, get_pid, get_username
+    get_hostname, get_mqtt_configuration, get_mqtt_host, get_mqtt_port,
+    get_namespace, get_pid, get_username
 )
 
 from .context import (

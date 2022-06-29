@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-#
 # Usage
 # ~~~~~
 # import lru_cache
