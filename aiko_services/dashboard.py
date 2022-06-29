@@ -20,6 +20,13 @@
 # ~~~~~
 # * BUG: Dashboard isn't terminating ECConsumer lease extend timer :(
 #
+# - BUG: If currently selected Service terminates, then Dashboard doesn't
+#        update selected Service's veriables section
+#
+# - BUG: Dashboard "Kill Service" command assumes running on same system
+#        as the Service.  Should send "terminate" MQTT message to the
+#        Service.  Or find a ProcessManager running on the correct host ?
+#
 # * FIX: Whenever DashboardFrame or LogFrame is destroyed and recreated
 #        due to ResizeScreenError, all handlers need to be removed.
 #        Provide DashboardFrame.cleanup() and LogFrame.cleanup(),
@@ -105,13 +112,6 @@ class FrameCommon:
         self._nice_colors["selected_focus_field"] = (GREEN, FONT_BOLD, BLACK)
         self._nice_colors["title"] = (BLACK, FONT_BOLD, WHITE)
 
-    def _kill_service(self, service_topic):
-        if service_topic.count("/") == 2:
-            pid = service_topic[(service_topic.rfind("/") + 1):]
-            if pid.isnumeric():
-                command_line = ["kill", "-9", pid]
-                Popen(command_line, bufsize=0, shell=False)
-
     @property
     def frame_update_count(self):
         return 4  # assuming 20 FPS, then refresh screen at 5 Hz
@@ -156,9 +156,8 @@ class DashboardFrame(FrameCommon, Frame):
             name="AikoServices Dashboard"
         )
         self.ec_consumer = None
-        self.service_cache = {}
+        self._ec_consumer_reset()
         self.service_history = deque(maxlen=_HISTORY_RING_BUFFER_SIZE)
-        self.service_tags = None
         self.services_row = -1
 
         self.services_cache = service_cache_create_singleton(True)
@@ -197,28 +196,44 @@ class DashboardFrame(FrameCommon, Frame):
         self.fix()  # Prepare Frame for use
         self._value_width = self._service_widget.width - 16
 
-    def _on_change_services(self):
+    def _ec_consumer_set(self, index):
         global _SERVICE_SELECTED
-        row = self._services_widget.value
-        if row != self.services_row:
-            if self.ec_consumer:
-                self.ec_consumer.terminate()
-                self.ec_consumer = None
-                self.service_cache = {}
-                self.service_tags = None
+        self._ec_consumer_reset()
+        self.services_row = -1
+        _SERVICE_SELECTED = None
 
-            self.services_row = row
-            services_topics = self.services_cache.get_services_topics()
-            _SERVICE_SELECTED = None
-            if len(services_topics) > 0:
-                service_topic_path = services_topics[row]
-                services = self.services_cache.get_services()
-                _SERVICE_SELECTED = services[service_topic_path]
-                self.service_tags = _SERVICE_SELECTED[4]
-                if aiko.match_tags(self.service_tags, ["ecproducer=true"]):
-                    topic_control = f"{service_topic_path}/control"
-                    self.ec_consumer = ECConsumer(
-                        0, self.service_cache, topic_control)
+        services_topics = self.services_cache.get_services_topics()
+        if len(services_topics) > index:
+            self.services_row = index
+            service_topic_path = services_topics[index]
+            services = self.services_cache.get_services()
+            _SERVICE_SELECTED = services[service_topic_path]
+            self.service_tags = _SERVICE_SELECTED[4]
+            if aiko.match_tags(self.service_tags, ["ecproducer=true"]):
+                topic_control = f"{service_topic_path}/control"
+                self.ec_consumer = ECConsumer(
+                    0, self.service_cache, topic_control)
+
+    def _ec_consumer_reset(self):
+        if self.ec_consumer:
+            self.ec_consumer.terminate()
+        self.ec_consumer = None
+        self.service_cache = {}
+        self.service_tags = None
+
+    def _kill_service(self, service_topic):
+        global _SERVICE_SELECTED
+        if service_topic.count("/") == 2:
+            pid = service_topic[(service_topic.rfind("/") + 1):]
+            if pid.isnumeric():
+                command_line = ["kill", "-9", pid]
+                Popen(command_line, bufsize=0, shell=False)
+                self._ec_consumer_set(self.services_row + 1)
+
+    def _on_change_services(self):
+        row = self._services_widget.value
+        if row is not None and row != self.services_row:
+            self._ec_consumer_set(row)
 
     def _on_select_variable(self):
         text_box = TextBox(1, None, None, False, False)
