@@ -3,13 +3,14 @@
 # AIKO_NAMESPACE=test
 # AIKO_MQTT_HOST=localhost
 # AIKO_MQTT_PORT=1883
+# AIKO_MQTT_TRANSPORT=tcp  # websockets
 # AIKO_USERNAME=username  # Specifying a username enables TLS (SSL)
 # AIKO_PASSWORD=password
 #
 # mqtt_configuration = get_mqtt_configuration(tls_enabled=True)
 #
 # Where mqtt_configuration is a tuple ...
-#     (mqtt_host, mqtt_port, username, password, tls_enabled)
+#     (mqtt_host, mqtt_port, mqtt_transport, username, password, tls_enabled)
 #
 # Resources
 # ~~~~~~~~~
@@ -34,12 +35,11 @@ __all__ = [
     "get_namespace", "get_pid", "get_username"
 ]
 
-# get_mqtt_configuration(): host, port, tls, username, password
-
 _AIKO_BOOTSTRAP_UDP_PORT = 4149
+_AIKO_MQTT_HOSTS = []  # List of host (name, port) to check for MQTT server
 _AIKO_MQTT_HOST = "localhost"
 _AIKO_MQTT_PORT = 1883
-_AIKO_MQTT_HOSTS = []  # List of host (name, port) to check for MQTT server
+_AIKO_MQTT_TRANSPORT = "tcp"
 _AIKO_NAMESPACE = "aiko"
 
 def _get_ip_address():
@@ -65,11 +65,12 @@ def get_hostname():
 
 def get_mqtt_configuration(tls_enabled=None):
     mqtt_host, mqtt_port = get_mqtt_host()
+    mqtt_transport = os.environ.get("AIKO_MQTT_TRANSPORT", _AIKO_MQTT_TRANSPORT)
     username = os.environ.get("AIKO_USERNAME", None)
     password = os.environ.get("AIKO_PASSWORD", None)
     if tls_enabled == None:
         tls_enabled = username is not None
-    return (mqtt_host, mqtt_port, username, password, tls_enabled)
+    return (mqtt_host, mqtt_port, mqtt_transport, username, password, tls_enabled)
 
 # Try in order ...
 # - Environment variables: AIKO_MQTT_HOST and AIKO_MQTT_PORT

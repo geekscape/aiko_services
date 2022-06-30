@@ -67,9 +67,10 @@ class MQTT(Message):
         mqtt_configuration = get_mqtt_configuration()
         self.mqtt_host = mqtt_configuration[0]
         self.mqtt_port = mqtt_configuration[1]
-        self.mqtt_username = mqtt_configuration[2]
-        self.mqtt_password = mqtt_configuration[3]
-        self.mqtt_tls_enabled = mqtt_configuration[4]
+        self.mqtt_transport = mqtt_configuration[2]
+        self.mqtt_username = mqtt_configuration[3]
+        self.mqtt_password = mqtt_configuration[4]
+        self.mqtt_tls_enabled = mqtt_configuration[5]
         tls_state = "TLS enabled" if self.mqtt_tls_enabled else "TLS disabled"
         self.mqtt_info = f"{self.mqtt_host}:{self.mqtt_port}:{tls_state}"
 
@@ -86,7 +87,7 @@ class MQTT(Message):
         ) -> None:
 
         _LOGGER.debug(f"connecting to {self.mqtt_info}")
-        self.mqtt_client = mqtt.Client()
+        self.mqtt_client = mqtt.Client(transport=self.mqtt_transport)
         self.mqtt_client.on_connect = self._on_connect
         self.mqtt_client.on_disconnect = self._on_disconnect
         self.mqtt_client.on_message = self.message_handler
