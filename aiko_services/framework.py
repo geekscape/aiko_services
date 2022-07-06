@@ -146,7 +146,7 @@ _LOGGER_MESSAGE = logger("MESSAGE")
 def add_message_handler(message_handler, topic):
     if not topic in private.message_handlers:
         private.message_handlers[topic] = []
-        if "+" in topic:
+        if ("#" in topic) or ("+" in topic):
             private.message_handlers_wildcard_topics.append(topic)
     private.message_handlers[topic].append(message_handler)
     if public.message:
@@ -234,28 +234,32 @@ def on_message(mqtt_client, userdata, message):
         print(traceback.format_exc())
 
 def topic_search(topic, topics):
-    found = topic in topics
-    topic_found = topic
+    if topic in topics:
+        topics_matched = [topic]
+    else:
+        topics_matched = []
 
-    if not found:
-        for wildcard_topic in private.message_handlers_wildcard_topics:
-            tokens = topic.split("/")
-            wildcard_tokens = wildcard_topic.split("/")
-            found = tokens[0] == wildcard_tokens[0] and  \
-                    tokens[-1] == wildcard_tokens[-1]
-            topic_found = wildcard_topic
-    return found, topic_found
+    for wildcard_topic in private.message_handlers_wildcard_topics:
+        tokens = topic.split("/")
+        wildcard_tokens = wildcard_topic.split("/")
+
+        if wildcard_tokens[-1] == "#":
+            if tokens[:-1] == wildcard_tokens[:-1]:
+                topics_matched.append(wildcard_topic)
+        elif tokens[0] == wildcard_tokens[0] and  \
+             tokens[-1] == wildcard_tokens[-1]:
+                topics_matched.append(wildcard_topic)
+    return topics_matched
 
 def message_queue_handler(message, _):
     payload_in = message.payload.decode("utf-8")
-    if _LOGGER_MESSAGE.isEnabledFor(logging.DEBUG):
-        _LOGGER_MESSAGE.debug(f"topic: {message.topic}, payload: {payload_in}")
+#   if _LOGGER_MESSAGE.isEnabledFor(logging.DEBUG):
+#       _LOGGER_MESSAGE.debug(f"topic: {message.topic}, payload: {payload_in}")
 
     message_handler_list = []
-    for topic in message.topic, "#":
-        found, topic_match =  topic_search(topic, private.message_handlers)
-        if found:
-            message_handler_list.extend(private.message_handlers[topic_match])
+    topics_matched = topic_search(message.topic, private.message_handlers)
+    for topic_match in topics_matched:
+        message_handler_list.extend(private.message_handlers[topic_match])
 
     if len(message_handler_list) > 0:
         for message_handler in message_handler_list:
