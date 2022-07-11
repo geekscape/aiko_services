@@ -18,6 +18,9 @@
 #
 # To Do
 # ~~~~~
+# * BUG: When Dashboard exits, must clean-up (unshared) the ECConsumer !
+#        Also, check that the ECProducer lease(s) expire as required
+#
 # * BUG: Dashboard isn't terminating ECConsumer lease extend timer :(
 #
 # - BUG: If currently selected Service terminates, then Dashboard doesn't
@@ -39,7 +42,6 @@
 #
 # - Selecting (mouse or tab key) Service allows ...
 #   - Toggle show/hide Services with specific field values (query * * * *)
-#   - Service to be terminated / killed ("k" key)
 #   - Subscribe to MQTT messages ("s" key) from topic (/#, /out, /state)
 #   - Publish MQTT message ("p" key) to topic (/#, /in, /control, ...)
 #
@@ -76,17 +78,13 @@ from asciimatics.exceptions import (
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
 from asciimatics.widgets import (
-    Frame, Label, Layout, MultiColumnListBox, PopUpDialog, TextBox, Widget
+    Frame, Label, Layout, MultiColumnListBox,
+    PopUpDialog, PopupMenu, TextBox, Widget
 )
 from asciimatics.widgets.utilities import THEMES
 
 from aiko_services import *
-
-BLACK = Screen.COLOUR_BLACK
-WHITE = Screen.COLOUR_WHITE
-GREEN = Screen.COLOUR_GREEN
-FONT_BOLD = Screen.A_BOLD
-FONT_NORMAL = Screen.A_NORMAL
+from aiko_services.utilities import *
 
 _HISTORY_RING_BUFFER_SIZE = 32
 _LOG_RING_BUFFER_SIZE = 128
@@ -94,23 +92,39 @@ _LOG_RING_BUFFER_SIZE = 128
 _SERVICE_SELECTED = None  # written by Dashboard._on_change_services()
 _SERVICE_SUBSCRIBED = None  # written by LogFrame._update() and process_event()
 
+BLACK = Screen.COLOUR_BLACK
+WHITE = Screen.COLOUR_WHITE
+GREEN = Screen.COLOUR_GREEN
+FONT_BOLD = Screen.A_BOLD
+FONT_NORMAL = Screen.A_NORMAL
+
+NICE_COLORS = defaultdict(lambda: (WHITE, FONT_NORMAL, BLACK))
+NICE_COLORS["focus_button"] = (GREEN, FONT_BOLD, BLACK)
+NICE_COLORS["selected_focus_field"] = (GREEN, FONT_BOLD, BLACK)
+NICE_COLORS["title"] = (BLACK, FONT_BOLD, WHITE)
+THEMES["nice"] = NICE_COLORS
+
+mqtt_configuration = get_mqtt_configuration()
+mqtt_host = mqtt_configuration[0]
+mqtt_port = mqtt_configuration[1]
+
+def _get_title(name):
+    return f"AikoServices {name}: {mqtt_host}:{mqtt_port}"
+
+def _update_ecproducer_variable(topic_path, name, value):
+    topic_path_control = topic_path + "/control"
+    payload_out = f"(update {name} {value})"
+    aiko.public.message.publish(topic_path_control, payload_out)
+
 class FrameCommon:
     def __init__(self, screen, height, width, has_border, name):
         super(FrameCommon, self).__init__(
             screen, height, width, has_border=has_border, name=name)
         self.adjust_palette_required = True
-        self._create_nice_colors()
-        THEMES["nice"] = self._nice_colors
 
     def _adjust_palette(self):
-        self.palette = self._nice_colors
+        self.palette = NICE_COLORS
         self.adjust_palette_required = False
-
-    def _create_nice_colors(self):
-        self._nice_colors = defaultdict(lambda: (WHITE, FONT_NORMAL, BLACK))
-        self._nice_colors["focus_button"] = (GREEN, FONT_BOLD, BLACK)
-        self._nice_colors["selected_focus_field"] = (GREEN, FONT_BOLD, BLACK)
-        self._nice_colors["title"] = (BLACK, FONT_BOLD, WHITE)
 
     @property
     def frame_update_count(self):
@@ -123,6 +137,7 @@ class FrameCommon:
             if event.key_code in [ord("?")]:
                 message =" Help\n ----\n"  \
                          " c:     Copy topic path to clipboard \n"  \
+                         " l:     Log level change\n"  \
                          " D:     Show Dashboard page \n"  \
                          " K:     Kill Service \n"  \
                          " L:     Show Log page \n"  \
@@ -153,8 +168,9 @@ class DashboardFrame(FrameCommon, Frame):
     def __init__(self, screen):
         super(DashboardFrame, self).__init__(
             screen, screen.height, screen.width, has_border=False,
-            name="AikoServices Dashboard"
+            name="dashboard_frame"
         )
+
         self.ec_consumer = None
         self._ec_consumer_reset()
         self.service_history = deque(maxlen=_HISTORY_RING_BUFFER_SIZE)
@@ -186,7 +202,8 @@ class DashboardFrame(FrameCommon, Frame):
         )
         layout_0 = Layout([1, 1])
         self.add_layout(layout_0)
-        layout_0.add_widget(Label("AikoServices Dashboard"), 0)
+        label_name = _get_title("Dashboard")
+        layout_0.add_widget(Label(label_name), 0)
         layout_0.add_widget(Label('Press "?" for help', align=">"), 1)
         layout_1 = Layout([1], fill_frame=True)
         self.add_layout(layout_1)
@@ -241,9 +258,8 @@ class DashboardFrame(FrameCommon, Frame):
 
         def _on_close(button_index):
             if button_index == 1:
-                topic = _SERVICE_SELECTED[0] + "/control"
-                payload_out = f"(update {variable_name} {text_box.value[0]})"
-                aiko.public.message.publish(topic, payload_out)
+                _update_ecproducer_variable(
+                    _SERVICE_SELECTED[0], variable_name, text_box.value[0])
 
         row = self._service_widget.value
         variable = self._service_widget.options[row]
@@ -328,6 +344,9 @@ class DashboardFrame(FrameCommon, Frame):
         if isinstance(event, KeyboardEvent):
             if event.key_code in [ord("c")] and _SERVICE_SELECTED:
                 xerox.copy(_SERVICE_SELECTED[0])
+            if event.key_code in [ord("l")] and _SERVICE_SELECTED:
+                self.scene.add_effect(LogLevelPopupMenu(
+                    self._screen, self._services_widget, _SERVICE_SELECTED[0]))
             if event.key_code in [ord("K")] and _SERVICE_SELECTED:
                 self._kill_service(_SERVICE_SELECTED[0])
             if event.key_code in [ord("L")] and _SERVICE_SELECTED:
@@ -339,7 +358,7 @@ class LogFrame(FrameCommon, Frame):
     def __init__(self, screen):
         super(LogFrame, self).__init__(
             screen, screen.height, screen.width, has_border=False,
-            name="AikoServices Log"
+            name="log_frame"
         )
         self.log_buffer = None
         self.topic_log = None
@@ -352,7 +371,8 @@ class LogFrame(FrameCommon, Frame):
         )
         layout_0 = Layout([1, 1])
         self.add_layout(layout_0)
-        layout_0.add_widget(Label("AikoServices Dashboard"), 0)
+        label_name = _get_title("Log")
+        layout_0.add_widget(Label(label_name), 0)
         layout_0.add_widget(Label('Press "?" for help', align=">"), 1)
         layout_1 = Layout([1], fill_frame=True)
         self.add_layout(layout_1)
@@ -400,6 +420,50 @@ class LogFrame(FrameCommon, Frame):
                 raise NextScene("Dashboard")
         self._process_event_common(event)
         return super(LogFrame, self).process_event(event)
+
+class LogLevelPopupMenu(PopupMenu):
+    def __init__(self, screen, parent_widget, service_selected):
+        self._screen = screen
+        self._parent_widget = parent_widget
+        self._service_selected = service_selected
+
+        menu_items = [
+            ("Cancel", self._parent_widget.focus),
+            ("Debug", self._button_handler),
+            ("Error", self._button_handler),
+            ("Info", self._button_handler),
+            ("Warning", self._button_handler)]
+        x = screen.width // 2 - 4
+        y = screen.height // 3
+
+        super().__init__(self._screen, menu_items, x, y)
+        self.palette = NICE_COLORS
+
+    def _button_handler(self):
+        log_level = self.focussed_widget.text.upper()
+        self._set_log_level(log_level)
+
+    def _set_log_level(self, log_level):
+        _update_ecproducer_variable(
+            self._service_selected, "log_level", log_level)
+        self._parent_widget.focus()
+
+    def process_event(self, event):
+        if isinstance(event, KeyboardEvent):
+            if _SERVICE_SELECTED:
+                if event.key_code in [ord("d")]:
+                    self._set_log_level("DEBUG")
+                    self._destroy()
+                elif event.key_code in [ord("e")]:
+                    self._set_log_level("ERROR")
+                    self._destroy()
+                elif event.key_code in [ord("i")]:
+                    self._set_log_level("INFO")
+                    self._destroy()
+                elif event.key_code in [ord("w")]:
+                    self._set_log_level("WARNING")
+                    self._destroy()
+        return super(LogLevelPopupMenu, self).process_event(event)
 
 def dashboard(screen, start_scene):
     scenes = [
