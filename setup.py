@@ -25,7 +25,7 @@ setup(
     install_requires=[
         "asciimatics>=1.14.0",
         "click>=7.0",
-        "networkx>=2.8.4",
+        "networkx<=2.8",
         "numpy>=1.19.1",
         "paho-mqtt>=1.6.1",
         "Pillow>=8.3.2",
