@@ -109,7 +109,8 @@ mqtt_host = mqtt_configuration[0]
 mqtt_port = mqtt_configuration[1]
 
 def _get_title(name):
-    return f"AikoServices {name}: {mqtt_host}:{mqtt_port}"
+    mqtt_host_short_name = mqtt_host.partition(".")[0]
+    return f"AikoServices {name}: {mqtt_host_short_name}:{mqtt_port}"
 
 def _update_ecproducer_variable(topic_path, name, value):
     topic_path_control = topic_path + "/control"
