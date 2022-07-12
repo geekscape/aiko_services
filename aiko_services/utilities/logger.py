@@ -12,8 +12,8 @@
 #
 # Usage: LoggingHandlerMQTT
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
-# LOG_LEVEL=DEBUG python  # without MQTT logging
-# LOG_MQTT=DEBUG python   # with MQTT logging
+# LOG_LEVEL=DEBUG python                 # with MQTT logging (default)
+# LOG_LEVEL=DEBUG LOG_MQTT=false python  # without MQTT logging
 #   from aiko_services import *
 #   _LOGGER = aiko.logger(__name__)
 #   _LOGGER.debug("hello")

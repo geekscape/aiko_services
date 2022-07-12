@@ -7,8 +7,8 @@
 # ~~~~~
 # LOG_LEVEL=INFO  # DEBUG
 # mosquitto_sub -t '#' -v
-# REGISTRAR=0   LOG_MQTT=$LOG_LEVEL registrar &
-# ALOHA_HONUA=0 LOG_MQTT=$LOG_LEVEL ./aloha_honua.py [test_value] &
+# REGISTRAR=0   LOG_LEVEL=$LOG_LEVEL registrar &
+# ALOHA_HONUA=0 LOG_LEVEL=$LOG_LEVEL ./aloha_honua.py [test_value] &
 #
 # NAMESPACE=aiko
 # HOST=localhost
