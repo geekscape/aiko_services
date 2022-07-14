@@ -38,8 +38,8 @@ __all__ = [
 _AIKO_BOOTSTRAP_UDP_PORT = 4149
 _AIKO_MQTT_HOSTS = []  # List of host (name, port) to check for MQTT server
 _AIKO_MQTT_HOST = "localhost"
-_AIKO_MQTT_PORT = 1883
-_AIKO_MQTT_TRANSPORT = "tcp"
+_AIKO_MQTT_PORT = 1883        # TCP/IP: 9883, WebSockets: 9884
+_AIKO_MQTT_TRANSPORT = "tcp"  # "websockets"
 _AIKO_NAMESPACE = "aiko"
 
 def _get_ip_address():
