@@ -2,9 +2,9 @@
 #
 # Usage
 # ~~~~~
-# LOG_LEVEL=DEBUG registrar
-# LOG_LEVEL=DEBUG ./share.py
-# LOG_LEVEL=DEBUG ./share.py ec_producer_pid
+# registrar
+# ./share.py
+# ./share.py ec_producer_pid
 #
 # mosquitto_sub -t '#' -v
 #
@@ -61,6 +61,7 @@
 #   does not send a remove message for the component
 
 import click
+import os
 
 from aiko_services import *
 from aiko_services.utilities import *
@@ -78,7 +79,9 @@ PROTOCOL_EC_CONSUMER = f"{AIKO_PROTOCOL_PREFIX}/ec_consumer:0"
 PROTOCOL_EC_PRODUCER = f"{AIKO_PROTOCOL_PREFIX}/ec_producer:0"
 
 _LEASE_TIME = 300  # seconds
-_LOGGER = aiko.logger(__name__)
+
+_AIKO_LOG_LEVEL_SHARE = os.environ.get("AIKO_LOG_LEVEL_SHARE", "INFO")
+_LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_SHARE)
 
 # --------------------------------------------------------------------------- #
 
@@ -674,11 +677,13 @@ def _create_ec_consumer(ec_producer_pid, filter="*"):
 
 def _create_ec_producer():
     state = {
-        "lifecycle": "initialize",
+        "lifecycle": "ready",
+        "log_level": get_log_level_name(_LOGGER),
         "services": {
             "topic_1": ["topic_1", "protocol_1", "transport", "owner_1", []],
             "topic_2": ["topic_2", "protocol_2", "transport", "owner_2", []]
-        }
+        },
+        "source_file": __file__
     }
 
     aiko.set_protocol(PROTOCOL_EC_PRODUCER)  # TODO: Move into service.py

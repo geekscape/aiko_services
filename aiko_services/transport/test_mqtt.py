@@ -2,7 +2,7 @@
 #
 # Usage
 # ~~~~~
-# LOG_LEVEL=DEBUG ./test_mqtt.py
+# ./test_mqtt.py
 #
 # TODO: ./test_mqtt.py create
 # TODO: ./test_mqtt.py delete

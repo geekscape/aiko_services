@@ -5,15 +5,15 @@
 #
 # Usage: Logger
 # ~~~~~~~~~~~~~
-# LOG_LEVEL=DEBUG python
+# AIKO_LOG_LEVEL=DEBUG python
 #   from aiko_services.utilities import *
 #   _LOGGER = get_logger(__name__)
 #   _LOGGER.debug("Diagnostic message")
 #
 # Usage: LoggingHandlerMQTT
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
-# LOG_LEVEL=DEBUG python                 # with MQTT logging (default)
-# LOG_LEVEL=DEBUG LOG_MQTT=false python  # without MQTT logging
+# AIKO_LOG_LEVEL=DEBUG python   # with MQTT logging (default)
+# AIKO_LOG_MQTT=false python    # without MQTT logging
 #   from aiko_services import *
 #   _LOGGER = aiko.logger(__name__)
 #   _LOGGER.debug("hello")
@@ -32,11 +32,11 @@
 #
 # To Do: Logger
 # ~~~~~~~~~~~~~
-# - Turn "logger" into a Python class, nothing global !
+# - BUG: get_logger.info(message) doesn't display for AIKO_LOG_LEVEL=INFO
 #
-# - BUG: If LOG_LEVEL=DEBUG, then get_logger.debug(message) message may appear
-#     twice, but not if LOG_LEVEL=DEBUG_ALL
-# - BUG: get_logger.info(message) doesn't display for LOG_LEVEL=INFO
+# - Implement logging to a file (break into chunks by date/time or size)
+#
+# - Turn "logger" into a Python class, nothing global !
 #
 # - Set logging level and log file from command line argument
 #
@@ -53,13 +53,14 @@ from typing import Any
 from aiko_services.connection import ConnectionState
 from aiko_services.utilities import *
 
-__all__ = ["get_level_name", "get_logger", "LoggingHandlerMQTT"]
+__all__ = ["DEBUG", "get_level_name", "get_logger", "LoggingHandlerMQTT"]
 
-_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
-_LOG_FORMAT_DATE = "%Y-%m-%d_%H:%M:%S"
+DEBUG = logging.DEBUG
 
 _RING_BUFFER_SIZE=128
 
+_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
+_LOG_FORMAT_DATE = "%Y-%m-%d_%H:%M:%S"
 _CONFIGURATION = {
     "version": 1,
     "formatters": {
@@ -81,29 +82,10 @@ _LEVEL_NAMES = {
     logging.FATAL: "FATAL"       # 50
 }
 
-_LOGGING_HANDLERS_THIRD_PARTY = [
-    "asyncio", "matplotlib", "MQTT", "PIL.PngImagePlugin",
-    "shapely.geos", "sgqlc.endpoint", "STATE", "transitions.core",
-    "urllib3", "websockets.protocol"
-]
+AIKO_LOG_LEVEL = os.environ.get("AIKO_LOG_LEVEL", "INFO").upper()
 
-for logging_handler in _LOGGING_HANDLERS_THIRD_PARTY:
-    _CONFIGURATION["loggers"][logging_handler] = {
-            "handlers": ["h"],
-            "level": "INFO"
-    }
-
-_LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
-
-if _LOG_LEVEL == "DEBUG_ALL":
-    _LOG_LEVEL="DEBUG"
-    loggers = _CONFIGURATION["loggers"]
-    keys = [key for key, value in loggers.items() if value["level"] == "INFO"]
-    for key in keys:
-        del loggers[key]
-
-if _LOG_LEVEL == "DEBUG":
-    logging.config.dictConfig(_CONFIGURATION)
+# if AIKO_LOG_LEVEL == "INFO":
+#     logging.config.dictConfig(_CONFIGURATION)
 
 def get_log_level_name(logger):
     log_level = logger.level
@@ -112,17 +94,17 @@ def get_log_level_name(logger):
         level_name = _LEVEL_NAMES[log_level]
     return level_name
 
-def get_logger(name: str, log_level=None, logging_handler=None) -> Any:
-#   logging.basicConfig(filename="aiko.log")
+def get_logger(name: str, log_level="INFO", logging_handler=None) -> Any:
+#   print(f"Create logger {name}: {log_level}, {logging_handler}")
     name = name.rpartition('.')[-1].upper()
-#   print(f"Create logger {name}")  # logging.debug()
     logger = logging.getLogger(name)
+#   logging.basicConfig(filename="aiko.log")  # TODO: Implement logging to file
+
     if logging_handler:
-        formatter = logging.Formatter(_LOG_FORMAT, datefmt=_LOG_FORMAT_DATE)
         logger.addHandler(logging_handler)
+        formatter = logging.Formatter(_LOG_FORMAT, datefmt=_LOG_FORMAT_DATE)
         logging_handler.setFormatter(formatter)
-    if log_level == "DEBUG_ALL":
-        log_level="DEBUG"
+
     logger.setLevel(log_level if log_level else "INFO")
     return logger
 
@@ -159,8 +141,10 @@ class LoggingHandlerMQTT(logging.Handler):
         try:
             payload_out = self.format(record)
             if self.ready:
+                print(f"emit(): MQTT: {payload_out}")
                 self.aiko.message.publish(self.topic, payload_out)
             else:
+                print(f"emit(): ring_buffer: {payload_out}")
                 self.ring_buffer.append(payload_out)
             self.flush()
         except Exception:

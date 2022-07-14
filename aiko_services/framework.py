@@ -1,3 +1,11 @@
+# Usage
+# ~~~~~
+# When using AIKO_LOG_LEVEL=DEBUG for the framework or applications,
+# typically don't want to see low-level framework message debug log records.
+# In addition to AIKO_LOG_LEVEL=DEBUG, can also specify ...
+#
+#     AIKO_LOG_LEVEL_MESSAGE=DEBUG application parameters ...
+#
 # To Do
 # ~~~~~
 # * Support multiple Services per process, e.g Registrar and LifeCycleState
@@ -60,7 +68,6 @@
 
 # --------------------------------------------------------------------------- #
 
-import logging
 import os
 import sys
 import time
@@ -126,16 +133,19 @@ class public:
     topic_state = topic_path + "/state"
     transport = "mqtt"
 
-# TODO: LOG_MQTT == "both" means log to both MQTT and the console
-# TODO: Allow LOG_MQTT value to be changed on-the-fly (via ECProducer update)
+# TODO: AIKO_LOG_MQTT == "both" means log to both MQTT and the console
+# TODO: Allow AIKO_LOG_MQTT value to be changed on-the-fly (via ECProducer)
 
 def logger(
     name,
+    log_level=None,
     logging_handler_class=LoggingHandlerMQTT,
     topic=public.topic_log):
 
-    log_mqtt = os.environ.get("LOG_MQTT", "true") == "true"
-    log_level = os.environ.get("LOG_LEVEL", "INFO")
+    if log_level is None:
+        log_level = os.environ.get("AIKO_LOG_LEVEL", "INFO")
+
+    log_mqtt = os.environ.get("AIKO_LOG_MQTT", "true") == "true"
     if log_mqtt:
         logging_handler = logging_handler_class(public, topic)
         aiko_logger = get_logger(name, log_level, logging_handler)
@@ -143,8 +153,12 @@ def logger(
         aiko_logger = get_logger(name, log_level)
     return aiko_logger
 
-_LOGGER = logger(__name__)
-_LOGGER_MESSAGE = logger("MESSAGE")
+_AIKO_LOG_LEVEL_FRAMEWORK = os.environ.get("AIKO_LOG_LEVEL_FRAMEWORK", "INFO")
+_LOGGER = logger(__name__, log_level=_AIKO_LOG_LEVEL_FRAMEWORK)
+
+_AIKO_LOG_LEVEL_MESSAGE = os.environ.get("AIKO_LOG_LEVEL_MESSAGE", "INFO")
+_LOGGER_MESSAGE = logger(
+    f"{__name__}.message", log_level=_AIKO_LOG_LEVEL_MESSAGE)
 
 def add_message_handler(message_handler, topic):
     if not topic in private.message_handlers:
@@ -256,8 +270,8 @@ def topic_search(topic, topics):
 
 def message_queue_handler(message, _):
     payload_in = message.payload.decode("utf-8")
-#   if _LOGGER_MESSAGE.isEnabledFor(logging.DEBUG):
-#       _LOGGER_MESSAGE.debug(f"topic: {message.topic}, payload: {payload_in}")
+    if _LOGGER_MESSAGE.isEnabledFor(DEBUG):  # Save time
+        _LOGGER_MESSAGE.debug(f"topic: {message.topic}, payload: {payload_in}")
 
     message_handler_list = []
     topics_matched = topic_search(message.topic, private.message_handlers)

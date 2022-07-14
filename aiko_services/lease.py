@@ -23,13 +23,17 @@
 #   - Response (lease_rejected maximum_time 60
 #   - Response (lease_rejected no_resource memory)
 
+import os
+
 from aiko_services import *
 from aiko_services.utilities import *
 
 __all__ = ["Lease"]
 
 _LEASE_EXTEND_TIME_FACTOR = 0.8
-_LOGGER = aiko.logger(__name__)
+
+_AIKO_LOG_LEVEL_LEASE = os.environ.get("AIKO_LOG_LEVEL_LEASE", "INFO")
+_LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_LEASE)
 
 class Lease:
     def __init__(
@@ -50,7 +54,8 @@ class Lease:
         if self.automatic_extend:
             extend_time = self.lease_time * _LEASE_EXTEND_TIME_FACTOR
             event.add_timer_handler(self.extend, extend_time)
-    #   _LOGGER.debug(f"### Lease created: {lease_uuid}: time={lease_time}")
+        if _LOGGER.isEnabledFor(DEBUG):  # Save time
+            _LOGGER.debug(f"Lease created: {lease_uuid}: time={lease_time}")
 
     def extend(self, lease_time=None):
         if lease_time:
@@ -59,17 +64,20 @@ class Lease:
         event.add_timer_handler(self._lease_expired_timer, self.lease_time)
         if self.lease_extend_handler:
             self.lease_extend_handler(self.lease_time, self.lease_uuid)
-    #   _LOGGER.debug(
-    #       f"### Lease extended: {self.lease_uuid}, time={self.lease_time}")
+        if _LOGGER.isEnabledFor(DEBUG):  # Save time
+            _LOGGER.debug(
+                f"Lease extended: {self.lease_uuid}, time={self.lease_time}")
 
     def _lease_expired_timer(self):
         event.remove_timer_handler(self._lease_expired_timer)
         if self.lease_expired_handler:
             self.lease_expired_handler(self.lease_uuid)
-    #   _LOGGER.debug(f"### Lease expired: {self.lease_uuid}")
+        if _LOGGER.isEnabledFor(DEBUG):  # Save time
+            _LOGGER.debug(f"Lease expired: {self.lease_uuid}")
 
     def terminate(self):
         event.remove_timer_handler(self._lease_expired_timer)
         if self.automatic_extend:
             event.remove_timer_handler(self.extend)
-    #   _LOGGER.debug(f"### Lease terminated: {self.lease_uuid}")
+        if _LOGGER.isEnabledFor(DEBUG):  # Save time
+            _LOGGER.debug(f"Lease terminated: {self.lease_uuid}")

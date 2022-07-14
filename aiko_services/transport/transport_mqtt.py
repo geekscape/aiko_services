@@ -29,6 +29,8 @@ from aiko_services import *
 
 __all__ = ["TransportMQTT", "TransportMQTTImpl","ActorDiscovery"]
 
+_LOGGER = aiko.logger(__name__)
+
 class TransportMQTT(Actor):
     Interface.implementations["TransportMQTT"] =  \
         "aiko_services.transport.TransportMQTTImpl"

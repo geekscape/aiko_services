@@ -1,3 +1,13 @@
+# Usage
+# ~~~~~
+# Can't use utilities.logger.LoggingHandlerMQTT to diagnose this MQTT module !
+#
+# When using AIKO_LOG_LEVEL=DEBUG for the rest of framework or applications,
+# typically don't want to see low-level MQTT message debug log records.
+# Therefore, AIKO_LOG_LEVEL=DEBUG doesn't affect this MQTT module, instead use
+#
+#     AIKO_LOG_LEVEL_MQTT=DEBUG application parameters ...
+#
 # To Do
 # ~~~~~
 # - Allow default MQTT_HOST and MQTT_PORT to be overridden by CLI parameters
@@ -26,7 +36,7 @@
 #   - Rediscover on disconnection
 # - Implement destructor ?
 
-from logging import DEBUG
+import os
 import paho.mqtt.client as mqtt
 import time
 from typing import Any, List
@@ -39,11 +49,12 @@ __all__ = ["MQTT"]
 # MQTT_HOST = "mqtt.fluux.io"
 # MQTT_HOST = "test.mosquitto.org"
 
-_LOGGER = logger.get_logger(__name__)  # deliberately don't use aiko.logger
+_AIKO_LOG_LEVEL = os.environ.get("AIKO_LOG_LEVEL_MQTT", "INFO")
+_LOGGER = get_logger(__name__, log_level=_AIKO_LOG_LEVEL, logging_handler=None)
 _MAXIMUM_WAIT_TIME = 2000  # milliseconds
 
 def _on_message(mqtt_client: Any, userdata: Any, message: Any) -> None:
-    if _LOGGER.isEnabledFor(DEBUG):
+    if _LOGGER.isEnabledFor(DEBUG):  # Save time
         _LOGGER.debug(f"message: {message.topic}: {message.payload}")
 
 class MQTT(Message):

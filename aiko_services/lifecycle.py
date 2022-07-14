@@ -2,9 +2,9 @@
 #
 # Usage
 # ~~~~~
-# LOG_LEVEL=DEBUG ./lifecycle.py manager [client_count]
+# ./lifecycle.py manager [client_count]
 #
-# LOG_LEVEL=DEBUG ./lifecycle.py client client_id lifecycle_manager_topic
+# ./lifecycle.py client client_id lifecycle_manager_topic
 #
 # To Do: LifeCycleManager
 # ~~~~~~~~~~~~~~~~~~~~~~~
@@ -51,6 +51,7 @@
 
 from abc import abstractmethod
 import click
+import os
 import time
 from typing import Dict, List
 
@@ -68,7 +69,9 @@ PROTOCOL_LIFECYCLE_CLIENT = f"{AIKO_PROTOCOL_PREFIX}/lifecycleclient:0"
 
 _DELETION_LEASE_TIME_DEFAULT = 10
 _HANDSHAKE_LEASE_TIME_DEFAULT = 10  # seconds or 120 seconds for lots of clients
-_LOGGER = aiko.logger(__name__)
+
+_AIKO_LOG_LEVEL_LIFECYCLE = os.environ.get("AIKO_LOG_LEVEL_LIFECYCLE", "INFO")
+_LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_LIFECYCLE)
 
 #---------------------------------------------------------------------------- #
 
@@ -89,7 +92,7 @@ class LifeCycleClientDetails:
         self.ec_consumer = ec_consumer
         self.topic_path = topic_path
 
-class LifeCycleManager(Protocol):
+class LifeCycleManager(ServiceProtocol):
     Interface.implementations["LifeCycleManager"] =  \
         "aiko_services.lifecycle.LifeCycleManagerImpl"
 
@@ -156,7 +159,7 @@ class LifeCycleManagerImpl(LifeCycleManager, LifeCycleManagerPrivate):
         self.lcm_lifecycle_clients = {}
         aiko.add_message_handler(
             self._lcm_topic_control_handler, aiko.public.topic_control)
-        self.lcm_ec_producer.update("lifecycle_manager", {})
+        self.lcm_ec_producer.update("lifecycle_manager", {})  # TODO: Remove !
 
         if self.lcm_ec_producer is not None:
             self.lcm_ec_producer.update("lifecycle_manager_clients_active", 0)
@@ -280,7 +283,11 @@ class TestLifeCycleManagerImpl(TestLifeCycleManager):
         self.actor_count = actor_count
         aiko.set_protocol(PROTOCOL_LIFECYCLE_MANAGER) # TODO: Move into service.py
 
-        self.state = {"lifecycle": "initialize", "log_level": "info"}
+        self.state = {
+            "lifecycle": "ready",
+            "log_level": get_log_level_name(_LOGGER),
+            "source_file": __file__
+        }
         self.ec_producer = ECProducer(self.state)
         self.process_manager = ProcessManager()
 
@@ -317,7 +324,7 @@ class TestLifeCycleManagerImpl(TestLifeCycleManager):
 
 #---------------------------------------------------------------------------- #
 
-class LifeCycleClient(Protocol):
+class LifeCycleClient(ServiceProtocol):
     Interface.implementations["LifeCycleClient"] =  \
         "aiko_services.lifecycle.LifeCycleClientImpl"
 
@@ -379,7 +386,11 @@ class TestLifeCycleClientImpl(TestLifeCycleClient):
 
         implementations["Actor"].__init__(self, implementations, actor_name)
 
-        self.state = {"lifecycle": "initialize", "log_level": "info"}
+        self.state = {
+            "lifecycle": "ready",
+            "log_level": get_log_level_name(_LOGGER),
+            "source_file": __file__
+        }
         self.ec_producer = ECProducer(self.state)
 
         implementations["LifeCycleClient"].__init__(

@@ -18,7 +18,7 @@ from .importer import (
 )
 
 from .logger import (
-    get_log_level_name, get_logger, LoggingHandlerMQTT
+    DEBUG, get_log_level_name, get_logger, LoggingHandlerMQTT
 )
 
 from .lru_cache import (

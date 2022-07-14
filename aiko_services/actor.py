@@ -58,6 +58,7 @@
 # - State Machine
 
 from abc import abstractmethod
+import os
 import traceback
 
 from aiko_services import *
@@ -65,7 +66,8 @@ from aiko_services.utilities import *
 
 __all__ = ["Actor", "ActorImpl", "TestActor", "TestActorImpl"]
 
-_LOGGER = aiko.logger(__name__)
+_AIKO_LOG_LEVEL_ACTOR = os.environ.get("AIKO_LOG_LEVEL_ACTOR", "INFO")
+_LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_ACTOR)
 
 class LifeCycleClient:  # Interface
     pass
@@ -81,7 +83,8 @@ class Message:
         return f"Message: {self.command}({str(self.arguments)[1:-1]})"
 
     def invoke(self):
-    #   _LOGGER.debug(f"### Invoke: {self} ###")
+        if _LOGGER.isEnabledFor(DEBUG):  # Save time
+            _LOGGER.debug(f"Actor Message.invoke(): {self} ###")
         target_function = self.target_function
         if not target_function:
             try:
@@ -102,8 +105,7 @@ class Message:
             else:
                 diagnostic = f"{self}: isn't callable"
         if diagnostic:
-            _LOGGER.error(diagnostic)
-        #   raise RuntimeError(diagnostic)
+            _LOGGER.error(diagnostic)  # Was ... raise RuntimeError(diagnostic)
 
 class Topic:
     # Application topics
