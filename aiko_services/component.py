@@ -1,9 +1,9 @@
 # Usage
 # ~~~~~
-# from abc import ABCMeta, abstractmethod
+# from abc import abstractmethod
 # from aiko_services import *
 #
-# class Example(Interface, metaclass=ABCMeta):
+# class Example(Interface):
 #     Interface.implementations["Example"] = "__main__.ExampleImpl"
 #
 #     @abstractmethod
@@ -22,6 +22,8 @@
 #
 # To Do
 # ~~~~~
+# - BUG: _check_interfaces_implemented() working correctly ?
+#
 # - Support composing a class once and using it to create multiple instances
 #
 # - "impl_seed_class.implementations" always picks up all the AikoServices
@@ -30,17 +32,17 @@
 # - Design "protocol" (Interface hieracrchy) for inbound and outbound methods
 #   - Different Interfaces may optionally have different "connection pads"
 
-from abc import ABCMeta
+from abc import ABC
 from inspect import getmembers, isclass, isfunction
 
 from aiko_services.utilities import *
 
-__all__ = ["Interface", "Protocol", "compose_class", "compose_instance"]
+__all__ = ["Interface", "ServiceProtocol", "compose_class", "compose_instance"]
 
-class Interface(metaclass=ABCMeta):
+class Interface(ABC):
     implementations = {}
 
-class Protocol(Interface):
+class ServiceProtocol(Interface):
     """Interface marker representing an Aiko Service protocol"""
 
 def compose_class(impl_seed_class, impl_overrides={}):
@@ -112,7 +114,7 @@ def _check_interfaces_implemented(cls, implementations):
     unimplemented_interfaces = []
     for ancestor in cls.__mro__:
         if _is_interface(ancestor) and  \
-            ancestor not in {Interface, Protocol, object}:
+            ancestor not in {ABC, Interface, ServiceProtocol, object}:
 
             if not ancestor.__name__ in implementations:
                 unimplemented_interfaces.append(ancestor.__name__)
@@ -179,7 +181,7 @@ def _update_abstractmethods(cls):
     This function should be called before any use is made of the class,
     usually in class decorators that add methods to the subject class.
     Returns cls, to allow usage as a class decorator.
-    If cls is not an instance of ABCMeta, does nothing.
+    If cls is not an instance of ABC, does nothing.
     """
     if not hasattr(cls, '__abstractmethods__'):
         # We check for __abstractmethods__ here because cls might by a C

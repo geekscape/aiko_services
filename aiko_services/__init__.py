@@ -10,12 +10,12 @@ from .connection import (
     ConnectionState, Connection
 )
 
+import aiko_services.event as event     # TODO: Remove this
+import aiko_services.framework as aiko  # TODO: Remove this
+
 from .state import (
     StateMachine
 )
-
-import aiko_services.event as event     # TODO: Remove this
-import aiko_services.framework as aiko  # TODO: Remove this
 
 from .event import (
     add_flatout_handler, add_mailbox_handler,
@@ -35,7 +35,7 @@ from .proxy import (
 )
 
 from .component import (
-    Interface, Protocol, compose_class, compose_instance
+    Interface, ServiceProtocol, compose_class, compose_instance
 )
 
 from .stream import (
