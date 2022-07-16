@@ -1,44 +1,53 @@
 # Notes
 # ~~~~~
-# This is a low-level mechanism, used by the AikoServices framework
-# and should not have any static dependencies on that framework
+# This is a low-level utility used by the AikoServices framework, so be
+# careful when making static dependencies on the AikoServices framework.
 #
-# Usage: Logger
-# ~~~~~~~~~~~~~
-# AIKO_LOG_LEVEL=DEBUG python
-#   from aiko_services.utilities import *
+# Python's "logging" package is NOT intuitive :(
+# https://docs.python.org/3/library/logging.html
+# https://stackoverflow.com/questions/43109355/logging-setlevel-is-being-ignored
+#
+# Typical usage: Aiko and LoggingHandlerMQTT
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# AIKO_LOG_LEVEL=INFO python                      # MQTT logging (default)
+# AIKO_LOG_LEVEL=INFO AIKO_LOG_MQTT=false python  # Console logging
+#   from aiko_services import *
+#   _LOGGER = aiko.logger(__name__)
+#   _LOGGER.info("Informative message")
+#   aiko.process(True)  # Required for MQTT based logging
+#
+# Direct usage: Standalone Logger
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# AIKO_LOG_LEVEL=DEBUG python  # AIKO_LOG_LEVEL=INFO (default)
+#   from aiko_services.utilities import get_logger
 #   _LOGGER = get_logger(__name__)
 #   _LOGGER.debug("Diagnostic message")
 #
-# Usage: LoggingHandlerMQTT
-# ~~~~~~~~~~~~~~~~~~~~~~~~~
-# AIKO_LOG_LEVEL=DEBUG python   # with MQTT logging (default)
-# AIKO_LOG_MQTT=false python    # without MQTT logging
-#   from aiko_services import *
-#   _LOGGER = aiko.logger(__name__)
-#   _LOGGER.debug("hello")
-#   aiko.process(True)
+# Usage: Change logging level on-the-fly using ECProducer
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# from aiko_services import *
+# from aiko_services.utilities import *
+# _LOGGER = aiko.logger(__name__)
 #
-# Usage: Logging with ECProducer
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#   def _ec_producer_change_handler(self, command, item_name, item_value):
-#       if item_name == "log_level":
-#           _LOGGER.setLevel(str(item_value).upper())
-#   self.state = {
-#       "log_level": get_log_level_name(_LOGGER)
-#   }
-#   self.ec_producer = ECProducer(self.state)
-#   self.ec_producer.add_handler(self._ec_producer_change_handler)
+# def ec_producer_change_handler(command, item_name, item_value):
+#     if item_name == "log_level":
+#         _LOGGER.setLevel(str(item_value).upper())
+#
+# state = {"log_level": get_log_level_name(_LOGGER)}
+# ec_producer = ECProducer(state)
+# ec_producer.add_handler(ec_producer_change_handler)
+# _LOGGER.info("Informative message")
+# aiko.process(True)  # Required for ECProducer and MQTT based logging
 #
 # To Do: Logger
 # ~~~~~~~~~~~~~
-# - BUG: get_logger.info(message) doesn't display for AIKO_LOG_LEVEL=INFO
+# - Based on current log_level, select _LOG_FORMAT/_DEBUG on-the-fly
+# - AIKO_LOG_MQTT == "all" means log to both MQTT and the console
+# - Allow AIKO_LOG_MQTT value to be changed on-the-fly (via ECProducer)
 #
 # - Implement logging to a file (break into chunks by date/time or size)
-#
+#   - Set log file path and logging level via command line arguments
 # - Turn "logger" into a Python class, nothing global !
-#
-# - Set logging level and log file from command line argument
 #
 # To Do: LoggingHandlerMQTT
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -50,65 +59,58 @@ from logging.config import dictConfig
 import os
 from typing import Any
 
-from aiko_services.connection import ConnectionState
 from aiko_services.utilities import *
 
 __all__ = ["DEBUG", "get_level_name", "get_logger", "LoggingHandlerMQTT"]
 
 DEBUG = logging.DEBUG
 
-_RING_BUFFER_SIZE=128
-
-_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
-_LOG_FORMAT_DATE = "%Y-%m-%d_%H:%M:%S"
-_CONFIGURATION = {
-    "version": 1,
-    "formatters": {
-        "f": { "format": _LOG_FORMAT, "datefmt": _LOG_FORMAT_DATE }
-    },
-    "handlers": {
-        "h": { "class": "logging.StreamHandler", "formatter": "f" }
-    },
-    "loggers": {
-        "": { "handlers": ["h"], "level": "DEBUG" }
-    }
-}
+_RING_BUFFER_SIZE = 128  # Maximum log messages to store before MQTT available
 
 _LEVEL_NAMES = {
-    logging.DEBUG: "DEBUG",      # 10
-    logging.INFO: "INFO",        # 20
-    logging.WARNING: "WARNING",  # 30
-    logging.ERROR: "ERROR",      # 40
-    logging.FATAL: "FATAL"       # 50
+    0: "LOG_LEVEL_NOTSET",        #  0
+    logging.DEBUG: "DEBUG",       # 10
+    logging.INFO: "INFO",         # 20
+    logging.WARNING: "WARNING",   # 30
+    logging.ERROR: "ERROR",       # 40
+    logging.CRITICAL: "CRITICAL"  # 50
 }
 
-AIKO_LOG_LEVEL = os.environ.get("AIKO_LOG_LEVEL", "INFO").upper()
-
-# if AIKO_LOG_LEVEL == "INFO":
-#     logging.config.dictConfig(_CONFIGURATION)
+_LOG_FORMAT = "%(asctime)s.%(msecs)03d %(levelname) 8s"
+_LOG_FORMAT_DEBUG = f"{_LOG_FORMAT}s %(module)s.%(funcName)s() %(message)s"
+_LOG_FORMAT_DEFAULT = f"{_LOG_FORMAT} %(name)s %(message)s"
+_LOG_FORMAT_DATETIME = "%Y-%m-%d_%H:%M:%S"
 
 def get_log_level_name(logger):
-    log_level = logger.level
-    level_name = str(log_level)
-    if log_level in _LEVEL_NAMES:
-        level_name = _LEVEL_NAMES[log_level]
+    if logger.level in _LEVEL_NAMES:
+        level_name = _LEVEL_NAMES[logger.level]
+    else:
+        level_name = str(logger.level)
     return level_name
 
-def get_logger(name: str, log_level="INFO", logging_handler=None) -> Any:
-#   print(f"Create logger {name}: {log_level}, {logging_handler}")
-    name = name.rpartition('.')[-1].upper()
-    logger = logging.getLogger(name)
+def get_logger(name: str, log_level=None, logging_handler=None) -> Any:
 #   logging.basicConfig(filename="aiko.log")  # TODO: Implement logging to file
 
-    if logging_handler:
-        logger.addHandler(logging_handler)
-        formatter = logging.Formatter(_LOG_FORMAT, datefmt=_LOG_FORMAT_DATE)
-        logging_handler.setFormatter(formatter)
+    name = name.rpartition('.')[-1].upper()
+#   print(f"Create logger {name}: {log_level}, {logging_handler}")
 
-    logger.setLevel(log_level if log_level else "INFO")
+    if log_level is None:
+        log_level = os.environ.get("AIKO_LOG_LEVEL", logging.INFO)
+
+    if logging_handler is None:
+        logging_handler = logging.StreamHandler()
+
+    format = _LOG_FORMAT_DEFAULT  # _LOG_FORMAT_DEBUG
+    formatter = logging.Formatter(format, datefmt=_LOG_FORMAT_DATETIME)
+    logging_handler.setFormatter(formatter)
+    logger = logging.getLogger(name)
+    logger.addHandler(logging_handler)
+    logger.setLevel(log_level)
     return logger
 
 # -----------------------------------------------------------------------------
+
+from aiko_services.connection import ConnectionState
 
 class LoggingHandlerMQTT(logging.Handler):
     def __init__(self, aiko, topic, ring_buffer_size=_RING_BUFFER_SIZE):
@@ -141,10 +143,8 @@ class LoggingHandlerMQTT(logging.Handler):
         try:
             payload_out = self.format(record)
             if self.ready:
-                print(f"emit(): MQTT: {payload_out}")
                 self.aiko.message.publish(self.topic, payload_out)
             else:
-                print(f"emit(): ring_buffer: {payload_out}")
                 self.ring_buffer.append(payload_out)
             self.flush()
         except Exception:

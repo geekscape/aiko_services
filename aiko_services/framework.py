@@ -133,24 +133,12 @@ class public:
     topic_state = topic_path + "/state"
     transport = "mqtt"
 
-# TODO: AIKO_LOG_MQTT == "both" means log to both MQTT and the console
-# TODO: Allow AIKO_LOG_MQTT value to be changed on-the-fly (via ECProducer)
+def logger(name, log_level=None, logging_handler=None, topic=public.topic_log):
+    if logging_handler is None:
+        if os.environ.get("AIKO_LOG_MQTT", "true") == "true":
+            logging_handler = LoggingHandlerMQTT(public, topic)
 
-def logger(
-    name,
-    log_level=None,
-    logging_handler_class=LoggingHandlerMQTT,
-    topic=public.topic_log):
-
-    if log_level is None:
-        log_level = os.environ.get("AIKO_LOG_LEVEL", "INFO")
-
-    log_mqtt = os.environ.get("AIKO_LOG_MQTT", "true") == "true"
-    if log_mqtt:
-        logging_handler = logging_handler_class(public, topic)
-        aiko_logger = get_logger(name, log_level, logging_handler)
-    else:
-        aiko_logger = get_logger(name, log_level)
+    aiko_logger = get_logger(name, log_level, logging_handler)
     return aiko_logger
 
 _AIKO_LOG_LEVEL_FRAMEWORK = os.environ.get("AIKO_LOG_LEVEL_FRAMEWORK", "INFO")

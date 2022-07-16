@@ -38,10 +38,10 @@ import click
 from aiko_services import *
 from aiko_services.utilities import *
 
+_LOGGER = aiko.logger(__name__)
+
 ACTOR_TYPE = "AlohaHonua"
 PROTOCOL = f"{AIKO_PROTOCOL_PREFIX}/aloha_honua:0"
-
-_LOGGER = aiko.logger(__name__)
 
 # --------------------------------------------------------------------------- #
 
@@ -74,8 +74,7 @@ class AlohaHonuaImpl(AlohaHonua):
 
     def _connection_state_handler(self, connection, connection_state):
         if connection.is_connected(ConnectionState.REGISTRAR):
-            _LOGGER.info("Aloha honua (after Registrar available")
-            _LOGGER.info("Test LoggingHandlerMQTT.emit() --> log direct MQTT ?")
+            _LOGGER.info("Aloha honua (after Registrar available)")
 
     def _ec_producer_change_handler(self, command, item_name, item_value):
         if _LOGGER.isEnabledFor(DEBUG):  # Save time
@@ -108,6 +107,8 @@ class AlohaHonuaImpl(AlohaHonua):
 @click.command("main", help="Hello World Actor")
 @click.argument("test_value", nargs=1, default=0, required=False)
 def main(test_value):
+    _LOGGER.info("Aloha honua (before Registrar available)")
+
     actor_name = f"{aiko.public.topic_path}.{ACTOR_TYPE}"  # WIP: Actor name
     aiko.add_tags([
         f"actor={actor_name}",               # WIP: Actor name
@@ -115,8 +116,6 @@ def main(test_value):
     ])
     init_args = {"actor_name": actor_name, "test_value": 1}
     aloha_honua = compose_instance(AlohaHonuaImpl, init_args)
-    _LOGGER.info("Aloha honua (before Registrar available")
-    _LOGGER.info("Test LoggingHandlerMQTT.emit() --> log ring_buffer ?")
     aloha_honua.run()
 
 if __name__ == "__main__":
