@@ -4,8 +4,10 @@
 # careful when making static dependencies on the AikoServices framework.
 #
 # Python's "logging" package is NOT intuitive :(
-# https://docs.python.org/3/library/logging.html
 # https://stackoverflow.com/questions/43109355/logging-setlevel-is-being-ignored
+# https://docs.python.org/3/library/logging.html
+# https://docs.python.org/3/library/logging.html#formatter-objects
+# https://docs.python.org/3/library/stdtypes.html#printf-style-string-formatting
 #
 # Typical usage: Aiko and LoggingHandlerMQTT
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

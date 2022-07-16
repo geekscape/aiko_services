@@ -56,7 +56,7 @@
 #
 # Service variables that Services should have ...
 # - lifecycle state: ...
-# - log level: none, debug
+# - log level: info, debug, ...
 # - statistics: busy/idle time, mailbox queue size, message count, uptime
 #
 # Actors that should have interesting variables ...
@@ -89,7 +89,7 @@ from aiko_services.utilities import *
 _HISTORY_RING_BUFFER_SIZE = 32
 _LOG_RING_BUFFER_SIZE = 128
 
-_SERVICE_SELECTED = None  # written by Dashboard._on_change_services()
+_SERVICE_SELECTED = None    # written by Dashboard._on_change_services()
 _SERVICE_SUBSCRIBED = None  # written by LogFrame._update() and process_event()
 
 BLACK = Screen.COLOUR_BLACK
@@ -108,9 +108,18 @@ mqtt_configuration = get_mqtt_configuration()
 mqtt_host = mqtt_configuration[0]
 mqtt_port = mqtt_configuration[1]
 
-def _get_title(name):
-    mqtt_host_short_name = mqtt_host.partition(".")[0]
-    return f"AikoServices {name}: {mqtt_host_short_name}:{mqtt_port}"
+def _get_title(name, context=None):
+    title = f"AikoServices {name}: "
+    if context:
+        title += context
+    else:
+        mqtt_host_short_name = mqtt_host.partition(".")[0]
+        title += f"{mqtt_host_short_name}:{mqtt_port}"
+    return title
+
+def _short_name(path):
+    after_slash = path.rfind("/") + 1
+    return path[after_slash:]
 
 def _update_ecproducer_variable(topic_path, name, value):
     topic_path_control = topic_path + "/control"
@@ -137,16 +146,17 @@ class FrameCommon:
         if isinstance(event, KeyboardEvent):
             if event.key_code in [ord("?")]:
                 message =" Help\n ----\n"  \
+                         " Enter: Update variable value \n"  \
+                         " Tab:   Move to next section \n"  \
                          " c:     Copy topic path to clipboard \n"  \
                          " l:     Log level change\n"  \
                          " D:     Show Dashboard page \n"  \
                          " K:     Kill Service \n"  \
                          " L:     Show Log page \n"  \
-                         " Tab:   Move to next section \n"  \
-                         " Enter: Update variable value "
+                         " x:     Exit"
                 self.scene.add_effect(
                     PopUpDialog(self._screen, message, ["OK"], theme="nice"))
-            if event.key_code in [ord("q"), ord("Q"), Screen.ctrl("c")]:
+            if event.key_code in [ord("x"), ord("X"), Screen.ctrl("c")]:
                 self.services_cache = None
                 service_cache_delete()
                 raise StopApplication("User quit request")
@@ -239,10 +249,10 @@ class DashboardFrame(FrameCommon, Frame):
         self.service_cache = {}
         self.service_tags = None
 
-    def _kill_service(self, service_topic):
+    def _kill_service(self, service_topic_path):
         global _SERVICE_SELECTED
-        if service_topic.count("/") == 2:
-            pid = service_topic[(service_topic.rfind("/") + 1):]
+        if service_topic_path.count("/") == 2:
+            pid = _short_name(service_topic_path)
             if pid.isnumeric():
                 command_line = ["kill", "-9", pid]
                 Popen(command_line, bufsize=0, shell=False)
@@ -290,8 +300,7 @@ class DashboardFrame(FrameCommon, Frame):
         services = self.services_cache.get_services().copy()
         services_formatted = []
         for service in services.values():
-            after_slash = service[1].rfind("/") + 1
-            protocol = service[1][after_slash:]  # protocol shortened
+            protocol = _short_name(service[1])
             tags = str(service[4])               # [tags] stringified
             services_formatted.append(
                 (service[0], protocol, service[2], service[3], tags))
@@ -329,8 +338,7 @@ class DashboardFrame(FrameCommon, Frame):
         services_formatted = []
         service_history = list(self.service_history)
         for service in service_history:
-            after_slash = service[1].rfind("/") + 1
-            protocol = service[1][after_slash:]  # protocol shortened
+            protocol = _short_name(service[1])
             tags = str(service[4])               # [tags] stringified
             services_formatted.append(
                 (service[0], protocol, service[2], service[3], tags))
@@ -372,8 +380,7 @@ class LogFrame(FrameCommon, Frame):
         )
         layout_0 = Layout([1, 1])
         self.add_layout(layout_0)
-        label_name = _get_title("Log")
-        layout_0.add_widget(Label(label_name), 0)
+        layout_0.add_widget(Label(_get_title("Log")), 0)
         layout_0.add_widget(Label('Press "?" for help', align=">"), 1)
         layout_1 = Layout([1], fill_frame=True)
         self.add_layout(layout_1)
@@ -392,6 +399,10 @@ class LogFrame(FrameCommon, Frame):
 
         if _SERVICE_SELECTED != _SERVICE_SUBSCRIBED:
             _SERVICE_SUBSCRIBED = _SERVICE_SELECTED
+            service_topic_path = _SERVICE_SELECTED[0]
+            protocol = _short_name(_SERVICE_SELECTED[1])
+            title = f"Log records: {service_topic_path}: {protocol}"
+            self._log_widget._titles = [title]
             self.log_buffer = deque(maxlen=_LOG_RING_BUFFER_SIZE)
             self.topic_log = f"{_SERVICE_SELECTED[0]}/log"
             aiko.add_message_handler(self._topic_log_handler, self.topic_log)
@@ -451,6 +462,8 @@ class LogLevelPopupMenu(PopupMenu):
 
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
+            if event.key_code in [ord("c")]:
+                self._destroy()
             if _SERVICE_SELECTED:
                 if event.key_code in [ord("d")]:
                     self._set_log_level("DEBUG")
