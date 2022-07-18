@@ -28,10 +28,16 @@
 #
 # To Do
 # ~~~~~
+# - CLI: show [registrar_filter] ... show running Registrar state
+# - CLI: kill service_filter ... terminate running Services
+# - CLI: --primary (see above)
+#
 # * Create "Service" class, use everywhere and include "__str__()"
 #   - Includes topic_path, protocol, transport, owner and tags
 # * Use ServiceField everywhere to elimate service[?] literal integers !
 # * Registrar should ECProducer when it is has subsumed ServiceCache
+# - Implement Registrar as a sub-class of Category ?
+# - Rename "framework.py" to "service.py" and create a Service class ?
 #
 # - Primary Registrar supports discovery protocol for finding MQTT server, etc
 # - Make this a sub-command of Aiko CLI
@@ -43,14 +49,12 @@
 #   If a new Registrar isn't started when the system restarts, then Aiko Clients
 #   try to use the defunct Registrar
 # - Consider the ability to add, change or remove a Service's tag
-# - Implement as a sub-class of Category ?
 # - When Service fails with LWT, publish timestamp on "topic_path/state"
 #   - Maybe ProcessController should do this, rather than Registrar ?
 # - Every Service persisted in MeemStore should have "uuid" Service tag
 # - Document state and protocol
 #   - Service state inspired by Meem life-cycle
 # - Create registrar/protocol.py
-# - Rename "framework.py" to "service.py" and create a Service class ?
 # - Implement protocol.py and state_machine.py !
 # - Primary and secondaries Registrars
 #   - https://en.wikipedia.org/wiki/Raft_(algorithm)
@@ -67,6 +71,7 @@
 #     - Query to find all other registars
 
 import click
+from collections import deque
 import time
 
 from aiko_services import *
@@ -75,20 +80,16 @@ from aiko_services.utilities import *
 __all__ = []
 
 _LOGGER = aiko.logger(__name__)
+
+_HISTORY_RING_BUFFER_SIZE = 4096
 _PRIMARY_SEARCH_TIMEOUT = 2.0  # seconds
 _STATE_MACHINE = None
 _TIME_STARTED = time.time()
 
 # --------------------------------------------------------------------------- #
 
-
 class StateMachineModel(object):
-    states = [
-        "start",
-        "primary_search",
-        "secondary",
-        "primary"
-    ]
+    states = ["start", "primary_search", "secondary", "primary"]
 
     transitions = [
         {"source":
@@ -136,13 +137,15 @@ class StateMachineModel(object):
 # --------------------------------------------------------------------------- #
 
 class Registrar(Service):
-    Interface.implementations["Registrar"] = "aiko_services.registrar.RegistrarImpl"
+    Interface.implementations["Registrar"] =  \
+        "aiko_services.registrar.RegistrarImpl"
 
 class RegistrarImpl(Registrar):
     def __init__(self, implementations):
         implementations["Service"].__init__(self, implementations)
         aiko.set_protocol(aiko.REGISTRAR_PROTOCOL)  # TODO: Move into service.py
 
+        self.history = deque(maxlen=_HISTORY_RING_BUFFER_SIZE)
         self.services = {}
 
         self.state = {
@@ -232,12 +235,16 @@ class RegistrarImpl(Registrar):
     def _service_add(self, service_topic, protocol, transport, owner, tags):
         if service_topic not in self.services:
             _LOGGER.debug(f"Service add: {service_topic}")
+
             service_details = {
                 "protocol": protocol,
                 "transport": transport,
                 "owner": owner,
-                "tags": tags
+                "tags": tags,
+                "time_add": time.time(),
+                "time_remove": 0
             }
+
             self.services[service_topic] = service_details
             service_count = self.state["service_count"] + 1
             self.ec_producer.update("service_count", service_count)
@@ -245,6 +252,11 @@ class RegistrarImpl(Registrar):
     def _service_remove(self, service_topic):
         if service_topic in self.services:
             _LOGGER.debug(f"Service remove: {service_topic}")
+
+            service_details = self.services[service_topic]
+            service_details["time_remove"] = time.time()
+            self.history.appendleft(service_details)
+
             del self.services[service_topic]
             service_count = self.state["service_count"] - 1
             self.ec_producer.update("service_count", service_count)
