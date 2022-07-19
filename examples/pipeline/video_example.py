@@ -6,6 +6,12 @@
 #
 # To Do
 # ~~~~~
+# - timer_test() handler "alternate" state change, i.e implement state_action ?
+# - Turn into an Aiko Service
+# - CLI argument: --pause: Display first frame and pause
+# - Interface: frame_rate(), run(), pause(), step(+/- frame_cout)
+# - Video overlay: frame_id, statistics, etc
+#
 # - Put try...except around "import opencv" to provide simple error message
 # - Split into video_opencv.py, video_scikit.py, video_gstreamer.py, etc
 # - Ensure video_opencv.py uses asyncio and doesn't block !

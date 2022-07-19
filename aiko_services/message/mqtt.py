@@ -24,6 +24,10 @@
 # - SOLUTION: By default queue all incoming MQTT messages and process on the
 #   main event.loop() !
 #
+# - Track which topic subscriptions have succeeded ...
+#     mqtt_client.subscribe() return value is saved (subscribe topic list index)
+#     to be compared to the on_subscribe(..., mid, ...) parameter value
+#
 # - Refactor wait_disconnected(), wait_connected() and wait_published(self)
 #     into a single function
 #   - Parameter is a variable condition to test,
