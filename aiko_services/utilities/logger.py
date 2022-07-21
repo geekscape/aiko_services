@@ -98,6 +98,8 @@ def get_logger(name: str, log_level=None, logging_handler=None) -> Any:
 
     if log_level is None:
         log_level = os.environ.get("AIKO_LOG_LEVEL", logging.INFO)
+    if log_level == "":
+        log_level = logging.INFO
 
     if logging_handler is None:
         logging_handler = logging.StreamHandler()
