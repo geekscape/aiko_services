@@ -33,6 +33,7 @@
 #
 # To Do
 # ~~~~~
+# - BUG: Fix filter_services_by_attributes() "service_details" SNAFU !
 # - BUG: Provide filtered Services to "service_change_handler"
 # - BUG?: ECProducer remote expired leases
 # - BUG?: ECConsumer remote expired leases
@@ -117,18 +118,28 @@ def filter_services_by_actor_names(services_in, actor_names):
 def filter_services_by_attributes(services_in, filter):
     services = {}
     for service_topic, service_details in services_in.items():
+        if type(service_details) == dict:  # TODO: Fix this complete SNAFU !
+            protocol = service_details["protocol"]
+            transport = service_details["transport"]
+            owner = service_details["owner"]
+            tags = service_details["tags"]
+        else:
+            protocol = service_details[1]
+            transport = service_details[2]
+            owner = service_details[3]
+            tags = service_details[4]
         matches = True
         if filter.protocol != "*":
-            if filter.protocol != service_details[1]:
+            if filter.protocol != protocol:
                 matches = False
         if filter.transport != "*":
-            if filter.transport != service_details[2]:
+            if filter.transport != transport:
                 matches = False
         if filter.owner != "*":
-            if filter.owner != service_details[3]:
+            if filter.owner != owner:
                 matches = False
         if filter.tags != "*":
-            if not aiko.match_tags(service_details[4], filter.tags):
+            if not aiko.match_tags(tags, filter.tags):
                 matches = False
         if matches:
             services[service_topic] = service_details
