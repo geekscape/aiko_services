@@ -26,11 +26,13 @@
 
 import getpass
 import os
+import secrets
 import socket
 from threading import Thread
 import time
 
 __all__ = [
+    "create_password",
     "get_hostname", "get_mqtt_configuration", "get_mqtt_host", "get_mqtt_port",
     "get_namespace", "get_pid", "get_username"
 ]
@@ -41,6 +43,12 @@ _AIKO_MQTT_HOST = "localhost"
 _AIKO_MQTT_PORT = 1883        # TCP/IP: 9883, WebSockets: 9884
 _AIKO_MQTT_TRANSPORT = "tcp"  # "websockets"
 _AIKO_NAMESPACE = "aiko"
+
+def create_password(length=32):
+    return secrets.token_hex(length)
+
+if __name__ == "__main__":
+    print(create_password())
 
 def _get_ip_address():
     _socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
