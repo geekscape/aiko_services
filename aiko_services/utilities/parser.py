@@ -19,19 +19,19 @@
 # - Implement JSON parsing
 
 import sys
-from typing import List
-
+from typing import List, Tuple, Union                 
+                                         
 __all__ = ["generate", "parse"]
-
-def generate(command: str, parameters: List) -> str:
-    expression = [command] + parameters
+                  
+def generate(command: str, parameters: Union[List, Tuple]) -> str:
+    expression = [command] + list(parameters)
     return generate_s_expression(expression)
-
+                           
 def generate_s_expression(expression: List) -> str:
-    character = ""
-    payload = "("
+    character = ""                        
+    payload = "("                                
     for element in expression:
-        if type(element) == list:
+        if type(element) in [list, tuple]:
             element = generate_s_expression(element)
         payload = f"{payload}{character}{element}"
         character = " "
