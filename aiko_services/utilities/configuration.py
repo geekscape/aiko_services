@@ -47,9 +47,6 @@ _AIKO_NAMESPACE = "aiko"
 def create_password(length=32):
     return secrets.token_hex(length)
 
-if __name__ == "__main__":
-    print(create_password())
-
 def _get_ip_address():
     _socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     _socket.connect(("8.8.8.8", 80))
