@@ -64,8 +64,12 @@ def _host_service_up(host, port):
 
 def get_hostname():
     hostname = socket.gethostname()
-    if hostname.find('.') < 0:
+    if hostname.find(".") < 0:
         hostname = socket.gethostbyaddr(hostname)[0]
+    if hostname.endswith("amazonaws.com"):  # shorten AWS EC2 hostname
+        hyphen = hostname.find("-") + 1
+        fullstop = hostname.find(".")
+        hostname = hostname[hyphen:fullstop].replace("-", ".")
     return hostname
 
 def get_mqtt_configuration(tls_enabled=None):
