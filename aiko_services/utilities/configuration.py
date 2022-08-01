@@ -34,7 +34,7 @@ import time
 __all__ = [
     "create_password",
     "get_hostname", "get_mqtt_configuration", "get_mqtt_host", "get_mqtt_port",
-    "get_namespace", "get_pid", "get_username"
+    "get_namespace", "get_namespace_prefix", "get_pid", "get_username"
 ]
 
 _AIKO_BOOTSTRAP_UDP_PORT = 4149
@@ -107,6 +107,13 @@ def get_mqtt_port():
 
 def get_namespace():
     return os.environ.get("AIKO_NAMESPACE", _AIKO_NAMESPACE)
+
+def get_namespace_prefix():
+    namespace_prefix = ""
+    namespace = get_namespace()
+    if ":" in namespace:
+        namespace_prefix = namespace[0:namespace.find(":") + 1]
+    return namespace_prefix
 
 def get_pid():
     return str(os.getpid())

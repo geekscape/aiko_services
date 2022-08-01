@@ -7,7 +7,7 @@
 from .configuration import (
     create_password,
     get_hostname, get_mqtt_configuration, get_mqtt_host, get_mqtt_port,
-    get_namespace, get_pid, get_username
+    get_namespace, get_namespace_prefix, get_pid, get_username
 )
 
 from .context import (
