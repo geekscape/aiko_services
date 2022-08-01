@@ -83,6 +83,7 @@ _LEASE_TIME = 300  # seconds
 
 _AIKO_LOG_LEVEL_SHARE = os.environ.get("AIKO_LOG_LEVEL_SHARE", "INFO")
 _LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_SHARE)
+_VERSION = 0
 
 # --------------------------------------------------------------------------- #
 
@@ -694,7 +695,7 @@ def _create_ec_producer():
             "topic_1": ["topic_1", "protocol_1", "transport", "owner_1", []],
             "topic_2": ["topic_2", "protocol_2", "transport", "owner_2", []]
         },
-        "source_file": __file__
+        "source_file": f"v{_VERSION}⇒{__file__}"
     }
 
     aiko.set_protocol(PROTOCOL_EC_PRODUCER)  # TODO: Move into service.py

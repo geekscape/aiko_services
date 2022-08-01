@@ -72,6 +72,7 @@ _HANDSHAKE_LEASE_TIME_DEFAULT = 10  # seconds or 120 seconds for lots of clients
 
 _AIKO_LOG_LEVEL_LIFECYCLE = os.environ.get("AIKO_LOG_LEVEL_LIFECYCLE", "INFO")
 _LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_LIFECYCLE)
+_VERSION = 0
 
 #---------------------------------------------------------------------------- #
 
@@ -286,7 +287,7 @@ class TestLifeCycleManagerImpl(TestLifeCycleManager):
         self.state = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
-            "source_file": __file__
+            "source_file": f"v{_VERSION}⇒{__file__}"
         }
         self.ec_producer = ECProducer(self.state)
         self.process_manager = ProcessManager()

@@ -28,6 +28,10 @@
 #
 # To Do
 # ~~~~~
+# * BUG: Registrar won't become primary when there isn't another Registrar
+#        and the retained topic "aiko.REGISTRAR_TOPIC" incorrectly indicates
+#        that a primary Registrar is running and should say "(primary stopped)"
+#
 # - CLI: show [registrar_filter] ... show running Registrar state
 # - CLI: kill service_filter ... terminate running Services
 # - CLI: --primary (see above)
@@ -80,6 +84,7 @@ from aiko_services.utilities import *
 __all__ = []
 
 _LOGGER = aiko.logger(__name__)
+_VERSION = 0
 
 _HISTORY_RING_BUFFER_SIZE = 4096
 _PRIMARY_SEARCH_TIMEOUT = 2.0  # seconds
@@ -152,7 +157,7 @@ class RegistrarImpl(Registrar):
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
             "service_count": 0,
-            "source_file": __file__
+            "source_file": f"v{_VERSION}⇒{__file__}"
         }
         self.ec_producer = ECProducer(self.state)
         self.ec_producer.add_handler(self._ec_producer_change_handler)

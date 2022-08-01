@@ -24,10 +24,14 @@
 #     exit_not_found = False, fail_not_found = True, wait_time = None):
 
 from abc import abstractmethod
+from inspect import getmembers, isfunction
 
 from aiko_services import *
+from aiko_services.utilities.parser import generate
 
-__all__ = ["TransportMQTT", "TransportMQTTImpl","ActorDiscovery"]
+__all__ = [
+    "TransportMQTT", "TransportMQTTImpl","ActorDiscovery", "get_actor_mqtt"
+]
 
 _LOGGER = aiko.logger(__name__)
 
@@ -88,5 +92,30 @@ def create_actor_mqtt(actor_class, actor_name,
 
 def delete_actor_mqtt(actor):
     actor.terminate()
+
+def get_public_methods(protocol_class):
+    public_method_names = [
+        method_name
+        for method_name, method in getmembers(protocol_class, isfunction)
+        if not method_name.startswith("_")
+    ]
+    return public_method_names
+
+def make_proxy_mqtt(target_topic_in, public_method_names):
+    def _proxy_send_message(method_name):
+        def closure(*args, **kwargs):
+            payload = generate(method_name, args)
+            aiko.public.message.publish(target_topic_in, payload)
+        return closure
+    class Proxy(): pass
+    proxy = Proxy()
+    for method_name in public_method_names:
+        setattr(proxy, method_name, _proxy_send_message(method_name))
+    return proxy
+
+def get_actor_mqtt(target_service_topic_in, protocol_class):
+    public_methods = get_public_methods(protocol_class)
+    actor_proxy = make_proxy_mqtt(target_service_topic_in, public_methods)
+    return actor_proxy
 
 # -----------------------------------------------------------------------------

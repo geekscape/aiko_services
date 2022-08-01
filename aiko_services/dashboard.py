@@ -18,6 +18,9 @@
 #
 # To Do
 # ~~~~~
+# * BUG: Dashboard doesn't display variables that contain whitespace !
+#        Variable doesn't appear at all :(
+#
 # * BUG: When Dashboard exits, must clean-up (unshared) the ECConsumer !
 #        Also, check that the ECProducer lease(s) expire as required
 #
@@ -34,6 +37,8 @@
 #        due to ResizeScreenError, all handlers need to be removed.
 #        Provide DashboardFrame.cleanup() and LogFrame.cleanup(),
 #        which are invoked by ResizeScreenError
+#
+# - If Registrar isn't available, then display "Waiting for Registrar"
 #
 # - ArchiveService should record "+/+/+/log" and removed Services ...
 #   - Dashboard History section can ECConsumer the removed Services

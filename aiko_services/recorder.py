@@ -36,10 +36,11 @@ __all__ = []
 PROTOCOL = f"{AIKO_PROTOCOL_PREFIX}/recorder:0"
 
 _LOGGER = aiko.logger(__name__)
+_VERSION = 0
 
-_HISTORY_LRU_CACHE_SIZE = 2  # 32
-_RING_BUFFER_SIZE = 2  # 128
-_TOPIC_LRU_CACHE_SIZE = 2  # 128
+_HISTORY_LRU_CACHE_SIZE = 2  #  32
+_RING_BUFFER_SIZE = 2        # 128
+_TOPIC_LRU_CACHE_SIZE = 2    # 128
 
 # --------------------------------------------------------------------------- #
 
@@ -49,13 +50,13 @@ class RecorderService:
 #       And send ECProducer.remove(topic) to update the ECConsumer
         self.lru_cache = LRUCache(_TOPIC_LRU_CACHE_SIZE)
         self.state = {
-        #   "history": {},  # TODO: Remove and make available via (query ...)
+            "history": {},  # TODO: Remove and make available via (query ...)
             "history_item_count": {},  # TODO: Implement
             "history_lru_cache_size": _HISTORY_LRU_CACHE_SIZE,
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
             "ring_buffer_size": _RING_BUFFER_SIZE,
-            "source_file": __file__,
+            "source_file": f"v{_VERSION}⇒{__file__}",
             "topic_lru_cache_size": _TOPIC_LRU_CACHE_SIZE,
             "topic_path": topic_path
         }
