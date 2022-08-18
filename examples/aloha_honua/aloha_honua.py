@@ -111,9 +111,7 @@ def main(test_value):
     _LOGGER.info("Aloha honua (before Registrar available)")
 
     actor_name = f"{aiko.public.topic_path}.{ACTOR_TYPE}"  # WIP: Actor name
-    aiko.add_tags([
-        f"actor={actor_name}"  # WIP: Actor name
-    ])
+#   aiko.add_tags([f"key={value}"])
     init_args = {"actor_name": actor_name, "test_value": 1}
     aloha_honua = compose_instance(AlohaHonuaImpl, init_args)
     aloha_honua.run()

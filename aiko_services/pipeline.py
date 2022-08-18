@@ -243,10 +243,11 @@ class Pipeline():
     def queue_put(self, item, item_type):
         event.queue_put(item, item_type)
 
-    def run(self):
+    def run(self, run_event_loop=True):
         self.load_node_modules()
         self.pipeline_start()
-        event.loop()  # aiko.process()
+        if run_event_loop:
+            event.loop()  # aiko.process()
 
     def update_node_parameter(self, node_name, parameter_name, parameter_value):
         node_parameters = self.get_node_parameters(node_name)

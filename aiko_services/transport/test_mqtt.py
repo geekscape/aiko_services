@@ -77,7 +77,6 @@ class TestMQTTImpl(TestMQTT):
 @click.command("main", help="Transport MQTT Test Actor")
 def main():
     actor_name = f"{aiko.public.topic_path}.{ACTOR_TYPE}"  # WIP: Actor name
-    aiko.add_tags([f"actor={actor_name}"])  # WIP: Actor name
     init_args = {"actor_name": actor_name}
     test_mqtt = compose_instance(TestMQTTImpl, init_args)
     aiko.process()
@@ -94,7 +93,6 @@ def main():
 @main.command(help="Transport MQTT Test Actor")
 def create():
     actor_name = f"{aiko.public.topic_path}.{ACTOR_TYPE}"  # WIP: Actor name
-    aiko.add_tags([f"actor={actor_name}"])  # WIP: Actor name
     init_args = {"actor_name": actor_name}
     test_mqtt = compose_instance(TestMQTTImpl, init_args)
     aiko.process()

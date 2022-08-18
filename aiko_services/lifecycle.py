@@ -422,7 +422,6 @@ def main():
 @click.argument("count", default=1)
 def manager(count):
     actor_name = f"{aiko.public.topic_path}.{ACTOR_TYPE_LIFECYCLE_MANAGER}"
-    aiko.add_tags([f"actor={actor_name}"])  # WIP: Actor name
     init_args = {"actor_name": actor_name, "actor_count": count}
     lifecycle_manager = compose_instance(TestLifeCycleManagerImpl, init_args)
     lifecycle_manager.run()
@@ -432,7 +431,6 @@ def manager(count):
 @click.argument("lifecycle_manager_topic", default=None)
 def client(client_id, lifecycle_manager_topic):
     actor_name = f"{aiko.public.topic_path}.{ACTOR_TYPE_LIFECYCLE_CLIENT}"
-    aiko.add_tags([f"actor={actor_name}"])  # WIP: Actor name
     init_args = {
         "actor_name": actor_name,
         "client_id": client_id,
