@@ -38,10 +38,11 @@ import click
 from aiko_services import *
 from aiko_services.utilities import *
 
-_LOGGER = aiko.logger(__name__)
-
 ACTOR_TYPE = "AlohaHonua"
 PROTOCOL = f"{AIKO_PROTOCOL_PREFIX}/aloha_honua:0"
+
+_LOGGER = aiko.logger(__name__)
+_VERSION = 0
 
 # --------------------------------------------------------------------------- #
 
@@ -62,7 +63,7 @@ class AlohaHonuaImpl(AlohaHonua):
         self.state = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
-            "source_file": __file__,
+            "source_file": f"v{_VERSION}⇒{__file__}",
             "test_value": test_value,
             "test_dict": {"item_1": ["value_a"], "item_2": ["value_b"]}
         }
@@ -111,8 +112,7 @@ def main(test_value):
 
     actor_name = f"{aiko.public.topic_path}.{ACTOR_TYPE}"  # WIP: Actor name
     aiko.add_tags([
-        f"actor={actor_name}",               # WIP: Actor name
-    #   f"class={AlohaHonuaActor.__name__}"  # TODO: Use full class pathname ?
+        f"actor={actor_name}"  # WIP: Actor name
     ])
     init_args = {"actor_name": actor_name, "test_value": 1}
     aloha_honua = compose_instance(AlohaHonuaImpl, init_args)

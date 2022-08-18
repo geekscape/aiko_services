@@ -43,6 +43,9 @@
 #
 # To Do: Logger
 # ~~~~~~~~~~~~~
+# * Implement set_log_level(name, level) and keep a dictionary of all loggers,
+#   so that an individual, a list or all loggers can be changed at once
+#
 # - Based on current log_level, select _LOG_FORMAT/_DEBUG on-the-fly
 # - AIKO_LOG_MQTT == "all" means log to both MQTT and the console
 # - Allow AIKO_LOG_MQTT value to be changed on-the-fly (via ECProducer)

@@ -243,7 +243,7 @@ class ECProducer:
         self.handlers = set()
         self.leases = {}
         aiko.add_message_handler(self._producer_handler, topic_in)
-        aiko.add_tags(["ecproducer=true"])
+        aiko.add_tags(["ec=true"])
 
     def add_handler(self, handler):  # TODO: Implement remove_handler()
         for item_name, item_value in _flatten_dictionary(self.state):

@@ -38,6 +38,8 @@
 #        Provide DashboardFrame.cleanup() and LogFrame.cleanup(),
 #        which are invoked by ResizeScreenError
 #
+# * FIX: Variable update dialogue replace with "maps.py:EnterLocation(Frame)"
+#
 # - If Registrar isn't available, then display "Waiting for Registrar"
 #
 # - ArchiveService should record "+/+/+/log" and removed Services ...
@@ -242,7 +244,7 @@ class DashboardFrame(FrameCommon, Frame):
             services = self.services_cache.get_services()
             _SERVICE_SELECTED = services[service_topic_path]
             self.service_tags = _SERVICE_SELECTED[4]
-            if aiko.match_tags(self.service_tags, ["ecproducer=true"]):
+            if aiko.match_tags(self.service_tags, ["ec=true"]):
                 topic_control = f"{service_topic_path}/control"
                 self.ec_consumer = ECConsumer(
                     0, self.service_cache, topic_control)
@@ -285,6 +287,7 @@ class DashboardFrame(FrameCommon, Frame):
                 variable_value = variable[0][1]
                 text_box.value[0] = variable_value
                 title = f"Update {variable_name}" + " "*32
+            # TODO: Replace with "maps.py:EnterLocation(Frame)"
                 popup_dialog = PopUpDialog(
                     self._screen, title, ["Cancel", "OK"],
                     on_close=_on_close, theme="nice")
