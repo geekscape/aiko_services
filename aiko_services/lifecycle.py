@@ -93,7 +93,7 @@ class LifeCycleClientDetails:
         self.ec_consumer = ec_consumer
         self.topic_path = topic_path
 
-class LifeCycleManager(ServiceProtocol):
+class LifeCycleManager(ServiceProtocolInterface):
     Interface.implementations["LifeCycleManager"] =  \
         "aiko_services.lifecycle.LifeCycleManagerImpl"
 
@@ -325,7 +325,7 @@ class TestLifeCycleManagerImpl(TestLifeCycleManager):
 
 #---------------------------------------------------------------------------- #
 
-class LifeCycleClient(ServiceProtocol):
+class LifeCycleClient(ServiceProtocolInterface):
     Interface.implementations["LifeCycleClient"] =  \
         "aiko_services.lifecycle.LifeCycleClientImpl"
 

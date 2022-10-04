@@ -35,7 +35,7 @@ from .proxy import (
 )
 
 from .component import (
-    Interface, ServiceProtocol, compose_class, compose_instance
+    Interface, ServiceProtocolInterface, compose_class, compose_instance
 )
 
 from .stream import (
