@@ -11,7 +11,7 @@
 #
 # * Once Service protocol matching is properly implemented ...
 #     Replace Service tag "actor=actor_name" marking Actors with
-#     matching via Service protocol "{AIKO_PROTOCOL_PREFIX}/actor:0"
+#     matching via Service protocol "{ServiceProtocol.AIKO}/actor:0"
 #
 #------------------------------------------------------------------------------
 # def create_actor(actor_class, actor_type, actor_uuid,

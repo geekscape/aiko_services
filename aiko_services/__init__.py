@@ -10,6 +10,15 @@ from .connection import (
     ConnectionState, Connection
 )
 
+from .component import (
+    Interface, ServiceProtocolInterface, compose_class, compose_instance
+)
+
+from .service import (
+    ServiceFields, ServiceProtocol, ServiceTags, TopicPath,
+    Service, ServiceImpl, ServiceImpl2
+)
+
 import aiko_services.event as event     # TODO: Remove this
 import aiko_services.framework as aiko  # TODO: Remove this
 
@@ -34,16 +43,12 @@ from .proxy import (
     ProxyAllMethods, is_callable, proxy_trace
 )
 
-from .component import (
-    Interface, ServiceProtocolInterface, compose_class, compose_instance
-)
-
 from .stream_2020 import (
     StreamElementState, StreamElement, StreamQueueElement
 )
 
 from .framework import (
-    AIKO_PROTOCOL_PREFIX, ServiceField, public,
+    ServiceField, public,
     add_message_handler, remove_message_handler,
     add_topic_in_handler, set_registrar_handler,
     add_stream_handlers, add_stream_frame_handler,
@@ -66,10 +71,6 @@ from .share import (
 
 from .pipeline_2020 import (
     Pipeline_2020, load_pipeline_definition_2020
-)
-
-from .service import (
-    Service, ServiceImpl, ServiceImpl2
 )
 
 from .actor import (

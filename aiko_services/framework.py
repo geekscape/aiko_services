@@ -80,7 +80,7 @@ from aiko_services.utilities import *
 # import aiko_services.framework as aks                      # TODO: Replace V1
 
 __all__ = [
-    "AIKO_PROTOCOL_PREFIX", "ServiceField", "public",
+    "ServiceField", "public",
     "add_message_handler", "remove_message_handler",
     "add_topic_in_handler", "set_registrar_handler",
     "add_stream_handlers", "add_stream_frame_handler",
@@ -92,11 +92,11 @@ __all__ = [
     "terminate", "wait_connected", "wait_parameters"
 ]
 
-AIKO_PROTOCOL_PREFIX = "github.com/geekscape/aiko_services/protocol"
-REGISTRAR_PROTOCOL = f"{AIKO_PROTOCOL_PREFIX}/registrar:0"
+REGISTRAR_PROTOCOL = f"{ServiceProtocol.AIKO}/registrar:0"
 REGISTRAR_TOPIC = f"{get_namespace()}/service/registrar"
 SERVICE_STATE_TOPIC = f"{get_namespace()}/+/+/state"
 
+                     # TODO: Move into service.py
 class ServiceField:  # TODO: Support integer index plus string name
     TOPIC = "TOPIC"          # 0
     PROTOCOL = "PROTOCOL"    # 1

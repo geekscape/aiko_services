@@ -33,7 +33,7 @@ from aiko_services.utilities import *
 
 __all__ = []
 
-PROTOCOL = f"{AIKO_PROTOCOL_PREFIX}/recorder:0"
+PROTOCOL = f"{ServiceProtocol.AIKO}/recorder:0"
 
 _LOGGER = aiko.logger(__name__)
 _VERSION = 0

@@ -62,10 +62,10 @@ from aiko_services.utilities import *
 CLIENT_SHELL_COMMAND = "./lifecycle.py"
 
 ACTOR_TYPE_LIFECYCLE_MANAGER = "LifeCycleManager"
-PROTOCOL_LIFECYCLE_MANAGER = f"{AIKO_PROTOCOL_PREFIX}/lifecyclemanager:0"
+PROTOCOL_LIFECYCLE_MANAGER = f"{ServiceProtocol.AIKO}/lifecyclemanager:0"
 
 ACTOR_TYPE_LIFECYCLE_CLIENT = "LifeCycleClient"
-PROTOCOL_LIFECYCLE_CLIENT = f"{AIKO_PROTOCOL_PREFIX}/lifecycleclient:0"
+PROTOCOL_LIFECYCLE_CLIENT = f"{ServiceProtocol.AIKO}/lifecycleclient:0"
 
 _DELETION_LEASE_TIME_DEFAULT = 10
 _HANDSHAKE_LEASE_TIME_DEFAULT = 10  # seconds or 120 seconds for lots of clients

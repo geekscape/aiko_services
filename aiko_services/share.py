@@ -76,8 +76,8 @@ __all__ = [
     "service_cache_create_singleton", "service_cache_delete"
 ]
 
-PROTOCOL_EC_CONSUMER = f"{AIKO_PROTOCOL_PREFIX}/ec_consumer:0"
-PROTOCOL_EC_PRODUCER = f"{AIKO_PROTOCOL_PREFIX}/ec_producer:0"
+PROTOCOL_EC_CONSUMER = f"{ServiceProtocol.AIKO}/ec_consumer:0"
+PROTOCOL_EC_PRODUCER = f"{ServiceProtocol.AIKO}/ec_producer:0"
 
 _LEASE_TIME = 300  # seconds
 

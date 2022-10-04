@@ -39,7 +39,7 @@ __all__ = ["ProcessManager"]
 
 
 PROCESS_POLL_TIME = 0.2  # seconds
-PROTOCOL_PROCESS_MANAGER = f"AIKO_PROTOCOL_PREFIX/process_manager:0"
+PROTOCOL_PROCESS_MANAGER = f"ServiceProtocol.AIKO/process_manager:0"
 
 # --------------------------------------------------------------------------- #
 

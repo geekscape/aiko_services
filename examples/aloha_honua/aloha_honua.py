@@ -39,7 +39,7 @@ from aiko_services import *
 from aiko_services.utilities import *
 
 ACTOR_TYPE = "AlohaHonua"
-PROTOCOL = f"{AIKO_PROTOCOL_PREFIX}/aloha_honua:0"
+PROTOCOL = f"{ServiceProtocol.AIKO}/aloha_honua:0"
 
 _LOGGER = aiko.logger(__name__)
 _VERSION = 0
