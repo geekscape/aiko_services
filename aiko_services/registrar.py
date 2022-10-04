@@ -28,6 +28,8 @@
 #
 # To Do
 # ~~~~~
+# * BUG: "Service count" sometimes isn't being decremented
+#
 # * BUG: Registrar won't become primary when there isn't another Registrar
 #        and the retained topic "aiko.REGISTRAR_TOPIC" incorrectly indicates
 #        that a primary Registrar is running and should say "(primary stopped)"

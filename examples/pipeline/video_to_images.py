@@ -39,4 +39,4 @@ pipeline_definition = [
 ]
 
 if __name__ == "__main__":
-    Pipeline(pipeline_definition, FRAME_RATE).run()
+    Pipeline_2020(pipeline_definition, FRAME_RATE).run()

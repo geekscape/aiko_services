@@ -38,7 +38,7 @@ from .component import (
     Interface, ServiceProtocolInterface, compose_class, compose_instance
 )
 
-from .stream import (
+from .stream_2020 import (
     StreamElementState, StreamElement, StreamQueueElement
 )
 
@@ -64,8 +64,8 @@ from .share import (
     service_cache_create_singleton, service_cache_delete
 )
 
-from .pipeline import (
-    Pipeline, load_pipeline_definition
+from .pipeline_2020 import (
+    Pipeline_2020, load_pipeline_definition_2020
 )
 
 from .service import (

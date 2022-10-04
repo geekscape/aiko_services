@@ -91,4 +91,5 @@ def timer_test():
 if __name__ == "__main__":
 #   event.add_timer_handler(timer_test, 0.1)
     state_machine = StateMachine(StateMachineModel())
-    Pipeline(pipeline_definition, FRAME_RATE, state_machine=state_machine).run()
+    Pipeline_2020(
+        pipeline_definition, FRAME_RATE, state_machine=state_machine).run()

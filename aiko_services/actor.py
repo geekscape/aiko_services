@@ -22,6 +22,10 @@
 #
 # To Do
 # ~~~~~
+# * Provide "priority" mailbox for internal requirements, e.g
+#   - If an Exception is raised during initialization / setup,
+#     then post a "(raise_exception exception)" message to the mailbox
+#
 # * Support multiple Actors per process, e.g Pipeline --> PipelineElements
 #   * Specify framework generated unique Actor name as ...
 #         Fully Qualified Name: (actortype namespace/host/pid[.id])

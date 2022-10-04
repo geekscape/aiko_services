@@ -101,7 +101,7 @@ def cli_shim():
     """
     if len(sys.argv) >= 2 and sys.argv[1].endswith((".py", ".yaml", ".yml", ".json")):
         pipeline_definition_pathname = sys.argv[1]
-        pipeline_definition, state_machine_model = load_pipeline_definition(pipeline_definition_pathname)
+        pipeline_definition, state_machine_model = load_pipeline_definition_2020(pipeline_definition_pathname)
         sys.argv.remove(pipeline_definition_pathname)
     else:
         pipeline_definition = []
@@ -234,7 +234,7 @@ def main(**kwargs):
         return 0
 
     _pipeline_def = clean_cli_params(pipeline_definition)
-    pipeline = Pipeline(_pipeline_def, kwargs["pipeline_frame_rate"])
+    pipeline = Pipeline_2020(_pipeline_def, kwargs["pipeline_frame_rate"])
 
     for k,v in kwargs.items():
         if SEP in k:

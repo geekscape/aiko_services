@@ -24,11 +24,11 @@ import yaml
 from aiko_services import *
 from aiko_services.utilities import *
 
-__all__ = ["Pipeline", "load_pipeline_definition"]
+__all__ = ["Pipeline_2020", "load_pipeline_definition_2020"]
 
 _LOGGER = aiko.logger(__name__)
 
-class Pipeline():
+class Pipeline_2020():
     def __init__(self, pipeline_definition, frame_rate = 0, response_queue = None, state_machine = None, stream_id = "nil"):
         self.frame_rate = frame_rate
         self.response_queue = response_queue
@@ -260,7 +260,7 @@ class Pipeline():
 
 PIPELINE_DEFINITION_NAME = "pipeline_definition"
 
-def load_pipeline_definition(pipeline_pathname, pipeline_definition_name=PIPELINE_DEFINITION_NAME):
+def load_pipeline_definition_2020(pipeline_pathname, pipeline_definition_name=PIPELINE_DEFINITION_NAME):
     state_machine_model = None
     if pipeline_pathname.endswith(".py"):
         module = load_module(pipeline_pathname)

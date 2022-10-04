@@ -6,7 +6,7 @@ from aiko_services import *
 
 __all__ = ["Service", "ServiceImpl", "ServiceImpl2"]
 
-class Service(ServiceProtocol):
+class Service(ServiceProtocolInterface):
     Interface.implementations["Service"] = "aiko_services.service.ServiceImpl"
 
 #   @abstractmethod
