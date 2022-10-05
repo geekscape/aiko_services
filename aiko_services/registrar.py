@@ -34,13 +34,14 @@
 #        and the retained topic "aiko.REGISTRAR_TOPIC" incorrectly indicates
 #        that a primary Registrar is running and should say "(primary stopped)"
 #
+# - Update EC "lifecycle" state with Registrar StateMachine state
+#
 # - CLI: show [registrar_filter] ... show running Registrar state
 # - CLI: kill service_filter ... terminate running Services
 # - CLI: --primary (see above)
 #
 # * Create "Service" class, use everywhere and include "__str__()"
 #   - Includes topic_path, protocol, transport, owner and tags
-# * Use ServiceField everywhere to elimate service[?] literal integers !
 # * Registrar should ECProducer when it is has subsumed ServiceCache
 # - Implement Registrar as a sub-class of Category ?
 # - Rename "framework.py" to "service.py" and create a Service class ?
@@ -85,12 +86,15 @@ from aiko_services.utilities import *
 
 __all__ = []
 
-_LOGGER = aiko.logger(__name__)
+REGISTRAR_PROTOCOL = f"{ServiceProtocol.AIKO}/registrar:0"
+
+_LOGGER = aiko_logger(__name__)
 _VERSION = 0
 
 _HISTORY_RING_BUFFER_SIZE = 4096
 _PRIMARY_SEARCH_TIMEOUT = 2.0  # seconds
 _STATE_MACHINE = None
+_SERVICE_STATE_TOPIC = f"{get_namespace()}/+/+/state"
 _TIME_STARTED = time.time()
 
 # --------------------------------------------------------------------------- #
@@ -150,7 +154,7 @@ class Registrar(Service):
 class RegistrarImpl(Registrar):
     def __init__(self, implementations):
         implementations["Service"].__init__(self, implementations)
-        aiko.set_protocol(aiko.REGISTRAR_PROTOCOL)  # TODO: Move into service.py
+        aiko.set_protocol(REGISTRAR_PROTOCOL)  # TODO: Move into service.py
 
         self.history = deque(maxlen=_HISTORY_RING_BUFFER_SIZE)
         self.services = {}
@@ -166,7 +170,7 @@ class RegistrarImpl(Registrar):
 
         aiko.set_registrar_handler(self._registrar_handler)
         aiko.add_message_handler(
-            self._service_state_handler, aiko.SERVICE_STATE_TOPIC)
+            self._service_state_handler, _SERVICE_STATE_TOPIC)
         aiko.add_topic_in_handler(self._topic_in_handler)
 
         _STATE_MACHINE.transition("initialize", None)

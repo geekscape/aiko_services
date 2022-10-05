@@ -97,7 +97,7 @@ __all__ = [
 ACTOR_TYPE = "Pipeline"
 PROTOCOL = f"{ServiceProtocol.AIKO}/pipeline:0"
 
-_LOGGER = aiko.logger(__name__)
+_LOGGER = aiko_logger(__name__)
 _VERSION = 0
 
 # --------------------------------------------------------------------------- #

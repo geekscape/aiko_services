@@ -32,7 +32,7 @@ class StreamElement(abc.ABC):
         self.pipeline_state_machine = pipeline_state_machine
         self.frame_count = 0
         self.handler = self.stream_start_handler
-        self.logger = aiko.logger(self.name)
+        self.logger = aiko_logger(self.name)
         self.stream_state = StreamElementState.START
 
     def get_stream_state(self):

@@ -20,8 +20,6 @@
 #
 # To Do
 # ~~~~~
-# - Refactor framework.py:ServiceField into this source file
-#
 # - Define ServiceProtocol: framework.py, registrar.py, service.py (and more ?)
 #   - All Services define their own static ServiceProtocol
 #
@@ -96,6 +94,15 @@ class ServiceProtocol:
 
 # ServiceProtocol needs to be defined before importing "framework.py" :(
 from aiko_services import *
+
+# class ServiceField:  # TODO: Support integer index plus string name
+#   TOPIC = "TOPIC"          # 0
+#   PROTOCOL = "PROTOCOL"    # 1
+#   TRANSPORT = "TRANSPORT"  # 2
+#   OWNER = "OWNER"          # 3
+#   TAGS = "TAGS"            # 4
+
+#   fields = [TOPIC, PROTOCOL, TRANSPORT, OWNER, TAGS]
 
 class ServiceFields:
     def __init__(self, topic_path, protocol, transport, owner, tags, name=None):
@@ -205,6 +212,8 @@ class TopicPath:
     def service_id(self, value):
         self._service_id = value
 
+# --------------------------------------------------------------------------- #
+
 class Service(ServiceProtocolInterface):
     Interface.implementations["Service"] = "aiko_services.service.ServiceImpl"
 
@@ -225,3 +234,5 @@ class ServiceImpl2(Service):  # TODO: Move into "../examples/"
 
     def service_0(self):
         print("ServiceImpl2.service_0()")
+
+# --------------------------------------------------------------------------- #

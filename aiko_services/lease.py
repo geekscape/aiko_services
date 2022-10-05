@@ -33,7 +33,7 @@ __all__ = ["Lease"]
 _LEASE_EXTEND_TIME_FACTOR = 0.8
 
 _AIKO_LOG_LEVEL_LEASE = os.environ.get("AIKO_LOG_LEVEL_LEASE", "INFO")
-_LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_LEASE)
+_LOGGER = aiko_logger(__name__, log_level=_AIKO_LOG_LEVEL_LEASE)
 
 class Lease:
     def __init__(

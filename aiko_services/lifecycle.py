@@ -71,7 +71,7 @@ _DELETION_LEASE_TIME_DEFAULT = 10
 _HANDSHAKE_LEASE_TIME_DEFAULT = 10  # seconds or 120 seconds for lots of clients
 
 _AIKO_LOG_LEVEL_LIFECYCLE = os.environ.get("AIKO_LOG_LEVEL_LIFECYCLE", "INFO")
-_LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_LIFECYCLE)
+_LOGGER = aiko_logger(__name__, log_level=_AIKO_LOG_LEVEL_LIFECYCLE)
 _VERSION = 0
 
 #---------------------------------------------------------------------------- #

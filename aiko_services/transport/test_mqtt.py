@@ -22,7 +22,7 @@ from aiko_services.transport import *
 ACTOR_TYPE = "TestMQTT"
 PROTOCOL = f"{ServiceProtocol.AIKO}/test_mqtt:0"
 
-_LOGGER = aiko.logger(__name__)
+_LOGGER = aiko_logger(__name__)
 _VERSION = 0
 
 #---------------------------------------------------------------------------- #

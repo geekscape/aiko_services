@@ -28,10 +28,10 @@
 #
 # * Support multiple Actors per process, e.g Pipeline --> PipelineElements
 #   * Specify framework generated unique Actor name as ...
-#         Fully Qualified Name: (actortype namespace/host/pid[.id])
-#         Short Name: actortype_pid[.id]  # for human input and display
+#         Fully Qualified Name: (actortype namespace/host/pid/sid)
+#         Short Name: actortype/pid/sid  # for human input and display
 #     * Improve Topic Path to support multiple Actors in the same process ...
-#           namespace/host/pid[.id]
+#           namespace/host/pid/sid
 #     - Allow multiple Actors in the same process to share ECConsumer instance
 #       - Must support Pipeline --> PipelineElements in the same process !
 #         All would share ECConsumers for ServiceDiscovery and LifeCycleClient
@@ -71,7 +71,7 @@ from aiko_services.utilities import *
 __all__ = ["Actor", "ActorImpl", "TestActor", "TestActorImpl"]
 
 _AIKO_LOG_LEVEL_ACTOR = os.environ.get("AIKO_LOG_LEVEL_ACTOR", "INFO")
-_LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_ACTOR)
+_LOGGER = aiko_logger(__name__, log_level=_AIKO_LOG_LEVEL_ACTOR)
 
 class LifeCycleClient:  # Interface
     pass

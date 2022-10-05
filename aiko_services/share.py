@@ -82,7 +82,7 @@ PROTOCOL_EC_PRODUCER = f"{ServiceProtocol.AIKO}/ec_producer:0"
 _LEASE_TIME = 300  # seconds
 
 _AIKO_LOG_LEVEL_SHARE = os.environ.get("AIKO_LOG_LEVEL_SHARE", "INFO")
-_LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_SHARE)
+_LOGGER = aiko_logger(__name__, log_level=_AIKO_LOG_LEVEL_SHARE)
 _VERSION = 0
 
 # --------------------------------------------------------------------------- #

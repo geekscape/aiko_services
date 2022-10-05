@@ -8,6 +8,11 @@
 #
 # To Do
 # ~~~~~
+# * Rename "framework.py" to "service.py" and create a Service class ?
+#
+# * Improve Topic Path to support multiple Services in the same process  ...
+#       namespace/host/pid/sid
+#
 # * Support multiple Services per process, e.g Registrar and LifeCycleState
 #   * Specify framework generated unique Service name as ...
 #         Fully Qualified Name: (servicetype namespace/host/pid[.id])
@@ -18,11 +23,6 @@
 #       - Could have Registrar plus LifecycleState in the same process !
 #         Both would monitor "namespace/+/+/state" for difference reasons
 #
-# * Improve Topic Path to support multiple Services in the same process  ...
-#       namespace/host/pid[.id]
-#
-# * Use ServiceField everywhere to elimate service[?] literal integers !
-#
 # - Turn into a Service Class with methods
 #   - How to provide "aiko" reference to an instance of the Class ?
 #   - Rename "framework.py" to "service.py"
@@ -31,14 +31,11 @@
 # - For standalone applications, i.e not using messages or services,
 #     don't start-up MQTT instance, because it takes time to connect
 #
-# - Rename "framework.py" to "service.py" and create a Service class ?
 # - Implement Aiko class with "class public variables" becoming Aiko class
 #   instance variables
 #   - "class private" becomes one of the Aiko class instance variables
 #
 # - Store Aiko class instance as the "ContextManager.__init__(aiko=)" parameter
-#
-# - Implement message to change logging level !
 #
 # To Do
 # ~~~~~
@@ -80,7 +77,7 @@ from aiko_services.utilities import *
 # import aiko_services.framework as aks                      # TODO: Replace V1
 
 __all__ = [
-    "ServiceField", "public",
+    "public", "aiko_logger",
     "add_message_handler", "remove_message_handler",
     "add_topic_in_handler", "set_registrar_handler",
     "add_stream_handlers", "add_stream_frame_handler",
@@ -92,19 +89,7 @@ __all__ = [
     "terminate", "wait_connected", "wait_parameters"
 ]
 
-REGISTRAR_PROTOCOL = f"{ServiceProtocol.AIKO}/registrar:0"
 REGISTRAR_TOPIC = f"{get_namespace()}/service/registrar"
-SERVICE_STATE_TOPIC = f"{get_namespace()}/+/+/state"
-
-                     # TODO: Move into service.py
-class ServiceField:  # TODO: Support integer index plus string name
-    TOPIC = "TOPIC"          # 0
-    PROTOCOL = "PROTOCOL"    # 1
-    TRANSPORT = "TRANSPORT"  # 2
-    OWNER = "OWNER"          # 3
-    TAGS = "TAGS"            # 4
-
-    fields = [TOPIC, PROTOCOL, TRANSPORT, OWNER, TAGS]
 
 class private:
     exit_status = 0
@@ -133,19 +118,20 @@ class public:
     topic_state = topic_path + "/state"
     transport = "mqtt"
 
-def logger(name, log_level=None, logging_handler=None, topic=public.topic_log):
+def aiko_logger(
+    name, log_level=None, logging_handler=None, topic=public.topic_log):
+
     if logging_handler is None:
         if os.environ.get("AIKO_LOG_MQTT", "true") == "true":
             logging_handler = LoggingHandlerMQTT(public, topic)
 
-    aiko_logger = get_logger(name, log_level, logging_handler)
-    return aiko_logger
+    return get_logger(name, log_level, logging_handler)
 
 _AIKO_LOG_LEVEL_FRAMEWORK = os.environ.get("AIKO_LOG_LEVEL_FRAMEWORK", "INFO")
-_LOGGER = logger(__name__, log_level=_AIKO_LOG_LEVEL_FRAMEWORK)
+_LOGGER = aiko_logger(__name__, log_level=_AIKO_LOG_LEVEL_FRAMEWORK)
 
 _AIKO_LOG_LEVEL_MESSAGE = os.environ.get("AIKO_LOG_LEVEL_MESSAGE", "INFO")
-_LOGGER_MESSAGE = logger(
+_LOGGER_MESSAGE = aiko_logger(
     f"{__name__}.message", log_level=_AIKO_LOG_LEVEL_MESSAGE)
 
 def add_message_handler(message_handler, topic):

@@ -33,7 +33,7 @@ __all__ = [
     "TransportMQTT", "TransportMQTTImpl","ActorDiscovery", "get_actor_mqtt"
 ]
 
-_LOGGER = aiko.logger(__name__)
+_LOGGER = aiko_logger(__name__)
 
 class TransportMQTT(Actor):
     Interface.implementations["TransportMQTT"] =  \

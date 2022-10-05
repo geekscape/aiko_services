@@ -35,7 +35,7 @@ __all__ = []
 
 PROTOCOL = f"{ServiceProtocol.AIKO}/recorder:0"
 
-_LOGGER = aiko.logger(__name__)
+_LOGGER = aiko_logger(__name__)
 _VERSION = 0
 
 _HISTORY_LRU_CACHE_SIZE = 2  #  32

@@ -21,6 +21,7 @@ from .service import (
 
 import aiko_services.event as event     # TODO: Remove this
 import aiko_services.framework as aiko  # TODO: Remove this
+from aiko_services.framework import aiko_logger
 
 from .state import (
     StateMachine
@@ -48,7 +49,7 @@ from .stream_2020 import (
 )
 
 from .framework import (
-    ServiceField, public,
+    public,
     add_message_handler, remove_message_handler,
     add_topic_in_handler, set_registrar_handler,
     add_stream_handlers, add_stream_frame_handler,
