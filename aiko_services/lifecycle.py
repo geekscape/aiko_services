@@ -243,6 +243,12 @@ class LifeCycleManagerImpl(LifeCycleManager, LifeCycleManagerPrivate):
                         self.lcm_ec_producer.remove(
                             f"lifecycle_manager.{client_id}")
 
+                # When Service is removed from the Registrar, notify LCM Impl
+                    if self.lcm_lifecycle_client_change_handler:
+                        self.lcm_lifecycle_client_change_handler(
+                            client_id, "update", "lifecycle", "absent"
+                        )
+
     def _lcm_deletion_lease_expired_handler(self, client_id):
         _LOGGER.debug(f"LifeCycleClient {client_id} deletion lease expired, force-deleting client")
         if client_id in self.lcm_deletion_leases:
@@ -307,7 +313,7 @@ class TestLifeCycleManagerImpl(TestLifeCycleManager):
         arguments = ["client", str(client_id), lifecycle_manager_topic]
         self.process_manager.create(client_id, command, arguments)
 
-    def _lcm_delete_client(self, client_id):
+    def _lcm_delete_client(self, client_id, force=False):
         self.process_manager.delete(client_id, kill=True)
 
     def _connection_state_handler(self, connection, connection_state):

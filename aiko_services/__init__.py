@@ -19,9 +19,9 @@ from .service import (
     Service, ServiceImpl, ServiceImpl2
 )
 
-import aiko_services.event as event     # TODO: Remove this
-import aiko_services.framework as aiko  # TODO: Remove this
-from aiko_services.framework import aiko_logger
+import aiko_services.event as event              # TODO: Remove this
+import aiko_services.framework as aiko           # TODO: Remove this
+from aiko_services.framework import aiko_logger  # TODO: Remove this
 
 from .state import (
     StateMachine
