@@ -189,6 +189,8 @@ class ActorImpl(Actor):
 class TestActor(Actor):  # TODO: Move into "../examples/"
     Interface.implementations["TestActor"] = "aiko_services.actor.TestActorImpl"
 
+    __test__ = False  # Stop PyTest from collecting and instantiating this class
+
     @abstractmethod
     def initialize(self):
         pass

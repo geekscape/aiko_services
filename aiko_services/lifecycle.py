@@ -74,7 +74,7 @@ _AIKO_LOG_LEVEL_LIFECYCLE = os.environ.get("AIKO_LOG_LEVEL_LIFECYCLE", "INFO")
 _LOGGER = aiko_logger(__name__, log_level=_AIKO_LOG_LEVEL_LIFECYCLE)
 _VERSION = 0
 
-#---------------------------------------------------------------------------- #
+# ---------------------------------------------------------------------------- #
 
 # Over time, intend to utilise the Handshake concept more broadly
 #
@@ -329,7 +329,7 @@ class TestLifeCycleManagerImpl(TestLifeCycleManager):
         _LOGGER.debug(
             f"LifeCycleClient: {client_id}: {command} {item_name} {item_value}")
 
-#---------------------------------------------------------------------------- #
+# ---------------------------------------------------------------------------- #
 
 class LifeCycleClient(ServiceProtocolInterface):
     Interface.implementations["LifeCycleClient"] =  \
@@ -418,7 +418,7 @@ class TestLifeCycleClientImpl(TestLifeCycleClient):
 #       if command == "remove":
 #           self.delete()
 
-#---------------------------------------------------------------------------- #
+# ---------------------------------------------------------------------------- #
 
 @click.group()
 def main():
@@ -448,4 +448,4 @@ def client(client_id, lifecycle_manager_topic):
 if __name__ == "__main__":
     main()
 
-#---------------------------------------------------------------------------- #
+# ---------------------------------------------------------------------------- #

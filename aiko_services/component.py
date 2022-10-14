@@ -143,6 +143,8 @@ def _keep_specified_implementations(impl_seed_class, implementations):
         if _is_interface(ancestor) and ancestor.__name__ in implementations:
             specified_impls[ancestor.__name__] =  \
                 implementations[ancestor.__name__]
+        elif (not _is_interface(ancestor)) and ancestor.__name__ in implementations:
+            print(f"Warning: When composing {impl_seed_classs}, ignoring parent {ancestor}, because some methods are not abstract")
     return specified_impls
 
 def _load_implementations(implementations):

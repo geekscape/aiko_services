@@ -284,7 +284,8 @@ def loop(loop_when_no_handlers=False):
                 priority_mailbox = mailboxes[list(mailboxes)[0]]
                 handle_mailboxes = True
                 while handle_mailboxes:
-                    for mailbox_name, mailbox in mailboxes.items():
+                # TODO: Determine performance impact of "mailboxes.copy()"
+                    for mailbox_name, mailbox in mailboxes.copy().items():
                         while mailbox.queue.qsize() > 0:
                             item, time_posted = mailbox.queue.get()
                             mailbox.handler(mailbox_name, item, time_posted)
