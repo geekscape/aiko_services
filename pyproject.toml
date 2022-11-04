@@ -4,10 +4,6 @@ version = "0.2"
 description = "Asynchronous message service framework"
 authors = ["Andy Gelme <geekscape@gmail.com>"]
 
-[[tool.poetry.source]]
-name = "silverpond"
-url = "https://pypi.silverpond.com.au/simple"
-
 [tool.poetry.dependencies]
 python = ">=3.7,<3.9"
 asciimatics = "^1.14.0"
