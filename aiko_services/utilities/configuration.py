@@ -4,7 +4,7 @@
 # AIKO_MQTT_HOST=localhost
 # AIKO_MQTT_PORT=1883
 # AIKO_MQTT_TRANSPORT=tcp  # websockets
-# AIKO_USERNAME=username  # Specifying a username enables TLS (SSL)
+# AIKO_USERNAME=username   # Specifying a username may enable TLS (SSL)
 # AIKO_PASSWORD=password
 #
 # mqtt_configuration = get_mqtt_configuration(tls_enabled=True)
@@ -78,7 +78,9 @@ def get_mqtt_configuration(tls_enabled=None):
     username = os.environ.get("AIKO_USERNAME", None)
     password = os.environ.get("AIKO_PASSWORD", None)
     if tls_enabled == None:
-        tls_enabled = (username is not None) and (len(username) > 0)
+        tls_enabled = (username is not None) and  \
+                      (len(username) > 0)    and  \
+                      (mqtt_host != "localhost")
     return (mqtt_host, mqtt_port, mqtt_transport, username, password, tls_enabled)
 
 # Try in order ...
