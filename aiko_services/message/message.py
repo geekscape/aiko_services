@@ -13,9 +13,9 @@ class Message(abc.ABC):
         self: Any,
         message_handler: Any = None,
         topics_subscribe: Any = None,
-        lwt_topic: str = None,
-        lwt_payload: str = None,
-        lwt_retain: bool = False
+        topic_lwt: str = None,
+        payload_lwt: str = None,
+        retain_lwt: bool = False
         ) -> None:
 
         pass
@@ -32,8 +32,9 @@ class Message(abc.ABC):
 
     def set_last_will_and_testament(
         self: Any,
-        lwt_topic: str = None,
-        lwt_retain: bool = False
+        topic_lwt: str = None,
+        payload_lwt: str = "(absent)",
+        retain_lwt: bool = False
         ) -> None:
 
         raise NotImplementedError("Message.set_last_will_and_testament()")

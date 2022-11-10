@@ -1,15 +1,50 @@
-# Example
-# ~~~~~~~
-# from aiko_services import *
-# test_actor = actor.TestActor("TestActor")
-# test_actor.initialize()
-# event.loop()
+# Description
+# ~~~~~~~~~~~
+# Distributed Service based on the Actor Nodel
+# - https://en.wikipedia.org/wiki/Actor_model
 #
+# Example 1
+# ~~~~~~~~~
+# from abc import abstractmethod
 # from aiko_services import *
-# test_actor = actor.TestActor("TestActor")
-# test_actor_proxy = proxy.ProxyAllMethods("ProxyTest", test_actor, Actor.proxy_post_message)
-# test_actor_proxy.initialize()
-# event.loop()
+#
+# class ActorTest(Actor):
+#     Interface.implementations["ActorTest"] = "__main__.ActorTestImpl"
+#
+#     @abstractmethod
+#     def test(self):
+#         pass
+#
+# class ActorTestImpl(ActorTest):
+#     def __init__(self,
+#         implementations, name, protocol, tags, transport):
+#         implementations["Actor"].__init__(self,
+#             implementations, name, protocol, tags, transport)
+#
+#     def test(self):
+#         print("ActorTestImpl.test() invoked")
+#
+# protocol = f"{ServiceProtocol.AIKO}/actor_test:0"
+# init_args = actor_args("actor_test", protocol)
+# actor_test = compose_instance(ActorTestImpl, init_args)
+# actor_test.test()
+# aiko.process.run()
+#
+# Example 2
+# ~~~~~~~~~
+# from aiko_services import *
+# actor_test = actor.ActorTest("ActorTest")
+# actor_test.initialize()
+# aiko.process.run()
+#
+# Example 3
+# ~~~~~~~~~
+# from aiko_services import *
+# actor_test = actor.ActorTest("ActorTest")
+# actor_test_proxy = proxy.ProxyAllMethods(
+#    "ProxyTest", actor_test, Actor.proxy_post_message)
+# actor_test_proxy.initialize()
+# aiko.process.run()
 #
 # Design
 # ~~~~~~
@@ -68,10 +103,10 @@ import traceback
 from aiko_services import *
 from aiko_services.utilities import *
 
-__all__ = ["Actor", "ActorImpl", "TestActor", "TestActorImpl"]
+__all__ = ["Actor", "ActorImpl", "ActorTest", "ActorTestImpl"]
 
 _AIKO_LOG_LEVEL_ACTOR = os.environ.get("AIKO_LOG_LEVEL_ACTOR", "INFO")
-_LOGGER = aiko_logger(__name__, log_level=_AIKO_LOG_LEVEL_ACTOR)
+_LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_ACTOR)
 
 class LifeCycleClient:  # Interface
     pass
@@ -132,6 +167,9 @@ class Actor(Service):
 #   def run(self):  # TODO: Decide what methods are required to be an Actor
 #       pass
 
+def actor_args(name=None, protocol=None, tags=[], transport="mqtt"):
+    return service_args(name, protocol, tags, transport)
+
 class ActorImpl(Actor):
     @classmethod
     def proxy_post_message(
@@ -144,9 +182,11 @@ class ActorImpl(Actor):
         actual_object._post_message(
             topic, command, args, target_function=actual_function)
 
-    def __init__(self, implementations, actor_name):
-        implementations["Service"].__init__(self, implementations)
-        self.actor_name = actor_name
+    def __init__(self,
+        implementations, name=None, protocol=None, tags=[], transport="mqtt"):
+
+        implementations["Service"].__init__(self,
+            implementations, name, protocol, tags, transport)
         self.running = False
         # First mailbox added has priority handling for all posted messages
         for topic in [Topic.CONTROL, Topic.IN]:
@@ -154,7 +194,7 @@ class ActorImpl(Actor):
             event.add_mailbox_handler(self._mailbox_handler, mailbox_name)
 
     def _actor_mailbox_name(self, topic):
-        return f"{self.actor_name}/{topic}"
+        return f"{self.name}/{self.service_id}/{topic}"
 
     def _is_running(self):
         return self.running
@@ -165,7 +205,7 @@ class ActorImpl(Actor):
     def run(self):
         self.running = True
         try:
-            aiko.process()
+            aiko.process.run()
         except Exception as exception:
         #   _LOGGER.error(f"Exception caught in {self.__class__.__name__}: {type(exception).__name__}: {exception}")
             _LOGGER.error(traceback.format_exc())
@@ -184,10 +224,10 @@ class ActorImpl(Actor):
 
     # TODO: make public
     def _stop(self):
-        event.terminate()
+        aiko.process.terminate()
 
-class TestActor(Actor):  # TODO: Move into "../examples/"
-    Interface.implementations["TestActor"] = "aiko_services.actor.TestActorImpl"
+class ActorTest(Actor):  # TODO: Move into "../examples/"
+    Interface.implementations["ActorTest"] = "aiko_services.actor.ActorTestImpl"
 
     __test__ = False  # Stop PyTest from collecting and instantiating this class
 
@@ -203,9 +243,9 @@ class TestActor(Actor):  # TODO: Move into "../examples/"
     def test(self, value):
         pass
 
-class TestActorImpl(TestActor):  # TODO: Move into "../examples/"
-    def __init__(self, implementations, actor_name):
-        implementations["Actor"].__init__(self, actor_name)
+class ActorTestImpl(ActorTest):  # TODO: Move into "../examples/"
+    def __init__(self, implementations, name):
+        implementations["Actor"].__init__(self, name)
         self.test_count = None
 
     def initialize(self):
@@ -226,7 +266,7 @@ class TestActorImpl(TestActor):  # TODO: Move into "../examples/"
                 self.test_count += 1
 
     def control_test(self, value):
-        print(f"TestActor: control_test({value})")
+        print(f"ActorTest: control_test({value})")
 
     def test(self, value):
-        print(f"TestActor: test({value})")
+        print(f"ActorTest: test({value})")

@@ -10,22 +10,14 @@ from .configuration import (
     get_namespace, get_namespace_prefix, get_pid, get_username
 )
 
-from .context import (
-    ContextManager, get_context
-)
+from .context import ContextManager, get_context
 
-from .importer import (
-    load_module, load_modules
-)
+from .importer import load_module, load_modules
 
-from .logger import (
-    DEBUG, get_log_level_name, get_logger, LoggingHandlerMQTT
-)
+from .lock import Lock
 
-from .lru_cache import (
-    LRUCache
-)
+from .logger import DEBUG, get_log_level_name, get_logger, LoggingHandlerMQTT
 
-from .parser import (
-    generate, parse
-)
+from .lru_cache import LRUCache
+
+from .parser import generate, parse

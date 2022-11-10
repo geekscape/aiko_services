@@ -2,7 +2,7 @@
 #
 # Notes
 # ~~~~~
-# Debugging: aiko.public.message.publish("DASHBOARD", f"Debug message")
+# Debugging: aiko.process.message.publish("DASHBOARD", f"Debug message")
 #
 # Set-up ssh X11 forwarding for copy-paste support
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -131,7 +131,7 @@ def _short_name(path):
 def _update_ecproducer_variable(topic_path, name, value):
     topic_path_control = topic_path + "/control"
     payload_out = f"(update {name} {value})"
-    aiko.public.message.publish(topic_path_control, payload_out)
+    aiko.message.publish(topic_path_control, payload_out)
 
 class FrameCommon:
     def __init__(self, screen, height, width, has_border, name):
@@ -165,7 +165,7 @@ class FrameCommon:
                     PopUpDialog(self._screen, message, ["OK"], theme="nice"))
             if event.key_code in [ord("x"), ord("X"), Screen.ctrl("c")]:
                 self.services_cache = None
-                service_cache_delete()
+                services_cache_delete()
                 raise StopApplication("User quit request")
 
     def _update_field(self, list, name, value, width):  # wrap long lines
@@ -194,15 +194,16 @@ class DashboardFrame(FrameCommon, Frame):
         self.service_history = deque(maxlen=_HISTORY_RING_BUFFER_SIZE)
         self.services_row = -1
 
-        self.services_cache = service_cache_create_singleton(True)
+        self.services_cache = services_cache_create_singleton(
+            aiko.process, True)
         filter = ServiceFilter("*", "*", "*", "*", "*")
-        self.services_cache.add_handler(self._service_change_handler, filter)
+        self.services_cache.add_handler(self._service_change_handler, filter)  # REVIEW AVOID MULTIPLE ADDS !
 
         self._services_widget = MultiColumnListBox(
             screen.height * 1 // 3,
-            ["<24", "<20", "<12", "<8", "<0"],
+            ["<30", "<12", "<8", "<20", "<0"],  # Transport: <10 columns
             options=[],
-            titles=["Service", "Protocol", "Transport", "Owner", "Tags"],
+            titles=["Service Topic", "Name", "Owner", "Protocol", "Transport"],
             on_change=self._on_change_services
         )
         self._service_widget = MultiColumnListBox(
@@ -212,11 +213,11 @@ class DashboardFrame(FrameCommon, Frame):
             titles=["Variable name", "Value"],
             on_select=self._on_select_variable
         )
-        self._history_widget = MultiColumnListBox(
+        self._history_widget = MultiColumnListBox(  # Transport: <10 columns
             Widget.FILL_FRAME,
-            ["<24", "<16", "<12", "<8", "<0"],
+            ["<30", "<12", "<8", "<20", "<0"],
             options=[],
-            titles=["Service history", "Protocol", "Transport", "Owner", "Tags"]
+            titles=["Service history", "Name", "Owner", "Protocol", "Transport"]
         )
         layout_0 = Layout([1, 1])
         self.add_layout(layout_0)
@@ -237,17 +238,17 @@ class DashboardFrame(FrameCommon, Frame):
         self.services_row = -1
         _SERVICE_SELECTED = None
 
-        services_topics = self.services_cache.get_services_topics()
-        if len(services_topics) > index:
+        services = self.services_cache.get_services()
+        services_topic_paths = services.get_topic_paths()
+        if len(services_topic_paths) > index:
             self.services_row = index
-            service_topic_path = services_topics[index]
-            services = self.services_cache.get_services()
-            _SERVICE_SELECTED = services[service_topic_path]
+            service_topic_path = services_topic_paths[index]
+            _SERVICE_SELECTED = services.get_service(service_topic_path)
             self.service_tags = _SERVICE_SELECTED[4]
-            if aiko.match_tags(self.service_tags, ["ec=true"]):
+            if ServiceTags.match_tags(self.service_tags, ["ec=true"]):
                 topic_control = f"{service_topic_path}/control"
                 self.ec_consumer = ECConsumer(
-                    0, self.service_cache, topic_control)
+                    aiko.process, 0, self.service_cache, topic_control)
 
     def _ec_consumer_reset(self):
         if self.ec_consumer:
@@ -257,11 +258,10 @@ class DashboardFrame(FrameCommon, Frame):
         self.service_tags = None
 
     def _kill_service(self, service_topic_path):
-        global _SERVICE_SELECTED
-        if service_topic_path.count("/") == 2:
-            pid = _short_name(service_topic_path)
-            if pid.isnumeric():
-                command_line = ["kill", "-9", pid]
+        if service_topic_path.count("/") == 3:
+            process_id = ServiceTopicPath.parse(service_topic_path).process_id
+            if process_id.isnumeric():
+                command_line = ["kill", "-9", process_id]
                 Popen(command_line, bufsize=0, shell=False)
                 self._ec_consumer_set(self.services_row + 1)
 
@@ -307,11 +307,10 @@ class DashboardFrame(FrameCommon, Frame):
 
         services = self.services_cache.get_services().copy()
         services_formatted = []
-        for service in services.values():
+        for service in services:
             protocol = _short_name(service[1])
-            tags = str(service[4])               # [tags] stringified
             services_formatted.append(
-                (service[0], protocol, service[2], service[3], tags))
+                (service[0], "", service[3], protocol, service[2]))
         self._services_widget.options = [
             (service_info, row_index)
             for row_index, service_info in enumerate(services_formatted)
@@ -343,13 +342,12 @@ class DashboardFrame(FrameCommon, Frame):
             for row_index, variable in enumerate(variables)
         ]
 
-        services_formatted = []
         service_history = list(self.service_history)
+        services_formatted = []
         for service in service_history:
             protocol = _short_name(service[1])
-            tags = str(service[4])               # [tags] stringified
             services_formatted.append(
-                (service[0], protocol, service[2], service[3], tags))
+                (service[0], "", service[3], protocol, service[2]))
         self._history_widget.options = [
             (service_info, row_index)
             for row_index, service_info in enumerate(services_formatted)
@@ -413,7 +411,8 @@ class LogFrame(FrameCommon, Frame):
             self._log_widget._titles = [title]
             self.log_buffer = deque(maxlen=_LOG_RING_BUFFER_SIZE)
             self.topic_log = f"{_SERVICE_SELECTED[0]}/log"
-            aiko.add_message_handler(self._topic_log_handler, self.topic_log)
+            aiko.process.add_message_handler(
+                self._topic_log_handler, self.topic_log)
 
         log_records = []
         if self.log_buffer:
@@ -432,7 +431,7 @@ class LogFrame(FrameCommon, Frame):
         global _SERVICE_SUBSCRIBED
         if isinstance(event, KeyboardEvent):
             if event.key_code in [ord("D")]:
-                aiko.remove_message_handler(
+                aiko.process.remove_message_handler(
                     self._topic_log_handler, self.topic_log)
                 self.log_buffer = None
                 self.topic_log = None

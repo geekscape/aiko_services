@@ -97,7 +97,7 @@ __all__ = [
 ACTOR_TYPE = "Pipeline"
 PROTOCOL = f"{ServiceProtocol.AIKO}/pipeline:0"
 
-_LOGGER = aiko_logger(__name__)
+_LOGGER = aiko.logger(__name__)
 _VERSION = 0
 
 # --------------------------------------------------------------------------- #
@@ -123,9 +123,9 @@ class PipelineElement(Actor):
         pass
 
 class PipelineElementImpl(PipelineElement):
-    def __init__(self, implementations, actor_name):
-        implementations["Actor"].__init__(self, implementations, actor_name)
-    #   print(f"# self: {self.__class__.__name__}: PipelineElementImpl.__init__({actor_name}) invoked")
+    def __init__(self, implementations, name):
+        implementations["Actor"].__init__(self, implementations, name)
+    #   print(f"# self: {self.__class__.__name__}: PipelineElementImpl.__init__({name}) invoked")
 
     def start_stream(self, stream_id, parameters):
         pass
@@ -164,8 +164,8 @@ class PE_1(PipelineElementImpl):
     @dataclass
     class FrameOutput: a: int; b: str
 
-    def __init__(self, implementations, actor_name):
-        implementations["PipelineElement"].__init__(self, implementations, actor_name)
+    def __init__(self, implementations, name):
+        implementations["PipelineElement"].__init__(self, implementations, name)
     #   print("# PE_1.__init__() invoked")
 
     def process_frame(self, stream_id, frame_id) -> Tuple[bool, FrameOutput]:
@@ -175,8 +175,8 @@ class PE_2(PipelineElementImpl):
     @dataclass
     class FrameOutput: c: int
 
-    def __init__(self, implementations, actor_name):
-        implementations["PipelineElement"].__init__(self, implementations, actor_name)
+    def __init__(self, implementations, name):
+        implementations["PipelineElement"].__init__(self, implementations, name)
     #   print("# PE_2.__init__() invoked")
 
     def process_frame(self, stream_id, frame_id, a: int) ->  \
@@ -188,8 +188,8 @@ class PE_3(PipelineElementImpl):
     @dataclass
     class FrameOutput: d: int; e: float
 
-    def __init__(self, implementations, actor_name):
-        implementations["PipelineElement"].__init__(self, implementations, actor_name)
+    def __init__(self, implementations, name):
+        implementations["PipelineElement"].__init__(self, implementations, name)
     #   print("# PE_3.__init__() invoked")
 
     def process_frame(self, stream_id, frame_id, b: str) ->  \
@@ -202,8 +202,8 @@ class PE_4(PipelineElementImpl):
     @dataclass
     class FrameOutput: pass
 
-    def __init__(self, implementations, actor_name):
-        implementations["PipelineElement"].__init__(self, implementations, actor_name)
+    def __init__(self, implementations, name):
+        implementations["PipelineElement"].__init__(self, implementations, name)
     #   print("# PE_4.__init__() invoked")
 
     def process_frame(self, stream_id, frame_id, c: int, d: int, e: float) ->  \
@@ -253,9 +253,9 @@ class Pipeline(PipelineElement):
 # TODO: Refactor Service code into PipelineElement
 
 class PipelineImpl(Pipeline):
-    def __init__(self, implementations, actor_name, pipeline_definition):
+    def __init__(self, implementations, name, pipeline_definition):
         implementations["PipelineElement"].__init__(
-            self, implementations, actor_name)
+            self, implementations, name)
         self.pipeline_definition = pipeline_definition
         aiko.set_protocol(PROTOCOL)  # TODO: Move into service.py
 
@@ -264,10 +264,10 @@ class PipelineImpl(Pipeline):
             "log_level": get_log_level_name(_LOGGER),
             "source_file": f"v{_VERSION}⇒{__file__}"
         }
-        self.ec_producer = ECProducer(self.state)
+        self.ec_producer = ECProducer(self, self.state)
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
-        aiko.add_topic_in_handler(self.topic_in_handler)
+        self.add_message_handler(self.topic_in_handler, self.topic_in)
 
         self._create_pipeline_graph()
 
@@ -283,8 +283,7 @@ class PipelineImpl(Pipeline):
         for pe_def in self.pipeline_definition.pipeline_elements:
             name = pe_def.name
             pe_class = getattr(__import__("__main__"), name)
-            actor_name = f"{aiko.public.topic_path}.{name}"  # WIP: Actor name
-            init_args = { "actor_name": actor_name }
+            init_args = { "name": name }
         #   print("# _create_pipeline_graph().compose_instance(pe_class, ...)")
             pipeline_element_instance = compose_instance(pe_class, init_args)
             pipeline_element_dict = {
@@ -358,15 +357,15 @@ class PipelineImpl(Pipeline):
         return True, None
 
     def test(self, value):
-        _LOGGER.info(f"{self.actor_name}: test({value})")
+        _LOGGER.info(f"{self.name}: test({value})")
         payload_out = f"(test {value})"
-        aiko.public.message.publish(aiko.public.topic_out, payload_out)
+        aiko.message.publish(aiko.topic_out, payload_out)
 
     def topic_in_handler(self, _aiko, topic, payload_in):
         command, parameters = parse(payload_in)
         if _LOGGER.isEnabledFor(DEBUG):  # Save time
             _LOGGER.debug(
-                f"{self.actor_name}: topic_in_handler(): {command}:{parameters}"
+                f"{self.name}: topic_in_handler(): {command}:{parameters}"
             )
 # TODO: Apply proxy automatically for Actor and not manually here
         self._post_message(actor.Topic.IN, command, parameters)
@@ -376,10 +375,10 @@ class PipelineImpl(Pipeline):
 @click.command("main", help="Pipeline design and implementation development")
 @click.argument("pipeline_definition_pathname", nargs=1, default=None, required=False)
 def main(pipeline_definition_pathname):
-    actor_name = f"{aiko.public.topic_path}.{ACTOR_TYPE}"  # WIP: Actor name
+    name = f"{aiko.topic_path}.{ACTOR_TYPE}"  # WIP: Actor name
 #   aiko.add_tags([f"key={value}"])
     init_args = {
-        "actor_name": actor_name,
+        "name": name,
         "pipeline_definition": p_1  # TODO: Parse "pipeline_definition_pathname"
     }
 #   print("# main().compose_instance(PipelineImpl, ...)")

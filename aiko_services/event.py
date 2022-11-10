@@ -21,6 +21,10 @@
 #
 # To Do
 # ~~~~~
+# * Replace 'event.queue_put(message, "message")' with the general ability to
+#   put any 'object' onto a queue to get "work" onto the "event loop" and
+#   have that work done by a specified handler
+#
 # * Rename "event.py" to "handler.py" along with function and variable names.
 #
 # * Make function names consistently verb_noun() or noun_verb(), but not both !
@@ -61,8 +65,9 @@
 from collections import OrderedDict
 import queue
 import time
-import threading
 from typing import Any, Tuple
+
+from aiko_services.utilities import *
 
 __all__ = [
     "add_flatout_handler", "add_mailbox_handler",
@@ -151,7 +156,7 @@ class EventList:
 
 event_enabled = False
 event_list = EventList()
-event_loop_lock = threading.Lock()
+event_loop_lock = Lock(f"{__name__}.loop")
 event_loop_running = False
 event_queue: "queue.Queue[Tuple[Any, Any]]" = queue.Queue()
 flatout_handlers = []
@@ -188,7 +193,7 @@ class Mailbox:
             self.high_water_mark = self.size
         if self.size >= self.last_warned_increment + self.increment_warning:
             message = f"Mailbox {self.name}: size={self.size}"
-            message = "\033[91m" + message + "\033[0m"  # highlight red
+            message = f"\033[91m{message}\033[0m"  # highlight red
             print(message)
             self.last_warned_increment += self.increment_warning
 
@@ -256,8 +261,9 @@ def remove_timer_handler(handler):
 def loop(loop_when_no_handlers=False):
     global event_enabled, event_loop_running, _timer_counter
 
-    event_loop_lock.acquire()
+    event_loop_lock.acquire("loop() #1")
     if event_loop_running:
+        event_loop_lock.release()
         return
     event_loop_running = True
     event_loop_lock.release()
@@ -308,7 +314,7 @@ def loop(loop_when_no_handlers=False):
     except KeyboardInterrupt:
         raise SystemExit("KeyboardInterrupt: abort !")
     finally:
-        event_loop_lock.acquire()
+        event_loop_lock.acquire("loop() #2")
         event_loop_running = False
         event_loop_lock.release()
 

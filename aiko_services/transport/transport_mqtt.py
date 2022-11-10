@@ -10,7 +10,7 @@
 #   - Will need to support multiple Actors running in the same process !
 #
 # * Once Service protocol matching is properly implemented ...
-#     Replace Service tag "actor=actor_name" marking Actors with
+#     Replace Service tag "actor=name" marking Actors with
 #     matching via Service protocol "{ServiceProtocol.AIKO}/actor:0"
 #
 #------------------------------------------------------------------------------
@@ -18,9 +18,9 @@
 #     actor_check = True, actor_init_args = {}, daemon = False,
 #     max_concurrency = _MAX_CONCURRENCY, resources = None):
 #
-# delete_actor(actor_name, wait = False, force = False):
+# delete_actor(name, wait = False, force = False):
 #
-# get_actor(actor_name,
+# get_actor(name,
 #     exit_not_found = False, fail_not_found = True, wait_time = None):
 
 from abc import abstractmethod
@@ -33,15 +33,17 @@ __all__ = [
     "TransportMQTT", "TransportMQTTImpl","ActorDiscovery", "get_actor_mqtt"
 ]
 
-_LOGGER = aiko_logger(__name__)
+_LOGGER = aiko.logger(__name__)
 
 class TransportMQTT(Actor):
     Interface.implementations["TransportMQTT"] =  \
         "aiko_services.transport.TransportMQTTImpl"
 
 class TransportMQTTImpl(TransportMQTT):
-    def __init__(self, implementations, actor_name):
-        implementations["Actor"].__init__(self, implementations, actor_name)
+    def __init__(self,
+        implementations, name, protocol, tags, transport):
+        implementations["Actor"].__init__(self,
+            implementations, name, protocol, tags, transport)
 
     def terminate(self):
         self._stop()
@@ -63,8 +65,8 @@ class ServiceDiscovery:  # Move to registrar.py or share.py?
     pass                 # Refactor after ActorDiscovery starts to work properly
 
 class ActorDiscovery(ServiceDiscovery):  # Move to actor.py or share.py ?
-    def __init__(self):
-        self.services_cache = service_cache_create_singleton()
+    def __init__(self, service):
+        self.services_cache = services_cache_create_singleton(service)
 
     def add_handler(self, service_change_handler, filter):
         self.services_cache.add_handler(service_change_handler, filter)
@@ -72,22 +74,29 @@ class ActorDiscovery(ServiceDiscovery):  # Move to actor.py or share.py ?
     def remove_handler(self, service_change_handler, filter):
         self.services_cache.remove_handler(service_change_handler, filter)
 
-    def get_actor_mqtt(self, actor_name):
-        actor_topic = ".".join(actor_name.split(".")[:-1])  # WIP: Actor name
+# TODO: Update to use ServiceFields.name, rather than "actor=name" tag
+    def get_actor_mqtt(self, name):
+        actor_topic = ".".join(name.split(".")[:-1])  # WIP: Actor name
         services = self.services_cache.get_services()
-        services = filter_services_by_actor_names(services, [actor_name])
-        actor = services.get(actor_name)
+        raise Exception("Broken: get_actor_mqtt()")  # REVIEW FIXME
+        services = services.filter_by_name(name)
+        actor = services.get(name)
         return actor
 
-    def query_actor_mqtt(self, filter):
-        services = self.services_cache.get_services()
-        actors = filter_services_by_attributes(services, filter)
-        return actors
+# TODO: Currently unused
+#   def query_actor_mqtt(self, filter):
+#       services = self.services_cache.get_services()
+#       actors = services.filter_by_attributes(filter)
+#       return actors
 
 # -----------------------------------------------------------------------------
 
-def create_actor_mqtt(actor_class, actor_name,
-    actor_init_args={}, resources=None, daemon = True):
+def create_actor_mqtt(
+        actor_class,
+        name,
+        actor_init_args={},
+        resources=None,
+        daemon = True):
     pass
 
 def delete_actor_mqtt(actor):
@@ -105,7 +114,7 @@ def make_proxy_mqtt(target_topic_in, public_method_names):
     def _proxy_send_message(method_name):
         def closure(*args, **kwargs):
             payload = generate(method_name, args)
-            aiko.public.message.publish(target_topic_in, payload)
+            aiko.message.publish(target_topic_in, payload)
         return closure
     class Proxy(): pass
     proxy = Proxy()

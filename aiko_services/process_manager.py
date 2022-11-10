@@ -132,12 +132,12 @@ def topic_in_handler(aiko, topic, payload_in):
 #               if aks.get_parameter("publish_parameters") == "true":
 #                   for parameter_name in aks_info.parameters[0]:
 #                       parameter_value = aks.get_parameter(parameter_name)
-#                       payload_out = parameter_name + ": " + parameter_value
+#                       payload_out = f"{parameter_name}: {parameter_value}"
 #                       aks_info.mqtt_client.publish(
 #                           aks_info.TOPIC_OUT, payload_out)
 
 #         payload_out = payload_in
-#         mqtt_client.publish(aks_info.TOPIC_OUT, payload=payload_in)
+#         mqtt_client.publish(aks_info.TOPIC_OUT, payload_in)
 
     return False
 
@@ -178,9 +178,9 @@ def main(example, tags):
         example_code(process_manager, example)
     else:
         aiko.set_protocol(PROTOCOL_PROCESS_MANAGER)  # TODO: Move into service.py
-        aiko.add_topic_in_handler(topic_in_handler)
-#       aiko.parse_tags(tags)
-        aiko.process(True)
+        self.add_message_handler(self.topic_in_handler, self.topic_in)
+#       ServiceTags.parse_tags(tags)
+        aiko.process.run(True)
 
 if __name__ == "__main__":
     main()

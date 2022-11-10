@@ -8,7 +8,7 @@
 # LOG_LEVEL=INFO  # DEBUG
 # mosquitto_sub -t '#' -v
 # REGISTRAR=0   LOG_LEVEL=$LOG_LEVEL registrar &
-# ALOHA_HONUA=0 LOG_LEVEL=$LOG_LEVEL ./aloha_honua.py [test_value] &
+# ALOHA_HONUA=0 LOG_LEVEL=$LOG_LEVEL ./aloha_honua.py [count] &
 #
 # NAMESPACE=aiko
 # HOST=localhost
@@ -17,14 +17,13 @@
 #
 # ALOHA_HONUA=0 LOG_LEVEL=DEBUG ./aloha_honua.py 0 & PID=`echo $!`; TOPIC_PATH=$NAMESPACE/`hostname`/$PID; echo ALOHA_HONUA: $TOPIC_PATH
 #
-# mosquitto_pub -t $TOPIC_PATH/contol -m '(update log_lebel DEBUG)'
-# mosquitto_pub -t $TOPIC_PATH/contol -m '(update test_value 0)'
+# mosquitto_pub -t $TOPIC_PATH/contol -m '(update log_level DEBUG)'
 # mosquitto_pub -t $TOPIC_PATH/in -m '(test hello)'
 #
-# count=0
+# id=0
 # while true; do
-#   mosquitto_pub -t $TOPIC_PATH/control -m "(update test_value $count)"
-#   count=$((count+1))
+#   mosquitto_pub -t $TOPIC_PATH/control -m "(update actor_id $id)"
+#   id=$((id+1))
 #   sleep 0.001
 # done
 #
@@ -41,7 +40,7 @@ from aiko_services.utilities import *
 ACTOR_TYPE = "AlohaHonua"
 PROTOCOL = f"{ServiceProtocol.AIKO}/aloha_honua:0"
 
-_LOGGER = aiko_logger(__name__)
+_LOGGER = aiko.logger(__name__)
 _VERSION = 0
 
 # --------------------------------------------------------------------------- #
@@ -54,28 +53,29 @@ class AlohaHonua(Actor):
         pass
 
 class AlohaHonuaImpl(AlohaHonua):
-    def __init__(self, implementations, actor_name, test_value=0):
-        implementations["Actor"].__init__(self, implementations, actor_name)
-        aiko.set_protocol(PROTOCOL)  # TODO: Move into service.py
+    def __init__(self,
+        implementations, name, protocol, tags, transport):
 
-        aiko.public.connection.add_handler(self._connection_state_handler)
+        implementations["Actor"].__init__(self,
+            implementations, name, protocol, tags, transport)
+
+        aiko.connection.add_handler(self._connection_state_handler)
 
         self.state = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
             "source_file": f"v{_VERSION}⇒{__file__}",
-            "test_value": test_value,
             "test_dict": {"item_1": ["value_a"], "item_2": ["value_b"]}
         }
-        self.ec_producer = ECProducer(self.state)
+        self.ec_producer = ECProducer(self, self.state)
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
-    #   aiko.add_message_handler(self.topic_all_handler, "#")  # for testing
-        aiko.add_topic_in_handler(self.topic_in_handler)
+    #   self.add_message_handler(self._topic_all_handler, "#")  # for testing
+        self.add_message_handler(self._topic_in_handler, self.topic_in)
 
     def _connection_state_handler(self, connection, connection_state):
         if connection.is_connected(ConnectionState.REGISTRAR):
-            _LOGGER.info("Aloha honua (after Registrar available)")
+            _LOGGER.debug("Aloha honua (after Registrar available)")
 
     def _ec_producer_change_handler(self, command, item_name, item_value):
         if _LOGGER.isEnabledFor(DEBUG):  # Save time
@@ -83,38 +83,54 @@ class AlohaHonuaImpl(AlohaHonua):
         if item_name == "log_level":
             _LOGGER.setLevel(str(item_value).upper())
 
-    def test(self, value):
-        _LOGGER.info(f"{self.actor_name}: test({value})")
-        payload_out = f"(test {value})"
-        aiko.public.message.publish(aiko.public.topic_out, payload_out)
-
-    def topic_all_handler(self, _aiko, topic, payload_in):
+    def _topic_all_handler(self, _aiko, topic, payload_in):
         command, parameters = parse(payload_in)
         if _LOGGER.isEnabledFor(DEBUG):  # Save time
             _LOGGER.debug(
                 f"topic_all_handler(): topic: {topic}, {command}:{parameters}")
 
-    def topic_in_handler(self, _aiko, topic, payload_in):
+    def _topic_in_handler(self, _aiko, topic, payload_in):
         command, parameters = parse(payload_in)
         if _LOGGER.isEnabledFor(DEBUG):  # Save time
             _LOGGER.debug(
-                f"{self.actor_name}: topic_in_handler(): {command}:{parameters}"
+                f"{self.name}: topic_in_handler(): {command}:{parameters}"
             )
 # TODO: Apply proxy automatically for Actor and not manually here
         self._post_message(actor.Topic.IN, command, parameters)
 
+    def test(self, value):
+        _LOGGER.info(f"{self.name}: test({value})")
+        payload_out = f"(test {value})"
+        aiko.message.publish(self.topic_out, payload_out)
+
 # --------------------------------------------------------------------------- #
 
-@click.command("main", help="Hello World Actor")
-@click.argument("test_value", nargs=1, default=0, required=False)
-def main(test_value):
-    _LOGGER.info("Aloha honua (before Registrar available)")
+actor_count = 0
+actor_total = 0
 
-    actor_name = f"{aiko.public.topic_path}.{ACTOR_TYPE}"  # WIP: Actor name
-#   aiko.add_tags([f"key={value}"])
-    init_args = {"actor_name": actor_name, "test_value": 1}
+@click.command("main", help="Aloha honua")
+@click.argument("count", nargs=1, default=1, required=False)
+def main(count):
+    global actor_total
+    actor_total = count
+    _LOGGER.debug("Aloha honua (before Registrar available)")
+
+    event.add_timer_handler(create_actor, 0.01)
+    aiko.process.run()
+
+def create_actor():
+    global actor_count, actor_total
+
+    tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
+    init_args = actor_args(ACTOR_TYPE, PROTOCOL, tags)
+
     aloha_honua = compose_instance(AlohaHonuaImpl, init_args)
-    aloha_honua.run()
+    actor_count += 1
+    if actor_count % 100 == 0:
+        _LOGGER.info(f"Actor count: {actor_count}")
+
+    if actor_count == actor_total:
+        event.remove_timer_handler(create_actor)
 
 if __name__ == "__main__":
     main()

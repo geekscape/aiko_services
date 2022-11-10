@@ -9,7 +9,7 @@
 # REGISTRAR=0 registrar &
 # RECORDER=0 ./recorder.py [topic_path] &
 #
-# Where "topic_path" default: "namespace/+/+/log"
+# Where "topic_path" default: "aiko/+/+/+/log"
 #
 # To Do
 # ~~~~~
@@ -23,7 +23,7 @@
 # - Keep statistics for ...
 #   - History and Topic LRU cache length
 #   - Total messages received / sent, messages received / sent per second
-# - Why doesn't Python MQTT client subscribe("+/+/+/log") work ?
+# - Why doesn't Python MQTT client subscribe("+/+/+/+/log") work ?
 
 import click
 from collections import deque
@@ -31,11 +31,10 @@ from collections import deque
 from aiko_services import *
 from aiko_services.utilities import *
 
-__all__ = []
-
+SERVICE_TYPE = "Recorder"
 PROTOCOL = f"{ServiceProtocol.AIKO}/recorder:0"
 
-_LOGGER = aiko_logger(__name__)
+_LOGGER = aiko.logger(__name__)
 _VERSION = 0
 
 _HISTORY_LRU_CACHE_SIZE = 2  #  32
@@ -44,28 +43,37 @@ _TOPIC_LRU_CACHE_SIZE = 2    # 128
 
 # --------------------------------------------------------------------------- #
 
-class RecorderService:
-    def __init__(self, topic_path):
+class RecorderService(Service):
+    def __init__(self,
+        implementations, name, protocol, tags, transport, topic_path):
+
+        implementations["Service"].__init__(self,
+            implementations, name, protocol, tags, transport)
+
 # TODO: Add LRUCache popitem() handler to remove oldest ring buffer ?
 #       And send ECProducer.remove(topic) to update the ECConsumer
         self.lru_cache = LRUCache(_TOPIC_LRU_CACHE_SIZE)
         self.state = {
+            "lifecycle": "ready",
+            "log_level": get_log_level_name(_LOGGER),
+            "source_file": f"v{_VERSION}⇒{__file__}",
             "history": {},  # TODO: Remove and make available via (query ...)
             "history_item_count": {},  # TODO: Implement
             "history_lru_cache_size": _HISTORY_LRU_CACHE_SIZE,
-            "lifecycle": "ready",
-            "log_level": get_log_level_name(_LOGGER),
             "ring_buffer_size": _RING_BUFFER_SIZE,
-            "source_file": f"v{_VERSION}⇒{__file__}",
             "topic_lru_cache_size": _TOPIC_LRU_CACHE_SIZE,
             "topic_path": topic_path
         }
-        self.ec_producer = ECProducer(self.state)
+        self.ec_producer = ECProducer(self, self.state)
+        self.ec_producer.add_handler(self._ec_producer_change_handler)
 
-        aiko.set_protocol(PROTOCOL)  # TODO: Move into service.py
-        aiko.add_message_handler(self.recorder_handler, topic_path)
+        self.add_message_handler(self.recorder_handler, topic_path)
 
-    def recorder_handler(self, _aiko, topic, payload_in):
+    def _ec_producer_change_handler(self, command, item_name, item_value):
+        if item_name == "log_level":
+            _LOGGER.setLevel(str(item_value).upper())
+
+    def recorder_handler(self, aiko, topic, payload_in):
         if topic in self.lru_cache:
             ring_buffer = self.lru_cache.get(topic)
         else:
@@ -99,10 +107,13 @@ class RecorderService:
 
 @click.command("main", help="Recorder Service")
 @click.argument("topic_path", nargs=1, required=False,
-    default=f"{get_namespace()}/+/+/log")
+    default=f"{get_namespace()}/+/+/+/log")
 def main(topic_path):
-    RecorderService(topic_path)
-    aiko.process()
+    tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
+    init_args = service_args(SERVICE_TYPE, PROTOCOL, tags)
+    init_args["topic_path"] = topic_path
+    recorder = compose_instance(RecorderService, init_args)
+    aiko.process.run()
 
 if __name__ == "__main__":
     main()

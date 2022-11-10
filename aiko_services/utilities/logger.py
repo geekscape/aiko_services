@@ -14,9 +14,9 @@
 # AIKO_LOG_LEVEL=INFO python                      # MQTT logging (default)
 # AIKO_LOG_LEVEL=INFO AIKO_LOG_MQTT=false python  # Console logging
 #   from aiko_services import *
-#   _LOGGER = aiko_logger(__name__)
+#   _LOGGER = aiko.logger(__name__)
 #   _LOGGER.info("Informative message")
-#   aiko.process(True)  # Required for MQTT based logging
+#   aiko.process.run(True)  # Required for MQTT based logging
 #
 # Direct usage: Standalone Logger
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -29,17 +29,17 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # from aiko_services import *
 # from aiko_services.utilities import *
-# _LOGGER = aiko_logger(__name__)
+# _LOGGER = aiko.logger(__name__)
 #
 # def ec_producer_change_handler(command, item_name, item_value):
 #     if item_name == "log_level":
 #         _LOGGER.setLevel(str(item_value).upper())
 #
 # state = {"log_level": get_log_level_name(_LOGGER)}
-# ec_producer = ECProducer(state)
+# ec_producer = ECProducer(service, state)
 # ec_producer.add_handler(ec_producer_change_handler)
 # _LOGGER.info("Informative message")
-# aiko.process(True)  # Required for ECProducer and MQTT based logging
+# aiko.process.run(True)  # Required for ECProducer and MQTT based logging
 #
 # To Do: Logger
 # ~~~~~~~~~~~~~

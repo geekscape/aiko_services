@@ -4,10 +4,6 @@
 # ~~~~~
 # - None, yet !
 
-from .message import (
-    Message
-)
+from .message import Message
 
-from .mqtt import (
-    MQTT
-)
+from .mqtt import MQTT

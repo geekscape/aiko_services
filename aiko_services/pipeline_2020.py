@@ -26,7 +26,7 @@ from aiko_services.utilities import *
 
 __all__ = ["Pipeline_2020", "load_pipeline_definition_2020"]
 
-_LOGGER = aiko_logger(__name__)
+_LOGGER = aiko.logger(__name__)
 
 class Pipeline_2020():
     def __init__(self, pipeline_definition, frame_rate = 0, response_queue = None, state_machine = None, stream_id = "nil"):
@@ -246,7 +246,7 @@ class Pipeline_2020():
         self.load_node_modules()
         self.pipeline_start()
         if run_event_loop:
-            event.loop()  # aiko.process()
+            aiko.process.run()
 
     def update_node_parameter(self, node_name, parameter_name, parameter_value):
         node_parameters = self.get_node_parameters(node_name)

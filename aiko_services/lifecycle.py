@@ -16,7 +16,7 @@
 #        Need an identifier to specific exactly which handler instance
 #
 # - CRITICAL: *** Check all MQTT messages for excessive quantity ***
-#   - Every LifeCycleClient is using ActorDiscovery/ServiceCache and
+#   - Every LifeCycleClient is using ActorDiscovery/ServicesCache and
 #     receiving notification on every other LifeCycleClient on the
 #     Registrar topic "/out" ?!?
 #
@@ -71,7 +71,7 @@ _DELETION_LEASE_TIME_DEFAULT = 10
 _HANDSHAKE_LEASE_TIME_DEFAULT = 10  # seconds or 120 seconds for lots of clients
 
 _AIKO_LOG_LEVEL_LIFECYCLE = os.environ.get("AIKO_LOG_LEVEL_LIFECYCLE", "INFO")
-_LOGGER = aiko_logger(__name__, log_level=_AIKO_LOG_LEVEL_LIFECYCLE)
+_LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_LIFECYCLE)
 _VERSION = 0
 
 # ---------------------------------------------------------------------------- #
@@ -147,6 +147,7 @@ class LifeCycleManagerImpl(LifeCycleManager, LifeCycleManagerPrivate):
             client_state_consumer_filter="(lifecycle)",
             handshake_lease_time=_HANDSHAKE_LEASE_TIME_DEFAULT,
             deletion_lease_time=_DELETION_LEASE_TIME_DEFAULT):
+
         self.lcm_lifecycle_client_change_handler =  \
             lifecycle_client_change_handler
         self.lcm_actor_discovery = None
@@ -158,8 +159,8 @@ class LifeCycleManagerImpl(LifeCycleManager, LifeCycleManagerPrivate):
         self.lcm_handshake_lease_time = handshake_lease_time
         self.lcm_handshakes = {}
         self.lcm_lifecycle_clients = {}
-        aiko.add_message_handler(
-            self._lcm_topic_control_handler, aiko.public.topic_control)
+        self.add_message_handler(
+            self._lcm_topic_control_handler, self.topic_control)
         self.lcm_ec_producer.update("lifecycle_manager", {})  # TODO: Remove !
 
         if self.lcm_ec_producer is not None:
@@ -168,7 +169,7 @@ class LifeCycleManagerImpl(LifeCycleManager, LifeCycleManagerPrivate):
     def lcm_create_client(self, parameters={}):
         client_id = self.lcm_client_count
         self.lcm_client_count += 1
-        self._lcm_create_client(client_id, aiko.public.topic_path, parameters)
+        self._lcm_create_client(client_id, self.topic_path, parameters)
         handshake = Lease(
             self.lcm_handshake_lease_time, client_id,
             lease_expired_handler=self._lcm_handshake_lease_expired_handler)
@@ -197,11 +198,12 @@ class LifeCycleManagerImpl(LifeCycleManager, LifeCycleManagerPrivate):
 
                 topic_paths = [lifecycle_client_topic_path]
                 self.lcm_filter = ServiceFilter(topic_paths, "*", "*", "*", "*")
-                self.lcm_actor_discovery = ActorDiscovery() # TODO: Use ServiceDiscovery
+                self.lcm_actor_discovery = ActorDiscovery(self) # TODO: Use ServiceDiscovery
                 self.lcm_actor_discovery.add_handler(
                     self._lcm_service_change_handler, self.lcm_filter)
 
                 ec_consumer = ECConsumer(
+                    self,
                     client_id, {},
                     f"{lifecycle_client_topic_path}/control",
                     self.lcm_client_state_consumer_filter)
@@ -280,31 +282,32 @@ class LifeCycleManagerImpl(LifeCycleManager, LifeCycleManagerPrivate):
                     client_details.ec_consumer.cache.get(client_state_key)
         return client_state_value
 
-class TestLifeCycleManager(Actor, LifeCycleManager):
-    Interface.implementations["TestLifeCycleManager"] =  \
-        "aiko_services.lifecycle.TestLifeCycleManagerImpl"
+# --------------------------------------------------------------------------- #
 
-class TestLifeCycleManagerImpl(TestLifeCycleManager):
-    def __init__(self, implementations, actor_name, actor_count):
-        implementations["Actor"].__init__(self, implementations, actor_name)
-        self.actor_count = actor_count
-        aiko.set_protocol(PROTOCOL_LIFECYCLE_MANAGER) # TODO: Move into service.py
+class LifeCycleManagerTest(Actor, LifeCycleManager):
+    Interface.implementations["LifeCycleManagerTest"] =  \
+        "aiko_services.lifecycle.LifeCycleManagerTestImpl"
+
+class LifeCycleManagerTestImpl(LifeCycleManagerTest):
+    def __init__(self,
+        implementations, name, protocol, tags, transport, client_count):
+
+        implementations["Actor"].__init__(self,
+            implementations, name, protocol, tags, transport)
 
         self.state = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
-            "source_file": f"v{_VERSION}⇒{__file__}"
+            "source_file": f"v{_VERSION}⇒{__file__}",
+            "client_count": client_count
         }
-        self.ec_producer = ECProducer(self.state)
+        self.ec_producer = ECProducer(self, self.state)
         self.process_manager = ProcessManager()
 
-        implementations["LifeCycleManager"].__init__(
-            self,
-            self._lifecycle_client_change_handler,
-            self.ec_producer,
-        )
+        implementations["LifeCycleManager"].__init__(self,
+            self._lifecycle_client_change_handler, self.ec_producer)
 
-        aiko.public.connection.add_handler(self._connection_state_handler)
+        aiko.connection.add_handler(self._connection_state_handler)
 
     def _lcm_create_client(
         self, client_id, lifecycle_manager_topic, parameters):
@@ -318,7 +321,7 @@ class TestLifeCycleManagerImpl(TestLifeCycleManager):
 
     def _connection_state_handler(self, connection, connection_state):
         if connection.is_connected(ConnectionState.REGISTRAR):
-            for count in range(self.actor_count):
+            for client_count in range(self.state["client_count"]):
                 lifecycle_client_id =  \
                     self.lcm_create_client(CLIENT_SHELL_COMMAND)
                 time.sleep(0.01)
@@ -348,15 +351,15 @@ class LifeCycleClientPrivate(Interface):
         pass
 
 class LifeCycleClientImpl(LifeCycleClient, LifeCycleClientPrivate):
-    def __init__(
-        self, implementations, client_id, lifecycle_manager_topic, ec_producer):
+    def __init__(self,
+        implementations, client_id, lifecycle_manager_topic, ec_producer):
 
         self.lcc_added_to_lcm = False
         self.lcc_client_id = client_id
         self.lcc_ec_producer = ec_producer
         self.lcc_ec_producer.update(
             "lifecycle_client.lifecycle_manager_topic", lifecycle_manager_topic)
-        aiko.public.connection.add_handler(self._lcc_connection_handler)
+        aiko.connection.add_handler(self._lcc_connection_handler)
 
     def _lcc_get_lifecycle_manager_topic(self):
         return self.lcc_ec_producer.get("lifecycle_client.lifecycle_manager_topic")
@@ -367,41 +370,45 @@ class LifeCycleClientImpl(LifeCycleClient, LifeCycleClientPrivate):
                 lifecycle_manager_topic = self._lcc_get_lifecycle_manager_topic()
                 topic = f"{lifecycle_manager_topic}/control"
                 payload_out = "(add_client "                \
-                              f"{aiko.public.topic_path} "  \
+                              f"{self.topic_path} "  \
                               f"{self.lcc_client_id})"
-                aiko.public.message.publish(topic, payload_out)
+                aiko.message.publish(topic, payload_out)
                 self.lcc_added_to_lcm = True
 
                 # Add handler for LifeCycleManager removal from registrar
                 topic_paths = [lifecycle_manager_topic]
                 filter = ServiceFilter(topic_paths, "*", "*", "*", "*")
-                self.lcc_actor_discovery = ActorDiscovery() # TODO: Use ServiceDiscovery
+                self.lcc_actor_discovery = ActorDiscovery(self) # TODO: Use ServiceDiscovery
                 self.lcc_actor_discovery.add_handler(
                     self._lcc_lifecycle_manager_change_handler, filter)
 
     def _lcc_lifecycle_manager_change_handler(self, command, service_details):
         pass
 
-class TestLifeCycleClient(Actor, LifeCycleClient):
-    Interface.implementations["TestLifeCycleClient"] =  \
-        "aiko_services.lifecycle.TestLifeCycleClient"
+# --------------------------------------------------------------------------- #
 
-class TestLifeCycleClientImpl(TestLifeCycleClient):
-    def __init__(
-        self, implementations, actor_name, client_id, lifecycle_manager_topic):
-        aiko.set_protocol(PROTOCOL_LIFECYCLE_CLIENT)  # TODO: Move into service.py
+class LifeCycleClientTest(Actor, LifeCycleClient):
+    Interface.implementations["LifeCycleClientTest"] =  \
+        "aiko_services.lifecycle.LifeCycleClientTestImpl"
 
-        implementations["Actor"].__init__(self, implementations, actor_name)
+class LifeCycleClientTestImpl(LifeCycleClientTest):
+    def __init__(self,
+        implementations, name, protocol, tags, transport,
+        client_id, lifecycle_manager_topic):
+
+        implementations["Actor"].__init__(self,
+            implementations, name, protocol, tags, transport)
 
         self.state = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
-            "source_file": __file__
+            "source_file": __file__,
+            "client_id": client_id
         }
-        self.ec_producer = ECProducer(self.state)
+        self.ec_producer = ECProducer(self, self.state)
 
-        implementations["LifeCycleClient"].__init__(
-            self, implementations, client_id, lifecycle_manager_topic, self.ec_producer)
+        implementations["LifeCycleClient"].__init__(self, implementations,
+            client_id, lifecycle_manager_topic, self.ec_producer)
 
 # TODO: When scaling up to lots of LifeCycleClient, every LifeCycleClient
 # receiving the ServiceDetails for every other LifeCycleClient is too much.
@@ -410,7 +417,7 @@ class TestLifeCycleClientImpl(TestLifeCycleClient):
 # - Could also filter on the LifeCycleManager protocol to limit results
 #
 #       filter = ServiceFilter([lifecycle_manager_topic], "*", "*", "*", "*")
-#       self.actor_discovery = ActorDiscovery()
+#       self.actor_discovery = ActorDiscovery(service)
 #       self.actor_discovery.add_handler(
 #           self._lifecycle_manager_change_handler, filter)
 #
@@ -425,25 +432,26 @@ def main():
     pass
 
 @main.command(help="LifeCycleManager Actor")
-@click.argument("count", default=1)
-def manager(count):
-    actor_name = f"{aiko.public.topic_path}.{ACTOR_TYPE_LIFECYCLE_MANAGER}"
-    init_args = {"actor_name": actor_name, "actor_count": count}
-    lifecycle_manager = compose_instance(TestLifeCycleManagerImpl, init_args)
-    lifecycle_manager.run()
+@click.argument("client_count", default=1)
+def manager(client_count):
+    tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
+    init_args = actor_args(
+        ACTOR_TYPE_LIFECYCLE_MANAGER, PROTOCOL_LIFECYCLE_MANAGER, tags)
+    init_args["client_count"] = client_count
+    lifecycle_manager = compose_instance(LifeCycleManagerTestImpl, init_args)
+    aiko.process.run()
 
 @main.command(help="LifeCycleClient Actor")
 @click.argument("client_id", default=None)
 @click.argument("lifecycle_manager_topic", default=None)
 def client(client_id, lifecycle_manager_topic):
-    actor_name = f"{aiko.public.topic_path}.{ACTOR_TYPE_LIFECYCLE_CLIENT}"
-    init_args = {
-        "actor_name": actor_name,
-        "client_id": client_id,
-        "lifecycle_manager_topic": lifecycle_manager_topic,
-    }
-    life_cycle_client = compose_instance(TestLifeCycleClientImpl, init_args)
-    life_cycle_client.run()
+    tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
+    init_args = actor_args(
+        ACTOR_TYPE_LIFECYCLE_CLIENT, PROTOCOL_LIFECYCLE_CLIENT, tags)
+    init_args["client_id"] = client_id
+    init_args["lifecycle_manager_topic"] = lifecycle_manager_topic
+    life_cycle_client = compose_instance(LifeCycleClientTestImpl, init_args)
+    aiko.process.run()
 
 if __name__ == "__main__":
     main()

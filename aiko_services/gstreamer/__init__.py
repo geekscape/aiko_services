@@ -9,26 +9,14 @@ from .utilities.py import (
     gst_initialise, enable_opencv, process_video
 )
 
-from .video_camera_reader.py import (
-    VideoCameraReader
-)
+from .video_camera_reader.py import VideoCameraReader
 
-from .video_file_reader.py import (
-    VideoFileReader
-)
+from .video_file_reader.py import VideoFileReader
 
-from .video_file_writer.py import (
-    VideoFileWriter
-)
+from .video_file_writer.py import VideoFileWriter
 
-from .video_reader.py import (
-    VideoReader
-)
+from .video_reader.py import VideoReader
 
-from .video_stream_reader.py import (
-    VideoStreamReader
-)
+from .video_stream_reader.py import VideoStreamReader
 
-from .video_stream_writer.py import (
-    VideoStreamWriter
-)
+from .video_stream_writer.py import VideoStreamWriter

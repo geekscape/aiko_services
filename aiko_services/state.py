@@ -9,7 +9,7 @@ from aiko_services.utilities import *
 __all__ = ["StateMachine"]
 
 _AIKO_LOG_LEVEL_STATE = os.environ.get("AIKO_LOG_LEVEL_STATE", "INFO")
-_LOGGER = aiko_logger(__name__, log_level=_AIKO_LOG_LEVEL_STATE)
+_LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_STATE)
 
 class StateMachine(object):
     def __init__(self, model):

@@ -18,7 +18,7 @@
 #   For example, if wait_disconnected() called whilst on MQTT thread,
 #   then the MQTT broker message for "disconnect" --> on_disconnect()
 #   won't happen.
-#   For example, when Registrar processed "(primary stopped)" message and
+#   For example, when Registrar processed "(primary absent)" message and
 #   attempts set_last_will_and_testament(), which causes a wait_disconnected()
 #   whilst on the MQTT thread.
 # - SOLUTION: By default queue all incoming MQTT messages and process on the
@@ -66,9 +66,9 @@ class MQTT(Message):
         self: Any,
         message_handler: Any = _on_message,
         topics_subscribe: Any = None,
-        lwt_topic: str = None,
-        lwt_payload:str = None,
-        lwt_retain: bool = False
+        topic_lwt: str = None,
+        payload_lwt:str = None,
+        retain_lwt: bool = False
         ) -> None:
 
         self.message_handler = message_handler
@@ -90,15 +90,15 @@ class MQTT(Message):
         self.mqtt_info = f"{self.mqtt_host}:{self.mqtt_port}:{tls_state}"
 
         if self.mqtt_host:
-            self._connect(lwt_topic, lwt_payload, lwt_retain)
+            self._connect(topic_lwt, payload_lwt, retain_lwt)
         else:
             _LOGGER.error(f"Error: Couldn't connect to MQTT server {self.mqtt_info}")
 
     def _connect(
         self: Any,
-        lwt_topic: Any,
-        lwt_payload: str,
-        lwt_retain: Any
+        topic_lwt: Any,
+        payload_lwt: str,
+        retain_lwt: Any
         ) -> None:
 
         _LOGGER.debug(f"connecting to {self.mqtt_info}")
@@ -108,9 +108,9 @@ class MQTT(Message):
         self.mqtt_client.on_message = self.message_handler
         self.mqtt_client.on_publish = self._on_publish
 
-        if lwt_topic:
+        if topic_lwt:
             self.mqtt_client.will_set(
-                lwt_topic, payload=lwt_payload, retain=lwt_retain)
+                topic_lwt, payload=payload_lwt, retain=retain_lwt)
         if self.mqtt_tls_enabled:
             self.mqtt_client.tls_set()
         if self.mqtt_username:
@@ -186,14 +186,14 @@ class MQTT(Message):
 
     def set_last_will_and_testament(
         self: Any,
-        lwt_topic: str = None,
-        lwt_payload: str = None,
-        lwt_retain: bool = False
+        topic_lwt: str = None,
+        payload_lwt: str = "(absent)",
+        retain_lwt: bool = False
         ) -> None:
 
         self._disconnect()
         self.wait_disconnected()
-        self._connect(lwt_topic, lwt_payload, lwt_retain)
+        self._connect(topic_lwt, payload_lwt, retain_lwt)
 
     def subscribe(self: Any, topics: Any) -> None:
         if topics:

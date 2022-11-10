@@ -9,6 +9,4 @@ from .image_io import (
     ImageReadFile, ImageResize, ImageWriteFile
 )
 
-from .video_io import (
-    VideoReadFile, VideoShow, VideoWriteFile
-)
+from .video_io import VideoReadFile, VideoShow, VideoWriteFile
