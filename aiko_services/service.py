@@ -221,9 +221,9 @@ class ServiceFilter:
         self.name = name
 
     def __repr__(self):
-        return f"{self._topic_paths}, {self._protocol}, "  \
-               f"{self._transport}, {self._owner}, "      \
-               f"{self._tags}, {self._name}"
+        return f"{self.topic_paths}, {self.protocol}, "  \
+               f"{self.transport}, {self.owner}, "      \
+               f"{self.tags}, {self.name}"
 
 
 class ServiceTags:  # TODO: Dictionary of keyword / value pairs

@@ -42,6 +42,7 @@ class TransportMQTT(Actor):
 class TransportMQTTImpl(TransportMQTT):
     def __init__(self,
         implementations, name, protocol, tags, transport):
+
         implementations["Actor"].__init__(self,
             implementations, name, protocol, tags, transport)
 
