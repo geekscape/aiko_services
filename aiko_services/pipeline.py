@@ -123,8 +123,12 @@ class PipelineElement(Actor):
         pass
 
 class PipelineElementImpl(PipelineElement):
-    def __init__(self, implementations, name):
-        implementations["Actor"].__init__(self, implementations, name)
+    def __init__(self,
+        implementations, name, protocol, tags, transport):
+
+        implementations["Actor"].__init__(self,
+            implementations, name, protocol, tags, transport)
+
     #   print(f"# self: {self.__class__.__name__}: PipelineElementImpl.__init__({name}) invoked")
 
     def start_stream(self, stream_id, parameters):
@@ -164,8 +168,11 @@ class PE_1(PipelineElementImpl):
     @dataclass
     class FrameOutput: a: int; b: str
 
-    def __init__(self, implementations, name):
-        implementations["PipelineElement"].__init__(self, implementations, name)
+    def __init__(self,
+        implementations, name, protocol, tags, transport):
+
+        implementations["PipelineElement"].__init__(self,
+            implementations, name, protocol, tags, transport)
     #   print("# PE_1.__init__() invoked")
 
     def process_frame(self, stream_id, frame_id) -> Tuple[bool, FrameOutput]:
@@ -175,8 +182,11 @@ class PE_2(PipelineElementImpl):
     @dataclass
     class FrameOutput: c: int
 
-    def __init__(self, implementations, name):
-        implementations["PipelineElement"].__init__(self, implementations, name)
+    def __init__(self,
+        implementations, name, protocol, tags, transport):
+
+        implementations["PipelineElement"].__init__(self,
+            implementations, name, protocol, tags, transport)
     #   print("# PE_2.__init__() invoked")
 
     def process_frame(self, stream_id, frame_id, a: int) ->  \
@@ -188,8 +198,11 @@ class PE_3(PipelineElementImpl):
     @dataclass
     class FrameOutput: d: int; e: float
 
-    def __init__(self, implementations, name):
-        implementations["PipelineElement"].__init__(self, implementations, name)
+    def __init__(self,
+        implementations, name, protocol, tags, transport):
+
+        implementations["PipelineElement"].__init__(self,
+            implementations, name, protocol, tags, transport)
     #   print("# PE_3.__init__() invoked")
 
     def process_frame(self, stream_id, frame_id, b: str) ->  \
@@ -202,8 +215,11 @@ class PE_4(PipelineElementImpl):
     @dataclass
     class FrameOutput: pass
 
-    def __init__(self, implementations, name):
-        implementations["PipelineElement"].__init__(self, implementations, name)
+    def __init__(self,
+        implementations, name, protocol, tags, transport):
+
+        implementations["PipelineElement"].__init__(self,
+            implementations, name, protocol, tags, transport)
     #   print("# PE_4.__init__() invoked")
 
     def process_frame(self, stream_id, frame_id, c: int, d: int, e: float) ->  \
@@ -253,11 +269,13 @@ class Pipeline(PipelineElement):
 # TODO: Refactor Service code into PipelineElement
 
 class PipelineImpl(Pipeline):
-    def __init__(self, implementations, name, pipeline_definition):
-        implementations["PipelineElement"].__init__(
-            self, implementations, name)
+    def __init__(self,
+        implementations, name, protocol, tags, transport, pipeline_definition):
+
+        implementations["PipelineElement"].__init__(self,
+            implementations, name, protocol, tags, transport)
+
         self.pipeline_definition = pipeline_definition
-        aiko.set_protocol(PROTOCOL)  # TODO: Move into service.py
 
         self.state = {
             "lifecycle": "ready",
@@ -283,7 +301,7 @@ class PipelineImpl(Pipeline):
         for pe_def in self.pipeline_definition.pipeline_elements:
             name = pe_def.name
             pe_class = getattr(__import__("__main__"), name)
-            init_args = { "name": name }
+            init_args = actor_args(name, PROTOCOL)
         #   print("# _create_pipeline_graph().compose_instance(pe_class, ...)")
             pipeline_element_instance = compose_instance(pe_class, init_args)
             pipeline_element_dict = {
@@ -375,12 +393,9 @@ class PipelineImpl(Pipeline):
 @click.command("main", help="Pipeline design and implementation development")
 @click.argument("pipeline_definition_pathname", nargs=1, default=None, required=False)
 def main(pipeline_definition_pathname):
-    name = f"{aiko.topic_path}.{ACTOR_TYPE}"  # WIP: Actor name
-#   aiko.add_tags([f"key={value}"])
-    init_args = {
-        "name": name,
-        "pipeline_definition": p_1  # TODO: Parse "pipeline_definition_pathname"
-    }
+    init_args = actor_args(ACTOR_TYPE, PROTOCOL)
+    init_args["pipeline_definition"] = p_1  # TODO: Parse "pipeline_definition_pathname"
+
 #   print("# main().compose_instance(PipelineImpl, ...)")
     pipeline = compose_instance(PipelineImpl, init_args)
     pipeline.process_frame(1000, 2000)

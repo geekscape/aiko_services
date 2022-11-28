@@ -53,8 +53,7 @@ class AlohaHonua(Actor):
         pass
 
 class AlohaHonuaImpl(AlohaHonua):
-    def __init__(self,
-        implementations, name, protocol, tags, transport):
+    def __init__(self, implementations, name, protocol, tags, transport):
 
         implementations["Actor"].__init__(self,
             implementations, name, protocol, tags, transport)

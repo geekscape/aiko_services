@@ -1,5 +1,8 @@
 # To Do
 # ~~~~~
+# * Rename TransportMQTT --> MQTTActor
+#   Rename "transport_mqtt.py" --> "mqtt_actor.py"
+#
 # * Refactor current code into ServiceDiscovery
 #
 # * Design Pattern for creating Actors of different types, e.g MQTT or Ray

@@ -209,7 +209,7 @@ class ServiceFields:
         self._name = value
 
 class ServiceFilter:
-    def __init__(self,
+    def __init__(self,  # TODO: Defaults of "*" or None ?
         topic_paths=None, protocol=None, transport=None,
         owner=None, tags=None, name=None):
 

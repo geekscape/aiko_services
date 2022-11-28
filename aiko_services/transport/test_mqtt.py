@@ -11,6 +11,9 @@
 #
 # To Do
 # ~~~~~
+# * Rename MQTTTest --> MQTTActorTest
+#   Rename "test_mqtt.py" --> "mqtt_actor_test.py"
+#
 # - transport_mqtt.py: Complete create_actor_mqtt() and delete_actor_mqtt()
 # - transport_mqtt.py: Wrap in CLI / TUI for handy tools for finding Services
 
