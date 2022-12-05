@@ -6,7 +6,7 @@
 #
 # Usage
 # ~~~~~
-# ./process_manager.py  # run as an Aiko Service
+# ./process_manager.py  # run as an Aiko Service  # TO BE COMPLETED
 #
 # ./process_manager.py --example python
 # ./process_manager.py --example shell
@@ -170,17 +170,15 @@ def example_code(process_manager, example):
 @click.option("--example", type=click.STRING, help="Run example")
 @click.option("--tags", "-t", type=click.STRING, help="Aiko Service tags")
 def main(example, tags):
-    global aks_info
-
     process_manager = ProcessManager(process_exit_handler_default)
 
     if example:
         example_code(process_manager, example)
     else:
-        aiko.set_protocol(PROTOCOL_PROCESS_MANAGER)  # TODO: Move into service.py
-        self.add_message_handler(self.topic_in_handler, self.topic_in)
-#       ServiceTags.parse_tags(tags)
-        aiko.process.run(True)
+        pass
+    #   self.add_message_handler(self.topic_in_handler, self.topic_in)
+    #   ServiceTags.parse_tags(tags)
+    #   aiko.process.run(True)
 
 if __name__ == "__main__":
     main()

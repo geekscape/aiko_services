@@ -83,8 +83,10 @@ class ProcessData:
 
     topic_path_process = f"{get_namespace()}/{get_hostname()}/{get_pid()}"
     topic_path = f"{topic_path_process}/0"
+    topic_in = f"{topic_path}/in"
     topic_log = f"{topic_path}/log"
     topic_lwt = f"{topic_path}/state"
+    topic_out = f"{topic_path}/out"
     payload_lwt = "(absent)"
 
     @classmethod
