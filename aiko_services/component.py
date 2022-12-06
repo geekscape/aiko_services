@@ -158,7 +158,7 @@ def _load_implementations(implementations):
     implementations_loaded = {}
     for impl_alias, impl_path in implementations.items():
         if not isclass(impl_path):
-            module_name, _, class_name = impl_path.rpartition('.')
+            module_name, _, class_name = impl_path.rpartition(".")
             if module_name == "":
                 raise ValueError(
                     f"For {impl_alias} interface, the implementation "

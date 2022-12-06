@@ -405,12 +405,13 @@ class LogFrame(FrameCommon, Frame):
 
         if _SERVICE_SELECTED != _SERVICE_SUBSCRIBED:
             _SERVICE_SUBSCRIBED = _SERVICE_SELECTED
-            service_topic_path = _SERVICE_SELECTED[0]
+            service_topic_path, _, _ = _SERVICE_SELECTED[0].rpartition("/")
+            service_topic_path += "/0"  # TODO: Use correct Service Id
             protocol = _short_name(_SERVICE_SELECTED[1])
             title = f"Log records: {service_topic_path}: {protocol}"
             self._log_widget._titles = [title]
             self.log_buffer = deque(maxlen=_LOG_RING_BUFFER_SIZE)
-            self.topic_log = f"{_SERVICE_SELECTED[0]}/log"
+            self.topic_log = f"{service_topic_path}/log"
             aiko.process.add_message_handler(
                 self._topic_log_handler, self.topic_log)
 

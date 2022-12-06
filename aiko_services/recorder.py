@@ -85,9 +85,9 @@ class RecorderService(Service):
 # TODO: "utilities/parser.py": generate() and parse() need to handle
 #       log messages with special characters ... use Canonical S-Expressions ?
 
-        log_record = payload_in.replace(' ', '_')
-        log_record = log_record.replace('(', '{')
-        log_record = log_record.replace(')', '}')
+        log_record = payload_in.replace(" ", "_")
+        log_record = log_record.replace("(", "{")
+        log_record = log_record.replace(")", "}")
         ring_buffer.append(log_record)
 
 # TODO: "share.py:ECConsumer._consumer_handler()" needs to handle list and dict
@@ -100,7 +100,7 @@ class RecorderService(Service):
         history_topic_log = []
         for entry in ring_buffer:
             history_topic_log.append(entry)
-        history_topic_key = f"history.{topic.replace('.', '_')}"
+        history_topic_key = f"history.{topic.replace(".", "_")}"
         self.ec_producer.update(history_topic_key, history_topic_log)
 
 # --------------------------------------------------------------------------- #

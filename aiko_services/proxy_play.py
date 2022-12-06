@@ -10,7 +10,7 @@
 #
 # intercepted_C = proxy.ProxyExample(C())
 # intercepted_C.f(1, "2", 3, a=4, b=5)
-# --> Intercepted: name: f, args: (1, '2', 3), kwargs: {'a': 4, 'b': 5}
+# --> Intercepted: name: f, args: (1, "2", 3), kwargs: {"a": 4, "b": 5}
 #
 # Issues
 # ~~~~~~
@@ -24,7 +24,7 @@
 #       pass
 #   p = proxy.Proxy(A)
 #   {p: "asdasd"}
-#   --> TypeError: unhashable type: 'Proxy(type)'
+#   --> TypeError: unhashable type: "Proxy(type)"
 #
 # Resources
 # ~~~~~~~~~
@@ -66,7 +66,7 @@ class Proxy(object):
 
     def __str__(self):
         return str(object.__getattribute__(self, "_obj"))
-    #   return unicode(self).encode('utf-8')
+    #   return unicode(self).encode("utf-8")
 
 #   def __unicode__(self):
 #       return unicode(object.__getattribute__(self, "_obj"))

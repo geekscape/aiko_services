@@ -15,6 +15,8 @@
 #
 # To Do
 # ~~~~~
+# * BUG: AikoLogger.logger()" uses a Service Id of 0, not actual Service Id
+#
 # - A Process with ...
 #   - Single Service:    Typically isn't a LifeCycleManager
 #   - Multiple Services: First Service is a LifeCycleManager or Pipeline
