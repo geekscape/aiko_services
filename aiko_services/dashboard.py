@@ -347,9 +347,10 @@ class DashboardFrame(FrameCommon, Frame):
         service_history = list(self.service_history)
         services_formatted = []
         for service in service_history:
+            topic_path = ServiceTopicPath.parse(service[0]).terse
             protocol = _short_name(service[1])
             services_formatted.append(
-                (service[0], "", service[3], protocol, service[2]))
+                (topic_path, "", service[3], protocol, service[2]))
         self._history_widget.options = [
             (service_info, row_index)
             for row_index, service_info in enumerate(services_formatted)
