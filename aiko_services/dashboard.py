@@ -115,13 +115,15 @@ mqtt_configuration = get_mqtt_configuration()
 mqtt_host = mqtt_configuration[0]
 mqtt_port = mqtt_configuration[1]
 
-def _get_title(name, context=None):
-    title = f"AikoServices {name}: "
+def _get_title(name=None, context=""):
+    if name:
+        title = f"{name}: "
+    else:
+        title = "AikoServices: "
     if context:
         title += context
     else:
-        mqtt_host_short_name = mqtt_host.partition(".")[0]
-        title += f"{mqtt_host_short_name}:{mqtt_port}"
+        title += f"{mqtt_host[0:40]}:{mqtt_port}"
     return title
 
 def _short_name(path):
@@ -201,7 +203,7 @@ class DashboardFrame(FrameCommon, Frame):
 
         self._services_widget = MultiColumnListBox(
             screen.height * 1 // 3,
-            ["<30", "<12", "<8", "<20", "<0"],  # Transport: <10 columns
+            ["<28", "<14", "<8", "<20", ">0"],  # Transport: <10 columns
             options=[],
             titles=["Service Topic", "Name", "Owner", "Protocol", "Transport"],
             on_change=self._on_change_services
@@ -215,14 +217,13 @@ class DashboardFrame(FrameCommon, Frame):
         )
         self._history_widget = MultiColumnListBox(  # Transport: <10 columns
             Widget.FILL_FRAME,
-            ["<30", "<12", "<8", "<20", "<0"],
+            ["<28", "<14", "<8", "<20", ">0"],
             options=[],
             titles=["Service history", "Name", "Owner", "Protocol", "Transport"]
         )
-        layout_0 = Layout([1, 1])
+        layout_0 = Layout([3, 1])
         self.add_layout(layout_0)
-        label_name = _get_title("Dashboard")
-        layout_0.add_widget(Label(label_name), 0)
+        layout_0.add_widget(Label(_get_title()), 0)
         layout_0.add_widget(Label('Press "?" for help', align=">"), 1)
         layout_1 = Layout([1], fill_frame=True)
         self.add_layout(layout_1)
@@ -308,9 +309,10 @@ class DashboardFrame(FrameCommon, Frame):
         services = self.services_cache.get_services().copy()
         services_formatted = []
         for service in services:
+            topic_path = ServiceTopicPath.parse(service[0]).terse
             protocol = _short_name(service[1])
             services_formatted.append(
-                (service[0], "", service[3], protocol, service[2]))
+                (topic_path, "", service[3], protocol, service[2]))
         self._services_widget.options = [
             (service_info, row_index)
             for row_index, service_info in enumerate(services_formatted)
@@ -384,9 +386,9 @@ class LogFrame(FrameCommon, Frame):
             options=[],
             titles=["Log records"]
         )
-        layout_0 = Layout([1, 1])
+        layout_0 = Layout([3, 1])
         self.add_layout(layout_0)
-        layout_0.add_widget(Label(_get_title("Log")), 0)
+        layout_0.add_widget(Label(_get_title()), 0)
         layout_0.add_widget(Label('Press "?" for help', align=">"), 1)
         layout_1 = Layout([1], fill_frame=True)
         self.add_layout(layout_1)

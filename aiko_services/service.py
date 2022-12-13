@@ -296,16 +296,31 @@ class ServiceTopicPath:
         self._process_id = value
 
     @property
-    def topic_path_process(self):
-        return f"{self._namespace}/{self._hostname}/{self._process_id}"
-
-    @property
     def service_id(self):
         return self._service_id
 
     @service_id.setter
     def service_id(self, value):
         self._service_id = value
+
+    @property
+    def terse(self):
+        topic_path = str(self)
+        if len(topic_path) > 26:
+            namespace = self._namespace[0:4]
+            if len(namespace) < len(self._namespace):
+                namespace += "*"
+            hostname = self._hostname[0:8]
+            if len(hostname) < len(self._hostname):
+                hostname += "*"
+            process_id = self._process_id
+            service_id = self._service_id
+            topic_path = f"{namespace}/{hostname}/{process_id}/{service_id}"
+        return topic_path
+
+    @property
+    def topic_path_process(self):
+        return f"{self._namespace}/{self._hostname}/{self._process_id}"
 
 # --------------------------------------------------------------------------- #
 # services dict: Key: Process topic_path --> Value: Per Processs Services dict
