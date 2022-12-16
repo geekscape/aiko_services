@@ -9,7 +9,6 @@
 
 import numpy as np
 import sys
-
 from threading import Thread
 
 if sys.version_info >= (3,0):
@@ -17,13 +16,13 @@ if sys.version_info >= (3,0):
 else:
   from Queue import Queue, Empty
 
-import aiko_services_internal.video.gstreamer.utilities as utilities
+from aiko_services.gstreamer import *
 
 __all__ = ["VideoReader"]
 
 # -----------------------------------------------------------------------------
 
-Gst = utilities.gst_initialise()
+Gst = gst_initialise()
 
 class GStreamerError(Exception):
   def __init__(self, message):

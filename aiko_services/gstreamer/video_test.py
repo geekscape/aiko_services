@@ -33,15 +33,6 @@ import sys
 
 from aiko_services.gstreamer import *
 
-# from aiko_services.video.gstreamer.video_reader import GStreamerError
-
-# from aiko_services.video.gstreamer.video_file_reader import VideoFileReader
-# from aiko_services.video.gstreamer.video_file_writer import VideoFileWriter
-# from aiko_services.video.gstreamer.video_stream_reader import VideoStreamReader
-# from aiko_services.video.gstreamer.video_stream_writer import VideoStreamWriter
-
-# import aiko_services.video.gstreamer.utilities as utilities
-
 # --------------------------------------------------------------------------- #
 
 if __name__ == "__main__":

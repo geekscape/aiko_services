@@ -12,8 +12,7 @@
 
 import os
 
-import aiko_services_internal.video.gstreamer.video_reader as video_reader
-import aiko_services_internal.video.gstreamer.utilities as utilities
+from aiko_services.gstreamer import *
 
 __all__ = ["VideoCameraReader"]
 
@@ -24,7 +23,7 @@ class VideoCameraReader:
     if not os.path.exists(input_devicepath):
       raise ValueError("Device does not exist: " + input_devicepath)
 
-    Gst = utilities.gst_initialise()
+    Gst = gst_initialise()
 
     gst_launch_command = "v4l2src device={} ! videoflip video-direction=horiz ! videoconvert ! videorate ! appsink name=sink".format(input_devicepath)
     pipeline = Gst.parse_launch(gst_launch_command)
@@ -33,7 +32,7 @@ class VideoCameraReader:
     sink_caps = "video/x-raw, format={}, width={}, height={}, framerate={}".format(utilities.get_format(), width, height, "10/1")
     sink.set_property("caps", Gst.caps_from_string(sink_caps))
 
-    self.video_reader = video_reader.VideoReader(pipeline, sink)
+    self.video_reader = VideoReader(pipeline, sink)
 
   def queue_size(self):
     return self.video_reader.queue.qsize()

@@ -10,8 +10,7 @@
 
 import os
 
-import aiko_services_internal.video.gstreamer.video_reader as video_reader
-import aiko_services_internal.video.gstreamer.utilities as utilities
+from aiko_services.gstreamer import *
 
 __all__ = ["VideoFileReader"]
 
@@ -22,7 +21,7 @@ class VideoFileReader:
     if not os.path.exists(input_filename):
       raise ValueError("File does not exist: " + input_filename)
 
-    Gst = utilities.gst_initialise()
+    Gst = gst_initialise()
 
     gst_launch_command = "filesrc location={} ! qtdemux ! {} ! videoconvert ! video/x-raw, format={} ! appsink name=sink".format(input_filename, utilities.get_h264_decoder(), utilities.get_format())
     pipeline = Gst.parse_launch(gst_launch_command)
@@ -31,7 +30,7 @@ class VideoFileReader:
     sink_caps = "video/x-raw, format={}, width={}, height={}".format(utilities.get_format(), width, height)
     sink.set_property("caps", Gst.caps_from_string(sink_caps))
 
-    self.video_reader = video_reader.VideoReader(pipeline, sink)
+    self.video_reader = VideoReader(pipeline, sink)
 
   def queue_size(self):
     return self.video_reader.queue.qsize()

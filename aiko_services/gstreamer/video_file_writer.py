@@ -4,15 +4,14 @@
 
 import numpy as np
 import sys
+from threading import Thread
 
 if sys.version_info >= (3,0):
   from queue import Queue, Empty
 else:
   from Queue import Queue, Empty
 
-from threading import Thread
-
-import aiko_services_internal.video.gstreamer.utilities as utilities
+from aiko_services.gstreamer import *
 
 __all__ = ["VideoFileWriter"]
 
@@ -20,7 +19,7 @@ __all__ = ["VideoFileWriter"]
 
 class VideoFileWriter:
   def __init__(self, filename, width, height, framerate):
-    self.Gst = utilities.gst_initialise()
+    self.Gst = gst_initialise()
     self.queue = Queue(maxsize=30)
 
 # vtenc_h264: 1280x768, 512x288, 256x144

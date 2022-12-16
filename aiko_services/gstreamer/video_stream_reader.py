@@ -6,10 +6,7 @@
 # - Optimization: Option to request image in BGR format to avoid having to
 #   convert from RGB to BGR for subsequent OpenCV manipulation.
 
-import aiko_services_internal.video.gstreamer.video_reader as video_reader
-import aiko_services_internal.video.gstreamer.utilities as utilities
-
-from aiko_services_internal.video.gstreamer.video_reader import GStreamerError
+from aiko_services.gstreamer import *
 
 # Security network camera ...
 url_template = "rtsp://USERNAME:PASSWORD@%s:%s"
@@ -25,7 +22,7 @@ class VideoStreamReader:
   def __init__(self, input_hostname, input_port, width, height,
       framerate=None, rtp=False):
 
-    self.Gst = utilities.gst_initialise()
+    self.Gst = gst_initialise()
     self.source = None
     self.depay = None
 
@@ -37,7 +34,7 @@ class VideoStreamReader:
       sink_caps = "video/x-raw, format={}, width={}, height={}".format(utilities.get_format(), width, height)
     sink.set_property("caps", self.Gst.caps_from_string(sink_caps))
 
-    self.video_reader = video_reader.VideoReader(pipeline, sink)
+    self.video_reader = VideoReader(pipeline, sink)
 
   def on_dynamic_pad(self, dbin, pad):
     if not self.Gst.Element.link(self.source, self.depay):

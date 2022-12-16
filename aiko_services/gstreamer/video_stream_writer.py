@@ -9,15 +9,14 @@
 import numpy as np
 import sys
 import time
+from threading import Thread
 
 if sys.version_info >= (3,0):
   from queue import Queue, Empty
 else:
   from Queue import Queue, Empty
 
-from threading import Thread
-
-import aiko_services_internal.video.gstreamer.utilities as utilities
+from aiko_services.gstreamer import *
 
 __all__ = ["VideoStreamWriter"]
 
@@ -27,7 +26,7 @@ data = None
 
 class VideoStreamWriter:
   def __init__(self, hostname, port, width, height, framerate, rtmp_url=None):
-    self.Gst = utilities.gst_initialise()
+    self.Gst = gst_initialise()
     self.queue = Queue(maxsize=30)
 
     if rtmp_url:

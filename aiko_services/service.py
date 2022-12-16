@@ -309,10 +309,10 @@ class ServiceTopicPath:
         if len(topic_path) > 26:
             namespace = self._namespace[0:4]
             if len(namespace) < len(self._namespace):
-                namespace += "*"
+                namespace += "+"
             hostname = self._hostname[0:8]
             if len(hostname) < len(self._hostname):
-                hostname += "*"
+                hostname += "+"
             process_id = self._process_id
             service_id = self._service_id
             topic_path = f"{namespace}/{hostname}/{process_id}/{service_id}"
