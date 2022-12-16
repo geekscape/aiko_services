@@ -483,7 +483,7 @@ class Service(ServiceProtocolInterface):
     Interface.implementations["Service"] = "aiko_services.service.ServiceImpl"
 
     @abstractmethod
-    def add_message_handler(self, message_handler, topic):
+    def add_message_handler(self, message_handler, topic, binary=False):
         pass
 
     @abstractmethod
@@ -537,8 +537,8 @@ class ServiceImpl(Service):
         self.topic_out = f"{self.topic_path}/out"
         self.topic_state = f"{self.topic_path}/state"
 
-    def add_message_handler(self, message_handler, topic):
-        aiko.process.add_message_handler(message_handler, topic)
+    def add_message_handler(self, message_handler, topic, binary=False):
+        aiko.process.add_message_handler(message_handler, topic, binary)
 
     def remove_message_handler(self, message_handler, topic):
         aiko.process.remove_message_handler(message_handler, topic)

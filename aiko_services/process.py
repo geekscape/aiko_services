@@ -132,6 +132,7 @@ class ProcessImplementation(ProcessData):
 
         self._exit_status = 0
         self._message_handlers = {}
+        self._message_handlers_binary_topics = {}
         self._message_handlers_wildcard_topics = []
         self._registrar_absent_terminate = False
         self._services = {}
@@ -160,9 +161,11 @@ class ProcessImplementation(ProcessData):
         if self._exit_status:
             sys.exit(self._exit_status)
 
-    def add_message_handler(self, message_handler, topic):
+    def add_message_handler(self, message_handler, topic, binary=False):
         if not topic in self._message_handlers:
             self._message_handlers[topic] = []
+            if binary:
+                self._message_handlers_binary_topics[topic] = True
             if ("#" in topic) or ("+" in topic):
                 self._message_handlers_wildcard_topics.append(topic)
             if aiko.message:
@@ -175,6 +178,8 @@ class ProcessImplementation(ProcessData):
                 self._message_handlers[topic].remove(message_handler)
             if len(self._message_handlers[topic]) == 0:
                 del self._message_handlers[topic]
+                if topic in self._message_handlers_binary_topics:
+                    del self._message_handlers_wildcard_topics[topic]
                 if topic in self._message_handlers_wildcard_topics:
                     del self._message_handlers_wildcard_topics[topic]
                 if self.message:
@@ -226,7 +231,9 @@ class ProcessImplementation(ProcessData):
 
     def on_message_queue_handler(self, message, _):
         topic = message.topic
-        payload_in = message.payload.decode("utf-8")
+        payload_in = message.payload
+        if topic not in self._message_handlers_binary_topics:
+            payload_in = payload_in.decode("utf-8")
         if _LOGGER_MESSAGE.isEnabledFor(DEBUG):  # Save time
             _LOGGER_MESSAGE.debug(f"Message: {topic}: {payload_in}")
 
