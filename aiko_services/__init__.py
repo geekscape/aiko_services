@@ -45,9 +45,14 @@ from .share import (
     services_cache_create_singleton, services_cache_delete
 )
 
-from .pipeline_2020 import Pipeline_2020, load_pipeline_definition_2020
-
 from .actor import Actor, ActorImpl, actor_args, ActorTest, ActorTestImpl
+
+from .pipeline_2020 import Pipeline_2020, load_pipeline_definition_2020
+from .pipeline_2022 import (
+    Pipeline_2022, PipelineDefinition_2022,
+    PipelineElement_2022, PipelineElementDefinition_2022,
+    ServiceDefinition_2022
+)
 
 from .process_manager import ProcessManager
 

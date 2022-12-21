@@ -89,12 +89,12 @@ from aiko_services import *
 from aiko_services.utilities import *
 
 __all__ = [
-    "Pipeline", "PipelineDefinition",
-    "PipelineElement", "PipelineElementDefinition",
-    "ServiceDefinition"
+    "Pipeline_2022", "PipelineDefinition_2022",
+    "PipelineElement_2022", "PipelineElementDefinition_2022",
+    "ServiceDefinition_2022"
 ]
 
-ACTOR_TYPE = "Pipeline"
+ACTOR_TYPE = "Pipeline_2022"
 PROTOCOL = f"{ServiceProtocol.AIKO}/pipeline:0"
 
 _LOGGER = aiko.logger(__name__)
@@ -102,9 +102,9 @@ _VERSION = 0
 
 # --------------------------------------------------------------------------- #
 
-class PipelineElement(Actor):
-    Interface.implementations["PipelineElement"] =  \
-        "__main__.PipelineElementImpl"
+class PipelineElement_2022(Actor):
+    Interface.implementations["PipelineElement_2022"] =  \
+        "__main__.PipelineElement_2022Impl"
 
     @abstractmethod
     def start_stream(self, stream_id, parameters):
@@ -122,14 +122,14 @@ class PipelineElement(Actor):
         """
         pass
 
-class PipelineElementImpl(PipelineElement):
+class PipelineElement_2022Impl(PipelineElement_2022):
     def __init__(self,
         implementations, name, protocol, tags, transport):
 
         implementations["Actor"].__init__(self,
             implementations, name, protocol, tags, transport)
 
-    #   print(f"# self: {self.__class__.__name__}: PipelineElementImpl.__init__({name}) invoked")
+    #   print(f"# self: {self.__class__.__name__}: PipelineElement_2022Impl.__init__({name}) invoked")
 
     def start_stream(self, stream_id, parameters):
         pass
@@ -138,22 +138,22 @@ class PipelineElementImpl(PipelineElement):
         pass
 
 @dataclass
-class ServiceDefinition:
+class ServiceDefinition_2022:
     type: str
     name: str
     pads: dict
     parameters: dict
 
 @dataclass
-class PipelineElementDefinition(ServiceDefinition):
+class PipelineElementDefinition_2022(ServiceDefinition_2022):
     service_level_agreement: str
 
 @dataclass
-class PipelineDefinition(PipelineElementDefinition):
-    pipeline_elements: List[PipelineElementDefinition]
+class PipelineDefinition_2022(PipelineElementDefinition_2022):
+    pipeline_elements: List[PipelineElementDefinition_2022]
     edges: List[Tuple[
-        Tuple[PipelineElementDefinition, str],
-        Tuple[PipelineElementDefinition, str]
+        Tuple[PipelineElementDefinition_2022, str],
+        Tuple[PipelineElementDefinition_2022, str]
     ]]
 
 # --------------------------------------------------------------------------- #
@@ -164,28 +164,28 @@ class PipelineDefinition(PipelineElementDefinition):
 #      \  /
 #      PE_4
 
-class PE_1(PipelineElementImpl):
+class PE_1(PipelineElement_2022Impl):
     @dataclass
     class FrameOutput: a: int; b: str
 
     def __init__(self,
         implementations, name, protocol, tags, transport):
 
-        implementations["PipelineElement"].__init__(self,
+        implementations["PipelineElement_2022"].__init__(self,
             implementations, name, protocol, tags, transport)
     #   print("# PE_1.__init__() invoked")
 
     def process_frame(self, stream_id, frame_id) -> Tuple[bool, FrameOutput]:
         return True, PE_1.FrameOutput(a=stream_id, b=str(frame_id))
 
-class PE_2(PipelineElementImpl):
+class PE_2(PipelineElement_2022Impl):
     @dataclass
     class FrameOutput: c: int
 
     def __init__(self,
         implementations, name, protocol, tags, transport):
 
-        implementations["PipelineElement"].__init__(self,
+        implementations["PipelineElement_2022"].__init__(self,
             implementations, name, protocol, tags, transport)
     #   print("# PE_2.__init__() invoked")
 
@@ -194,14 +194,14 @@ class PE_2(PipelineElementImpl):
         c = a * 1000
         return True, PE_2.FrameOutput(c)
 
-class PE_3(PipelineElementImpl):
+class PE_3(PipelineElement_2022Impl):
     @dataclass
     class FrameOutput: d: int; e: float
 
     def __init__(self,
         implementations, name, protocol, tags, transport):
 
-        implementations["PipelineElement"].__init__(self,
+        implementations["PipelineElement_2022"].__init__(self,
             implementations, name, protocol, tags, transport)
     #   print("# PE_3.__init__() invoked")
 
@@ -211,14 +211,14 @@ class PE_3(PipelineElementImpl):
         e = d / 1000
         return True, PE_3.FrameOutput(d, e)
 
-class PE_4(PipelineElementImpl):
+class PE_4(PipelineElement_2022Impl):
     @dataclass
     class FrameOutput: pass
 
     def __init__(self,
         implementations, name, protocol, tags, transport):
 
-        implementations["PipelineElement"].__init__(self,
+        implementations["PipelineElement_2022"].__init__(self,
             implementations, name, protocol, tags, transport)
     #   print("# PE_4.__init__() invoked")
 
@@ -228,27 +228,27 @@ class PE_4(PipelineElementImpl):
 
 # --------------------------------------------------------------------------- #
 
-pe_1 = PipelineElementDefinition(
-    "PipelineElement", "PE_1", {"output": ["a", "b"]}, {},
+pe_1 = PipelineElementDefinition_2022(
+    "PipelineElement_2022", "PE_1", {"output": ["a", "b"]}, {},
     "low_latency"
 )
 
-pe_2 = PipelineElementDefinition(
-    "PipelineElement", "PE_2", {"input": ["a"], "output": ["c"]}, {},
+pe_2 = PipelineElementDefinition_2022(
+    "PipelineElement_2022", "PE_2", {"input": ["a"], "output": ["c"]}, {},
     "low_latency"
 )
 
-pe_3 = PipelineElementDefinition(
-    "PipelineElement", "PE_3", {"input": ["b"], "output": ["d", "e"]}, {},
+pe_3 = PipelineElementDefinition_2022(
+    "PipelineElement_2022", "PE_3", {"input": ["b"], "output": ["d", "e"]}, {},
     "low_latency"
 )
-pe_4 = PipelineElementDefinition(
-    "PipelineElement", "PE_4", {"input": ["c", "d", "e"]}, {},
+pe_4 = PipelineElementDefinition_2022(
+    "PipelineElement_2022", "PE_4", {"input": ["c", "d", "e"]}, {},
     "low_latency"
 )
 
-p_1 = PipelineDefinition(
-    "Pipeline", "P_1", {}, {}, "low_latency", [pe_1, pe_2, pe_3, pe_4],
+p_1 = PipelineDefinition_2022(
+    "Pipeline_2022", "P_1", {}, {}, "low_latency", [pe_1, pe_2, pe_3, pe_4],
     [   ((pe_1, "a"), (pe_2, "a")),
         ((pe_1, "b"), (pe_3, "b")),
         ((pe_2, "c"), (pe_4, "c")),
@@ -259,20 +259,20 @@ p_1 = PipelineDefinition(
 
 # --------------------------------------------------------------------------- #
 
-class Pipeline(PipelineElement):
-    Interface.implementations["Pipeline"] = "__main__.PipelineImpl"
+class Pipeline_2022(PipelineElement_2022):
+    Interface.implementations["Pipeline_2022"] = "__main__.PipelineImpl"
 
     @abstractmethod
     def test(self, value):
         pass
 
-# TODO: Refactor Service code into PipelineElement
+# TODO: Refactor Service code into PipelineElement_2022
 
-class PipelineImpl(Pipeline):
+class PipelineImpl(Pipeline_2022):
     def __init__(self,
         implementations, name, protocol, tags, transport, pipeline_definition):
 
-        implementations["PipelineElement"].__init__(self,
+        implementations["PipelineElement_2022"].__init__(self,
             implementations, name, protocol, tags, transport)
 
         self.pipeline_definition = pipeline_definition
@@ -366,8 +366,8 @@ class PipelineImpl(Pipeline):
             okay, frame_output = pipeline_element.process_frame(
                 stream_id, frame_id, **inputs)
             if not okay:
-            # TODO: Handle PipelineElement failure more gracefully
-                raise Exception(f"PipelineElement {pipeline_element.__class__.__name__}: isn't okay")
+            # TODO: Handle PipelineElement_2022 failure more gracefully
+                raise Exception(f"PipelineElement_2022 {pipeline_element.__class__.__name__}: isn't okay")
             if frame_output:
                 swag = {**swag, **asdict(frame_output)}
             print(f"\nSwag: {swag}\n")

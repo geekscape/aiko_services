@@ -26,7 +26,7 @@ class VideoStreamReader:
     self.source = None
     self.depay = None
 
-    pipeline, sink  = self.create_pipeline(input_hostname, input_port, rtp)
+    pipeline, sink = self.create_pipeline(input_hostname, input_port, rtp)
 
     if framerate:  # e.g "30/1", "25/1", "4/1"
       sink_caps = "video/x-raw, format={}, width={}, height={}, framerate={}".format(utilities.get_format(), width, height, framerate)
