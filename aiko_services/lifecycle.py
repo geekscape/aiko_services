@@ -98,7 +98,7 @@ class LifeCycleManager(ServiceProtocolInterface):
         "aiko_services.lifecycle.LifeCycleManagerImpl"
 
     @abstractmethod
-    def lcm_create_client(self, parameters={}):
+    def lcm_create_client(self, parameters=None):
         """Public method for creating clients
 
         Handles bookkeeping of clients, calling self._lcm_create_client
@@ -166,7 +166,9 @@ class LifeCycleManagerImpl(LifeCycleManager, LifeCycleManagerPrivate):
         if self.lcm_ec_producer is not None:
             self.lcm_ec_producer.update("lifecycle_manager_clients_active", 0)
 
-    def lcm_create_client(self, parameters={}):
+    def lcm_create_client(self, parameters=None):
+        if parameters == None:
+            parameters = {}
         client_id = self.lcm_client_count
         self.lcm_client_count += 1
         self._lcm_create_client(client_id, self.topic_path, parameters)

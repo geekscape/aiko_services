@@ -47,7 +47,7 @@ class Interface(ABC):
 class ServiceProtocolInterface(Interface):
     """Interface marker representing an Aiko Service protocol"""
 
-def compose_class(impl_seed_class, impl_overrides={}):
+def compose_class(impl_seed_class, impl_overrides=None):
     """
     Build a concrete FrankensteinClass whose API is defined using Interfaces
     (classes with only abstract methods) and then composed from specified
@@ -59,6 +59,9 @@ def compose_class(impl_seed_class, impl_overrides={}):
     When creating the FrankensteinClass instance, those default implementations
     may be overridden as required
     """
+
+    if impl_overrides == None:
+        impl_overrides = {}
 
     all_implementations = {**impl_seed_class.implementations, **impl_overrides}
     implementations = _keep_specified_implementations(
@@ -83,10 +86,13 @@ def compose_class(impl_seed_class, impl_overrides={}):
 
     return FrankensteinClass, implementations_loaded
 
-def compose_instance(impl_seed_class, init_args, impl_overrides={}):
+def compose_instance(impl_seed_class, init_args, impl_overrides=None):
     """
     Build an instance of a FrankensteinClass ... see compose_class()
     """
+
+    if impl_overrides == None:
+        impl_overrides = {}
 
     frankenstein_class, implementations = compose_class(
         impl_seed_class, impl_overrides)
