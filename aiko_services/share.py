@@ -509,7 +509,7 @@ class ServicesCache():
                 )
                 aiko.message.publish(
                     f"{registrar_topic_path}/in",
-                    f"(query {self._registrar_topic_query} * * * *)"
+                    f"(query {self._registrar_topic_query} * * * * *)"
                 )
         else:
             if self._registrar_topic_out:
@@ -531,7 +531,7 @@ class ServicesCache():
         command, parameters = parse(payload_in)
         if command == "item_count" and len(parameters) == 1:
             self._query_items_expected = int(parameters[0])
-        elif command == "add" and len(parameters) == 5:
+        elif command == "add" and len(parameters) == 6:
             service_details = parameters
             self._services.add_service(service_details[0], service_details)
             self._query_items_received += 1
@@ -549,7 +549,7 @@ class ServicesCache():
             sync_topic = parameters[0]
             if sync_topic == self._registrar_topic_query and self._state == "loaded":
                 self._state = "live"
-        elif command == "add" and len(parameters) == 5:
+        elif command == "add" and len(parameters) == 6:
             service_details = parameters
             self._services.add_service(service_details[0], service_details)
             self._update_handlers(command, service_details)

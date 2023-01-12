@@ -40,11 +40,11 @@
 #
 # service_fields = ServiceFields(
 #     "topic_path",
+#     "name",
 #     ServiceProtocol(ServiceProtocol.AIKO, "test", "0"),
 #     "transport",
 #     "owner",
-#     "tags",
-#     "name")
+#     "tags")
 #
 # service_fields.topic_path = topic_path
 #
@@ -69,7 +69,7 @@
 #   - All Services define their own static ServiceProtocol
 #
 # - Document ServiceFields, ServiceTags and ServiceTopicPath
-#   - Document: Namespace, Protocol, Transport and Tags
+#   - Document: Namespace, Name, Protocol, Transport and Tags
 #
 # - Consider extending ServiceFields to provide share.py:ServiceFilter
 #
@@ -139,26 +139,27 @@ class ServiceProtocol:
 
 # class ServiceField:  # TODO: Support integer index plus string name
 #   TOPIC = "TOPIC"          # 0
-#   PROTOCOL = "PROTOCOL"    # 1
-#   TRANSPORT = "TRANSPORT"  # 2
-#   OWNER = "OWNER"          # 3
-#   TAGS = "TAGS"            # 4
+#   NAME = "NAME"            # 1
+#   PROTOCOL = "PROTOCOL"    # 2
+#   TRANSPORT = "TRANSPORT"  # 3
+#   OWNER = "OWNER"          # 4
+#   TAGS = "TAGS"            # 5
 
-#   fields = [TOPIC, PROTOCOL, TRANSPORT, OWNER, TAGS]
+#   fields = [TOPIC, NAME, PROTOCOL, TRANSPORT, OWNER, TAGS]
 
 class ServiceFields:
-    def __init__(self, topic_path, protocol, transport, owner, tags, name=None):
+    def __init__(self, topic_path, name, protocol, transport, owner, tags):
         self._topic_path = topic_path
+        self._name = name
         self._protocol = protocol
         self._transport = transport
         self._owner = owner
         self._tags = tags
-        self._name = name
 
     def __repr__(self):
-        return f"{self._topic_path}, {self._protocol}, "  \
-               f"{self._transport}, {self._owner}, "      \
-               f"{self._tags}, {self._name}"
+        return f"{self._topic_path}, {self._name}, "  \
+               f"{self._protocol}, {self._transport}, "      \
+               f"{self._owner}, {self._tags}"
 
     @property
     def topic_path(self):
@@ -167,6 +168,14 @@ class ServiceFields:
     @topic_path.setter
     def topic_path(self, value):
         self._topic_path = value
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        self._name = value
 
     @property
     def protocol(self):
@@ -200,30 +209,22 @@ class ServiceFields:
     def tags(self, value):
         self._tags = value
 
-    @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, value):
-        self._name = value
-
 class ServiceFilter:
     def __init__(self,  # TODO: Defaults of "*" or None ?
-        topic_paths=None, protocol=None, transport=None,
-        owner=None, tags=None, name=None):
+        topic_paths=None, name=None, protocol=None, transport=None,
+        owner=None, tags=None):
 
         self.topic_paths = topic_paths
+        self.name = name
         self.protocol = protocol
         self.transport = transport
         self.owner = owner
         self.tags = tags
-        self.name = name
 
     def __repr__(self):
-        return f"{self.topic_paths}, {self.protocol}, "  \
-               f"{self.transport}, {self.owner}, "      \
-               f"{self.tags}, {self.name}"
+        return f"{self.topic_paths}, {self.name}, "  \
+               f"{self.protocol}, {self.transport}, "      \
+               f"{self.owner}, {self.tags}"
 
 
 class ServiceTags:  # TODO: Dictionary of keyword / value pairs
@@ -394,16 +395,21 @@ class Services:
             for service_topic, service_details in process_services.items():
             # TODO: Consolidate into consistent ServiceDetails() data structure
                 if type(service_details) == dict:
+                    name = service_details["name"]
                     protocol = service_details["protocol"]
                     transport = service_details["transport"]
                     owner = service_details["owner"]
                     tags = service_details["tags"]
                 else:
-                    protocol = service_details[1]
-                    transport = service_details[2]
-                    owner = service_details[3]
-                    tags = service_details[4]
+                    name = service_details[1]
+                    protocol = service_details[2]
+                    transport = service_details[3]
+                    owner = service_details[4]
+                    tags = service_details[5]
                 matches = True
+                if filter.name != "*":
+                    if filter.name != name:
+                        matches = False
                 if filter.protocol != "*":
                     if filter.protocol != protocol:
                         matches = False
@@ -524,7 +530,7 @@ class ServiceImpl(Service):
 
     # TODO: Move name, protocol, tags, topic_path, transport into ServiceFields
         self.time_started = time.time()
-        self.name = name  # TODO: f"{ACTOR_TYPE}_{self.topic_path}" ?
+        self.name = name
         self.protocol = protocol
         self._tags = tags
         self.transport = transport

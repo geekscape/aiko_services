@@ -61,11 +61,13 @@ from aiko_services.utilities import *
 
 CLIENT_SHELL_COMMAND = "./lifecycle.py"
 
-ACTOR_TYPE_LIFECYCLE_MANAGER = "LifeCycleManager"
-PROTOCOL_LIFECYCLE_MANAGER = f"{ServiceProtocol.AIKO}/lifecyclemanager:0"
+ACTOR_TYPE_LIFECYCLE_MANAGER = "lifecycle_manager"
+PROTOCOL_LIFECYCLE_MANAGER =  \
+    f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_LIFECYCLE_MANAGER}:0"
 
-ACTOR_TYPE_LIFECYCLE_CLIENT = "LifeCycleClient"
-PROTOCOL_LIFECYCLE_CLIENT = f"{ServiceProtocol.AIKO}/lifecycleclient:0"
+ACTOR_TYPE_LIFECYCLE_CLIENT = "lifecycle_client"
+PROTOCOL_LIFECYCLE_CLIENT =  \
+    f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_LIFECYCLE_CLIENT}:0"
 
 _DELETION_LEASE_TIME_DEFAULT = 10
 _HANDSHAKE_LEASE_TIME_DEFAULT = 10  # seconds or 120 seconds for lots of clients
@@ -199,7 +201,8 @@ class LifeCycleManagerImpl(LifeCycleManager, LifeCycleManagerPrivate):
                 _LOGGER.debug(f"LifeCycleClient {client_id} responded")
 
                 topic_paths = [lifecycle_client_topic_path]
-                self.lcm_filter = ServiceFilter(topic_paths, "*", "*", "*", "*")
+                self.lcm_filter = ServiceFilter(
+                    topic_paths, "*", "*", "*", "*", "*")
                 self.lcm_actor_discovery = ActorDiscovery(self) # TODO: Use ServiceDiscovery
                 self.lcm_actor_discovery.add_handler(
                     self._lcm_service_change_handler, self.lcm_filter)
@@ -379,7 +382,7 @@ class LifeCycleClientImpl(LifeCycleClient, LifeCycleClientPrivate):
 
                 # Add handler for LifeCycleManager removal from registrar
                 topic_paths = [lifecycle_manager_topic]
-                filter = ServiceFilter(topic_paths, "*", "*", "*", "*")
+                filter = ServiceFilter(topic_paths, "*", "*", "*", "*", "*")
                 self.lcc_actor_discovery = ActorDiscovery(self) # TODO: Use ServiceDiscovery
                 self.lcc_actor_discovery.add_handler(
                     self._lcc_lifecycle_manager_change_handler, filter)
@@ -418,7 +421,8 @@ class LifeCycleClientTestImpl(LifeCycleClientTest):
 #   Use below to be notified only when that Service is added or removed
 # - Could also filter on the LifeCycleManager protocol to limit results
 #
-#       filter = ServiceFilter([lifecycle_manager_topic], "*", "*", "*", "*")
+#       filter = ServiceFilter(
+#           [lifecycle_manager_topic], "*", "*", "*", "*", "*")
 #       self.actor_discovery = ActorDiscovery(service)
 #       self.actor_discovery.add_handler(
 #           self._lifecycle_manager_change_handler, filter)
@@ -448,8 +452,8 @@ def manager(client_count):
 @click.argument("lifecycle_manager_topic", default=None)
 def client(client_id, lifecycle_manager_topic):
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
-    init_args = actor_args(
-        ACTOR_TYPE_LIFECYCLE_CLIENT, PROTOCOL_LIFECYCLE_CLIENT, tags)
+    name = f"{ACTOR_TYPE_LIFECYCLE_CLIENT}_{client_id}"
+    init_args = actor_args(name, PROTOCOL_LIFECYCLE_CLIENT, tags)
     init_args["client_id"] = client_id
     init_args["lifecycle_manager_topic"] = lifecycle_manager_topic
     life_cycle_client = compose_instance(LifeCycleClientTestImpl, init_args)

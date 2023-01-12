@@ -190,8 +190,8 @@ class ProcessImplementation(ProcessData):
             owner = get_username()
             tags = service.get_tags_string()
             # TODO: For payload_out, use parser.generate() ?
-            payload_out = f"(add {service.topic_path} {service.protocol} "  \
-                          f"{service.transport} {owner} ({tags}))"
+            payload_out = f"(add {service.topic_path} {service.name} "  \
+                  f"{service.protocol} {service.transport} {owner} ({tags}))"
             registrar_topic_in = f"{aiko.registrar['topic_path']}/in"
             aiko.message.publish(registrar_topic_in, payload_out)
 

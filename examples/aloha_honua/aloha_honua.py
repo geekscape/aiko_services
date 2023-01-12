@@ -37,8 +37,8 @@ import click
 from aiko_services import *
 from aiko_services.utilities import *
 
-ACTOR_TYPE = "AlohaHonua"
-PROTOCOL = f"{ServiceProtocol.AIKO}/aloha_honua:0"
+ACTOR_TYPE = "aloha_honua"
+PROTOCOL = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE}:0"
 
 _LOGGER = aiko.logger(__name__)
 _VERSION = 0
@@ -119,12 +119,13 @@ def main(count):
 
 def create_actor():
     global actor_count, actor_total
+    actor_count += 1
 
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
-    init_args = actor_args(ACTOR_TYPE, PROTOCOL, tags)
+    name = f"{ACTOR_TYPE}_{actor_count}"
+    init_args = actor_args(name, PROTOCOL, tags)
 
     aloha_honua = compose_instance(AlohaHonuaImpl, init_args)
-    actor_count += 1
     if actor_count % 100 == 0:
         _LOGGER.info(f"Actor count: {actor_count}")
 

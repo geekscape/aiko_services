@@ -16,9 +16,9 @@
 # TOPIC_PATH=$NAMESPACE/$HOST/$PID
 #
 # TAGS="(key1=value1 key2=value2)"
-# mosquitto_pub -t $TOPIC_PATH/in -m "(add topic_prefix protocol transport owner $TAGS)"
+# mosquitto_pub -t $TOPIC_PATH/in -m "(add topic_prefix name protocol transport owner $TAGS)"
 # mosquitto_pub -t $TOPIC_PATH/in -m "(remove topic_prefix)"
-# mosquitto_pub -t $TOPIC_PATH/in -m "(query response * * * $TAGS)"
+# mosquitto_pub -t $TOPIC_PATH/in -m "(query response * * * * $TAGS)"
 #
 # Notes
 # ~~~~~
@@ -26,6 +26,11 @@
 # - TOPIC_REGISTRAR_BOOT: "(primary found ...)" and "(primary absent)"
 # - {topic_path}/in: "(add ...)", "(query ...)", "(remove ...)"
 # - {namespace}/+/+/+/state: "(absent)"
+#
+# Protocol
+# ~~~~~~~~
+# V0: 2020-01 - 2022-12
+# V1: 2022-12 - current: Added Service name field
 #
 # To Do
 # ~~~~~
@@ -56,7 +61,7 @@
 #   for the Registrar leaving a stale reference to a Registrar now longer exists
 #   If a new Registrar isn't started when the system restarts, then Aiko Clients
 #   try to use the defunct Registrar
-# - Consider the ability to add, change or remove a Service's tag
+# - Consider the ability to add, change or remove a Service's details, e.g tags
 # - When Service fails with LWT, publish timestamp on "topic_path/state"
 #   - Maybe ProcessController should do this, rather than Registrar ?
 # - Every Service persisted in MeemStore should have "uuid" Service tag
@@ -85,10 +90,10 @@ import time
 from aiko_services import *
 from aiko_services.utilities import *
 
-REGISTRAR_PROTOCOL = f"{ServiceProtocol.AIKO}/registrar:0"
+REGISTRAR_PROTOCOL = f"{ServiceProtocol.AIKO}/registrar:1"
 
 _LOGGER = aiko.logger(__name__)
-_VERSION = 0
+_VERSION = 1
 
 _HISTORY_RING_BUFFER_SIZE = 4096
 _PRIMARY_SEARCH_TIMEOUT = 2.0  # seconds
@@ -209,21 +214,22 @@ class RegistrarImpl(Registrar):
 
         if len(parameters) > 0:
             topic_path = parameters[0]
-            if len(parameters) == 5:
-                protocol = parameters[1]
-                transport = parameters[2]
-                owner = parameters[3]
-                tags = parameters[4]
+            if len(parameters) == 6:
+                name = parameters[1]
+                protocol = parameters[2]
+                transport = parameters[3]
+                owner = parameters[4]
+                tags = parameters[5]
 
-        if command == "add" and len(parameters) == 5:
+        if command == "add" and len(parameters) == 6:
             self._service_add(
-                topic_path, protocol, transport, owner, tags, payload_in)
+                topic_path, name, protocol, transport, owner, tags, payload_in)
 
         if command == "remove" and len(parameters) == 1:
             self._service_remove(topic_path)
 
-        if command == "query" and len(parameters) == 5:
-            filter = ServiceFilter("*", protocol, transport, owner, tags)
+        if command == "query" and len(parameters) == 6:
+            filter = ServiceFilter("*", name, protocol, transport, owner, tags)
             services_out = self.services.filter_by_attributes(filter)
 
             payload_out = f"(item_count {services_out.count})"
@@ -233,6 +239,7 @@ class RegistrarImpl(Registrar):
                 service_tags = " ".join(service_details["tags"])
                 payload_out =  "(add"                              \
                               f" {service_details['topic_path']}"  \
+                              f" {service_details['name']}"        \
                               f" {service_details['protocol']}"    \
                               f" {service_details['transport']}"   \
                               f" {service_details['owner']}"       \
@@ -243,13 +250,14 @@ class RegistrarImpl(Registrar):
             aiko.message.publish(self.topic_out, payload_out)
 
     def _service_add(self,
-        topic_path, protocol, transport, owner, tags, payload_out):
+        topic_path, name, protocol, transport, owner, tags, payload_out):
 
         if not self.services.get_service(topic_path):
             _LOGGER.debug(f"Service add: {topic_path}")
 
             service_details = {
                 "topic_path": topic_path,
+                "name": name,
                 "protocol": protocol,
                 "transport": transport,
                 "owner": owner,

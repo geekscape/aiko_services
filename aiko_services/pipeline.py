@@ -28,22 +28,25 @@
 # - Media data transports, e.g in-band MQTT and out-of-band RTSP / WebRTC
 
 import click
+import jsons
 
 from aiko_services import *
 
 __all__ = [
 ]
 
-ACTOR_TYPE = "Pipeline"
-PROTOCOL = f"{ServiceProtocol.AIKO}/pipeline:0"
+ACTOR_TYPE = "pipeline"
+PROTOCOL = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE}:0"
 
 _LOGGER = aiko.logger(__name__)
 _VERSION = 0
 
 # --------------------------------------------------------------------------- #
-# TODO: Graph.add(): [node] ?
-# TODO: Node.add(): [dependency] ?
-# TODO: Should dependencies be more than just a name (string) ?
+# TODO: Use dataclasses and https://pypi.org/project/jsons for serialisation
+#       import jsons;  string = jsons.dump(...)
+# TODO: Graph.add(): [nodes] ?
+# TODO: Node.add(): [dependencies] ?
+# TODO: Should dependencies be more than just "element.output" (string) ?
 # TODO: Declare stream head nodes ... which accept frames ?
 
 class Graph():
@@ -72,8 +75,9 @@ class Graph():
         pass
 
 class Node():
-    def __init__(self, name, dependencies=None):
+    def __init__(self, name, element, dependencies=None):
         self._name = name
+        self._element = element
         self._dependencies = dependencies if dependencies else {}
 
     @property
@@ -84,11 +88,15 @@ class Node():
         return dependencies
 
     @property
+    def element(self):
+        return self._element
+
+    @property
     def name(self):
         return self._name
 
     def __repr__(self):
-        return f"{self.name}: {self._dependencies}"
+        return f"{self._name}: {self._dependencies}"
 
     def add(self, dependency):
         if dependency in self._dependencies:
@@ -98,6 +106,48 @@ class Node():
     def remove(self, dependency):
         if dependency in self._dependencies:
             del self._dependencies[dependency]
+
+g = Graph()
+na = Node("a", None)
+nb = Node("b", None)
+na.add("da")
+nb.add("db")
+g.add(na)
+g.add(nb)
+
+# --------------------------------------------------------------------------- #
+
+class PipelineType():
+    LOCAL = "local"
+    REMOTE = "remote"
+
+    types = [LOCAL, REMOTE]
+
+class PipelineDefinition():
+    def __init__(self, type=PipelineType.LOCAL):
+        self._type = type
+        self._elements = {}
+
+    @property
+    def type(self):
+        return self._type
+
+    def __repr__(self):
+        return f"{self._type}"
+
+    def add(self, element):
+        if element in self._elements:
+            raise KeyError(
+                f"PipelineDefinition already contains element: {element}")
+        self._elements[element] = element
+
+    def element(self, element):
+        if element in self._elements:
+            del self._elements[element]
+
+# import jsons
+# pipeline_definition_json = jsons.dump(pipeline_definition)
+# pipeline_definition = jsons.load(pipeline_definition_json, PipelineDefinition)
 
 # --------------------------------------------------------------------------- #
 

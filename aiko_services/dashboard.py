@@ -198,7 +198,7 @@ class DashboardFrame(FrameCommon, Frame):
 
         self.services_cache = services_cache_create_singleton(
             aiko.process, True)
-        filter = ServiceFilter("*", "*", "*", "*", "*")
+        filter = ServiceFilter("*", "*", "*", "*", "*", "*")
         self.services_cache.add_handler(self._service_change_handler, filter)  # REVIEW AVOID MULTIPLE ADDS !
 
         self._services_widget = MultiColumnListBox(
@@ -245,7 +245,7 @@ class DashboardFrame(FrameCommon, Frame):
             self.services_row = index
             service_topic_path = services_topic_paths[index]
             _SERVICE_SELECTED = services.get_service(service_topic_path)
-            self.service_tags = _SERVICE_SELECTED[4]
+            self.service_tags = _SERVICE_SELECTED[5]
             if ServiceTags.match_tags(self.service_tags, ["ec=true"]):
                 topic_control = f"{service_topic_path}/control"
                 self.ec_consumer = ECConsumer(
@@ -310,9 +310,9 @@ class DashboardFrame(FrameCommon, Frame):
         services_formatted = []
         for service in services:
             topic_path = ServiceTopicPath.parse(service[0]).terse
-            protocol = _short_name(service[1])
+            protocol = _short_name(service[2])
             services_formatted.append(
-                (topic_path, "", service[3], protocol, service[2]))
+                (topic_path, service[1], service[4], protocol, service[3]))
         self._services_widget.options = [
             (service_info, row_index)
             for row_index, service_info in enumerate(services_formatted)
@@ -348,9 +348,9 @@ class DashboardFrame(FrameCommon, Frame):
         services_formatted = []
         for service in service_history:
             topic_path = ServiceTopicPath.parse(service[0]).terse
-            protocol = _short_name(service[1])
+            protocol = _short_name(service[2])
             services_formatted.append(
-                (topic_path, "", service[3], protocol, service[2]))
+                (topic_path, service[1], service[4], protocol, service[3]))
         self._history_widget.options = [
             (service_info, row_index)
             for row_index, service_info in enumerate(services_formatted)

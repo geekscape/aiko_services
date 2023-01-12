@@ -23,8 +23,8 @@ import click
 from aiko_services import *
 from aiko_services.transport import *
 
-ACTOR_TYPE = "MQTTTest"
-PROTOCOL = f"{ServiceProtocol.AIKO}/test_mqtt:0"
+ACTOR_TYPE = "mqtt_test"
+PROTOCOL = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE}:0"
 
 _LOGGER = aiko.logger(__name__)
 _VERSION = 0
@@ -56,7 +56,7 @@ class MQTTTestImpl(MQTTTest):
 
         self.actor_discovery = ActorDiscovery(self)
         tags = "*"  # ["class=AlohaHonuaActor"]  # TODO: CLI parameter
-        filter = ServiceFilter("*", "*", "*", "*", tags)
+        filter = ServiceFilter("*", "*", "*", "*", "*", tags)
         self.actor_discovery.add_handler(self._actor_change_handler, filter)
 
     def _actor_change_handler(self, command, service_details):

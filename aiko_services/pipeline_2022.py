@@ -94,8 +94,8 @@ __all__ = [
     "ServiceDefinition_2022"
 ]
 
-ACTOR_TYPE = "Pipeline_2022"
-PROTOCOL = f"{ServiceProtocol.AIKO}/pipeline:0"
+ACTOR_TYPE = "pipeline_2022"
+PROTOCOL = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE}:0"
 
 _LOGGER = aiko.logger(__name__)
 _VERSION = 0
