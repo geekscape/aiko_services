@@ -18,7 +18,7 @@ python3 setup.py install -e .     # development mode
 # Aiko Declarative Pipeline CLI
 
 Runs pipeline definitions in `.py`, `.yaml` or `.json` format.
-For example pipeline definitions, see [examples/pipelines](examples/pipelines/)
+For example pipeline definitions, see [examples/pipelines](examples/pipeline/)
 
 ```
 aiko <path-to-pipeline-def> --help
