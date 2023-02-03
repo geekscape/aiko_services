@@ -18,13 +18,13 @@
 # TAGS="(key1=value1 key2=value2)"
 # mosquitto_pub -t $TOPIC_PATH/in -m "(add topic_prefix name protocol transport owner $TAGS)"
 # mosquitto_pub -t $TOPIC_PATH/in -m "(remove topic_prefix)"
-# mosquitto_pub -t $TOPIC_PATH/in -m "(query response * * * * $TAGS)"
+# mosquitto_pub -t $TOPIC_PATH/in -m "(share response * * * * $TAGS)"
 #
 # Notes
 # ~~~~~
 # Registrar subscribes to ...
 # - TOPIC_REGISTRAR_BOOT: "(primary found ...)" and "(primary absent)"
-# - {topic_path}/in: "(add ...)", "(query ...)", "(remove ...)"
+# - {topic_path}/in: "(add ...)", "(share ...)", "(remove ...)"
 # - {namespace}/+/+/+/state: "(absent)"
 #
 # Protocol
@@ -81,7 +81,7 @@
 #     Add discovery protocol handler to keep a list of Registrars
 #     This means the Aiko V2 framework should do the subscription automagically
 #     - Find the primary registrar (if it exists ?)
-#     - Query to find all other registars
+#     - Find all other registars via "share"
 
 import click
 from collections import deque
@@ -228,7 +228,7 @@ class RegistrarImpl(Registrar):
         if command == "remove" and len(parameters) == 1:
             self._service_remove(topic_path)
 
-        if command == "query" and len(parameters) == 6:
+        if command == "share" and len(parameters) == 6:
             filter = ServiceFilter("*", name, protocol, transport, owner, tags)
             services_out = self.services.filter_by_attributes(filter)
 

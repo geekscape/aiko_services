@@ -21,7 +21,7 @@
 #
 # - Complete implementation as an Aiko Service
 #   - Keep running, even when there are no processes to manage
-#   - Query running processes
+#   - Share running processes
 # - Handle process standard output and standard error
 
 import click

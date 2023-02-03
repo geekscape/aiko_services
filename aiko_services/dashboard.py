@@ -48,7 +48,7 @@
 # - Consider how to efficiently provide Service summary lifecycle states
 #
 # - Selecting (mouse or tab key) Service allows ...
-#   - Toggle show/hide Services with specific field values (query * * * *)
+#   - Toggle show/hide Services with specific field values (share * * * *)
 #   - Subscribe to MQTT messages ("s" key) from topic (/#, /out, /state)
 #   - Publish MQTT message ("p" key) to topic (/#, /in, /control, ...)
 #

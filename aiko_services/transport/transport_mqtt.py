@@ -88,7 +88,7 @@ class ActorDiscovery(ServiceDiscovery):  # Move to actor.py or share.py ?
         return actor
 
 # TODO: Currently unused
-#   def query_actor_mqtt(self, filter):
+#   def share_actor_mqtt(self, filter):
 #       services = self.services_cache.get_services()
 #       actors = services.filter_by_attributes(filter)
 #       return actors

@@ -57,7 +57,7 @@ class RecorderService(Service):
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
             "source_file": f"v{_VERSION}⇒{__file__}",
-            "history": {},  # TODO: Remove and make available via (query ...)
+            "history": {},  # TODO: Remove and make available via (share ...)
             "history_item_count": {},  # TODO: Implement
             "history_lru_cache_size": _HISTORY_LRU_CACHE_SIZE,
             "ring_buffer_size": _RING_BUFFER_SIZE,

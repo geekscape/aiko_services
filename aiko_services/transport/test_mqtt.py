@@ -62,7 +62,7 @@ class MQTTTestImpl(MQTTTest):
     def _actor_change_handler(self, command, service_details):
         if command == "sync":
             _LOGGER.debug("sync")
-        #   actors = self.actor_discovery.query_actor_mqtt(self.filter)
+        #   actors = self.actor_discovery.share_actor_mqtt(self.filter)
 
         #   name = "aiko/zeus/3704321.AlohaHonua"
         #   actor = self.actor_discovery.get_actor_mqtt(name)

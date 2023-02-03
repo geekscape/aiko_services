@@ -464,12 +464,12 @@ class ServicesCache():
         self._cache_reset()
         self._handlers = set()
         self._registrar_topic_out = None
-        self._registrar_topic_query = f"{service.topic_path}/registrar_query"
+        self._registrar_topic_share = f"{service.topic_path}/registrar_share"
         aiko.connection.add_handler(self._connection_state_handler)
 
     def _cache_reset(self):
-        self._query_items_expected = 0
-        self._query_items_received = 0
+        self._share_items_expected = 0
+        self._share_items_received = 0
         self._registrar_topic_out = None
         self._services = Services()
         self._state = "empty"
@@ -505,11 +505,11 @@ class ServicesCache():
                     self.registrar_out_handler, self._registrar_topic_out
                 )
                 self._service.add_message_handler(
-                    self.registrar_query_handler, self._registrar_topic_query
+                    self.registrar_share_handler, self._registrar_topic_share
                 )
                 aiko.message.publish(
                     f"{registrar_topic_path}/in",
-                    f"(query {self._registrar_topic_query} * * * * *)"
+                    f"(share {self._registrar_topic_share} * * * * *)"
                 )
         else:
             if self._registrar_topic_out:
@@ -517,7 +517,7 @@ class ServicesCache():
                     self.registrar_out_handler, self._registrar_topic_out
                 )
                 self._service.remove_message_handler(
-                    self.registrar_query_handler, self._registrar_topic_query
+                    self.registrar_share_handler, self._registrar_topic_share
                 )
                 self._cache_reset()
 
@@ -527,27 +527,27 @@ class ServicesCache():
     def get_state(self):
         return self._state
 
-    def registrar_query_handler(self, aiko, topic_path, payload_in):
+    def registrar_share_handler(self, aiko, topic_path, payload_in):
         command, parameters = parse(payload_in)
         if command == "item_count" and len(parameters) == 1:
-            self._query_items_expected = int(parameters[0])
+            self._share_items_expected = int(parameters[0])
         elif command == "add" and len(parameters) == 6:
             service_details = parameters
             self._services.add_service(service_details[0], service_details)
-            self._query_items_received += 1
-            if self._query_items_received == self._query_items_expected:
+            self._share_items_received += 1
+            if self._share_items_received == self._share_items_expected:
                 self._state = "loaded"
                 self._update_handlers("sync")
                 for service_details in self._services:
                     self._update_handlers("add", service_details)
         else:
-            _LOGGER.debug(f"Service cache: registrar_query_handler(): Unhandled message topic: {topic_path}, payload: {payload_in}")
+            _LOGGER.debug(f"Service cache: registrar_share_handler(): Unhandled message topic: {topic_path}, payload: {payload_in}")
 
     def registrar_out_handler(self, aiko, topic, payload_in):
         command, parameters = parse(payload_in)
         if command == "sync" and len(parameters) == 1:
             sync_topic = parameters[0]
-            if sync_topic == self._registrar_topic_query and self._state == "loaded":
+            if sync_topic == self._registrar_topic_share and self._state == "loaded":
                 self._state = "live"
         elif command == "add" and len(parameters) == 6:
             service_details = parameters
