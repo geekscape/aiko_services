@@ -260,9 +260,10 @@ class ProcessImplementation(ProcessData):
         if len(parameters) > 0:
             action = parameters[0]
             if command == "primary":
-                if len(parameters) == 3 and action == "found":
+                if len(parameters) == 4 and action == "found":
                     registrar["topic_path"] = parameters[1]
-                    registrar["timestamp"] = parameters[2]
+                    registrar["version"] = parameters[2]
+                    registrar["timestamp"] = parameters[3]
                     parse_okay = True
                 if len(parameters) == 1 and action == "absent":
                     parse_okay = True

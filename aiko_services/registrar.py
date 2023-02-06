@@ -8,49 +8,57 @@
 # ~~~~~
 # registrar [--primary]
 #
-#   --primary: Force take over of the primary registrar role
+#   TODO: --primary: Force take over of the primary registrar role
 #
 # NAMESPACE=aiko
 # HOST=localhost
 # PID=`ps ax | grep python | grep registrar | cut -d" " -f1`
-# TOPIC_PATH=$NAMESPACE/$HOST/$PID
-#
+# SID=0
 # TAGS="(key1=value1 key2=value2)"
-# mosquitto_pub -t $TOPIC_PATH/in -m "(add topic_prefix name protocol transport owner $TAGS)"
-# mosquitto_pub -t $TOPIC_PATH/in -m "(remove topic_prefix)"
-# mosquitto_pub -t $TOPIC_PATH/in -m "(share response * * * * $TAGS)"
+# TOPIC_PATH=$NAMESPACE/$HOST/$PID/$SID
+#
+# mosquitto_pub -t $TOPIC_PATH/in -m  \
+#     "(add topic_prefix name protocol transport owner $TAGS)"
+# mosquitto_pub -t $TOPIC_PATH/in -m  \
+#     "(remove topic_prefix)"
+# mosquitto_pub -t $TOPIC_PATH/in -m  \
+#     "(share response * * * * $TAGS)"
 #
 # Notes
 # ~~~~~
 # Registrar subscribes to ...
-# - TOPIC_REGISTRAR_BOOT: "(primary found ...)" and "(primary absent)"
-# - {topic_path}/in: "(add ...)", "(share ...)", "(remove ...)"
-# - {namespace}/+/+/+/state: "(absent)"
+# - TOPIC_REGISTRAR_BOOT:    (primary found ...), (primary absent)
+# - {topic_path}/in:         (add ...), (remove ...), (share ...), (remove ...)
+# - {namespace}/+/+/+/state: (absent)
 #
 # Protocol
 # ~~~~~~~~
 # V0: 2020-01 - 2022-12
-# V1: 2022-12 - current: Added Service name field
+# V1: 2022-12 - current: Registrar bootstrap message includes version number
+#                        Renamed request message "query" to "share"
+#                        Added Service name field
 #
 # To Do
 # ~~~~~
-# * BUG: "Service count" sometimes isn't being decremented
+# * BUG: "Service count" sometimes is either being incremented when there is
+#        some problem or isn't being decremented consistently
 #
 # * BUG: Registrar won't become primary when there isn't another Registrar
 #        and retained topic "aiko.TOPIC_REGISTRAR_BOOT" incorrectly indicates
 #        that a primary Registrar is running and should say "(primary absent)"
 #
+# * Registrar should use ECProducer instead ServicesCache (redundant)
+#
 # - Update EC "lifecycle" state with Registrar StateMachine state
-# - Allow Services to update ServiceDeetails, e.g change tags on-the-fly
+# - Allow Services to update ServiceDetails, e.g change tags on-the-fly
+#
+# * Create "Service" class, use everywhere and include "__str__()"
+#   - Includes topic_path, protocol, transport, owner and tags
+# - Implement Registrar as a sub-class of Category ?
 #
 # - CLI: show [registrar_filter] ... show running Registrar state
 # - CLI: kill service_filter ... terminate running Services
 # - CLI: --primary ... Force take over of the primary registrar role
-#
-# * Create "Service" class, use everywhere and include "__str__()"
-#   - Includes topic_path, protocol, transport, owner and tags
-# * Registrar should ECProducer when it is has subsumed ServicesCache
-# - Implement Registrar as a sub-class of Category ?
 #
 # - Primary Registrar supports discovery protocol for finding MQTT server, etc
 # - Make this a sub-command of Aiko CLI
@@ -149,7 +157,7 @@ class StateMachineModel():
             aiko.TOPIC_REGISTRAR_BOOT, payload_lwt, True)
         topic_path = self.service.topic_path
         time_started = self.service.time_started
-        payload_out =  f"(primary found {topic_path} {time_started})"
+        payload_out =  f"(primary found {topic_path} {_VERSION} {time_started})"
         aiko.message.publish(
             aiko.TOPIC_REGISTRAR_BOOT, payload_out, retain=True)
 
