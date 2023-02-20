@@ -33,10 +33,10 @@
 #
 # Protocol
 # ~~~~~~~~
-# V0: 2020-01 - 2022-12
 # V1: 2022-12 - current: Registrar bootstrap message includes version number
 #                        Renamed request message "query" to "share"
 #                        Added Service name field
+# V0: 2020-01 - 2022-12
 #
 # To Do
 # ~~~~~
@@ -49,7 +49,6 @@
 #
 # * Registrar should use ECProducer instead ServicesCache (redundant)
 #
-# - Update EC "lifecycle" state with Registrar StateMachine state
 # - Allow Services to update ServiceDetails, e.g change tags on-the-fly
 #
 # * Create "Service" class, use everywhere and include "__str__()"
@@ -131,6 +130,7 @@ class StateMachineModel():
 
     def on_enter_primary_search(self, event_data):
 #       parameters = event_data.kwargs.get("parameters", {})
+        self.service.ec_producer.update("lifecycle", "primary_search")
         _LOGGER.debug("do primary_search add_timer")
 
 # TODO: If oldest known secondary, then immediately become the primary
@@ -146,9 +146,11 @@ class StateMachineModel():
             self.service.state_machine.transition("primary_promotion", None)
 
     def on_enter_secondary(self, event_data):
+        self.service.ec_producer.update("lifecycle", "secondary")
         _LOGGER.debug("do enter_secondary")
 
     def on_enter_primary(self, event_data):
+        self.service.ec_producer.update("lifecycle", "primary")
         _LOGGER.debug("do enter_primary")
         # Clear LWT, so this registrar doesn't receive another LWT on reconnect
         aiko.message.publish(aiko.TOPIC_REGISTRAR_BOOT, "", retain=True)
@@ -179,7 +181,7 @@ class RegistrarImpl(Registrar):
         self.services = Services()
 
         self.state = {
-            "lifecycle": "ready",
+            "lifecycle": "start",
             "log_level": get_log_level_name(_LOGGER),
             "service_count": 0,
             "source_file": f"v{_VERSION}⇒{__file__}"
