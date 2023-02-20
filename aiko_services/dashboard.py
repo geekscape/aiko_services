@@ -1,15 +1,25 @@
 #!/usr/bin/env python3
 #
-# Notes
-# ~~~~~
-# Debugging: aiko.process.message.publish("DASHBOARD", f"Debug message")
-#
 # Set-up ssh X11 forwarding for copy-paste support
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # # Requires Python package "xerox-0.4.1"
 # xhost +
 # ssh -Y username@hostname
 # export DISPLAY=localhost:10.0
+#
+# Notes
+# ~~~~~
+# Debugging approach #1
+#   aiko.process.message.publish("DASHBOARD", f"Debug message")
+#
+# Debugging approach #2
+#   import logging
+#   logging.basicConfig(format='%(message)s')
+#   log = logging.getLogger(__name__)
+#   log.warning("DB: debug messages on stderr")
+#
+#   aiko_dashboard 1>/dev/null  # Debug messages only
+#   aiko_dashboard 2>/dev/null  # TUI only
 #
 # To Do Elsewhere !
 # ~~~~~~~~~~~~~~~~~

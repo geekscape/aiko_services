@@ -458,16 +458,16 @@ import time
 class ServicesCache():
     def __init__(self, service, event_loop_start=False):
         self._service = service
-        self._begin_registration = False
         self._event_loop_start = event_loop_start
         self._event_loop_owner = False
+
         self._cache_reset()
         self._handlers = set()
-        self._registrar_topic_out = None
         self._registrar_topic_share = f"{service.topic_path}/registrar_share"
         aiko.connection.add_handler(self._connection_state_handler)
 
     def _cache_reset(self):
+        self._begin_registration = False
         self._share_items_expected = 0
         self._share_items_received = 0
         self._registrar_topic_out = None
