@@ -21,7 +21,7 @@
 import sys
 from typing import List, Tuple, Union                 
                                          
-__all__ = ["generate", "parse"]
+__all__ = ["generate", "parse", "parse_int"]
                   
 def generate(command: str, parameters: Union[List, Tuple]) -> str:
     expression = [command] + list(parameters)
@@ -65,6 +65,13 @@ def parse(payload: str) -> List:
                 sublist.append(token)
 
     return command, parameters
+
+def parse_int(payload: str, default: int=0) -> int:
+    try:
+        result = int(payload)
+    except ValueError:
+        result = default
+    return result
 
 def main():
     payloads = [ "(a b ())", "(a b (c d))" ]

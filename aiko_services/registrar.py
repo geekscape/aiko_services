@@ -28,32 +28,36 @@
 # ~~~~~
 # Registrar subscribes to ...
 # - TOPIC_REGISTRAR_BOOT:    (primary found ...), (primary absent)
-# - {topic_path}/in:         (add ...), (remove ...), (share ...), (remove ...)
+# - {topic_path}/in:         (add ...), (history ...), (remove ...), (share ...)
 # - {namespace}/+/+/+/state: (absent)
 #
 # Protocol
 # ~~~~~~~~
-# V1: 2022-12 - current: Registrar bootstrap message includes version number
-#                        Renamed request message "query" to "share"
-#                        Added Service name field
-# V0: 2020-01 - 2022-12
+# V2: 2023-02-21: Registrar supports "(history ...)" message
+# V1: 2023-01-12: Registrar bootstrap message includes version number
+#                 Renamed request message "query" to "share"
+#                 Added Service name field
+# V0: 2020-08-18: Initial version
 #
 # To Do
 # ~~~~~
 # * BUG: "Service count" sometimes is either being incremented when there is
-#        some problem or isn't being decremented consistently
+#        some problem or isn't being decremented consistently.
+#        Use "self.services.count()" instead ?
 #
 # * BUG: Registrar won't become primary when there isn't another Registrar
 #        and retained topic "aiko.TOPIC_REGISTRAR_BOOT" incorrectly indicates
 #        that a primary Registrar is running and should say "(primary absent)"
 #
-# * Registrar should use ECProducer instead ServicesCache (redundant)
+# * Secondary Registrar subscribe to primary Registrar and update "self.history"
+#
+# * Reimplement ServicesCache using ECProducer / ECConsumer
 #
 # - Allow Services to update ServiceDetails, e.g change tags on-the-fly
 #
 # * Create "Service" class, use everywhere and include "__str__()"
 #   - Includes topic_path, protocol, transport, owner and tags
-# - Implement Registrar as a sub-class of Category ?
+# - Implement Registrar as a sub-class of Category
 #
 # - CLI: show [registrar_filter] ... show running Registrar state
 # - CLI: kill service_filter ... terminate running Services
@@ -97,10 +101,10 @@ import time
 from aiko_services import *
 from aiko_services.utilities import *
 
-REGISTRAR_PROTOCOL = f"{ServiceProtocol.AIKO}/registrar:1"
+REGISTRAR_PROTOCOL = f"{ServiceProtocol.AIKO}/registrar:2"
 
 _LOGGER = aiko.logger(__name__)
-_VERSION = 1
+_VERSION = 2
 
 _HISTORY_RING_BUFFER_SIZE = 4096
 _PRIMARY_SEARCH_TIMEOUT = 2.0  # seconds
@@ -237,6 +241,34 @@ class RegistrarImpl(Registrar):
 
         if command == "remove" and len(parameters) == 1:
             self._service_remove(topic_path)
+
+        if command == "history" and len(parameters) == 2:
+            services_out = self.history
+            count = parse_int(parameters[1])
+            if len(services_out) < count:
+                count = len(services_out)
+
+            payload_out = f"(item_count {count})"
+            aiko.message.publish(topic_path, payload=payload_out)
+
+            for service_details in services_out:
+                if count < 1:
+                    break
+                service_tags = " ".join(service_details["tags"])
+                payload_out =  "(add"                                \
+                              f" {service_details['topic_path']}"    \
+                              f" {service_details['name']}"          \
+                              f" {service_details['protocol']}"      \
+                              f" {service_details['transport']}"     \
+                              f" {service_details['owner']}"         \
+                              f" ({service_tags})"                   \
+                              f" {service_details['time_add']}"      \
+                              f" {service_details['time_remove']})"
+                aiko.message.publish(topic_path, payload_out)
+                count -= 1
+
+            payload_out = f"(sync {topic_path})"
+            aiko.message.publish(self.topic_out, payload_out)
 
         if command == "share" and len(parameters) == 6:
             filter = ServiceFilter("*", name, protocol, transport, owner, tags)

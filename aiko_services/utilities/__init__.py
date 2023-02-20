@@ -20,4 +20,4 @@ from .logger import DEBUG, get_log_level_name, get_logger, LoggingHandlerMQTT
 
 from .lru_cache import LRUCache
 
-from .parser import generate, parse
+from .parser import generate, parse, parse_int
