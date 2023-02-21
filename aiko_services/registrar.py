@@ -49,6 +49,9 @@
 #        and retained topic "aiko.TOPIC_REGISTRAR_BOOT" incorrectly indicates
 #        that a primary Registrar is running and should say "(primary absent)"
 #
+# * BUG: If there are multiple secondaries, when the primary fails, then all
+#        secondaries end up being primaries :(
+#
 # * Secondary Registrar subscribe to primary Registrar and update "self.history"
 #
 # * Reimplement ServicesCache using ECProducer / ECConsumer
@@ -106,6 +109,7 @@ REGISTRAR_PROTOCOL = f"{ServiceProtocol.AIKO}/registrar:2"
 _LOGGER = aiko.logger(__name__)
 _VERSION = 2
 
+_HISTORY_LIMIT_DEFAULT = 16
 _HISTORY_RING_BUFFER_SIZE = 4096
 _PRIMARY_SEARCH_TIMEOUT = 2.0  # seconds
 _SERVICE_STATE_TOPIC = f"{get_namespace()}/+/+/+/state"
@@ -243,15 +247,17 @@ class RegistrarImpl(Registrar):
             self._service_remove(topic_path)
 
         if command == "history" and len(parameters) == 2:
-            services_out = self.history
-            count = parse_int(parameters[1])
-            if len(services_out) < count:
-                count = len(services_out)
+            if parameters[1] == "*":
+                count = _HISTORY_LIMIT_DEFAULT
+            else:
+                count = parse_int(parameters[1])
+            if len(self.history) < count:
+                count = len(self.history)
 
             payload_out = f"(item_count {count})"
             aiko.message.publish(topic_path, payload=payload_out)
 
-            for service_details in services_out:
+            for service_details in self.history:
                 if count < 1:
                     break
                 service_tags = " ".join(service_details["tags"])
@@ -266,9 +272,6 @@ class RegistrarImpl(Registrar):
                               f" {service_details['time_remove']})"
                 aiko.message.publish(topic_path, payload_out)
                 count -= 1
-
-            payload_out = f"(sync {topic_path})"
-            aiko.message.publish(self.topic_out, payload_out)
 
         if command == "share" and len(parameters) == 6:
             filter = ServiceFilter("*", name, protocol, transport, owner, tags)

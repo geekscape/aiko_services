@@ -16,7 +16,7 @@
 #   import logging
 #   logging.basicConfig(format='%(message)s')
 #   log = logging.getLogger(__name__)
-#   log.warning("DB: debug messages on stderr")
+#   log.warning("DB: debug messages on stderr\r")
 #
 #   aiko_dashboard 1>/dev/null  # Debug messages only
 #   aiko_dashboard 2>/dev/null  # TUI only
@@ -50,7 +50,13 @@
 #
 # * FIX: Variable update dialogue replace with "maps.py:EnterLocation(Frame)"
 #
-# - If Registrar isn't available, then display "Waiting for Registrar"
+# * FIX: Enable Service History selected "topic path" to clipboard
+# * FIX: Enable Service History selected "topic path" can show LogFrame
+#
+# * If Registrar isn't available, then display "Waiting for Registrar"
+#
+# * Show Services running: time_add and time running
+# * Show Services history: tags, time_add, time_remove and time running
 #
 # - ArchiveService should record "+/+/+/log" and removed Services ...
 #   - Dashboard History section can ECConsumer the removed Services
@@ -103,7 +109,7 @@ from asciimatics.widgets.utilities import THEMES
 from aiko_services import *
 from aiko_services.utilities import *
 
-_HISTORY_RING_BUFFER_SIZE = 32
+_HISTORY_LIMIT = 32
 _LOG_RING_BUFFER_SIZE = 128
 
 _SERVICE_SELECTED = None    # written by Dashboard._on_change_services()
@@ -157,7 +163,7 @@ class FrameCommon:
 
     @property
     def frame_update_count(self):
-        return 4  # assuming 20 FPS, then refresh screen at 5 Hz
+        return 5  # assuming 20 FPS, then refresh screen at 4 Hz
 
 # TODO: Replace _process_event_common() with the following ...
 # https://asciimatics.readthedocs.io/en/stable/widgets.html#global-key-handling
@@ -203,13 +209,11 @@ class DashboardFrame(FrameCommon, Frame):
 
         self.ec_consumer = None
         self._ec_consumer_reset()
-        self.service_history = deque(maxlen=_HISTORY_RING_BUFFER_SIZE)
         self.services_row = -1
 
         self.services_cache = services_cache_create_singleton(
-            aiko.process, True)
+            aiko.process, True, history_limit=_HISTORY_LIMIT)
         filter = ServiceFilter("*", "*", "*", "*", "*", "*")
-        self.services_cache.add_handler(self._service_change_handler, filter)  # REVIEW AVOID MULTIPLE ADDS !
 
         self._services_widget = MultiColumnListBox(
             screen.height * 1 // 3,
@@ -308,10 +312,6 @@ class DashboardFrame(FrameCommon, Frame):
                 popup_dialog.fix()
                 self.scene.add_effect(popup_dialog)
 
-    def _service_change_handler(self, command, service_details):
-        if command == "remove":
-            self.service_history.appendleft(service_details)
-
     def _update(self, frame_no):
         if self.adjust_palette_required:
             self._adjust_palette()
@@ -354,7 +354,7 @@ class DashboardFrame(FrameCommon, Frame):
             for row_index, variable in enumerate(variables)
         ]
 
-        service_history = list(self.service_history)
+        service_history = list(self.services_cache.get_history())
         services_formatted = []
         for service in service_history:
             topic_path = ServiceTopicPath.parse(service[0]).terse
@@ -508,7 +508,11 @@ def dashboard(screen, start_scene):
     screen.play(scenes, stop_on_resize=True, start_scene=start_scene)
 
 @click.command()
-def main():
+@click.option("--history_limit", "-hl", type=click.INT, default=32,
+    help="History length requested from Registrar")
+def main(history_limit):
+    global _HISTORY_LIMIT
+    _HISTORY_LIMIT = history_limit
     scene = None
 
     while True:

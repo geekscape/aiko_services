@@ -369,7 +369,7 @@ class ECConsumer:
         command, parameters = parse(payload_in)
 
         if command == "item_count" and len(parameters) == 1:
-            self.item_count = int(parameters[0])
+            self.item_count = parse_int(parameters[0])
             self.items_received = 0
 
         elif command == "add" and len(parameters) == 2:
@@ -439,43 +439,52 @@ class ECConsumer:
             self._share_request(lease_time=0)  # cancel share request
 
 # --------------------------------------------------------------------------- #
-# Note: For non-Service use, can substitute "aiko.process" for "service"
+# Note: For use by non-Service, can substitute "aiko.process" for "service"
 #
 # Service cache states
 # ~~~~~~~~~~~~~~~~~~~~
-# - empty:  Unpopulated and waiting for Service Registrar
-# - loaded: Populated and waiting for Service Registrar "sync" message
-# - live:  Ready for use and continuously updating
+# - empty:   No history or running Services and waiting for Service Registrar
+# - history: Waiting for Services history to be shared
+# - share:   Waiting for Services running to be shared
+# - loaded:  Services populated and waiting for Service Registrar "sync" message
+# - ready:   Ready for use and continuously updating
 #
 # To Do
 # ~~~~~
+# - Reimplement ServicesCache using ECProducer / ECConsumer
 # - aiko_services.registrar should have identical code to the cache code !
 # - services_cache_delete() should be a class method delete()
 
+from collections import deque
 from threading import Thread
 import time
 
+_HISTORY_RING_BUFFER_SIZE = 4096
+
 class ServicesCache():
-    def __init__(self, service, event_loop_start=False):
+    def __init__(self, service, event_loop_start=False, history_limit=0):
         self._service = service
         self._event_loop_start = event_loop_start
         self._event_loop_owner = False
+        self._history_limit = history_limit
 
         self._cache_reset()
         self._handlers = set()
+        self._history = deque(maxlen=_HISTORY_RING_BUFFER_SIZE)
         self._registrar_topic_share = f"{service.topic_path}/registrar_share"
         aiko.connection.add_handler(self._connection_state_handler)
 
     def _cache_reset(self):
         self._begin_registration = False
-        self._share_items_expected = 0
-        self._share_items_received = 0
+        self._item_count = None
+        self._registrar_service = None
+        self._registrar_topic_in = None
         self._registrar_topic_out = None
         self._services = Services()
         self._state = "empty"
 
     def add_handler(self, service_change_handler, service_filter):
-        if self._state in ["loaded", "live"]:
+        if self._state in ["loaded", "ready"]:
         # TODO: Provide filtered Services to "service_change_handler"
             service_change_handler("sync", None)
         self._handlers.add((service_change_handler, service_filter))
@@ -483,6 +492,48 @@ class ServicesCache():
     def remove_handler(self, service_change_handler, service_filter):
         if (service_change_handler, service_filter) in self._handlers:
             self._handlers.remove((service_change_handler, service_filter))
+
+    def _connection_state_handler(self, connection, connection_state):
+        if connection.is_connected(ConnectionState.REGISTRAR):
+            if not self._begin_registration:
+                self._begin_registration = True
+                self._registrar_topic_in = f"{aiko.registrar['topic_path']}/in"
+                self._registrar_topic_out = f"{aiko.registrar['topic_path']}/out"
+                self._service.add_message_handler(
+                    self.registrar_out_handler, self._registrar_topic_out
+                )
+                self._service.add_message_handler(
+                    self.registrar_share_handler, self._registrar_topic_share
+                )
+                if self._history_limit > 0:
+                    self._publish_registrar_history()
+                    self._state = "history"
+                else:
+                    self._publish_registrar_share()
+                    self._state = "share"
+        else:
+            if self._registrar_topic_out:
+                self._service.remove_message_handler(
+                    self.registrar_out_handler, self._registrar_topic_out
+                )
+                self._service.remove_message_handler(
+                    self.registrar_share_handler, self._registrar_topic_share
+                )
+                if self._registrar_service:
+                    self._history.appendleft(self._registrar_service)
+                self._cache_reset()
+
+    def _publish_registrar_history(self):
+        aiko.message.publish(
+            self._registrar_topic_in,
+            f"(history {self._registrar_topic_share} {self._history_limit})"
+        )
+
+    def _publish_registrar_share(self):
+        aiko.message.publish(
+            self._registrar_topic_in,
+            f"(share {self._registrar_topic_share} * * * * *)"
+        )
 
     def _update_handlers(self, command, service_details=None):
         topic_path = service_details[0] if service_details else None
@@ -495,31 +546,8 @@ class ServicesCache():
             if service:
                 handler(command, service_details)
 
-    def _connection_state_handler(self, connection, connection_state):
-        if connection.is_connected(ConnectionState.REGISTRAR):
-            if not self._begin_registration:
-                self._begin_registration = True
-                registrar_topic_path = aiko.registrar["topic_path"]
-                self._registrar_topic_out = f"{registrar_topic_path}/out"
-                self._service.add_message_handler(
-                    self.registrar_out_handler, self._registrar_topic_out
-                )
-                self._service.add_message_handler(
-                    self.registrar_share_handler, self._registrar_topic_share
-                )
-                aiko.message.publish(
-                    f"{registrar_topic_path}/in",
-                    f"(share {self._registrar_topic_share} * * * * *)"
-                )
-        else:
-            if self._registrar_topic_out:
-                self._service.remove_message_handler(
-                    self.registrar_out_handler, self._registrar_topic_out
-                )
-                self._service.remove_message_handler(
-                    self.registrar_share_handler, self._registrar_topic_share
-                )
-                self._cache_reset()
+    def get_history(self):
+        return self._history
 
     def get_services(self):
         return self._services
@@ -530,25 +558,37 @@ class ServicesCache():
     def registrar_share_handler(self, aiko, topic_path, payload_in):
         command, parameters = parse(payload_in)
         if command == "item_count" and len(parameters) == 1:
-            self._share_items_expected = int(parameters[0])
-        elif command == "add" and len(parameters) == 6:
+            self._item_count = int(parameters[0])
+        elif command == "add" and len(parameters) >= 6:
+            self._item_count -= 1
             service_details = parameters
-            self._services.add_service(service_details[0], service_details)
-            self._share_items_received += 1
-            if self._share_items_received == self._share_items_expected:
+            if self._state == "history":
+                self._history.append(service_details)
+            elif self._state == "share":
+                service_topic_path = service_details[0]
+                self._services.add_service(service_topic_path, service_details)
+                if service_topic_path == aiko.registrar["topic_path"]:
+                    self._registrar_service = service_details
+        else:
+            _LOGGER.debug(f"Service cache: registrar_share_handler(): Unhandled message topic: {topic_path}, payload: {payload_in}")
+
+        if self._item_count == 0:
+            self._item_count = None
+            if self._state == "history":
+                self._publish_registrar_share()
+                self._state = "share"
+            elif self._state == "share":
                 self._state = "loaded"
                 self._update_handlers("sync")
                 for service_details in self._services:
                     self._update_handlers("add", service_details)
-        else:
-            _LOGGER.debug(f"Service cache: registrar_share_handler(): Unhandled message topic: {topic_path}, payload: {payload_in}")
 
     def registrar_out_handler(self, aiko, topic, payload_in):
         command, parameters = parse(payload_in)
         if command == "sync" and len(parameters) == 1:
             sync_topic = parameters[0]
             if sync_topic == self._registrar_topic_share and self._state == "loaded":
-                self._state = "live"
+                self._state = "ready"
         elif command == "add" and len(parameters) == 6:
             service_details = parameters
             self._services.add_service(service_details[0], service_details)
@@ -559,6 +599,7 @@ class ServicesCache():
             if service_details:
                 self._update_handlers(command, service_details)
                 self._services.remove_service(topic_path)
+                self._history.appendleft(service_details)
         else:
             _LOGGER.debug(f"Service cache: registrar_out_handler(): Unknown command: topic: {topic}, payload: {payload_in}")
 
@@ -578,17 +619,19 @@ class ServicesCache():
         if self._event_loop_owner:
             aiko.process.terminate()
 
-    def wait_live(self):
-        while self._state != "live":
-            time.sleep(1)
+    def wait_ready(self):
+        while self._state != "ready":
+            time.sleep(0.1)
 
 services_cache = None
 
-def services_cache_create_singleton(service, event_loop_start=False):
+def services_cache_create_singleton(
+    service, event_loop_start=False, history_limit=0):
+
     global services_cache
 
     if not services_cache:
-        services_cache = ServicesCache(service, event_loop_start)
+        services_cache = ServicesCache(service, event_loop_start, history_limit)
         Thread(target=services_cache.run).start()
     return services_cache
 
@@ -600,8 +643,17 @@ def services_cache_delete():
         services_cache = None
 
 # if __name__ == "__main__":
-#     services_cache = services_cache_create_singleton(service)
-#     services_cache.wait_live()
+#   services_cache = services_cache_create_singleton(
+#       aiko.process, True, history_limit=4)
+#   print("ServicesCache: Wait ready")
+#   services_cache.wait_ready()
+#   print("ServicesCache: Services")
+#   print(f"{services_cache.get_services()}")
+#   print("ServicesCache: History")
+#   history = services_cache.get_history()
+#   for service_details in history:
+#       print(f"{service_details}")
+#   aiko.process.terminate()
 
 # --------------------------------------------------------------------------- #
 
