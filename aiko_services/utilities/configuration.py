@@ -48,10 +48,17 @@ _AIKO_NAMESPACE = "aiko"
 def create_password(length=32):
     return secrets.token_hex(length)
 
-def _get_ip_address():
-    _socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    _socket.connect(("8.8.8.8", 80))
-    return _socket.getsockname()[0]
+def _get_lan_ip_address():
+    ip_address = ((
+            [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2]
+                 if not ip.startswith("127.")
+            ]
+            or
+            [[(s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close())
+                for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]
+            ][0][1]]
+        ) + ["127.0.0.1"])[0]
+    return ip_address
 
 def _host_service_up(host, port):
     try:
@@ -132,7 +139,7 @@ def get_username():
 # Response message: "boot mqtt_ip_address mqtt_ip_port namespace"
 
 RESPONSE = "boot " +  \
-    _get_ip_address() + " " + str(get_mqtt_port()) + " " + get_namespace()
+    _get_lan_ip_address() + " " + str(get_mqtt_port()) + " " + get_namespace()
 
 def bootstrap_thread():
     time.sleep(1)  # wait for previous service manager to terminate
