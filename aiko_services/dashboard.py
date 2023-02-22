@@ -52,6 +52,7 @@
 #
 # * FIX: Enable Service History selected "topic path" to clipboard
 # * FIX: Enable Service History selected "topic path" can show LogFrame
+# * FIX: Enable Service History multiple Service selection for logging
 #
 # * If Registrar isn't available, then display "Waiting for Registrar"
 #
@@ -98,6 +99,7 @@ from asciimatics.event import KeyboardEvent
 from asciimatics.exceptions import (
     NextScene, ResizeScreenError, StopApplication
 )
+from asciimatics.parsers import AnsiTerminalParser
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
 from asciimatics.widgets import (
@@ -161,6 +163,20 @@ class FrameCommon:
         self.palette = NICE_COLORS
         self.adjust_palette_required = False
 
+    BLACK = 0
+    RED = 1
+    GREEN = 2
+    YELLOW = 3
+    BLUE = 4
+    MAGENTA = 5
+    CYAN = 6
+    WHITE = 7
+
+    # Reset: \x1b[0m  Color: \x1b[3?n
+
+    def _color_text(self, color, text):
+        return f"\x1b[3{color}m{text}"
+
     @property
     def frame_update_count(self):
         return 5  # assuming 20 FPS, then refresh screen at 4 Hz
@@ -175,9 +191,11 @@ class FrameCommon:
                          " Tab:   Move to next section \n"  \
                          " c:     Copy topic path to clipboard \n"  \
                          " l:     Log level change\n"  \
+                         " s:     Select Service (toggle)\n"  \
+                         " C:     Clear selection\n"  \
                          " D:     Show Dashboard page \n"  \
                          " K:     Kill Service \n"  \
-                         " L:     Show Log page \n"  \
+                         " L:     Show Log page\n"  \
                          " x:     Exit"
                 self.scene.add_effect(
                     PopUpDialog(self._screen, message, ["OK"], theme="nice"))
@@ -210,6 +228,7 @@ class DashboardFrame(FrameCommon, Frame):
         self.ec_consumer = None
         self._ec_consumer_reset()
         self.services_row = -1
+        self.selected_services = {}
 
         self.services_cache = services_cache_create_singleton(
             aiko.process, True, history_limit=_HISTORY_LIMIT)
@@ -220,7 +239,8 @@ class DashboardFrame(FrameCommon, Frame):
             ["<28", "<14", "<8", "<20", ">0"],  # Transport: <10 columns
             options=[],
             titles=["Service Topic", "Name", "Owner", "Protocol", "Transport"],
-            on_change=self._on_change_services
+            on_change=self._on_change_services,
+            parser=AnsiTerminalParser()
         )
         self._service_widget = MultiColumnListBox(
             screen.height * 1 // 2,
@@ -233,7 +253,8 @@ class DashboardFrame(FrameCommon, Frame):
             Widget.FILL_FRAME,
             ["<28", "<14", "<8", "<20", ">0"],
             options=[],
-            titles=["Service history", "Name", "Owner", "Protocol", "Transport"]
+            titles=["Service history: Topic",
+                    "Name", "Owner", "Protocol", "Transport"]
         )
         layout_0 = Layout([3, 1])
         self.add_layout(layout_0)
@@ -280,6 +301,22 @@ class DashboardFrame(FrameCommon, Frame):
                 Popen(command_line, bufsize=0, shell=False)
                 self._ec_consumer_set(self.services_row + 1)
 
+    def _service_selection_clear(self):
+        self.selected_services = {}
+
+    def _service_selection_color(self, color, topic_path):
+        topic_path_colored = topic_path
+        if topic_path in self.selected_services:
+            topic_path_colored = self._color_text(color, topic_path)
+        return topic_path_colored
+
+    def _service_selection_toggle(self, service):
+        topic_path = service[0]
+        if topic_path in self.selected_services:
+            del self.selected_services[topic_path]
+        else:
+            self.selected_services[topic_path] = service
+
     def _on_change_services(self):
         row = self._services_widget.value
         if row is not None and row != self.services_row:
@@ -320,6 +357,7 @@ class DashboardFrame(FrameCommon, Frame):
         services_formatted = []
         for service in services:
             topic_path = ServiceTopicPath.parse(service[0]).terse
+            topic_path = self._service_selection_color(self.YELLOW, topic_path)
             protocol = _short_name(service[2])
             services_formatted.append(
                 (topic_path, service[1], service[4], protocol, service[3]))
@@ -340,7 +378,7 @@ class DashboardFrame(FrameCommon, Frame):
                 else:
                     variables.append((f"{variable_name} ...", ""))
                     for name, value in variable_value.items():
-                        variables.append((f"  {name}", str(value)))
+                        variables.append((f"  {name}", f"{value}"))
             variables.append(("", ""))
 
         if self.service_tags:
@@ -375,6 +413,10 @@ class DashboardFrame(FrameCommon, Frame):
             if event.key_code in [ord("l")] and _SERVICE_SELECTED:
                 self.scene.add_effect(LogLevelPopupMenu(
                     self._screen, self._services_widget, _SERVICE_SELECTED[0]))
+            if event.key_code in [ord("s")] and _SERVICE_SELECTED:
+                self._service_selection_toggle(_SERVICE_SELECTED)
+            if event.key_code in [ord("C")]:
+                self._service_selection_clear()
             if event.key_code in [ord("K")] and _SERVICE_SELECTED:
                 self._kill_service(_SERVICE_SELECTED[0])
             if event.key_code in [ord("L")] and _SERVICE_SELECTED:

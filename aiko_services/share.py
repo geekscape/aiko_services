@@ -2,16 +2,16 @@
 #
 # Usage
 # ~~~~~
-# registrar
-# ./share.py
-# ./share.py ec_producer_pid
-#
-# mosquitto_sub -t '#' -v
+# aiko_registrar
+# AIKO_LOG_MQTT=false ./share.py ec_test
+# AIKO_LOG_MQTT=false ./share.py ec_test PRODUCER_PID [EC_PRODUCER_SID]
 #
 # NAMESPACE=aiko
 # HOST=localhost
-# PID=`ps ax | grep python | grep share.py | xargs | cut -d" " -f1`;  \
-#     TOPIC_PATH=$NAMESPACE/$HOST/$PID
+# PRODUCER_PID=`ps ax | grep python | grep share.py | xargs | cut -d" " -f1`;  \
+#     TOPIC_PATH=$NAMESPACE/$HOST/$PRODUCER_PID/1
+#
+# mosquitto_sub -t '#' -v
 #
 # mosquitto_pub -t $TOPIC_PATH/control -m "(invalid)"
 # mosquitto_pub -t $TOPIC_PATH/control -m "(share)"
@@ -71,11 +71,11 @@ __all__ = [
     "services_cache_create_singleton", "services_cache_delete"
 ]
 
-SERVICE_TYPE_EC_CONSUMER = "ECConsumerTest"
-PROTOCOL_EC_CONSUMER = f"{ServiceProtocol.AIKO}/ec_consumer:0"
+SERVICE_TYPE_EC_CONSUMER = "ec_consumer_test"
+PROTOCOL_EC_CONSUMER = f"{ServiceProtocol.AIKO}/{SERVICE_TYPE_EC_CONSUMER}:0"
 
-SERVICE_TYPE_EC_PRODUCER = "ECProducerTest"
-PROTOCOL_EC_PRODUCER = f"{ServiceProtocol.AIKO}/ec_producer:0"
+SERVICE_TYPE_EC_PRODUCER = "ec_producer_test"
+PROTOCOL_EC_PRODUCER = f"{ServiceProtocol.AIKO}/{SERVICE_TYPE_EC_PRODUCER}:0"
 
 _LEASE_TIME = 300  # seconds
 
@@ -642,19 +642,6 @@ def services_cache_delete():
         services_cache.terminate()
         services_cache = None
 
-# if __name__ == "__main__":
-#   services_cache = services_cache_create_singleton(
-#       aiko.process, True, history_limit=4)
-#   print("ServicesCache: Wait ready")
-#   services_cache.wait_ready()
-#   print("ServicesCache: Services")
-#   print(f"{services_cache.get_services()}")
-#   print("ServicesCache: History")
-#   history = services_cache.get_history()
-#   for service_details in history:
-#       print(f"{service_details}")
-#   aiko.process.terminate()
-
 # --------------------------------------------------------------------------- #
 
 class ECProducerTest(Service):
@@ -718,12 +705,37 @@ class ECConsumerTest(Service):
 
 # --------------------------------------------------------------------------- #
 
-@click.command("main", help=(
-    "Demonstrate Eventual Consistency ECProducer and ECConsumer"))
+@click.group()
+def main():
+    pass
+
+@main.command("sc_test",
+    help=("Test Registrar Services Cache"))
+def sc_test():
+    services_cache = services_cache_create_singleton(
+        aiko.process, True, history_limit=4)
+
+    _LOGGER.info("ServicesCache: Wait ready")
+    services_cache.wait_ready()
+
+    _LOGGER.info("ServicesCache: Services running")
+    services = services_cache.get_services()
+    for service_details in services:
+        _LOGGER.info(f"{service_details}")
+
+    _LOGGER.info("ServicesCache: Service history")
+    history = services_cache.get_history()
+    for service_details in history:
+        _LOGGER.info(f"{service_details}")
+
+    aiko.process.terminate()
+
+@main.command("ec_test",
+    help=("Test Eventual Consistency Producer and Consumer"))
 @click.argument("ec_producer_pid", nargs=1, required=False)
 @click.argument("ec_producer_sid", nargs=1, required=False, default="1")
 @click.argument("filter", nargs=1, default="*", required=False)
-def main(ec_producer_pid, ec_producer_sid, filter):
+def ec_test(ec_producer_pid, ec_producer_sid, filter):
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
 
     if ec_producer_pid:
