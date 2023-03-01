@@ -48,8 +48,8 @@ class MQTTTestImpl(MQTTTest):
         self.state = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
-            "message": None,
-            "source_file": f"v{_VERSION}⇒{__file__}"
+            "source_file": f"v{_VERSION}⇒{__file__}",
+            "message": None
         }
         self.ec_producer = ECProducer(self, self.state)
         self.ec_producer.add_handler(self._ec_producer_change_handler)

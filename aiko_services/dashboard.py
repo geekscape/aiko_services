@@ -55,6 +55,14 @@
 # * FIX: Enable Service History multiple Service selection for logging
 #
 # * If Registrar isn't available, then display "Waiting for Registrar"
+# - Secondary Registrars should periodically send a non-retained message to
+#     the TOPIC_REGISTRAR_BOOT topic ... (secondary found ...) for Dashboard
+# - Dashboard should show if ...
+#   - TOPIC_REGISTRAR_BOOT indicates that there is no primary Registrar
+#   - TOPIC_REGISTRAR_BOOT indicates that there is a primary Registrar,
+#       but the primary is not responding to (history ...) or (share ...)
+#   - TOPIC_REGISTRAR_BOOT indicates there are secondary Registrar(s)
+#       and show their details
 #
 # * Show Services running: time_add and time running
 # * Show Services history: tags, time_add, time_remove and time running
@@ -186,17 +194,18 @@ class FrameCommon:
     def _process_event_common(self, event):
         if isinstance(event, KeyboardEvent):
             if event.key_code in [ord("?")]:
-                message =" Help\n ----\n"  \
-                         " Enter: Update variable value \n"  \
-                         " Tab:   Move to next section \n"  \
-                         " c:     Copy topic path to clipboard \n"  \
-                         " l:     Log level change\n"  \
-                         " s:     Select Service (toggle)\n"  \
-                         " C:     Clear selection\n"  \
-                         " D:     Show Dashboard page \n"  \
-                         " K:     Kill Service \n"  \
-                         " L:     Show Log page\n"  \
-                         " x:     Exit"
+                message =" Help   Aiko Services Dashboard\n"  \
+                         " ----   -----------------------\n"  \
+                         " Enter  Update variable value \n"  \
+                         " Tab    Move to next section \n"  \
+                         " c      Copy topic path to clipboard \n"  \
+                         " l      Log level change\n"  \
+                         " s      Select Service (toggle)\n"  \
+                         " C      Clear selection\n"  \
+                         " D      Show Dashboard page \n"  \
+                         " K      Kill Service \n"  \
+                         " L      Show Log page\n"  \
+                         " x      Exit"
                 self.scene.add_effect(
                     PopUpDialog(self._screen, message, ["OK"], theme="nice"))
             if event.key_code in [ord("x"), ord("X"), Screen.ctrl("c")]:
@@ -431,6 +440,7 @@ class LogFrame(FrameCommon, Frame):
             name="log_frame"
         )
         self.log_buffer = None
+        self.recorder = None
         self.topic_log = None
 
         self._log_widget = MultiColumnListBox(
@@ -443,9 +453,14 @@ class LogFrame(FrameCommon, Frame):
         self.add_layout(layout_0)
         layout_0.add_widget(Label(_get_title()), 0)
         layout_0.add_widget(Label('Press "?" for help', align=">"), 1)
-        layout_1 = Layout([1], fill_frame=True)
+        layout_1 = Layout([1])
         self.add_layout(layout_1)
-        layout_1.add_widget(self._log_widget)
+        recorder_label = Label(f"Log Recorder: TOPIC_PATH")
+        recorder_label.custom_colour = "title"
+        layout_1.add_widget(recorder_label)
+        layout_2 = Layout([1], fill_frame=True)
+        self.add_layout(layout_2)
+        layout_2.add_widget(self._log_widget)
         self.fix()  # Prepare Frame for use
         self._value_width = self._log_widget.width
 
@@ -462,8 +477,8 @@ class LogFrame(FrameCommon, Frame):
             _SERVICE_SUBSCRIBED = _SERVICE_SELECTED
             service_topic_path, _, _ = _SERVICE_SELECTED[0].rpartition("/")
             service_topic_path += "/0"  # TODO: Use correct Service Id
-            protocol = _short_name(_SERVICE_SELECTED[1])
-            title = f"Log records: {service_topic_path}: {protocol}"
+            name = _short_name(_SERVICE_SELECTED[1])
+            title = f"Service log records: {service_topic_path}: {name}"
             self._log_widget._titles = [title]
             self.log_buffer = deque(maxlen=_LOG_RING_BUFFER_SIZE)
             self.topic_log = f"{service_topic_path}/log"

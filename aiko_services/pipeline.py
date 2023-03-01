@@ -4,36 +4,33 @@
 #
 # Usage
 # ~~~~~
+# ./pipeline.py create pipeline_definition [--name pipeline_name]
+# ./pipeline.py delete pipeline_name
 #
 # To Do
 # ~~~~~
 # - CLI create(): Should run Pipeline in the background (detached)
+#   - See hl_all/infrastructure/websockets/authentication_manager.py
 # - CLI delete(): Implement
-#
-# - PipelineDefinition design and implementation
-# - LifeCycleManager / Client implementations ...
-#   - Pipeline implementation: PipelineElements are all within same process
-#   - Pipeline implementation: PipelineElements are all distributed
-# - Visual representation and editing
-#
-# - Incorporate pipeline_2022.py
-# - Incorporate pipeline_2020.py
-#   - aiko_services/examples/pipeline/*, RTSP and WebRTC pipelines
-#   - StateMachine (rewrite)
-# - Pipeline / PipelineElement properties --> Stream (leased)
-#   - Update Pipeline / PipelineElement properties on-the-fly
-#   - Tasks (over GraphQL or MQTT) --> Session (leased)
-# - Session limits: frame count (maybe just 1) and lease time
-# - Integrate GStreamer plug-ins as PipelineElements
-# - Media data transports, e.g in-band MQTT and out-of-band RTSP / WebRTC
 
+# from abc import abstractmethod
+# from avro.datafile import DataFileReader
+# import avro.io
+import avro.schema
+from avro_validator.schema import Schema
 import click
-import jsons
+import json
+import os
+# import queue
+import sys
 
 from aiko_services import *
+# from aiko_services.utilities import *
 
 __all__ = [
 ]
+
+PIPELINE_DEFINITION_SCHEMA_PATHNAME = "pipeline_definition_schema.avsc"
 
 ACTOR_TYPE = "pipeline"
 PROTOCOL = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE}:0"
@@ -42,8 +39,9 @@ _LOGGER = aiko.logger(__name__)
 _VERSION = 0
 
 # --------------------------------------------------------------------------- #
-# TODO: Use dataclasses and https://pypi.org/project/jsons for serialisation
-#       import jsons;  string = jsons.dump(...)
+# TODO: Use dataclasses and https://pypi.org/project/json for serialisation
+#       Avro support for classes built with Pydantic
+#       import json;  string = json.dump(...)
 # TODO: Graph.add(): [nodes] ?
 # TODO: Node.add(): [dependencies] ?
 # TODO: Should dependencies be more than just "element.output" (string) ?
@@ -117,6 +115,19 @@ g.add(nb)
 
 # --------------------------------------------------------------------------- #
 
+SCHEMA = avro.schema.parse(json.dumps({
+    "namespace"    : "example.avro",
+    "name"         : "User",
+    "type"         : "record",
+    "fields"       : [
+         {"name": "name"            , "type": "string"},
+         {"name": "favorite_number" , "type": ["int", "null"]},
+         {"name": "favorite_color"  , "type": ["string", "null"]}
+    ]
+}))
+
+# --------------------------------------------------------------------------- #
+
 class PipelineType():
     LOCAL = "local"
     REMOTE = "remote"
@@ -145,31 +156,57 @@ class PipelineDefinition():
         if element in self._elements:
             del self._elements[element]
 
-# import jsons
-# pipeline_definition_json = jsons.dump(pipeline_definition)
-# pipeline_definition = jsons.load(pipeline_definition_json, PipelineDefinition)
-
 # --------------------------------------------------------------------------- #
 
 class Pipeline(Actor):
     Interface.implementations["Pipeline"] = "__main__.PipelineImpl"
 
+#   @abstractmethod
+#   def test(self, value):
+#       pass
+
 class PipelineImpl(Pipeline):
-    def __init__(self, implementations, name, protocol, tags, transport):
+    def __init__(self,
+        implementations, name, protocol, tags, transport,
+        pipeline_definition_pathname):
 
         implementations["Actor"].__init__(self,
             implementations, name, protocol, tags, transport)
 
+        self._load_pipeline_definition(pipeline_definition_pathname)
+
         self.state = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
-            "source_file": f"v{_VERSION}⇒{__file__}"
+            "source_file": f"v{_VERSION}⇒{__file__}",
+            "pipeline_definition": pipeline_definition_pathname
         }
         self.ec_producer = ECProducer(self, self.state)
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
-    #   self.add_message_handler(self._topic_all_handler, "#")  # for testing
         self.add_message_handler(self._topic_in_handler, self.topic_in)
+        #   binary=True)
+
+    def _load_pipeline_definition(self, pipeline_definition_pathname):
+        try:
+            schema = Schema(PIPELINE_DEFINITION_SCHEMA_PATHNAME).parse()
+        except ValueError as value_error:
+            _LOGGER.error(
+                f"Error: Parsing Pipeline Definition schema: {PIPELINE_DEFINITION_SCHEMA_PATHNAME}")
+            _LOGGER.error(value_error)
+            sys.exit(1)
+
+        try:
+            self.pipeline_definition = json.load(
+                open(pipeline_definition_pathname, "r"))
+            schema.validate(self.pipeline_definition)
+            _LOGGER.info(
+                f"Pipeline Definition parsed: {pipeline_definition_pathname}")
+        except ValueError as value_error:
+            _LOGGER.error(
+                f"Error: Parsing Pipeline Definition: {pipeline_definition_pathname}")
+            _LOGGER.error(value_error)
+            sys.exit(1)
 
     def _ec_producer_change_handler(self, command, item_name, item_value):
         if item_name == "log_level":
@@ -180,17 +217,44 @@ class PipelineImpl(Pipeline):
 # TODO: Apply proxy automatically for Actor and not manually here
         self._post_message(actor.Topic.IN, command, parameters)
 
+# Review ~/play/avro/pipeline_test.py: class PipelineA: implementation
+#        ~/play/avro/zz_new_suggestion.py
+
+# import pipeline_definition_test
+# pipeline_test = PipelineA(pipeline_definition_test.graph)
+
+# frame_queue = queue.Queue()
+# frame = {"input1": {"param1": 1, "param2": 2}}
+# frame_queue.put(frame)
+
+# while True:
+#   frame = frame_queue.get()
+#   result = pipeline_test.run(frame)
+#   handle_result(result)  # TODO: Implement
+
 # --------------------------------------------------------------------------- #
 
 @click.group()
 def main():
+    """Create and delete Pipelines"""
     pass
 
-@main.command(help="Create Pipeline")
-@click.argument("definition_pathname", nargs=1, type=str, required=True)
-@click.option("--name", "-n", type=str, default=ACTOR_TYPE, required=False)
-def create(definition_pathname, name):
+@main.command(
+    help="Create Pipeline where PIPELINE_DEFINITION is specified by a pathname")
+@click.argument("pipeline_definition", nargs=1, type=str, required=True)
+@click.option("--name", "-n", type=str, default=ACTOR_TYPE, required=False,
+    help="Pipeline Actor name")
+def create(pipeline_definition, name):
+    if not os.path.exists(PIPELINE_DEFINITION_SCHEMA_PATHNAME):
+        raise SystemExit(
+            f"Error: Pipeline Definition schema not found: {PIPELINE_DEFINITION_SCHEMA_PATHNAME}")
+
+    if not os.path.exists(pipeline_definition):
+        raise SystemExit(
+            f"Error: Pipeline Definition not found: {pipeline_definition}")
+
     init_args = actor_args(name, PROTOCOL)
+    init_args["pipeline_definition_pathname"] = pipeline_definition
     pipeline = compose_instance(PipelineImpl, init_args)
     pipeline.run()
 

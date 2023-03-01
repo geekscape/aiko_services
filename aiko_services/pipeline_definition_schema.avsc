@@ -1,0 +1,50 @@
+{
+    "doc": "To Do",
+    "doc": "~~~~~",
+    "doc": "- pipeline_definition_schema.avsc or pipeline_schema.avsc ?",
+    "doc": "- code_environment or environment ?",
+    "doc": "- code_environment is Python module pathname ?",
+    "doc": "- code or entrypoint ?",
+    "doc": "- entrypoint means run default Interface implementation ?",
+    "doc": "- inputs and outputs: possible to create PE specific types ?",
+    "doc": "- parameters, pipeline_elements, connections: optional ?",
+
+    "namespace": "aiko_services",
+    "name": "pipeline_definition",
+    "type": "record",
+    "fields": [
+        {"name": "version",          "type": "int",    "default": 0},
+        {"name": "runtime",          "type": "string", "default": "python"},
+        {"name": "code_environment", "type": "string", "default": "?"},
+        {"name": "code",             "type": "string", "default": "?"},
+        {"name": "entrypoint",       "type": "string", "default": "?"},
+
+        {"name": "inputs", "type": {
+            "type": "record",
+            "name": "input",
+            "fields": [
+                {"name": "type", "type": "string"}
+            ]
+        }},
+
+        {"name": "outputs", "type": {
+            "type": "record",
+            "name": "output",
+            "fields": [
+                {"name": "type", "type": "string"}
+            ]
+        }},
+
+        {"name": "parameters", "type": {
+            "type": "map", "values": ["int", "string"]}
+        },
+
+        {"name": "pipeline_elements", "type": {
+            "type": "map", "values": ["int", "string"]}
+        },
+
+        {"name": "connections", "type": {
+            "type": "map", "values": "string"}
+        }
+    ]
+}

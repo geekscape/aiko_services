@@ -39,8 +39,9 @@ _RING_BUFFER_SIZE = 2      # 128
 
 # --------------------------------------------------------------------------- #
 
-class RecorderService(Service):
-    def __init__(self, implementations, name, protocol, tags, transport,
+class Recorder(Service):
+    def __init__(self,
+        implementations, name, protocol, tags, transport,
         topic_path_filter):
 
         implementations["Service"].__init__(self,
@@ -99,7 +100,7 @@ def main(topic_path_filter):
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
     init_args = service_args(SERVICE_TYPE, PROTOCOL, tags)
     init_args["topic_path_filter"] = topic_path_filter
-    recorder = compose_instance(RecorderService, init_args)
+    recorder = compose_instance(Recorder, init_args)
     aiko.process.run()
 
 if __name__ == "__main__":

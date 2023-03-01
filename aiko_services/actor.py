@@ -187,6 +187,7 @@ class ActorImpl(Actor):
 
         implementations["Service"].__init__(self,
             implementations, name, protocol, tags, transport)
+
         self.running = False
         # First mailbox added has priority handling for all posted messages
         for topic in [Topic.CONTROL, Topic.IN]:
@@ -244,8 +245,12 @@ class ActorTest(Actor):  # TODO: Move into "../examples/"
         pass
 
 class ActorTestImpl(ActorTest):  # TODO: Move into "../examples/"
-    def __init__(self, implementations, name):
-        implementations["Actor"].__init__(self, name)
+    def __init__(self,
+        implementations, name, protocol, tags, transport):
+
+        implementations["Actor"].__init__(self,
+            implementations, name, protocol, tags, transport)
+
         self.test_count = None
 
     def initialize(self):

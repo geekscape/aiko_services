@@ -24,6 +24,8 @@ setup(
     packages=find_packages(),
     install_requires=[
         "asciimatics>=1.14.0",
+        "avro>=1.11.1",
+        "avro_validator>=1.2.1",
         "click>=7.0",
         "networkx<=2.8",
         "numpy>=1.19.1",

@@ -62,6 +62,16 @@
 #   - Includes topic_path, protocol, transport, owner and tags
 # - Implement Registrar as a sub-class of Category
 #
+# - Secondary Registrars should acquire Primary Registrar history
+# - Secondary Registrars should periodically send a non-retained message to
+#     the TOPIC_REGISTRAR_BOOT topic ... (secondary found ...) for Dashboard
+# - Dashboard should show if ...
+#   - TOPIC_REGISTRAR_BOOT indicates that there is no primary Registrar
+#   - TOPIC_REGISTRAR_BOOT indicates that there is a primary Registrar,
+#       but the primary is not responding to (history ...) or (share ...)
+#   - TOPIC_REGISTRAR_BOOT indicates there are secondary Registrar(s)
+#       and show their details
+#
 # - CLI: show [registrar_filter] ... show running Registrar state
 # - CLI: kill service_filter ... terminate running Services
 # - CLI: --primary ... Force take over of the primary registrar role
@@ -178,7 +188,9 @@ class Registrar(Service):
         "aiko_services.registrar.RegistrarImpl"
 
 class RegistrarImpl(Registrar):
-    def __init__(self, implementations, name, protocol, tags, transport):
+    def __init__(self,
+        implementations, name, protocol, tags, transport):
+
         implementations["Service"].__init__(self,
             implementations, name, protocol, tags, transport)
 
@@ -191,8 +203,8 @@ class RegistrarImpl(Registrar):
         self.state = {
             "lifecycle": "start",
             "log_level": get_log_level_name(_LOGGER),
-            "service_count": 0,
-            "source_file": f"v{_VERSION}⇒{__file__}"
+            "source_file": f"v{_VERSION}⇒{__file__}",
+            "service_count": 0
         }
         self.ec_producer = ECProducer(self, self.state)
         self.ec_producer.add_handler(self._ec_producer_change_handler)
