@@ -1,0 +1,102 @@
+{
+  "doc": "To Do",
+  "doc": "~~~~~",
+  "doc": "- runtime change type from string to enum ?",
+  "doc": "- code, entrypoint or name ?",
+  "doc": "- entrypoint means run default Interface implementation ?",
+  "doc": "- code_environment ... is Python module pathname ?",
+  "doc": "- code_environment or module ?",
+  "doc": "- input and output: are function calls (messages), caller/callee",
+  "doc": "- parameters, pipeline_elements, connections: make optional ?",
+
+  "namespace": "aiko_services",
+  "name":      "pipeline_definition",
+  "type":      "record",
+  "fields": [
+    { "name": "name",    "type": "string", "default": "null"},
+    { "name": "runtime", "type": "string", "default": "python"},
+    { "name": "version", "type": "int",    "default": 0},
+
+    { "name": "parameters", "type": {
+        "type": "map", "values": ["int", "null", "string"]}
+    },
+
+    { "name": "pipeline", "type": [
+        { "name": "local",
+          "type": "record",
+          "fields": [
+            { "name": "elements", "type": {
+                "type": "array", "items": {
+                  "doc":  "Local PipelineElement in the same process",
+                  "name": "element",
+                  "type": "record",
+                  "fields": [
+                    { "name": "name",   "type": "string", "default": "null"},
+                    { "name": "module", "type": "string", "default": "null"},
+                    { "name": "input", "type": {
+                        "name": "input",
+                        "type": "record",
+                        "fields": [
+                          {"name": "type", "type": "string"}
+                        ]
+                      }
+                    },
+                    { "name": "output", "type": {
+                        "name": "output",
+                        "type": "record",
+                        "fields": [
+                          {"name": "type", "type": "string"}
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        { "name": "remote",
+          "type": "record",
+          "fields": [
+            { "name": "elements", "type": {
+                "type": "array", "items": {
+                  "doc":  "Remote Pipeline Actor discovery filter",
+                  "name": "element",
+                  "type": "record",
+                  "fields": [
+                    { "name": "topic_path", "type": "string", "default": "null"},
+                    { "name": "name",       "type": "string", "default": "null"},
+                    { "name": "owner",      "type": "string", "default": "null"},
+                    { "name": "protocol",   "type": "string", "default": "null"},
+                    { "name": "transport",  "type": "string", "default": "null"},
+                    { "name": "tags",       "type": "string", "default": "null"},
+                    { "name": "input", "type": {
+                        "name": "input",
+                        "type": "record",
+                        "fields": [
+                          {"name": "type", "type": "string"}
+                        ]
+                      }
+                    },
+                    { "name": "output", "type": {
+                        "name": "output",
+                        "type": "record",
+                        "fields": [
+                          {"name": "type", "type": "string"}
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    { "name": "connections", "type": {
+        "type": "array", "items": "string"}
+    }
+  ]
+}

@@ -30,7 +30,7 @@ from aiko_services import *
 __all__ = [
 ]
 
-PIPELINE_DEFINITION_SCHEMA_PATHNAME = "pipeline_definition_schema.avsc"
+PIPELINE_DEFINITION_PATHNAME = "pipeline_definition.avsc"
 
 ACTOR_TYPE = "pipeline"
 PROTOCOL = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE}:0"
@@ -114,6 +114,7 @@ g.add(na)
 g.add(nb)
 
 # --------------------------------------------------------------------------- #
+# TODO: Incorporate "pipeline_definition.avsc"
 
 SCHEMA = avro.schema.parse(json.dumps({
     "namespace"    : "example.avro",
@@ -189,10 +190,10 @@ class PipelineImpl(Pipeline):
 
     def _load_pipeline_definition(self, pipeline_definition_pathname):
         try:
-            schema = Schema(PIPELINE_DEFINITION_SCHEMA_PATHNAME).parse()
+            schema = Schema(PIPELINE_DEFINITION_PATHNAME).parse()
         except ValueError as value_error:
             _LOGGER.error(
-                f"Error: Parsing Pipeline Definition schema: {PIPELINE_DEFINITION_SCHEMA_PATHNAME}")
+                f"Error: Parsing Pipeline Definition schema: {PIPELINE_DEFINITION_PATHNAME}")
             _LOGGER.error(value_error)
             sys.exit(1)
 
@@ -245,9 +246,9 @@ def main():
 @click.option("--name", "-n", type=str, default=ACTOR_TYPE, required=False,
     help="Pipeline Actor name")
 def create(pipeline_definition, name):
-    if not os.path.exists(PIPELINE_DEFINITION_SCHEMA_PATHNAME):
+    if not os.path.exists(PIPELINE_DEFINITION_PATHNAME):
         raise SystemExit(
-            f"Error: Pipeline Definition schema not found: {PIPELINE_DEFINITION_SCHEMA_PATHNAME}")
+            f"Error: Pipeline Definition schema not found: {PIPELINE_DEFINITION_PATHNAME}")
 
     if not os.path.exists(pipeline_definition):
         raise SystemExit(
