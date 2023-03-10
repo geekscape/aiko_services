@@ -210,9 +210,9 @@ class ServiceFields:
         self._tags = value
 
 class ServiceFilter:
-    def __init__(self,  # TODO: Defaults of "*" or None ?
-        topic_paths=None, name=None, protocol=None, transport=None,
-        owner=None, tags=None):
+    def __init__(self,
+        topic_paths="*", name="*", protocol="*", transport="*",
+        owner="*", tags="*"):
 
         self.topic_paths = topic_paths
         self.name = name
