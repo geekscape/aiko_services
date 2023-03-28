@@ -6,38 +6,49 @@
   "doc": "- entrypoint means run default Interface implementation ?",
   "doc": "- code_environment ... is Python module pathname ?",
   "doc": "- code_environment or module ?",
-  "doc": "- input and output: are function calls (messages), caller/callee",
+  "doc": "- in and out: are function calls (messages), caller/callee",
   "doc": "- parameters, pipeline_elements, connections: make optional ?",
 
   "namespace": "aiko_services",
   "name":      "pipeline_definition",
   "type":      "record",
   "fields": [
-    { "name": "name",    "type": "string", "default": "null"},
-    { "name": "runtime", "type": "string", "default": "python"},
-    { "name": "version", "type": "int",    "default": 0},
+    { "name": "version", "type": "int", "default": 0 },
+    { "name": "name",    "type": "string" },
+    { "name": "runtime", "type": {
+        "name": "type",
+        "type": "enum",
+        "symbols": ["go", "python"]
+      }
+    },
 
     { "name": "parameters", "type": {
-        "type": "map", "values": ["int", "null", "string"]}
+        "type": "map", "values": ["int", "null", "string"]
+      }
     },
 
-    { "name": "pipeline", "type": [
-        { "name": "local",
-          "type": "record",
-          "fields": [
-            { "name": "elements", "type": {
-                "type": "array", "items": {
-                  "doc":  "Local PipelineElement in the same process",
-                  "name": "element",
+    { "name": "pipeline_graph", "type": {
+        "type": "array", "items": "string"
+      }
+    },
+
+    { "name": "pipeline", "type": {
+        "name": "local_or_remote",
+        "type": "record",
+        "fields": [
+          { "name": "local", "type": [
+              { "type": "array",
+                "items": {
                   "type": "record",
+                  "name": "local_pipeline_element",
                   "fields": [
-                    { "name": "name",   "type": "string", "default": "null"},
-                    { "name": "module", "type": "string", "default": "null"},
+                    { "name": "name",   "type": "string" },
+                    { "name": "module", "type": "string" },
                     { "name": "input", "type": {
                         "name": "input",
                         "type": "record",
                         "fields": [
-                          {"name": "type", "type": "string"}
+                          { "name": "type", "type": "string" }
                         ]
                       }
                     },
@@ -45,36 +56,33 @@
                         "name": "output",
                         "type": "record",
                         "fields": [
-                          {"name": "type", "type": "string"}
+                          { "name": "type", "type": "string" }
                         ]
                       }
                     }
                   ]
                 }
-              }
-            }
-          ]
-        },
-        { "name": "remote",
-          "type": "record",
-          "fields": [
-            { "name": "elements", "type": {
-                "type": "array", "items": {
-                  "doc":  "Remote Pipeline Actor discovery filter",
-                  "name": "element",
+              },
+              "null"
+            ]
+          },
+          { "name": "remote", "type": [
+              { "type": "array",
+                "items": {
                   "type": "record",
+                  "name": "remote_pipeline_element",
                   "fields": [
-                    { "name": "topic_path", "type": "string", "default": "null"},
-                    { "name": "name",       "type": "string", "default": "null"},
-                    { "name": "owner",      "type": "string", "default": "null"},
-                    { "name": "protocol",   "type": "string", "default": "null"},
-                    { "name": "transport",  "type": "string", "default": "null"},
-                    { "name": "tags",       "type": "string", "default": "null"},
+                    { "name": "topic_path", "type": "string", "default": "*" },
+                    { "name": "name",       "type": "string", "default": "*" },
+                    { "name": "owner",      "type": "string", "default": "*" },
+                    { "name": "protocol",   "type": "string", "default": "*" },
+                    { "name": "transport",  "type": "string", "default": "*" },
+                    { "name": "tags",       "type": "string", "default": "*" },
                     { "name": "input", "type": {
                         "name": "input",
                         "type": "record",
                         "fields": [
-                          {"name": "type", "type": "string"}
+                          { "name": "type", "type": "string" }
                         ]
                       }
                     },
@@ -82,21 +90,19 @@
                         "name": "output",
                         "type": "record",
                         "fields": [
-                          {"name": "type", "type": "string"}
+                          { "name": "type", "type": "string" }
                         ]
                       }
                     }
+
                   ]
                 }
-              }
-            }
-          ]
-        }
-      ]
-    },
-
-    { "name": "connections", "type": {
-        "type": "array", "items": "string"}
+              },
+              "null"
+            ]
+          }
+        ]
+      }
     }
   ]
 }

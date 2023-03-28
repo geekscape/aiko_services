@@ -7,22 +7,58 @@
 # ./pipeline.py create pipeline_definition [--name pipeline_name]
 # ./pipeline.py delete pipeline_name
 #
+# Important
+# ---------
+# - Pipeline is-a Category
+# - Pipeline is-a LifeCycleManager, PipelineElement is-a LifeCycleClient
+#
+# - Pipeline Definition inputs
+#   - Python data structure (gold standard)
+#   - HL Web GraphQL
+#   - Avro (validated) / YAML / JSON ?
+#   *** FastAVRO (CPython)
+#   *** https://www.perfectlyrandom.org/2019/11/29/handling-avro-files-in-python
+#   - https://github.com/linkedin/python-avro-json-serializer
+#   - https://marcosschroh.github.io/python-schema-registry-client
+#
+# Resources
+# ~~~~~~~~~
+# - AVRO 1.9.1 specification
+#   - https://avro.apache.org/docs/1.9.1/spec.html
+#
 # To Do
 # ~~~~~
 # - CLI create(): Should run Pipeline in the background (detached)
 #   - See hl_all/infrastructure/websockets/authentication_manager.py
 # - CLI delete(): Implement
+#
+# - PipelineDefinition design and implementation
+# - LifeCycleManager / Client implementations ...
+#   - Pipeline implementation: PipelineElements are all within same process
+#   - Pipeline implementation: PipelineElements are all distributed
+# - Visual representation and editing
+#
+# - Incorporate ~/play/avro: PipelineDefinition and Remote function calls
+# - Incorporate pipeline_2022.py
+# - Incorporate pipeline_2020.py
+#   - aiko_services/examples/pipeline/*, RTSP and WebRTC pipelines
+#   - StateMachine (rewrite)
+# - Pipeline / PipelineElement properties --> Stream (leased)
+#   - Update Pipeline / PipelineElement properties on-the-fly
+#   - Tasks (over GraphQL or MQTT) --> Session (leased)
+# - Session limits: frame count (maybe just 1) and lease time
+# - Integrate GStreamer plug-ins as PipelineElements
+# - Media data transports, e.g in-band MQTT and out-of-band RTSP / WebRTC
 
-# from abc import abstractmethod
-# from avro.datafile import DataFileReader
-# import avro.io
 import avro.schema
 from avro_validator.schema import Schema
 import click
+from dataclasses import dataclass
+from enum import Enum
 import json
 import os
 # import queue
-import sys
+from typing import Dict, List
 
 from aiko_services import *
 # from aiko_services.utilities import *
@@ -47,7 +83,7 @@ _VERSION = 0
 # TODO: Should dependencies be more than just "element.output" (string) ?
 # TODO: Declare stream head nodes ... which accept frames ?
 
-class Graph():
+class Graph:
     def __init__(self):
         self._graph = {}
 
@@ -72,7 +108,7 @@ class Graph():
     def resolve(self):
         pass
 
-class Node():
+class Node:
     def __init__(self, name, element, dependencies=None):
         self._name = name
         self._element = element
@@ -129,33 +165,49 @@ SCHEMA = avro.schema.parse(json.dumps({
 
 # --------------------------------------------------------------------------- #
 
-class PipelineType():
+class PipelineType(Enum):
     LOCAL = "local"
     REMOTE = "remote"
 
-    types = [LOCAL, REMOTE]
+@dataclass
+class PipelineElementDefinitionLocal:
+    name: str
+    module: str
+    input: Dict[str, str]
+    output: Dict[str, str]
 
-class PipelineDefinition():
-    def __init__(self, type=PipelineType.LOCAL):
-        self._type = type
-        self._elements = {}
+@dataclass
+class PipelineElementDefinitionRemote:
+    topic_path: str
+    name: str
+    owner: str
+    protocol: str
+    transport: str
+    tags: str
+    input: Dict[str, str]
+    output: Dict[str, str]
 
-    @property
-    def type(self):
-        return self._type
+@dataclass
+class PipelineDefinition:
+    version: int
+    name: str
+    runtime: str
+    parameters: Dict
+    pipeline: [Dict]
+    pipeline_graph: List[str]
 
-    def __repr__(self):
-        return f"{self._type}"
+@dataclass
+class PipelineDefinitionLocal(PipelineDefinition):
+    pipeline: List[PipelineElementDefinitionLocal]
 
-    def add(self, element):
-        if element in self._elements:
-            raise KeyError(
-                f"PipelineDefinition already contains element: {element}")
-        self._elements[element] = element
+@dataclass
+class PipelineDefinitionRemote(PipelineDefinition):
+    pipeline: List[PipelineElementDefinitionRemote]
 
-    def element(self, element):
-        if element in self._elements:
-            del self._elements[element]
+# TODO: Actor:      PipelineElement
+# TODO: @dataclass: ServiceDefinition: type, name, next_elements, parameters
+# TODO: @dataclass: PipelineElement:   service_level_agreement: low_latency
+# TODO: @dataclass: Pipeline:          elements[], edges[] ?
 
 # --------------------------------------------------------------------------- #
 
@@ -167,6 +219,11 @@ class Pipeline(Actor):
 #       pass
 
 class PipelineImpl(Pipeline):
+    definition_lookup = {
+        PipelineType.LOCAL.value: PipelineElementDefinitionLocal,
+        PipelineType.REMOTE.value: PipelineElementDefinitionRemote
+    }
+
     def __init__(self,
         implementations, name, protocol, tags, transport,
         pipeline_definition_pathname):
@@ -174,13 +231,16 @@ class PipelineImpl(Pipeline):
         implementations["Actor"].__init__(self,
             implementations, name, protocol, tags, transport)
 
-        self._load_pipeline_definition(pipeline_definition_pathname)
+        self.pipeline_definition = self._parse_pipeline_definition(
+            pipeline_definition_pathname)
+
+        self.pipeline = self._create_pipeline(self.pipeline_definition)
 
         self.state = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
             "source_file": f"v{_VERSION}⇒{__file__}",
-            "pipeline_definition": pipeline_definition_pathname
+            "definition_pathname": pipeline_definition_pathname
         }
         self.ec_producer = ECProducer(self, self.state)
         self.ec_producer.add_handler(self._ec_producer_change_handler)
@@ -188,26 +248,64 @@ class PipelineImpl(Pipeline):
         self.add_message_handler(self._topic_in_handler, self.topic_in)
         #   binary=True)
 
-    def _load_pipeline_definition(self, pipeline_definition_pathname):
+    def _create_pipeline(self, pipeline_definition):
+        breakpoint()
+        return None
+
+    def _system_exit(self, summary_message, detail_message):
+        diagnostic_message = f"{summary_message}\n{detail_message}"
+        _LOGGER.error(diagnostic_message)
+        raise SystemExit(diagnostic_message)
+
+    def _parse_pipeline_definition(self, pipeline_definition_pathname):
+        schema_error = f"Error: Parsing PipelineDefinition schema: {PIPELINE_DEFINITION_PATHNAME}"
+        json_error = f"Error: Parsing PipelineDefinition JSON: {pipeline_definition_pathname}"
+
         try:
             schema = Schema(PIPELINE_DEFINITION_PATHNAME).parse()
         except ValueError as value_error:
-            _LOGGER.error(
-                f"Error: Parsing Pipeline Definition schema: {PIPELINE_DEFINITION_PATHNAME}")
-            _LOGGER.error(value_error)
-            sys.exit(1)
+            self._system_exit(schema_error, value_error)
 
         try:
-            self.pipeline_definition = json.load(
+            pipeline_definition_dict = json.load(
                 open(pipeline_definition_pathname, "r"))
-            schema.validate(self.pipeline_definition)
-            _LOGGER.info(
-                f"Pipeline Definition parsed: {pipeline_definition_pathname}")
+            schema.validate(pipeline_definition_dict)
         except ValueError as value_error:
-            _LOGGER.error(
-                f"Error: Parsing Pipeline Definition: {pipeline_definition_pathname}")
-            _LOGGER.error(value_error)
-            sys.exit(1)
+            self._system_exit(json_error, value_error)
+
+        pipeline_definition = PipelineDefinition(**pipeline_definition_dict)
+
+        if pipeline_definition.version != 0:
+            message = f"PipelineDefinition version must be 0, but is {pipeline_definition.version}"
+            self._system_exit(json_error, message)
+
+        if pipeline_definition.runtime != "python":
+            message = f'PipelineDefinition runtime must be "python", but is "{pipeline_definition.runtime}"'
+            self._system_exit(json_error, message)
+
+        if len(pipeline_definition.pipeline.keys()) != 1:
+            message = "PipelineDefinition PipelineElements can only be local or remote"
+            self._system_exit(json_error, message)
+        pipeline_type = list(pipeline_definition.pipeline.keys())[0]
+
+        if pipeline_type in PipelineImpl.definition_lookup:
+            pipeline_element_definition_type =  \
+                PipelineImpl.definition_lookup[pipeline_type]
+        else:
+            message = f"Unknown Pipeline type: {pipeline_type}"
+            self._system_exit(json_error, message)
+
+        pipeline_elements = []
+        for pipeline_element in pipeline_definition.pipeline[pipeline_type]:
+            pipeline_element = pipeline_element_definition_type(
+                    **pipeline_element)
+            pipeline_elements.append(pipeline_element)
+        pipeline_definition.pipeline = pipeline_elements
+
+        message = f"PipelineDefinition parsed: {pipeline_definition_pathname}"
+        print(message)
+        _LOGGER.info(message)
+        return(pipeline_definition)
 
     def _ec_producer_change_handler(self, command, item_name, item_value):
         if item_name == "log_level":
@@ -241,18 +339,18 @@ def main():
     pass
 
 @main.command(
-    help="Create Pipeline where PIPELINE_DEFINITION is specified by a pathname")
+    help="Create Pipeline where a PIPELINE_DEFINITION is given by a pathname")
 @click.argument("pipeline_definition", nargs=1, type=str, required=True)
 @click.option("--name", "-n", type=str, default=ACTOR_TYPE, required=False,
     help="Pipeline Actor name")
 def create(pipeline_definition, name):
     if not os.path.exists(PIPELINE_DEFINITION_PATHNAME):
         raise SystemExit(
-            f"Error: Pipeline Definition schema not found: {PIPELINE_DEFINITION_PATHNAME}")
+            f"Error: PipelineDefinition schema not found: {PIPELINE_DEFINITION_PATHNAME}")
 
     if not os.path.exists(pipeline_definition):
         raise SystemExit(
-            f"Error: Pipeline Definition not found: {pipeline_definition}")
+            f"Error: PipelineDefinition not found: {pipeline_definition}")
 
     init_args = actor_args(name, PROTOCOL)
     init_args["pipeline_definition_pathname"] = pipeline_definition

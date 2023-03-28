@@ -1,7 +1,7 @@
 {
+  "version": 0,
   "name":    "pipeline_local",
   "runtime": "python",
-  "version": 0,
 
   "parameters": {
     "parameter_0": null,
@@ -9,32 +9,32 @@
     "parameter_2": "test"
   },
 
+  "pipeline_graph": [
+    "(a (b d) (c d))"
+  ],
+
   "pipeline": {
-    "local": {
-      "elements": [
-        { "name":   "a",
-          "module": "a.py",
-          "input":  { "type": "image" },
-          "output": { "type": "image" }
-        },
-
-        { "name":   "b",
-          "module": "b.py",
-          "input":  { "type": "image" },
-          "output": { "type": "image" }
-        },
-
-        { "name":   "c",
-          "module": "c.py",
-          "input":  { "type": "image" },
-          "output": { "type": "image" }
-        }
-      ]
-    }
-  },
-
-  "connections": [
-    "a > b",
-    "b > c"
-  ]
+    "local": [
+      { "name":   "a",
+        "module": "a.py",
+        "input":  { "type": "image" },
+        "output": { "type": "image" }
+      },
+      { "name":   "b",
+        "module": "b.py",
+        "input":  { "type": "image" },
+        "output": { "type": "image" }
+      },
+      { "name":   "c",
+        "module": "c.py",
+        "input":  { "type": "image" },
+        "output": { "type": "image" }
+      },
+      { "name":   "d",
+        "module": "d.py",
+        "input":  { "type": "image" },
+        "output": { "type": "image" }
+      }
+	  ]
+  }
 }

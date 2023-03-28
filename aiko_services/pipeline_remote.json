@@ -1,7 +1,7 @@
 {
+  "version": 0,
   "name":    "pipeline_remote",
   "runtime": "python",
-  "version": 0,
 
   "parameters": {
     "parameter_0": null,
@@ -9,33 +9,28 @@
     "parameter_2": "test"
   },
 
-  "pipeline": {
-    "remote": {
-      "elements": [
-        { "topic_path": "*",
-          "name":       "a",
-          "owner":      "*",
-          "protocol":   "*",
-          "transport":  "*",
-          "tags":       "*",
-          "input":  { "type": "image" },
-          "output": { "type": "image" }
-        },
-        { "topic_path": "*",
-          "name":       "b",
-          "owner":      "*",
-          "protocol":   "*",
-          "transport":  "*",
-          "tags":       "*",
-          "input":  { "type": "image" },
-          "output": { "type": "image" }
-        }
-      ]
-    }
-  },
+  "pipeline_graph": [],
 
-  "connections": [
-    "a > b",
-    "b > c"
-  ]
+  "pipeline": {
+    "remote": [
+      { "topic_path": "*",
+        "name":       "a",
+        "owner":      "*",
+        "protocol":   "*",
+        "transport":  "*",
+        "tags":       "*",
+        "input":      { "type": "image" },
+        "output":     { "type": "image" }
+      },
+      { "topic_path": "*",
+        "name":       "b",
+        "owner":      "*",
+        "protocol":   "*",
+        "transport":  "*",
+        "tags":       "*",
+        "input":      { "type": "image" },
+        "output":     { "type": "image" }
+      }
+    ]
+	}
 }

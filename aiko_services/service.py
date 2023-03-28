@@ -52,6 +52,8 @@
 # ~~~~~
 # - BUG: Provide filtered Services to "service_change_handler"
 #
+# - Consider using @dataclass, as per "pipeline.py"
+#
 # - If a Service is created after the Process has found the Registrar,
 #   then ensure that the Service is added to the Registrar.
 # - If a Service is terminated, ensure that it is removed from the Registrar.
