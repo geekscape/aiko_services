@@ -54,6 +54,8 @@ class MQTTTestImpl(MQTTTest):
         self.ec_producer = ECProducer(self, self.state)
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
+        self.add_message_handler(self._topic_in_handler, self.topic_in)
+
         self.actor_discovery = ActorDiscovery(self)
         tags = "*"  # ["class=AlohaHonuaActor"]  # TODO: CLI parameter
         filter = ServiceFilter("*", "*", "*", "*", "*", tags)
@@ -80,9 +82,9 @@ class MQTTTestImpl(MQTTTest):
         self._post_message(actor.Topic.IN, command, parameters)
 
     def test(self, message):
-        _LOGGER.info(f"{self.name}: test({value})")
+        _LOGGER.info(f"{self.name}: test({message})")
         self.ec_producer.update("message", message)
-        payload_out = f"(test {value})"
+        payload_out = f"(test {message})"
         aiko.message.publish(self.topic_out, payload_out)
 
 # --------------------------------------------------------------------------- #

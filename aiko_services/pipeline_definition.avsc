@@ -22,13 +22,13 @@
       }
     },
 
-    { "name": "parameters", "type": {
-        "type": "map", "values": ["int", "null", "string"]
+    { "name": "graph", "type": {
+        "type": "array", "items": "string"
       }
     },
 
-    { "name": "pipeline_graph", "type": {
-        "type": "array", "items": "string"
+    { "name": "parameters", "type": {
+        "type": "map", "values": ["int", "null", "string"]
       }
     },
 

@@ -47,16 +47,15 @@ from .share import (
 
 from .actor import Actor, ActorImpl, actor_args, ActorTest, ActorTestImpl
 
-from .pipeline_2020 import Pipeline_2020, load_pipeline_definition_2020
-from .pipeline_2022 import (
-    Pipeline_2022, PipelineDefinition_2022,
-    PipelineElement_2022, PipelineElementDefinition_2022,
-    ServiceDefinition_2022
-)
-
 from .process_manager import ProcessManager
 
 from .lifecycle import LifeCycleClient, LifeCycleManager
+
+from .pipeline import (
+    Pipeline, PipelineElement, PipelineElementImpl, PipelineImpl
+)
+
+from .pipeline_2020 import Pipeline_2020, load_pipeline_definition_2020
 
 from .registrar import *
 

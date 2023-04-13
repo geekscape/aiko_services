@@ -1,7 +1,11 @@
 {
   "version": 0,
-  "name":    "pipeline_local",
+  "name":    "pipe_local",
   "runtime": "python",
+
+  "graph": [
+    "(PE_0 (PE_1 PE_3) (PE_2 PE_3))"
+  ],
 
   "parameters": {
     "parameter_0": null,
@@ -9,29 +13,25 @@
     "parameter_2": "test"
   },
 
-  "pipeline_graph": [
-    "(a (b d) (c d))"
-  ],
-
   "pipeline": {
     "local": [
-      { "name":   "a",
-        "module": "a.py",
+      { "name":   "PE_0",
+        "module": "pipeline.py",
         "input":  { "type": "image" },
         "output": { "type": "image" }
       },
-      { "name":   "b",
-        "module": "b.py",
+      { "name":   "PE_1",
+        "module": "pipeline.py",
         "input":  { "type": "image" },
         "output": { "type": "image" }
       },
-      { "name":   "c",
-        "module": "c.py",
+      { "name":   "PE_2",
+        "module": "pipeline.py",
         "input":  { "type": "image" },
         "output": { "type": "image" }
       },
-      { "name":   "d",
-        "module": "d.py",
+      { "name":   "PE_3",
+        "module": "pipeline.py",
         "input":  { "type": "image" },
         "output": { "type": "image" }
       }

@@ -1,7 +1,9 @@
 {
   "version": 0,
-  "name":    "pipeline_remote",
+  "name":    "pipe_remote",
   "runtime": "python",
+
+  "graph": [],
 
   "parameters": {
     "parameter_0": null,
@@ -9,12 +11,10 @@
     "parameter_2": "test"
   },
 
-  "pipeline_graph": [],
-
   "pipeline": {
     "remote": [
       { "topic_path": "*",
-        "name":       "a",
+        "name":       "PE_0",
         "owner":      "*",
         "protocol":   "*",
         "transport":  "*",
@@ -23,7 +23,7 @@
         "output":     { "type": "image" }
       },
       { "topic_path": "*",
-        "name":       "b",
+        "name":       "PE_1",
         "owner":      "*",
         "protocol":   "*",
         "transport":  "*",
