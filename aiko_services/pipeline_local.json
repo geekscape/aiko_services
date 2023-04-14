@@ -35,6 +35,6 @@
         "input":  { "type": "image" },
         "output": { "type": "image" }
       }
-	  ]
+    ]
   }
 }

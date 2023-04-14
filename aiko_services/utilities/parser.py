@@ -8,12 +8,13 @@
 # - parse("(c p1 p2)")
 # - parse("(add topic protocol owner (a=b c=d))")
 #
-# Doesn't parse sublists recursively
 # Doesn't parse quoted tokens, e.g parse("(c '(not_a_sublist)')")
 #
 # To Do
 # ~~~~~
 # - Incorporate Python module "sexpdata"
+#   - https://sexpdata.readthedocs.io/en/latest
+#   - https://github.com/jd-boyd/sexpdata
 # - Incorporate Python module "hy" and "hyrule"
 # - Provide unit tests !
 # - Implement JSON parsing
@@ -38,33 +39,39 @@ def generate_s_expression(expression: List) -> str:
     payload = f"{payload})"
     return payload
 
-def parse(payload: str) -> List:
-    command = ""
-    parameters = []
-    tokens = payload[1:-1].split()
-
-    if len(tokens) > 0:
-        command = tokens[0]
-
-    sublist = None
-    for token in tokens[1:]:
-        if not sublist:
-            if token.startswith("("):
-                if token.endswith(")"):
-                    parameters.append(token[1:-1].split())
-                else:
-                    sublist = [token[1:]]
-            else:
-                parameters.append(token)
+def parse(payload: str):
+    result = []
+    token = ""
+    i = 0
+    while i < len(payload):
+        c = payload[i]
+        if c == "(":
+            sublist, j = parse(payload[i+1:])
+            i += j
+            result.append(sublist)
+        elif c == ")":
+            if token:
+                result.append(token)
+                token = ""
+            return result, i+1
+        elif c in [" ", "\t", "\n"]:
+            if token:
+                result.append(token)
+                token = ""
         else:
-            if token.endswith(")"):
-                sublist.append(token[:-1])
-                parameters.append(sublist)
-                sublist = None
-            else:
-                sublist.append(token)
+            token += c
+        i += 1
+    if token:
+        result.append(token)
 
-    return command, parameters
+    car = ""
+    cdr = []
+    try:
+        car = result[0][0]
+        cdr = result[0][1:]
+    except IndexError:
+        pass
+    return car, cdr
 
 def parse_int(payload: str, default: int=0) -> int:
     try:

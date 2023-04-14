@@ -104,15 +104,28 @@ _VERSION = 0
 # TODO: Use dataclasses and https://pypi.org/project/json for serialisation
 #       Avro support for classes built with Pydantic
 #       import json;  string = json.dump(...)
-#
-# TODO: Graph.add(): [nodes] ?
-# TODO: Node.add(): [successors] ?
-# TODO: Should successors be more than just "element.output" (string) ?
-# TODO: Declare stream head nodes ... which accept frames ?
+
+from collections import OrderedDict
 
 class Graph:
-    def __init__(self):
-        self._graph = {}
+    def __init__(self, head_nodes=None):
+        self._graph = OrderedDict()
+        self._head_nodes = head_nodes if head_nodes else OrderedDict()
+
+    def __iter__(self):
+        nodes = OrderedDict()
+
+        def traverse(node):
+            for successor in node.successors:
+                nodes[self._graph[successor]] = None
+            for successor in node.successors:
+                traverse(self._graph[successor])
+
+        if self._head_nodes:
+            node = self._graph[list(self._head_nodes)[0]]
+            nodes[node] = None
+            traverse(node)
+        return iter(nodes)
 
     def __repr__(self):
         return str(self.nodes(as_strings=True))
@@ -122,31 +135,54 @@ class Graph:
             raise KeyError(f"Graph already contains node: {node}")
         self._graph[node.name] = node
 
-    def nodes(self, as_strings=False):
+    def nodes(self, indicate_head_nodes=False, as_strings=False):
         nodes = []
         for node in self._graph.values():
-            nodes.append(node.name if as_strings else node)
+            output = node.name if as_strings else node
+            if indicate_head_nodes and node.name in self._head_nodes:
+                output = f"*{output}"
+            output = nodes.append(output)
         return nodes
 
     def remove(self, node):
         if node.name in self._graph:
             del self._graph[node.name]
 
-    def resolve(self):
-        pass
+    @classmethod
+    def traverse(cls, graph_definition):
+        node_heads = OrderedDict()
+        node_successors = OrderedDict()
+
+        def add_successor(node, successor):
+            if not node in node_successors:
+                node_successors[node] = OrderedDict()
+            if successor:
+                node_successors[node][successor] = successor
+
+        def traverse_successors(node, successors):
+            for successor in successors:
+                if type(successor) == list:
+                    add_successor(node, successor[0])
+                    traverse_successors(successor[0], successor[1:])
+                else:
+                    add_successor(node, successor)
+                    add_successor(successor, None)
+
+        for subgraph_definition in graph_definition:
+            node, successors = parse(subgraph_definition)
+            node_heads[node] = node
+            traverse_successors(node, successors)
+
+        return node_heads, node_successors
 
 class Node:
     def __init__(self, name, element, successors=None):
         self._name = name
         self._element = element
-        self._successors = successors if successors else {}
+        self._successors = successors if successors else OrderedDict()
 
-    @property
-    def successors(self):
-        successors = []
-        for successor in self._successors:
-            successors.append(successor)
-        return successors
+    def add(self, successor):
+        self._successors.add(successor)
 
     @property
     def element(self):
@@ -156,17 +192,15 @@ class Node:
     def name(self):
         return self._name
 
-    def __repr__(self):
-        return f"{self._name}: {self._successors}"
-
-    def add(self, successor):
-        if successor in self._successors:
-            raise KeyError(f"Node already contains successor: {successor}")
-        self._successors[successor] = successor
-
     def remove(self, successor):
-        if successor in self._successors:
-            del self._successors[successor]
+        self._successors.discard(successor)
+
+    @property
+    def successors(self):
+        return self._successors
+
+    def __repr__(self):
+        return f"{self._name}: {list(self._successors)}"
 
 # --------------------------------------------------------------------------- #
 # TODO: Incorporate "pipeline_definition.avsc"
@@ -230,8 +264,8 @@ class PipelineDefinitionRemote(PipelineDefinition):
 
 class PipelineGraph(Graph):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, head_nodes=None):
+        super().__init__(head_nodes)
         self._type_set = set()  # of PipelineType
 
     def add_element(self, element, element_type_name):
@@ -349,6 +383,20 @@ class PE_3(PipelineElement):
     def process_frame(self, context) -> Tuple[bool, FrameOutput]:
         return True, PE_3.FrameOutput(a=stream_id, b=str(frame_id))
 
+class PE_4(PipelineElement):
+    @dataclass
+    class FrameOutput: a: int; b: str
+
+    def __init__(self,
+        implementations, name, protocol, tags, transport):
+
+        protocol = "pe_4:0"  # data_source:0
+        implementations["PipelineElement"].__init__(self,
+            implementations, name, protocol, tags, transport)
+
+    def process_frame(self, context) -> Tuple[bool, FrameOutput]:
+        return True, PE_4.FrameOutput(a=stream_id, b=str(frame_id))
+
 # --------------------------------------------------------------------------- #
 
 class Pipeline(PipelineElement):
@@ -375,6 +423,7 @@ class PipelineImpl(Pipeline):
 
         self.pipeline_definition = pipeline_definition
         self.pipeline_graph = self._create_pipeline(pipeline_definition)
+        print(f"Pipeline graph: {self.pipeline_graph.nodes(True)}")
 
         self.state = {
             "lifecycle": "ready",
@@ -389,11 +438,6 @@ class PipelineImpl(Pipeline):
         self.add_message_handler(self._topic_in_handler, self.topic_in)
         #   binary=True)
 
-
-
-
-
-
 # TODO: For local PipelineElements, better module loading, etc
 # TODO: Handle remote PipelineElements
 # TODO: Handle input and output
@@ -407,7 +451,9 @@ class PipelineImpl(Pipeline):
             message = "PipelineDefinition: Doesn't define any PipelineElements"
             PipelineImpl._system_exit(pipeline_error, message)
 
-        pipeline_graph = PipelineGraph()
+        node_heads, node_successors = Graph.traverse(pipeline_definition.graph)
+        pipeline_graph = PipelineGraph(node_heads)
+
         for pipeline_element_definition in pipeline_definition.pipeline:
             # Check PipelineElements are all of the same type
             element_type_name = type(pipeline_element_definition).__name__
@@ -439,7 +485,8 @@ class PipelineImpl(Pipeline):
                 message = f"PipelineDefinition: PipelineElement type unknown: {element_type_name}"
                 PipelineImpl._system_exit(pipeline_error, message)
 
-            element = Node(element_name, element_instance)
+            element = Node(
+                element_name, element_instance, node_successors[element_name])
             pipeline_graph.add_element(element, element_type_name)
 
         return pipeline_graph
@@ -502,8 +549,7 @@ class PipelineImpl(Pipeline):
 #           "(PE_0 streaming: (PE_1 PE_3) (PE_2 PE_3))"
 #         ]
 
-        node_head = None
-        node_successors = None
+        nodes = {}
         for sub_graph in pipeline_definition.graph:
             node_head, node_successors = parse(sub_graph)
 
