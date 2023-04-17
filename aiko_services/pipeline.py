@@ -17,18 +17,52 @@
 #     - Consider using FastAVRO (CPython)
 #   - GraphQL
 #
-#   - https://www.perfectlyrandom.org/2019/11/29/handling-avro-files-in-python
-#     - https://github.com/linkedin/python-avro-json-serializer
-#     - https://marcosschroh.github.io/python-schema-registry-client
+# Drivers
+# ~~~~~~~
+# - ~/play/avro/z_notes.txt
+# - Local: DataSource: Video file --> Image overlay --> DataTarget: Video file
+#   - HL Live: DataSource: WebRTC --> WhisperX --> DataTarget: WebRTC
+#   - HL Live: DataSource: WebRTC --> FaceDetect --> DataTarget: WebRTC
+#   - Graph: Diamond pattern
+# - Remote: For images (use MQTT hack) !
+#   - ~/play/avro/call_schema.avsc, call_test.py
+# - Remote: For images, use Python mmap, e.g Project Budapest and Apache Plasma
+#
+# * Rowan and Josh: ML Inference ONNX run-time
+# - Josh: Momatu (AIMS) Pipeline
+# - Josh: ML Train
+# ------------------------
+# - Pipeline: Same process
+#   - PipelineElement #1: DataSource: Inject mock image overlay with frame_id
+#   - PipelineElement #1: DataSource: Web browser (WebRTC) web camera
+#   - PipelineElement #2: ML Model:   DeepFace
+#   * PipelineElement #3: DataTarget: Web browser (WebRTC) web page
+#
+# - PipelineDefinition Schema, which validates a PipelineDefinition
+# - PipelineDefinition Template, which defines a specific Pipeline instance
+# - PipelineElements, which are Pipeline graph nodes connected via edges
+# - PipelineFrame schema, which validates incoming PipelineFrame data
+#   - Frames may be Pipeline input data, property values or state change
+#   - HL Serving: DataSource(s) streams Frames
+#   - HL Serving: Task DataSource, streams Tasks that are Frames
+#   - HL Serving: Tasks may also set-up new DataSources to a Pipeline
+#                 For example, set-up RTSP or WebRTC sessions
+#
+# - LifeCycleManager: Local  PipelineElements / LifeCycleClients
+# - LifeCycleManager: Remote PipelineElements / LifeCycleClients
 #
 # Resources
 # ~~~~~~~~~
 # - AVRO 1.9.1 specification
 #   - https://avro.apache.org/docs/1.9.1/spec.html
 #
+#   - https://www.perfectlyrandom.org/2019/11/29/handling-avro-files-in-python
+#     - https://github.com/linkedin/python-avro-json-serializer
+#     - https://marcosschroh.github.io/python-schema-registry-client
+#
 # To Do
 # ~~~~~
-# - Incorporate ~/play/avro: PipelineDefinition and Remote function calls
+# - Incorporate ~/play/avro: Remote function calls
 # - Incorporate pipeline_2022.py
 # - Incorporate pipeline_2020.py
 #   - aiko_services/examples/pipeline/*, RTSP and WebRTC pipelines
@@ -116,15 +150,16 @@ class Graph:
         nodes = OrderedDict()
 
         def traverse(node):
-            for successor in node.successors:
-                nodes[self._graph[successor]] = None
+            if node in nodes:
+                del nodes[node]
+            nodes[node] = None
             for successor in node.successors:
                 traverse(self._graph[successor])
 
         if self._head_nodes:
-            node = self._graph[list(self._head_nodes)[0]]
-            nodes[node] = None
+            node = self._graph[next(iter(self._head_nodes))]
             traverse(node)
+
         return iter(nodes)
 
     def __repr__(self):
@@ -135,13 +170,10 @@ class Graph:
             raise KeyError(f"Graph already contains node: {node}")
         self._graph[node.name] = node
 
-    def nodes(self, indicate_head_nodes=False, as_strings=False):
+    def nodes(self, as_strings=False):
         nodes = []
         for node in self._graph.values():
-            output = node.name if as_strings else node
-            if indicate_head_nodes and node.name in self._head_nodes:
-                output = f"*{output}"
-            output = nodes.append(output)
+            nodes.append(node.name if as_strings else node)
         return nodes
 
     def remove(self, node):
@@ -329,7 +361,7 @@ class PipelineElementImpl(PipelineElement):
 
 class PE_0(PipelineElement):
     @dataclass
-    class FrameOutput: a: int; b: str
+    class FrameOutput: output: str
 
     def __init__(self,
         implementations, name, protocol, tags, transport):
@@ -338,12 +370,12 @@ class PE_0(PipelineElement):
         implementations["PipelineElement"].__init__(self,
             implementations, name, protocol, tags, transport)
 
-    def process_frame(self, context) -> Tuple[bool, FrameOutput]:
-        return True, PE_0.FrameOutput(a=stream_id, b=str(frame_id))
+    def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
+        return True, PE_0.FrameOutput(output=input)
 
 class PE_1(PipelineElement):
     @dataclass
-    class FrameOutput: a: int; b: str
+    class FrameOutput: output: str
 
     def __init__(self,
         implementations, name, protocol, tags, transport):
@@ -352,12 +384,12 @@ class PE_1(PipelineElement):
         implementations["PipelineElement"].__init__(self,
             implementations, name, protocol, tags, transport)
 
-    def process_frame(self, context) -> Tuple[bool, FrameOutput]:
-        return True, PE_1.FrameOutput(a=stream_id, b=str(frame_id))
+    def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
+        return True, PE_1.FrameOutput(output=input)
 
 class PE_2(PipelineElement):
     @dataclass
-    class FrameOutput: a: int; b: str
+    class FrameOutput: output: str
 
     def __init__(self,
         implementations, name, protocol, tags, transport):
@@ -366,36 +398,49 @@ class PE_2(PipelineElement):
         implementations["PipelineElement"].__init__(self,
             implementations, name, protocol, tags, transport)
 
-    def process_frame(self, context) -> Tuple[bool, FrameOutput]:
-        return True, PE_2.FrameOutput(a=stream_id, b=str(frame_id))
+    def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
+        return True, PE_2.FrameOutput(output=input)
 
 class PE_3(PipelineElement):
     @dataclass
-    class FrameOutput: a: int; b: str
+    class FrameOutput: output: str
 
     def __init__(self,
         implementations, name, protocol, tags, transport):
 
-        protocol = "pe_3:0"  # data_target:0
+        protocol = "pe_3:0"
         implementations["PipelineElement"].__init__(self,
             implementations, name, protocol, tags, transport)
 
-    def process_frame(self, context) -> Tuple[bool, FrameOutput]:
-        return True, PE_3.FrameOutput(a=stream_id, b=str(frame_id))
+    def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
+        return True, PE_3.FrameOutput(output=input)
 
 class PE_4(PipelineElement):
-    @dataclass
-    class FrameOutput: a: int; b: str
+    class FrameOutput: output: str
 
     def __init__(self,
         implementations, name, protocol, tags, transport):
 
-        protocol = "pe_4:0"  # data_source:0
+        protocol = "pe_4:0"
         implementations["PipelineElement"].__init__(self,
             implementations, name, protocol, tags, transport)
 
-    def process_frame(self, context) -> Tuple[bool, FrameOutput]:
-        return True, PE_4.FrameOutput(a=stream_id, b=str(frame_id))
+    def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
+        return True, PE_4.FrameOutput(output=input)
+
+class PE_5(PipelineElement):
+    @dataclass
+    class FrameOutput: output: str
+
+    def __init__(self,
+        implementations, name, protocol, tags, transport):
+
+        protocol = "pe_5:0"  # data_target:0
+        implementations["PipelineElement"].__init__(self,
+            implementations, name, protocol, tags, transport)
+
+    def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
+        return True, PE_5.FrameOutput(output=input)
 
 # --------------------------------------------------------------------------- #
 
@@ -423,7 +468,11 @@ class PipelineImpl(Pipeline):
 
         self.pipeline_definition = pipeline_definition
         self.pipeline_graph = self._create_pipeline(pipeline_definition)
-        print(f"Pipeline graph: {self.pipeline_graph.nodes(True)}")
+
+        print(f"PIPELINE: {self.pipeline_graph.nodes()}")
+
+        for node in self.pipeline_graph:
+            print(f"NODE: {node.name}")
 
         self.state = {
             "lifecycle": "ready",
@@ -572,6 +621,13 @@ class PipelineImpl(Pipeline):
 
     def process_frame(self, context) -> Tuple[bool, None]:
         swag = {}
+    #   node = self.pipeline_graph[next(iter(self.pipeline_graph._head_nodes))]
+    #   element = node.element
+        breakpoint()
+    #   input_pads = pipeline_element.process_frame.__annotations__
+    #   return_type = input_pads.pop("return")
+    #   print(pipeline_element.__class__.__name__)
+    #   print(f"    Input pads: {input_pads}")
 
 #   def run(self, run_event_loop=True):
 #       print("### PipelineImpl.run()")
