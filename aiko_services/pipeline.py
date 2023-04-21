@@ -7,6 +7,14 @@
 # ./pipeline.py create [--name pipeline_name] pipeline_definition
 # ./pipeline.py delete pipeline_name
 #
+# Definition
+# ~~~~~~~~~~
+# "graph": [
+#   "(PE_0 PE_1)",
+#   "(PE_0 PE_1 (PE_2 PE_1))",
+#   "(PE_0 (PE_1 (PE_3 PE_5)) (PE_2 (PE_4 PE_5)))"
+# ],
+#
 # Important
 # ---------
 # - Pipeline is-a PipelineElement and a Category (of PipelineElements)
@@ -100,7 +108,7 @@ from abc import abstractmethod
 import avro.schema
 from avro_validator.schema import Schema
 import click
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from enum import Enum
 import json
 import os
@@ -193,7 +201,7 @@ class Graph:
 
         def traverse_successors(node, successors):
             for successor in successors:
-                if type(successor) == list:
+                if isinstance(successor, list):
                     add_successor(node, successor[0])
                     traverse_successors(successor[0], successor[1:])
                 else:
@@ -324,14 +332,6 @@ class PipelineElement(Actor):
         "__main__.PipelineElementImpl"
 
     @abstractmethod
-    def start_stream(self, context, parameters):
-        pass
-
-    @abstractmethod
-    def stop_stream(self, context):
-        pass
-
-    @abstractmethod
     def process_frame(self, context, **kwargs) -> Tuple[bool, Any]:
         """
         Returns a tuple of (success, output) where "success" indicates
@@ -339,9 +339,19 @@ class PipelineElement(Actor):
         """
         pass
 
+    @abstractmethod
+    def start_stream(self, context, parameters):
+        pass
+
+    @abstractmethod
+    def stop_stream(self, context):
+        pass
+
 class PipelineElementImpl(PipelineElement):
     def __init__(self,
-        implementations, name, protocol, tags, transport):
+        implementations, name, protocol, tags, transport, definition):
+        self.definition = definition
+
         if protocol == None:
             protocol = PROTOCOL_ELEMENT
 
@@ -349,6 +359,26 @@ class PipelineElementImpl(PipelineElement):
             implementations, name, protocol, tags, transport)
 
     #   print(f"### {self.__class__.__name__}.__init__() invoked")
+
+        self.state = {
+            "lifecycle": "ready",
+            "log_level": get_log_level_name(_LOGGER),
+            "source_file": f"v{_VERSION}⇒{__file__}"
+        }
+        self.ec_producer = ECProducer(self, self.state)
+        self.ec_producer.add_handler(self._ec_producer_change_handler)
+
+        self.add_message_handler(self._topic_in_handler, self.topic_in)
+        #   binary=True)
+
+    def _ec_producer_change_handler(self, command, item_name, item_value):
+        if item_name == "log_level":
+            _LOGGER.setLevel(str(item_value).upper())
+
+    def _topic_in_handler(self, _aiko, topic, payload_in):
+        command, parameters = parse(payload_in)
+# TODO: Apply proxy automatically for Actor and not manually here
+        self._post_message(actor.Topic.IN, command, parameters)
 
     def start_stream(self, context, parameters):
         pass
@@ -364,13 +394,14 @@ class PE_0(PipelineElement):
     class FrameOutput: output: str
 
     def __init__(self,
-        implementations, name, protocol, tags, transport):
+        implementations, name, protocol, tags, transport, definition):
 
         protocol = "pe_0:0"  # data_source:0
         implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport)
+            implementations, name, protocol, tags, transport, definition)
 
     def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
+        print(f"PE_0: context: {context}, input: {input}")
         return True, PE_0.FrameOutput(output=input)
 
 class PE_1(PipelineElement):
@@ -378,13 +409,14 @@ class PE_1(PipelineElement):
     class FrameOutput: output: str
 
     def __init__(self,
-        implementations, name, protocol, tags, transport):
+        implementations, name, protocol, tags, transport, definition):
 
         protocol = "pe_1:0"
         implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport)
+            implementations, name, protocol, tags, transport, definition)
 
     def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
+        print(f"PE_1: context: {context}, input: {input}")
         return True, PE_1.FrameOutput(output=input)
 
 class PE_2(PipelineElement):
@@ -392,13 +424,14 @@ class PE_2(PipelineElement):
     class FrameOutput: output: str
 
     def __init__(self,
-        implementations, name, protocol, tags, transport):
+        implementations, name, protocol, tags, transport, definition):
 
         protocol = "pe_2:0"
         implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport)
+            implementations, name, protocol, tags, transport, definition)
 
     def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
+        print(f"PE_2: context: {context}, input: {input}")
         return True, PE_2.FrameOutput(output=input)
 
 class PE_3(PipelineElement):
@@ -406,26 +439,28 @@ class PE_3(PipelineElement):
     class FrameOutput: output: str
 
     def __init__(self,
-        implementations, name, protocol, tags, transport):
+        implementations, name, protocol, tags, transport, definition):
 
         protocol = "pe_3:0"
         implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport)
+            implementations, name, protocol, tags, transport, definition)
 
     def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
+        print(f"PE_3: context: {context}, input: {input}")
         return True, PE_3.FrameOutput(output=input)
 
 class PE_4(PipelineElement):
     class FrameOutput: output: str
 
     def __init__(self,
-        implementations, name, protocol, tags, transport):
+        implementations, name, protocol, tags, transport, definition):
 
         protocol = "pe_4:0"
         implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport)
+            implementations, name, protocol, tags, transport, definition)
 
     def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
+        print(f"PE_4: context: {context}, input: {input}")
         return True, PE_4.FrameOutput(output=input)
 
 class PE_5(PipelineElement):
@@ -433,23 +468,33 @@ class PE_5(PipelineElement):
     class FrameOutput: output: str
 
     def __init__(self,
-        implementations, name, protocol, tags, transport):
+        implementations, name, protocol, tags, transport, definition):
 
         protocol = "pe_5:0"  # data_target:0
         implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport)
+            implementations, name, protocol, tags, transport, definition)
 
     def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
+        print(f"PE_5: context: {context}, input: {input}")
         return True, PE_5.FrameOutput(output=input)
 
 # --------------------------------------------------------------------------- #
+# TODO: For local PipelineElements, better module loading, etc
+# TODO: Handle remote PipelineElements
+# TODO: Handle input and output
+# TODO: Extract everything out of pipeline_2022.py
+# TODO: Extract everything out of pipeline_2020.py
+#
+# TODO: Handle parameter name-mapping
+# TODO: Handle list of sub-graphs
+# TODO: StateMachine support
+#         "graph: [
+#           "(PE_0 default:)",
+#           "(PE_0 streaming: (PE_1 PE_3) (PE_2 PE_3))"
+#         ]
 
 class Pipeline(PipelineElement):
     Interface.implementations["Pipeline"] = "__main__.PipelineImpl"
-
-#   @abstractmethod
-#   def test(self, value):
-#       pass
 
 class PipelineImpl(Pipeline):
     PE_DEFINITION_LOOKUP = {
@@ -461,49 +506,30 @@ class PipelineImpl(Pipeline):
 
     def __init__(self,
         implementations, name, protocol, tags, transport,
-        pipeline_definition, definition_pathname=""):
+        definition, definition_pathname=""):
 
         implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport)
+            implementations, name, protocol, tags, transport, definition)
 
-        self.pipeline_definition = pipeline_definition
-        self.pipeline_graph = self._create_pipeline(pipeline_definition)
+        self.pipeline_graph = self._create_pipeline(definition)
+        self.state["definition_pathname"] = definition_pathname
+        self.state["element_count"] = self.pipeline_graph.element_count
 
         print(f"PIPELINE: {self.pipeline_graph.nodes()}")
-
         for node in self.pipeline_graph:
             print(f"NODE: {node.name}")
 
-        self.state = {
-            "lifecycle": "ready",
-            "log_level": get_log_level_name(_LOGGER),
-            "source_file": f"v{_VERSION}⇒{__file__}",
-            "definition_pathname": definition_pathname,
-            "element_count": self.pipeline_graph.element_count
-        }
-        self.ec_producer = ECProducer(self, self.state)
-        self.ec_producer.add_handler(self._ec_producer_change_handler)
+    def _create_pipeline(self, definition):
+        pipeline_error = f"Error: Creating Pipeline: {definition.name}"
 
-        self.add_message_handler(self._topic_in_handler, self.topic_in)
-        #   binary=True)
-
-# TODO: For local PipelineElements, better module loading, etc
-# TODO: Handle remote PipelineElements
-# TODO: Handle input and output
-# TODO: Extract everything out of pipeline_2022.py
-# TODO: Extract everything out of pipeline_2020.py
-
-    def _create_pipeline(self, pipeline_definition):
-        pipeline_error = f"Error: Creating Pipeline: {pipeline_definition.name}"
-
-        if len(pipeline_definition.pipeline) == 0:
+        if len(definition.pipeline) == 0:
             message = "PipelineDefinition: Doesn't define any PipelineElements"
             PipelineImpl._system_exit(pipeline_error, message)
 
-        node_heads, node_successors = Graph.traverse(pipeline_definition.graph)
+        node_heads, node_successors = Graph.traverse(definition.graph)
         pipeline_graph = PipelineGraph(node_heads)
 
-        for pipeline_element_definition in pipeline_definition.pipeline:
+        for pipeline_element_definition in definition.pipeline:
             # Check PipelineElements are all of the same type
             element_type_name = type(pipeline_element_definition).__name__
             if pipeline_graph.type_set:
@@ -517,7 +543,10 @@ class PipelineImpl(Pipeline):
             if element_type_name == PipelineImpl.PE_DEFINITION_LOCAL_NAME:
                 element_module = pipeline_element_definition.module
                 element_class = getattr(__import__("__main__"), element_name)
-                init_args = actor_args(element_name.lower())
+                init_args = {
+                    **actor_args(element_name.lower()),
+                    "definition": pipeline_element_definition,
+                }
                 element_instance = compose_instance(element_class, init_args)
 
             if element_type_name == PipelineImpl.PE_DEFINITION_REMOTE_NAME:
@@ -540,14 +569,12 @@ class PipelineImpl(Pipeline):
 
         return pipeline_graph
 
-    def _ec_producer_change_handler(self, command, item_name, item_value):
-        if item_name == "log_level":
-            _LOGGER.setLevel(str(item_value).upper())
-
     @classmethod
     def parse_pipeline_definition(cls, pipeline_definition_pathname):
-        schema_error = f"Error: Parsing PipelineDefinition schema: {SCHEMA_PATHNAME}"
-        json_error = f"Error: Parsing PipelineDefinition JSON: {pipeline_definition_pathname}"
+        schema_error =  \
+            f"Error: Parsing PipelineDefinition schema: {SCHEMA_PATHNAME}"
+        json_error =  \
+            f"Error: Parsing PipelineDefinition JSON: {pipeline_definition_pathname}"
 
         try:
             schema = Schema(SCHEMA_PATHNAME).parse()
@@ -590,14 +617,6 @@ class PipelineImpl(Pipeline):
             pipeline_elements.append(pipeline_element)
         pipeline_definition.pipeline = pipeline_elements
 
-# TODO: Handle parameter name-mapping
-# TODO: Handle list of sub-graphs
-# TODO: StateMachine support
-#         "graph: [
-#           "(PE_0 default:)",
-#           "(PE_0 streaming: (PE_1 PE_3) (PE_2 PE_3))"
-#         ]
-
         nodes = {}
         for sub_graph in pipeline_definition.graph:
             node_head, node_successors = parse(sub_graph)
@@ -613,30 +632,35 @@ class PipelineImpl(Pipeline):
         _LOGGER.error(diagnostic_message)
         raise SystemExit(diagnostic_message)
 
+    def process_frame(self, context, swag) -> Tuple[bool, None]:
+        print(f"Pipeline: context: {context}, swag: {swag}")
+        for node in self.pipeline_graph:
+            element = node.element
+            print("element.definition.input", element.definition.input)
+            input_names = [input["name"] for input in element.definition.input]
+            print(element.__class__.__name__)
+            print(f"    Input names: {input_names}")
+
+            inputs = {
+                input_name: swag[input_name]
+                for input_name in input_names
+            }
+
+            okay, frame_output = element.process_frame(
+                context, **inputs)
+
+            if isinstance(frame_output, dict):
+                output = frame_output
+            else:
+                output = asdict(frame_output)
+            swag = {**swag, **asdict(output)}
+        return True, swag
+
     def start_stream(self, context, parameters):
         pass
 
     def stop_stream(self, context):
         pass
-
-    def process_frame(self, context) -> Tuple[bool, None]:
-        swag = {}
-    #   node = self.pipeline_graph[next(iter(self.pipeline_graph._head_nodes))]
-    #   element = node.element
-        breakpoint()
-    #   input_pads = pipeline_element.process_frame.__annotations__
-    #   return_type = input_pads.pop("return")
-    #   print(pipeline_element.__class__.__name__)
-    #   print(f"    Input pads: {input_pads}")
-
-#   def run(self, run_event_loop=True):
-#       print("### PipelineImpl.run()")
-#       super().run(run_event_loop)
-
-    def _topic_in_handler(self, _aiko, topic, payload_in):
-        command, parameters = parse(payload_in)
-# TODO: Apply proxy automatically for Actor and not manually here
-        self._post_message(actor.Topic.IN, command, parameters)
 
 # Review ~/play/avro/pipeline_test.py: class PipelineA: implementation
 #        ~/play/avro/zz_new_suggestion.py
@@ -677,7 +701,7 @@ def create(definition_pathname, name):
         definition_pathname)
 
     init_args = actor_args(pipeline_definition.name, PROTOCOL_PIPELINE)
-    init_args["pipeline_definition"] = pipeline_definition
+    init_args["definition"] = pipeline_definition
     init_args["definition_pathname"] = definition_pathname
     pipeline = compose_instance(PipelineImpl, init_args)
     pipeline.run()

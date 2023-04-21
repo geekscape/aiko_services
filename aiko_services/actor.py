@@ -144,6 +144,7 @@ class Message:
             else:
                 diagnostic = f"{self}: isn't callable"
         if diagnostic:
+            raise RuntimeError(diagnostic)
             _LOGGER.error(diagnostic)  # Was ... raise RuntimeError(diagnostic)
 
 class Topic:

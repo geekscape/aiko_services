@@ -197,9 +197,9 @@ class MQTT(Message):
 
     def subscribe(self: Any, topics: Any) -> None:
         if topics:
-            if type(topics) == str:
+            if isinstance(topics, str):
                 topics = [topics]
-            if type(topics) == dict:
+            if isinstance(topics, dict):
                 topics = topics.keys()
             for topic in topics:
                 if topic == "#":
@@ -224,9 +224,9 @@ class MQTT(Message):
 
     def unsubscribe(self: Any, topics: Any, remove=True) -> None:
         if topics:
-            if type(topics) == str:
+            if isinstance(topics, str):
                 topics = [topics]
-            if type(topics) == dict:
+            if isinstance(topics, dict):
                 topics = topics.keys()
             for topic in topics:
                 if topic == "#":

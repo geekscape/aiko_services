@@ -45,19 +45,25 @@
                     { "name": "name",   "type": "string" },
                     { "name": "module", "type": "string" },
                     { "name": "input", "type": {
-                        "name": "input",
-                        "type": "record",
-                        "fields": [
-                          { "name": "type", "type": "string" }
-                        ]
+                        "type": "array", "items": {
+                          "name": "input",
+                          "type": "record",
+                          "fields": [
+                            { "name": "type", "type": "string" },
+                            { "name": "name", "type": "string" }
+                          ]
+                        }
                       }
                     },
                     { "name": "output", "type": {
-                        "name": "output",
-                        "type": "record",
-                        "fields": [
-                          { "name": "type", "type": "string" }
-                        ]
+                        "type": "array", "items": {
+                          "name": "output",
+                          "type": "record",
+                          "fields": [
+                            { "name": "type", "type": "string" },
+                            { "name": "name", "type": "string" }
+                          ]
+                        }
                       }
                     }
                   ]

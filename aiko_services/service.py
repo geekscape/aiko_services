@@ -396,7 +396,7 @@ class Services:
         for process_topic_path, process_services in services.items():
             for service_topic, service_details in process_services.items():
             # TODO: Consolidate into consistent ServiceDetails() data structure
-                if type(service_details) == dict:
+                if isinstance(service_details, dict):
                     name = service_details["name"]
                     protocol = service_details["protocol"]
                     transport = service_details["transport"]

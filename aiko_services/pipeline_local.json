@@ -4,7 +4,7 @@
   "runtime": "python",
 
   "graph": [
-    "(PE_0 (PE_1 (PE_3 PE_5)) (PE_2 (PE_4 PE_5)))"
+    "(PE_0 PE_1)"
   ],
 
   "parameters": {
@@ -17,33 +17,17 @@
     "local": [
       { "name":   "PE_0",
         "module": "pipeline.py",
-        "input":  { "type": "string" },
-        "output": { "type": "string" }
+        "input":  [{ "name": "input",
+                     "type": "string" }],
+        "output": [{ "type": "string",
+                     "name": "output" }]
       },
       { "name":   "PE_1",
         "module": "pipeline.py",
-        "input":  { "type": "string" },
-        "output": { "type": "string" }
-      },
-      { "name":   "PE_2",
-        "module": "pipeline.py",
-        "input":  { "type": "string" },
-        "output": { "type": "string" }
-      },
-      { "name":   "PE_3",
-        "module": "pipeline.py",
-        "input":  { "type": "string" },
-        "output": { "type": "string" }
-      },
-      { "name":   "PE_4",
-        "module": "pipeline.py",
-        "input":  { "type": "string" },
-        "output": { "type": "string" }
-      },
-      { "name":   "PE_5",
-        "module": "pipeline.py",
-        "input":  { "type": "string" },
-        "output": { "type": "string" }
+        "input":  [{ "name": "input",
+                     "type": "string" }],
+        "output": [{ "type": "string",
+                     "name": "output" }]
       }
     ]
   }

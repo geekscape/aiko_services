@@ -127,12 +127,12 @@ def _ec_update_item(state, item_path, item_value):
 def _flatten_dictionary(dictionary):
     result = []
     for item_name, item in dictionary.items():
-        if type(item) != dict:
-            result.append((item_name, item))
-        else:
+        if isinstance(item, dict):
             for subitem_name, subitem in item.items():
                 name = f"{item_name}.{subitem_name}"
                 result.append((name, subitem))
+        else:
+            result.append((item_name, item))
     return result
 
 # --------------------------------------------------------------------------- #
@@ -165,7 +165,7 @@ class ECProducer:
         item_path = _ec_parse_item_path(item_name)
         item = self.state
         for key in item_path:
-            if type(item) == dict and key in item:
+            if isinstance(item, dict) and key in item:
                 item = item.get(key)
             else:
                 success = False
@@ -213,9 +213,9 @@ class ECProducer:
                 lease_time = int(parameters[1])
             except Exception:
                 pass
-            if type(lease_time) == int:
+            if isinstance(lease_time, int):
                 filter = parameters[2]
-                if filter != "*" and type(filter) != list:
+                if filter != "*" and not isinstance(filter, list):
                     filter = [filter]
                 response_topic = parameters[0]  # Deliberately do this last
 
@@ -297,14 +297,14 @@ class ECProducer:
         state = {}
         for item_name, item in dictionary.items():
             item_path = path + [str(item_name)]
-            if type(item) != dict:
-                item_path_str = ".".join(item_path)
-                if self._filter_compare(filter, item_path_str):
-                    state[item_name] = item
-            else:
+            if isinstance(item, dict):
                 filtered_item = self._filter_dictionary(item, filter, item_path)
                 if filtered_item != {}:
                     state[item_name] = filtered_item
+            else:
+                item_path_str = ".".join(item_path)
+                if self._filter_compare(filter, item_path_str):
+                    state[item_name] = item
         return state
 
     def _filter_state(self, filter):

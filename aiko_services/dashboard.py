@@ -217,7 +217,7 @@ class FrameCommon:
         value = str(value)
         padding = 0
         while len(value):
-            if type(name) == str:
+            if isinstance(name, str):
                 field = (name, " "*padding + value[0:width-padding])
                 name = ""
             else:
@@ -379,15 +379,15 @@ class DashboardFrame(FrameCommon, Frame):
         if self.ec_consumer:
             service_variables = list(self.service_cache.items())
             for variable_name, variable_value in service_variables:
-                if type(variable_value) != dict:
+                if isinstance(variable_value, dict):
+                    variables.append((f"{variable_name} ...", ""))
+                    for name, value in variable_value.items():
+                        variables.append((f"  {name}", f"{value}"))
+                else:
                 #   variables.append((variable_name, variable_value))
                     self._update_field(
                         variables, variable_name,
                         variable_value, self._value_width)
-                else:
-                    variables.append((f"{variable_name} ...", ""))
-                    for name, value in variable_value.items():
-                        variables.append((f"  {name}", f"{value}"))
             variables.append(("", ""))
 
         if self.service_tags:
