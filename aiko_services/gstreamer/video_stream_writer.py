@@ -6,7 +6,6 @@
 # ~~~~~
 # - Replace "Gst.parse_launch()" with hand-built pipeline !
 
-import numpy as np
 import sys
 import time
 from threading import Thread
