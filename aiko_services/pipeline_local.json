@@ -17,17 +17,17 @@
     "local": [
       { "name":   "PE_0",
         "module": "pipeline.py",
-        "input":  [{ "name": "input",
-                     "type": "string" }],
-        "output": [{ "type": "string",
-                     "name": "output" }]
+        "input":  [{ "name": "value_0",
+                     "type": "int" }],
+        "output": [{ "name": "value_1",
+                     "type": "int" }]
       },
       { "name":   "PE_1",
         "module": "pipeline.py",
-        "input":  [{ "name": "input",
-                     "type": "string" }],
-        "output": [{ "type": "string",
-                     "name": "output" }]
+        "input":  [{ "name": "value_1",
+                     "type": "int" }],
+        "output": [{ "name": "value_2",
+                     "type": "int" }]
       }
     ]
   }

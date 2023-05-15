@@ -25,40 +25,6 @@
 #     - Consider using FastAVRO (CPython)
 #   - GraphQL
 #
-# Drivers
-# ~~~~~~~
-# - ~/play/avro/z_notes.txt
-# - Local: DataSource: Video file --> Image overlay --> DataTarget: Video file
-#   - HL Live: DataSource: WebRTC --> WhisperX --> DataTarget: WebRTC
-#   - HL Live: DataSource: WebRTC --> FaceDetect --> DataTarget: WebRTC
-#   - Graph: Diamond pattern
-# - Remote: For images (use MQTT hack) !
-#   - ~/play/avro/call_schema.avsc, call_test.py
-# - Remote: For images, use Python mmap, e.g Project Budapest and Apache Plasma
-#
-# * Rowan and Josh: ML Inference ONNX run-time
-# - Josh: Momatu (AIMS) Pipeline
-# - Josh: ML Train
-# ------------------------
-# - Pipeline: Same process
-#   - PipelineElement #1: DataSource: Inject mock image overlay with frame_id
-#   - PipelineElement #1: DataSource: Web browser (WebRTC) web camera
-#   - PipelineElement #2: ML Model:   DeepFace
-#   * PipelineElement #3: DataTarget: Web browser (WebRTC) web page
-#
-# - PipelineDefinition Schema, which validates a PipelineDefinition
-# - PipelineDefinition Template, which defines a specific Pipeline instance
-# - PipelineElements, which are Pipeline graph nodes connected via edges
-# - PipelineFrame schema, which validates incoming PipelineFrame data
-#   - Frames may be Pipeline input data, property values or state change
-#   - HL Serving: DataSource(s) streams Frames
-#   - HL Serving: Task DataSource, streams Tasks that are Frames
-#   - HL Serving: Tasks may also set-up new DataSources to a Pipeline
-#                 For example, set-up RTSP or WebRTC sessions
-#
-# - LifeCycleManager: Local  PipelineElements / LifeCycleClients
-# - LifeCycleManager: Remote PipelineElements / LifeCycleClients
-#
 # Resources
 # ~~~~~~~~~
 # - AVRO 1.9.1 specification
@@ -70,39 +36,10 @@
 #
 # To Do
 # ~~~~~
-# - Incorporate ~/play/avro: Remote function calls
-# - Incorporate pipeline_2022.py
-# - Incorporate pipeline_2020.py
-#   - aiko_services/examples/pipeline/*, RTSP and WebRTC pipelines
-#   - StateMachine (rewrite)
-#
-# - CLI create(): Should run Pipeline in the background (detached)
-#   - See hl_all/infrastructure/websockets/authentication_manager.py
-# - CLI delete(): Implement
-#
-# - Visual representation and editing
-#
-# - Pipeline / PipelineElement properties --> Stream (leased)
-#   - Update Pipeline / PipelineElement properties on-the-fly
-#   - Tasks (over GraphQL or MQTT) --> Session (leased)
-# - Session limits: frame count (maybe just 1) and lease time
-# - Integrate GStreamer plug-ins as PipelineElements
-# - Media data transports, e.g in-band MQTT and out-of-band RTSP / WebRTC
-#
-# To Do: 2020
-# ~~~~~~~~~~~
-# - Pipeline Graph ...
-#   - Information flow, dependencies (strong and weak), categories
-#   - https://en.wikipedia.org/wiki/Graph_(abstract_data_type)#Operations
-#     - https://en.wikipedia.org/wiki/Adjacency_list
-#   - https://en.wikipedia.org/wiki/Graph_traversal
-#
-# * Replace queue handler with mailboxes
-# - In-memory data structure <-- convert --> Persistent storage
-# - Why is pipeline_handler() only running at half the specified time ?
-# - Why don't timer events occur when pipeline is running flatout ?
-# - Add Pipeline.state ...
-#   - When pipeline stopped ... event.remove_timer_handler(timer_test)
+# - pipeline_2022.py ...
+#   - ServiceDefinition: pads
+#   - PipelineElementDefinition(ServiceDefinition): service_level_agreement
+#   - PipelineDefinition(PipelineElementDefinition): edges: List[Tuple[PE, PE]]
 
 from abc import abstractmethod
 import avro.schema
@@ -113,6 +50,7 @@ from enum import Enum
 import json
 import os
 # import queue
+import traceback
 from typing import Any, Dict, List, Tuple
 
 from aiko_services import *
@@ -390,9 +328,6 @@ class PipelineElementImpl(PipelineElement):
 # TODO: Move to own Python source file
 
 class PE_0(PipelineElement):
-    @dataclass
-    class FrameOutput: output: str
-
     def __init__(self,
         implementations, name, protocol, tags, transport, definition):
 
@@ -400,14 +335,11 @@ class PE_0(PipelineElement):
         implementations["PipelineElement"].__init__(self,
             implementations, name, protocol, tags, transport, definition)
 
-    def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
-        print(f"PE_0: context: {context}, input: {input}")
-        return True, PE_0.FrameOutput(output=input)
+    def process_frame(self, context, value_0) -> Tuple[bool, dict]:
+        print(f"PE_0: context: {context}, value_0: {value_0}")
+        return True, {"value_1": int(value_0) + 1}
 
 class PE_1(PipelineElement):
-    @dataclass
-    class FrameOutput: output: str
-
     def __init__(self,
         implementations, name, protocol, tags, transport, definition):
 
@@ -415,75 +347,14 @@ class PE_1(PipelineElement):
         implementations["PipelineElement"].__init__(self,
             implementations, name, protocol, tags, transport, definition)
 
-    def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
-        print(f"PE_1: context: {context}, input: {input}")
-        return True, PE_1.FrameOutput(output=input)
-
-class PE_2(PipelineElement):
-    @dataclass
-    class FrameOutput: output: str
-
-    def __init__(self,
-        implementations, name, protocol, tags, transport, definition):
-
-        protocol = "pe_2:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport, definition)
-
-    def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
-        print(f"PE_2: context: {context}, input: {input}")
-        return True, PE_2.FrameOutput(output=input)
-
-class PE_3(PipelineElement):
-    @dataclass
-    class FrameOutput: output: str
-
-    def __init__(self,
-        implementations, name, protocol, tags, transport, definition):
-
-        protocol = "pe_3:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport, definition)
-
-    def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
-        print(f"PE_3: context: {context}, input: {input}")
-        return True, PE_3.FrameOutput(output=input)
-
-class PE_4(PipelineElement):
-    class FrameOutput: output: str
-
-    def __init__(self,
-        implementations, name, protocol, tags, transport, definition):
-
-        protocol = "pe_4:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport, definition)
-
-    def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
-        print(f"PE_4: context: {context}, input: {input}")
-        return True, PE_4.FrameOutput(output=input)
-
-class PE_5(PipelineElement):
-    @dataclass
-    class FrameOutput: output: str
-
-    def __init__(self,
-        implementations, name, protocol, tags, transport, definition):
-
-        protocol = "pe_5:0"  # data_target:0
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport, definition)
-
-    def process_frame(self, context, input) -> Tuple[bool, FrameOutput]:
-        print(f"PE_5: context: {context}, input: {input}")
-        return True, PE_5.FrameOutput(output=input)
+    def process_frame(self, context, value_1) -> Tuple[bool, dict]:
+        print(f"PE_1: context: {context}, value_1: {value_1}")
+        return True, {"value_2": value_1 + 1}
 
 # --------------------------------------------------------------------------- #
 # TODO: For local PipelineElements, better module loading, etc
 # TODO: Handle remote PipelineElements
-# TODO: Handle input and output
-# TODO: Extract everything out of pipeline_2022.py
-# TODO: Extract everything out of pipeline_2020.py
+# TODO: Validate function inputs and outputs against Pipeline Definition
 #
 # TODO: Handle parameter name-mapping
 # TODO: Handle list of sub-graphs
@@ -633,27 +504,29 @@ class PipelineImpl(Pipeline):
         raise SystemExit(diagnostic_message)
 
     def process_frame(self, context, swag) -> Tuple[bool, None]:
-        print(f"Pipeline: context: {context}, swag: {swag}")
+        _LOGGER.debug(f"Invoking Pipeline: context: {context}, swag: {swag}")
+        definition_pathname = self.state["definition_pathname"]
+
         for node in self.pipeline_graph:
             element = node.element
-            print("element.definition.input", element.definition.input)
+            element_name = element.__class__.__name__
+            diagnostic = f'Error: Invoking Pipeline "{definition_pathname}": PipelineElement "{element_name}": process_frame()'
+
+            inputs = {}
             input_names = [input["name"] for input in element.definition.input]
-            print(element.__class__.__name__)
-            print(f"    Input names: {input_names}")
+            for input_name in input_names:
+                try:
+                    inputs[input_name] = swag[input_name]
+                except KeyError as key_error:
+                    MESSAGE = f'Function parameter "{input_name}" not found'
+                    PipelineImpl._system_exit(diagnostic, MESSAGE)
 
-            inputs = {
-                input_name: swag[input_name]
-                for input_name in input_names
-            }
+            try:
+                okay, frame_output = element.process_frame(context, **inputs)
+            except Exception as exception:
+                PipelineImpl._system_exit(diagnostic, traceback.format_exc())
 
-            okay, frame_output = element.process_frame(
-                context, **inputs)
-
-            if isinstance(frame_output, dict):
-                output = frame_output
-            else:
-                output = asdict(frame_output)
-            swag = {**swag, **asdict(output)}
+            swag = {**swag, **frame_output}  # TODO: How can this fail ?
         return True, swag
 
     def start_stream(self, context, parameters):
