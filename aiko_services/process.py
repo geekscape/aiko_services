@@ -127,7 +127,7 @@ _LOGGER = aiko.logger(
 class ProcessImplementation(ProcessData):
     def __init__(self):
         self.initialized = False
-        self.running = False  # TODO: Replace with a StateMachine
+        self.running = False  # TODO: Replace with StateMachine (see actor.py)
         self.service_count = 0
 
         self._exit_status = 0
@@ -234,7 +234,7 @@ class ProcessImplementation(ProcessData):
         payload_in = message.payload
         if topic not in self._message_handlers_binary_topics:
             payload_in = payload_in.decode("utf-8")
-        if _LOGGER_MESSAGE.isEnabledFor(DEBUG):  # Save time
+        if _LOGGER_MESSAGE.isEnabledFor(DEBUG):  # Don't expand debug message
             _LOGGER_MESSAGE.debug(f"Message: {topic}: {payload_in}")
 
         message_handler_list = []

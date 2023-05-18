@@ -28,10 +28,10 @@ class StateMachine(object):
     def transition(self, action, parameters):
         failure = False
         try:
-            if _LOGGER.isEnabledFor(DEBUG):  # Save time
+            if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
                 _LOGGER.debug(f"transition start: state={self.get_state()}, action={action}")
             self.state_machine.dispatch(action, parameters=parameters)
-            if _LOGGER.isEnabledFor(DEBUG):  # Save time
+            if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
                 _LOGGER.debug(f"transition finish: state={self.get_state()}")
 
         except AttributeError:

@@ -57,6 +57,8 @@
 #
 # To Do
 # ~~~~~
+# - If default ActorImpl is too heavy, then create lightweight ActorCoreImpl
+#
 # * Provide "priority" mailbox for internal requirements, e.g
 #   - If an Exception is raised during initialization / setup,
 #     then post a "(raise_exception exception)" message to the mailbox
@@ -72,8 +74,9 @@
 #         All would share ECConsumers for ServiceDiscovery and LifeCycleClient
 #
 # - State Machine ...
-#   - Turn "self.running" into "self.state"
-#   - Turn "self._is_running()" into "self.get_state()"
+#   - Consolidate  self.state["lifecycle"] and self.state["running"]
+#     - into self.state["state"] ?
+#   - Turn "self.is_running()" into "self.get_state()"
 #   - Stop Actor by changing "self.state" to "STOP"
 #   - Hard terminate Actor using "self._terminate()"
 #
@@ -103,7 +106,7 @@ import traceback
 from aiko_services import *
 from aiko_services.utilities import *
 
-__all__ = ["Actor", "ActorImpl", "ActorTest", "ActorTestImpl"]
+__all__ = ["Actor", "ActorImpl", "ActorTest", "ActorTestImpl", "actor_args"]
 
 _AIKO_LOG_LEVEL_ACTOR = os.environ.get("AIKO_LOG_LEVEL_ACTOR", "INFO")
 _LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_ACTOR)
@@ -122,8 +125,8 @@ class Message:
         return f"Message: {self.command}({str(self.arguments)[1:-1]})"
 
     def invoke(self):
-        if _LOGGER.isEnabledFor(DEBUG):  # Save time
-            _LOGGER.debug(f"Actor Message.invoke(): {self} ###")
+        if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
+            _LOGGER.debug(f"Message.invoke(): {self}")
         target_function = self.target_function
         if not target_function:
             try:
@@ -189,30 +192,34 @@ class ActorImpl(Actor):
         implementations["Service"].__init__(self,
             implementations, name, protocol, tags, transport)
 
-        self.running = False
+        self.state = {
+            "lifecycle": "ready",
+            "log_level": get_log_level_name(self.get_logger()),
+            "running": False  # TODO: Consolidate into self.state ?
+        }
+        self.ec_producer = ECProducer(self, self.state)
+        self.ec_producer.add_handler(self.ec_producer_change_handler)
+
         # First mailbox added has priority handling for all posted messages
         for topic in [Topic.CONTROL, Topic.IN]:
             mailbox_name = self._actor_mailbox_name(topic)
             event.add_mailbox_handler(self._mailbox_handler, mailbox_name)
+        self.add_message_handler(self._topic_in_handler, self.topic_in)
+        # TODO: Optionally, binary=True ?
 
     def _actor_mailbox_name(self, topic):
         return f"{self.name}/{self.service_id}/{topic}"
 
-    def _is_running(self):
-        return self.running
-
     def _mailbox_handler(self, topic, message, time_posted):
         message.invoke()
 
-    def run(self):
-        self.running = True
-        try:
-            aiko.process.run()
-        except Exception as exception:
-        #   _LOGGER.error(f"Exception caught in {self.__class__.__name__}: {type(exception).__name__}: {exception}")
-            _LOGGER.error(traceback.format_exc())
-            raise exception
-        self.running = False
+    def _topic_in_handler(self, _aiko, topic, payload_in):
+        command, parameters = parse(payload_in)
+    #   if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
+    #       _LOGGER.debug(
+    #           f"{self.name}: topic_in_handler(): {command}:{parameters}"
+    #       )
+        self._post_message(Topic.IN, command, parameters)
 
     def _post_message(self, topic, command, args, target_function=None):
         target_object = self
@@ -227,6 +234,32 @@ class ActorImpl(Actor):
     # TODO: make public
     def _stop(self):
         aiko.process.terminate()
+
+    def ec_producer_change_handler(self, command, item_name, item_value):
+    #   if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
+    #       _LOGGER.debug(f"ECProducer: {command} {item_name} {item_value}")
+        if item_name == "log_level":
+            log_level = str(item_value).upper()
+            self.get_logger().setLevel(log_level)
+
+#   def get_logger(self):  # Override to get Actor subclass _LOGGER
+#       return _LOGGER
+
+    def is_running(self):
+        return self.state["running"]
+
+    def run(self):
+        self.state["running"] = True
+        try:
+            aiko.process.run()
+        except Exception as exception:
+        #   _LOGGER.error(f"Exception caught in {self.__class__.__name__}: {type(exception).__name__}: {exception}")
+            _LOGGER.error(traceback.format_exc())
+            raise exception
+        self.state["running"] = False
+
+    def set_log_level(self, level):  # Override to set subclass _LOGGER level
+        pass
 
 class ActorTest(Actor):  # TODO: Move into "../examples/"
     Interface.implementations["ActorTest"] = "aiko_services.actor.ActorTestImpl"

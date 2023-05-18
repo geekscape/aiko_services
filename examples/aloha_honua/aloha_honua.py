@@ -22,20 +22,19 @@
 #
 # id=0
 # while true; do
-#   mosquitto_pub -t $TOPIC_PATH/control -m "(update actor_id $id)"
+#   mosquitto_pub -t $TOPIC_PATH/control -m "(update id $id)"
 #   id=$((id+1))
 #   sleep 0.001
 # done
 #
 # To Do
 # ~~~~~
-# - None, yet !
+# - Create most basic AlohaHonua and incrementally more feature rich versions
 
 from abc import abstractmethod
 import click
 
 from aiko_services import *
-from aiko_services.utilities import *
 
 ACTOR_TYPE = "aloha_honua"
 PROTOCOL = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE}:0"
@@ -54,49 +53,31 @@ class AlohaHonua(Actor):
 
 class AlohaHonuaImpl(AlohaHonua):
     def __init__(self,
-            implementations, name, protocol, tags, transport):
+            implementations, name, protocol, tags, transport, id):
 
         implementations["Actor"].__init__(self,
             implementations, name, protocol, tags, transport)
 
+        self.state["id"] = id
+        self.state["source_file"] = f"v{_VERSION}⇒{__file__}"
+        self.state["test_dict"] = {"item_1": ["value_a"], "item_2": ["value_b"]}
+
         aiko.connection.add_handler(self._connection_state_handler)
 
-        self.state = {
-            "lifecycle": "ready",
-            "log_level": get_log_level_name(_LOGGER),
-            "source_file": f"v{_VERSION}⇒{__file__}",
-            "test_dict": {"item_1": ["value_a"], "item_2": ["value_b"]}
-        }
-        self.ec_producer = ECProducer(self, self.state)
-        self.ec_producer.add_handler(self._ec_producer_change_handler)
-
-    #   self.add_message_handler(self._topic_all_handler, "#")  # for testing
-        self.add_message_handler(self._topic_in_handler, self.topic_in)
+    # TODO: Improve ".../process.py:ProcessImplementation.topic_matcher()"
+        topic_path = f"{get_namespace()}/#"
+        self.add_message_handler(self._topic_all_handler, topic_path)
 
     def _connection_state_handler(self, connection, connection_state):
         if connection.is_connected(ConnectionState.REGISTRAR):
             _LOGGER.debug("Aloha honua (after Registrar available)")
 
-    def _ec_producer_change_handler(self, command, item_name, item_value):
-        if _LOGGER.isEnabledFor(DEBUG):  # Save time
-            _LOGGER.debug(f"ECProducer: {command} {item_name} {item_value}")
-        if item_name == "log_level":
-            _LOGGER.setLevel(str(item_value).upper())
-
     def _topic_all_handler(self, _aiko, topic, payload_in):
-        command, parameters = parse(payload_in)
-        if _LOGGER.isEnabledFor(DEBUG):  # Save time
-            _LOGGER.debug(
-                f"topic_all_handler(): topic: {topic}, {command}:{parameters}")
+        if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
+            _LOGGER.debug(f"topic_all_handler(): topic: {topic}, {payload_in}")
 
-    def _topic_in_handler(self, _aiko, topic, payload_in):
-        command, parameters = parse(payload_in)
-        if _LOGGER.isEnabledFor(DEBUG):  # Save time
-            _LOGGER.debug(
-                f"{self.name}: topic_in_handler(): {command}:{parameters}"
-            )
-# TODO: Apply proxy automatically for Actor and not manually here
-        self._post_message(actor.Topic.IN, command, parameters)
+    def get_logger(self):
+        return _LOGGER
 
     def test(self, value):
         _LOGGER.info(f"{self.name}: test({value})")
@@ -108,6 +89,25 @@ class AlohaHonuaImpl(AlohaHonua):
 actor_count = 0
 actor_total = 0
 
+def create_actor(id):
+    tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
+    name = f"{ACTOR_TYPE}_{id}"
+    init_args = actor_args(name, PROTOCOL, tags)
+    init_args["id"] = id
+    aloha_honua = compose_instance(AlohaHonuaImpl, init_args)
+
+def create_actors():
+    global actor_count, actor_total
+    actor_count += 1
+
+    create_actor(actor_count)
+
+    if actor_count % 100 == 0:
+        _LOGGER.info(f"Actor count: {actor_count}")
+
+    if actor_count == actor_total:
+        event.remove_timer_handler(create_actors)
+
 @click.command("main", help="Aloha honua")
 @click.argument("count", nargs=1, default=1, required=False)
 def main(count):
@@ -115,23 +115,12 @@ def main(count):
     actor_total = count
     _LOGGER.debug("Aloha honua (before Registrar available)")
 
-    event.add_timer_handler(create_actor, 0.01)
+    if actor_count == 1:
+        create_actor()
+    else:
+        event.add_timer_handler(create_actors, 0.01)
+
     aiko.process.run()
-
-def create_actor():
-    global actor_count, actor_total
-    actor_count += 1
-
-    tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
-    name = f"{ACTOR_TYPE}_{actor_count}"
-    init_args = actor_args(name, PROTOCOL, tags)
-
-    aloha_honua = compose_instance(AlohaHonuaImpl, init_args)
-    if actor_count % 100 == 0:
-        _LOGGER.info(f"Actor count: {actor_count}")
-
-    if actor_count == actor_total:
-        event.remove_timer_handler(create_actor)
 
 if __name__ == "__main__":
     main()

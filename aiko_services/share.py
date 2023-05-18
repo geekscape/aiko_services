@@ -39,10 +39,10 @@
 # - BUG: ServicesCache (and also EC) should handle degradation of
 #   network (ConnectionState changes) and/or lease expiring.
 #
-# - ECProducerBase class provides absolute minimum implementation
+# - ECProducerCore class provides absolute minimum implementation
 #   - Responds to all "(share ...)" requests with "(item_count 0)"
 #     Ignores all other requests
-#   - ECProducer extends ECProducerBase
+#   - ECProducer extends ECProducerCore
 #
 # - For multiple Actors in same process, when each Actor wants to have a
 #   its own unique ECProducer shared amongst different aspects of the Actor,

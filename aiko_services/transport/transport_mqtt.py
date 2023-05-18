@@ -8,8 +8,6 @@
 #
 # * Design Pattern for creating Actors of different types, e.g MQTT or Ray
 #
-# - Apply proxy automatically for ActorMQTT and not in "aloha_honua.py"
-#
 # - Replace Actor topic with Actor name ... and name can be the topic
 #   - Will need to support multiple Actors running in the same process !
 #
@@ -50,13 +48,11 @@ class TransportMQTTImpl(TransportMQTT):
         implementations["Actor"].__init__(self,
             implementations, name, protocol, tags, transport)
 
+    def get_logger(self):
+        return _LOGGER
+
     def terminate(self):
         self._stop()
-
-    def topic_in_handler(self, aiko, topic, payload_in):
-        command, parameters = parse(payload_in)
-    #   _LOGGER.debug(f"topic_in_handler(): {command}: {parameters}")
-        self._post_message(actor.Topic.IN, command, parameters)
 
 # def _proxy_post_message(
 #   proxy_name, actual_object, actual_function,

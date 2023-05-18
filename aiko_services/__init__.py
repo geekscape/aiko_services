@@ -45,7 +45,9 @@ from .share import (
     services_cache_create_singleton, services_cache_delete
 )
 
-from .actor import Actor, ActorImpl, actor_args, ActorTest, ActorTestImpl
+from .actor import (
+    Actor, ActorImpl, actor_args, ActorTest, ActorTestImpl, actor_args
+)
 
 from .process_manager import ProcessManager
 

@@ -45,16 +45,8 @@ class MQTTTestImpl(MQTTTest):
         implementations["TransportMQTT"].__init__(self,
             implementations, name, protocol, tags, transport)
 
-        self.state = {
-            "lifecycle": "ready",
-            "log_level": get_log_level_name(_LOGGER),
-            "source_file": f"v{_VERSION}⇒{__file__}",
-            "message": None
-        }
-        self.ec_producer = ECProducer(self, self.state)
-        self.ec_producer.add_handler(self._ec_producer_change_handler)
-
-        self.add_message_handler(self._topic_in_handler, self.topic_in)
+        self.state["source_file"] = f"v{_VERSION}⇒{__file__}"
+        self.state["message"] = None
 
         self.actor_discovery = ActorDiscovery(self)
         tags = "*"  # ["class=AlohaHonuaActor"]  # TODO: CLI parameter
@@ -72,14 +64,8 @@ class MQTTTestImpl(MQTTTest):
         else:
             _LOGGER.debug(f"{command}: {service_details}")
 
-    def _ec_producer_change_handler(self, command, item_name, item_value):
-        if item_name == "log_level":
-            _LOGGER.setLevel(str(item_value).upper())
-
-    def _topic_in_handler(self, _aiko, topic, payload_in):
-        command, parameters = parse(payload_in)
-# TODO: Apply proxy automatically for Actor and not manually here
-        self._post_message(actor.Topic.IN, command, parameters)
+    def get_logger(self):
+        return _LOGGER
 
     def test(self, message):
         _LOGGER.info(f"{self.name}: test({message})")

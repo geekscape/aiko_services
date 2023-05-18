@@ -16,14 +16,14 @@
   "pipeline": {
     "local": [
       { "name":   "PE_0",
-        "module": "pipeline.py",
+        "module": "pipeline_local.py",
         "input":  [{ "name": "value_0",
                      "type": "int" }],
         "output": [{ "name": "value_1",
                      "type": "int" }]
       },
       { "name":   "PE_1",
-        "module": "pipeline.py",
+        "module": "pipeline_local.py",
         "input":  [{ "name": "value_1",
                      "type": "int" }],
         "output": [{ "name": "value_2",

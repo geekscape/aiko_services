@@ -58,7 +58,7 @@ _LOGGER = get_logger(__name__, log_level=_AIKO_LOG_LEVEL, logging_handler=None)
 _MAXIMUM_WAIT_TIME = 2000  # milliseconds
 
 def _on_message(mqtt_client: Any, userdata: Any, message: Any) -> None:
-    if _LOGGER.isEnabledFor(DEBUG):  # Save time
+    if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
         _LOGGER.debug(f"message: {message.topic}: {message.payload}")
 
 class MQTT(Message):

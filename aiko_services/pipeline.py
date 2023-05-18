@@ -37,9 +37,20 @@
 # To Do
 # ~~~~~
 # - pipeline_2022.py ...
-#   - ServiceDefinition: pads
+#   - ServiceDefinition: pads (name_mapping)
 #   - PipelineElementDefinition(ServiceDefinition): service_level_agreement
 #   - PipelineDefinition(PipelineElementDefinition): edges: List[Tuple[PE, PE]]
+#
+# - For local PipelineElements, better module loading, etc
+# - Handle remote PipelineElements
+# - Validate function inputs and outputs against Pipeline Definition
+#
+# - Handle list of sub-graphs
+# - StateMachine support
+#     "graph: [
+#       "(PE_0 default:)",
+#       "(PE_0 streaming: (PE_1 PE_3) (PE_2 PE_3))"
+#     ]
 
 from abc import abstractmethod
 import avro.schema
@@ -49,18 +60,17 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 import json
 import os
-# import queue
 import traceback
 from typing import Any, Dict, List, Tuple
 
 from aiko_services import *
-# from aiko_services.utilities import *
+from aiko_services.utilities import *
 
 __all__ = [
     "Pipeline", "PipelineElement", "PipelineElementImpl", "PipelineImpl"
 ]
 
-SCHEMA_PATHNAME = "pipeline_definition.avsc"
+SCHEMA_PATHNAME = "pipeline_definition.avsc"  # Incorporate into source code ?
 
 ACTOR_TYPE_PIPELINE = "pipeline"
 ACTOR_TYPE_ELEMENT = "pipeline_element"
@@ -71,6 +81,12 @@ _LOGGER = aiko.logger(__name__)
 _VERSION = 0
 
 # --------------------------------------------------------------------------- #
+# TODO: Move into "utilities/graph.py"
+#
+# TODO: Use dataclasses and https://pypi.org/project/json for serialisation
+#       Avro support for classes built with Pydantic
+#       import json;  string = json.dump(...)
+#
 # graph = Graph()
 # node_a = Node("a", None)
 # node_b = Node("b", None)
@@ -78,12 +94,6 @@ _VERSION = 0
 # graph.add(node_a)
 # graph.add(node_b)
 # graph.nodes()
-#
-# TODO: Move into "utilities/graph.py"
-#
-# TODO: Use dataclasses and https://pypi.org/project/json for serialisation
-#       Avro support for classes built with Pydantic
-#       import json;  string = json.dump(...)
 
 from collections import OrderedDict
 
@@ -181,7 +191,7 @@ class Node:
         return f"{self._name}: {list(self._successors)}"
 
 # --------------------------------------------------------------------------- #
-# TODO: Incorporate "pipeline_definition.avsc"
+# TODO: "pipeline_definition.avsc" incorporate into source code ?
 
 SCHEMA = avro.schema.parse(json.dumps({
     "namespace"    : "example.avro",
@@ -298,25 +308,10 @@ class PipelineElementImpl(PipelineElement):
 
     #   print(f"### {self.__class__.__name__}.__init__() invoked")
 
-        self.state = {
-            "lifecycle": "ready",
-            "log_level": get_log_level_name(_LOGGER),
-            "source_file": f"v{_VERSION}⇒{__file__}"
-        }
-        self.ec_producer = ECProducer(self, self.state)
-        self.ec_producer.add_handler(self._ec_producer_change_handler)
+        self.state["source_file"] = f"v{_VERSION}⇒{__file__}"
 
-        self.add_message_handler(self._topic_in_handler, self.topic_in)
-        #   binary=True)
-
-    def _ec_producer_change_handler(self, command, item_name, item_value):
-        if item_name == "log_level":
-            _LOGGER.setLevel(str(item_value).upper())
-
-    def _topic_in_handler(self, _aiko, topic, payload_in):
-        command, parameters = parse(payload_in)
-# TODO: Apply proxy automatically for Actor and not manually here
-        self._post_message(actor.Topic.IN, command, parameters)
+    def get_logger(self):
+        return _LOGGER
 
     def start_stream(self, context, parameters):
         pass
@@ -325,44 +320,6 @@ class PipelineElementImpl(PipelineElement):
         pass
 
 # --------------------------------------------------------------------------- #
-# TODO: Move to own Python source file
-
-class PE_0(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport, definition):
-
-        protocol = "pe_0:0"  # data_source:0
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport, definition)
-
-    def process_frame(self, context, value_0) -> Tuple[bool, dict]:
-        print(f"PE_0: context: {context}, value_0: {value_0}")
-        return True, {"value_1": int(value_0) + 1}
-
-class PE_1(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport, definition):
-
-        protocol = "pe_1:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport, definition)
-
-    def process_frame(self, context, value_1) -> Tuple[bool, dict]:
-        print(f"PE_1: context: {context}, value_1: {value_1}")
-        return True, {"value_2": value_1 + 1}
-
-# --------------------------------------------------------------------------- #
-# TODO: For local PipelineElements, better module loading, etc
-# TODO: Handle remote PipelineElements
-# TODO: Validate function inputs and outputs against Pipeline Definition
-#
-# TODO: Handle parameter name-mapping
-# TODO: Handle list of sub-graphs
-# TODO: StateMachine support
-#         "graph: [
-#           "(PE_0 default:)",
-#           "(PE_0 streaming: (PE_1 PE_3) (PE_2 PE_3))"
-#         ]
 
 class Pipeline(PipelineElement):
     Interface.implementations["Pipeline"] = "__main__.PipelineImpl"
@@ -412,8 +369,19 @@ class PipelineImpl(Pipeline):
             element_instance = None
 
             if element_type_name == PipelineImpl.PE_DEFINITION_LOCAL_NAME:
-                element_module = pipeline_element_definition.module
-                element_class = getattr(__import__("__main__"), element_name)
+                diagnostic = None
+                module_descriptor = pipeline_element_definition.module
+                try:
+                    module = load_module(module_descriptor)
+                    element_class = getattr(module, element_name)
+                except FileNotFoundError:
+                    diagnostic = "found"
+                except Exception:
+                    diagnostic = "loaded"
+                if diagnostic:
+                    message = f"PipelineDefinition: PipelineElement {element_name}: Module {module_descriptor} could not be {diagnostic}"
+                    PipelineImpl._system_exit(pipeline_error, message)
+
                 init_args = {
                     **actor_args(element_name.lower()),
                     "definition": pipeline_element_definition,
@@ -534,21 +502,6 @@ class PipelineImpl(Pipeline):
 
     def stop_stream(self, context):
         pass
-
-# Review ~/play/avro/pipeline_test.py: class PipelineA: implementation
-#        ~/play/avro/zz_new_suggestion.py
-
-# import pipeline_definition_test
-# pipeline_test = PipelineA(pipeline_definition_test.graph)
-
-# frame_queue = queue.Queue()
-# frame = {"input1": {"param1": 1, "param2": 2}}
-# frame_queue.put(frame)
-
-# while True:
-#   frame = frame_queue.get()
-#   result = pipeline_test.run(frame)
-#   handle_result(result)  # TODO: Implement
 
 # --------------------------------------------------------------------------- #
 
