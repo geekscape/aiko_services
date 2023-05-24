@@ -54,7 +54,6 @@ class StorageManagerImpl(StorageManager):
             implementations, name, protocol, tags, transport)
 
         self.connection = sqlite3.connect(database_pathname)
-        self.add_message_handler(self.topic_in_handler, self.topic_in)
 
         self.state = {
             "database_pathname": database_pathname,
@@ -76,11 +75,6 @@ class StorageManagerImpl(StorageManager):
     def test_request(self, topic_path_response, request):
         aiko.message.publish(topic_path_response, "(item_count 1)")
         aiko.message.publish(topic_path_response, f"({request})")
-
-# TODO: Move to ActorImpl
-    def topic_in_handler(self, _aiko, topic, payload_in):
-        command, parameters = parse(payload_in)
-        self._post_message(actor.Topic.IN, command, parameters)
 
 # --------------------------------------------------------------------------- #
 
