@@ -343,9 +343,9 @@ class PipelineImpl(Pipeline):
         self.state["definition_pathname"] = definition_pathname
         self.state["element_count"] = self.pipeline_graph.element_count
 
-        print(f"PIPELINE: {self.pipeline_graph.nodes()}")
-        for node in self.pipeline_graph:
-            print(f"NODE: {node.name}")
+    #   print(f"PIPELINE: {self.pipeline_graph.nodes()}")
+    #   for node in self.pipeline_graph:
+    #       print(f"NODE: {node.name}")
 
     def _create_pipeline(self, definition):
         pipeline_error = f"Error: Creating Pipeline: {definition.name}"
@@ -461,7 +461,6 @@ class PipelineImpl(Pipeline):
             node_head, node_successors = parse(sub_graph)
 
         message = f"PipelineDefinition parsed: {pipeline_definition_pathname}"
-        print(message)
         _LOGGER.info(message)
         return(pipeline_definition)
 

@@ -4,7 +4,7 @@
   "runtime": "python",
 
   "graph": [
-    "(PE_0 PE_1)"
+    "(PE_0 (PE_1 PE_3) (PE_2 PE_3))"
   ],
 
   "parameters": {
@@ -17,17 +17,24 @@
     "local": [
       { "name":   "PE_0",
         "module": "pipeline_local.py",
-        "input":  [{ "name": "value_0",
-                     "type": "int" }],
-        "output": [{ "name": "value_1",
-                     "type": "int" }]
+        "input":  [{ "name": "a", "type": "int" }],
+        "output": [{ "name": "b", "type": "int" }]
       },
       { "name":   "PE_1",
         "module": "pipeline_local.py",
-        "input":  [{ "name": "value_1",
-                     "type": "int" }],
-        "output": [{ "name": "value_2",
-                     "type": "int" }]
+        "input":  [{ "name": "b", "type": "int" }],
+        "output": [{ "name": "c", "type": "int" }]
+      },
+      { "name":   "PE_2",
+        "module": "pipeline_local.py",
+        "input":  [{ "name": "b", "type": "int" }],
+        "output": [{ "name": "d", "type": "int" }]
+      },
+      { "name":   "PE_3",
+        "module": "pipeline_local.py",
+        "input":  [{ "name": "c", "type": "int" },
+                   { "name": "d", "type": "int" }],
+        "output": [{ "name": "e", "type": "int" }]
       }
     ]
   }
