@@ -36,6 +36,13 @@
 #
 # To Do
 # ~~~~~
+# - pipeline_2020.py ...
+#   - DataSources and DataTargets support
+#   - Replace "message queues" with "mailboxes"
+#   - Streams support
+#   - StateMachine support
+#   - RTSP and WebRTC GStreamer pipeline support for HL Live
+#
 # - pipeline_2022.py ...
 #   - ServiceDefinition: pads (name_mapping)
 #   - PipelineElementDefinition(ServiceDefinition): service_level_agreement
@@ -43,6 +50,8 @@
 #
 # - For local PipelineElements, better module loading, etc
 # - Handle remote PipelineElements
+#   - Collect "topic_path", etc into a "service_filter" structure
+# - Collect "local" and "remote" into "deployment" configuration structure
 # - Validate function inputs and outputs against Pipeline Definition
 #
 # - Handle list of sub-graphs
@@ -247,7 +256,7 @@ class PipelineDefinitionLocal(PipelineDefinition):
 class PipelineDefinitionRemote(PipelineDefinition):
     pipeline: List[PipelineElementDefinitionRemote]
 
-# PipelineGraph supports multiple different PipelineElement types.
+# PipelineGraph supports multiple different PipelineElement types
 # However, current PipelineEngines are either "local" or "remote", not both
 
 class PipelineGraph(Graph):

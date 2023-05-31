@@ -3,7 +3,9 @@
   "name":    "pipe_remote",
   "runtime": "python",
 
-  "graph": [],
+  "graph": [
+	    "(PE_0 PE_1)"
+	],
 
   "parameters": {
     "parameter_0": null,
@@ -14,22 +16,22 @@
   "pipeline": {
     "remote": [
       { "topic_path": "*",
-        "name":       "PE_0",
+        "name":       "*",
         "owner":      "*",
         "protocol":   "*",
         "transport":  "*",
-        "tags":       "*",
-        "input":      { "type": "image" },
-        "output":     { "type": "image" }
+        "tags":       "name=pipe_local_0",
+        "input":      [{ "name": "a", "type": "int" }],
+        "output":     [{ "name": "b", "type": "int" }]
       },
       { "topic_path": "*",
-        "name":       "PE_1",
+        "name":       "*",
         "owner":      "*",
         "protocol":   "*",
         "transport":  "*",
-        "tags":       "*",
-        "input":      { "type": "image" },
-        "output":     { "type": "image" }
+        "tags":       "name=pipe_local_1",
+        "input":      [{ "name": "b", "type": "int" }],
+        "output":     [{ "name": "c", "type": "int" }]
       }
     ]
   }

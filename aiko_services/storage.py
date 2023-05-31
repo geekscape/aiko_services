@@ -69,6 +69,9 @@ class StorageManagerImpl(StorageManager):
         if item_name == "log_level":
             _LOGGER.setLevel(str(item_value).upper())
 
+    def get_logger(self):
+        return _LOGGER
+
     def test_command(self, parameter):
         print(f"Command: test_command({parameter})")
 

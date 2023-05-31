@@ -59,6 +59,9 @@
 # ~~~~~
 # - If default ActorImpl is too heavy, then create lightweight ActorCoreImpl
 #
+# * Improve ActorImpl, so that all other Actor implementations don't need
+#     to implement the same boilerplate get_logger() method
+#
 # * Provide "priority" mailbox for internal requirements, e.g
 #   - If an Exception is raised during initialization / setup,
 #     then post a "(raise_exception exception)" message to the mailbox
@@ -67,8 +70,6 @@
 #   * Specify framework generated unique Actor name as ...
 #         Fully Qualified Name: (actortype namespace/host/pid/sid)
 #         Short Name: actortype/pid/sid  # for human input and display
-#     * Improve Topic Path to support multiple Actors in the same process ...
-#           namespace/host/pid/sid
 #     - Allow multiple Actors in the same process to share ECConsumer instance
 #       - Must support Pipeline --> PipelineElements in the same process !
 #         All would share ECConsumers for ServiceDiscovery and LifeCycleClient
@@ -110,9 +111,6 @@ __all__ = ["Actor", "ActorImpl", "ActorTest", "ActorTestImpl", "actor_args"]
 
 _AIKO_LOG_LEVEL_ACTOR = os.environ.get("AIKO_LOG_LEVEL_ACTOR", "INFO")
 _LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_ACTOR)
-
-class LifeCycleClient:  # Interface
-    pass
 
 class Message:
     def __init__(self, target_object, command, arguments, target_function=None):
@@ -286,6 +284,9 @@ class ActorTestImpl(ActorTest):  # TODO: Move into "../examples/"
             implementations, name, protocol, tags, transport)
 
         self.test_count = None
+
+    def get_logger(self):
+        return _LOGGER
 
     def initialize(self):
         self.control_test(0)

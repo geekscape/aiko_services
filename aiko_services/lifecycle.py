@@ -331,6 +331,9 @@ class LifeCycleManagerTestImpl(LifeCycleManagerTest):
                     self.lcm_create_client(CLIENT_SHELL_COMMAND)
                 time.sleep(0.01)
 
+    def get_logger(self):
+        return _LOGGER
+
     def _lifecycle_client_change_handler(
         self, client_id, command, item_name, item_value):
 
@@ -414,6 +417,9 @@ class LifeCycleClientTestImpl(LifeCycleClientTest):
 
         implementations["LifeCycleClient"].__init__(self, implementations,
             client_id, lifecycle_manager_topic, self.ec_producer)
+
+    def get_logger(self):
+        return _LOGGER
 
 # TODO: When scaling up to lots of LifeCycleClient, every LifeCycleClient
 # receiving the ServiceDetails for every other LifeCycleClient is too much.
