@@ -12,6 +12,8 @@ from .configuration import (
 
 from .context import ContextManager, get_context
 
+from .graph import Graph, Node
+
 from .importer import load_module, load_modules
 
 from .lock import Lock
