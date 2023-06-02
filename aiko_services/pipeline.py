@@ -217,27 +217,9 @@ SCHEMA = avro.schema.parse(json.dumps({
 # TODO: @dataclass: Pipeline:        Graph of PipelineElements, name_mapping ?
 # TODO: @dataclass: PipelineElement: service_level_agreement: low_latency
 
-class PipelineType(Enum):
+class DeployType(Enum):
     LOCAL = "local"
     REMOTE = "remote"
-
-@dataclass
-class PipelineElementDefinitionLocal:
-    name: str
-    module: str
-    input: Dict[str, str]
-    output: Dict[str, str]
-
-@dataclass
-class PipelineElementDefinitionRemote:
-    topic_path: str
-    name: str
-    owner: str
-    protocol: str
-    transport: str
-    tags: str
-    input: Dict[str, str]
-    output: Dict[str, str]
 
 @dataclass
 class PipelineDefinition:
@@ -246,36 +228,43 @@ class PipelineDefinition:
     runtime: str
     graph: List[str]
     parameters: Dict
-    pipeline: [Dict]
+    elements: List
 
 @dataclass
-class PipelineDefinitionLocal(PipelineDefinition):
-    pipeline: List[PipelineElementDefinitionLocal]
+class PipelineElementDefinition:
+    name: str
+    input: Dict[str, str]
+    output: Dict[str, str]
+    deploy: Dict
 
 @dataclass
-class PipelineDefinitionRemote(PipelineDefinition):
-    pipeline: List[PipelineElementDefinitionRemote]
+class PipelineElementDeployLocal:
+    module: str
 
-# PipelineGraph supports multiple different PipelineElement types
-# However, current PipelineEngines are either "local" or "remote", not both
+@dataclass
+class RemoteServiceFilter:
+    topic_path: str
+    name: str
+    owner: str
+    protocol: str
+    transport: str
+    tags: str
+
+@dataclass
+class PipelineElementDeployRemote:
+    service_filter: RemoteServiceFilter
 
 class PipelineGraph(Graph):
 
     def __init__(self, head_nodes=None):
         super().__init__(head_nodes)
-        self._type_set = set()  # of PipelineType
 
-    def add_element(self, element, element_type_name):
-        self._type_set.add(element_type_name)
+    def add_element(self, element):
         self.add(element)
 
     @property
     def element_count(self):
         return len(self._graph)
-
-    @property
-    def type_set(self):
-        return self._type_set
 
 # --------------------------------------------------------------------------- #
 
@@ -334,12 +323,12 @@ class Pipeline(PipelineElement):
     Interface.implementations["Pipeline"] = "__main__.PipelineImpl"
 
 class PipelineImpl(Pipeline):
-    PE_DEFINITION_LOOKUP = {
-        PipelineType.LOCAL.value: PipelineElementDefinitionLocal,
-        PipelineType.REMOTE.value: PipelineElementDefinitionRemote
+    DEPLOY_TYPE_LOOKUP = {
+        DeployType.LOCAL.value: PipelineElementDeployLocal,
+        DeployType.REMOTE.value: PipelineElementDeployRemote
     }
-    PE_DEFINITION_LOCAL_NAME = PipelineElementDefinitionLocal.__name__
-    PE_DEFINITION_REMOTE_NAME = PipelineElementDefinitionRemote.__name__
+    DEPLOY_TYPE_LOCAL_NAME = PipelineElementDeployLocal.__name__
+    DEPLOY_TYPE_REMOTE_NAME = PipelineElementDeployRemote.__name__
 
     def __init__(self,
         implementations, name, protocol, tags, transport,
@@ -359,27 +348,22 @@ class PipelineImpl(Pipeline):
     def _create_pipeline(self, definition):
         pipeline_error = f"Error: Creating Pipeline: {definition.name}"
 
-        if len(definition.pipeline) == 0:
+        if len(definition.elements) == 0:
             message = "PipelineDefinition: Doesn't define any PipelineElements"
             PipelineImpl._system_exit(pipeline_error, message)
 
         node_heads, node_successors = Graph.traverse(definition.graph)
         pipeline_graph = PipelineGraph(node_heads)
 
-        for pipeline_element_definition in definition.pipeline:
-            # Check PipelineElements are all of the same type
-            element_type_name = type(pipeline_element_definition).__name__
-            if pipeline_graph.type_set:
-                if not element_type_name in pipeline_graph.type_set:
-                    message = "PipelineDefinition: PipelineElements must be either local or remote"
-                    PipelineImpl._system_exit(pipeline_error, message)
-
-            element_name = pipeline_element_definition.name
+        for pipeline_element_definition in definition.elements:
             element_instance = None
+            element_name = pipeline_element_definition.name
+            deploy_definition = pipeline_element_definition.deploy
+            deploy_type_name = type(deploy_definition).__name__
 
-            if element_type_name == PipelineImpl.PE_DEFINITION_LOCAL_NAME:
+            if deploy_type_name == PipelineImpl.DEPLOY_TYPE_LOCAL_NAME:
                 diagnostic = None
-                module_descriptor = pipeline_element_definition.module
+                module_descriptor = deploy_definition.module
                 try:
                     module = load_module(module_descriptor)
                     element_class = getattr(module, element_name)
@@ -397,23 +381,17 @@ class PipelineImpl(Pipeline):
                 }
                 element_instance = compose_instance(element_class, init_args)
 
-            if element_type_name == PipelineImpl.PE_DEFINITION_REMOTE_NAME:
-                element_service_filter = ServiceFilter(
-                    pipeline_element_definition.topic_path,
-                    pipeline_element_definition.name,
-                    pipeline_element_definition.owner,
-                    pipeline_element_definition.protocol,
-                    pipeline_element_definition.transport,
-                    pipeline_element_definition.tags)
-                element_instance = None
+            if deploy_type_name == PipelineImpl.DEPLOY_TYPE_REMOTE_NAME:
+                service_filter = ServiceFilter.with_topic_path(
+                    **deploy_definition.service_filter)
 
             if not element_instance:
-                message = f"PipelineDefinition: PipelineElement type unknown: {element_type_name}"
+                message = f"PipelineDefinition: PipelineElement type unknown: {deploy_type_name}"
                 PipelineImpl._system_exit(pipeline_error, message)
 
             element = Node(
                 element_name, element_instance, node_successors[element_name])
-            pipeline_graph.add_element(element, element_type_name)
+            pipeline_graph.add_element(element)
 
         return pipeline_graph
 
@@ -446,24 +424,28 @@ class PipelineImpl(Pipeline):
             message = f'PipelineDefinition: Runtime must be "python", but is "{pipeline_definition.runtime}"'
             PipelineImpl._system_exit(json_error, message)
 
-        if len(pipeline_definition.pipeline.keys()) != 1:
-            message = "PipelineDefinition: PipelineElements must be either local or remote"
-            PipelineImpl._system_exit(json_error, message)
-        pipeline_type = list(pipeline_definition.pipeline.keys())[0]
+        element_definitions = []
+        for element_fields in pipeline_definition.elements:
+            element_definition = PipelineElementDefinition(**element_fields)
 
-        if pipeline_type in PipelineImpl.PE_DEFINITION_LOOKUP:
-            pipeline_element_definition_type =  \
-                PipelineImpl.PE_DEFINITION_LOOKUP[pipeline_type]
-        else:
-            message = f"Unknown Pipeline type: {pipeline_type}"
-            PipelineImpl._system_exit(json_error, message)
+            if len(element_definition.deploy.keys()) != 1:
+                message = f"PipelineDefinition: PipelineElement {element_definition.name} must be either local or remote"
+                PipelineImpl._system_exit(json_error, message)
+            deploy_type = list(element_definition.deploy.keys())[0]
 
-        pipeline_elements = []
-        for pipeline_element in pipeline_definition.pipeline[pipeline_type]:
-            pipeline_element = pipeline_element_definition_type(
-                    **pipeline_element)
-            pipeline_elements.append(pipeline_element)
-        pipeline_definition.pipeline = pipeline_elements
+            if deploy_type in PipelineImpl.DEPLOY_TYPE_LOOKUP:
+                pipeline_element_deploy_type =  \
+                    PipelineImpl.DEPLOY_TYPE_LOOKUP[deploy_type]
+            else:
+                message = f"Unknown Pipeline deploy type: {deploy_type}"
+                PipelineImpl._system_exit(json_error, message)
+            deploy = pipeline_element_deploy_type(
+                **element_definition.deploy[deploy_type])
+            element_definition.deploy = deploy
+
+            element_definitions.append(element_definition)
+
+        pipeline_definition.elements = element_definitions
 
         nodes = {}
         for sub_graph in pipeline_definition.graph:

@@ -1,11 +1,11 @@
 {
   "version": 0,
-  "name":    "pipe_remote",
+  "name":    "pipeline_0",
   "runtime": "python",
 
   "graph": [
-	    "(PE_0 PE_1)"
-	],
+    "(PE_0 PE_1)"
+  ],
 
   "parameters": {
     "parameter_0": null,
@@ -13,26 +13,29 @@
     "parameter_2": "test"
   },
 
-  "pipeline": {
-    "remote": [
-      { "topic_path": "*",
-        "name":       "*",
-        "owner":      "*",
-        "protocol":   "*",
-        "transport":  "*",
-        "tags":       "name=pipe_local_0",
-        "input":      [{ "name": "a", "type": "int" }],
-        "output":     [{ "name": "b", "type": "int" }]
-      },
-      { "topic_path": "*",
-        "name":       "*",
-        "owner":      "*",
-        "protocol":   "*",
-        "transport":  "*",
-        "tags":       "name=pipe_local_1",
-        "input":      [{ "name": "b", "type": "int" }],
-        "output":     [{ "name": "c", "type": "int" }]
+  "elements": [
+    { "name":   "PE_0",
+      "input":  [{ "name": "a", "type": "int" }],
+      "output": [{ "name": "a", "type": "int" }],
+      "deploy": {
+        "local": { "module": "pipeline_local.py" }
       }
-    ]
-  }
+    },
+    { "name":   "PE_1",
+      "input":  [{ "name": "a", "type": "int" }],
+      "output": [{ "name": "e", "type": "int" }],
+      "deploy": {
+        "remote": {
+          "service_filter": {
+            "topic_path": "*",
+            "name":       "pipeline_1",
+            "owner":      "*",
+            "protocol":   "*",
+            "transport":  "*",
+            "tags":       "*"
+          }
+        }
+      }
+    }
+  ]
 }

@@ -212,9 +212,16 @@ class ServiceFields:
         self._tags = value
 
 class ServiceFilter:
-    def __init__(self,
-        topic_paths="*", name="*", protocol="*", transport="*",
-        owner="*", tags="*"):
+    @classmethod
+    def with_topic_path(cls, topic_path="*",
+        name="*", protocol="*", transport="*", owner="*", tags="*"):
+
+        topic_paths = topic_path if topic_path == "*" else [topic_path]
+        return ServiceFilter(
+            topic_paths, name, protocol, transport, owner, tags)
+
+    def __init__(self, topic_paths="*",
+        name="*", protocol="*", transport="*", owner="*", tags="*"):
 
         self.topic_paths = topic_paths
         self.name = name
@@ -227,7 +234,6 @@ class ServiceFilter:
         return f"{self.topic_paths}, {self.name}, "  \
                f"{self.protocol}, {self.transport}, "      \
                f"{self.owner}, {self.tags}"
-
 
 class ServiceTags:  # TODO: Dictionary of keyword / value pairs
     @classmethod

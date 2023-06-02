@@ -32,88 +32,79 @@
       }
     },
 
-    { "name": "pipeline", "type": {
-        "name": "local_or_remote",
-        "type": "record",
-        "fields": [
-          { "name": "local", "type": [
-              { "type": "array",
-                "items": {
+    { "name": "elements", "type": [
+        { "type": "array",
+          "items": {
+            "name": "element",
+            "type": "record",
+            "fields": [
+              { "name": "name",   "type": "string" },
+              { "name": "input",  "type": {
+                  "type": "array", "items": {
+                    "name": "input",
+                    "type": "record",
+                    "fields": [
+                      { "name": "type", "type": "string" },
+                      { "name": "name", "type": "string" }
+                    ]
+                  }
+                }
+              },
+              { "name": "output", "type": {
+                  "type": "array", "items": {
+                    "name": "output",
+                    "type": "record",
+                    "fields": [
+                      { "name": "type", "type": "string" },
+                      { "name": "name", "type": "string" }
+                    ]
+                  }
+                }
+              },
+              { "name": "deploy", "type": {
+                  "name": "deploy_fields",
                   "type": "record",
-                  "name": "local_pipeline_element",
                   "fields": [
-                    { "name": "name",   "type": "string" },
-                    { "name": "module", "type": "string" },
-                    { "name": "input", "type": {
-                        "type": "array", "items": {
-                          "name": "input",
+                    { "name": "local", "type": [
+                        "null",
+                        { "name": "local_fields",
                           "type": "record",
                           "fields": [
-                            { "name": "type", "type": "string" },
-                            { "name": "name", "type": "string" }
+                            { "name": "module", "type": "string" }
                           ]
                         }
-                      }
+                      ]
                     },
-                    { "name": "output", "type": {
-                        "type": "array", "items": {
-                          "name": "output",
+                    { "name": "remote", "type": [
+                        "null",
+                        { "name": "remote_fields",
                           "type": "record",
                           "fields": [
-                            { "name": "type", "type": "string" },
-                            { "name": "name", "type": "string" }
+                            { "name": "service_fields", "type": [
+                                { "name": "service_filter",
+                                  "type": "record",
+                                  "fields": [
+                                    { "name": "topic_path", "type": "string", "default": "*" },
+                                    { "name": "name",       "type": "string", "default": "*" },
+                                    { "name": "owner",      "type": "string", "default": "*" },
+                                    { "name": "protocol",   "type": "string", "default": "*" },
+                                    { "name": "transport",  "type": "string", "default": "*" },
+                                    { "name": "tags",       "type": "string", "default": "*" }
+                                  ]
+                                }
+                              ]
+                            }
                           ]
                         }
-                      }
+                      ]
                     }
                   ]
                 }
-              },
-              "null"
-            ]
-          },
-          { "name": "remote", "type": [
-              { "type": "array",
-                "items": {
-                  "type": "record",
-                  "name": "remote_pipeline_element",
-                  "fields": [
-                    { "name": "topic_path", "type": "string", "default": "*" },
-                    { "name": "name",       "type": "string", "default": "*" },
-                    { "name": "owner",      "type": "string", "default": "*" },
-                    { "name": "protocol",   "type": "string", "default": "*" },
-                    { "name": "transport",  "type": "string", "default": "*" },
-                    { "name": "tags",       "type": "string", "default": "*" },
-                    { "name": "input", "type": {
-                        "type": "array", "items": {
-                          "name": "input",
-                          "type": "record",
-                          "fields": [
-                            { "name": "type", "type": "string" },
-                            { "name": "name", "type": "string" }
-                          ]
-                        }
-                      }
-                    },
-                    { "name": "output", "type": {
-                        "type": "array", "items": {
-                          "name": "output",
-                          "type": "record",
-                          "fields": [
-                            { "name": "type", "type": "string" },
-                            { "name": "name", "type": "string" }
-                          ]
-                        }
-                      }
-                    }
-                  ]
-                }
-              },
-              "null"
+              }
             ]
           }
-        ]
-      }
+        }
+      ]
     }
   ]
 }

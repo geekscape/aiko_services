@@ -1,6 +1,6 @@
 {
   "version": 0,
-  "name":    "pipe_local",
+  "name":    "pipeline_1",
   "runtime": "python",
 
   "graph": [
@@ -13,29 +13,35 @@
     "parameter_2": "test"
   },
 
-  "pipeline": {
-    "local": [
-      { "name":   "PE_0",
-        "module": "pipeline_local.py",
-        "input":  [{ "name": "a", "type": "int" }],
-        "output": [{ "name": "b", "type": "int" }]
-      },
-      { "name":   "PE_1",
-        "module": "pipeline_local.py",
-        "input":  [{ "name": "b", "type": "int" }],
-        "output": [{ "name": "c", "type": "int" }]
-      },
-      { "name":   "PE_2",
-        "module": "pipeline_local.py",
-        "input":  [{ "name": "b", "type": "int" }],
-        "output": [{ "name": "d", "type": "int" }]
-      },
-      { "name":   "PE_3",
-        "module": "pipeline_local.py",
-        "input":  [{ "name": "c", "type": "int" },
-                   { "name": "d", "type": "int" }],
-        "output": [{ "name": "e", "type": "int" }]
+  "elements": [
+    { "name":   "PE_0",
+      "input":  [{ "name": "a", "type": "int" }],
+      "output": [{ "name": "b", "type": "int" }],
+      "deploy": {
+        "local": { "module": "pipeline_local.py" }
       }
-    ]
-  }
+    },
+    { "name":   "PE_1",
+      "input":  [{ "name": "b", "type": "int" }],
+      "output": [{ "name": "c", "type": "int" }],
+      "deploy": {
+        "local": { "module": "pipeline_local.py" }
+      }
+    },
+    { "name":   "PE_2",
+      "input":  [{ "name": "b", "type": "int" }],
+      "output": [{ "name": "d", "type": "int" }],
+      "deploy": {
+        "local": { "module": "pipeline_local.py" }
+      }
+    },
+    { "name":   "PE_3",
+      "input":  [{ "name": "c", "type": "int" },
+                 { "name": "d", "type": "int" }],
+      "output": [{ "name": "e", "type": "int" }],
+      "deploy": {
+        "local": { "module": "pipeline_local.py" }
+      }
+    }
+  ]
 }
