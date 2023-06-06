@@ -253,41 +253,43 @@ class ProcessImplementation(ProcessData):
                     aiko.message.publish(aiko.topic_log, payload_out)
 
     def on_registrar(self, _, topic, payload_in):
-        command, parameters = parse(payload_in)
         action = None
-        registrar = {}
         parse_okay = False
-        if len(parameters) > 0:
-            action = parameters[0]
-            if command == "primary":
-                if len(parameters) == 4 and action == "found":
-                    registrar["topic_path"] = parameters[1]
-                    registrar["version"] = parameters[2]
-                    registrar["timestamp"] = parameters[3]
-                    parse_okay = True
-                if len(parameters) == 1 and action == "absent":
-                    parse_okay = True
+        registrar = {}
+        try:
+            command, parameters = parse(payload_in)
+            if len(parameters) > 0:
+                action = parameters[0]
+                if command == "primary":
+                    if len(parameters) == 4 and action == "found":
+                        registrar["topic_path"] = parameters[1]
+                        registrar["version"] = parameters[2]
+                        registrar["timestamp"] = parameters[3]
+                        parse_okay = True
+                    if len(parameters) == 1 and action == "absent":
+                        parse_okay = True
+            if parse_okay:
+                if action == "found":
+                    aiko.registrar = registrar
+                    aiko.connection.update_state(ConnectionState.REGISTRAR)
 
-        if parse_okay:
-            if action == "found":
-                aiko.registrar = registrar
-                aiko.connection.update_state(ConnectionState.REGISTRAR)
+                    self._services_lock.acquire("on_registrar() #1")
+                    for service in self._services.values():
+                        self._add_service_to_registrar(service)
+                    self._services_lock.release()
 
-                self._services_lock.acquire("on_registrar() #1")
+                if action == "absent":
+                    aiko.registrar = None
+                    aiko.connection.update_state(ConnectionState.TRANSPORT)
+                    if self._registrar_absent_terminate:
+                        self.terminate(1)
+
+                self._services_lock.acquire("on_registrar() #2")
                 for service in self._services.values():
-                    self._add_service_to_registrar(service)
+                    service.registrar_handler_call(action, aiko.registrar)
                 self._services_lock.release()
-
-            if action == "absent":
-                aiko.registrar = None
-                aiko.connection.update_state(ConnectionState.TRANSPORT)
-                if self._registrar_absent_terminate:
-                    self.terminate(1)
-
-            self._services_lock.acquire("on_registrar() #2")
-            for service in self._services.values():
-                service.registrar_handler_call(action, aiko.registrar)
-            self._services_lock.release()
+        except Exception:
+            pass
 
     def set_last_will_and_testament(self,
         topic_lwt, payload_lwt="(absent)", retain_lwt=False):
