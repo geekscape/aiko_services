@@ -54,6 +54,9 @@ class Graph:
             raise KeyError(f"Graph already contains node: {node}")
         self._graph[node.name] = node
 
+    def get_node(self, node_name):
+        return self._graph[node_name]
+
     def nodes(self, as_strings=False):
         nodes = []
         for node in self._graph.values():

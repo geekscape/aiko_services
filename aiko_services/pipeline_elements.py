@@ -17,7 +17,7 @@ class PE_0(PipelineElement):
     def __init__(self,
         implementations, name, protocol, tags, transport, definition):
 
-        protocol = "pe_0:0"  # data_source:0
+        protocol = "increment:0"  # data_source:0
         implementations["PipelineElement"].__init__(self,
             implementations, name, protocol, tags, transport, definition)
 
@@ -30,12 +30,12 @@ class PE_1(PipelineElement):
     def __init__(self,
         implementations, name, protocol, tags, transport, definition):
 
-        protocol = "pe_1:0"
+        protocol = "increment:0"
         implementations["PipelineElement"].__init__(self,
             implementations, name, protocol, tags, transport, definition)
 
     def process_frame(self, context, b) -> Tuple[bool, dict]:
-        c = b + 1
+        c = int(b) + 1
         _LOGGER.info(f"PE_1: {context}, in b: {b}, out c: {c}")
         return True, {"c": c}
 
@@ -43,24 +43,37 @@ class PE_2(PipelineElement):
     def __init__(self,
         implementations, name, protocol, tags, transport, definition):
 
-        protocol = "pe_2:0"
+        protocol = "increment:0"
         implementations["PipelineElement"].__init__(self,
             implementations, name, protocol, tags, transport, definition)
 
-    def process_frame(self, context, b) -> Tuple[bool, dict]:
-        d = b + 1
-        _LOGGER.info(f"PE_2: {context}, in b: {b}, out d: {d}")
+    def process_frame(self, context, c) -> Tuple[bool, dict]:
+        d = int(c) + 1
+        _LOGGER.info(f"PE_2: {context}, in c: {c}, out d: {d}")
         return True, {"d": d}
 
 class PE_3(PipelineElement):
     def __init__(self,
         implementations, name, protocol, tags, transport, definition):
 
-        protocol = "pe_3:0"
+        protocol = "increment:0"
         implementations["PipelineElement"].__init__(self,
             implementations, name, protocol, tags, transport, definition)
 
-    def process_frame(self, context, c, d) -> Tuple[bool, dict]:
-        e = c + d
-        _LOGGER.info(f"PE_3: {context}, in c d: {c} {d}, out: c + d = e: {e}")
+    def process_frame(self, context, c) -> Tuple[bool, dict]:
+        e = int(c) + 1
+        _LOGGER.info(f"PE_2: {context}, in c: {c}, out d: {e}")
         return True, {"e": e}
+
+class PE_4(PipelineElement):
+    def __init__(self,
+        implementations, name, protocol, tags, transport, definition):
+
+        protocol = "sum:0"
+        implementations["PipelineElement"].__init__(self,
+            implementations, name, protocol, tags, transport, definition)
+
+    def process_frame(self, context, d, e) -> Tuple[bool, dict]:
+        f = int(d) + int(e)
+        _LOGGER.info(f"PE_3: {context}, in d, e {d} {e}, out: d + e = f: {f}")
+        return True, {"f": f}

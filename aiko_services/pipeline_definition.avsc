@@ -80,7 +80,8 @@
                         { "name": "remote_fields",
                           "type": "record",
                           "fields": [
-                            { "name": "service_fields", "type": [
+                            { "name": "module", "type": "string" },
+                            { "name": "service_filter", "type": [
                                 { "name": "service_filter",
                                   "type": "record",
                                   "fields": [

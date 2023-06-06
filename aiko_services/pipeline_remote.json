@@ -1,6 +1,6 @@
 {
   "version": 0,
-  "name":    "pipeline_0",
+  "name":    "pipeline_x",
   "runtime": "python",
 
   "graph": [
@@ -16,23 +16,20 @@
   "elements": [
     { "name":   "PE_0",
       "input":  [{ "name": "a", "type": "int" }],
-      "output": [{ "name": "a", "type": "int" }],
+      "output": [{ "name": "b", "type": "int" }],
       "deploy": {
-        "local": { "module": "pipeline_local.py" }
+        "local": { "module": "pipeline_elements.py" }
       }
     },
     { "name":   "PE_1",
-      "input":  [{ "name": "a", "type": "int" }],
-      "output": [{ "name": "e", "type": "int" }],
+      "input":  [{ "name": "b", "type": "int" }],
+      "output": [{ "name": "f", "type": "int" }],
       "deploy": {
         "remote": {
+          "module": "pipeline_elements.py",
           "service_filter": {
-            "topic_path": "*",
-            "name":       "pipeline_1",
-            "owner":      "*",
-            "protocol":   "*",
-            "transport":  "*",
-            "tags":       "*"
+            "topic_path": "*", "name": "pipeline_y",
+            "owner": "*", "protocol": "*", "transport": "*", "tags": "*"
           }
         }
       }
