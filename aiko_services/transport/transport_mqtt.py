@@ -112,16 +112,20 @@ def get_public_methods(protocol_class):
     return public_method_names
 
 def make_proxy_mqtt(target_topic_in, public_method_names):
+    class ServiceRemoteProxy(): pass
+
     def _proxy_send_message(method_name):
         def closure(*args, **kwargs):
-            payload = generate(method_name, args)
+            parameters = args if not kwargs else [args[0], kwargs]
+            payload = generate(method_name, parameters)
             aiko.message.publish(target_topic_in, payload)
         return closure
-    class Proxy(): pass
-    proxy = Proxy()
+
+    service_remote_proxy = ServiceRemoteProxy()
     for method_name in public_method_names:
-        setattr(proxy, method_name, _proxy_send_message(method_name))
-    return proxy
+        setattr(service_remote_proxy,
+            method_name, _proxy_send_message(method_name))
+    return service_remote_proxy
 
 def get_actor_mqtt(target_service_topic_in, protocol_class):
     public_methods = get_public_methods(protocol_class)

@@ -145,7 +145,7 @@ class Message:
             else:
                 diagnostic = f"{self}: isn't callable"
         if diagnostic:
-            raise RuntimeError(diagnostic)  # TODO: Enable traceback option
+        #   raise RuntimeError(diagnostic)  # TODO: Enable traceback option
             _LOGGER.error(diagnostic)  # Was ... raise RuntimeError(diagnostic)
 
 class Topic:

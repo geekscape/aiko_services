@@ -4,7 +4,8 @@
 # ~~~~~
 # AIKO_LOG_LEVEL=DEBUG AIKO_LOG_MQTT=false ./transport/test_mqtt.py create
 #
-# AIKO_LOG_LEVEL=DEBUG AIKO_LOG_MQTT=false ./transport/test_mqtt.py send_message aiko/nomad.local/45812/1/in hello
+# AIKO_LOG_LEVEL=DEBUG AIKO_LOG_MQTT=false ./transport/test_mqtt.py  \
+#                      send_message aiko/nomad.local/45812/1/in hello
 #
 # TODO: ./test_mqtt.py delete
 # TODO: ./test_mqtt.py list [filter]
@@ -90,10 +91,10 @@ def create():
 @click.argument("topic", default=None, required=True)
 @click.argument("message", default=None, required=True)
 def send_message(topic, message):
-    actor_proxy = get_actor_mqtt(topic, MQTTTest)
+    actor_remote_proxy = get_actor_mqtt(topic, MQTTTest)
     aiko.process.initialize()
-    if actor_proxy:
-        actor_proxy.test(message)
+    if actor_remote_proxy:
+        actor_remote_proxy.test(message)
         aiko.message.wait_published()
     else:
         print(f"Actor {topic} not found")

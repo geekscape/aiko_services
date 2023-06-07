@@ -216,7 +216,7 @@ class PipelineElementImpl(PipelineElement):
     def stop_stream(self, context):
         pass
 
-class PipelineElementRemoteImpl(PipelineElement):
+class PipelineElementRemoteAbsent(PipelineElement):
     def __init__(self,
         implementations, name, protocol, tags, transport, definition):
 
@@ -226,8 +226,21 @@ class PipelineElementRemoteImpl(PipelineElement):
         self.state["lifecycle"] = "absent"
 
     def process_frame(self, context, **kwargs) -> Tuple[bool, dict]:
-        _LOGGER.error(f"PipelineElementRemoteImpl.process_frame(): invoked when remote Pipeline Actor hasn't been discovered")
+        _LOGGER.error(f"PipelineElement.process_frame(): {self.definition.name}: invoked when remote Pipeline Actor hasn't been discovered")
         return False, {}
+
+class PipelineElementRemoteFound(PipelineElement):
+    def __init__(self,
+        implementations, name, protocol, tags, transport, definition):
+
+        implementations["PipelineElement"].__init__(self,
+            implementations, name, protocol, tags, transport, definition)
+
+        self.state["lifecycle"] = "ready"
+
+    def process_frame(self, context, **kwargs) -> Tuple[bool, dict]:
+        _LOGGER.info(f"PipelineElementRemoteFound.process_frame(): invoked after remote Pipeline Actor discovered")
+        return True, {}
 
 # --------------------------------------------------------------------------- #
 
@@ -255,6 +268,15 @@ class PipelineImpl(Pipeline):
         self.state["definition_pathname"] = definition_pathname
         self.state["element_count"] = self.pipeline_graph.element_count
 
+    def _error(self, summary_message, detail_message):
+        PipelineImpl._exit(summary_message, detail_message)
+
+    @classmethod
+    def _exit(cls, summary_message, detail_message):
+        diagnostic_message = f"{summary_message}\n{detail_message}"
+        _LOGGER.error(diagnostic_message)
+        raise SystemExit(diagnostic_message)
+
     # TODO: Better visualization of the Pipeline / PipelineElements details
     #   print(f"PIPELINE: {self.pipeline_graph.nodes()}")
     #   for node in self.pipeline_graph:
@@ -265,7 +287,7 @@ class PipelineImpl(Pipeline):
 
         if len(definition.elements) == 0:
             message = "PipelineDefinition: Doesn't define any PipelineElements"
-            PipelineImpl._system_exit(pipeline_error, message)
+            self._error(pipeline_error, message)
 
         node_heads, node_successors = Graph.traverse(definition.graph)
         pipeline_graph = PipelineGraph(node_heads)
@@ -280,14 +302,16 @@ class PipelineImpl(Pipeline):
                 element_class = self._load_element_class(
                     deploy_definition.module, element_name, pipeline_error)
 
+            # TODO: Make sure element_name is correct for remote case
+
             if deploy_type_name == PipelineImpl.DEPLOY_TYPE_REMOTE_NAME:
-                element_class = PipelineElementRemoteImpl
+                element_class = PipelineElementRemoteAbsent
                 service_name = deploy_definition.service_filter["name"]
                 if service_name not in self.remote_pipelines:
                     self.remote_pipelines[service_name] = element_name
                 else:
                     message = f"PipelineDefinition: PipelineElement {element_name}: re-uses the remote service_filter name: {service_name}"
-                    PipelineImpl._system_exit(pipeline_error, message)
+                    self._error(pipeline_error, message)
                 if not self.services_cache:
                     self.services_cache = services_cache_create_singleton(self)
                 service_filter = ServiceFilter.with_topic_path(
@@ -297,7 +321,7 @@ class PipelineImpl(Pipeline):
 
             if not element_class:
                 message = f"PipelineDefinition: PipelineElement type unknown: {deploy_type_name}"
-                PipelineImpl._system_exit(pipeline_error, message)
+                self._error(pipeline_error, message)
 
             init_args = {
                 **actor_args(element_name.lower()),
@@ -324,7 +348,7 @@ class PipelineImpl(Pipeline):
             diagnostic = "loaded"
         if diagnostic:
             message = f"PipelineDefinition: PipelineElement {element_name}: Module {module_descriptor} could not be {diagnostic}"
-            PipelineImpl._system_exit(pipeline_error, message)
+            self._error(pipeline_error, message)
         return element_class
 
     @classmethod
@@ -337,24 +361,24 @@ class PipelineImpl(Pipeline):
         try:
             schema = Schema(SCHEMA_PATHNAME).parse()
         except ValueError as value_error:
-            PipelineImpl._system_exit(schema_error, value_error)
+            PipelineImpl._exit(schema_error, value_error)
 
         try:
             pipeline_definition_dict = json.load(
                 open(pipeline_definition_pathname, "r"))
             schema.validate(pipeline_definition_dict)
         except ValueError as value_error:
-            PipelineImpl._system_exit(json_error, value_error)
+            PipelineImpl._exit(json_error, value_error)
 
         pipeline_definition = PipelineDefinition(**pipeline_definition_dict)
 
         if pipeline_definition.version != 0:
             message = f"PipelineDefinition: Version must be 0, but is {pipeline_definition.version}"
-            PipelineImpl._system_exit(json_error, message)
+            PipelineImpl._exit(json_error, message)
 
         if pipeline_definition.runtime != "python":
             message = f'PipelineDefinition: Runtime must be "python", but is "{pipeline_definition.runtime}"'
-            PipelineImpl._system_exit(json_error, message)
+            PipelineImpl._exit(json_error, message)
 
         element_definitions = []
         for element_fields in pipeline_definition.elements:
@@ -362,7 +386,7 @@ class PipelineImpl(Pipeline):
 
             if len(element_definition.deploy.keys()) != 1:
                 message = f"PipelineDefinition: PipelineElement {element_definition.name} must be either local or remote"
-                PipelineImpl._system_exit(json_error, message)
+                PipelineImpl._exit(json_error, message)
             deploy_type = list(element_definition.deploy.keys())[0]
 
             if deploy_type in PipelineImpl.DEPLOY_TYPE_LOOKUP:
@@ -370,7 +394,7 @@ class PipelineImpl(Pipeline):
                     PipelineImpl.DEPLOY_TYPE_LOOKUP[deploy_type]
             else:
                 message = f"Unknown Pipeline deploy type: {deploy_type}"
-                PipelineImpl._system_exit(json_error, message)
+                PipelineImpl._exit(json_error, message)
             deploy = pipeline_element_deploy_type(
                 **element_definition.deploy[deploy_type])
             element_definition.deploy = deploy
@@ -387,15 +411,9 @@ class PipelineImpl(Pipeline):
         _LOGGER.info(message)
         return(pipeline_definition)
 
-    @classmethod
-    def _system_exit(cls, summary_message, detail_message):
-        diagnostic_message = f"{summary_message}\n{detail_message}"
-        _LOGGER.error(diagnostic_message)
-        raise SystemExit(diagnostic_message)
-
     def _pipeline_element_change_handler(self, command, service_details):
         if command in ["add", "remove"]:
-            print(f"Pipeline update: ({command}: {service_details[0:2]} ...)")
+            print(f"Pipeline change: ({command}: {service_details[0:2]} ...)")
             topic_path = f"{service_details[0]}/in"
             service_name = service_details[1]
             element_name = self.remote_pipelines[service_name]
@@ -403,22 +421,25 @@ class PipelineImpl(Pipeline):
             element_definition = node.element.definition
 
             if command == "add":
+                pipeline_error = f"Error: Updating Pipeline: {element_definition.name}"
+            # TODO: Don't create another PipelineElement Service !
                 element_class = self._load_element_class(
-                    element_definition.deploy.module, element_name, "error")
-                element_proxy = get_actor_mqtt(topic_path, element_class)
-            #   node.element.element = element_proxy
-            #   node.element.element.definition = element_definition
+                    element_definition.deploy.module, element_name,
+                    pipeline_error)
 
             if command == "remove":
-                element_class = PipelineElementRemoteImpl
+                element_class = PipelineElementRemoteAbsent
 
             init_args = {
                 **actor_args(element_name.lower()),
                 "definition": element_definition,
             }
             element_instance = compose_instance(element_class, init_args)
+            if command == "add":
+                element_instance = get_actor_mqtt(topic_path, PipelineElementRemoteFound)
+                element_instance.definition = element_definition
             node._element = element_instance
-            print(f"Pipeline update: {element_name} proxy")
+            print(f"Pipeline update: --> {element_name} proxy")
 
     def process_frame(self, context, swag) -> Tuple[bool, None]:
         _LOGGER.debug(f"Invoking Pipeline: context: {context}, swag: {swag}")
@@ -426,6 +447,7 @@ class PipelineImpl(Pipeline):
 
         for node in self.pipeline_graph:
             element = node.element
+            # TODO: Make sure element_name is correct for remote case
             element_name = element.__class__.__name__
             diagnostic = f'Error: Invoking Pipeline "{definition_pathname}": PipelineElement "{element_name}": process_frame()'
 
@@ -436,14 +458,23 @@ class PipelineImpl(Pipeline):
                     inputs[input_name] = swag[input_name]
                 except KeyError as key_error:
                     MESSAGE = f'Function parameter "{input_name}" not found'
-                    PipelineImpl._system_exit(diagnostic, MESSAGE)
+                    self._error(diagnostic, MESSAGE)
 
+            frame_output = {}
             try:
-                okay, frame_output = element.process_frame(context, **inputs)
+                if element_name != "ServiceRemoteProxy":
+                    okay, frame_output = element.process_frame(
+                        context, **inputs)
+                    # TODO: Check if PipelineElement failed, i.e "okay" status
+                else:
+                    element.process_frame(context, **inputs)
+                    # TODO: Pipeline stream needs to "pause" waiting for result
             except Exception as exception:
-                PipelineImpl._system_exit(diagnostic, traceback.format_exc())
+                self._error(diagnostic, traceback.format_exc())
 
-            swag = {**swag, **frame_output}  # TODO: How can this fail ?
+            swag = {**swag, **frame_output}  # TODO: Consider all failure modes
+
+        # TODO: May need to return the result to a parent Pipeline
         return True, swag
 
     def start_stream(self, context, parameters):
