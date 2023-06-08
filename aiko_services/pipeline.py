@@ -88,8 +88,6 @@ __all__ = [
     "Pipeline", "PipelineElement", "PipelineElementImpl", "PipelineImpl"
 ]
 
-SCHEMA_PATHNAME = "pipeline_definition.avsc"  # Incorporate into source code ?
-
 ACTOR_TYPE_PIPELINE = "pipeline"
 ACTOR_TYPE_ELEMENT = "pipeline_element"
 PROTOCOL_PIPELINE =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_PIPELINE}:0"
@@ -99,7 +97,9 @@ _LOGGER = aiko.logger(__name__)
 _VERSION = 0
 
 # --------------------------------------------------------------------------- #
-# TODO: "pipeline_definition.avsc" incorporate into source code ?
+# TODO: Incorporate "pipeline_definition.avsc" into this source code ?
+
+SCHEMA_PATHNAME = "pipeline_definition.avsc"
 
 SCHEMA = avro.schema.parse(json.dumps({
     "namespace"    : "example.avro",
@@ -113,8 +113,6 @@ SCHEMA = avro.schema.parse(json.dumps({
 }))
 
 # --------------------------------------------------------------------------- #
-# TODO: @dataclass: Pipeline:        Graph of PipelineElements, name_mapping ?
-# TODO: @dataclass: PipelineElement: service_level_agreement: low_latency
 
 class DeployType(Enum):
     LOCAL = "local"
@@ -166,6 +164,8 @@ class PipelineGraph(Graph):
         return len(self._graph)
 
 # --------------------------------------------------------------------------- #
+# Pipeline:        name_mapping ?
+# PipelineElement: service_level_agreement: low_latency, etc
 
 @dataclass
 class FrameContext:
@@ -202,8 +202,6 @@ class PipelineElementImpl(PipelineElement):
 
         implementations["Actor"].__init__(self,
             implementations, name, protocol, tags, transport)
-
-    #   print(f"### {self.__class__.__name__}.__init__() invoked")
 
         self.state["source_file"] = f"v{_VERSION}⇒{__file__}"
 
@@ -268,6 +266,11 @@ class PipelineImpl(Pipeline):
         self.state["definition_pathname"] = definition_pathname
         self.state["element_count"] = self.pipeline_graph.element_count
 
+    # TODO: Better visualization of the Pipeline / PipelineElements details
+    #   print(f"PIPELINE: {self.pipeline_graph.nodes()}")
+    #   for node in self.pipeline_graph:
+    #       print(f"NODE: {node.name}")
+
     def _error(self, summary_message, detail_message):
         PipelineImpl._exit(summary_message, detail_message)
 
@@ -276,11 +279,6 @@ class PipelineImpl(Pipeline):
         diagnostic_message = f"{summary_message}\n{detail_message}"
         _LOGGER.error(diagnostic_message)
         raise SystemExit(diagnostic_message)
-
-    # TODO: Better visualization of the Pipeline / PipelineElements details
-    #   print(f"PIPELINE: {self.pipeline_graph.nodes()}")
-    #   for node in self.pipeline_graph:
-    #       print(f"NODE: {node.name}")
 
     def _create_pipeline(self, definition):
         pipeline_error = f"Error: Creating Pipeline: {definition.name}"
@@ -492,8 +490,8 @@ def main():
 
 @main.command(help="Create Pipeline defined by PipelineDefinition pathname")
 @click.argument("definition_pathname", nargs=1, type=str)
-@click.option("--name", "-n", type=str, default=ACTOR_TYPE_PIPELINE,
-    required=False, help="Pipeline Actor name")
+@click.option("--name", "-n", type=str, default=None, required=False,
+    help="Pipeline Actor name")
 def create(definition_pathname, name):
     if not os.path.exists(SCHEMA_PATHNAME):
         raise SystemExit(
@@ -505,8 +503,9 @@ def create(definition_pathname, name):
 
     pipeline_definition = PipelineImpl.parse_pipeline_definition(
         definition_pathname)
+    name = name if name else pipeline_definition.name
 
-    init_args = actor_args(pipeline_definition.name, PROTOCOL_PIPELINE)
+    init_args = actor_args(name, PROTOCOL_PIPELINE)
     init_args["definition"] = pipeline_definition
     init_args["definition_pathname"] = definition_pathname
     pipeline = compose_instance(PipelineImpl, init_args)

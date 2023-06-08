@@ -77,7 +77,6 @@ _LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_LIFECYCLE)
 _VERSION = 0
 
 # ---------------------------------------------------------------------------- #
-
 # Over time, intend to utilise the Handshake concept more broadly
 #
 #class HandshakeLease(Lease):
