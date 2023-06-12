@@ -8,7 +8,7 @@
 # ~~~~~
 # - Add cv2.set(10, 1) for brightness
 # - Acquire CPU% and display on screen
-# - Button A and "(ml yolo)"
+# - Button A (bottom-right) --> "(ml yolo)"
 # - Send video images over MQTT as an HL DataSource
 # - Send Yolo ML Model inferences over MQTT as an HL DataSource
 #
@@ -65,8 +65,9 @@ ACTIONS = {
 }
 
 BATTERY_MONITOR_PERIOD = 10.0  # seconds
+DETAIL_XY = (10, 20)
 SLEEP_PERIOD = 0.2             # seconds
-STATUS_XY = (10, 230)          # (10, 15)
+STATUS_XY = (10, 235)
 TOPIC_VIDEO = "aiko/video"
 
 # --------------------------------------------------------------------------- #
@@ -79,7 +80,19 @@ class XGORobot(Actor):
         pass
 
     @abstractmethod
-    def arm(self, y, z):
+    def arm(self, x, z):
+        pass
+
+    @abstractmethod
+    def claw(self, grip):  # grip: 0% - 100%
+        pass
+
+    @abstractmethod
+    def reset(self):
+        pass
+
+    @abstractmethod
+    def screen_detail(self, enabled=None):  # enabled: bool, default: toggle
         pass
 
     @abstractmethod
@@ -91,9 +104,10 @@ class XGORobotImpl(XGORobot):
         implementations["Actor"].__init__(self,
             implementations, name, protocol, tags, transport)
 
-        self._xgo = XGO(port='/dev/ttyAMA0', version="xgomini")
+        self._xgo = XGO(port="/dev/ttyAMA0", version="xgomini")
 
         self.state["battery"] = -1
+        self.state["screen_detail"] = False
         self.state["sleep_period"] = SLEEP_PERIOD
         self.state["source_file"] = f"v{_VERSION}⇒{__file__}"
         self.state["topic_video"] = TOPIC_VIDEO
@@ -117,10 +131,21 @@ class XGORobotImpl(XGORobot):
             payload_out = f"(action {action_type})"
             aiko.message.publish(self.topic_out, payload_out)
 
-    def arm(self, y, z):
-        self.xgo(y, z)
-        payload_out = f"(arm {y} {z})"
-        aiko.message.publish(self.topic_out, payload_out)
+    def arm(self, x, z):
+        try:
+            self._xgo.arm(int(x), int(z))
+            payload_out = f"(arm {x} {z})"
+            aiko.message.publish(self.topic_out, payload_out)
+        except:
+            pass
+
+    def claw(self, grip):  # grip: 0% - 100%
+        try:
+            self._xgo.claw(int(grip))
+            payload_out = f"(claw {grip})"
+            aiko.message.publish(self.topic_out, payload_out)
+        except:
+            pass
 
 #   def ec_producer_change_handler(self, command, item_name, item_value):
 #   #   super().ec_producer_change_handler(command, item_name, item_value)
@@ -132,8 +157,12 @@ class XGORobotImpl(XGORobot):
     def _monitor_battery(self):
         self.state["battery"] = self._xgo.read_battery()
         self.ec_producer.update("battery", self.state["battery"])
-        payload_out = f'(battery {self.state["battery"]})'
+        payload_out = f"(battery {self.state['battery']})"
         aiko.message.publish(self.topic_out, payload_out)
+
+    def reset(self):
+        self._xgo.reset()
+        aiko.message.publish(self.topic_out, "(reset)")
 
     def _run(self):
         fps = 0
@@ -144,12 +173,14 @@ class XGORobotImpl(XGORobot):
             image = self._image_to_rgb(image)
             time_process = (time.time() - time_loop) * 1000
 
-            status = f'{self.state["battery"]}%  {time_process:.01f} ms  {fps} FPS'
-            cv2.putText(image, status, STATUS_XY, 0, 0.7, (255, 255, 255), 2)
+            self._screen_overlay(image, fps, time_process)
             self._screen_show(image)
             self._publish_image(image)
 
-            if self._button.press_b():
+            if self._button.press_c():  # Top-left button
+                self.screen_detail()
+
+            if self._button.press_b():  # Bottom-left button
                 self.terminate()
             else:
                 self._sleep()
@@ -172,12 +203,30 @@ class XGORobotImpl(XGORobot):
         payload_out = zlib.compress(payload_out.getvalue())
         aiko.message.publish(self.state["topic_video"], payload_out)
 
+    def screen_detail(self, enabled=None):
+        if enabled == None:  # Toggle "screen_detail" enabled
+            try:
+                enabled = not bool(self.state["screen_detail"])
+            except:
+                enabled = False
+        self.ec_producer.update("screen_detail", enabled)
+        payload_out = f"(screen_detail {enabled})"
+        aiko.message.publish(self.topic_out, payload_out)
+
     def _screen_initialize(self):
         screen = LCD_2inch.LCD_2inch()
         screen.clear()
         image = Image.new("RGB", (screen.height, screen.width), "black")
         screen.ShowImage(image)
         return screen
+
+    def _screen_overlay(self, image, fps, time_process):
+        status = f"{self.state['battery']}%  {time_process:.01f} ms  {fps} FPS"
+        cv2.putText(image, status, STATUS_XY, 0, 0.7, (255, 255, 255), 2)
+
+        if self.state["screen_detail"]:
+            detail = f"{self.topic_path}"
+            cv2.putText(image, detail, DETAIL_XY, 0, 0.7, (255, 255, 255), 2)
 
     def _screen_show(self, image):
         image = Image.fromarray(image)
