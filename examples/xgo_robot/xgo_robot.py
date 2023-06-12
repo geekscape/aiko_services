@@ -6,12 +6,14 @@
 #
 # To Do
 # ~~~~~
+# - Add cv2.set(10, 1) for brightness
 # - Acquire CPU% and display on screen
 # - Button A and "(ml yolo)"
 # - Send video images over MQTT as an HL DataSource
 # - Send Yolo ML Model inferences over MQTT as an HL DataSource
 #
 # - Provide logging, especially for syntax errors and run-time Exceptions
+# - Determine if "xgolib" can be made asychronous (non-blocking) ?
 #
 # - Fix event.add_timer_handler(..., immediate=True)
 #
@@ -31,11 +33,14 @@
 
 from abc import abstractmethod
 import cv2                      # pip install opencv-python
+from io import BytesIO
+import numpy as np              # pip install numpy
 from PIL import Image           # pip install Pillow
 import RPi                      # pip install RPi.GPIO
 import spidev                   # pip install spidev
 from threading import Thread
 import time
+import zlib
 
 from key import Button
 import LCD_2inch
@@ -62,6 +67,7 @@ ACTIONS = {
 BATTERY_MONITOR_PERIOD = 10.0  # seconds
 SLEEP_PERIOD = 0.2             # seconds
 STATUS_XY = (10, 230)          # (10, 15)
+TOPIC_VIDEO = "aiko/video"
 
 # --------------------------------------------------------------------------- #
 
@@ -70,6 +76,10 @@ class XGORobot(Actor):
 
     @abstractmethod
     def action(self, value):
+        pass
+
+    @abstractmethod
+    def arm(self, y, z):
         pass
 
     @abstractmethod
@@ -86,6 +96,7 @@ class XGORobotImpl(XGORobot):
         self.state["battery"] = -1
         self.state["sleep_period"] = SLEEP_PERIOD
         self.state["source_file"] = f"v{_VERSION}⇒{__file__}"
+        self.state["topic_video"] = TOPIC_VIDEO
         self.state["version_firmware"] = self._xgo.read_firmware()
         self.state["version_xgolib"] = self._xgo.read_lib_version()
 
@@ -99,12 +110,17 @@ class XGORobotImpl(XGORobot):
         self._thread = Thread(target=self._run).start()
         self._xgo.claw(0)  # Show signs of life !
 
-    # Blocks robot (all threads) until action is completed :(
+    # Review "xgolib": Blocks robot (all threads) until action is completed :(
     def action(self, action_type):
         if action_type in ACTIONS:
             self._xgo.action(ACTIONS[action_type])
             payload_out = f"(action {action_type})"
             aiko.message.publish(self.topic_out, payload_out)
+
+    def arm(self, y, z):
+        self.xgo(y, z)
+        payload_out = f"(arm {y} {z})"
+        aiko.message.publish(self.topic_out, payload_out)
 
 #   def ec_producer_change_handler(self, command, item_name, item_value):
 #   #   super().ec_producer_change_handler(command, item_name, item_value)
@@ -124,12 +140,14 @@ class XGORobotImpl(XGORobot):
         while not self._terminated:
             time_loop = time.time()
             status, image = self._camera.read()
+            image = cv2.flip(image, 1)
             image = self._image_to_rgb(image)
             time_process = (time.time() - time_loop) * 1000
 
             status = f'{self.state["battery"]}%  {time_process:.01f} ms  {fps} FPS'
             cv2.putText(image, status, STATUS_XY, 0, 0.7, (255, 255, 255), 2)
             self._screen_show(image)
+            self._publish_image(image)
 
             if self._button.press_b():
                 self.terminate()
@@ -146,8 +164,13 @@ class XGORobotImpl(XGORobot):
     def _image_to_rgb(self, image):
         b, g, r = cv2.split(image)
         image = cv2.merge((r, g, b))
-        image = cv2.flip(image, 1)
         return image
+
+    def _publish_image(self, image):
+        payload_out = BytesIO()
+        np.save(payload_out, image, allow_pickle=True)
+        payload_out = zlib.compress(payload_out.getvalue())
+        aiko.message.publish(self.state["topic_video"], payload_out)
 
     def _screen_initialize(self):
         screen = LCD_2inch.LCD_2inch()
@@ -166,7 +189,6 @@ class XGORobotImpl(XGORobot):
                 period = float(self.state["sleep_period"])
             except:
                 period = SLEEP_PERIOD
-        print(period)
         time.sleep(period)
 
     def terminate(self, immediate=False):

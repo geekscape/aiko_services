@@ -1,4 +1,11 @@
 #!/bin/bash
+#
+# To Do
+# ~~~~~
+# - Use discover to find topic_path
+# - Combine "action.sh" and "terminate.sh"
+# - Create shared code base: common.sh
+# - "terminate.sh" option to shutdown robot
 
 ACTION=${1:-sit}
 

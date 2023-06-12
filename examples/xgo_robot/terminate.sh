@@ -1,4 +1,11 @@
 #!/bin/bash
+#
+# To Do
+# ~~~~~
+# - Use discover to find topic_path
+# - Combine "action.sh" and "terminate.sh"
+# - Create shared code base: common.sh
+# - "terminate.sh" option to shutdown robot
 
 AIKO_MQTT_HOST=geekscape.freeddns.org
 ROBOT_HOSTNAME=laika
