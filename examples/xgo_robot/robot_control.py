@@ -103,12 +103,11 @@ class RobotControlImpl(RobotControl):
         image = self._image_to_bgr(image)
         cv2.imshow("xgo_robot", self._image_resize(image))
         key = cv2.waitKey(1) & 0xff
-        print(key)
         if key == ord("r"):
             payload_out = "(reset)"
             aiko.message.publish(
                 f"{self.state['robot_topic']}/in", payload_out)
-            payload_out = "(claw 0)"
+            payload_out = "(claw 128)"
             aiko.message.publish(
                 f"{self.state['robot_topic']}/in", payload_out)
         if key == ord("s"):
