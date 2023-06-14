@@ -5,7 +5,7 @@
 # python -i -c "import z"
 # >>> z.xgo.read_battery()
 # >>> z.xgo.arm(80, -80)
-# >>> z.xgo.pitch(10)  # Pitch face down (don't want arm to hit the floor)
+# >>> z.zgo.attitude("p", 10)  # Pitch face down (keep arm above the floor)
 #
 # >>> z.xgo.claw(0)
 # >>> z.zgo.attitude("p", 15)  # Pitch face down (maximum)

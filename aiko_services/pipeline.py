@@ -47,7 +47,7 @@
 #   - RTSP and WebRTC GStreamer pipeline support for HL Live
 #
 # - pipeline_2022.py ...
-#   - ServiceDefinition: pads (name_mapping)
+#   - ServiceDefinition: fan-out, fan-in and name_mapping
 #   - PipelineElementDefinition(ServiceDefinition): service_level_agreement
 #   - PipelineDefinition(PipelineElementDefinition): edges: List[Tuple[PE, PE]]
 #

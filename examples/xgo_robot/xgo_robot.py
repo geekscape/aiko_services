@@ -6,6 +6,13 @@
 #
 # To Do
 # ~~~~~
+# - Add "period" to "move(direction, stride)" and "turn(speed)"
+#
+# - Implement (lamda NAME (COMMAND ...) (COMMAND ...)) --> saved as "NAME"
+#   - (remove NAME), (run NAME) --> run in background thread
+#   - (sleep TIME), (do NAME FROM TO INCREMENT)
+#   - Nod head for "yes" or "no"
+#
 # - Add cv2.set(10, 1) for brightness
 # - Acquire CPU% and display on screen
 # - Button A (bottom-right) --> "(ml yolo)"
@@ -32,12 +39,12 @@
 # - ROS2 integration
 
 from abc import abstractmethod
-import cv2                      # pip install opencv-python
+import cv2              # pip install opencv-python
 from io import BytesIO
-import numpy as np              # pip install numpy
-from PIL import Image           # pip install Pillow
-import RPi                      # pip install RPi.GPIO
-import spidev                   # pip install spidev
+import numpy as np
+from PIL import Image
+import RPi              # pip install RPi.GPIO
+import spidev
 from threading import Thread
 import time
 import zlib
@@ -80,12 +87,28 @@ class XGORobot(Actor):
         pass
 
     @abstractmethod
-    def arm(self, x, z):
+    def arm(self, x, z):  # x: -80 to 155, z: -95 to 155
         pass
 
     @abstractmethod
-    def claw(self, grip):  # grip: 0% - 100%
+    def arm_mode(self, stabilize):  # stabilize: true or false
         pass
+
+    @abstractmethod                                    # pitch: -15 to 15
+    def attitude(pitch="nil", roll="nil", yaw="nil"):  # roll:  -20 to 10
+        pass                                           # yaw:   -11 to 11
+
+    @abstractmethod
+    def body_mode(self, stabilize):  # stabilize: true or false
+        pass
+
+    @abstractmethod
+    def claw(self, grip):  # grip: 0 (open) to 255 (closed) --> 0% to 100%
+        pass
+
+    @abstractmethod                           # direction: "x" or "y"
+    def move(self, direction, stride="nil"):  # stride x:  -25 mm to 25 mm
+        pass                                  # stride y:  -18 mm to 18 mm
 
     @abstractmethod
     def reset(self):
@@ -96,7 +119,19 @@ class XGORobot(Actor):
         pass
 
     @abstractmethod
+    def stop(self):  # stop moving or rotating
+        pass
+
+    @abstractmethod
     def terminate(self, immediate=False):
+        pass
+
+    @abstractmethod                              # x: -35 (back) to 35 (forward)
+    def translation(x="nil", y="nil", z="nil"):  # y: -18 (left) to 18 (right)
+        pass                                     # z:  75 (down) to 115 (up)
+
+    @abstractmethod
+    def turn(self, speed):  # speed: -100 (clockwise) to 100 degrees / second
         pass
 
 class XGORobotImpl(XGORobot):
@@ -119,10 +154,18 @@ class XGORobotImpl(XGORobot):
 
         self._button = Button()
         self._camera = self._camera_initialize()
+        self._direction = "x"
+        self._pitch = 0
+        self._roll = 0
         self._screen = self._screen_initialize()
+        self._stride = 0
         self._terminated = False
         self._thread = Thread(target=self._run).start()
+        self._x = 0
         self._xgo.claw(0)  # Show signs of life !
+        self._y = 0
+        self._yaw = 0
+        self._z = 0
 
     # Review "xgolib": Blocks robot (all threads) until action is completed :(
     def action(self, action_type):
@@ -139,6 +182,44 @@ class XGORobotImpl(XGORobot):
         except:
             pass
 
+    def arm_mode(self, stabilize):
+        stabilize = 1 if stabilize == "true" else 0
+        self._xgo.arm_mode(stabilize)
+        payload_out = f"(arm_mode {stabilize})"
+        aiko.message.publish(self.topic_out, payload_out)
+
+    def attitude(self, pitch="nil", roll="nil", yaw="nil"):
+        try:
+            self._pitch = int(pitch)
+        except:
+            pass
+
+        try:
+            self._roll = int(roll)
+        except:
+            pass
+
+        try:
+            self._yaw = int(yaw)
+        except:
+            pass
+
+        self._xgo.attitude(["p","r","y"], [self._pitch, self._roll, self._yaw])
+        payload_out = f"(attitude {self._pitch} {self._roll} {self._yaw})"
+        aiko.message.publish(self.topic_out, payload_out)
+
+    def body_mode(self, stabilize):
+        stabilize = 1 if stabilize == "true" else 0
+        self._xgo.imu(stabilize)
+        payload_out = f"(body_mode {stabilize})"
+        aiko.message.publish(self.topic_out, payload_out)
+
+    def _camera_initialize(self):
+        camera = cv2.VideoCapture(0)
+        camera.set(3, 320)
+        camera.set(4, 240)
+        return camera
+
     def claw(self, grip):  # grip: 0% - 100%
         try:
             self._xgo.claw(int(grip))
@@ -154,14 +235,40 @@ class XGORobotImpl(XGORobot):
     def get_logger(self):
         return _LOGGER
 
+    def _image_to_rgb(self, image):
+        b, g, r = cv2.split(image)
+        image = cv2.merge((r, g, b))
+        return image
+
     def _monitor_battery(self):
         self.state["battery"] = self._xgo.read_battery()
         self.ec_producer.update("battery", self.state["battery"])
         payload_out = f"(battery {self.state['battery']})"
         aiko.message.publish(self.topic_out, payload_out)
 
+    def move(self, direction, stride="nil"):
+        self._direction = "y" if direction == "y" else "x"
+        try:
+            self._stride = int(stride)
+        except:
+            pass
+
+        self._xgo.move(self._direction, self._stride)
+        payload_out = f"(move {self._direction} {self._stride})"
+        aiko.message.publish(self.topic_out, payload_out)
+
+    def _publish_image(self, image):
+        payload_out = BytesIO()
+        np.save(payload_out, image, allow_pickle=True)
+        payload_out = zlib.compress(payload_out.getvalue())
+        aiko.message.publish(self.state["topic_video"], payload_out)
+
     def reset(self):
         self._xgo.reset()
+        self._pitch = self._roll = self._yaw = 0
+        self._x = self._y = self._z = 0
+        self._direction = "x"
+        self._stride = 0
         aiko.message.publish(self.topic_out, "(reset)")
 
     def _run(self):
@@ -185,23 +292,6 @@ class XGORobotImpl(XGORobot):
             else:
                 self._sleep()
             fps = int(1 / (time.time() - time_loop))
-
-    def _camera_initialize(self):
-        camera = cv2.VideoCapture(0)
-        camera.set(3, 320)
-        camera.set(4, 240)
-        return camera
-
-    def _image_to_rgb(self, image):
-        b, g, r = cv2.split(image)
-        image = cv2.merge((r, g, b))
-        return image
-
-    def _publish_image(self, image):
-        payload_out = BytesIO()
-        np.save(payload_out, image, allow_pickle=True)
-        payload_out = zlib.compress(payload_out.getvalue())
-        aiko.message.publish(self.state["topic_video"], payload_out)
 
     def screen_detail(self, enabled=None):
         if enabled == None:  # Toggle "screen_detail" enabled
@@ -240,11 +330,46 @@ class XGORobotImpl(XGORobot):
                 period = SLEEP_PERIOD
         time.sleep(period)
 
+    def stop(self):
+        self._xgo.stop()
+        self._direction = "x"
+        self._stride = 0
+        payload_out = f"(stop)"
+        aiko.message.publish(self.topic_out, payload_out)
+
     def terminate(self, immediate=False):
         self._xgo.reset()
         self._xgo.claw(128)
         aiko.process.terminate()
         self._terminated = True
+
+    def translation(self, x="nil", y="nil", z="nil"):
+        try:
+            self._x = int(x)
+        except:
+            pass
+
+        try:
+            self._y = int(y)
+        except:
+            pass
+
+        try:
+            self._z = int(z)
+        except:
+            pass
+
+        self._xgo.translation(["x", "y", "z"], [self._x, self._y, self._z])
+        payload_out = f"(attitude {self._x} {self._y} {self._z})"
+        aiko.message.publish(self.topic_out, payload_out)
+
+    def turn(self, speed):  # speed: -100 (clockwise) to 100 degrees / second
+        try:
+            self._xgo.turn(int(speed))
+            payload_out = f"(turn {speed})"
+            aiko.message.publish(self.topic_out, payload_out)
+        except:
+            pass
 
 # --------------------------------------------------------------------------- #
 
