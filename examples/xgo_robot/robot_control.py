@@ -26,6 +26,7 @@
 # ~~~~~
 # - Discover "xgo_robot" Actor and use "topic_path/video" instead
 #   - When absent, display a video image that shows "robot not found"
+#   - Replace low-level aiko.message.publish() with high-level function calls
 #
 # - Keyboard commands: Display "help" on screen, key='?' ...
 #   - Reset (R)
@@ -60,6 +61,7 @@ ACTOR_TYPE_UI = "robot_control"
 PROTOCOL_UI = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_UI}:0"
 ACTOR_TYPE_VIDEO_TEST = "video_test"
 PROTOCOL_VIDEO_TEST = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_VIDEO_TEST}:0"
+TOPIC_SPEECH = "aiko/speech"
 TOPIC_VIDEO = "aiko/video"
 
 _LOGGER = aiko.logger(__name__)
@@ -87,7 +89,67 @@ class RobotControlImpl(RobotControl):
         self.state["source_file"] = f"v{_VERSION}⇒{__file__}"
         self.state["topic_video"] = TOPIC_VIDEO
 
+        self.add_message_handler(self.speech, TOPIC_SPEECH)
         self.add_message_handler(self.image, TOPIC_VIDEO, binary=True)
+
+    def speech(self, aiko, topic, payload_in):
+        try:
+            command, parameters = parse(payload_in)
+            if command == "speech" and len(parameters) == 1:
+                speech = parameters[0]
+                topic_out = f"{self.state['robot_topic']}/in"
+                payload_out = None
+                stop = False
+                if "reset" in speech:
+                    payload_out = "(reset)"
+                elif "stop" in speech:
+                    payload_out = "(stop)"
+                elif "forward" in speech:
+                    stop = True
+                    payload_out = "(move x 10)"
+                elif "backward" in speech:
+                    stop = True
+                    payload_out = "(move x -10)"
+                elif "turn" in speech:
+                    stop = True
+                    if "left" in speech:
+                        payload_out = "(turn 40)"
+                    if "right" in speech:
+                        payload_out = "(turn -40)"
+                elif "arm" in speech:
+                    if "raise" in speech:
+                        payload_out = "(arm 80 80)"
+                    if "lower" in speech:
+                        payload_out = "(arm 130 -40)"
+                elif "claw" in speech:
+                    if "open" in speech:
+                        payload_out = "(claw 0)"
+                    if "close" in speech:
+                        payload_out = "(claw 255)"
+                elif "pitch" in speech:
+                    if "down" in speech:
+                        payload_out = "(attitude 15 0 0)"
+                    if "up" in speech:
+                        payload_out = "(attitude 0 0 0)"
+                elif "crawl" in speech:
+                    payload_out = "(action crawl)"
+                elif "whiz" in speech:
+                    payload_out = "(action whiz)"
+                elif "sit" in speech:
+                    payload_out = "(action sit)"
+                elif "sniff" in speech:
+                    payload_out = "(action sniff)"
+                elif "stretch" in speech:
+                    payload_out = "(action stretch)"
+                elif "wag" in speech:
+                    payload_out = "(action wiggle_tail)"
+
+                if stop:
+                    aiko.message.publish(topic_out, "(stop)")
+                if payload_out:
+                    aiko.message.publish(topic_out, payload_out)
+        except:
+            pass
 
     def get_logger(self):
         return _LOGGER
