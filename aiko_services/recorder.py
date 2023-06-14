@@ -34,8 +34,8 @@ PROTOCOL = f"{ServiceProtocol.AIKO}/{SERVICE_TYPE}:0"
 _LOGGER = aiko.logger(__name__)
 _VERSION = 0
 
-_LRU_CACHE_SIZE = 2  # 128
-_RING_BUFFER_SIZE = 2      # 128
+_LRU_CACHE_SIZE = 2    # 128
+_RING_BUFFER_SIZE = 2  # 128
 
 # --------------------------------------------------------------------------- #
 

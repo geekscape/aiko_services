@@ -37,6 +37,9 @@ class LRUCache:
             self.lru_cache.move_to_end(key)  # update recently used item
             return self.lru_cache[key]
 
+    def get_list(self):
+        return(list(self.lru_cache.values()))
+
     def put(self, key, value):
         self.lru_cache[key] = value
         self.lru_cache.move_to_end(key)  # update recently used item
