@@ -90,6 +90,7 @@ class Graph:
         for subgraph_definition in graph_definition:
             node, successors = parse(subgraph_definition)
             node_heads[node] = node
+            add_successor(node, None)
             traverse_successors(node, successors)
 
         return node_heads, node_successors
