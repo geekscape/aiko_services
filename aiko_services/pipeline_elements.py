@@ -15,11 +15,13 @@ _LOGGER = aiko.logger(__name__)
 
 class PE_0(PipelineElement):
     def __init__(self,
-        implementations, name, protocol, tags, transport, definition):
+        implementations, name, protocol, tags, transport,
+        definition, pipeline):
 
         protocol = "increment:0"  # data_source:0
         implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport, definition)
+            implementations, name, protocol, tags, transport,
+            definition, pipeline)
 
     def process_frame(self, context, a) -> Tuple[bool, dict]:
         b = int(a) + 1
@@ -28,11 +30,13 @@ class PE_0(PipelineElement):
 
 class PE_1(PipelineElement):
     def __init__(self,
-        implementations, name, protocol, tags, transport, definition):
+        implementations, name, protocol, tags, transport,
+        definition, pipeline):
 
         protocol = "increment:0"
         implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport, definition)
+            implementations, name, protocol, tags, transport,
+            definition, pipeline)
 
     def process_frame(self, context, b) -> Tuple[bool, dict]:
         c = int(b) + 1
@@ -41,11 +45,13 @@ class PE_1(PipelineElement):
 
 class PE_2(PipelineElement):
     def __init__(self,
-        implementations, name, protocol, tags, transport, definition):
+        implementations, name, protocol, tags, transport,
+        definition, pipeline):
 
         protocol = "increment:0"
         implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport, definition)
+            implementations, name, protocol, tags, transport,
+            definition, pipeline)
 
     def process_frame(self, context, c) -> Tuple[bool, dict]:
         d = int(c) + 1
@@ -54,11 +60,13 @@ class PE_2(PipelineElement):
 
 class PE_3(PipelineElement):
     def __init__(self,
-        implementations, name, protocol, tags, transport, definition):
+        implementations, name, protocol, tags, transport,
+        definition, pipeline):
 
         protocol = "increment:0"
         implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport, definition)
+            implementations, name, protocol, tags, transport,
+            definition, pipeline)
 
     def process_frame(self, context, c) -> Tuple[bool, dict]:
         e = int(c) + 1
@@ -67,11 +75,13 @@ class PE_3(PipelineElement):
 
 class PE_4(PipelineElement):
     def __init__(self,
-        implementations, name, protocol, tags, transport, definition):
+        implementations, name, protocol, tags, transport,
+        definition, pipeline):
 
         protocol = "sum:0"
         implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport, definition)
+            implementations, name, protocol, tags, transport,
+            definition, pipeline)
 
     def process_frame(self, context, d, e) -> Tuple[bool, dict]:
         f = int(d) + int(e)

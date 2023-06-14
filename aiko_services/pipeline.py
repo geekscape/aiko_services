@@ -164,7 +164,7 @@ class PipelineGraph(Graph):
         return len(self._graph)
 
 # --------------------------------------------------------------------------- #
-# Pipeline:        name_mapping ?
+# Pipeline:        fan-out, fan-in and name_mapping ?
 # PipelineElement: service_level_agreement: low_latency, etc
 
 @dataclass
@@ -194,9 +194,11 @@ class PipelineElement(Actor):
 
 class PipelineElementImpl(PipelineElement):
     def __init__(self,
-        implementations, name, protocol, tags, transport, definition):
-        self.definition = definition
+        implementations, name, protocol, tags, transport,
+        definition, pipeline):
 
+        self.definition = definition
+        self.pipeline = pipeline
         if protocol == None:
             protocol = PROTOCOL_ELEMENT
 
@@ -214,12 +216,17 @@ class PipelineElementImpl(PipelineElement):
     def stop_stream(self, context):
         pass
 
+class PipelineElementRemote(PipelineElement):
+    pass
+
 class PipelineElementRemoteAbsent(PipelineElement):
     def __init__(self,
-        implementations, name, protocol, tags, transport, definition):
+        implementations, name, protocol, tags, transport,
+        definition, pipeline):
 
         implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport, definition)
+            implementations, name, protocol, tags, transport,
+            definition, pipeline)
 
         self.state["lifecycle"] = "absent"
 
@@ -229,10 +236,12 @@ class PipelineElementRemoteAbsent(PipelineElement):
 
 class PipelineElementRemoteFound(PipelineElement):
     def __init__(self,
-        implementations, name, protocol, tags, transport, definition):
+        implementations, name, protocol, tags, transport,
+        definition, pipeline):
 
         implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport, definition)
+            implementations, name, protocol, tags, transport,
+            definition, pipeline)
 
         self.state["lifecycle"] = "ready"
 
@@ -245,6 +254,10 @@ class PipelineElementRemoteFound(PipelineElement):
 class Pipeline(PipelineElement):
     Interface.implementations["Pipeline"] = "__main__.PipelineImpl"
 
+    @abstractmethod
+    def initiate_frame(self, context, swag):
+        pass
+
 class PipelineImpl(Pipeline):
     DEPLOY_TYPE_LOOKUP = {
         DeployType.LOCAL.value: PipelineElementDeployLocal,
@@ -255,10 +268,11 @@ class PipelineImpl(Pipeline):
 
     def __init__(self,
         implementations, name, protocol, tags, transport,
-        definition, definition_pathname=""):
+        definition, pipeline, definition_pathname=""):
 
         implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport, definition)
+            implementations, name, protocol, tags, transport,
+            definition, self)
 
         self.remote_pipelines = {}  # Service name --> PipelineElement name
         self.services_cache = None
@@ -324,6 +338,7 @@ class PipelineImpl(Pipeline):
             init_args = {
                 **actor_args(element_name.lower()),
                 "definition": pipeline_element_definition,
+                "pipeline": self
             }
             element_instance = compose_instance(element_class, init_args)
 
@@ -332,6 +347,9 @@ class PipelineImpl(Pipeline):
             pipeline_graph.add_element(element)
 
         return pipeline_graph
+
+    def initiate_frame(self, context, swag):
+        self._post_message("in", "process_frame", [context, swag])
 
     def _load_element_class(self,
         module_descriptor, element_name, pipeline_error):
@@ -431,6 +449,7 @@ class PipelineImpl(Pipeline):
             init_args = {
                 **actor_args(element_name.lower()),
                 "definition": element_definition,
+                "pipeline": self
             }
             element_instance = compose_instance(element_class, init_args)
             if command == "add":
@@ -442,6 +461,8 @@ class PipelineImpl(Pipeline):
     def process_frame(self, context, swag) -> Tuple[bool, None]:
         _LOGGER.debug(f"Invoking Pipeline: context: {context}, swag: {swag}")
         definition_pathname = self.state["definition_pathname"]
+        if not len(swag):
+            swag = {}
 
         for node in self.pipeline_graph:
             element = node.element
@@ -507,6 +528,7 @@ def create(definition_pathname, name):
 
     init_args = actor_args(name, PROTOCOL_PIPELINE)
     init_args["definition"] = pipeline_definition
+    init_args["pipeline"] = None
     init_args["definition_pathname"] = definition_pathname
     pipeline = compose_instance(PipelineImpl, init_args)
     pipeline.run()
