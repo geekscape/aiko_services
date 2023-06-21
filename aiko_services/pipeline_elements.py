@@ -70,7 +70,7 @@ class PE_3(PipelineElement):
 
     def process_frame(self, context, c) -> Tuple[bool, dict]:
         e = int(c) + 1
-        _LOGGER.info(f"PE_2: {context}, in c: {c}, out d: {e}")
+        _LOGGER.info(f"PE_2: {context}, in c: {c}, out e: {e}")
         return True, {"e": e}
 
 class PE_4(PipelineElement):

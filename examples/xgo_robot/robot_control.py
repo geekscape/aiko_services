@@ -24,6 +24,8 @@
 #
 # To Do
 # ~~~~~
+# - Video image flip on vertical axis for correct orientation (robot view) !
+#
 # - Discover "xgo_robot" Actor and use "topic_path/video" instead
 #   - When absent, display a video image that shows "robot not found"
 #   - Replace low-level aiko.message.publish() with high-level function calls
@@ -61,8 +63,8 @@ ACTOR_TYPE_UI = "robot_control"
 PROTOCOL_UI = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_UI}:0"
 ACTOR_TYPE_VIDEO_TEST = "video_test"
 PROTOCOL_VIDEO_TEST = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_VIDEO_TEST}:0"
-TOPIC_SPEECH = "aiko/speech"
-TOPIC_VIDEO = "aiko/video"
+TOPIC_SPEECH = f"{get_namespace()}/speech"
+TOPIC_VIDEO = f"{get_namespace()}/video"
 
 _LOGGER = aiko.logger(__name__)
 _VERSION = 0
@@ -103,7 +105,7 @@ class RobotControlImpl(RobotControl):
                 if "reset" in speech:
                     payload_out = "(reset)"
                 elif "stop" in speech:
-                    payload_out = "(stop)"
+                    stop = True
                 elif "forward" in speech:
                     stop = True
                     payload_out = "(move x 10)"
@@ -121,7 +123,7 @@ class RobotControlImpl(RobotControl):
                         payload_out = "(arm 80 80)"
                     if "lower" in speech:
                         payload_out = "(arm 130 -40)"
-                elif "claw" in speech:
+                elif "hand" in speech:
                     if "open" in speech:
                         payload_out = "(claw 0)"
                     if "close" in speech:
@@ -134,7 +136,7 @@ class RobotControlImpl(RobotControl):
                 elif "crawl" in speech:
                     payload_out = "(action crawl)"
                 elif "whiz" in speech:
-                    payload_out = "(action whiz)"
+                    payload_out = "(action pee)"
                 elif "sit" in speech:
                     payload_out = "(action sit)"
                 elif "sniff" in speech:
@@ -147,6 +149,8 @@ class RobotControlImpl(RobotControl):
                 if stop:
                     aiko.message.publish(topic_out, "(stop)")
                 if payload_out:
+                    speech = speech.replace(" ", "_")
+                    aiko.message.publish(topic_out, f"(speech {speech})")
                     aiko.message.publish(topic_out, payload_out)
         except:
             pass

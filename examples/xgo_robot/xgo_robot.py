@@ -75,7 +75,7 @@ BATTERY_MONITOR_PERIOD = 10.0  # seconds
 DETAIL_XY = (10, 20)
 SLEEP_PERIOD = 0.2             # seconds
 STATUS_XY = (10, 235)
-TOPIC_VIDEO = "aiko/video"
+TOPIC_VIDEO = f"{get_namespace()}/video"
 
 # --------------------------------------------------------------------------- #
 
