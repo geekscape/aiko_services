@@ -185,11 +185,11 @@ class PipelineElement(Actor):
         pass
 
     @abstractmethod
-    def start_stream(self, context, parameters):
+    def start_stream(self, context, stream_id):
         pass
 
     @abstractmethod
-    def stop_stream(self, context):
+    def stop_stream(self, context, stream_id):
         pass
 
 class PipelineElementImpl(PipelineElement):
@@ -210,10 +210,13 @@ class PipelineElementImpl(PipelineElement):
     def get_logger(self):
         return _LOGGER
 
-    def start_stream(self, context, parameters):
+    def _id(self, context):
+        return f"{self.name}<{context['stream_id']}:{context['frame_id']}>"
+
+    def start_stream(self, context, stream_id):
         pass
 
-    def stop_stream(self, context):
+    def stop_stream(self, context, stream_id):
         pass
 
 class PipelineElementRemote(PipelineElement):
@@ -255,7 +258,15 @@ class Pipeline(PipelineElement):
     Interface.implementations["Pipeline"] = "__main__.PipelineImpl"
 
     @abstractmethod
-    def initiate_frame(self, context, swag):
+    def create_frame(self, context, swag):
+        pass
+
+    @abstractmethod
+    def create_stream(self, stream_id, parameters=None, lease_time=60):
+        pass
+
+    @abstractmethod
+    def destroy_stream(self, stream_id):
         pass
 
 class PipelineImpl(Pipeline):
@@ -293,6 +304,9 @@ class PipelineImpl(Pipeline):
         diagnostic_message = f"{summary_message}\n{detail_message}"
         _LOGGER.error(diagnostic_message)
         raise SystemExit(diagnostic_message)
+
+    def create_frame(self, context, swag):
+        self._post_message("in", "process_frame", [context, swag])
 
     def _create_pipeline(self, definition):
         pipeline_error = f"Error: Creating Pipeline: {definition.name}"
@@ -347,9 +361,6 @@ class PipelineImpl(Pipeline):
             pipeline_graph.add_element(element)
 
         return pipeline_graph
-
-    def initiate_frame(self, context, swag):
-        self._post_message("in", "process_frame", [context, swag])
 
     def _load_element_class(self,
         module_descriptor, element_name, pipeline_error):
@@ -459,10 +470,9 @@ class PipelineImpl(Pipeline):
             print(f"Pipeline update: --> {element_name} proxy")
 
     def process_frame(self, context, swag) -> Tuple[bool, None]:
-        _LOGGER.debug(f"Invoking Pipeline: context: {context}, swag: {swag}")
+    #   _LOGGER.debug(f"Process frame: {self._id(context)}, swag: {swag}")
+        swag = swag if len(swag) else {}
         definition_pathname = self.state["definition_pathname"]
-        if not len(swag):
-            swag = {}
 
         for node in self.pipeline_graph:
             element = node.element
@@ -496,11 +506,20 @@ class PipelineImpl(Pipeline):
         # TODO: May need to return the result to a parent Pipeline
         return True, swag
 
-    def start_stream(self, context, parameters):
-        pass
+    def create_stream(self, stream_id, parameters=None, lease_time=60):
+        context = {
+            "frame_id": 0,
+            "lease_time": lease_time,
+            "parameters": parameters if parameters else {},
+            "stream_id": stream_id
+        }
+        for node in self.pipeline_graph:
+            node.element.start_stream(context, stream_id)
 
-    def stop_stream(self, context):
-        pass
+    def destroy_stream(self, stream_id):
+        context = {"stream_id": stream_id, "frame_id": 0}  # TODO: Cached
+        for node in self.pipeline_graph:
+            node.element.stop_stream(context, stream_id)
 
 # --------------------------------------------------------------------------- #
 

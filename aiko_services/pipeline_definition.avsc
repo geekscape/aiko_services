@@ -28,7 +28,7 @@
     },
 
     { "name": "parameters", "type": {
-        "type": "map", "values": ["int", "null", "string"]
+        "type": "map", "values": ["boolean", "int", "null", "string"]
       }
     },
 
