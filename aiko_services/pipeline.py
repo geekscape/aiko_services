@@ -93,6 +93,7 @@ ACTOR_TYPE_ELEMENT = "pipeline_element"
 PROTOCOL_PIPELINE =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_PIPELINE}:0"
 PROTOCOL_ELEMENT =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_ELEMENT}:0"
 
+_GRACE_TIME = 60
 _LOGGER = aiko.logger(__name__)
 _VERSION = 0
 
@@ -234,7 +235,9 @@ class PipelineElementRemoteAbsent(PipelineElement):
         self.state["lifecycle"] = "absent"
 
     def process_frame(self, context, **kwargs) -> Tuple[bool, dict]:
-        _LOGGER.error(f"PipelineElement.process_frame(): {self.definition.name}: invoked when remote Pipeline Actor hasn't been discovered")
+        _LOGGER.error( "PipelineElement.process_frame(): "
+                      f"{self.definition.name}: invoked when "
+                       "remote Pipeline Actor hasn't been discovered")
         return False, {}
 
 class PipelineElementRemoteFound(PipelineElement):
@@ -249,7 +252,8 @@ class PipelineElementRemoteFound(PipelineElement):
         self.state["lifecycle"] = "ready"
 
     def process_frame(self, context, **kwargs) -> Tuple[bool, dict]:
-        _LOGGER.info(f"PipelineElementRemoteFound.process_frame(): invoked after remote Pipeline Actor discovered")
+        _LOGGER.info("PipelineElementRemoteFound.process_frame(): "
+                     "invoked after remote Pipeline Actor discovered")
         return True, {}
 
 # --------------------------------------------------------------------------- #
@@ -262,7 +266,7 @@ class Pipeline(PipelineElement):
         pass
 
     @abstractmethod
-    def create_stream(self, stream_id, parameters=None, lease_time=60):
+    def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME):
         pass
 
     @abstractmethod
@@ -290,6 +294,7 @@ class PipelineImpl(Pipeline):
         self.pipeline_graph = self._create_pipeline(definition)
         self.state["definition_pathname"] = definition_pathname
         self.state["element_count"] = self.pipeline_graph.element_count
+        self.stream_leases = {}
 
     # TODO: Better visualization of the Pipeline / PipelineElements details
     #   print(f"PIPELINE: {self.pipeline_graph.nodes()}")
@@ -374,7 +379,8 @@ class PipelineImpl(Pipeline):
         except Exception:
             diagnostic = "loaded"
         if diagnostic:
-            message = f"PipelineDefinition: PipelineElement {element_name}: Module {module_descriptor} could not be {diagnostic}"
+            message = f"PipelineDefinition: PipelineElement {element_name}: " \
+                      f"Module {module_descriptor} could not be {diagnostic}"
             self._error(pipeline_error, message)
         return element_class
 
@@ -470,15 +476,29 @@ class PipelineImpl(Pipeline):
             print(f"Pipeline update: --> {element_name} proxy")
 
     def process_frame(self, context, swag) -> Tuple[bool, None]:
-    #   _LOGGER.debug(f"Process frame: {self._id(context)}, swag: {swag}")
-        swag = swag if len(swag) else {}
+        if "stream_id" not in context:    # Default stream_id
+            context["stream_id"] = 0
+        if "frame_id" not in context:     # Default frame_id
+            context["frame_id"] = 0
+        swag = swag if len(swag) else {}  # Default swag
+
+        # Use existing stream content and update with process_frame(context)
+        if context["stream_id"] in self.stream_leases:
+            stream_lease = self.stream_leases[context["stream_id"]]
+            stream_lease.extend()
+            stream_lease.context.update(context)
+            context = stream_lease.context
+
+     #  _LOGGER.debug(f"Process frame: {self._id(context)}, swag: {swag}")
+
         definition_pathname = self.state["definition_pathname"]
 
         for node in self.pipeline_graph:
             element = node.element
             # TODO: Make sure element_name is correct for remote case
             element_name = element.__class__.__name__
-            diagnostic = f'Error: Invoking Pipeline "{definition_pathname}": PipelineElement "{element_name}": process_frame()'
+            diagnostic = f'Error: Invoking Pipeline "{definition_pathname}": ' \
+                         f'PipelineElement "{element_name}": process_frame()'
 
             inputs = {}
             input_names = [input["name"] for input in element.definition.input]
@@ -506,20 +526,32 @@ class PipelineImpl(Pipeline):
         # TODO: May need to return the result to a parent Pipeline
         return True, swag
 
-    def create_stream(self, stream_id, parameters=None, lease_time=60):
-        context = {
-            "frame_id": 0,
-            "lease_time": lease_time,
-            "parameters": parameters if parameters else {},
-            "stream_id": stream_id
-        }
-        for node in self.pipeline_graph:
-            node.element.start_stream(context, stream_id)
+    def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME):
+        if stream_id in self.stream_leases:
+            _LOGGER.error(f"Pipeline create stream: {stream_id} already exists")
+        else:
+            stream_lease = Lease(int(grace_time), stream_id,
+                lease_expired_handler=self.destroy_stream)
+            stream_lease.context = {
+                "frame_id": 0,
+                "parameters": parameters if parameters else {},
+                "stream_id": stream_id
+            }
+            self.stream_leases[stream_id] = stream_lease
+
+            for node in self.pipeline_graph:
+                node.element.start_stream(stream_lease.context, stream_id)
 
     def destroy_stream(self, stream_id):
-        context = {"stream_id": stream_id, "frame_id": 0}  # TODO: Cached
-        for node in self.pipeline_graph:
-            node.element.stop_stream(context, stream_id)
+        if stream_id in self.stream_leases:
+            stream_lease = self.stream_leases[stream_id]
+            del self.stream_leases[stream_id]
+            context = stream_lease.context
+            frame_id = context["frame_id"]
+            _LOGGER.info(f"Pipeline destroy stream: {self._id(context)}")
+
+            for node in self.pipeline_graph:
+                node.element.stop_stream(context, stream_id)
 
 # --------------------------------------------------------------------------- #
 
