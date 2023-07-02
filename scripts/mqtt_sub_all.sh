@@ -1,13 +1,11 @@
 #!/bin/sh
 #
-# Watch all public topics
+# Watch all MQTT topics
 #
 # To Do
 # ~~~~~
-# - Consider writing in Python and adding to "setup.py:entry_points:console_scripts"
+# - Convert to Python and add to "setup.py:entry_points:console_scripts"
 
-MQTT_HOST=${1:-localhost}
+AIKO_MQTT_HOST=${1:-localhost}
 
-MQTT_TOPIC=$AIKO_NAMESPACE/service/registrar
-
-mosquitto_sub -h $MQTT_HOST -t '#' -v
+mosquitto_sub -h $AIKO_MQTT_HOST -t '#' -v
