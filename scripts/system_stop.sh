@@ -1,13 +1,13 @@
 #!/bin/sh
 #
 # Stop core Aiko Services
-# - mosquitto (MQTT server)
+# - mosquitto (MQTT server) ... only stop for "localhost"
 # - Aiko Registrar
 #
 # To Do
 # ~~~~~
 # - Convert to Python and add to "setup.py:entry_points:console_scripts"
-# - Test on Linux, Mac OS X and Windows
+#   - Test on Linux, Mac OS X and Windows
 
 export AIKO_MQTT_HOST=${1:-localhost}
 export AIKO_NAMESPACE=${2:-aiko}
@@ -34,4 +34,9 @@ process_stop() {
 }
 
 process_stop aiko_registrar
-process_stop $MOSQUITTO_COMMAND
+
+if [ $AIKO_MQTT_HOST == "localhost" ]; then
+  process_stop $MOSQUITTO_COMMAND
+else
+  echo "Won't stop remote $MOSQUITTO_COMMAND"
+fi

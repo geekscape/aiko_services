@@ -1,14 +1,14 @@
 #!/bin/sh
 #
 # Start core Aiko Services
-# - mosquitto (MQTT server)
+# - mosquitto (MQTT server) ... only start for "localhost"
 # - Aiko Registrar
 # - Aiko Dasboard
 #
 # To Do
 # ~~~~~
 # - Convert to Python and add to "setup.py:entry_points:console_scripts"
-# - Test on Linux, Mac OS X and Windows
+#   - Test on Linux, Mac OS X and Windows
 
 export AIKO_MQTT_HOST=${1:-localhost}
 export AIKO_NAMESPACE=${2:-aiko}
@@ -34,7 +34,13 @@ process_start() {
   fi
 }
 
-process_start $MOSQUITTO_COMMAND
+if [ $AIKO_MQTT_HOST == "localhost" ]; then
+  process_start $MOSQUITTO_COMMAND
+else
+  echo "Won't start remote $MOSQUITTO_COMMAND"
+fi
+
 process_start aiko_registrar
+
 sleep 2
 aiko_dashboard
