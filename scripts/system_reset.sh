@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Remove the retained message for locating the primary Service Registrar
 #

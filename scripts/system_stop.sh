@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Stop core Aiko Services
 # - mosquitto (MQTT server) ... only stop for "localhost"
