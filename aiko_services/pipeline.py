@@ -13,21 +13,33 @@
 #   "(PE_0 PE_1)",
 #   "(PE_0 PE_1 (PE_2 PE_1))",
 #   "(PE_0 (PE_1 (PE_3 PE_5)) (PE_2 (PE_4 PE_5)))"
-# ],
+# ]
+#
+# PipelineElement function argument name mapping example ...
+# - PE_1 outputs "a" and PE_2 outputs "b"
+# - Whilst PE_3 expects inputs "x" and "y"
+#
+# "graph": [
+#   "(PE_0 (PE_1 PE_3 (a: x)) (PE_2 PE_3 (b: y)))"
+# ]
 #
 # Important
 # ---------
 # - Pipeline is-a PipelineElement and a Category (of PipelineElements)
 #
+# - Pipeline Definition Avro schema is hard-coded into this source file ...
+#   - To ensure that the Avro schema matches the source code implementation
+#   - Avoid having to refer to a critical file somewhere in the filesystem
+#
 # - PipelineDefinition inputs
 #   - Program language (Python) data structure is the gold standard
 #   - Avro parsed and validated JSON or S-Expressions
-#     - Consider using FastAVRO (CPython)
+#     - Consider using FastAvro (CPython)
 #   - GraphQL
 #
 # Resources
 # ~~~~~~~~~
-# - AVRO 1.9.1 specification
+# - Avro 1.9.1 specification
 #   - https://avro.apache.org/docs/1.9.1/spec.html
 #
 #   - https://www.perfectlyrandom.org/2019/11/29/handling-avro-files-in-python
@@ -36,15 +48,22 @@
 #
 # To Do
 # ~~~~~
+# * Should "stream_start()" and "stream_stop()" should return success/failure ?
+#   - Yes and the "swag" should be just like "process_frame()"
+#
+# * Handle list of sub-graphs for multiple sources of different data types
+#   - With StateMachine support for dynamic Graph routing / traversal
+#       "graph: [
+#         "(PE_0 default:)",
+#         "(PE_0 streaming: (PE_1 PE_3) (PE_2 PE_3))"
+#       ]
+#
+# - Collect "local" and "remote" into "deployment" configuration structure
+#
+# - Validate function inputs and outputs against Pipeline Definition
+#
 # - Pipeline CLI option to be the LifeCycleManager and recursively create both
 #   local and *remote* Pipeline / PipelineElements
-#
-# - pipeline_2020.py ...
-#   - DataSources and DataTargets support
-#   - Replace "message queues" with "mailboxes"
-#   - Streams support
-#   - StateMachine support
-#   - RTSP and WebRTC GStreamer pipeline support for HL Live
 #
 # - pipeline_2022.py ...
 #   - ServiceDefinition: fan-out, fan-in and name_mapping
@@ -59,15 +78,6 @@
 #     - When Service/Actor vanishes, then dynamic Proxy returns to default
 #     - Provide "absent" / "ready" status
 #   - Collect "topic_path", etc into a "service_filter" structure
-# - Collect "local" and "remote" into "deployment" configuration structure
-# - Validate function inputs and outputs against Pipeline Definition
-#
-# - Handle list of sub-graphs
-# - StateMachine support
-#     "graph: [
-#       "(PE_0 default:)",
-#       "(PE_0 streaming: (PE_1 PE_3) (PE_2 PE_3))"
-#     ]
 
 from abc import abstractmethod
 import avro.schema
@@ -96,22 +106,6 @@ PROTOCOL_ELEMENT =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_ELEMENT}:0"
 _GRACE_TIME = 60
 _LOGGER = aiko.logger(__name__)
 _VERSION = 0
-
-# --------------------------------------------------------------------------- #
-# TODO: Incorporate "pipeline_definition.avsc" into this source code ?
-
-SCHEMA_PATHNAME = "pipeline_definition.avsc"
-
-SCHEMA = avro.schema.parse(json.dumps({
-    "namespace"    : "example.avro",
-    "name"         : "User",
-    "type"         : "record",
-    "fields"       : [
-         {"name": "name"            , "type": "string"},
-         {"name": "favorite_number" , "type": ["int", "null"]},
-         {"name": "favorite_color"  , "type": ["string", "null"]}
-    ]
-}))
 
 # --------------------------------------------------------------------------- #
 
@@ -301,24 +295,24 @@ class PipelineImpl(Pipeline):
     #   for node in self.pipeline_graph:
     #       print(f"NODE: {node.name}")
 
-    def _error(self, summary_message, detail_message):
-        PipelineImpl._exit(summary_message, detail_message)
+    def _error(self, header, diagnostic):
+        PipelineImpl._exit(header, diagnostic)
 
     @classmethod
-    def _exit(cls, summary_message, detail_message):
-        diagnostic_message = f"{summary_message}\n{detail_message}"
-        _LOGGER.error(diagnostic_message)
-        raise SystemExit(diagnostic_message)
+    def _exit(cls, header, diagnostic):
+        complete_diagnostic = f"{header}\n{diagnostic}"
+        _LOGGER.error(complete_diagnostic)
+        raise SystemExit(complete_diagnostic)
 
     def create_frame(self, context, swag):
         self._post_message("in", "process_frame", [context, swag])
 
     def _create_pipeline(self, definition):
-        pipeline_error = f"Error: Creating Pipeline: {definition.name}"
+        header = f"Error: Creating Pipeline: {definition.name}"
 
         if len(definition.elements) == 0:
-            message = "PipelineDefinition: Doesn't define any PipelineElements"
-            self._error(pipeline_error, message)
+            self._error(header,
+                "PipelineDefinition: Doesn't define any PipelineElements")
 
         node_heads, node_successors = Graph.traverse(definition.graph)
         pipeline_graph = PipelineGraph(node_heads)
@@ -331,7 +325,7 @@ class PipelineImpl(Pipeline):
 
             if deploy_type_name == PipelineImpl.DEPLOY_TYPE_LOCAL_NAME:
                 element_class = self._load_element_class(
-                    deploy_definition.module, element_name, pipeline_error)
+                    deploy_definition.module, element_name, header)
 
             # TODO: Make sure element_name is correct for remote case
 
@@ -341,8 +335,9 @@ class PipelineImpl(Pipeline):
                 if service_name not in self.remote_pipelines:
                     self.remote_pipelines[service_name] = element_name
                 else:
-                    message = f"PipelineDefinition: PipelineElement {element_name}: re-uses the remote service_filter name: {service_name}"
-                    self._error(pipeline_error, message)
+                    self._error(header,
+                        f"PipelineDefinition: PipelineElement {element_name}: "
+                        f"re-uses remote service_filter name: {service_name}")
                 if not self.services_cache:
                     self.services_cache = services_cache_create_singleton(self)
                 service_filter = ServiceFilter.with_topic_path(
@@ -351,8 +346,9 @@ class PipelineImpl(Pipeline):
                     self._pipeline_element_change_handler, service_filter)
 
             if not element_class:
-                message = f"PipelineDefinition: PipelineElement type unknown: {deploy_type_name}"
-                self._error(pipeline_error, message)
+                self._error(header,
+                    f"PipelineDefinition: PipelineElement type unknown: "
+                    f"{deploy_type_name}")
 
             init_args = {
                 **actor_args(element_name.lower()),
@@ -368,7 +364,7 @@ class PipelineImpl(Pipeline):
         return pipeline_graph
 
     def _load_element_class(self,
-        module_descriptor, element_name, pipeline_error):
+        module_descriptor, element_name, header):
 
         diagnostic = None
         try:
@@ -379,55 +375,53 @@ class PipelineImpl(Pipeline):
         except Exception:
             diagnostic = "loaded"
         if diagnostic:
-            message = f"PipelineDefinition: PipelineElement {element_name}: " \
-                      f"Module {module_descriptor} could not be {diagnostic}"
-            self._error(pipeline_error, message)
+            self._error(header,
+                f"PipelineDefinition: PipelineElement {element_name}: "
+                f"Module {module_descriptor} could not be {diagnostic}")
         return element_class
 
     @classmethod
     def parse_pipeline_definition(cls, pipeline_definition_pathname):
-        schema_error =  \
-            f"Error: Parsing PipelineDefinition schema: {SCHEMA_PATHNAME}"
-        json_error =  \
-            f"Error: Parsing PipelineDefinition JSON: {pipeline_definition_pathname}"
-
-        try:
-            schema = Schema(SCHEMA_PATHNAME).parse()
-        except ValueError as value_error:
-            PipelineImpl._exit(schema_error, value_error)
-
+        header = f"Error: Parsing PipelineDefinition: {pipeline_definition_pathname}"
         try:
             pipeline_definition_dict = json.load(
                 open(pipeline_definition_pathname, "r"))
-            schema.validate(pipeline_definition_dict)
+            PIPELINE_DEFINITION_SCHEMA.validate(pipeline_definition_dict)
         except ValueError as value_error:
-            PipelineImpl._exit(json_error, value_error)
+            PipelineImpl._exit(header, value_error)
 
-        pipeline_definition = PipelineDefinition(**pipeline_definition_dict)
+        try:
+            pipeline_definition = PipelineDefinition(**pipeline_definition_dict)
+        except TypeError as type_error:
+            PipelineImpl._exit(header, type_error)
 
-        if pipeline_definition.version != 0:
-            message = f"PipelineDefinition: Version must be 0, but is {pipeline_definition.version}"
-            PipelineImpl._exit(json_error, message)
+        if pipeline_definition.version != PIPELINE_DEFINITION_VERSION:
+            PipelineImpl._exit(header,
+                f"PipelineDefinition: Version must be 0, "
+                f"but is {pipeline_definition.version}")
 
         if pipeline_definition.runtime != "python":
-            message = f'PipelineDefinition: Runtime must be "python", but is "{pipeline_definition.runtime}"'
-            PipelineImpl._exit(json_error, message)
+            PipelineImpl._exit(header,
+                f'PipelineDefinition: Runtime must be "python", '
+                f'but is "{pipeline_definition.runtime}"')
 
         element_definitions = []
         for element_fields in pipeline_definition.elements:
             element_definition = PipelineElementDefinition(**element_fields)
 
             if len(element_definition.deploy.keys()) != 1:
-                message = f"PipelineDefinition: PipelineElement {element_definition.name} must be either local or remote"
-                PipelineImpl._exit(json_error, message)
+                PipelineImpl._exit(header,
+                    f"PipelineDefinition: PipelineElement "
+                    f"{element_definition.name} must be either local or remote")
             deploy_type = list(element_definition.deploy.keys())[0]
 
             if deploy_type in PipelineImpl.DEPLOY_TYPE_LOOKUP:
                 pipeline_element_deploy_type =  \
                     PipelineImpl.DEPLOY_TYPE_LOOKUP[deploy_type]
             else:
-                message = f"Unknown Pipeline deploy type: {deploy_type}"
-                PipelineImpl._exit(json_error, message)
+                PipelineImpl._exit(header,
+                    f"Unknown Pipeline deploy type: {deploy_type}")
+
             deploy = pipeline_element_deploy_type(
                 **element_definition.deploy[deploy_type])
             element_definition.deploy = deploy
@@ -440,8 +434,8 @@ class PipelineImpl(Pipeline):
         for sub_graph in pipeline_definition.graph:
             node_head, node_successors = parse(sub_graph)
 
-        message = f"PipelineDefinition parsed: {pipeline_definition_pathname}"
-        _LOGGER.info(message)
+        _LOGGER.info(
+            f"PipelineDefinition parsed: {pipeline_definition_pathname}")
         return(pipeline_definition)
 
     def _pipeline_element_change_handler(self, command, service_details):
@@ -454,11 +448,10 @@ class PipelineImpl(Pipeline):
             element_definition = node.element.definition
 
             if command == "add":
-                pipeline_error = f"Error: Updating Pipeline: {element_definition.name}"
+                header = f"Error: Updating Pipeline: {element_definition.name}"
             # TODO: Don't create another PipelineElement Service !
                 element_class = self._load_element_class(
-                    element_definition.deploy.module, element_name,
-                    pipeline_error)
+                    element_definition.deploy.module, element_name, header)
 
             if command == "remove":
                 element_class = PipelineElementRemoteAbsent
@@ -470,7 +463,8 @@ class PipelineImpl(Pipeline):
             }
             element_instance = compose_instance(element_class, init_args)
             if command == "add":
-                element_instance = get_actor_mqtt(topic_path, PipelineElementRemoteFound)
+                element_instance = get_actor_mqtt(
+                    topic_path, PipelineElementRemoteFound)
                 element_instance.definition = element_definition
             node._element = element_instance
             print(f"Pipeline update: --> {element_name} proxy")
@@ -497,8 +491,8 @@ class PipelineImpl(Pipeline):
             element = node.element
             # TODO: Make sure element_name is correct for remote case
             element_name = element.__class__.__name__
-            diagnostic = f'Error: Invoking Pipeline "{definition_pathname}": ' \
-                         f'PipelineElement "{element_name}": process_frame()'
+            header = f'Error: Invoking Pipeline "{definition_pathname}": ' \
+                     f'PipelineElement "{element_name}": process_frame()'
 
             inputs = {}
             input_names = [input["name"] for input in element.definition.input]
@@ -506,8 +500,8 @@ class PipelineImpl(Pipeline):
                 try:
                     inputs[input_name] = swag[input_name]
                 except KeyError as key_error:
-                    MESSAGE = f'Function parameter "{input_name}" not found'
-                    self._error(diagnostic, MESSAGE)
+                    self._error(header,
+                        f'Function parameter "{input_name}" not found')
 
             frame_output = {}
             try:
@@ -519,7 +513,7 @@ class PipelineImpl(Pipeline):
                     element.process_frame(context, **inputs)
                     # TODO: Pipeline stream needs to "pause" waiting for result
             except Exception as exception:
-                self._error(diagnostic, traceback.format_exc())
+                self._error(header, traceback.format_exc())
 
             swag = {**swag, **frame_output}  # TODO: Consider all failure modes
 
@@ -555,6 +549,124 @@ class PipelineImpl(Pipeline):
 
 # --------------------------------------------------------------------------- #
 
+try:
+    PIPELINE_DEFINITION_VERSION = 0
+    PIPELINE_DEFINITION_SCHEMA = avro.schema.parse("""
+{
+  "namespace": "aiko_services",
+  "name":      "pipeline_definition",
+  "type":      "record",
+  "fields": [
+    { "name": "version", "type": "int", "default": 0 },
+    { "name": "name",    "type": "string" },
+    { "name": "runtime", "type": {
+        "name": "type",
+        "type": "enum",
+        "symbols": ["go", "python"]
+      }
+    },
+
+    { "name": "graph", "type": {
+        "type": "array", "items": "string"
+      }
+    },
+
+    { "name": "parameters", "type": {
+        "type": "map", "values": ["boolean", "int", "null", "string"]
+      }
+    },
+
+    { "name": "elements", "type": [
+        { "type": "array",
+          "items": {
+            "name": "element",
+            "type": "record",
+            "fields": [
+              { "name": "name",   "type": "string" },
+              { "name": "input",  "type": {
+                  "type": "array", "items": {
+                    "name": "input",
+                    "type": "record",
+                    "fields": [
+                      { "name": "type", "type": "string" },
+                      { "name": "name", "type": "string" }
+                    ]
+                  }
+                }
+              },
+              { "name": "output", "type": {
+                  "type": "array", "items": {
+                    "name": "output",
+                    "type": "record",
+                    "fields": [
+                      { "name": "type", "type": "string" },
+                      { "name": "name", "type": "string" }
+                    ]
+                  }
+                }
+              },
+              { "name": "deploy", "type": {
+                  "name": "deploy_fields",
+                  "type": "record",
+                  "fields": [
+                    { "name": "local", "type": [
+                        "null",
+                        { "name": "local_fields",
+                          "type": "record",
+                          "fields": [
+                            { "name": "module", "type": "string" }
+                          ]
+                        }
+                      ]
+                    },
+                    { "name": "remote", "type": [
+                        "null",
+                        { "name": "remote_fields",
+                          "type": "record",
+                          "fields": [
+                            { "name": "module", "type": "string" },
+                            { "name": "service_filter", "type": [
+                                { "name": "service_filter",
+                                  "type": "record",
+                                  "fields": [
+                                    { "name": "topic_path",
+                                        "type": "string", "default": "*" },
+                                    { "name": "name",
+                                        "type": "string", "default": "*" },
+                                    { "name": "owner",
+                                        "type": "string", "default": "*" },
+                                    { "name": "protocol",
+                                        "type": "string", "default": "*" },
+                                    { "name": "transport",
+                                        "type": "string", "default": "*" },
+                                    { "name": "tags",
+                                        "type": "string", "default": "*" }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
+    """)
+except avro.errors.SchemaParseException as schema_parse_exception:
+    PipelineImpl._exit(
+        "Error: Parsing aiko_services/pipeline.py: PIPELINE_DEFINITION_SCHEMA",
+        schema_parse_exception)
+
+# --------------------------------------------------------------------------- #
+
 @click.group()
 def main():
     """Create and delete Pipelines"""
@@ -565,10 +677,6 @@ def main():
 @click.option("--name", "-n", type=str, default=None, required=False,
     help="Pipeline Actor name")
 def create(definition_pathname, name):
-    if not os.path.exists(SCHEMA_PATHNAME):
-        raise SystemExit(
-            f"Error: PipelineDefinition schema not found: {SCHEMA_PATHNAME}")
-
     if not os.path.exists(definition_pathname):
         raise SystemExit(
             f"Error: PipelineDefinition not found: {definition_pathname}")
