@@ -13,11 +13,19 @@
 export AIKO_MQTT_HOST=${1:-localhost}
 export AIKO_NAMESPACE=${2:-aiko}
 
+if [ `uname` == "Darwin" ]; then
+  MOSQUITTO_COMMAND=/usr/local/sbin/mosquitto
+	PGREP_ARGUMENT=-f
+else
+  MOSQUITTO_COMMAND=/usr/sbin/mosquitto
+	PGREP_ARGUMENT=-x
+fi
+
 process_start() {
   PROCESS_PATH=$1
 	PROCESS_NAME=`basename $PROCESS_PATH`
 
-  PID=`pgrep -x $PROCESS_NAME`
+  PID=`pgrep $PGREP_ARGUMENT $PROCESS_NAME`
   if [ $? -ne 0 ]; then
 	  echo "Starting: $PROCESS_PATH"
     $PROCESS_PATH >/dev/null 2>&1 &
@@ -26,7 +34,7 @@ process_start() {
   fi
 }
 
-process_start /usr/sbin/mosquitto
+process_start $MOSQUITTO_COMMAND
 process_start aiko_registrar
 sleep 2
 aiko_dashboard
