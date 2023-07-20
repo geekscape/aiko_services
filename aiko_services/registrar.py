@@ -52,6 +52,8 @@
 # * BUG: If there are multiple secondaries, when the primary fails, then all
 #        secondaries end up being primaries :(
 #
+# * Consider whether the Registrar should be an Actor instead of a Service ?
+#
 # * Secondary Registrar subscribe to primary Registrar and update "self.history"
 #
 # * Reimplement ServicesCache using ECProducer / ECConsumer

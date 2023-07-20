@@ -1,24 +1,23 @@
 [tool.poetry]
 name = "aiko_services"
-version = "0.2"
-description = "Asynchronous message service framework"
+version = "0.3"
+description = "Distributed embedded service framework"
 authors = ["Andy Gelme <geekscape@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = ">=3.7,<3.9"
+python = "^3.10.4"
 asciimatics = "^1.14.0"
 avro = "^1.11.1"
-avro-json-serializer = "^1.0.4"
 avro-validator = "^1.2.1"
 click = "^8.0"
-networkx = "<2.8"
+networkx = "*"
 numpy = "^1.19.1"
 opencv-python = { version = "^4.4.0", optional = true }
 paho-mqtt = "^1.6.1"
 Pillow = "^9.0.0"
-pyyaml = "^5.3.1"
+pyyaml = ">=5.3.1"
 requests = "^2.25.1"
-transitions = "^0.8.10"
+transitions = ">=0.8.10"
 wrapt = "^1.12.1"
 xerox = "^0.4.1"
 
@@ -26,14 +25,14 @@ xerox = "^0.4.1"
 opencv = ["opencv-python"]
 
 [tool.poetry.scripts]
-aiko = 'aiko_services.cli:main'
-aiko_dashboard = 'aiko_services.dashboard:main'
-aiko_registrar = 'aiko_services.registrar:main'
+aiko = "aiko_services.cli:main"
+aiko_dashboard = "aiko_services.dashboard:main"
+aiko_registrar = "aiko_services.registrar:main"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.0"
 ipython = "*"
 
 [build-system]
-requires = ["poetry>=0.12"]
-build-backend = "poetry.masonry.api"
+
+build-backend = "poetry.core.masonry.api"

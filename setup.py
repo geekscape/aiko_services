@@ -25,7 +25,6 @@ setup(
     install_requires=[
         "asciimatics>=1.14.0",
         "avro>=1.11.1",
-        "avro-json-serializer>=1.0.4",
         "avro-validator>=1.2.1",
         "click>=8.0",
         "networkx<=2.8",
