@@ -62,7 +62,7 @@ class TransportMQTTImpl(TransportMQTT):
 #       actor.Topic.IN, actual_function_name, args
 #   )
 
-class ServiceDiscovery:  # Move to registrar.py or share.py?
+class ServiceDiscovery:  # Move to registrar.py or share.py ?
     pass                 # Refactor after ActorDiscovery starts to work properly
 
 class ActorDiscovery(ServiceDiscovery):  # Move to actor.py or share.py ?
@@ -104,11 +104,16 @@ def delete_actor_mqtt(actor):
     actor.terminate()
 
 def get_public_methods(protocol_class):
+    if isinstance(protocol_class, str):
+        raise ValueError(
+            f"{protocol_class} is a String, should be a Class reference ?")
     public_method_names = [
         method_name
         for method_name, method in getmembers(protocol_class, isfunction)
         if not method_name.startswith("_")
     ]
+    if len(public_method_names) == 0:
+        raise ValueError(f"Class {protocol_class} has no public methods")
     return public_method_names
 
 def make_proxy_mqtt(target_topic_in, public_method_names):
