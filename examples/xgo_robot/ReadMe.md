@@ -1,6 +1,6 @@
 # Aiko Services example: XGO-Mini 2 quadruped robot dog
 
-Note: Only the XGO-Mini 2 is supported, not the original XGO-Mini robot.
+Note: *Only the XGO-Mini 2 is supported, not the original XGO-Mini robot*
 
 [LuWu Dynamics: XGO-Mini 2 Wiki](https://www.yuque.com/luwudynamics/en)
 
