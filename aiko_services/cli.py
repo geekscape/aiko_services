@@ -9,9 +9,9 @@
 #
 # Description
 # ~~~~~~~~~~~
-# The Pipeline CLI is designed to slip ontop of existing 
+# The Pipeline CLI is designed to slip ontop of existing
 # pipeline definitions. I learn best with an exaple:
-# 
+#
 # pipeline_definition = [
 #     {   "name": "VideoReadFile", "module": "aiko_services.media.video_id",
 #         "successors": ["VideoWriteFile"],
@@ -26,10 +26,10 @@
 #     },
 # ]
 #
-# Out-of-the-box the CLI wrapper will treat everything as an optional 
+# Out-of-the-box the CLI wrapper will treat everything as an optional
 # parameter. To do this it infers some attributes for convenience. To
 # override them create another paramerter with the same name appended
-# with "_cli" and a dict of updated values. 
+# with "_cli" and a dict of updated values.
 #
 #   "name": Overrides the cli parameter names
 #     default: infered from component Name and parameter name
@@ -37,7 +37,7 @@
 #     override: {"name": "-v --video-path"}
 #     notes: separate short "-x" and long "--xxx" form with a space " "
 #            can provide one or the other.
-#     
+#
 #   "required": Makes the parameter a required param from the cli
 #      default: False
 #      override: {"required": True}
@@ -111,7 +111,7 @@ def cli_shim():
 
 
 def options_from_pipeline_def(pipeline_definition):
-    """ 
+    """
     Cli with default:
 
       param_name: <param> # Pipeline default
@@ -208,7 +208,7 @@ pipeline_definition = cli_shim()
 @click.command("main", help=(
   "Load Pipeline Definition, build cli, override parameters if needed, run "
   "pipeline. Like a boss!\n\nUsage:\n\n"
-  
+
   "  aiko <pipeline_definition.py> --help"))
 @options_from_pipeline_def(pipeline_definition)
 @click.option("--pipeline-frame-rate", "-fps", type=int,

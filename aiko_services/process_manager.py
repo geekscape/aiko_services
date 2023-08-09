@@ -43,7 +43,7 @@ PROTOCOL_PROCESS_MANAGER = f"ServiceProtocol.AIKO/process_manager:0"
 
 # --------------------------------------------------------------------------- #
 
-poll = select.poll
+# poll = select.poll  # TODO: Is this required ?  Not available on Windows
 
 class ProcessManager:
     def __init__(self, process_exit_handler=None):

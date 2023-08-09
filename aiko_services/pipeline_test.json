@@ -1,0 +1,21 @@
+{
+  "version": 0,
+  "name":    "pipeline_test",
+  "runtime": "python",
+
+  "graph": [
+    "(PE_GenerateNumbers)"
+  ],
+
+  "parameters": {},
+
+  "elements": [
+    { "name":   "PE_GenerateNumbers",
+      "input":  [{ "name": "number", "type": "int" }],
+      "output": [{ "name": "number", "type": "int" }],
+      "deploy": {
+        "local": { "module": "pipeline_elements.py" }
+      }
+    }
+  ]
+}

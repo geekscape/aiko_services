@@ -26,7 +26,7 @@ class VideoFileReader:
     gst_launch_command = "filesrc location={} ! qtdemux ! {} ! videoconvert ! video/x-raw, format={} ! appsink name=sink".format(input_filename, utilities.get_h264_decoder(), utilities.get_format())
     pipeline = Gst.parse_launch(gst_launch_command)
 
-    sink = pipeline.get_by_name("sink") 
+    sink = pipeline.get_by_name("sink")
     sink_caps = "video/x-raw, format={}, width={}, height={}".format(utilities.get_format(), width, height)
     sink.set_property("caps", Gst.caps_from_string(sink_caps))
 

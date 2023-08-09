@@ -25,21 +25,21 @@ The AlohaHonua [Actor](https://en.wikipedia.org/wiki/Actor_model) below is a dis
 *Source code: [aloha\_honua\_0.py](aloha_honua_0.py)*
 
     from aiko_services import *
-    
+
     _LOGGER = aiko.logger(__name__)
-    
+
     class AlohaHonua(Actor):
         def __init__(self, implementations, name, protocol, tags, transport):
             implementations["Actor"].__init__(self,
                 implementations, name, protocol, tags, transport)
             print(f"MQTT topic: {self.topic_in}")
-    
+
         def get_logger(self):
             return _LOGGER
-    
+
         def aloha(self, name):
             _LOGGER.info(f"AlohaHonua {name} !")
-    
+
     if __name__ == "__main__":
         init_args = actor_args("aloha_honua", "*")
         aloha_honua = compose_instance(AlohaHonua, init_args)
@@ -54,7 +54,7 @@ After the Aiko Services framework has been installed, you'll need to start the C
     ./scripts/system_start.sh
         Starting: /usr/sbin/mosquitto
         Starting: aiko_registrar
-    
+
     # Use another terminal session, also starting at the top-level of the repository
     cd examples/aloha_honua
     ./aloha_honua_0.py
@@ -76,13 +76,13 @@ Whilst the AlohaHonua Actor is running, the Aiko Dashboard will show a list of t
 ### Stopping the AlohaHonua Actor and Core Services
 
 The AlohaHonua Actor example, Core Services and Aiko Dashboard can be stopped, as follows ...
-    
+
     # Type Control-C to stop the ./aloha_honua_0.py program
-    
+
     # Select the terminal session running the Aiko Dashboard and press the "x" key
 
     # Then stop the Core Services
-    ../../scripts/system_stop.sh 
+    ../../scripts/system_stop.sh
         Stopping: aiko_registrar
         Stopping: /usr/sbin/mosquitto
 
@@ -93,8 +93,8 @@ The AlohaHonua Actor example, Core Services and Aiko Dashboard can be stopped, a
 Start by importing the Aiko Services [module](https://www.w3schools.com/python/python_modules.asp) and creating a [logger](https://en.wikipedia.org/wiki/Logging_(computing)) [instance](https://en.wikipedia.org/wiki/Instance_(computer_science)#Object-oriented_programming) for this Actor.
 
     from aiko_services import *
-    
-    _LOGGER = aiko.logger(__name__)    
+
+    _LOGGER = aiko.logger(__name__)
 
 The `_LOGGER` variable is specific to each Actor instance, so that log records can be shown for just that Actor instance.  The logging level can be independently changed on-the-fly by the Aiko Dashboard or given an initial value via the command line ...
 

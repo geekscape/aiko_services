@@ -36,7 +36,8 @@ _VERSION = 0
 # --------------------------------------------------------------------------- #
 
 class StorageManager(Actor):
-    Interface.implementations["StorageManager"] = "__main__.StorageManagerImpl"
+    Interface.implementations["StorageManager"] =  \
+        "aiko_services.storage.StorageManagerImpl"
 
     @abstractmethod
     def test_command(self, parameter):

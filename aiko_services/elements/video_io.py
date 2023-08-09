@@ -1,5 +1,7 @@
 # To Do
 # ~~~~~
+# - Update to latest Pipeline API
+#
 # - Implement ...
 #     video_capture = cv2.VideoCapture(video_pathname)
 #     width = int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH))

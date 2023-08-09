@@ -1,6 +1,6 @@
 # To Do
 # ~~~~~
-# - None, yet !
+# - Update to latest Pipeline API
 
 from aiko_services import *
 

@@ -48,6 +48,10 @@
 #
 # To Do
 # ~~~~~
+# * CLI: pipeline.py show <service_filter>
+# * CLI: pipeline.py get <service_filter> <parameter_name>  # or wildcard "*"
+# * CLI: pipeline.py set <service_filter> <parameter_name> <parameter_value>
+#
 # * Should "stream_start()" and "stream_stop()" should return success/failure ?
 #   - Yes and the "swag" should be just like "process_frame()"
 #
@@ -169,7 +173,7 @@ class FrameContext:
 
 class PipelineElement(Actor):
     Interface.implementations["PipelineElement"] =  \
-        "__main__.PipelineElementImpl"
+        "aiko_services.pipeline.PipelineElementImpl"
 
     @abstractmethod
     def process_frame(self, context, **kwargs) -> Tuple[bool, Any]:
@@ -253,7 +257,8 @@ class PipelineElementRemoteFound(PipelineElement):
 # --------------------------------------------------------------------------- #
 
 class Pipeline(PipelineElement):
-    Interface.implementations["Pipeline"] = "__main__.PipelineImpl"
+    Interface.implementations["Pipeline"] =  \
+        "aiko_services.pipeline.PipelineImpl"
 
     @abstractmethod
     def create_frame(self, context, swag):
@@ -283,12 +288,15 @@ class PipelineImpl(Pipeline):
             implementations, name, protocol, tags, transport,
             definition, self)
 
+        self.state["lifecycle"] = "start"
         self.remote_pipelines = {}  # Service name --> PipelineElement name
         self.services_cache = None
-        self.pipeline_graph = self._create_pipeline(definition)
         self.state["definition_pathname"] = definition_pathname
-        self.state["element_count"] = self.pipeline_graph.element_count
         self.stream_leases = {}
+
+        self.pipeline_graph = self._create_pipeline(definition)
+        self.state["element_count"] = self.pipeline_graph.element_count
+        self.state["lifecycle"] = "ready"
 
     # TODO: Better visualization of the Pipeline / PipelineElements details
     #   print(f"PIPELINE: {self.pipeline_graph.nodes()}")
@@ -504,16 +512,23 @@ class PipelineImpl(Pipeline):
                         f'Function parameter "{input_name}" not found')
 
             frame_output = {}
+            okay = True
             try:
                 if element_name != "ServiceRemoteProxy":
                     okay, frame_output = element.process_frame(
                         context, **inputs)
-                    # TODO: Check if PipelineElement failed, i.e "okay" status
                 else:
                     element.process_frame(context, **inputs)
                     # TODO: Pipeline stream needs to "pause" waiting for result
             except Exception as exception:
                 self._error(header, traceback.format_exc())
+
+            if not okay:
+                for stream_id in self.stream_leases.copy():
+                    self.destroy_stream(stream_id)
+                PipelineImpl._exit(
+                    f'PipelineElement "{element_name}": process_frame(): False',
+                    "Pipeline stopped")
 
             swag = {**swag, **frame_output}  # TODO: Consider all failure modes
 
@@ -521,6 +536,11 @@ class PipelineImpl(Pipeline):
         return True, swag
 
     def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME):
+        if self.state["lifecycle"] != "ready":
+            self._post_message(
+                "in", "create_stream", [stream_id, parameters, grace_time])
+            return
+
         if stream_id in self.stream_leases:
             _LOGGER.error(f"Pipeline create stream: {stream_id} already exists")
         else:

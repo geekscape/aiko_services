@@ -72,7 +72,8 @@ _VERSION = 0
 # --------------------------------------------------------------------------- #
 
 class RobotControl(Actor):
-    Interface.implementations["RobotControl"] = "__main__.RobotControlImpl"
+    Interface.implementations["RobotControl"] =  \
+        "__main__.RobotControlImpl"
 
     @abstractmethod
     def image(self, aiko, topic, payload_in):
@@ -204,7 +205,8 @@ SLEEP_PERIOD = 0.2     # seconds
 STATUS_XY = (10, 230)  # (10, 15)
 
 class VideoTest(Actor):
-    Interface.implementations["VideoTest"] = "__main__.VideoTestImpl"
+    Interface.implementations["VideoTest"] =  \
+        "aiko_services.examples.xgo_robot.robot_control.VideoTestImpl"
 
 class VideoTestImpl(VideoTest):
     def __init__(self, implementations, name, protocol, tags, transport):

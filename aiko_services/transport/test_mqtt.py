@@ -33,7 +33,8 @@ _VERSION = 0
 # --------------------------------------------------------------------------- #
 
 class MQTTTest(TransportMQTT):
-    Interface.implementations["MQTTTest"] = "__main__.MQTTTestImpl"
+    Interface.implementations["MQTTTest"] =  \
+        "aiko_services.transport.test_mqtt.MQTTTestImpl"
 
     @abstractmethod
     def test(self, message):

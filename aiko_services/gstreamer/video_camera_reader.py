@@ -28,7 +28,7 @@ class VideoCameraReader:
     gst_launch_command = "v4l2src device={} ! videoflip video-direction=horiz ! videoconvert ! videorate ! appsink name=sink".format(input_devicepath)
     pipeline = Gst.parse_launch(gst_launch_command)
 
-    sink = pipeline.get_by_name("sink") 
+    sink = pipeline.get_by_name("sink")
     sink_caps = "video/x-raw, format={}, width={}, height={}, framerate={}".format(utilities.get_format(), width, height, "10/1")
     sink.set_property("caps", Gst.caps_from_string(sink_caps))
 

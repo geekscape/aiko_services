@@ -80,7 +80,8 @@ TOPIC_VIDEO = f"{get_namespace()}/video"
 # --------------------------------------------------------------------------- #
 
 class XGORobot(Actor):
-    Interface.implementations["XGORobot"] = "__main__.XGORobotImpl"
+    Interface.implementations["XGORobot"] =  \
+        "aiko_services.examples.xgo_robot.xgo_robot.XGORobotImpl"
 
     @abstractmethod
     def action(self, value):
