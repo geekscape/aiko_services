@@ -18,7 +18,7 @@
       "input":  [{ "name": "a", "type": "int" }],
       "output": [{ "name": "b", "type": "int" }],
       "deploy": {
-        "local": { "module": "pipeline_elements.py" }
+        "local": { "module": "aiko_services.pipeline_elements" }
       }
     },
     { "name":   "PE_1",
@@ -26,7 +26,7 @@
       "output": [{ "name": "f", "type": "int" }],
       "deploy": {
         "remote": {
-          "module": "pipeline_elements.py",
+          "module": "aiko_services.pipeline_elements",
           "service_filter": {
             "topic_path": "*", "name": "pipeline_y",
             "owner": "*", "protocol": "*", "transport": "*", "tags": "*"

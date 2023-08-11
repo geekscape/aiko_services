@@ -18,21 +18,21 @@
       "input":  [{ "name": "b", "type": "int" }],
       "output": [{ "name": "c", "type": "int" }],
       "deploy": {
-        "local": { "module": "pipeline_elements.py" }
+        "local": { "module": "aiko_services.pipeline_elements" }
       }
     },
     { "name":   "PE_2",
       "input":  [{ "name": "c", "type": "int" }],
       "output": [{ "name": "d", "type": "int" }],
       "deploy": {
-        "local": { "module": "pipeline_elements.py" }
+        "local": { "module": "aiko_services.pipeline_elements" }
       }
     },
     { "name":   "PE_3",
       "input":  [{ "name": "c", "type": "int" }],
       "output": [{ "name": "e", "type": "int" }],
       "deploy": {
-        "local": { "module": "pipeline_elements.py" }
+        "local": { "module": "aiko_services.pipeline_elements" }
       }
     },
     { "name":   "PE_4",
@@ -40,7 +40,7 @@
                  { "name": "e", "type": "int" }],
       "output": [{ "name": "f", "type": "int" }],
       "deploy": {
-        "local": { "module": "pipeline_elements.py" }
+        "local": { "module": "aiko_services.pipeline_elements" }
       }
     }
   ]

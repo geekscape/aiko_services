@@ -4,8 +4,20 @@
 #
 # Usage
 # ~~~~~
-# ./pipeline.py create [--name pipeline_name] pipeline_definition
-# ./pipeline.py delete pipeline_name
+# aiko_pipeline create [--name pipeline_name] pipeline_definition
+# aiko_pipeline delete pipeline_name
+#
+# AIKO_LOG_LEVEL=DEBUG AIKO_LOG_MQTT=false aiko_pipeline create $DEFINITION
+#
+# NAMESPACE=AIKO
+# HOST=localhost
+# PID=`ps ax | grep aiko_pipeline | grep -v grep | tr -s " " | cut -d" " -f1-2`
+# SID=1
+# TOPIC=$NAMESPACE/$HOST/$PID/$SID/in
+#
+# mosquitto_pub -h $HOST -t $TOPIC -m "(create_stream 1)"
+# mosquitto_pub -h $HOST -t $TOPIC -m "(process_frame (stream_id: 1) (a: 0))"
+# mosquitto_pub -h $HOST -t $TOPIC -m "(destroy_stream 1)"
 #
 # Definition
 # ~~~~~~~~~~

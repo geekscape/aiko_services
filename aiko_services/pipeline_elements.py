@@ -1,14 +1,14 @@
 # Usage
 # ~~~~~
-# AIKO_LOG_MQTT=false ./pipeline.py create pipeline_local.json
+# cd ../examples/pipeline
+# aiko_pipeline create pipeline_local.json
+# aiko_pipeline create pipeline_remote.json
+# aiko_pipeline create pipeline_test.json
 #
-# PID=`ps ax | grep pipeline.py | grep create | grep -v grep |  \
-#      tr -s " " | cut -d" " -f1`;  \
-#      mosquitto_pub -h localhost -t aiko/spike/$PID/1/in  \
-#                    -m "(process_frame (stream_id: 0 frame_id: 0) (a: 0))"
-#
-# mosquitto_pub -h localhost -t aiko/spike/$PID/1/in -m "(create_stream 1)"
-# mosquitto_pub -h localhost -t aiko/spike/$PID/1/in -m "(destroy_stream 1)"
+# TOPIC=$NAMESPACE/$HOST/$PID/$SID/in
+# mosquitto_pub -h $HOST -t $TOPIC -m "(create_stream 1)"
+# mosquitto_pub -h $HOST -t $TOPIC -m "(process_frame (stream_id: 1) (a: 0))"
+# mosquitto_pub -h $HOST -t $TOPIC -m "(destroy_stream 1)"
 
 from threading import Thread
 import time
@@ -112,7 +112,7 @@ class PE_3(PipelineElement):
 
     def process_frame(self, context, c) -> Tuple[bool, dict]:
         e = int(c) + 1
-        _LOGGER.info(f"PE_2: {context}, in c: {c}, out e: {e}")
+        _LOGGER.info(f"PE_3: {context}, in c: {c}, out e: {e}")
         return True, {"e": e}
 
 # --------------------------------------------------------------------------- #
@@ -129,7 +129,7 @@ class PE_4(PipelineElement):
 
     def process_frame(self, context, d, e) -> Tuple[bool, dict]:
         f = int(d) + int(e)
-        _LOGGER.info(f"PE_3: {context}, in d, e {d} {e}, out: d + e = f: {f}")
+        _LOGGER.info(f"PE_4: {context}, in d, e {d} {e}, out: d + e = f: {f}")
         return True, {"f": f}
 
 # --------------------------------------------------------------------------- #

@@ -31,6 +31,7 @@ setup(
         "numpy>=1.19.1",
         "paho-mqtt>=1.6.1",
         "Pillow>=9.0.0",
+        "pyaudio>=0.2.3",
         "pyyaml>=5.3.1",
         "requests>=2.25.1",
         "transitions>=0.8.10",
