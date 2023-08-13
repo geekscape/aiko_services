@@ -7,7 +7,7 @@ These examples require the Aiko Services [framework](https://en.wikipedia.org/wi
 * Using Aiko Dashboard for monitoring and control *[TBC]*
 * More AlohaHonua examples *[TBC]*
 
-![Diagram: AlohaHonua example](aloha_honua_0.png)
+![Diagram: AlohaHonua example](aiko_diagram_0.png)
 
 The Aiko Services framework relies on (at least) these two Core Services ...
 
