@@ -4,8 +4,9 @@
 #
 # Usage
 # ~~~~~
-# aiko_pipeline create [--name pipeline_name] pipeline_definition
-# aiko_pipeline delete pipeline_name
+# DEFINITION=pipeline_definition.json
+# aiko_pipeline create [--name $PIPELINE_NAME] $DEFINITION
+# aiko_pipeline delete $PIPELINE_NAME
 #
 # AIKO_LOG_LEVEL=DEBUG AIKO_LOG_MQTT=false aiko_pipeline create $DEFINITION
 #
@@ -248,7 +249,7 @@ class PipelineElementRemoteAbsent(PipelineElement):
         _LOGGER.error( "PipelineElement.process_frame(): "
                       f"{self.definition.name}: invoked when "
                        "remote Pipeline Actor hasn't been discovered")
-        return False, {}
+        return True, {}
 
 class PipelineElementRemoteFound(PipelineElement):
     def __init__(self,

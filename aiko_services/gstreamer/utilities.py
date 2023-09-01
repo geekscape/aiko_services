@@ -3,8 +3,10 @@ from sys import platform
 __all__ = [
     "get_format",
     "get_h264_decoder", "get_h264_encoder", "get_h264_encoder_options",
-    "gst_initialise", "enable_opencv", "process_video"
+    "GStreamerError", "gst_initialise", "enable_opencv", "process_video"
 ]
+
+# --------------------------------------------------------------------------- #
 
 operating_system = "unknown"
 
@@ -38,6 +40,10 @@ import gi
 Gst = None
 GstBase = None
 GObject = None
+
+class GStreamerError(Exception):
+  def __init__(self, message):
+    self.message = message
 
 def gst_initialise(multiple_return_values=False):
   global Gst, GstBase, GObject

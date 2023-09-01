@@ -6,7 +6,7 @@
 
 from .utilities import (
     get_format, get_h264_decoder, get_h264_encoder, get_h264_encoder_options,
-    gst_initialise, enable_opencv, process_video
+    GStreamerError, gst_initialise, enable_opencv, process_video
 )
 
 from .video_camera_reader import VideoCameraReader

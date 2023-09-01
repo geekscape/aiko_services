@@ -1,6 +1,6 @@
 {
   "version": 0,
-  "name":    "pipeline_test",
+  "name":    "p_test",
   "runtime": "python",
 
   "graph": [

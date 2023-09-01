@@ -10,6 +10,7 @@
 # mosquitto_pub -h $HOST -t $TOPIC -m "(process_frame (stream_id: 1) (a: 0))"
 # mosquitto_pub -h $HOST -t $TOPIC -m "(destroy_stream 1)"
 
+import copy
 from threading import Thread
 import time
 from typing import Tuple
@@ -35,9 +36,12 @@ class PE_GenerateNumbers(PipelineElement):
         return True, {"number": number}
 
     def _run(self, context):
+        frame_id = 0
         while not context["terminate"]:
-            context["frame_id"] += 1
-            self.pipeline.create_frame(context, {"number": context["frame_id"]})
+            frame_context = copy.deepcopy(context)
+            frame_context["frame_id"] = frame_id
+            self.pipeline.create_frame(frame_context, {"number": frame_id})
+            frame_id += 1
             time.sleep(1.0)
 
     def start_stream(self, context, stream_id):

@@ -3,7 +3,9 @@
   "name":    "p_mic_fft_graph",
   "runtime": "python",
 
-  "graph": ["(PE_Microphone PE_FFT PE_GraphXY)"],
+  "graph": [
+    "(PE_Microphone PE_FFT PE_AudioResampler PE_AudioFilter PE_GraphXY)"
+  ],
 
   "parameters": {},
 
@@ -23,10 +25,28 @@
         "local": { "module": "aiko_services.elements.audio_io" }
       }
     },
-    { "name":   "PE_GraphXY",
+    { "name":   "PE_AudioResampler",
       "input":  [{ "name": "amplitudes",  "type": "bytes" },
                  { "name": "frequencies", "type": "bytes" }],
       "output": [],
+      "deploy": {
+        "local": { "module": "aiko_services.elements.audio_io" }
+      }
+    },
+    { "name":   "PE_AudioFilter",
+      "input":  [{ "name": "amplitudes",  "type": "bytes" },
+                 { "name": "frequencies", "type": "bytes" }],
+      "output": [{ "name": "amplitudes",  "type": "bytes" },
+                 { "name": "frequencies", "type": "bytes" }],
+      "deploy": {
+        "local": { "module": "aiko_services.elements.audio_io" }
+      }
+    },
+    { "name":   "PE_GraphXY",
+      "input":  [{ "name": "amplitudes",  "type": "bytes" },
+                 { "name": "frequencies", "type": "bytes" }],
+      "output": [{ "name": "amplitudes",  "type": "bytes" },
+                 { "name": "frequencies", "type": "bytes" }],
       "deploy": {
         "local": { "module": "aiko_services.elements.audio_io" }
       }

@@ -24,10 +24,6 @@ __all__ = ["VideoReader"]
 
 Gst = gst_initialise()
 
-class GStreamerError(Exception):
-  def __init__(self, message):
-    self.message = message
-
 class VideoReader:
   def __init__(self, pipeline, sink):
     self.pipeline = pipeline
