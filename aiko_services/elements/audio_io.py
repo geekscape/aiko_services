@@ -229,10 +229,12 @@ def hide_alsa_messages():
     asound.snd_lib_error_set_handler(c_error_handler)
 
 import os
+import platform
 import sys
 
 def pyaudio_initialize():
-    hide_alsa_messages()
+    if platform.system() == "Linux":
+        hide_alsa_messages()  # Fails on Mac OS X and Windows
     devnull = os.open(os.devnull, os.O_WRONLY)
     old_stderr = os.dup(2)
     sys.stderr.flush()
