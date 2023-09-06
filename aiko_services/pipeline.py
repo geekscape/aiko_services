@@ -300,6 +300,7 @@ class PipelineImpl(Pipeline):
         implementations["PipelineElement"].__init__(self,
             implementations, name, protocol, tags, transport,
             definition, self)
+        print(f"MQTT topic: {self.topic_in}")
 
         self.state["lifecycle"] = "start"
         self.remote_pipelines = {}  # Service name --> PipelineElement name
