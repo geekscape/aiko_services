@@ -27,7 +27,6 @@ setup(
         "avro>=1.11.1",
         "avro-validator>=1.2.1",
         "click>=8.0",
-        "networkx<=2.8",
         "numpy>=1.19.1",
         "paho-mqtt>=1.6.1",
         "Pillow>=9.0.0",

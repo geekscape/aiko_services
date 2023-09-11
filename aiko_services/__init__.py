@@ -37,8 +37,6 @@ from .state import StateMachine
 
 from .proxy import ProxyAllMethods, is_callable, proxy_trace
 
-from .stream_2020 import StreamElementState, StreamElement, StreamQueueElement
-
 from .share import (
     ECConsumer, PROTOCOL_EC_CONSUMER,
     ECProducer, PROTOCOL_EC_PRODUCER,
@@ -56,8 +54,6 @@ from .lifecycle import LifeCycleClient, LifeCycleManager
 from .pipeline import (
     Pipeline, PipelineElement, PipelineElementImpl, PipelineImpl
 )
-
-from .pipeline_2020 import Pipeline_2020, load_pipeline_definition_2020
 
 from .registrar import *
 
