@@ -5,22 +5,22 @@ description = "Distributed embedded service framework"
 authors = ["Andy Gelme <geekscape@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = ">=3.10.4"
-asciimatics = ">=1.14.0"
-avro = ">=1.11.1"
-avro-validator = ">=1.2.1"
-click = ">=8.0"
+python = "^3.10.4"
+asciimatics = "^1.14.0"
+avro = "^1.11.1"
+avro-validator = "^1.2.1"
+click = "^8.0"
 networkx = "*"
-numpy = ">=1.19.1"
+numpy = "^1.19.1"
 opencv-python = { version = "^4.4.0", optional = true }
-paho-mqtt = ">=1.6.1"
-Pillow = ">=9.0.0"
-PyAudio = ">=0.0.0"
-PyYAML = ">=5.3.1"
-requests = ">=2.25.1"
-transitions = ">=0.8.10"
-wrapt = ">=1.12.1"
-xerox = { version = ">=0.4.1", optional = true }
+paho-mqtt = "^1.6.1"
+Pillow = "^9.0.0"
+PyAudio = "^0.0.0"
+PyYAML = "^5.3.1"
+requests = "^2.25.1"
+transitions = "^0.8.10"
+wrapt = "^1.12.1"
+xerox = { version = "^0.4.1", optional = true }
 
 [tool.poetry.extras]
 opencv = ["opencv-python"]
@@ -32,7 +32,7 @@ aiko_pipeline = "aiko_services.pipeline:main"
 aiko_registrar = "aiko_services.registrar:main"
 
 [tool.poetry.dev-dependencies]
-pytest = ">=5.0"
+pytest = "^5.0"
 ipython = "*"
 
 [build-system]
