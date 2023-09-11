@@ -15,13 +15,18 @@ numpy = "^1.19.1"
 opencv-python = { version = "^4.4.0", optional = true }
 paho-mqtt = "^1.6.1"
 Pillow = "^9.0.0"
-PyAudio = "^0.2.13"
 requests = "^2.25.1"
 transitions = "^0.9.0"
 wrapt = "^1.12.1"
 xerox = { version = "^0.4.1", optional = true }
 
 [tool.poetry.extras]
+"linux" = [
+    "PyAudio = "^0.2.13"
+]
+"macosx" = [
+    "PyAudio = "^0.2.13"
+]
 opencv = ["opencv-python"]
 
 [tool.poetry.scripts]
