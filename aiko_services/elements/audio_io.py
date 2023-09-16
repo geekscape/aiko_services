@@ -65,7 +65,10 @@ class PE_AudioFilter(PipelineElement):
         amplitude_key = 1
         data = sorted(data, key=lambda x: x[amplitude_key], reverse=True)
         data = data[:SAMPLES_MAXIMUM]
-        frequencies, amplitudes = zip(*data)
+        if len(data):
+            frequencies, amplitudes = zip(*data)
+        else:
+            frequencies, amplitudes = [], []
 
         return True, {"amplitudes": amplitudes, "frequencies": frequencies}
 
@@ -86,6 +89,8 @@ class PE_AudioResampler(PipelineElement):
             implementations, name, protocol, tags, transport,
             definition, pipeline)
 
+        self.counter = 0
+
 # Frequencies: [0:2399] --> 0, 10, 20, ... 23990 Hz
 # Extract 0 to 8000 Hz
 # Consolidate that into 8 bands !
@@ -94,11 +99,11 @@ class PE_AudioResampler(PipelineElement):
     def process_frame(self,
         context, amplitudes, frequencies) -> Tuple[bool, dict]:
 
-        amplitudes = amplitudes[0:len(amplitudes) // 2]
-        frequencies = frequencies[0:len(frequencies) // 2]
+        amplitudes = amplitudes[0:len(amplitudes) // 2]     # len: 2400
+        frequencies = frequencies[0:len(frequencies) // 2]  # len: 2400
 
-        frequency_range = frequencies[-1] - frequencies[0]
-        band_width = frequency_range / BAND_COUNT / 10  # TODO: MAGIC NUMBER !!
+        frequency_range = frequencies[-1] - frequencies[0]  # 23990.0
+        band_width = frequency_range / BAND_COUNT / 10      # 299.875  # TODO: MAGIC NUMBER !!
         band_frequencies = []
         band_amplitudes = []
 
@@ -114,13 +119,24 @@ class PE_AudioResampler(PipelineElement):
             normalized_amplitudes_sum = amplitudes_sum / band_frequency_count
 
             band_frequencies.append((band_start + band_end) / 2)
-            band_amplitudes.append(normalized_amplitudes_sum)
+            band_amplitudes.append(amplitudes_sum)
+        #   band_amplitudes.append(normalized_amplitudes_sum)
 
         frequencies = np.array(band_frequencies)
         amplitudes = np.array(band_amplitudes)
 
-        for frequency, amplitude in zip(frequencies, amplitudes):
-            print(f"Band: {frequency:.0f} Hz, amplitude: {amplitude:.4f}")
+        topic_path = "aiko/esp32_ed6cxc/0/0/in"
+        self.counter += 1
+        if self.counter % 5:
+            aiko.message.publish(topic_path, "(led:fill 0 0 0)")
+            x = 0
+            for frequency, amplitude in zip(frequencies, amplitudes):
+                print(f"Band: {frequency:.0f} Hz, amplitude: {amplitude:.4f}")
+                a = f"{amplitude:.0f}"
+                payload_out = f"(led:line 255 0 0 {x} 0 {x} {a})"
+                aiko.message.publish(topic_path, payload_out)
+                x += 1
+            aiko.message.publish(topic_path, "(led:write)")
 
         return True, {}
 
