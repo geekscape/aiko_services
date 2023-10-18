@@ -93,8 +93,8 @@ def do_command(actor_interface, command_handler, terminate=True):  # Refactor
                 aiko.process.terminate()
 
     actor_discovery = ActorDiscovery(aiko.process)
-    filter = ServiceFilter("*", "*", PROTOCOL, "*", "*", "*")
-    actor_discovery.add_handler(actor_discovery_handler, filter)
+    service_filter = ServiceFilter("*", "*", PROTOCOL, "*", "*", "*")
+    actor_discovery.add_handler(actor_discovery_handler, service_filter)
     event.add_timer_handler(waiting_timer, 0.5)
     aiko.process.run()
 

@@ -43,7 +43,9 @@
 # ~~~~~
 # * BUG: "Service count" sometimes is either being incremented when there is
 #        some problem or isn't being decremented consistently.
-#        Use "self.services.count()" instead ?
+#   CAUSE: Happens when MQTT connection fails, need to set services_count = 0
+#
+# * BUG: When ECProducer updates "service_count", need to int(services_count) !
 #
 # * BUG: Registrar won't become primary when there isn't another Registrar
 #        and retained topic "aiko.TOPIC_REGISTRAR_BOOT" incorrectly indicates

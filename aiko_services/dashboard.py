@@ -313,10 +313,10 @@ class DashboardFrame(FrameCommon, Frame):
     def _service_selection_clear(self):
         self.selected_services = {}
 
-    def _service_selection_color(self, color, topic_path):
-        topic_path_colored = topic_path
+    def _service_selection_color(self, color, topic_path, topic_path_show):
+        topic_path_colored = topic_path_show
         if topic_path in self.selected_services:
-            topic_path_colored = self._color_text(color, topic_path)
+            topic_path_colored = self._color_text(color, topic_path_show)
         return topic_path_colored
 
     def _service_selection_toggle(self, service):
@@ -365,8 +365,9 @@ class DashboardFrame(FrameCommon, Frame):
         services = self.services_cache.get_services().copy()
         services_formatted = []
         for service in services:
-            topic_path = ServiceTopicPath.parse(service[0]).terse
-            topic_path = self._service_selection_color(self.YELLOW, topic_path)
+            topic_path = ServiceTopicPath.parse(service[0])
+            topic_path = self._service_selection_color(
+                self.YELLOW, str(topic_path), topic_path.terse)
             protocol = _short_name(service[2])
             services_formatted.append(
                 (topic_path, service[1], service[4], protocol, service[3]))
