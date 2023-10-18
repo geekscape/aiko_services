@@ -54,6 +54,8 @@
 # * FIX: Enable Service History selected "topic path" can show LogFrame
 # * FIX: Enable Service History multiple Service selection for logging
 #
+# - LogFrame should support LogLevelPopupMenu to update selected Service
+#
 # * If Registrar isn't available, then display "Waiting for Registrar"
 # - Secondary Registrars should periodically send a non-retained message to
 #     the TOPIC_REGISTRAR_BOOT topic ... (secondary found ...) for Dashboard
@@ -112,7 +114,7 @@ from asciimatics.scene import Scene
 from asciimatics.screen import Screen
 from asciimatics.widgets import (
     Frame, Label, Layout, MultiColumnListBox,
-    PopUpDialog, PopupMenu, TextBox, Widget
+    PopUpDialog, PopupMenu, Text, TextBox, Widget
 )
 from asciimatics.widgets.utilities import THEMES
 
@@ -166,6 +168,21 @@ class FrameCommon:
         super(FrameCommon, self).__init__(
             screen, height, width, has_border=has_border, name=name)
         self.adjust_palette_required = True
+
+    def _add_service_bar(self):
+        layout = Layout([1])
+        self.add_layout(layout)
+        service_title = Text()
+        service_title.custom_colour = "title"
+        service_title.disabled = True
+        layout.add_widget(service_title)
+        return service_title
+
+    def _add_title_bar(self):
+        layout = Layout([3, 1])
+        self.add_layout(layout)
+        layout.add_widget(Label(_get_title()), 0)
+        layout.add_widget(Label('Press "?" for help', align=">"), 1)
 
     def _adjust_palette(self):
         self.palette = NICE_COLORS
@@ -265,15 +282,12 @@ class DashboardFrame(FrameCommon, Frame):
             titles=["Service history: Topic",
                     "Name", "Owner", "Protocol", "Transport"]
         )
-        layout_0 = Layout([3, 1])
+        self._add_title_bar()
+        layout_0 = Layout([1], fill_frame=True)
         self.add_layout(layout_0)
-        layout_0.add_widget(Label(_get_title()), 0)
-        layout_0.add_widget(Label('Press "?" for help', align=">"), 1)
-        layout_1 = Layout([1], fill_frame=True)
-        self.add_layout(layout_1)
-        layout_1.add_widget(self._services_widget)
-        layout_1.add_widget(self._service_widget)
-        layout_1.add_widget(self._history_widget)
+        layout_0.add_widget(self._services_widget)
+        layout_0.add_widget(self._service_widget)
+        layout_0.add_widget(self._history_widget)
         self.fix()  # Prepare Frame for use
         self._value_width = self._service_widget.width - 16
 
@@ -448,20 +462,18 @@ class LogFrame(FrameCommon, Frame):
             Widget.FILL_FRAME,
             ["<0"],
             options=[],
-            titles=["Log records"]
+            titles=["Date Time                  Level Message"]
         )
-        layout_0 = Layout([3, 1])
-        self.add_layout(layout_0)
-        layout_0.add_widget(Label(_get_title()), 0)
-        layout_0.add_widget(Label('Press "?" for help', align=">"), 1)
-        layout_1 = Layout([1])
+        self._add_title_bar()
+        self._service_title = self._add_service_bar()
+        layout_0 = Layout([1])                               # TODO: Test only
+        self.add_layout(layout_0)                            # TODO: Test only
+        recorder_label = Label(f"Log Recorder: TOPIC_PATH")  # TODO: Test only
+        recorder_label.custom_colour = "title"               # TODO: Test only
+        layout_0.add_widget(recorder_label)                  # TODO: Test only
+        layout_1 = Layout([1], fill_frame=True)
         self.add_layout(layout_1)
-        recorder_label = Label(f"Log Recorder: TOPIC_PATH")
-        recorder_label.custom_colour = "title"
-        layout_1.add_widget(recorder_label)
-        layout_2 = Layout([1], fill_frame=True)
-        self.add_layout(layout_2)
-        layout_2.add_widget(self._log_widget)
+        layout_1.add_widget(self._log_widget)
         self.fix()  # Prepare Frame for use
         self._value_width = self._log_widget.width
 
@@ -479,8 +491,10 @@ class LogFrame(FrameCommon, Frame):
             service_topic_path, _, _ = _SERVICE_SELECTED[0].rpartition("/")
             service_topic_path += "/0"  # TODO: Use correct Service Id
             name = _short_name(_SERVICE_SELECTED[1])
-            title = f"Service log records: {service_topic_path}: {name}"
-            self._log_widget._titles = [title]
+        # TODO: FIX: Following line is broken !
+        #   topic_path = ServiceTopicPath.parse(_SERVICE_SELECTED[1]).terse
+            title = f"Service: {service_topic_path}: {name}"
+            self._service_title.value = title
             self.log_buffer = deque(maxlen=_LOG_RING_BUFFER_SIZE)
             self.topic_log = f"{service_topic_path}/log"
             aiko.process.add_message_handler(
@@ -557,6 +571,42 @@ class LogLevelPopupMenu(PopupMenu):
                     self._set_log_level("WARNING")
                     self._destroy()
         return super(LogLevelPopupMenu, self).process_event(event)
+
+class ServiceFrame(FrameCommon, Frame):
+    def __init__(self, screen, name="service_frame"):
+        super(ServiceFrame, self).__init__(
+            screen, screen.height, screen.width, has_border=False, name=name
+        )
+
+        self._add_title_bar()
+        self._service_title = self._add_service_bar()
+        self.fix()  # Prepare Frame for use
+    #   self._value_width = self._service_widget.width
+
+    def _update(self, frame_no):
+        global _SERVICE_SUBSCRIBED
+
+        if self.adjust_palette_required:
+            self._adjust_palette()
+
+        if _SERVICE_SELECTED != _SERVICE_SUBSCRIBED:
+            _SERVICE_SUBSCRIBED = _SERVICE_SELECTED
+            service_topic_path, _, _ = _SERVICE_SELECTED[0].rpartition("/")
+            service_topic_path += "/0"  # TODO: Use correct Service Id
+            name = _short_name(_SERVICE_SELECTED[1])
+            title = f"Service: {service_topic_path}: {name}"
+            self._service_title.value = title
+
+        super(ServiceFrame, self)._update(frame_no)
+
+    def process_event(self, event):
+        global _SERVICE_SUBSCRIBED
+        if isinstance(event, KeyboardEvent):
+            if event.key_code in [ord("D")]:
+                _SERVICE_SUBSCRIBED = None
+                raise NextScene("Dashboard")
+        self._process_event_common(event)
+        return super(ServiceFrame, self).process_event(event)
 
 def dashboard(screen, start_scene):
     scenes = [
