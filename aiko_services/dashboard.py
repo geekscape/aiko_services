@@ -448,12 +448,50 @@ class DashboardFrame(FrameCommon, Frame):
         self._process_event_common(event)
         return super(DashboardFrame, self).process_event(event)
 
-class LogFrame(FrameCommon, Frame):
-    def __init__(self, screen):
-        super(LogFrame, self).__init__(
-            screen, screen.height, screen.width, has_border=False,
-            name="log_frame"
+# ServiceFrame subclass __init__() must include "self.fix()"
+
+class ServiceFrame(FrameCommon, Frame):
+    def __init__(self, screen, name="service_frame"):
+        super(ServiceFrame, self).__init__(
+            screen, screen.height, screen.width, has_border=False, name=name
         )
+
+        self._add_title_bar()
+        self._service_title = self._add_service_bar()
+    #   self._value_width = self._service_widget.width
+
+    def _update(self, frame_no):
+        global _SERVICE_SUBSCRIBED
+
+        if self.adjust_palette_required:
+            self._adjust_palette()
+
+        if _SERVICE_SELECTED != _SERVICE_SUBSCRIBED:
+            _SERVICE_SUBSCRIBED = _SERVICE_SELECTED
+            service_topic_path, _, _ = _SERVICE_SELECTED[0].rpartition("/")
+            service_topic_path += "/0"  # TODO: Use correct Service Id
+            name = _short_name(_SERVICE_SELECTED[1])
+            title = f"Service: {service_topic_path}: {name}"
+            self._service_title.value = title
+            self._update_service_changed(frame_no, service_topic_path)
+
+        super(ServiceFrame, self)._update(frame_no)
+
+    def _update_service_changed(self, frame_no, service_topic_path):
+        pass
+
+    def process_event(self, event):
+        global _SERVICE_SUBSCRIBED
+        if isinstance(event, KeyboardEvent):
+            if event.key_code in [ord("D")]:
+                _SERVICE_SUBSCRIBED = None
+                raise NextScene("Dashboard")
+        self._process_event_common(event)
+        return super(ServiceFrame, self).process_event(event)
+
+class LogFrame(ServiceFrame):
+    def __init__(self, screen):
+        super(LogFrame, self).__init__(screen, name="log_frame")
         self.log_buffer = None
         self.recorder = None
         self.topic_log = None
@@ -464,8 +502,6 @@ class LogFrame(FrameCommon, Frame):
             options=[],
             titles=["Date Time                  Level Message"]
         )
-        self._add_title_bar()
-        self._service_title = self._add_service_bar()
         layout_0 = Layout([1])                               # TODO: Test only
         self.add_layout(layout_0)                            # TODO: Test only
         recorder_label = Label(f"Log Recorder: TOPIC_PATH")  # TODO: Test only
@@ -480,25 +516,16 @@ class LogFrame(FrameCommon, Frame):
     def _topic_log_handler(self, _aiko, topic, payload_in):
         self.log_buffer.append(payload_in)
 
+    def _update_service_changed(self, frame_no, service_topic_path):
+    # TODO: FIX: Following line is broken !
+    #   topic_path = ServiceTopicPath.parse(_SERVICE_SELECTED[1]).terse
+        self.log_buffer = deque(maxlen=_LOG_RING_BUFFER_SIZE)
+        self.topic_log = f"{service_topic_path}/log"
+        aiko.process.add_message_handler(
+            self._topic_log_handler, self.topic_log)
+
     def _update(self, frame_no):
-        global _SERVICE_SUBSCRIBED
-
-        if self.adjust_palette_required:
-            self._adjust_palette()
-
-        if _SERVICE_SELECTED != _SERVICE_SUBSCRIBED:
-            _SERVICE_SUBSCRIBED = _SERVICE_SELECTED
-            service_topic_path, _, _ = _SERVICE_SELECTED[0].rpartition("/")
-            service_topic_path += "/0"  # TODO: Use correct Service Id
-            name = _short_name(_SERVICE_SELECTED[1])
-        # TODO: FIX: Following line is broken !
-        #   topic_path = ServiceTopicPath.parse(_SERVICE_SELECTED[1]).terse
-            title = f"Service: {service_topic_path}: {name}"
-            self._service_title.value = title
-            self.log_buffer = deque(maxlen=_LOG_RING_BUFFER_SIZE)
-            self.topic_log = f"{service_topic_path}/log"
-            aiko.process.add_message_handler(
-                self._topic_log_handler, self.topic_log)
+        super(LogFrame, self)._update(frame_no)
 
         log_records = []
         if self.log_buffer:
@@ -571,42 +598,6 @@ class LogLevelPopupMenu(PopupMenu):
                     self._set_log_level("WARNING")
                     self._destroy()
         return super(LogLevelPopupMenu, self).process_event(event)
-
-class ServiceFrame(FrameCommon, Frame):
-    def __init__(self, screen, name="service_frame"):
-        super(ServiceFrame, self).__init__(
-            screen, screen.height, screen.width, has_border=False, name=name
-        )
-
-        self._add_title_bar()
-        self._service_title = self._add_service_bar()
-        self.fix()  # Prepare Frame for use
-    #   self._value_width = self._service_widget.width
-
-    def _update(self, frame_no):
-        global _SERVICE_SUBSCRIBED
-
-        if self.adjust_palette_required:
-            self._adjust_palette()
-
-        if _SERVICE_SELECTED != _SERVICE_SUBSCRIBED:
-            _SERVICE_SUBSCRIBED = _SERVICE_SELECTED
-            service_topic_path, _, _ = _SERVICE_SELECTED[0].rpartition("/")
-            service_topic_path += "/0"  # TODO: Use correct Service Id
-            name = _short_name(_SERVICE_SELECTED[1])
-            title = f"Service: {service_topic_path}: {name}"
-            self._service_title.value = title
-
-        super(ServiceFrame, self)._update(frame_no)
-
-    def process_event(self, event):
-        global _SERVICE_SUBSCRIBED
-        if isinstance(event, KeyboardEvent):
-            if event.key_code in [ord("D")]:
-                _SERVICE_SUBSCRIBED = None
-                raise NextScene("Dashboard")
-        self._process_event_common(event)
-        return super(ServiceFrame, self).process_event(event)
 
 def dashboard(screen, start_scene):
     scenes = [
