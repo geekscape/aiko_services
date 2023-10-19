@@ -59,4 +59,6 @@ from .registrar import *
 
 # from .cli import *
 
+from .dashboard import ServiceFrame
+
 aiko.process = process_create()

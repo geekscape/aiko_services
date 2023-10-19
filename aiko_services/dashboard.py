@@ -55,6 +55,7 @@
 # * FIX: Enable Service History multiple Service selection for logging
 #
 # - LogFrame should support LogLevelPopupMenu to update selected Service
+# - LogFrame display and allow the Service's "log_level" to be updated
 #
 # * If Registrar isn't available, then display "Waiting for Registrar"
 # - Secondary Registrars should periodically send a non-retained message to
@@ -121,11 +122,15 @@ from asciimatics.widgets.utilities import THEMES
 from aiko_services import *
 from aiko_services.utilities import *
 
+__all__ = ["ServiceFrame"]
+
 _HISTORY_LIMIT = 32
 _LOG_RING_BUFFER_SIZE = 128
 
+_PLUGINS = {}               # written by set_plugins()
+
 _SERVICE_SELECTED = None    # written by Dashboard._on_change_services()
-_SERVICE_SUBSCRIBED = None  # written by LogFrame._update() and process_event()
+_SERVICE_SUBSCRIBED = None  # written by ServiceFrame._update(), process_event()
 
 BLACK = Screen.COLOUR_BLACK
 WHITE = Screen.COLOUR_WHITE
@@ -211,18 +216,19 @@ class FrameCommon:
     def _process_event_common(self, event):
         if isinstance(event, KeyboardEvent):
             if event.key_code in [ord("?")]:
-                message =" Help   Aiko Services Dashboard\n"  \
-                         " ----   -----------------------\n"  \
-                         " Enter  Update variable value \n"  \
-                         " Tab    Move to next section \n"  \
-                         " c      Copy topic path to clipboard \n"  \
-                         " l      Log level change\n"  \
-                         " s      Select Service (toggle)\n"  \
-                         " C      Clear selection\n"  \
-                         " D      Show Dashboard page \n"  \
-                         " K      Kill Service \n"  \
-                         " L      Show Log page\n"  \
-                         " x      Exit"
+                message = " Help   Aiko Services Dashboard\n"        \
+                          " ----   -----------------------\n"        \
+                          " Enter  Update variable value\n"          \
+                          " Tab    Move to next section\n"           \
+                          " c      Copy topic path to clipboard \n"  \
+                          " l      Log level change\n"               \
+                          " s      Select Service (toggle)\n"        \
+                          " C      Clear selection\n"                \
+                          " D      Show Dashboard page\n"            \
+                          " K      Kill Service \n"                  \
+                          " L      Show Log page\n"                  \
+                          " S      Show Service specific page\n"     \
+                          " x      Exit"
                 self.scene.add_effect(
                     PopUpDialog(self._screen, message, ["OK"], theme="nice"))
             if event.key_code in [ord("x"), ord("X"), Screen.ctrl("c")]:
@@ -258,7 +264,7 @@ class DashboardFrame(FrameCommon, Frame):
 
         self.services_cache = services_cache_create_singleton(
             aiko.process, True, history_limit=_HISTORY_LIMIT)
-        filter = ServiceFilter("*", "*", "*", "*", "*", "*")
+    #   filter = ServiceFilter("*", "*", "*", "*", "*", "*")
 
         self._services_widget = MultiColumnListBox(
             screen.height * 1 // 3,
@@ -445,8 +451,23 @@ class DashboardFrame(FrameCommon, Frame):
                 self._kill_service(_SERVICE_SELECTED[0])
             if event.key_code in [ord("L")] and _SERVICE_SELECTED:
                 raise NextScene("Log")
+            if event.key_code in [ord("S")] and _SERVICE_SELECTED:
+                self._raise_next_scene()
         self._process_event_common(event)
         return super(DashboardFrame, self).process_event(event)
+
+    def _raise_next_scene(self):
+        service_name = _SERVICE_SELECTED[1]
+        service_protocol = _short_name(_SERVICE_SELECTED[2]).split(":")[0]
+        names = [service_name, service_protocol]
+        scene_name = [name for name in names if name in _PLUGINS]
+
+        if scene_name:
+            raise NextScene(scene_name[0])
+        else:
+            message = f" {service_name} does not have a plugin "
+            self.scene.add_effect(
+                PopUpDialog(self._screen, message, ["OK"], theme="nice"))
 
 # ServiceFrame subclass __init__() must include "self.fix()"
 
@@ -456,6 +477,7 @@ class ServiceFrame(FrameCommon, Frame):
             screen, screen.height, screen.width, has_border=False, name=name
         )
 
+        self.service = None
         self._add_title_bar()
         self._service_title = self._add_service_bar()
     #   self._value_width = self._service_widget.width
@@ -472,6 +494,7 @@ class ServiceFrame(FrameCommon, Frame):
             service_topic_path += "/0"  # TODO: Use correct Service Id
             name = _short_name(_SERVICE_SELECTED[1])
             title = f"Service: {service_topic_path}: {name}"
+            self.service = _SERVICE_SUBSCRIBED
             self._service_title.value = title
             self._update_service_changed(frame_no, service_topic_path)
 
@@ -550,7 +573,6 @@ class LogFrame(ServiceFrame):
                 self.topic_log = None
                 _SERVICE_SUBSCRIBED = None
                 raise NextScene("Dashboard")
-        self._process_event_common(event)
         return super(LogFrame, self).process_event(event)
 
 class LogLevelPopupMenu(PopupMenu):
@@ -600,20 +622,33 @@ class LogLevelPopupMenu(PopupMenu):
         return super(LogLevelPopupMenu, self).process_event(event)
 
 def dashboard(screen, start_scene):
-    scenes = [
-        Scene([DashboardFrame(screen)], -1, name="Dashboard"),
-        Scene([LogFrame(screen)], -1, name="Log")
-    ]
+    scenes = []
+    for scene_name, scene_class in _PLUGINS.items():
+        scene = Scene([scene_class(screen)], -1, name=scene_name)
+        scenes.append(scene)
     screen.play(scenes, stop_on_resize=True, start_scene=start_scene)
 
+def set_plugins(plugins):
+    _PLUGINS["Dashboard"] = DashboardFrame
+    _PLUGINS["Log"] = LogFrame
+    _PLUGINS.update(plugins)
+
 @click.command()
+@click.argument("plugin_filename", required=False,
+    default="aiko_services.dashboard_plugin")
 @click.option("--history_limit", "-hl", type=click.INT, default=32,
     help="History length requested from Registrar")
-def main(history_limit):
+def main(plugin_filename, history_limit):
     global _HISTORY_LIMIT
     _HISTORY_LIMIT = history_limit
-    scene = None
 
+    try:
+        plugin = load_module(plugin_filename) if plugin_filename else None
+    except ModuleNotFoundError:
+        plugin = None
+    set_plugins(plugin.plugins if plugin else {})
+
+    scene = None
     while True:
         try:
             Screen.wrapper(
