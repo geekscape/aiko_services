@@ -10,13 +10,22 @@
 # Notes
 # ~~~~~
 # Debugging approach #1
-#   aiko.process.message.publish("DASHBOARD", f"Debug message")
+#   aiko.process.message.publish("$AIKO_NAMESPACE/DASHBOARD", f"Debug message")
+#
+#   mosquitto_sub -h $AIKO_MQTT_HOST -t $AIKO_NAMESPACE/DASHBOARD -v
 #
 # Debugging approach #2
+#   from aiko_services.utilities import *
+#   print_error("I've got a bad feeling about this !")
+#
+#   aiko_dashboard 1>/dev/null  # Debug messages only
+#   aiko_dashboard 2>/dev/null  # TUI only
+#
+# Debugging approach #3
 #   import logging
 #   logging.basicConfig(format='%(message)s')
 #   log = logging.getLogger(__name__)
-#   log.warning("DB: debug messages on stderr\r")
+#   log.warning("It's a trap !\r")
 #
 #   aiko_dashboard 1>/dev/null  # Debug messages only
 #   aiko_dashboard 2>/dev/null  # TUI only
@@ -126,11 +135,7 @@ __all__ = ["ServiceFrame"]
 
 _HISTORY_LIMIT = 32
 _LOG_RING_BUFFER_SIZE = 128
-
-_PLUGINS = {}               # written by set_plugins()
-
-_SERVICE_SELECTED = None    # written by Dashboard._on_change_services()
-_SERVICE_SUBSCRIBED = None  # written by ServiceFrame._update(), process_event()
+_PLUGINS = {}  # updated by set_plugins()
 
 BLACK = Screen.COLOUR_BLACK
 WHITE = Screen.COLOUR_WHITE
@@ -148,26 +153,6 @@ mqtt_configuration = get_mqtt_configuration()
 mqtt_host = mqtt_configuration[0]
 mqtt_port = mqtt_configuration[1]
 
-def _get_title(name=None, context=""):
-    if name:
-        title = f"{name}: "
-    else:
-        title = "AikoServices: "
-    if context:
-        title += context
-    else:
-        title += f"{mqtt_host[0:40]}:{mqtt_port}"
-    return title
-
-def _short_name(path):
-    after_slash = path.rfind("/") + 1
-    return path[after_slash:]
-
-def _update_ecproducer_variable(topic_path, name, value):
-    topic_path_control = topic_path + "/control"
-    payload_out = f"(update {name} {value})"
-    aiko.message.publish(topic_path_control, payload_out)
-
 class FrameCommon:
     def __init__(self, screen, height, width, has_border, name):
         super(FrameCommon, self).__init__(
@@ -183,10 +168,21 @@ class FrameCommon:
         layout.add_widget(service_title)
         return service_title
 
+    def _get_title(self, name=None, context=""):
+        if name:
+            title = f"{name}: "
+        else:
+            title = "AikoServices: "
+        if context:
+            title += context
+        else:
+            title += f"{mqtt_host[0:40]}:{mqtt_port}"
+        return title
+
     def _add_title_bar(self):
         layout = Layout([3, 1])
         self.add_layout(layout)
-        layout.add_widget(Label(_get_title()), 0)
+        layout.add_widget(Label(self._get_title()), 0)
         layout.add_widget(Label('Press "?" for help', align=">"), 1)
 
     def _adjust_palette(self):
@@ -211,26 +207,35 @@ class FrameCommon:
     def frame_update_count(self):
         return 5  # assuming 20 FPS, then refresh screen at 4 Hz
 
+    def _short_name(self, path):
+        after_slash = path.rfind("/") + 1
+        return path[after_slash:]
+
+    def _update_ecproducer_variable(self, topic_path, name, value):
+        topic_path_control = topic_path + "/control"
+        payload_out = f"(update {name} {value})"
+        aiko.message.publish(topic_path_control, payload_out)
+
 # TODO: Replace _process_event_common() with the following ...
 # https://asciimatics.readthedocs.io/en/stable/widgets.html#global-key-handling
     def _process_event_common(self, event):
         if isinstance(event, KeyboardEvent):
             if event.key_code in [ord("?")]:
-                message = " Help   Aiko Services Dashboard\n"        \
-                          " ----   -----------------------\n"        \
-                          " Enter  Update variable value\n"          \
-                          " Tab    Move to next section\n"           \
-                          " c      Copy topic path to clipboard \n"  \
-                          " l      Log level change\n"               \
-                          " s      Select Service (toggle)\n"        \
-                          " C      Clear selection\n"                \
-                          " D      Show Dashboard page\n"            \
-                          " K      Kill Service \n"                  \
-                          " L      Show Log page\n"                  \
-                          " S      Show Service specific page\n"     \
-                          " x      Exit"
+                text = " Help   Aiko Services Dashboard\n"        \
+                       " ----   -----------------------\n"        \
+                       " Enter  Update variable value\n"          \
+                       " Tab    Move to next section\n"           \
+                       " c      Copy topic path to clipboard \n"  \
+                       " l      Log level change\n"               \
+                       " s      Select Service (toggle)\n"        \
+                       " C      Clear selection\n"                \
+                       " D      Show Dashboard page\n"            \
+                       " K      Kill Service \n"                  \
+                       " L      Show Log page\n"                  \
+                       " S      Show Service specific page\n"     \
+                       " x      Exit"
                 self.scene.add_effect(
-                    PopUpDialog(self._screen, message, ["OK"], theme="nice"))
+                    PopUpDialog(self._screen, text, ["OK"], theme="nice"))
             if event.key_code in [ord("x"), ord("X"), Screen.ctrl("c")]:
                 self.services_cache = None
                 services_cache_delete()
@@ -251,7 +256,16 @@ class FrameCommon:
                 padding = 2
 
 class DashboardFrame(FrameCommon, Frame):
-    def __init__(self, screen):
+    dashboard_singleton = None  # Instance reference for ServiceFrames plugins
+
+    @classmethod
+    def get_singleton(cls):
+        return DashboardFrame.dashboard_singleton
+
+    def __init__(self, screen, _):
+        if not DashboardFrame.dashboard_singleton:
+            DashboardFrame.dashboard_singleton = self
+
         super(DashboardFrame, self).__init__(
             screen, screen.height, screen.width, has_border=False,
             name="dashboard_frame"
@@ -260,7 +274,9 @@ class DashboardFrame(FrameCommon, Frame):
         self.ec_consumer = None
         self._ec_consumer_reset()
         self.services_row = -1
+        self.selected_service = None
         self.selected_services = {}
+        self.subscribed_service = None
 
         self.services_cache = services_cache_create_singleton(
             aiko.process, True, history_limit=_HISTORY_LIMIT)
@@ -298,18 +314,17 @@ class DashboardFrame(FrameCommon, Frame):
         self._value_width = self._service_widget.width - 16
 
     def _ec_consumer_set(self, index):
-        global _SERVICE_SELECTED
         self._ec_consumer_reset()
         self.services_row = -1
-        _SERVICE_SELECTED = None
+        self.selected_service = None
 
         services = self.services_cache.get_services()
         services_topic_paths = services.get_topic_paths()
         if len(services_topic_paths) > index:
             self.services_row = index
             service_topic_path = services_topic_paths[index]
-            _SERVICE_SELECTED = services.get_service(service_topic_path)
-            self.service_tags = _SERVICE_SELECTED[5]
+            self.selected_service = services.get_service(service_topic_path)
+            self.service_tags = self.selected_service[5]
             if ServiceTags.match_tags(self.service_tags, ["ec=true"]):
                 topic_control = f"{service_topic_path}/control"
                 self.ec_consumer = ECConsumer(
@@ -357,8 +372,8 @@ class DashboardFrame(FrameCommon, Frame):
 
         def _on_close(button_index):
             if button_index == 1:
-                _update_ecproducer_variable(
-                    _SERVICE_SELECTED[0], variable_name, text_box.value[0])
+                self._update_ecproducer_variable(
+                    self.selected_service[0], variable_name, text_box.value[0])
 
         row = self._service_widget.value
         variable = self._service_widget.options[row]
@@ -388,7 +403,7 @@ class DashboardFrame(FrameCommon, Frame):
             topic_path = ServiceTopicPath.parse(service[0])
             topic_path = self._service_selection_color(
                 self.YELLOW, str(topic_path), topic_path.terse)
-            protocol = _short_name(service[2])
+            protocol = self._short_name(service[2])
             services_formatted.append(
                 (topic_path, service[1], service[4], protocol, service[3]))
         self._services_widget.options = [
@@ -426,7 +441,7 @@ class DashboardFrame(FrameCommon, Frame):
         services_formatted = []
         for service in service_history:
             topic_path = ServiceTopicPath.parse(service[0]).terse
-            protocol = _short_name(service[2])
+            protocol = self._short_name(service[2])
             services_formatted.append(
                 (topic_path, service[1], service[4], protocol, service[3]))
         self._history_widget.options = [
@@ -438,83 +453,79 @@ class DashboardFrame(FrameCommon, Frame):
 
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
-            if event.key_code in [ord("c")] and _SERVICE_SELECTED:
-                xerox.copy(_SERVICE_SELECTED[0])
-            if event.key_code in [ord("l")] and _SERVICE_SELECTED:
-                self.scene.add_effect(LogLevelPopupMenu(
-                    self._screen, self._services_widget, _SERVICE_SELECTED[0]))
-            if event.key_code in [ord("s")] and _SERVICE_SELECTED:
-                self._service_selection_toggle(_SERVICE_SELECTED)
+            if event.key_code in [ord("c")] and self.selected_service:
+                xerox.copy(self.selected_service[0])
+            if event.key_code in [ord("l")] and self.selected_service:
+                self.scene.add_effect(LogLevelPopupMenu(self._screen,
+                    self._services_widget, self.selected_service[0]))
+            if event.key_code in [ord("s")] and self.selected_service:
+                self._service_selection_toggle(self.selected_service)
             if event.key_code in [ord("C")]:
                 self._service_selection_clear()
-            if event.key_code in [ord("K")] and _SERVICE_SELECTED:
-                self._kill_service(_SERVICE_SELECTED[0])
-            if event.key_code in [ord("L")] and _SERVICE_SELECTED:
+            if event.key_code in [ord("K")] and self.selected_service:
+                self._kill_service(self.selected_service[0])
+            if event.key_code in [ord("L")] and self.selected_service:
                 raise NextScene("Log")
-            if event.key_code in [ord("S")] and _SERVICE_SELECTED:
-                self._raise_next_scene()
+            if event.key_code in [ord("S")] and self.selected_service:
+                self._raise_next_scene(self.selected_service)
         self._process_event_common(event)
         return super(DashboardFrame, self).process_event(event)
 
-    def _raise_next_scene(self):
-        service_name = _SERVICE_SELECTED[1]
-        service_protocol = _short_name(_SERVICE_SELECTED[2]).split(":")[0]
+    def _raise_next_scene(self, service):
+        service_name = service[1]
+        service_protocol = self._short_name(service[2]).split(":")[0]
         names = [service_name, service_protocol]
         scene_name = [name for name in names if name in _PLUGINS]
 
         if scene_name:
             raise NextScene(scene_name[0])
         else:
-            message = f" {service_name} does not have a plugin "
+            text = f" {service_name} does not have a plugin "
             self.scene.add_effect(
-                PopUpDialog(self._screen, message, ["OK"], theme="nice"))
+                PopUpDialog(self._screen, text, ["OK"], theme="nice"))
 
 # ServiceFrame subclass __init__() must include "self.fix()"
 
 class ServiceFrame(FrameCommon, Frame):
-    def __init__(self, screen, name="service_frame"):
+    def __init__(self, screen, dashboard, name="service_frame"):
         super(ServiceFrame, self).__init__(
             screen, screen.height, screen.width, has_border=False, name=name
         )
 
+        self.dashboard = dashboard
         self.service = None
         self._add_title_bar()
         self._service_title = self._add_service_bar()
     #   self._value_width = self._service_widget.width
 
     def _update(self, frame_no):
-        global _SERVICE_SUBSCRIBED
-
         if self.adjust_palette_required:
             self._adjust_palette()
 
-        if _SERVICE_SELECTED != _SERVICE_SUBSCRIBED:
-            _SERVICE_SUBSCRIBED = _SERVICE_SELECTED
-            service_topic_path, _, _ = _SERVICE_SELECTED[0].rpartition("/")
-            service_topic_path += "/0"  # TODO: Use correct Service Id
-            name = _short_name(_SERVICE_SELECTED[1])
-            title = f"Service: {service_topic_path}: {name}"
-            self.service = _SERVICE_SUBSCRIBED
-            self._service_title.value = title
-            self._update_service_changed(frame_no, service_topic_path)
+        if self.dashboard.selected_service != self.dashboard.subscribed_service:
+            self.dashboard.subscribed_service = self.dashboard.selected_service
+            self.service = self.dashboard.selected_service
+            topic_path = self.service[0]
+            name = self._short_name(self.service[1])
+            self._service_title.value = f"Service: {topic_path}: {name}"
+            self._update_service_changed(frame_no, self.service)
 
         super(ServiceFrame, self)._update(frame_no)
 
-    def _update_service_changed(self, frame_no, service_topic_path):
+    def _update_service_changed(self, frame_no, service):
         pass
 
     def process_event(self, event):
-        global _SERVICE_SUBSCRIBED
         if isinstance(event, KeyboardEvent):
             if event.key_code in [ord("D")]:
-                _SERVICE_SUBSCRIBED = None
+                self.dashboard.subscribed_service = None
                 raise NextScene("Dashboard")
         self._process_event_common(event)
         return super(ServiceFrame, self).process_event(event)
 
 class LogFrame(ServiceFrame):
-    def __init__(self, screen):
-        super(LogFrame, self).__init__(screen, name="log_frame")
+    def __init__(self, screen, dashboard):
+        super(LogFrame, self).__init__(screen, dashboard, name="log_frame")
         self.log_buffer = None
         self.recorder = None
         self.topic_log = None
@@ -523,7 +534,7 @@ class LogFrame(ServiceFrame):
             Widget.FILL_FRAME,
             ["<0"],
             options=[],
-            titles=["Date Time                  Level Message"]
+            titles=["Date       Time            Level Message"]
         )
         layout_0 = Layout([1])                               # TODO: Test only
         self.add_layout(layout_0)                            # TODO: Test only
@@ -539,11 +550,11 @@ class LogFrame(ServiceFrame):
     def _topic_log_handler(self, _aiko, topic, payload_in):
         self.log_buffer.append(payload_in)
 
-    def _update_service_changed(self, frame_no, service_topic_path):
-    # TODO: FIX: Following line is broken !
-    #   topic_path = ServiceTopicPath.parse(_SERVICE_SELECTED[1]).terse
+    def _update_service_changed(self, frame_no, service):
+        topic_path, _, _ = service[0].rpartition("/")
+        topic_path += "/0"  # TODO: Use correct Service Id
         self.log_buffer = deque(maxlen=_LOG_RING_BUFFER_SIZE)
-        self.topic_log = f"{service_topic_path}/log"
+        self.topic_log = f"{topic_path}/log"
         aiko.process.add_message_handler(
             self._topic_log_handler, self.topic_log)
 
@@ -564,19 +575,19 @@ class LogFrame(ServiceFrame):
         super(LogFrame, self)._update(frame_no)
 
     def process_event(self, event):
-        global _SERVICE_SUBSCRIBED
         if isinstance(event, KeyboardEvent):
             if event.key_code in [ord("D")]:
                 aiko.process.remove_message_handler(
                     self._topic_log_handler, self.topic_log)
                 self.log_buffer = None
                 self.topic_log = None
-                _SERVICE_SUBSCRIBED = None
+                self.dashboard.subscribed_service = None
                 raise NextScene("Dashboard")
         return super(LogFrame, self).process_event(event)
 
 class LogLevelPopupMenu(PopupMenu):
     def __init__(self, screen, parent_widget, service_selected):
+        self._dashboard = DashboardFrame.get_singleton()
         self._screen = screen
         self._parent_widget = parent_widget
         self._service_selected = service_selected
@@ -598,7 +609,7 @@ class LogLevelPopupMenu(PopupMenu):
         self._set_log_level(log_level)
 
     def _set_log_level(self, log_level):
-        _update_ecproducer_variable(
+        self._dashboard._update_ecproducer_variable(
             self._service_selected, "log_level", log_level)
         self._parent_widget.focus()
 
@@ -606,7 +617,7 @@ class LogLevelPopupMenu(PopupMenu):
         if isinstance(event, KeyboardEvent):
             if event.key_code in [ord("c")]:
                 self._destroy()
-            if _SERVICE_SELECTED:
+            if self._dashboard.selected_service:
                 if event.key_code in [ord("d")]:
                     self._set_log_level("DEBUG")
                     self._destroy()
@@ -621,10 +632,13 @@ class LogLevelPopupMenu(PopupMenu):
                     self._destroy()
         return super(LogLevelPopupMenu, self).process_event(event)
 
-def dashboard(screen, start_scene):
+def run_dashboard(screen, start_scene):
     scenes = []
+    dashboard = None
     for scene_name, scene_class in _PLUGINS.items():
-        scene = Scene([scene_class(screen)], -1, name=scene_name)
+        scene = Scene([scene_class(screen, dashboard)], -1, name=scene_name)
+        if scene_name == "Dashboard":
+            dashboard = DashboardFrame.get_singleton()
         scenes.append(scene)
     screen.play(scenes, stop_on_resize=True, start_scene=start_scene)
 
@@ -652,7 +666,7 @@ def main(plugin_filename, history_limit):
     while True:
         try:
             Screen.wrapper(
-                dashboard, catch_interrupt=True, arguments=[scene]
+                run_dashboard, catch_interrupt=True, arguments=[scene]
             )
             break
         except ResizeScreenError as exception:

@@ -5,9 +5,9 @@ from aiko_services import *
 __all__ = []
 
 class RegistrarFrame(ServiceFrame):
-    def __init__(self, screen):
+    def __init__(self, screen, dashboard):
         super(RegistrarFrame, self).__init__(
-            screen, name="registrar_frame")
+            screen, dashboard, name="registrar_frame")
 
         self.services_cache = services_cache_create_singleton(
             aiko.process, True, history_limit=screen.height)
@@ -31,7 +31,7 @@ class RegistrarFrame(ServiceFrame):
         services_formatted = []
         for service in services:
             topic_path = str(ServiceTopicPath.parse(service[0]))
-            protocol = service[2]  # _short_name(service[2])
+            protocol = service[2]  # self._short_name(service[2])
             services_formatted.append(
                 (topic_path, service[1], service[4], protocol, service[3]))
         self._registrar_widget.options = [
