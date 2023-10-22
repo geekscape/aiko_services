@@ -62,11 +62,14 @@ from collections import deque
 import logging
 from logging.config import dictConfig
 import os
+import sys
 from typing import Any
 
 from aiko_services.utilities import *
 
-__all__ = ["DEBUG", "get_level_name", "get_logger", "LoggingHandlerMQTT"]
+__all__ = [
+    "DEBUG", "get_level_name", "get_logger", "LoggingHandlerMQTT", "print_error"
+]
 
 DEBUG = logging.DEBUG
 
@@ -114,6 +117,9 @@ def get_logger(name: str, log_level=None, logging_handler=None) -> Any:
     logger.addHandler(logging_handler)
     logger.setLevel(log_level)
     return logger
+
+def print_error(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
 
 # -----------------------------------------------------------------------------
 
