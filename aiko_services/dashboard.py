@@ -642,25 +642,27 @@ def run_dashboard(screen, start_scene):
         scenes.append(scene)
     screen.play(scenes, stop_on_resize=True, start_scene=start_scene)
 
-def set_plugins(plugins):
-    _PLUGINS["Dashboard"] = DashboardFrame
-    _PLUGINS["Log"] = LogFrame
+def update_plugins(plugins):
+    if not _PLUGINS:
+        _PLUGINS["Dashboard"] = DashboardFrame
+        _PLUGINS["Log"] = LogFrame
     _PLUGINS.update(plugins)
 
 @click.command()
-@click.argument("plugin_filename", required=False,
-    default="aiko_services.dashboard_plugin")
 @click.option("--history_limit", "-hl", type=click.INT, default=32,
     help="History length requested from Registrar")
-def main(plugin_filename, history_limit):
+@click.option("--plugin", "-p", multiple=True, required=False,
+    default=["aiko_services.dashboard_plugins"])
+def main(plugin, history_limit):
     global _HISTORY_LIMIT
     _HISTORY_LIMIT = history_limit
 
-    try:
-        plugin = load_module(plugin_filename) if plugin_filename else None
-    except ModuleNotFoundError:
-        plugin = None
-    set_plugins(plugin.plugins if plugin else {})
+    for plugin_name in plugin:
+        try:
+            module = load_module(plugin_name) if plugin_name else None
+        except ModuleNotFoundError:
+            module = None
+        update_plugins(module.plugins if module else {})
 
     scene = None
     while True:

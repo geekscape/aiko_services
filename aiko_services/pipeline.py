@@ -707,9 +707,9 @@ def main():
     pass
 
 @main.command(help="Create Pipeline defined by PipelineDefinition pathname")
-@click.argument("definition_pathname", nargs=1, type=str)
 @click.option("--name", "-n", type=str, default=None, required=False,
     help="Pipeline Actor name")
+@click.argument("definition_pathname", nargs=1, type=str)
 def create(definition_pathname, name):
     if not os.path.exists(definition_pathname):
         raise SystemExit(
