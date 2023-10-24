@@ -76,6 +76,8 @@
 #   - TOPIC_REGISTRAR_BOOT indicates there are secondary Registrar(s)
 #       and show their details
 #
+# * Keyboard "H": Toggles between "Services History" and "Service Log"
+#
 # * Show Services running: time_add and time running
 # * Show Services history: tags, time_add, time_remove and time running
 #
@@ -131,7 +133,7 @@ from asciimatics.widgets.utilities import THEMES
 from aiko_services import *
 from aiko_services.utilities import *
 
-__all__ = ["ServiceFrame"]
+__all__ = ["LogUI", "ServiceFrame"]
 
 _HISTORY_LIMIT = 32
 _LOG_RING_BUFFER_SIZE = 128
@@ -480,7 +482,7 @@ class DashboardFrame(FrameCommon, Frame):
         if scene_name:
             raise NextScene(scene_name[0])
         else:
-            text = f" {service_name} does not have a plugin "
+            text = f" Service: {service_name} \n Does not have a custom page "
             self.scene.add_effect(
                 PopUpDialog(self._screen, text, ["OK"], theme="nice"))
 
@@ -527,29 +529,28 @@ class ServiceFrame(FrameCommon, Frame):
         self._process_event_common(event)
         return super(ServiceFrame, self).process_event(event)
 
-class LogFrame(ServiceFrame):
-    def __init__(self, screen, dashboard):
-        super(LogFrame, self).__init__(screen, dashboard, name="log_frame")
+# Re-usable logging user interface  # TODO: Consider turning into a Widget ?
+# https://asciimatics.readthedocs.io/en/stable/widgets.html#custom-widgets
+
+class LogUI:
+    def __init__(self, parent, height=Widget.FILL_FRAME):
+        self.parent = parent
         self.log_buffer = None
         self.recorder = None
         self.topic_log = None
 
         self._log_widget = MultiColumnListBox(
-            Widget.FILL_FRAME,
-            ["<0"],
-            options=[],
+            height, ["<0"], options=[],
             titles=["Date       Time            Level Message"]
         )
-        layout_0 = Layout([1])                               # TODO: Test only
-        self.add_layout(layout_0)                            # TODO: Test only
-        recorder_label = Label(f"Log Recorder: TOPIC_PATH")  # TODO: Test only
-        recorder_label.custom_colour = "title"               # TODO: Test only
-        layout_0.add_widget(recorder_label)                  # TODO: Test only
+        layout_0 = Layout([1])
+        parent.add_layout(layout_0)
+        recorder_label = Label(f"Log Recorder: TOPIC_PATH")
+        recorder_label.custom_colour = "title"
+        layout_0.add_widget(recorder_label)
         layout_1 = Layout([1], fill_frame=True)
-        self.add_layout(layout_1)
+        parent.add_layout(layout_1)
         layout_1.add_widget(self._log_widget)
-        self.fix()  # Prepare Frame for use
-        self._value_width = self._log_widget.width
 
     def _topic_log_handler(self, _aiko, topic, payload_in):
         self.log_buffer.append(payload_in)
@@ -569,20 +570,32 @@ class LogFrame(ServiceFrame):
         self.topic_log = None
 
     def _update(self, frame_no):
-        super(LogFrame, self)._update(frame_no)
-
         log_records = []
         if self.log_buffer:
             for log_record in self.log_buffer:
             #   log_records.append((log_record,))
-                self._update_field(
-                    log_records, None, log_record, self._value_width)
+                self.parent._update_field(
+                    log_records, None, log_record, self._log_widget.width)
         self._log_widget.options = [
             (log_record, row_index)
             for row_index, log_record in enumerate(log_records)
         ]
 
+class LogFrame(ServiceFrame):
+    def __init__(self, screen, dashboard):
+        super(LogFrame, self).__init__(screen, dashboard, name="log_frame")
+        self.log_ui = LogUI(self)
+        self.fix()  # Prepare Frame for use
+
+    def _service_frame_start(self, service, service_ec_consumer):
+        self.log_ui._service_frame_start(service, service_ec_consumer)
+
+    def _service_frame_stop(self, service):
+        self.log_ui._service_frame_stop(service)
+
+    def _update(self, frame_no):
         super(LogFrame, self)._update(frame_no)
+        self.log_ui._update(frame_no)
 
 class LogLevelPopupMenu(PopupMenu):
     def __init__(self, screen, parent_widget, service_selected):

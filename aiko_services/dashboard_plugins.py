@@ -13,16 +13,20 @@ class RegistrarFrame(ServiceFrame):
             aiko.process, True, history_limit=screen.height)
 
         self._registrar_widget = MultiColumnListBox(
-            Widget.FILL_FRAME,
-            ["<0"],
-            options=[],
+            screen.height * 1 // 2, ["<0"], options=[],
             titles=["Registrar: Discovered Services topic paths"]
         )
-        layout_0 = Layout([1], fill_frame=True)
+        layout_0 = Layout([1])
         self.add_layout(layout_0)
         layout_0.add_widget(self._registrar_widget)
+        self.log_ui = LogUI(self)
         self.fix()  # Prepare Frame for use
-        self._value_width = self._registrar_widget.width
+
+    def _service_frame_start(self, service, service_ec_consumer):
+        self.log_ui._service_frame_start(service, service_ec_consumer)
+
+    def _service_frame_stop(self, service):
+        self.log_ui._service_frame_stop(service)
 
     def _update(self, frame_no):
         super(RegistrarFrame, self)._update(frame_no)
@@ -38,6 +42,8 @@ class RegistrarFrame(ServiceFrame):
             (service_info, row_index)
             for row_index, service_info in enumerate(services_formatted)
         ]
+
+        self.log_ui._update(frame_no)
 
 # plugin key can be either the Service "name" or "protocol"
 

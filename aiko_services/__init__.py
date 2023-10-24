@@ -59,6 +59,6 @@ from .registrar import *
 
 # from .cli import *
 
-from .dashboard import ServiceFrame
+from .dashboard import LogUI, ServiceFrame
 
 aiko.process = process_create()
