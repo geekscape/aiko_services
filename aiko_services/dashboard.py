@@ -508,16 +508,20 @@ class ServiceFrame(FrameCommon, Frame):
             topic_path = self.service[0]
             name = self._short_name(self.service[1])
             self._service_title.value = f"Service: {topic_path}: {name}"
-            self._update_service_changed(frame_no, self.service)
+            self._service_frame_start(self.service)
 
         super(ServiceFrame, self)._update(frame_no)
 
-    def _update_service_changed(self, frame_no, service):
+    def _service_frame_start(self, service):
+        pass
+
+    def _service_frame_stop(self, service):
         pass
 
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
             if event.key_code in [ord("D")]:
+                self._service_frame_stop(self.service)
                 self.dashboard.subscribed_service = None
                 raise NextScene("Dashboard")
         self._process_event_common(event)
@@ -550,13 +554,19 @@ class LogFrame(ServiceFrame):
     def _topic_log_handler(self, _aiko, topic, payload_in):
         self.log_buffer.append(payload_in)
 
-    def _update_service_changed(self, frame_no, service):
+    def _service_frame_start(self, service):
         topic_path, _, _ = service[0].rpartition("/")
         topic_path += "/0"  # TODO: Use correct Service Id
         self.log_buffer = deque(maxlen=_LOG_RING_BUFFER_SIZE)
         self.topic_log = f"{topic_path}/log"
         aiko.process.add_message_handler(
             self._topic_log_handler, self.topic_log)
+
+    def _service_frame_stop(self, service):
+        aiko.process.remove_message_handler(
+            self._topic_log_handler, self.topic_log)
+        self.log_buffer = None
+        self.topic_log = None
 
     def _update(self, frame_no):
         super(LogFrame, self)._update(frame_no)
@@ -573,17 +583,6 @@ class LogFrame(ServiceFrame):
         ]
 
         super(LogFrame, self)._update(frame_no)
-
-    def process_event(self, event):
-        if isinstance(event, KeyboardEvent):
-            if event.key_code in [ord("D")]:
-                aiko.process.remove_message_handler(
-                    self._topic_log_handler, self.topic_log)
-                self.log_buffer = None
-                self.topic_log = None
-                self.dashboard.subscribed_service = None
-                raise NextScene("Dashboard")
-        return super(LogFrame, self).process_event(event)
 
 class LogLevelPopupMenu(PopupMenu):
     def __init__(self, screen, parent_widget, service_selected):
