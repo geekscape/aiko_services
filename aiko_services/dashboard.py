@@ -508,11 +508,11 @@ class ServiceFrame(FrameCommon, Frame):
             topic_path = self.service[0]
             name = self._short_name(self.service[1])
             self._service_title.value = f"Service: {topic_path}: {name}"
-            self._service_frame_start(self.service)
+            self._service_frame_start(self.service, self.dashboard.ec_consumer)
 
         super(ServiceFrame, self)._update(frame_no)
 
-    def _service_frame_start(self, service):
+    def _service_frame_start(self, service, service_ec_consumer):
         pass
 
     def _service_frame_stop(self, service):
@@ -554,7 +554,7 @@ class LogFrame(ServiceFrame):
     def _topic_log_handler(self, _aiko, topic, payload_in):
         self.log_buffer.append(payload_in)
 
-    def _service_frame_start(self, service):
+    def _service_frame_start(self, service, service_ec_consumer):
         topic_path, _, _ = service[0].rpartition("/")
         topic_path += "/0"  # TODO: Use correct Service Id
         self.log_buffer = deque(maxlen=_LOG_RING_BUFFER_SIZE)
