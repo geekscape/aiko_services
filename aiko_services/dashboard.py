@@ -63,6 +63,8 @@
 # * FIX: Enable Service History selected "topic path" can show LogFrame
 # * FIX: Enable Service History multiple Service selection for logging
 #
+# - Show usage statistics: mosquitto messages, Service messages / uptime
+#
 # - LogFrame should support LogLevelPopupMenu to update selected Service
 # - LogFrame display and allow the Service's "log_level" to be updated
 #
@@ -222,7 +224,17 @@ class FrameCommon:
 # https://asciimatics.readthedocs.io/en/stable/widgets.html#global-key-handling
     def _process_event_common(self, event):
         if isinstance(event, KeyboardEvent):
-            if event.key_code in [ord("?")]:
+            if event.key_code == ord("?"):
+            # TODO: [h] History / Log multiple Services (toggle)
+            # TODO: [p] Publish to Service
+            # TODO: [K] Kill Service (dialog for terminate / kill, remote)
+            #       [Delete] As above
+            # TODO: [L] Show Log page: Support multiple Service logs
+            # TODO: [N] New Service / Actor / Pipeline (parameters)
+            # TODO: [S] Show Service page: Generic page, log level, subscribe
+            #                              Parameters
+            #       [Enter] As above
+            # TODO: [T] Terminate Actor
                 text = " Help   Aiko Services Dashboard\n"        \
                        " ----   -----------------------\n"        \
                        " Enter  Update variable value\n"          \
@@ -232,9 +244,9 @@ class FrameCommon:
                        " s      Select Service (toggle)\n"        \
                        " C      Clear selection\n"                \
                        " D      Show Dashboard page\n"            \
-                       " K      Kill Service \n"                  \
+                       " K      Kill Service (local)\n"           \
                        " L      Show Log page\n"                  \
-                       " S      Show Service specific page\n"     \
+                       " S      Show Service page\n"              \
                        " x      Exit"
                 self.scene.add_effect(
                     PopUpDialog(self._screen, text, ["OK"], theme="nice"))
@@ -455,20 +467,20 @@ class DashboardFrame(FrameCommon, Frame):
 
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
-            if event.key_code in [ord("c")] and self.selected_service:
+            if event.key_code == ord("c") and self.selected_service:
                 xerox.copy(self.selected_service[0])
-            if event.key_code in [ord("l")] and self.selected_service:
+            if event.key_code == ord("l") and self.selected_service:
                 self.scene.add_effect(LogLevelPopupMenu(self._screen,
                     self._services_widget, self.selected_service[0]))
-            if event.key_code in [ord("s")] and self.selected_service:
+            if event.key_code == ord("s") and self.selected_service:
                 self._service_selection_toggle(self.selected_service)
-            if event.key_code in [ord("C")]:
+            if event.key_code == ord("C"):
                 self._service_selection_clear()
-            if event.key_code in [ord("K")] and self.selected_service:
+            if event.key_code == ord("K") and self.selected_service:
                 self._kill_service(self.selected_service[0])
-            if event.key_code in [ord("L")] and self.selected_service:
+            if event.key_code == ord("L") and self.selected_service:
                 raise NextScene("Log")
-            if event.key_code in [ord("S")] and self.selected_service:
+            if event.key_code == ord("S") and self.selected_service:
                 self._raise_next_scene(self.selected_service)
         self._process_event_common(event)
         return super(DashboardFrame, self).process_event(event)
@@ -507,7 +519,7 @@ class ServiceFrame(FrameCommon, Frame):
         if self.dashboard.selected_service != self.dashboard.subscribed_service:
             self.dashboard.subscribed_service = self.dashboard.selected_service
             self.service = self.dashboard.selected_service
-            topic_path = self.service[0]
+            topic_path = ServiceTopicPath.parse(self.service[0]).terse
             name = self._short_name(self.service[1])
             self._service_title.value = f"Service: {topic_path}: {name}"
             self._service_frame_start(self.service, self.dashboard.ec_consumer)
@@ -522,7 +534,7 @@ class ServiceFrame(FrameCommon, Frame):
 
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
-            if event.key_code in [ord("D")]:
+            if event.key_code == ord("D"):
                 self._service_frame_stop(self.service)
                 self.dashboard.subscribed_service = None
                 raise NextScene("Dashboard")
@@ -536,8 +548,9 @@ class LogUI:
     def __init__(self, parent, height=Widget.FILL_FRAME):
         self.parent = parent
         self.log_buffer = None
+        self.log_show_latest = True
         self.recorder = None
-        self.topic_log = None
+        self.topic_paths = {}
 
         self._log_widget = MultiColumnListBox(
             height, ["<0"], options=[],
@@ -552,29 +565,64 @@ class LogUI:
         parent.add_layout(layout_1)
         layout_1.add_widget(self._log_widget)
 
+    def _add_topic_path(self, topic_path):
+        if topic_path not in self.topic_paths:
+            self.topic_paths[topic_path] = topic_path
+            topic_path, _, _ = topic_path.rpartition("/")
+            topic_path += "/0/log"  # TODO: Use correct Service Id
+            aiko.process.add_message_handler(
+                self._topic_log_handler, topic_path)
+
+    def process_event(self, event):
+        if isinstance(event, KeyboardEvent):
+            widget = self._log_widget
+            if event.key_code == Screen.KEY_HOME:
+                self.log_show_latest = False
+                widget._line = 0
+                widget.value = widget.options[widget._line][1]
+            if len(widget._options) > 0 and event.key_code == Screen.KEY_END:
+                self.log_show_latest = True
+                widget._line = len(widget._options) - 1
+                widget.value = widget.options[widget._line][1]
+            if event.key_code in [Screen.KEY_UP, Screen.KEY_PAGE_UP]:
+                self.log_show_latest = False
+            if event.key_code in [Screen.KEY_DOWN, Screen.KEY_PAGE_DOWN]:
+                if widget._line == len(widget._options) - 1:
+                    self.log_show_latest = True
+
+    def _remove_topic_path(self, topic_path):
+        if topic_path in self.topic_paths:
+            del self.topic_paths[topic_path]
+            topic_path, _, _ = topic_path.rpartition("/")
+            topic_path += "/0/log"  # TODO: Use correct Service Id
+            aiko.process.remove_message_handler(
+                self._topic_log_handler, topic_path)
+
+    def _service_frame_start(self, service, service_ec_consumer):
+        self.log_buffer = deque(maxlen=_LOG_RING_BUFFER_SIZE)
+        self._add_topic_path(service[0])
+
+    def _service_frame_stop(self, service):
+        topic_paths = self.topic_paths.copy()
+        for topic_path in topic_paths:
+            self._remove_topic_path(topic_path)
+        self.log_buffer = None
+        self.topic_paths = {}
+
     def _topic_log_handler(self, _aiko, topic, payload_in):
         self.log_buffer.append(payload_in)
 
-    def _service_frame_start(self, service, service_ec_consumer):
-        topic_path, _, _ = service[0].rpartition("/")
-        topic_path += "/0"  # TODO: Use correct Service Id
-        self.log_buffer = deque(maxlen=_LOG_RING_BUFFER_SIZE)
-        self.topic_log = f"{topic_path}/log"
-        aiko.process.add_message_handler(
-            self._topic_log_handler, self.topic_log)
-
-    def _service_frame_stop(self, service):
-        aiko.process.remove_message_handler(
-            self._topic_log_handler, self.topic_log)
-        self.log_buffer = None
-        self.topic_log = None
-
     def _update(self, frame_no):
+        widget = self._log_widget
+        if self.log_show_latest and len(widget._options) > 0:
+            widget._line = len(widget._options) - 1
+            widget.value = widget.options[widget._line][1]
+
         log_records = []
         if self.log_buffer:
             for log_record in self.log_buffer:
-            #   log_records.append((log_record,))
-                self.parent._update_field(
+            #   log_records.append((log_record,))  # No record line wrapping
+                self.parent._update_field(         # With record line wrapping
                     log_records, None, log_record, self._log_widget.width)
         self._log_widget.options = [
             (log_record, row_index)
@@ -586,6 +634,10 @@ class LogFrame(ServiceFrame):
         super(LogFrame, self).__init__(screen, dashboard, name="log_frame")
         self.log_ui = LogUI(self)
         self.fix()  # Prepare Frame for use
+
+    def process_event(self, event):
+        self.log_ui.process_event(event)
+        return super(LogFrame, self).process_event(event)
 
     def _service_frame_start(self, service, service_ec_consumer):
         self.log_ui._service_frame_start(service, service_ec_consumer)
@@ -627,19 +679,19 @@ class LogLevelPopupMenu(PopupMenu):
 
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
-            if event.key_code in [ord("c")]:
+            if event.key_code == ord("c"):
                 self._destroy()
             if self._dashboard.selected_service:
-                if event.key_code in [ord("d")]:
+                if event.key_code == ord("d"):
                     self._set_log_level("DEBUG")
                     self._destroy()
-                elif event.key_code in [ord("e")]:
+                elif event.key_code == ord("e"):
                     self._set_log_level("ERROR")
                     self._destroy()
-                elif event.key_code in [ord("i")]:
+                elif event.key_code == ord("i"):
                     self._set_log_level("INFO")
                     self._destroy()
-                elif event.key_code in [ord("w")]:
+                elif event.key_code == ord("w"):
                     self._set_log_level("WARNING")
                     self._destroy()
         return super(LogLevelPopupMenu, self).process_event(event)
