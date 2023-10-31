@@ -576,7 +576,7 @@ class LogUI:
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
             widget = self._log_widget
-            if event.key_code == Screen.KEY_HOME:
+            if len(widget._options) > 0 and event.key_code == Screen.KEY_HOME:
                 self.log_show_latest = False
                 widget._line = 0
                 widget.value = widget.options[widget._line][1]
