@@ -297,7 +297,7 @@ class DashboardFrame(FrameCommon, Frame):
     #   filter = ServiceFilter("*", "*", "*", "*", "*", "*")
 
         self._services_widget = MultiColumnListBox(
-            screen.height * 1 // 3,
+            screen.height // 3,
             ["<28", "<14", "<8", "<20", ">0"],  # Transport: <10 columns
             options=[],
             titles=["Service Topic", "Name", "Owner", "Protocol", "Transport"],
@@ -305,7 +305,7 @@ class DashboardFrame(FrameCommon, Frame):
             parser=AnsiTerminalParser()
         )
         self._service_widget = MultiColumnListBox(
-            screen.height * 1 // 2,
+            screen.height // 2,
             ["<24", "<0"],
             options=[],
             titles=["Variable name", "Value"],
@@ -677,22 +677,21 @@ class LogLevelPopupMenu(PopupMenu):
             self._service_selected, "log_level", log_level)
         self._parent_widget.focus()
 
+    log_level_key_map = {
+        ord("d"): "DEBUG",
+        ord("e"): "ERROR",
+        ord("i"): "INFO",
+        ord("w"): "WARNING"
+    }
+
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
             if event.key_code == ord("c"):
                 self._destroy()
             if self._dashboard.selected_service:
-                if event.key_code == ord("d"):
-                    self._set_log_level("DEBUG")
-                    self._destroy()
-                elif event.key_code == ord("e"):
-                    self._set_log_level("ERROR")
-                    self._destroy()
-                elif event.key_code == ord("i"):
-                    self._set_log_level("INFO")
-                    self._destroy()
-                elif event.key_code == ord("w"):
-                    self._set_log_level("WARNING")
+                if event.key_code in LogLevelPopupMenu.log_level_key_map:
+                    level = LogLevelPopupMenu.log_level_key_map[event.key_code]
+                    self._set_log_level(level)
                     self._destroy()
         return super(LogLevelPopupMenu, self).process_event(event)
 
