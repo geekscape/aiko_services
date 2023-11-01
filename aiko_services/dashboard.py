@@ -522,6 +522,7 @@ class ServiceFrame(FrameCommon, Frame):
             topic_path = ServiceTopicPath.parse(self.service[0]).terse
             name = self._short_name(self.service[1])
             self._service_title.value = f"Service: {topic_path}: {name}"
+        # Plugins that add handlers to the ec_consumer must also remove them !
             self._service_frame_start(self.service, self.dashboard.ec_consumer)
 
         super(ServiceFrame, self)._update(frame_no)

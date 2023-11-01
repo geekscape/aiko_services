@@ -155,7 +155,7 @@ class ECProducer:
         service.add_message_handler(self._producer_handler, self.topic_in)
         service.add_tags(["ec=true"])
 
-    def add_handler(self, handler):  # TODO: Implement remove_handler()
+    def add_handler(self, handler):
         for item_name, item_value in _flatten_dictionary(self.state):
             handler("add", item_name, item_value)
         self.handlers.add(handler)
@@ -196,6 +196,10 @@ class ECProducer:
             _LOGGER.error(f"remove(): {diagnostic}")
         if success:
             self._update_consumers("remove", item_name, None)
+
+    def remove_handler(self, handler):
+        if handler in self.handlers:
+            self.handlers.remove(handler)
 
     def _dictionary_to_commands(self, command, dictionary):
         payloads = []
@@ -360,7 +364,7 @@ class ECConsumer:
         self.service.add_message_handler(self._consumer_handler, self.topic_share_in)
         aiko.connection.add_handler(self._connection_state_handler)
 
-    def add_handler(self, handler):  # TODO: Implement remove_handler()
+    def add_handler(self, handler):
         for item_name, item_value in _flatten_dictionary(self.cache):
             handler(self.ec_consumer_id, "add", item_name, item_value)
         self.handlers.add(handler)
@@ -415,6 +419,10 @@ class ECConsumer:
                     _LEASE_TIME, None, automatic_extend=True,
                     lease_extend_handler=self._share_request)
                 self._share_request()
+
+    def remove_handler(self, handler):
+        if handler in self.handlers:
+            self.handlers.remove(handler)
 
     def _share_request(self, lease_time=_LEASE_TIME, lease_uuid=None):
         aiko.message.publish(
