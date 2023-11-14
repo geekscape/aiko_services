@@ -194,7 +194,7 @@ class Mailbox:
         if self.size >= self.last_warned_increment + self.increment_warning:
             message = f"Mailbox {self.name}: size={self.size}"
             message = f"\033[91m{message}\033[0m"  # highlight red
-            print(message)
+        #   print(message)
             self.last_warned_increment += self.increment_warning
 
 # First mailbox added has priority handling for all posted messages

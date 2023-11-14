@@ -30,6 +30,9 @@
 #   aiko_dashboard 1>/dev/null  # Debug messages only
 #   aiko_dashboard 2>/dev/null  # TUI only
 #
+# Debugging approach #4
+#   Write a custom Dashboard plugin for the Service / Actor
+#
 # To Do Elsewhere !
 # ~~~~~~~~~~~~~~~~~
 # * Turn Registrar into an ECProducer
@@ -62,6 +65,10 @@
 # * FIX: Enable Service History selected "topic path" to clipboard
 # * FIX: Enable Service History selected "topic path" can show LogFrame
 # * FIX: Enable Service History multiple Service selection for logging
+#
+# * Write a file or template (for a script) for every Service / Actor seen
+# *** "w" command for on-demand write file
+# *** Provide a simple script that extracts the last topic_path and uses it
 #
 # - Show usage statistics: mosquitto messages, Service messages / uptime
 #
@@ -351,11 +358,14 @@ class DashboardFrame(FrameCommon, Frame):
         self.service_cache = {}
         self.service_tags = None
 
-    def _kill_service(self, service_topic_path):
-        if service_topic_path.count("/") == 3:
-            process_id = ServiceTopicPath.parse(service_topic_path).process_id
+    def _kill_service(self, service):
+        topic_path = service[0]
+        transport = service[3]
+        kill_signal = "-2" if transport == "ray" else "-9"
+        if topic_path.count("/") == 3:
+            process_id = ServiceTopicPath.parse(topic_path).process_id
             if process_id.isnumeric():
-                command_line = ["kill", "-9", process_id]
+                command_line = ["kill", kill_signal, process_id]
                 Popen(command_line, bufsize=0, shell=False)
                 self._ec_consumer_set(self.services_row + 1)
 
@@ -477,7 +487,7 @@ class DashboardFrame(FrameCommon, Frame):
             if event.key_code == ord("C"):
                 self._service_selection_clear()
             if event.key_code == ord("K") and self.selected_service:
-                self._kill_service(self.selected_service[0])
+                self._kill_service(self.selected_service)
             if event.key_code == ord("L") and self.selected_service:
                 raise NextScene("Log")
             if event.key_code == ord("S") and self.selected_service:
@@ -555,7 +565,7 @@ class LogUI:
 
         self._log_widget = MultiColumnListBox(
             height, ["<0"], options=[],
-            titles=["Date       Time            Level Message"]
+            titles=["Date       Time        Log level Message"]
         )
         layout_0 = Layout([1])
         parent.add_layout(layout_0)

@@ -1,6 +1,6 @@
 {
   "version": 0,
-  "name":    "pipeline_y",
+  "name":    "p_local",
   "runtime": "python",
 
   "graph": [

@@ -1,10 +1,10 @@
 # Usage
 # ~~~~~
-# T=0 AIKO_LOG_MQTT=false aiko_pipeline create y_pipeline_transcription.json
+# T=0 AIKO_LOG_MQTT=false aiko_pipeline create pipeline_transcription.json
 #
-# M=0 AIKO_LOG_MQTT=false aiko_pipeline create y_pipeline_microphone.json
+# M=0 AIKO_LOG_MQTT=false aiko_pipeline create pipeline_microphone.json
 #
-# W=0 AIKO_LOG_MQTT=true  aiko_pipeline create y_pipeline_whisperx.json
+# W=0 AIKO_LOG_MQTT=true  aiko_pipeline create pipeline_whisperx.json
 #
 # To Do
 # ~~~~~
@@ -16,7 +16,7 @@
 #
 # - "AUDIO_CHUNK_DURATION" and "AUDIO_SAMPLE_DURATION" --> self.state[]
 #
-# - PE_Microphone could more precisely send the exact sample chunk size
+# - PE_MicrophoneFile could more precisely send the exact sample chunk size
 #   - Carve off desired sample length from that given to _audio_sampler()
 #
 # - Improve PE_WhisperX to include more precise timing functionality
@@ -24,6 +24,7 @@
 # - Perform FFT and provide sound amplitude and simple silence detection ?
 # - Perform proper WhisperX VAD (Voice Activity Detection)
 
+from io import BytesIO
 import os
 import numpy as np
 import sounddevice as sd
@@ -32,6 +33,7 @@ from threading import Thread
 import time
 from typing import Tuple
 import whisperx
+import zlib
 
 from aiko_services import aiko, PipelineElement
 from aiko_services.utilities import generate, get_namespace, LRUCache
@@ -81,7 +83,7 @@ class PE_AudioFraming(PipelineElement):
 
 # --------------------------------------------------------------------------- #
 
-class PE_Microphone(PipelineElement):
+class PE_MicrophoneFile(PipelineElement):
     def __init__(self,
         implementations, name, protocol, tags, transport,
         definition, pipeline):
@@ -122,7 +124,8 @@ class PE_Microphone(PipelineElement):
     def process_frame(self, context) -> Tuple[bool, dict]:
         frame_id = context["frame_id"]
         audio_pathname = _AUDIO_PATH_TEMPLATE.format(frame_id=frame_id)
-        _LOGGER.debug(f"PE_Microphone[{frame_id}] out audio: {audio_pathname}")
+        _LOGGER.debug(
+            f"PE_MicrophoneFile[{frame_id}] out audio: {audio_pathname}")
         return True, {"audio": audio_pathname}
 
     def _run(self):
@@ -135,18 +138,26 @@ class PE_Microphone(PipelineElement):
 
 # --------------------------------------------------------------------------- #
 
-class PE_Null(PipelineElement):
+class PE_MockTTS(PipelineElement):
     def __init__(self,
         implementations, name, protocol, tags, transport,
         definition, pipeline):
 
-        protocol = "null:0"
+        protocol = "audio:0"
         implementations["PipelineElement"].__init__(self,
             implementations, name, protocol, tags, transport,
             definition, pipeline)
 
-    def process_frame(self, context) -> Tuple[bool, dict]:
-        return True, {}
+        self.ec_producer.update("speech", "(nil)")
+        self.ec_producer.update("frame_id", -1)
+
+    def process_frame(self, context, audio) -> Tuple[bool, dict]:
+        frame_id = self.state["frame_id"] + 1
+        self.ec_producer.update("frame_id", frame_id)
+        speech = f'This is frame number {frame_id}'
+        self.ec_producer.update("speech", speech.replace(" ", "_"))
+        _LOGGER.info(f"PE_MockTTS: Speech {speech}")
+        return True, {"speech": speech}
 
 # --------------------------------------------------------------------------- #
 
@@ -191,6 +202,7 @@ class PE_WhisperX(PipelineElement):
         frame_id = context["frame_id"]
         time_start = time.time()
         prediction = self._ml_model.transcribe(
+        #   audio=audio, language="en")
             audio=audio, verbose=None, fp16=False, language="en")
         speech = prediction["text"].strip().lower()
         if len(speech) and  \
@@ -207,5 +219,44 @@ class PE_WhisperX(PipelineElement):
         if speech.removesuffix(".") == "terminate":
             raise SystemExit()
         return True, {"speech": speech}
+
+# --------------------------------------------------------------------------- #
+
+TOPIC_AUDIO = f"{get_namespace()}/audio"
+
+class PE_RemoteReceive(PipelineElement):
+    def __init__(self,
+        implementations, name, protocol, tags, transport,
+        definition, pipeline):
+
+        implementations["PipelineElement"].__init__(self,
+            implementations, name, protocol, tags, transport,
+            definition, pipeline)
+
+        self.state["topic_audio"] = TOPIC_AUDIO
+
+    def process_frame(self, context) -> Tuple[bool, dict]:
+        audio = "hello"
+        return True, {"audio": audio}
+
+# --------------------------------------------------------------------------- #
+
+class PE_RemoteSend(PipelineElement):
+    def __init__(self,
+        implementations, name, protocol, tags, transport,
+        definition, pipeline):
+
+        implementations["PipelineElement"].__init__(self,
+            implementations, name, protocol, tags, transport,
+            definition, pipeline)
+
+        self.state["topic_audio"] = TOPIC_AUDIO
+
+    def process_frame(self, context, audio) -> Tuple[bool, dict]:
+        payload_out = BytesIO()
+        np.save(payload_out, audio, allow_pickle=True)
+        payload_out = zlib.compress(payload_out.getvalue())
+        aiko.message.publish(self.state["topic_audio"], payload_out)
+        return True, {}
 
 # --------------------------------------------------------------------------- #

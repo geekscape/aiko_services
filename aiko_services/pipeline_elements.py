@@ -9,8 +9,16 @@
 # mosquitto_pub -h $HOST -t $TOPIC -m "(create_stream 1)"
 # mosquitto_pub -h $HOST -t $TOPIC -m "(process_frame (stream_id: 1) (a: 0))"
 # mosquitto_pub -h $HOST -t $TOPIC -m "(destroy_stream 1)"
+#
+# To Do
+# ~~~~~
+# - Consider PE_DataDecode and PE_DataEncode using "kwargs" for flexible
+#   choices of data type to transfer via function parameters
 
+import base64
 import copy
+from io import BytesIO
+import numpy as np
 from threading import Thread
 import time
 from typing import Tuple
@@ -135,5 +143,45 @@ class PE_4(PipelineElement):
         f = int(d) + int(e)
         _LOGGER.info(f"PE_4: {context}, in d, e {d} {e}, out: d + e = f: {f}")
         return True, {"f": f}
+
+# --------------------------------------------------------------------------- #
+
+class PE_DataDecode(PipelineElement):
+    def __init__(self,
+        implementations, name, protocol, tags, transport,
+        definition, pipeline):
+
+        implementations["PipelineElement"].__init__(self,
+            implementations, name, protocol, tags, transport,
+            definition, pipeline)
+
+    def process_frame(self, context, data) -> Tuple[bool, dict]:
+        data = base64.b64decode(data.encode("utf-8"))
+        np_bytes = BytesIO(data)
+        data = np.load(np_bytes, allow_pickle=True)
+    #   _LOGGER.info(f"PE_DataDecode: {context}, data: {data}")
+        return True, {"data": data}
+
+# --------------------------------------------------------------------------- #
+
+class PE_DataEncode(PipelineElement):
+    def __init__(self,
+        implementations, name, protocol, tags, transport,
+        definition, pipeline):
+
+        implementations["PipelineElement"].__init__(self,
+            implementations, name, protocol, tags, transport,
+            definition, pipeline)
+
+    def process_frame(self, context, data) -> Tuple[bool, dict]:
+    #   _LOGGER.info(f"PE_DataEncode: {context}, data: {data}")
+        if isinstance(data, str):
+            data = str.encode(data)
+        if isinstance(data, np.ndarray):
+            np_bytes = BytesIO()
+            np.save(np_bytes, data, allow_pickle=True)
+            data = np_bytes.getvalue()
+        data = base64.b64encode(data).decode("utf-8")
+        return True, {"data": data}
 
 # --------------------------------------------------------------------------- #

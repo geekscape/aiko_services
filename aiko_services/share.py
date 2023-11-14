@@ -436,7 +436,7 @@ class ECConsumer:
 
     def terminate(self):
         self.service.remove_message_handler(
-            self._consumer_handler,self.topic_share_in)
+            self._consumer_handler, self.topic_share_in)
         aiko.connection.remove_handler(self._connection_state_handler)
         self.cache = {}
         self.cache_state = "empty"
