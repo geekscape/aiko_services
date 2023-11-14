@@ -1,0 +1,32 @@
+{
+  "version": 0,
+  "name":    "p_encode",
+  "runtime": "python",
+
+  "graph": ["(PE_DataEncode PE_DataDecode)"],
+
+  "parameters": {},
+
+  "elements": [
+    { "name":   "PE_DataEncode",
+      "input":  [{ "name": "data", "type": "bytes" }],
+      "output": [{ "name": "data", "type": "bytes" }],
+      "deploy": {
+        "local": { "module": "aiko_services.pipeline_elements" }
+      }
+    },
+    { "name":   "PE_DataDecode",
+      "input":  [{ "name": "data", "type": "bytes" }],
+      "output": [{ "name": "data", "type": "bytes" }],
+      "deploy": {
+        "remote": {
+          "module": "aiko_services.pipeline_elements",
+          "service_filter": {
+            "topic_path": "*", "name": "p_decode",
+            "owner": "*", "protocol": "*", "transport": "*", "tags": "*"
+          }
+        }
+      }
+    }
+  ]
+}

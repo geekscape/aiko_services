@@ -528,6 +528,7 @@ class PipelineImpl(Pipeline):
             frame_output = {}
             okay = True
             try:
+                # TODO: "ServiceRemoteProxy" isn't set anywhere ?!?
                 if element_name != "ServiceRemoteProxy":
                     okay, frame_output = element.process_frame(
                         context, **inputs)
@@ -567,6 +568,7 @@ class PipelineImpl(Pipeline):
             }
             self.stream_leases[stream_id] = stream_lease
 
+        # FIX: Handle Exceptions and "return False, ..."
             for node in self.pipeline_graph:
                 node.element.start_stream(stream_lease.context, stream_id)
 
@@ -578,6 +580,7 @@ class PipelineImpl(Pipeline):
             frame_id = context["frame_id"]
             _LOGGER.info(f"Pipeline destroy stream: {self._id(context)}")
 
+        # FIX: Handle Exceptions and "return False, ..."
             for node in self.pipeline_graph:
                 node.element.stop_stream(context, stream_id)
 

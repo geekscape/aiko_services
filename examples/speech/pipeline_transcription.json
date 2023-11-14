@@ -3,12 +3,12 @@
   "name":    "p_transcription",
   "runtime": "python",
 
-  "graph": ["(PE_Microphone PE_AudioFraming PE_WhisperX PE_SpeechFraming)"],
+  "graph": ["(PE_MicrophoneFile PE_AudioFraming PE_WhisperX PE_SpeechFraming)"],
 
   "parameters": {},
 
   "elements": [
-    { "name":   "PE_Microphone",
+    { "name":   "PE_MicrophoneFile",
       "input":  [],
       "output": [{ "name": "audio", "type": "bytes" }],
       "deploy": {

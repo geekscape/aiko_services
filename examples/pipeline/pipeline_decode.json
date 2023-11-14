@@ -1,0 +1,19 @@
+{
+  "version": 0,
+  "name":    "p_decode",
+  "runtime": "python",
+
+  "graph": ["(PE_DataDecode)"],
+
+  "parameters": {},
+
+  "elements": [
+    { "name":   "PE_DataDecode",
+      "input":  [{ "name": "data", "type": "bytes" }],
+      "output": [{ "name": "data", "type": "bytes" }],
+      "deploy": {
+        "local": { "module": "aiko_services.pipeline_elements" }
+      }
+    }
+  ]
+}

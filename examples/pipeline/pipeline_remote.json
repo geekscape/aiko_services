@@ -1,6 +1,6 @@
 {
   "version": 0,
-  "name":    "pipeline_x",
+  "name":    "p_remote",
   "runtime": "python",
 
   "graph": [
@@ -28,7 +28,7 @@
         "remote": {
           "module": "aiko_services.pipeline_elements",
           "service_filter": {
-            "topic_path": "*", "name": "pipeline_y",
+            "topic_path": "*", "name": "p_local",
             "owner": "*", "protocol": "*", "transport": "*", "tags": "*"
           }
         }
