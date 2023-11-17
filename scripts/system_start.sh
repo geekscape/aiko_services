@@ -15,22 +15,22 @@ export AIKO_NAMESPACE=${2:-aiko}
 
 if [ `uname` == "Darwin" ]; then
   MOSQUITTO_COMMAND=/usr/local/sbin/mosquitto
-	PGREP_ARGUMENT=-f
+  PGREP_ARGUMENT=-f
 else
   MOSQUITTO_COMMAND=/usr/sbin/mosquitto
-	PGREP_ARGUMENT=-x
+  PGREP_ARGUMENT=-x
 fi
 
 process_start() {
   PROCESS_PATH=$1
-	PROCESS_NAME=`basename $PROCESS_PATH`
+  PROCESS_NAME=`basename $PROCESS_PATH`
 
   PID=`pgrep $PGREP_ARGUMENT $PROCESS_NAME`
   if [ $? -ne 0 ]; then
 	  echo "Starting: $PROCESS_PATH"
     $PROCESS_PATH >/dev/null 2>&1 &
-	else
-	  echo "Already started: $PROCESS_PATH"
+  else
+    echo "Already started: $PROCESS_PATH"
   fi
 }
 

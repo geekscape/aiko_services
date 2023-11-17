@@ -14,22 +14,22 @@ export AIKO_NAMESPACE=${2:-aiko}
 
 if [ `uname` == "Darwin" ]; then
   MOSQUITTO_COMMAND=/usr/local/sbin/mosquitto
-	PGREP_ARGUMENT=-f
+  PGREP_ARGUMENT=-f
 else
   MOSQUITTO_COMMAND=/usr/sbin/mosquitto
-	PGREP_ARGUMENT=-x
+  PGREP_ARGUMENT=-x
 fi
 
 process_stop() {
   PROCESS_PATH=$1
-	PROCESS_NAME=`basename $PROCESS_PATH`
+  PROCESS_NAME=`basename $PROCESS_PATH`
 
   PID=`pgrep $PGREP_ARGUMENT $PROCESS_NAME`
   if [ $? -eq 0 ]; then
-	  echo "Stopping: $PROCESS_PATH"
-		kill $PID
-	else
-	  echo "Already stopped: $PROCESS_PATH"
+    echo "Stopping: $PROCESS_PATH"
+    kill $PID
+  else
+    echo "Already stopped: $PROCESS_PATH"
   fi
 }
 
