@@ -1,0 +1,26 @@
+{
+  "version": 0,
+  "name":    "p_microphone",
+  "runtime": "python",
+
+  "graph": ["(PE_Microphone PE_RemoteSend0)"],
+
+  "parameters": {},
+
+  "elements": [
+    { "name":   "PE_Microphone",
+      "input":  [{ "name": "audio", "type": "bytes" }],
+      "output": [{ "name": "audio", "type": "bytes" }],
+      "deploy": {
+        "local": { "module": "aiko_services.elements.audio_io" }
+      }
+    },
+    { "name":   "PE_RemoteSend0",
+      "input":  [{ "name": "audio", "type": "bytes" }],
+      "output": [],
+      "deploy": {
+        "local": { "module": "speech_elements" }
+      }
+    }
+  ]
+}

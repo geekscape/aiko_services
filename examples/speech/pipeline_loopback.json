@@ -1,0 +1,26 @@
+{
+  "version": 0,
+  "name":    "p_loopback",
+  "runtime": "python",
+
+  "graph": ["(PE_RemoteReceive0 PE_RemoteSend1)"],
+
+  "parameters": {},
+
+  "elements": [
+    { "name":   "PE_RemoteReceive0",
+      "input":  [{ "name": "audio", "type": "bytes" }],
+      "output": [{ "name": "audio", "type": "bytes" }],
+      "deploy": {
+        "local": { "module": "speech_elements" }
+      }
+    },
+    { "name":   "PE_RemoteSend1",
+      "input":  [{ "name": "audio", "type": "bytes" }],
+      "output": [],
+      "deploy": {
+        "local": { "module": "speech_elements" }
+      }
+    }
+  ]
+}

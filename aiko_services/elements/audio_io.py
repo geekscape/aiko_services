@@ -28,7 +28,8 @@ from aiko_services import aiko, PipelineElement
 
 __all__ = [
     "PE_AudioFilter", "PE_AudioResampler",
-    "PE_FFT", "PE_GraphXY", "PE_Microphone"
+    "PE_FFT", "PE_GraphXY",
+    "PE_Microphone", "PE_Speaker"
 ]
 
 _LOGGER = aiko.logger(__name__)
@@ -306,5 +307,24 @@ class PE_Microphone(PipelineElement):
     def stop_stream(self, context, stream_id):
         _LOGGER.debug(f"{self._id(context)}: stop_stream()")
         self.terminate = True
+
+# --------------------------------------------------------------------------- #
+
+import sounddevice as sd
+
+class PE_Speaker(PipelineElement):
+    def __init__(self,
+        implementations, name, protocol, tags, transport,
+        definition, pipeline):
+
+        protocol = "speaker:0"
+        implementations["PipelineElement"].__init__(self,
+            implementations, name, protocol, tags, transport,
+            definition, pipeline)
+
+    def process_frame(self, context, audio) -> Tuple[bool, dict]:
+    #   _LOGGER.debug(f"{self._id(context)} len(audio): {len(audio)}")
+        sd.play(audio, AUDIO_SAMPLE_RATE)
+        return True, {"audio": audio}
 
 # --------------------------------------------------------------------------- #
