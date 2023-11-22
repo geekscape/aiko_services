@@ -3,23 +3,16 @@
   "name":    "p_transcription",
   "runtime": "python",
 
-  "graph": ["(PE_MicrophoneFile PE_AudioFraming PE_WhisperX PE_SpeechFraming)"],
+  "graph": ["(PE_MicrophoneSD PE_AudioFraming PE_WhisperX PE_SpeechFraming)"],
 
   "parameters": {},
 
   "elements": [
-    { "name":   "PE_MicrophoneFile",
-      "input":  [],
-      "output": [{ "name": "audio", "type": "bytes" }],
-      "deploy": {
-        "local": { "module": "speech_elements.py" }
-      }
-    },
-    { "name":   "PE_AudioFraming",
+    { "name":   "PE_MicrophoneSD",
       "input":  [{ "name": "audio", "type": "bytes" }],
       "output": [{ "name": "audio", "type": "bytes" }],
       "deploy": {
-        "local": { "module": "speech_elements.py" }
+        "local": { "module": "aiko_services.elements.audio_io" }
       }
     },
     { "name":   "PE_WhisperX",
