@@ -29,7 +29,7 @@ from aiko_services import aiko, PipelineElement
 __all__ = [
     "PE_AudioFilter", "PE_AudioResampler",
     "PE_FFT", "PE_GraphXY",
-    "PE_Microphone", "PE_Speaker"
+    "PE_MicrophonePA", "PE_MicrophoneSD", "PE_Speaker"
 ]
 
 _LOGGER = aiko.logger(__name__)
@@ -39,11 +39,11 @@ _LOGGER = aiko.logger(__name__)
 # TODO: Place some of these PipelineElement parameters into self.state[]
 # TODO: Update via ECProducer
 
-AMPLITUDE_MINIMUM = 0.1
-AMPLITUDE_MAXIMUM = 12
-FREQUENCY_MINIMUM = 10    # Hertz
-FREQUENCY_MAXIMUM = 9000  # Hertz
-SAMPLES_MAXIMUM = 100
+AF_AMPLITUDE_MINIMUM = 0.1
+AF_AMPLITUDE_MAXIMUM = 12
+AF_FREQUENCY_MINIMUM = 10    # Hertz
+AF_FREQUENCY_MAXIMUM = 9000  # Hertz
+AF_SAMPLES_MAXIMUM = 100
 
 class PE_AudioFilter(PipelineElement):
     def __init__(self,
@@ -59,13 +59,13 @@ class PE_AudioFilter(PipelineElement):
         context, amplitudes, frequencies) -> Tuple[bool, dict]:
 
         data = list(zip(np.abs(frequencies), amplitudes))
-        data = [(x,y) for x,y in data if y >= AMPLITUDE_MINIMUM]
-        data = [(x,y) for x,y in data if x >= FREQUENCY_MINIMUM]
-        data = [(x,y) for x,y in data if y <= AMPLITUDE_MAXIMUM]
-        data = [(x,y) for x,y in data if x <= FREQUENCY_MAXIMUM]
+        data = [(x,y) for x,y in data if y >= AF_AMPLITUDE_MINIMUM]
+        data = [(x,y) for x,y in data if x >= AF_FREQUENCY_MINIMUM]
+        data = [(x,y) for x,y in data if y <= AF_AMPLITUDE_MAXIMUM]
+        data = [(x,y) for x,y in data if x <= AF_FREQUENCY_MAXIMUM]
         amplitude_key = 1
         data = sorted(data, key=lambda x: x[amplitude_key], reverse=True)
-        data = data[:SAMPLES_MAXIMUM]
+        data = data[:AF_SAMPLES_MAXIMUM]
         if len(data):
             frequencies, amplitudes = zip(*data)
         else:
@@ -78,7 +78,7 @@ class PE_AudioFilter(PipelineElement):
 # TODO: Place some of these PipelineElement parameters into self.state[]
 # TODO: Update via ECProducer
 
-BAND_COUNT = 8
+AR_BAND_COUNT = 8
 
 class PE_AudioResampler(PipelineElement):
     def __init__(self,
@@ -104,11 +104,11 @@ class PE_AudioResampler(PipelineElement):
         frequencies = frequencies[0:len(frequencies) // 2]  # len: 2400
 
         frequency_range = frequencies[-1] - frequencies[0]  # 23990.0
-        band_width = frequency_range / BAND_COUNT / 10      # 299.875  # TODO: MAGIC NUMBER !!
+        band_width = frequency_range / AR_BAND_COUNT / 10      # 299.875  # TODO: MAGIC NUMBER !!
         band_frequencies = []
         band_amplitudes = []
 
-        for band in range(BAND_COUNT):
+        for band in range(AR_BAND_COUNT):
             band_start = band * band_width
             band_end = band_start + band_width
 
@@ -146,7 +146,7 @@ class PE_AudioResampler(PipelineElement):
 # TODO: Place some of these PipelineElement parameters into self.state[]
 # TODO: Update via ECProducer
 
-AMPLITUDE_SCALER = 1_000_000
+FFT_AMPLITUDE_SCALER = 1_000_000
 
 class PE_FFT(PipelineElement):
     def __init__(self,
@@ -161,10 +161,11 @@ class PE_FFT(PipelineElement):
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
         fft_output = np.fft.fft(audio)
 
-        amplitudes = np.abs(fft_output / AMPLITUDE_SCALER)
+        amplitudes = np.abs(fft_output / FFT_AMPLITUDE_SCALER)
         top_index = np.argmax(amplitudes)
 
-        frequencies = np.fft.fftfreq(AUDIO_CHUNK_SIZE, 1 / AUDIO_SAMPLE_RATE)
+        frequencies = np.fft.fftfreq(
+            PA_AUDIO_CHUNK_SIZE, 1 / PA_AUDIO_SAMPLE_RATE)
         top_amplitude = int(amplitudes[top_index])
         top_frequency = np.abs(frequencies[top_index])
         _LOGGER.debug(
@@ -204,10 +205,11 @@ class PE_GraphXY(PipelineElement):
         graph = pygal.XY(
             x_title="Frequency (Hz)", y_title="Amplitude", stroke=False)
         graph.title = GRAPH_TITLE
-    #   graph.x_limit = [0, FREQUENCY_MAXIMUM]  # Fails :(
-    #   graph.y_limit = [0, AMPLITUDE_MAXIMUM]  # Fails :(
+    #   graph.x_limit = [0, AF_FREQUENCY_MAXIMUM]  # Fails :(
+    #   graph.y_limit = [0, AF_AMPLITUDE_MAXIMUM]  # Fails :(
         graph.add("Audio", data)
-        graph.add("Limit", [(0, 0), (FREQUENCY_MAXIMUM, AMPLITUDE_MAXIMUM)])
+        graph.add("Limit",
+            [(0, 0), (AF_FREQUENCY_MAXIMUM, AF_AMPLITUDE_MAXIMUM)])
 
         memory_file = io.BytesIO()
         graph.render_to_png(memory_file)
@@ -228,10 +230,11 @@ class PE_GraphXY(PipelineElement):
 import pyaudio
 from threading import Thread
 
-AUDIO_CHANNELS = 1              # or 2 channels
-AUDIO_FORMAT = pyaudio.paInt16
-AUDIO_SAMPLE_RATE = 48000       # or 44,100 Hz or 48,000 Hz
-AUDIO_CHUNK_SIZE = int(AUDIO_SAMPLE_RATE / 10)
+PA_AUDIO_CHANNELS = 1              # 1 or 2 channels
+PA_AUDIO_FORMAT = pyaudio.paInt16
+PA_AUDIO_SAMPLE_RATE = 48000       # 16,000 or 44,100 or 48,000 Hz
+# PA_AUDIO_CHUNK_SIZE = int(PA_AUDIO_SAMPLE_RATE / 10)  # 0.1 seconds (FFT)
+PA_AUDIO_CHUNK_SIZE = PA_AUDIO_SAMPLE_RATE * 2          # 2.0 seconds (voice)
 
 def py_error_handler(filename, line, function, err, fmt):
     pass
@@ -264,7 +267,7 @@ def pyaudio_initialize():
     os.close(old_stderr)
     return py_audio
 
-class PE_Microphone(PipelineElement):
+class PE_MicrophonePA(PipelineElement):
     def __init__(self,
         implementations, name, protocol, tags, transport,
         definition, pipeline):
@@ -278,18 +281,18 @@ class PE_Microphone(PipelineElement):
 
         self.py_audio = pyaudio_initialize()
         self.audio_stream = self.py_audio.open(
-            channels=AUDIO_CHANNELS,
-            format=AUDIO_FORMAT,
-            frames_per_buffer=AUDIO_CHUNK_SIZE,
+            channels=PA_AUDIO_CHANNELS,
+            format=PA_AUDIO_FORMAT,
+            frames_per_buffer=PA_AUDIO_CHUNK_SIZE,
             input=True,
-            rate=AUDIO_SAMPLE_RATE)
+            rate=PA_AUDIO_SAMPLE_RATE)
         self.pipeline.create_stream(0)
         self.thread = Thread(target=self._audio_run).start()
 
     def _audio_run(self):
         self.terminate = False
         while not self.terminate:
-            audio_sample_raw = self.audio_stream.read(AUDIO_CHUNK_SIZE)
+            audio_sample_raw = self.audio_stream.read(PA_AUDIO_CHUNK_SIZE)
             audio_sample = np.frombuffer(audio_sample_raw, dtype=np.int16)
 
             frame_id = self.state["frame_id"] + 1
@@ -309,8 +312,68 @@ class PE_Microphone(PipelineElement):
         self.terminate = True
 
 # --------------------------------------------------------------------------- #
+# TODO: Turn some of these literals into Pipeline parameters
+
+SD_AUDIO_CHANNELS = 1           # 1 or 2 channels
+SD_AUDIO_CHUNK_DURATION = 2.0   # audio chunk duration in seconds
+SD_AUDIO_SAMPLE_DURATION = 2.0  # audio sample size to process
+SD_AUDIO_SAMPLE_RATE = 48000    # 16,000 or 44,100 or 48,000 Hz
+
+SD_SAMPLES_PER_CHUNK = SD_AUDIO_SAMPLE_RATE * SD_AUDIO_CHUNK_DURATION
 
 import sounddevice as sd
+
+class PE_MicrophoneSD(PipelineElement):
+    def __init__(self,
+        implementations, name, protocol, tags, transport,
+        definition, pipeline):
+
+        protocol = "microphone:0"
+        implementations["PipelineElement"].__init__(self,
+            implementations, name, protocol, tags, transport,
+            definition, pipeline)
+
+        self.state["frame_id"] = -1
+        self.pipeline.create_stream(0)
+        self._thread = Thread(target=self._audio_run).start()
+
+    def _audio_run(self):
+        self.terminate = False
+        self._audio_sampler_start()
+        with sd.InputStream(callback=self._audio_sampler,
+            channels=SD_AUDIO_CHANNELS, samplerate=SD_AUDIO_SAMPLE_RATE):
+
+            while not self.terminate:
+                sd.sleep(int(SD_AUDIO_CHUNK_DURATION * 1000))
+
+    def _audio_sampler_start(self):
+        frame_id = self.state["frame_id"] + 1
+        self.ec_producer.update("frame_id", frame_id)
+        self._audio_sample = np.empty((0, 1), dtype=np.float32)
+        return frame_id - 1
+
+    def _audio_sampler(self, indata, frames, time_, status):
+        if status:
+            _LOGGER.error(f"SoundDevice error: {status}")
+        else:
+        #   _LOGGER.debug(f"SoundDevice callback: {len(indata)} bytes")
+            self._audio_sample = np.concatenate(
+                (self._audio_sample, indata.copy().astype(np.float32)), axis=0)
+            if len(self._audio_sample) > SD_SAMPLES_PER_CHUNK:
+                audio_sample = self._audio_sample
+                frame_id = self._audio_sampler_start()
+                context = {"stream_id": 0, "frame_id": frame_id}
+                self.pipeline.create_frame(context, {"audio": audio_sample})
+
+    def process_frame(self, context, audio) -> Tuple[bool, dict]:
+    #   _LOGGER.debug(f"{self._id(context)} len(audio): {len(audio)}")
+        return True, {"audio": audio}
+
+    def stop_stream(self, context, stream_id):
+        _LOGGER.debug(f"{self._id(context)}: stop_stream()")
+        self.terminate = True
+
+# --------------------------------------------------------------------------- #
 
 class PE_Speaker(PipelineElement):
     def __init__(self,
@@ -324,7 +387,7 @@ class PE_Speaker(PipelineElement):
 
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
     #   _LOGGER.debug(f"{self._id(context)} len(audio): {len(audio)}")
-        sd.play(audio, AUDIO_SAMPLE_RATE)
+        sd.play(audio, PA_AUDIO_SAMPLE_RATE)
         return True, {"audio": audio}
 
 # --------------------------------------------------------------------------- #

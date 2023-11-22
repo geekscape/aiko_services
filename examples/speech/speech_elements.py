@@ -52,6 +52,27 @@ AUDIO_SAMPLE_RATE = 16000    # or 44100 Hz
 _AUDIO_CACHE_SIZE = int(AUDIO_SAMPLE_DURATION / AUDIO_CHUNK_DURATION)
 _AUDIO_PATH_TEMPLATE = "y_audio_{frame_id:06}.wav"
 
+class PE_AudioWriteFile(PipelineElement):
+    def __init__(self,
+        implementations, name, protocol, tags, transport,
+        definition, pipeline):
+
+        protocol = "audio_write_file:0"
+        implementations["PipelineElement"].__init__(self,
+            implementations, name, protocol, tags, transport,
+            definition, pipeline)
+
+    def process_frame(self, context, audio) -> Tuple[bool, dict]:
+        frame_id = context["frame_id"]
+        audio_pathname = _AUDIO_PATH_TEMPLATE.format(frame_id=frame_id)
+        audio_writer = sf.SoundFile(audio_pathname, mode="w",
+            samplerate=AUDIO_SAMPLE_RATE, channels=AUDIO_CHANNELS)
+        audio_writer.write(indata.copy())
+        audio_writer.close()
+        return True, {"audio", audio_pathname}
+
+# --------------------------------------------------------------------------- #
+
 class PE_AudioFraming(PipelineElement):
     def __init__(self,
         implementations, name, protocol, tags, transport,
@@ -83,7 +104,7 @@ class PE_AudioFraming(PipelineElement):
         return True, {"audio": audio_waveform}
 
 # --------------------------------------------------------------------------- #
-
+"""
 class PE_MicrophoneFile(PipelineElement):
     def __init__(self,
         implementations, name, protocol, tags, transport,
@@ -109,7 +130,7 @@ class PE_MicrophoneFile(PipelineElement):
         self._audio_writer = sf.SoundFile(audio_pathname, mode="w",
             samplerate=AUDIO_SAMPLE_RATE, channels=AUDIO_CHANNELS)
 
-        return frame_id-1
+        return frame_id - 1
 
     def _audio_sampler(self, indata, frames, time_, status):
         if status:
@@ -136,7 +157,7 @@ class PE_MicrophoneFile(PipelineElement):
 
             while True:  # self.running
                 sd.sleep(int(AUDIO_CHUNK_DURATION * 1000))
-
+"""
 # --------------------------------------------------------------------------- #
 
 class PE_MockTTS(PipelineElement):
@@ -177,7 +198,7 @@ class PE_SpeechFraming(PipelineElement):
 
 # --------------------------------------------------------------------------- #
 # TODO: Turn some of these literals into Pipeline parameters
-
+"""
 CUDA_DEVICE = "cuda"
                                   # Parameters    VRAM size  Relative speed
 # WHISPERX_MODEL_SIZE = "tiny"    #    39 M       2,030 Mb   32x
@@ -220,7 +241,7 @@ class PE_WhisperX(PipelineElement):
         if speech.removesuffix(".") == "terminate":
             raise SystemExit()
         return True, {"speech": speech}
-
+"""
 # --------------------------------------------------------------------------- #
 
 TOPIC_AUDIO = f"{get_namespace()}/audio"

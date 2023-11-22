@@ -6,7 +6,8 @@
 
 from .audio_io import (
     PE_AudioFilter, PE_AudioResampler,
-    PE_FFT, PE_GraphXY, PE_Microphone
+    PE_FFT, PE_GraphXY,
+    PE_MicrophonePA, PE_MicrophoneSD, PE_Speaker
 )
 
 # from .image_io import (

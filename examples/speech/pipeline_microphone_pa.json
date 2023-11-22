@@ -3,12 +3,12 @@
   "name":    "p_microphone",
   "runtime": "python",
 
-  "graph": ["(PE_Microphone PE_RemoteSend0)"],
+  "graph": ["(PE_MicrophonePA PE_RemoteSend0)"],
 
   "parameters": {},
 
   "elements": [
-    { "name":   "PE_Microphone",
+    { "name":   "PE_MicrophonePA",
       "input":  [{ "name": "audio", "type": "bytes" }],
       "output": [{ "name": "audio", "type": "bytes" }],
       "deploy": {
