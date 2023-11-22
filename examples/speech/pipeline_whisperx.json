@@ -1,0 +1,26 @@
+{
+  "version": 0,
+  "name":    "p_whisperx",
+  "runtime": "python",
+
+  "graph": ["(PE_RemoteReceive0 PE_WhisperX)"],
+
+  "parameters": {},
+
+  "elements": [
+    { "name":   "PE_RemoteReceive0",
+      "input":  [{ "name": "audio", "type": "bytes" }],
+      "output": [{ "name": "audio", "type": "bytes" }],
+      "deploy": {
+        "local": { "module": "aiko_services.elements.audio_io" }
+      }
+    },
+    { "name":   "PE_WhisperX",
+      "input":  [{ "name": "audio", "type": "bytes" }],
+      "output": [{ "name": "speech", "type": "bytes" }],
+      "deploy": {
+        "local": { "module": "speech_elements.py" }
+      }
+    }
+  ]
+}

@@ -2,8 +2,6 @@
 # ~~~~~
 # T=0 AIKO_LOG_MQTT=false aiko_pipeline create pipeline_transcription.json
 #
-# M=0 AIKO_LOG_MQTT=false aiko_pipeline create pipeline_microphone.json
-#
 # W=0 AIKO_LOG_MQTT=true  aiko_pipeline create pipeline_whisperx.json
 #
 # To Do
@@ -44,29 +42,7 @@ AUDIO_CHUNK_DURATION = 3.0   # audio chunk duration in seconds
 AUDIO_SAMPLE_DURATION = 3.0  # audio sample size to process
 AUDIO_SAMPLE_RATE = 16000    # or 44100 Hz
 
-_AUDIO_CACHE_SIZE = int(AUDIO_SAMPLE_DURATION / AUDIO_CHUNK_DURATION)
-_AUDIO_PATH_TEMPLATE = "y_audio_{frame_id:06}.wav"
-
-class PE_AudioWriteFile(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
-        protocol = "audio_write_file:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
-
-    def process_frame(self, context, audio) -> Tuple[bool, dict]:
-        frame_id = context["frame_id"]
-        audio_pathname = _AUDIO_PATH_TEMPLATE.format(frame_id=frame_id)
-        audio_writer = sf.SoundFile(audio_pathname, mode="w",
-            samplerate=AUDIO_SAMPLE_RATE, channels=AUDIO_CHANNELS)
-        audio_writer.write(indata.copy())
-        audio_writer.close()
-        return True, {"audio", audio_pathname}
-
-# --------------------------------------------------------------------------- #
+AUDIO_CACHE_SIZE = int(AUDIO_SAMPLE_DURATION / AUDIO_CHUNK_DURATION)
 
 class PE_AudioFraming(PipelineElement):
     def __init__(self,
@@ -78,8 +54,8 @@ class PE_AudioFraming(PipelineElement):
             implementations, name, protocol, tags, transport,
             definition, pipeline)
 
-        self._lru_cache = LRUCache(_AUDIO_CACHE_SIZE)
-        _LOGGER.info(f"PE_AudioFraming: Sliding windows: {_AUDIO_CACHE_SIZE}")
+        self._lru_cache = LRUCache(AUDIO_CACHE_SIZE)
+        _LOGGER.info(f"PE_AudioFraming: Sliding windows: {AUDIO_CACHE_SIZE}")
 
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
         time_start = time.time()
@@ -99,60 +75,28 @@ class PE_AudioFraming(PipelineElement):
         return True, {"audio": audio_waveform}
 
 # --------------------------------------------------------------------------- #
-"""
-class PE_MicrophoneFile(PipelineElement):
+
+AUDIO_PATH_TEMPLATE = "y_audio_{frame_id:06}.wav"
+
+class PE_AudioWriteFile(PipelineElement):
     def __init__(self,
         implementations, name, protocol, tags, transport,
         definition, pipeline):
 
-        protocol = "microphone:0"
+        protocol = "audio_write_file:0"
         implementations["PipelineElement"].__init__(self,
             implementations, name, protocol, tags, transport,
             definition, pipeline)
 
-        self.state["frame_id"] = -1
-        self._audio_writer = None
-        self._thread = Thread(target=self._run).start()
-
-    def _audio_sample_start(self):
-        frame_id = self.state["frame_id"] + 1
-        self.ec_producer.update("frame_id", frame_id)
-        audio_pathname = _AUDIO_PATH_TEMPLATE.format(frame_id=frame_id)
-
-        self._audio_sample_time = time.time() + AUDIO_CHUNK_DURATION
-        if self._audio_writer:
-            self._audio_writer.close()
-        self._audio_writer = sf.SoundFile(audio_pathname, mode="w",
-            samplerate=AUDIO_SAMPLE_RATE, channels=AUDIO_CHANNELS)
-
-        return frame_id - 1
-
-    def _audio_sampler(self, indata, frames, time_, status):
-        if status:
-            _LOGGER.error(f"SoundDevice error: {status}")
-        else:
-        #   _LOGGER.debug(f"SoundDevice callback: {len(indata)} bytes")
-            self._audio_writer.write(indata.copy())
-            if time.time() > self._audio_sample_time:
-                frame_id = self._audio_sample_start()
-                context = {"stream_id": 0, "frame_id": frame_id}
-                self.pipeline.create_frame(context, {})
-
-    def process_frame(self, context) -> Tuple[bool, dict]:
+    def process_frame(self, context, audio) -> Tuple[bool, dict]:
         frame_id = context["frame_id"]
-        audio_pathname = _AUDIO_PATH_TEMPLATE.format(frame_id=frame_id)
-        _LOGGER.debug(
-            f"PE_MicrophoneFile[{frame_id}] out audio: {audio_pathname}")
-        return True, {"audio": audio_pathname}
+        audio_pathname = AUDIO_PATH_TEMPLATE.format(frame_id=frame_id)
+        audio_writer = sf.SoundFile(audio_pathname, mode="w",
+            samplerate=AUDIO_SAMPLE_RATE, channels=AUDIO_CHANNELS)
+        audio_writer.write(indata.copy())
+        audio_writer.close()
+        return True, {"audio", audio_pathname}
 
-    def _run(self):
-        self._audio_sample_start()
-        with sd.InputStream(callback=self._audio_sampler,
-            channels=AUDIO_CHANNELS, samplerate=AUDIO_SAMPLE_RATE):
-
-            while True:  # self.running
-                sd.sleep(int(AUDIO_CHUNK_DURATION * 1000))
-"""
 # --------------------------------------------------------------------------- #
 
 class PE_MockTTS(PipelineElement):
@@ -193,7 +137,7 @@ class PE_SpeechFraming(PipelineElement):
 
 # --------------------------------------------------------------------------- #
 # TODO: Turn some of these literals into Pipeline parameters
-"""
+
 CUDA_DEVICE = "cuda"
                                   # Parameters    VRAM size  Relative speed
 # WHISPERX_MODEL_SIZE = "tiny"    #    39 M       2,030 Mb   32x
@@ -216,19 +160,26 @@ class PE_WhisperX(PipelineElement):
         _LOGGER.info(f"PE_WhisperX: ML model loaded: {WHISPERX_MODEL_SIZE}")
 
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
+        audio = np.squeeze(audio)
+
         frame_id = context["frame_id"]
         time_start = time.time()
         prediction = self._ml_model.transcribe(
         #   audio=audio, language="en")
             audio=audio, verbose=None, fp16=False, language="en")
-        speech = prediction["text"].strip().lower()
-        if len(speech) and  \
-            speech != "you" and speech != "thanks for watching!":
-            _LOGGER.info(f"PE_WhisperX[{frame_id}] {speech}")
-            payload_out = generate("speech", [speech])
-            aiko.message.publish(f"{get_namespace()}/speech", payload_out)
-        else:
-            speech = ""
+
+        speech = ""
+        if len(prediction["segments"]):
+            speech = prediction["segments"][0]["text"].strip().lower()
+            if len(speech) and  \
+                speech != "you" and speech != "thank you." and  \
+                speech != "thanks for watching!":
+                _LOGGER.info(f"PE_WhisperX[{frame_id}] {speech}")
+                payload_out = generate("speech", [speech])
+                aiko.message.publish(f"{get_namespace()}/speech", payload_out)
+            else:
+                speech = ""
+
         time_used = time.time() - time_start
         if time_used > 0.5:
             _LOGGER.info(f"PE_WhisperX[{frame_id}] Time: {time_used:0.3f}s")
@@ -236,5 +187,5 @@ class PE_WhisperX(PipelineElement):
         if speech.removesuffix(".") == "terminate":
             raise SystemExit()
         return True, {"speech": speech}
-"""
+
 # --------------------------------------------------------------------------- #

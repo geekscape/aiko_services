@@ -236,9 +236,12 @@ from threading import Thread
 
 PA_AUDIO_CHANNELS = 1              # 1 or 2 channels
 PA_AUDIO_FORMAT = pyaudio.paInt16
-PA_AUDIO_SAMPLE_RATE = 48000       # 16,000 or 44,100 or 48,000 Hz
-# PA_AUDIO_CHUNK_SIZE = int(PA_AUDIO_SAMPLE_RATE / 10)  # 0.1 seconds (FFT)
-PA_AUDIO_CHUNK_SIZE = PA_AUDIO_SAMPLE_RATE * 2          # 2.0 seconds (voice)
+
+PA_AUDIO_SAMPLE_RATE = 16000       # voice 16,000 or 44,100 or 48,000 Hz
+# PA_AUDIO_SAMPLE_RATE = 48000     # music / spectrum analyser
+
+PA_AUDIO_CHUNK_SIZE = PA_AUDIO_SAMPLE_RATE * 2          # Voice: 2.0 seconds
+# PA_AUDIO_CHUNK_SIZE = int(PA_AUDIO_SAMPLE_RATE / 10)  # FFT:   0.1 seconds
 
 def py_error_handler(filename, line, function, err, fmt):
     pass
@@ -318,10 +321,14 @@ class PE_MicrophonePA(PipelineElement):
 # --------------------------------------------------------------------------- #
 # TODO: Turn some of these literals into Pipeline parameters
 
-SD_AUDIO_CHANNELS = 1           # 1 or 2 channels
-SD_AUDIO_CHUNK_DURATION = 2.0   # audio chunk duration in seconds
-SD_AUDIO_SAMPLE_DURATION = 2.0  # audio sample size to process
-SD_AUDIO_SAMPLE_RATE = 48000    # 16,000 or 44,100 or 48,000 Hz
+SD_AUDIO_CHANNELS = 1            # 1 or 2 channels
+
+SD_AUDIO_CHUNK_DURATION = 3.0    # voice: audio chunk duration in seconds
+# SD_AUDIO_CHUNK_DURATION = 0.1  # music / spectrum analyser
+
+SD_AUDIO_SAMPLE_DURATION = 3.0   # audio sample size to process
+SD_AUDIO_SAMPLE_RATE = 16000     # voice 16,000 or 44,100 or 48,000 Hz
+# SD_AUDIO_SAMPLE_RATE = 48000   # music / spectrum analyser
 
 SD_SAMPLES_PER_CHUNK = SD_AUDIO_SAMPLE_RATE * SD_AUDIO_CHUNK_DURATION
 
