@@ -19,7 +19,7 @@
       "input":  [{ "name": "audio", "type": "bytes" }],
       "output": [],
       "deploy": {
-        "local": { "module": "speech_elements" }
+        "local": { "module": "aiko_services.elements.audio_io" }
       }
     }
   ]

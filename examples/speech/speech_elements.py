@@ -24,17 +24,12 @@
 # - Perform FFT and provide sound amplitude and simple silence detection ?
 # - Perform proper WhisperX VAD (Voice Activity Detection)
 
-from hashlib import md5
-from io import BytesIO
 import os
 import numpy as np
-import sounddevice as sd
-import soundfile as sf
 from threading import Thread
 import time
 from typing import Tuple
 import whisperx
-import zlib
 
 from aiko_services import aiko, PipelineElement
 from aiko_services.utilities import generate, get_namespace, LRUCache
@@ -242,70 +237,4 @@ class PE_WhisperX(PipelineElement):
             raise SystemExit()
         return True, {"speech": speech}
 """
-# --------------------------------------------------------------------------- #
-
-TOPIC_AUDIO = f"{get_namespace()}/audio"
-
-class PE_RemoteReceive0(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
-        protocol = "remote_receive:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
-
-        self.state["frame_id"] = 0
-        self.state["topic_audio"] = f"{TOPIC_AUDIO}/{self.name[-1]}"
-        self.add_message_handler(
-            self._audio_receive, self.state["topic_audio"], binary=True)
-
-    def _audio_receive(self, aiko, topic, payload_in):
-        payload_in = zlib.decompress(payload_in)
-        payload_in = BytesIO(payload_in)
-        if False:
-            buffer = payload_in.getbuffer()
-            digest = md5(buffer).hexdigest()
-            print(f"payload_in: len: {len(buffer)}, md5: {digest}")
-        audio_sample = np.load(payload_in, allow_pickle=True)
-        frame_id = self.state["frame_id"]
-        self.ec_producer.update("frame_id", frame_id + 1)
-        context = {"stream_id": 0, "frame_id": frame_id}
-        self.pipeline.create_frame(context, {"audio": audio_sample})
-
-    def process_frame(self, context, audio) -> Tuple[bool, dict]:
-        return True, {"audio": audio}
-
-class PE_RemoteReceive1(PE_RemoteReceive0):
-    pass
-
-# --------------------------------------------------------------------------- #
-
-class PE_RemoteSend0(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
-        protocol = "remote_send:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
-
-        self.state["topic_audio"] = f"{TOPIC_AUDIO}/{self.name[-1]}"
-
-    def process_frame(self, context, audio) -> Tuple[bool, dict]:
-        payload_out = BytesIO()
-        np.save(payload_out, audio, allow_pickle=True)
-        if False:
-            buffer = payload_out.getbuffer()
-            digest = md5(buffer).hexdigest()
-            print(f"{self._id(context)}, len: {len(buffer)}, md5: {digest}")
-        payload_out = zlib.compress(payload_out.getvalue())
-        aiko.message.publish(self.state["topic_audio"], payload_out)
-        return True, {}
-
-class PE_RemoteSend1(PE_RemoteSend0):
-    pass
-
 # --------------------------------------------------------------------------- #

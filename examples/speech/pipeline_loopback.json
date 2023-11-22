@@ -12,14 +12,14 @@
       "input":  [{ "name": "audio", "type": "bytes" }],
       "output": [{ "name": "audio", "type": "bytes" }],
       "deploy": {
-        "local": { "module": "speech_elements" }
+        "local": { "module": "aiko_services.elements.audio_io" }
       }
     },
     { "name":   "PE_RemoteSend1",
       "input":  [{ "name": "audio", "type": "bytes" }],
       "output": [],
       "deploy": {
-        "local": { "module": "speech_elements" }
+        "local": { "module": "aiko_services.elements.audio_io" }
       }
     }
   ]
