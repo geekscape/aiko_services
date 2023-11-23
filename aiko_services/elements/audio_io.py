@@ -28,7 +28,7 @@ from typing import Tuple
 import zlib
 
 from aiko_services import aiko, PipelineElement
-from aiko_services.utilities import get_namespace
+from aiko_services.utilities import get_namespace, parse_number
 
 __all__ = [
     "PE_AudioFilter", "PE_AudioResampler",
@@ -344,8 +344,10 @@ class PE_MicrophoneSD(PipelineElement):
             implementations, name, protocol, tags, transport,
             definition, pipeline)
 
+        self.state["mute"] = 0
         self.state["frame_id"] = -1
         self.pipeline.create_stream(0)
+        self._time_mute = 0
         self._thread = Thread(target=self._audio_run).start()
 
     def _audio_run(self):
@@ -368,13 +370,27 @@ class PE_MicrophoneSD(PipelineElement):
             _LOGGER.error(f"SoundDevice error: {status}")
         else:
         #   _LOGGER.debug(f"SoundDevice callback: {len(indata)} bytes")
-            self._audio_sample = np.concatenate(
-                (self._audio_sample, indata.copy().astype(np.float32)), axis=0)
-            if len(self._audio_sample) > SD_SAMPLES_PER_CHUNK:
-                audio_sample = self._audio_sample
-                frame_id = self._audio_sampler_start()
-                context = {"stream_id": 0, "frame_id": frame_id}
-                self.pipeline.create_frame(context, {"audio": audio_sample})
+            if self._time_mute == 0 or time.time() > self._time_mute:
+                if self._time_mute:
+                    self._time_mute = 0
+                    self.ec_producer.update("mute", 0)
+
+                indata = indata.copy().astype(np.float32)
+                self._audio_sample = np.concatenate(
+                    (self._audio_sample, indata), axis=0)
+                if len(self._audio_sample) > SD_SAMPLES_PER_CHUNK:
+                    audio_sample = self._audio_sample
+                    frame_id = self._audio_sampler_start()
+                    context = {"stream_id": 0, "frame_id": frame_id}
+                    self.pipeline.create_frame(context, {"audio": audio_sample})
+
+    def mute(self, duration):
+        duration = parse_number(duration)
+        time_mute = time.time() + duration
+        if duration == 0 or time_mute >= self._time_mute:
+            self._audio_sample = np.empty((0, 1), dtype=np.float32)
+            self._time_mute = time_mute
+            self.ec_producer.update("mute", duration)
 
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
         return True, {"audio": audio}
