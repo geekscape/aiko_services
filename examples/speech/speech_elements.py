@@ -131,11 +131,14 @@ if COQUI_TTS_LOADED:
         def process_frame(self, context, text) -> Tuple[bool, dict]:
             frame_id = self.state["frame_id"] + 1
             self.ec_producer.update("frame_id", frame_id)
-
-            audio = self._ml_model.tts(text, speaker=COQUI_SPEAKER_ID)
-
-            _LOGGER.info(f"PE_COQUI: Speech {text}")
-            self.ec_producer.update("speech", text.replace(" ", "_"))
+            if text:
+                audio = self._ml_model.tts(text, speaker=COQUI_SPEAKER_ID)
+                text = text.replace(" ", "_")
+            else:
+                audio = None
+                text = "<silence>"
+            _LOGGER.info(f"PE_COQUI: {text}")
+            self.ec_producer.update("speech", text)
             return True, {"audio": audio}
 
 # --------------------------------------------------------------------------- #
@@ -205,6 +208,8 @@ if WHISPERX_LOADED:
                 if len(text) and  \
                     text != "you" and text != "thank you." and  \
                     text != "thanks for watching!":
+                    if text[-1] == ".":
+                        text = text[:-1]  # Remove trailing "."
                     _LOGGER.info(f"PE_WhisperX[{frame_id}] {text}")
                     topic_out = f"{get_namespace()}/speech"
                     payload_out = generate("text", [text])
@@ -214,7 +219,7 @@ if WHISPERX_LOADED:
 
             time_used = time.time() - time_start
             if time_used > 0.5:
-                _LOGGER.info(f"PE_WhisperX[{frame_id}] Time: {time_used:0.3f}s")
+                _LOGGER.debug(f"PE_WhisperX[{frame_id}] Time: {time_used:0.3f}")
             _LOGGER.debug(
                 f"PE_WhisperX: {context}, in audio, out text: {text}")
             if text.removesuffix(".") == "terminate":

@@ -3,7 +3,7 @@
   "name":    "p_whisperx",
   "runtime": "python",
 
-  "graph": ["(PE_RemoteReceive0 PE_WhisperX PE_RemoteSend1)"],
+  "graph": ["(PE_RemoteReceive0 PE_WhisperX PE_RemoteSend2)"],
 
   "parameters": {},
 
@@ -22,7 +22,7 @@
         "local": { "module": "speech_elements.py" }
       }
     },
-    { "name":   "PE_RemoteSend1",
+    { "name":   "PE_RemoteSend2",
       "input":  [{ "name": "text", "type": "bytes" }],
       "output": [{ "name": "text", "type": "bytes" }],
       "deploy": {

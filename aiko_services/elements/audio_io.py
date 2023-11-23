@@ -377,7 +377,6 @@ class PE_MicrophoneSD(PipelineElement):
                 self.pipeline.create_frame(context, {"audio": audio_sample})
 
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
-    #   _LOGGER.debug(f"{self._id(context)} len(audio): {len(audio)}")
         return True, {"audio": audio}
 
     def stop_stream(self, context, stream_id):
@@ -404,6 +403,9 @@ class PE_RemoteReceive0(PipelineElement):
             self._audio_receive, self.state["topic_audio"], binary=True)
 
     def _audio_receive(self, aiko, topic, payload_in):
+        parameter_name = "audio"
+        if self.__class__.__name__ == "PE_RemoteReceive2":
+            parameter_name = "text"
         payload_in = zlib.decompress(payload_in)
         payload_in = BytesIO(payload_in)
         if False:
@@ -414,7 +416,7 @@ class PE_RemoteReceive0(PipelineElement):
         frame_id = self.state["frame_id"]
         self.ec_producer.update("frame_id", frame_id + 1)
         context = {"stream_id": 0, "frame_id": frame_id}
-        self.pipeline.create_frame(context, {"audio": audio_sample})
+        self.pipeline.create_frame(context, {parameter_name: audio_sample})
 
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
         return True, {"audio": audio}
@@ -424,7 +426,9 @@ class PE_RemoteReceive1(PE_RemoteReceive0):
 
 class PE_RemoteReceive2(PE_RemoteReceive0):
     def process_frame(self, context, text) -> Tuple[bool, dict]:
-        _LOGGER.debug(f"{self._id(context)} text: {text}")
+        text = str(text)
+        if not text:
+            text = None
         return True, {"text": text}
 
 # --------------------------------------------------------------------------- #
@@ -457,6 +461,9 @@ class PE_RemoteSend1(PE_RemoteSend0):
         super().process_frame(context, text)
         return True, {}
 
+class PE_RemoteSend2(PE_RemoteSend1):
+    pass
+
 # --------------------------------------------------------------------------- #
 
 import time
@@ -476,9 +483,9 @@ class PE_Speaker(PipelineElement):
             definition, pipeline)
 
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
-    #   _LOGGER.debug(f"{self._id(context)} len(audio): {len(audio)}")
-        sd.play(audio, SP_AUDIO_SAMPLE_RATE)
-    #   time.sleep(len(audio) / SD_AUDIO_SAMPLE_RATE)
+        if audio:
+            sd.play(audio, SP_AUDIO_SAMPLE_RATE)
+        #   time.sleep(len(audio) / SD_AUDIO_SAMPLE_RATE)
         return True, {"audio": audio}
 
 # --------------------------------------------------------------------------- #
