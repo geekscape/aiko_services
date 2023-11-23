@@ -69,7 +69,7 @@ import re
 import sys
 from typing import Any, Dict, List, Tuple, Union
 
-__all__ = ["generate", "parse", "parse_int"]
+__all__ = ["generate", "parse", "parse_float", "parse_int", "parse_number"]
 
 def generate(command: str, parameters: Union[Dict, List, Tuple]) -> str:
     if isinstance(parameters, dict):
@@ -156,6 +156,13 @@ def parse(payload: str, dictionaries_flag=True):
         cdr = parse_list_to_dict(cdr)
     return car, cdr
 
+def parse_float(payload: str, default: float=0.0) -> float:
+    try:
+        result = float(payload)
+    except ValueError:
+        result = default
+    return result
+
 def parse_int(payload: str, default: int=0) -> int:
     try:
         result = int(payload)
@@ -182,6 +189,16 @@ def parse_list_to_dict(tree: Any) -> Union[list, dict]:
                 result[keyword] = value
         else:
             result = [parse_list_to_dict(element) for element in tree]
+    return result
+
+def parse_number(payload: str, default: int=0):
+    try:
+        result = int(payload)
+    except ValueError:
+        try:
+            result = float(payload)
+        except ValueError:
+            result = default
     return result
 
 def main():

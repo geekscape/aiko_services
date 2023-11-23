@@ -24,4 +24,4 @@ from .logger import (
 
 from .lru_cache import LRUCache
 
-from .parser import generate, parse, parse_int
+from .parser import generate, parse, parse_float, parse_int, parse_number
