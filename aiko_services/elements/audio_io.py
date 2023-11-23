@@ -457,6 +457,9 @@ class PE_RemoteSend1(PE_RemoteSend0):
         super().process_frame(context, text)
         return True, {}
 
+class PE_RemoteSend2(PE_RemoteSend1):
+    pass
+
 # --------------------------------------------------------------------------- #
 
 import time
