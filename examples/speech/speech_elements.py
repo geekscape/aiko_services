@@ -165,8 +165,8 @@ class PE_WhisperX(PipelineElement):
         frame_id = context["frame_id"]
         time_start = time.time()
         prediction = self._ml_model.transcribe(
-        #   audio=audio, language="en")
-            audio=audio, verbose=None, fp16=False, language="en")
+            audio=audio, language="en")
+        #   audio=audio, verbose=None, fp16=False, language="en")
 
         speech = ""
         if len(prediction["segments"]):
