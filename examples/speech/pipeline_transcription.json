@@ -3,7 +3,7 @@
   "name":    "p_transcription",
   "runtime": "python",
 
-  "graph": ["(PE_MicrophoneSD PE_AudioFraming PE_WhisperX PE_SpeechFraming)"],
+  "graph": ["(PE_MicrophoneSD PE_WhisperX PE_SpeechFraming PE_COQUI_TTS PE_Speaker)"],
 
   "parameters": {},
 
@@ -17,16 +17,30 @@
     },
     { "name":   "PE_WhisperX",
       "input":  [{ "name": "audio", "type": "bytes" }],
-      "output": [{ "name": "speech", "type": "bytes" }],
+      "output": [{ "name": "text",  "type": "bytes" }],
       "deploy": {
         "local": { "module": "speech_elements.py" }
       }
     },
     { "name":   "PE_SpeechFraming",
-      "input":  [{ "name": "speech", "type": "bytes" }],
-      "output": [{ "name": "speech", "type": "bytes" }],
+      "input":  [{ "name": "text", "type": "bytes" }],
+      "output": [{ "name": "text", "type": "bytes" }],
       "deploy": {
         "local": { "module": "speech_elements.py" }
+      }
+    },
+    { "name":   "PE_COQUI_TTS",
+      "input":  [{ "name": "text",  "type": "bytes" }],
+      "output": [{ "name": "audio", "type": "bytes" }],
+      "deploy": {
+        "local": { "module": "speech_elements.py" }
+      }
+    }
+    { "name":   "PE_RemoteSend1",
+      "input":  [{ "name": "audio", "type": "bytes" }],
+      "output": [],
+      "deploy": {
+        "local": { "module": "aiko_services.elements.audio_io" }
       }
     }
   ]

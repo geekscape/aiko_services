@@ -452,6 +452,12 @@ class PE_RemoteSend1(PE_RemoteSend0):
 
 # --------------------------------------------------------------------------- #
 
+import time
+
+# SP_AUDIO_SAMPLE_RATE = PA_AUDIO_SAMPLE_RATE
+# SP_AUDIO_SAMPLE_RATE = SD_AUDIO_SAMPLE_RATE
+SP_AUDIO_SAMPLE_RATE = 22050                   # coqui.ai text-to-speech
+
 class PE_Speaker(PipelineElement):
     def __init__(self,
         implementations, name, protocol, tags, transport,
@@ -464,7 +470,8 @@ class PE_Speaker(PipelineElement):
 
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
     #   _LOGGER.debug(f"{self._id(context)} len(audio): {len(audio)}")
-        sd.play(audio, PA_AUDIO_SAMPLE_RATE)
+        sd.play(audio, SP_AUDIO_SAMPLE_RATE)
+    #   time.sleep(len(audio) / SD_AUDIO_SAMPLE_RATE)
         return True, {"audio": audio}
 
 # --------------------------------------------------------------------------- #
