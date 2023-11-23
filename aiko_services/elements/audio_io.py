@@ -448,7 +448,9 @@ class PE_RemoteSend0(PipelineElement):
         return True, {}
 
 class PE_RemoteSend1(PE_RemoteSend0):
-    pass
+    def process_frame(self, context, text) -> Tuple[bool, dict]:
+        super().process_frame(context, text)
+        return True, {}
 
 # --------------------------------------------------------------------------- #
 
