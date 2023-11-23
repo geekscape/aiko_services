@@ -122,7 +122,7 @@ if COQUI_TTS_LOADED:
                 implementations, name, protocol, tags, transport,
                 definition, pipeline)
 
-            self._ml_model = TTS(COQI_MODEL_NAME)
+            self._ml_model = TTS(COQUI_MODEL_NAME)
             _LOGGER.info(f"PE_COQUI_TTS: ML model loaded: {COQUI_MODEL_NAME}")
 
             self.ec_producer.update("speech", "(nil)")
@@ -132,7 +132,7 @@ if COQUI_TTS_LOADED:
             frame_id = self.state["frame_id"] + 1
             self.ec_producer.update("frame_id", frame_id)
 
-            audio = self.ml_model.tts(text, speaker=COQUI_SPEAKER_ID)
+            audio = self._ml_model.tts(text, speaker=COQUI_SPEAKER_ID)
 
             _LOGGER.info(f"PE_COQUI: Speech {text}")
             self.ec_producer.update("speech", text.replace(" ", "_"))

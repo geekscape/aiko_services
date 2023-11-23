@@ -422,6 +422,11 @@ class PE_RemoteReceive0(PipelineElement):
 class PE_RemoteReceive1(PE_RemoteReceive0):
     pass
 
+class PE_RemoteReceive2(PE_RemoteReceive0):
+    def process_frame(self, context, text) -> Tuple[bool, dict]:
+        _LOGGER.debug(f"{self._id(context)} text: {text}")
+        return True, {"text": text}
+
 # --------------------------------------------------------------------------- #
 
 class PE_RemoteSend0(PipelineElement):
