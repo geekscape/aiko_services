@@ -3,7 +3,7 @@
   "name":    "p_whisperx",
   "runtime": "python",
 
-  "graph": ["(PE_RemoteReceive0 PE_WhisperX PE_RemoteSend1)"],
+  "graph": ["(PE_RemoteReceive0 PE_WhisperX)"],
 
   "parameters": {},
 
