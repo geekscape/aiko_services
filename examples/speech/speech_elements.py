@@ -219,12 +219,12 @@ if WHISPERX_LOADED:
 
         def process_frame(self, context, audio) -> Tuple[bool, dict]:
             audio = np.squeeze(audio)
-
             frame_id = context["frame_id"]
             time_start = time.time()
-            prediction = self._ml_model.transcribe(
-                audio=audio, language="en")
-            #   audio=audio, verbose=None, fp16=False, language="en")
+            prediction = self._ml_model.transcribe(audio=audio, language="en")
+            time_used = time.time() - time_start
+            if time_used > 0.5:
+                _LOGGER.debug(f"PE_WhisperX[{frame_id}] Time: {time_used:0.3f}")
 
             reply = ""
             if len(prediction["segments"]):
@@ -232,8 +232,7 @@ if WHISPERX_LOADED:
                 if len(text) and  \
                     text != "you" and text != "thank you." and  \
                     text != "thanks for watching!":
-                    if text[-1] == ".":
-                        text = text[:-1]  # Remove trailing "."
+                    text = text.removesuffix(".")
                     _LOGGER.info(f"PE_WhisperX[{frame_id}] INPUT: {text}")
 
                     reply = aide_http_request(0, text, welcome=self._welcome)
@@ -246,12 +245,7 @@ if WHISPERX_LOADED:
                 else:
                     reply = ""
 
-            time_used = time.time() - time_start
-            if time_used > 0.5:
-                _LOGGER.debug(f"PE_WhisperX[{frame_id}] Time: {time_used:0.3f}")
-            _LOGGER.debug(
-                f"PE_WhisperX: {context}, in audio, out text: {reply}")
-            if reply.removesuffix(".") == "terminate":
+            if reply == "terminate":
                 raise SystemExit()
             return True, {"text": reply}
 
