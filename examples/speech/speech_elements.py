@@ -100,7 +100,7 @@ class PE_AudioWriteFile(PipelineElement):
 # CoqUI produces audio as Python list, sampled at 22,050 Hz
 
 COQUI_MODEL_NAME = "tts_models/en/vctk/vits"  # TTS().list_models()[0]
-COQUI_SPEAKER_ID = "p364"
+COQUI_SPEAKER_ID = "p364"                     # British, female
 
 COQUI_TTS_LOADED = False  # coqui.ai Text-To-Speech (TTS)
 try:
@@ -125,7 +125,7 @@ if COQUI_TTS_LOADED:
             self._ml_model = TTS(COQUI_MODEL_NAME)
             _LOGGER.info(f"PE_COQUI_TTS: ML model loaded: {COQUI_MODEL_NAME}")
 
-            self.ec_producer.update("speech", "(nil)")
+            self.ec_producer.update("speech", "<silence>")
             self.ec_producer.update("frame_id", -1)
 
         def process_frame(self, context, text) -> Tuple[bool, dict]:
@@ -137,7 +137,7 @@ if COQUI_TTS_LOADED:
             else:
                 audio = None
                 text = "<silence>"
-            _LOGGER.info(f"PE_COQUI: {text}")
+            _LOGGER.debug(f"PE_COQUI TTS: {text}")
             self.ec_producer.update("speech", text)
             return True, {"audio": audio}
 
@@ -161,13 +161,36 @@ class PE_SpeechFraming(PipelineElement):
 #
 # TODO: Turn some of these literals into Pipeline parameters
 
+import requests
+
+AIDE_SERVER_URL = "http://localhost:8080"
+
+def aide_http_request(user_id, message, welcome=False):
+    aide_server_url = f"{AIDE_SERVER_URL}/welcome"
+    payload = {
+        "streaming": False,
+        "uiType": "voice",
+        "userId": user_id
+    }
+    if welcome == False:
+        aide_server_url = f"{AIDE_SERVER_URL}/chat"
+        payload["message"] = message
+
+    response = requests.post(aide_server_url, json=payload)
+    result = response.json()
+    if response.status_code == 200:
+        reply = result["response"]
+    else:
+        reply = "Error application server status code {response.status_code}"
+    return reply
+
 CUDA_DEVICE = "cuda"
                                   # Parameters    VRAM size  Relative speed
 # WHISPERX_MODEL_SIZE = "tiny"    #    39 M       2,030 Mb   32x
 # WHISPERX_MODEL_SIZE = "base"    #    74 M       2,054 Mb   16x
 # WHISPERX_MODEL_SIZE = "small"   #   244 M       2,926 Mb    6x
-WHISPERX_MODEL_SIZE = "medium"    #   769 M       5,890 Mb    2x
-# WHISPERX_MODEL_SIZE = "large"   # 1,550 M     > 6,140 Mb    1x
+# WHISPERX_MODEL_SIZE = "medium"    #   769 M       5,890 Mb    2x
+WHISPERX_MODEL_SIZE = "large"   # 1,550 M     > 6,140 Mb    1x
 
 WHISPERX_LOADED = False  # whisperX Speech-To-Text (STT)
 try:
@@ -192,6 +215,7 @@ if WHISPERX_LOADED:
             self._ml_model = whisperx.load_model(
                 WHISPERX_MODEL_SIZE, CUDA_DEVICE)
             _LOGGER.info(f"PE_WhisperX: ML model loaded: {WHISPERX_MODEL_SIZE}")
+            self._welcome = True
 
         def process_frame(self, context, audio) -> Tuple[bool, dict]:
             audio = np.squeeze(audio)
@@ -202,7 +226,7 @@ if WHISPERX_LOADED:
                 audio=audio, language="en")
             #   audio=audio, verbose=None, fp16=False, language="en")
 
-            text = ""
+            reply = ""
             if len(prediction["segments"]):
                 text = prediction["segments"][0]["text"].strip().lower()
                 if len(text) and  \
@@ -210,20 +234,25 @@ if WHISPERX_LOADED:
                     text != "thanks for watching!":
                     if text[-1] == ".":
                         text = text[:-1]  # Remove trailing "."
-                    _LOGGER.info(f"PE_WhisperX[{frame_id}] {text}")
+                    _LOGGER.info(f"PE_WhisperX[{frame_id}] INPUT: {text}")
+
+                    reply = aide_http_request(0, text, welcome=self._welcome)
+                    self._welcome = False
+                    _LOGGER.info(f"PE_WhisperX[{frame_id}] OUTPUT: {reply}")
+
                     topic_out = f"{get_namespace()}/speech"
-                    payload_out = generate("text", [text])
+                    payload_out = generate("text", [reply])
                     aiko.message.publish(topic_out, payload_out)
                 else:
-                    text = ""
+                    reply = ""
 
             time_used = time.time() - time_start
             if time_used > 0.5:
                 _LOGGER.debug(f"PE_WhisperX[{frame_id}] Time: {time_used:0.3f}")
             _LOGGER.debug(
-                f"PE_WhisperX: {context}, in audio, out text: {text}")
-            if text.removesuffix(".") == "terminate":
+                f"PE_WhisperX: {context}, in audio, out text: {reply}")
+            if reply.removesuffix(".") == "terminate":
                 raise SystemExit()
-            return True, {"text": text}
+            return True, {"text": reply}
 
 # --------------------------------------------------------------------------- #
