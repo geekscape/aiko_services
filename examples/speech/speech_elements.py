@@ -226,6 +226,7 @@ if WHISPERX_LOADED:
             if time_used > 0.5:
                 _LOGGER.debug(f"PE_WhisperX[{frame_id}] Time: {time_used:0.3f}")
 
+            text = ""
             reply = ""
             if len(prediction["segments"]):
                 text = prediction["segments"][0]["text"].strip().lower()
@@ -245,7 +246,7 @@ if WHISPERX_LOADED:
                 else:
                     reply = ""
 
-            if reply == "terminate":
+            if text == "terminate":
                 raise SystemExit()
             return True, {"text": reply}
 
