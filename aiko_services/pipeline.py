@@ -145,6 +145,7 @@ class PipelineElementDefinition:
     name: str
     input: Dict[str, str]
     output: Dict[str, str]
+    parameters: Dict
     deploy: Dict
 
 @dataclass
