@@ -52,7 +52,8 @@ from .process_manager import ProcessManager
 from .lifecycle import LifeCycleClient, LifeCycleManager
 
 from .pipeline import (
-    Pipeline, PipelineElement, PipelineElementImpl, PipelineImpl
+    Pipeline, PipelineElement, PipelineElementImpl, PipelineImpl,
+    PROTOCOL_PIPELINE
 )
 
 from .registrar import *

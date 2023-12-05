@@ -112,7 +112,8 @@ from aiko_services.transport import *
 from aiko_services.utilities import *
 
 __all__ = [
-    "Pipeline", "PipelineElement", "PipelineElementImpl", "PipelineImpl"
+    "Pipeline", "PipelineElement", "PipelineElementImpl", "PipelineImpl",
+    "PROTOCOL_PIPELINE"
 ]
 
 ACTOR_TYPE_PIPELINE = "pipeline"
