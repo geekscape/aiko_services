@@ -169,6 +169,7 @@ def example_code(process_manager, example):
 @click.command()
 @click.option("--example", type=click.STRING, help="Run example")
 @click.option("--tags", "-t", type=click.STRING, help="Aiko Service tags")
+
 def main(example, tags):
     process_manager = ProcessManager(process_exit_handler_default)
 

@@ -125,11 +125,13 @@ def waiting_timer():
     print(f"Waiting for {ACTOR_TYPE}")
 
 @click.group()
+
 def main():
     pass
 
 @main.command(help="Start StorageManager")
 @click.argument("database_pathname", default="aiko_storage.db")
+
 def start(database_pathname):
     tags = ["ec=true"]
     init_args = actor_args(ACTOR_TYPE, PROTOCOL, tags)
@@ -138,6 +140,7 @@ def start(database_pathname):
     storage_manager.run()
 
 @main.command(name="test_command")
+
 def test_command():
     do_command(StorageManager, lambda storage_manager:
         storage_manager.test_command("hello")
@@ -145,6 +148,7 @@ def test_command():
 
 @main.command(name="test_request")
 @click.argument("request")
+
 def test_request(request):
     def response_handler(response):
         print(f"Response: {response}")

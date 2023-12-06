@@ -439,11 +439,13 @@ class LifeCycleClientTestImpl(LifeCycleClientTest):
 # ---------------------------------------------------------------------------- #
 
 @click.group()
+
 def main():
     pass
 
 @main.command(help="LifeCycleManager Actor")
 @click.argument("client_count", default=1)
+
 def manager(client_count):
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
     init_args = actor_args(
@@ -455,6 +457,7 @@ def manager(client_count):
 @main.command(help="LifeCycleClient Actor")
 @click.argument("client_id", default=None)
 @click.argument("lifecycle_manager_topic", default=None)
+
 def client(client_id, lifecycle_manager_topic):
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
     name = f"{ACTOR_TYPE_LIFECYCLE_CLIENT}_{client_id}"

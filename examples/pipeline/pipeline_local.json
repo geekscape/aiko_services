@@ -1,22 +1,29 @@
 {
+  "#": "Local Pipeline where all PipelineElements are within the same Process",
   "version": 0,
   "name":    "p_local",
   "runtime": "python",
 
+  "#": "Graph may consist of one or more sub-graphs",
+  "#": "This graph demonstrates fan-out and fan-in (diamond network)",
   "graph": [
     "(PE_1 (PE_2 PE_4) (PE_3 PE_4))"
   ],
 
+  "#": "Optional parameters may be either null, boolean, integer or string",
   "parameters": {
     "parameter_0": null,
-    "parameter_1": 0,
-    "parameter_2": "test"
+    "parameter_1": true,
+    "parameter_2": 0,
+    "parameter_3": "test"
   },
 
   "elements": [
     { "name":   "PE_1",
-      "input":  [{ "name": "b", "type": "int" }],
-      "output": [{ "name": "c", "type": "int" }],
+      "#": "PipelineElement that is the Pipeline graph head node",
+      "parameters": { "pe_1_0": 0 },              "#": "Optional parameters",
+      "input":  [{ "name": "b", "type": "int" }], "#": "Single input argument",
+      "output": [{ "name": "c", "type": "int" }], "#": "Single output argument",
       "deploy": {
         "local": { "module": "aiko_services.pipeline_elements" }
       }

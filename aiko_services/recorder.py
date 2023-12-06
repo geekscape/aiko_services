@@ -96,6 +96,7 @@ class Recorder(Service):
 @click.command("main", help="Recorder Service")
 @click.argument("topic_path_filter", nargs=1, required=False,
     default=f"{get_namespace()}/+/+/+/log")
+
 def main(topic_path_filter):
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
     init_args = service_args(SERVICE_TYPE, PROTOCOL, tags)

@@ -78,10 +78,12 @@ class MQTTTestImpl(MQTTTest):
 # --------------------------------------------------------------------------- #
 
 @click.group()
+
 def main():
     pass
 
 @main.command(help="Transport MQTT Test Actor")
+
 def create():
     init_args = actor_args(ACTOR_TYPE, PROTOCOL)
     mqtt_test = compose_instance(MQTTTestImpl, init_args)
@@ -91,6 +93,7 @@ def create():
     help="Make function call (send message) to Transport MQTT Actor")
 @click.argument("topic", default=None, required=True)
 @click.argument("message", default=None, required=True)
+
 def send_message(topic, message):
     actor_remote_proxy = get_actor_mqtt(topic, MQTTTest)
     aiko.process.initialize()

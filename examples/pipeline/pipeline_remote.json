@@ -1,8 +1,11 @@
 {
+  "#": "Remote Pipeline where all PipelineElements are in different Processes",
   "version": 0,
   "name":    "p_remote",
   "runtime": "python",
 
+  "#": "Graph may consist of one or more sub-graphs",
+  "#": "This graph demonstrates a simple linear Pipeline",
   "graph": [
     "(PE_0 PE_1)"
   ],
@@ -22,6 +25,7 @@
       }
     },
     { "name":   "PE_1",
+      "#": "PipelineElement is a proxy for the remote 'p_local' Pipeline",
       "input":  [{ "name": "b", "type": "int" }],
       "output": [{ "name": "f", "type": "int" }],
       "deploy": {

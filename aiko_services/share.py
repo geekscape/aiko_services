@@ -714,11 +714,13 @@ class ECConsumerTest(Service):
 # --------------------------------------------------------------------------- #
 
 @click.group()
+
 def main():
     pass
 
 @main.command("sc_test",
     help=("Test Registrar Services Cache"))
+
 def sc_test():
     services_cache = services_cache_create_singleton(
         aiko.process, True, history_limit=4)
@@ -743,6 +745,7 @@ def sc_test():
 @click.argument("ec_producer_pid", nargs=1, required=False)
 @click.argument("ec_producer_sid", nargs=1, required=False, default="1")
 @click.argument("filter", nargs=1, default="*", required=False)
+
 def ec_test(ec_producer_pid, ec_producer_sid, filter):
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
 

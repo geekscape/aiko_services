@@ -727,6 +727,7 @@ def update_plugins(plugins):
     help="History length requested from Registrar")
 @click.option("--plugin", "-p", multiple=True, required=False,
     default=["aiko_services.dashboard_plugins"])
+
 def main(plugin, history_limit):
     global _HISTORY_LIMIT
     _HISTORY_LIMIT = history_limit

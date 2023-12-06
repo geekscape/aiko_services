@@ -266,11 +266,13 @@ class VideoTestImpl(VideoTest):
 # --------------------------------------------------------------------------- #
 
 @click.group()
+
 def main():
     pass
 
 @main.command(help="Robot Control user interface")
 @click.argument("robot_topic", default=None, required=False)
+
 def ui(robot_topic):
     init_args = actor_args(ACTOR_TYPE_UI, PROTOCOL_UI)
     init_args["robot_topic"] = robot_topic
@@ -278,6 +280,7 @@ def ui(robot_topic):
     aiko.process.run()
 
 @main.command(name="video_test", help="Video test output")
+
 def video_test():
     init_args = actor_args(ACTOR_TYPE_VIDEO_TEST, PROTOCOL_VIDEO_TEST)
     video_test = compose_instance(VideoTestImpl, init_args)

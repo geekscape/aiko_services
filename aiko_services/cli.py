@@ -218,8 +218,8 @@ pipeline_definition = cli_shim()
   help="Only print the pipeline, dont run it.")
 @click.option("--dump", type=str, default=None,
   help="Save the file to yaml or json")
-def main(**kwargs):
 
+def main(**kwargs):
     dump = kwargs["dump"]
     if dump is not None:
         to_dump = {"pipeline_definition": pipeline_definition}

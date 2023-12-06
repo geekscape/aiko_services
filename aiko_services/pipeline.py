@@ -133,19 +133,21 @@ class DeployType(Enum):
 
 @dataclass
 class PipelineDefinition:
+#   comment: str  # Specified in Avro schema and discarded by parser
     version: int
     name: str
     runtime: str
     graph: List[str]
-    parameters: Dict
+    parameters: Dict  # Optional field, default: {}
     elements: List
 
 @dataclass
 class PipelineElementDefinition:
+#   comment: str  # Specified in Avro schema and discarded by parser
     name: str
     input: Dict[str, str]
     output: Dict[str, str]
-    parameters: Dict
+    parameters: Dict  # Optional field, default: {}
     deploy: Dict
 
 @dataclass
@@ -406,6 +408,8 @@ class PipelineImpl(Pipeline):
 
     @classmethod
     def parse_pipeline_definition(cls, pipeline_definition_pathname):
+        COMMENT_FIELD = "#"
+        PARAMETERS_FIELD = "parameters"
         header = f"Error: Parsing PipelineDefinition: {pipeline_definition_pathname}"
         try:
             pipeline_definition_dict = json.load(
@@ -413,6 +417,11 @@ class PipelineImpl(Pipeline):
             PIPELINE_DEFINITION_SCHEMA.validate(pipeline_definition_dict)
         except ValueError as value_error:
             PipelineImpl._exit(header, value_error)
+
+        if COMMENT_FIELD in pipeline_definition_dict:  # discard
+            del pipeline_definition_dict[COMMENT_FIELD]
+        if PARAMETERS_FIELD not in pipeline_definition_dict:  # optional
+            pipeline_definition_dict[PARAMETERS_FIELD] = {}
 
         try:
             pipeline_definition = PipelineDefinition(**pipeline_definition_dict)
@@ -431,7 +440,16 @@ class PipelineImpl(Pipeline):
 
         element_definitions = []
         for element_fields in pipeline_definition.elements:
-            element_definition = PipelineElementDefinition(**element_fields)
+            if COMMENT_FIELD in element_fields:  # discard
+                del element_fields[COMMENT_FIELD]
+            if PARAMETERS_FIELD not in element_fields:  # optional
+                element_fields[PARAMETERS_FIELD] = {}
+
+            try:
+                element_definition = PipelineElementDefinition(**element_fields)
+            except TypeError as type_error:
+                PipelineImpl._exit(header,
+                    f"PipelineDefinition: PipelineElement {type_error}")
 
             if len(element_definition.deploy.keys()) != 1:
                 PipelineImpl._exit(header,
@@ -444,6 +462,8 @@ class PipelineImpl(Pipeline):
                     PipelineImpl.DEPLOY_TYPE_LOOKUP[deploy_type]
             else:
                 PipelineImpl._exit(header,
+                    f"PipelineDefinition: PipelineElement "
+                    f"{element_definition.name}: "
                     f"Unknown Pipeline deploy type: {deploy_type}")
 
             deploy = pipeline_element_deploy_type(
@@ -596,6 +616,7 @@ try:
   "name":      "pipeline_definition",
   "type":      "record",
   "fields": [
+    { "name": "comment", "type": "string" },
     { "name": "version", "type": "int", "default": 0 },
     { "name": "name",    "type": "string" },
     { "name": "runtime", "type": {
@@ -621,8 +642,9 @@ try:
             "name": "element",
             "type": "record",
             "fields": [
-              { "name": "name",   "type": "string" },
-              { "name": "input",  "type": {
+              { "name": "comment", "type": "string" },
+              { "name": "name",    "type": "string" },
+              { "name": "input",   "type": {
                   "type": "array", "items": {
                     "name": "input",
                     "type": "record",
@@ -707,6 +729,7 @@ except avro.errors.SchemaParseException as schema_parse_exception:
 # --------------------------------------------------------------------------- #
 
 @click.group()
+
 def main():
     """Create and delete Pipelines"""
     pass
@@ -715,6 +738,7 @@ def main():
 @click.argument("definition_pathname", nargs=1, type=str)
 @click.option("--name", "-n", type=str, default=None, required=False,
     help="Pipeline Actor name")
+
 def create(definition_pathname, name):
     if not os.path.exists(definition_pathname):
         raise SystemExit(
@@ -733,6 +757,7 @@ def create(definition_pathname, name):
 
 @main.command(help="Delete Pipeline")
 @click.argument("name", nargs=1, type=str, required=True)
+
 def delete(name):
     raise SystemExit("Error: pipeline.py delete: Unimplemented")
 

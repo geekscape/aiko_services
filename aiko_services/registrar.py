@@ -361,6 +361,7 @@ class RegistrarImpl(Registrar):
 # --------------------------------------------------------------------------- #
 
 @click.command("main", help="Registrar Service")
+
 def main():
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
     init_args = service_args("registrar", REGISTRAR_PROTOCOL, tags)
