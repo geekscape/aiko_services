@@ -113,7 +113,7 @@ from aiko_services.utilities import *
 
 __all__ = [
     "Pipeline", "PipelineElement", "PipelineElementImpl", "PipelineImpl",
-    "PROTOCOL_PIPELINE"
+    "pipeline_args", "pipeline_element_args", "PROTOCOL_PIPELINE"
 ]
 
 ACTOR_TYPE_PIPELINE = "pipeline"
@@ -208,6 +208,12 @@ class PipelineElement(Actor):
     def stop_stream(self, context, stream_id):
         pass
 
+def pipeline_element_args(name=None, protocol=None, tags=[], transport="mqtt",
+    definition=None, pipeline=None):
+
+    return {**actor_args(name.lower(), protocol, tags, transport),
+            "definition": definition, "pipeline": pipeline}
+
 class PipelineElementImpl(PipelineElement):
     def __init__(self,
         implementations, name, protocol, tags, transport,
@@ -288,6 +294,13 @@ class Pipeline(PipelineElement):
     @abstractmethod
     def destroy_stream(self, stream_id):
         pass
+
+def pipeline_args(name=None, protocol=None, tags=[], transport="mqtt",
+    definition=None, pipeline=None, definition_pathname=""):
+
+    init_args = pipeline_element_args(
+                    name, protocol, tags, transport, definition, pipeline)
+    return {**init_args, "definition_pathname": definition_pathname}
 
 class PipelineImpl(Pipeline):
     DEPLOY_TYPE_LOOKUP = {
@@ -376,11 +389,11 @@ class PipelineImpl(Pipeline):
                     f"PipelineDefinition: PipelineElement type unknown: "
                     f"{deploy_type_name}")
 
-            init_args = {
-                **actor_args(element_name.lower()),
-                "definition": pipeline_element_definition,
-                "pipeline": self
-            }
+            init_args = pipeline_element_args(
+                **actor_args(element_name),
+                definition=pipeline_element_definition,
+                pipeline=self
+            )
             element_instance = compose_instance(element_class, init_args)
 
             element = Node(
@@ -500,11 +513,11 @@ class PipelineImpl(Pipeline):
             if command == "remove":
                 element_class = PipelineElementRemoteAbsent
 
-            init_args = {
-                **actor_args(element_name.lower()),
-                "definition": element_definition,
-                "pipeline": self
-            }
+            init_args = pipeline_element_args(
+                **actor_args(element_name),
+                definition=element_definition,
+                pipeline=self
+            )
             element_instance = compose_instance(element_class, init_args)
             if command == "add":
                 element_instance = get_actor_mqtt(
@@ -748,10 +761,12 @@ def create(definition_pathname, name):
         definition_pathname)
     name = name if name else pipeline_definition.name
 
-    init_args = actor_args(name, PROTOCOL_PIPELINE)
-    init_args["definition"] = pipeline_definition
-    init_args["pipeline"] = None
-    init_args["definition_pathname"] = definition_pathname
+    init_args = pipeline_args(
+        **actor_args(name, PROTOCOL_PIPELINE),
+        definition=pipeline_definition,
+        pipeline=None,
+        definition_pathname=definition_pathname
+    )
     pipeline = compose_instance(PipelineImpl, init_args)
     pipeline.run()
 

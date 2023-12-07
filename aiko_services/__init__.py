@@ -53,7 +53,7 @@ from .lifecycle import LifeCycleClient, LifeCycleManager
 
 from .pipeline import (
     Pipeline, PipelineElement, PipelineElementImpl, PipelineImpl,
-    PROTOCOL_PIPELINE
+    pipeline_args, pipeline_element_args, PROTOCOL_PIPELINE
 )
 
 from .registrar import *
