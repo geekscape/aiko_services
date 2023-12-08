@@ -229,10 +229,6 @@ class XGORobotImpl(XGORobot):
         except:
             pass
 
-#   def ec_producer_change_handler(self, command, item_name, item_value):
-#   #   super().ec_producer_change_handler(command, item_name, item_value)
-#       print(f"ecp_change_handler({command} {item_name}:item_type)")
-
     def get_logger(self):
         return _LOGGER
 

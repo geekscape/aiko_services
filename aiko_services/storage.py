@@ -56,19 +56,8 @@ class StorageManagerImpl(StorageManager):
 
         self.connection = sqlite3.connect(database_pathname)
 
-        self.state = {
-            "database_pathname": database_pathname,
-            "lifecycle": "ready",
-            "log_level": get_log_level_name(_LOGGER),
-            "source_file": f"v{_VERSION}⇒{__file__}"
-        }
-        ec_producer = ECProducer(self, self.state)
-        ec_producer.add_handler(self._ec_producer_change_handler)
-
-# TODO: Move to ServiceImpl
-    def _ec_producer_change_handler(self, command, item_name, item_value):
-        if item_name == "log_level":
-            _LOGGER.setLevel(str(item_value).upper())
+        self.state["database_pathname"] = database_pathname
+        self.state["source_file"] = f"v{_VERSION}⇒{__file__}"
 
     def get_logger(self):
         return _LOGGER
