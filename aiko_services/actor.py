@@ -237,8 +237,11 @@ class ActorImpl(Actor):
     #   if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
     #       _LOGGER.debug(f"ECProducer: {command} {item_name} {item_value}")
         if item_name == "log_level":
-            log_level = str(item_value).upper()
-            self.get_logger().setLevel(log_level)
+            try:
+                log_level = str(item_value).upper()
+                self.get_logger().setLevel(log_level)
+            except ValueError:
+                pass
 
 #   def get_logger(self):  # Override to get Actor subclass _LOGGER
 #       return _LOGGER
