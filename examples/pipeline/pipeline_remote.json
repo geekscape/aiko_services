@@ -1,5 +1,8 @@
 {
   "#": "Remote Pipeline where all PipelineElements are in different Processes",
+  "#": "PAYLOAD='(process_frame (stream_id: 0 frame_id: 0) (a: 0))'",
+  "#": "mosquitto_pub -h $HOST -t $TOPIC -m $PAYLOAD",
+
   "version": 0,
   "name":    "p_remote",
   "runtime": "python",
