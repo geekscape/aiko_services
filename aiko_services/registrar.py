@@ -207,7 +207,7 @@ class RegistrarImpl(Registrar):
         self.state = {
             "lifecycle": "start",
             "log_level": get_log_level_name(_LOGGER),
-            "source_file": f"v{_VERSION}⇒{__file__}",
+            "source_file": f"v{_VERSION}⇒ {__file__}",
             "service_count": 0
         }
         self.ec_producer = ECProducer(self, self.state)

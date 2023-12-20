@@ -302,7 +302,7 @@ class LifeCycleManagerTestImpl(LifeCycleManagerTest):
         self.state = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
-            "source_file": f"v{_VERSION}⇒{__file__}",
+            "source_file": f"v{_VERSION}⇒ {__file__}",
             "client_count": client_count
         }
         self.ec_producer = ECProducer(self, self.state)
@@ -409,7 +409,7 @@ class LifeCycleClientTestImpl(LifeCycleClientTest):
         self.state = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
-            "source_file": f"v{_VERSION}⇒{__file__}",
+            "source_file": f"v{_VERSION}⇒ {__file__}",
             "client_id": client_id
         }
         self.ec_producer = ECProducer(self, self.state)

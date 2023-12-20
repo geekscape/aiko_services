@@ -145,7 +145,7 @@ class XGORobotImpl(XGORobot):
         self.state["battery"] = -1
         self.state["screen_detail"] = False
         self.state["sleep_period"] = SLEEP_PERIOD
-        self.state["source_file"] = f"v{_VERSION}⇒{__file__}"
+        self.state["source_file"] = f"v{_VERSION}⇒ {__file__}"
         self.state["topic_video"] = TOPIC_VIDEO
         self.state["version_firmware"] = self._xgo.read_firmware()
         self.state["version_xgolib"] = self._xgo.read_lib_version()

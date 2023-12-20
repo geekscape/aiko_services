@@ -664,7 +664,7 @@ class ECProducerTest(Service):
         self.state = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
-            "source_file": f"v{_VERSION}⇒{__file__}",
+            "source_file": f"v{_VERSION}⇒ {__file__}",
             "items": {
                 "key_1": ["item_1a", "item_1b"],
                 "key_2": ["item_2a", "item_2b"]
@@ -693,7 +693,7 @@ class ECConsumerTest(Service):
         self.state_producer = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
-            "source_file": f"v{_VERSION}⇒{__file__}",
+            "source_file": f"v{_VERSION}⇒ {__file__}",
             "ec_producer_pid": ec_producer_pid,
             "ec_producer_sid": ec_producer_sid
         }

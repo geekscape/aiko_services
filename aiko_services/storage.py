@@ -57,7 +57,7 @@ class StorageManagerImpl(StorageManager):
         self.connection = sqlite3.connect(database_pathname)
 
         self.state["database_pathname"] = database_pathname
-        self.state["source_file"] = f"v{_VERSION}⇒{__file__}"
+        self.state["source_file"] = f"v{_VERSION}⇒ {__file__}"
 
     def get_logger(self):
         return _LOGGER

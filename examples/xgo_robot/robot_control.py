@@ -89,7 +89,7 @@ class RobotControlImpl(RobotControl):
 
         self.state["frame_id"] = 0
         self.state["robot_topic"] = robot_topic
-        self.state["source_file"] = f"v{_VERSION}⇒{__file__}"
+        self.state["source_file"] = f"v{_VERSION}⇒ {__file__}"
         self.state["topic_video"] = TOPIC_VIDEO
 
         self.add_message_handler(self.speech, TOPIC_SPEECH)
@@ -214,7 +214,7 @@ class VideoTestImpl(VideoTest):
             implementations, name, protocol, tags, transport)
 
         self.state["sleep_period"] = SLEEP_PERIOD
-        self.state["source_file"] = f"v{_VERSION}⇒{__file__}"
+        self.state["source_file"] = f"v{_VERSION}⇒ {__file__}"
         self.state["topic_video"] = TOPIC_VIDEO
 
         self._camera = self._camera_initialize()

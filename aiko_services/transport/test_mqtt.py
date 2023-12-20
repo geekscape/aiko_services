@@ -47,7 +47,7 @@ class MQTTTestImpl(MQTTTest):
         implementations["TransportMQTT"].__init__(self,
             implementations, name, protocol, tags, transport)
 
-        self.state["source_file"] = f"v{_VERSION}⇒{__file__}"
+        self.state["source_file"] = f"v{_VERSION}⇒ {__file__}"
         self.state["message"] = None
 
         self.actor_discovery = ActorDiscovery(self)
