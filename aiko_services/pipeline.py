@@ -240,7 +240,6 @@ class PipelineElementImpl(PipelineElement):
         self.state.update(self.definition.parameters)
     # TODO: Fix Aiko Dashboard / EC_Producer incorrectly updates this approach
     #   self.state["parameters"] = self.definition.parameters  # TODO
-        breakpoint()
 
     def create_frame(self, context, swag):
         self.pipeline.create_frame(context, swag)
