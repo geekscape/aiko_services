@@ -15,10 +15,10 @@
 
   "#": "Optional parameters may be either null, boolean, integer or string",
   "parameters": {
-    "parameter_0": null,
-    "parameter_1": true,
-    "parameter_2": 0,
-    "parameter_3": "test"
+    "p_0": null,
+    "p_1": true,
+    "p_2": 0,
+    "p_3": "test"
   },
 
   "elements": [

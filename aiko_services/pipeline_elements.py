@@ -48,7 +48,7 @@ class PE_GenerateNumbers(PipelineElement):
         while not context["terminate"]:
             frame_context = copy.deepcopy(context)
             frame_context["frame_id"] = frame_id
-            self.pipeline.create_frame(frame_context, {"number": frame_id})
+            self.create_frame(frame_context, {"number": frame_id})
             frame_id += 1
             time.sleep(1.0)
 

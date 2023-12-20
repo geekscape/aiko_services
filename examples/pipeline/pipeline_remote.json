@@ -13,16 +13,20 @@
     "(PE_0 PE_1)"
   ],
 
+  "#": "Optional parameters may be either null, boolean, integer or string",
   "parameters": {
-    "parameter_0": null,
-    "parameter_1": 0,
-    "parameter_2": "test"
+    "p_0": null,
+    "p_1": true,
+    "p_2": 0,
+    "p_3": "test"
   },
 
   "elements": [
     { "name":   "PE_0",
-      "input":  [{ "name": "a", "type": "int" }],
-      "output": [{ "name": "b", "type": "int" }],
+      "#": "PipelineElement that is the Pipeline graph head node",
+      "parameters": { "pe_1_0": 0 },              "#": "Optional parameters",
+      "input":  [{ "name": "a", "type": "int" }], "#": "Single input argument",
+      "output": [{ "name": "b", "type": "int" }], "#": "Single output argument",
       "deploy": {
         "local": { "module": "aiko_services.pipeline_elements" }
       }

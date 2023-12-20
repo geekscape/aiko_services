@@ -193,6 +193,14 @@ class PipelineElement(Actor):
         "aiko_services.pipeline.PipelineElementImpl"
 
     @abstractmethod
+    def create_frame(self, context, swag):
+        pass
+
+    @abstractmethod
+    def get_parameter(self, name, use_pipeline):
+        pass
+
+    @abstractmethod
     def process_frame(self, context, **kwargs) -> Tuple[bool, Any]:
         """
         Returns a tuple of (success, output) where "success" indicates
@@ -221,16 +229,37 @@ class PipelineElementImpl(PipelineElement):
 
         self.definition = definition
         self.pipeline = pipeline
+        self.is_pipeline = (self == pipeline)  # Pipeline or PipelineElement ?
         if protocol == None:
             protocol = PROTOCOL_ELEMENT
 
         implementations["Actor"].__init__(self,
             implementations, name, protocol, tags, transport)
 
-        self.state["source_file"] = f"v{_VERSION}⇒{__file__}"
+        self.state["source_file"] = f"v{_VERSION}⇒ {__file__}"
+        self.state.update(self.definition.parameters)
+    # TODO: Fix Aiko Dashboard / EC_Producer incorrectly updates this approach
+    #   self.state["parameters"] = self.definition.parameters  # TODO
+        breakpoint()
+
+    def create_frame(self, context, swag):
+        self.pipeline.create_frame(context, swag)
 
     def get_logger(self):
         return _LOGGER
+
+    def get_parameter(self, name, use_pipeline=True):
+        value = None
+        found = False
+        if name in self.definition.parameters and name in self.state:
+            value = self.state[name]
+            found = True
+        if not found and use_pipeline and not self.is_pipeline:
+            if name in self.pipeline.definition.parameters:
+                if name in self.pipeline.state:
+                    value = self.pipeline.state[name]
+                    found = True
+        return value, found
 
     def _id(self, context):
         return f"{self.name}<{context['stream_id']}:{context['frame_id']}>"
@@ -284,10 +313,6 @@ class Pipeline(PipelineElement):
         "aiko_services.pipeline.PipelineImpl"
 
     @abstractmethod
-    def create_frame(self, context, swag):
-        pass
-
-    @abstractmethod
     def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME):
         pass
 
@@ -316,7 +341,7 @@ class PipelineImpl(Pipeline):
 
         implementations["PipelineElement"].__init__(self,
             implementations, name, protocol, tags, transport,
-            definition, self)
+            definition, self)  # Note: Pipeline is its own parent 🤔
         print(f"MQTT topic: {self.topic_in}")
 
         self.state["lifecycle"] = "start"
@@ -355,6 +380,7 @@ class PipelineImpl(Pipeline):
 
         node_heads, node_successors = Graph.traverse(definition.graph)
         pipeline_graph = PipelineGraph(node_heads)
+        self.parameters = definition.parameters
 
         for pipeline_element_definition in definition.elements:
             element_instance = None
@@ -395,6 +421,7 @@ class PipelineImpl(Pipeline):
                 pipeline=self
             )
             element_instance = compose_instance(element_class, init_args)
+            element_instance.parameters = pipeline_element_definition.parameters
 
             element = Node(
                 element_name, element_instance, node_successors[element_name])
