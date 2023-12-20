@@ -81,7 +81,7 @@ class Recorder(Service):
 # TODO: "utilities/parser.py": generate() and parse() need to handle
 #       log messages with special characters ... use Canonical S-Expressions ?
 
-        log_record = payload_in.replace(" ", "_")
+        log_record = payload_in.replace(" ", " ")  # Unicode U00A0 (NBSP)
         log_record = log_record.replace("(", "{")
         log_record = log_record.replace(")", "}")
         ring_buffer.append(log_record)

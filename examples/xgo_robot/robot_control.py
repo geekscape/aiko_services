@@ -150,7 +150,7 @@ class RobotControlImpl(RobotControl):
                 if stop:
                     aiko.message.publish(topic_out, "(stop)")
                 if payload_out:
-                    speech = speech.replace(" ", "_")
+                    speech = speech.replace(" ", " ")  # Unicode U00A0 (NBSP)
                     aiko.message.publish(topic_out, f"(speech {speech})")
                     aiko.message.publish(topic_out, payload_out)
         except:

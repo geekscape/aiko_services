@@ -133,7 +133,7 @@ if COQUI_TTS_LOADED:
             self.ec_producer.update("frame_id", frame_id)
             if text:
                 audio = self._ml_model.tts(text, speaker=COQUI_SPEAKER_ID)
-                text = text.replace(" ", "_")
+                text = text.replace(" ", " ")  # Unicode U00A0 (NBSP)
             else:
                 audio = None
                 text = "<silence>"
