@@ -57,7 +57,7 @@
 # - ECProducer and ECConsumer should handle Registrar stop and restart
 # - Allow ECConsumer to change share filter, with or without existing lease
 # - Fix ECConsumer to handle _ec_remove_item()/_ec_update_item() exceptions
-# - Improve EC state/cache to work recursively beyond just two levels
+# - Improve EC share/cache to work recursively beyond just two levels
 # - When subscribed to a component of a dictionary, removal of the dictionary
 #   does not send a remove message for the component
 
@@ -115,19 +115,19 @@ def _ec_modify_item(items, item_path, modify_operation, create_path=False):
 def _ec_parse_item_path(name):
    item_path = name.split(".")
    if len(item_path) > 2:
-       raise ValueError(f'EC "state" dictionary depth maximum is 2: {name}')
+       raise ValueError(f'EC "share" dictionary depth maximum is 2: {name}')
    return item_path
 
-def _ec_remove_item(state, item_path):
+def _ec_remove_item(share, item_path):
     def remove_item(items, item_key):
         if item_key in items:
             del items[item_key]
-    _ec_modify_item(state, item_path, remove_item)
+    _ec_modify_item(share, item_path, remove_item)
 
-def _ec_update_item(state, item_path, item_value):
+def _ec_update_item(share, item_path, item_value):
     def update_item(items, item_key):
         items[item_key] = item_value
-    _ec_modify_item(state, item_path, update_item, create_path=True)
+    _ec_modify_item(share, item_path, update_item, create_path=True)
 
 def _flatten_dictionary(dictionary):
     result = []
@@ -151,8 +151,8 @@ class ECLease(Lease):
         self.filter = filter
 
 class ECProducer:
-    def __init__(self, service, state, topic_in=None, topic_out=None):
-        self.share = state
+    def __init__(self, service, share, topic_in=None, topic_out=None):
+        self.share = share
         self.topic_in = topic_in if topic_in else service.topic_control
         self.topic_out = topic_out if topic_out else service.topic_state
         self.handlers = set()
@@ -303,25 +303,25 @@ class ECProducer:
                         self._synchronize(response_topic, filter)
 
     def _filter_dictionary(self, dictionary, filter, path):
-        state = {}
+        share = {}
         for item_name, item in dictionary.items():
             item_path = path + [str(item_name)]
             if isinstance(item, dict):
                 filtered_item = self._filter_dictionary(item, filter, item_path)
                 if filtered_item != {}:
-                    state[item_name] = filtered_item
+                    share[item_name] = filtered_item
             else:
                 item_path_str = ".".join(item_path)
                 if self._filter_compare(filter, item_path_str):
-                    state[item_name] = item
-        return state
+                    share[item_name] = item
+        return share
 
-    def _filter_state(self, filter):
+    def _filter_share(self, filter):
         return self._filter_dictionary(self.share, filter, [])
 
     def _synchronize(self, response_topic, filter):
-        filtered_state = self._filter_state(filter)
-        commands = self._dictionary_to_commands("add", filtered_state)
+        filtered_share = self._filter_share(filter)
+        commands = self._dictionary_to_commands("add", filtered_share)
 
         command_count = len(commands)
         payload_out = f"(item_count {command_count})"
@@ -686,20 +686,20 @@ class ECConsumerTest(Service):
         context.get_implementation("Service").__init__(self, context)
         _LOGGER.info(f"ECConsumer: topic path: {self.topic_path}")
 
-        self.state_producer = {
+        self.share_producer = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
             "source_file": f"v{_VERSION}⇒ {__file__}",
             "ec_producer_pid": ec_producer_pid,
             "ec_producer_sid": ec_producer_sid
         }
-        self.ec_producer = ECProducer(self, self.state_producer)
+        self.ec_producer = ECProducer(self, self.share_producer)
 
-        self.state_consumer = {}
+        self.share_consumer = {}
         ec_producer_topic_control =  \
             f"{get_namespace()}/{get_hostname()}/{ec_producer_pid}/{ec_producer_sid}/control"
         self.ec_consumer = ECConsumer(
-            self, 0, self.state_consumer, ec_producer_topic_control, filter)
+            self, 0, self.share_consumer, ec_producer_topic_control, filter)
         self.ec_consumer.add_handler(self._ec_consumer_change_handler)
 
     def _ec_consumer_change_handler(
