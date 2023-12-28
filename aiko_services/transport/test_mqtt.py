@@ -24,28 +24,26 @@ import click
 from aiko_services import *
 from aiko_services.transport import *
 
+_VERSION = 0
+
 ACTOR_TYPE = "mqtt_test"
-PROTOCOL = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE}:0"
+PROTOCOL = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE}:{_VERSION}"
 
 _LOGGER = aiko.logger(__name__)
-_VERSION = 0
 
 # --------------------------------------------------------------------------- #
 
 class MQTTTest(TransportMQTT):
-    Interface.implementations["MQTTTest"] =  \
-        "aiko_services.transport.test_mqtt.MQTTTestImpl"
+    Interface.default("MQTTTest",
+        "aiko_services.transport.test_mqtt.MQTTTestImpl")
 
     @abstractmethod
     def test(self, message):
         pass
 
 class MQTTTestImpl(MQTTTest):
-    def __init__(self,
-        implementations, name, protocol, tags, transport):
-
-        implementations["TransportMQTT"].__init__(self,
-            implementations, name, protocol, tags, transport)
+    def __init__(self, context):
+        context.get_implementation("TransportMQTT").__init__(self, context)
 
         self.state["source_file"] = f"v{_VERSION}⇒ {__file__}"
         self.state["message"] = None
@@ -85,7 +83,7 @@ def main():
 @main.command(help="Transport MQTT Test Actor")
 
 def create():
-    init_args = actor_args(ACTOR_TYPE, PROTOCOL)
+    init_args = actor_args(ACTOR_TYPE, protocol=PROTOCOL)
     mqtt_test = compose_instance(MQTTTestImpl, init_args)
     aiko.process.run()
 

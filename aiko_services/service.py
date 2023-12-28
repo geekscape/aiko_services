@@ -9,17 +9,15 @@
 # from aiko_services import *
 #
 # class ServiceTest(Service):
-#     Interface.implementations["ServiceTest"] = "__main__.ServiceTestImpl"
+#     Interface.default("ServiceTest", "__main__.ServiceTestImpl")
 #
 #     @abstractmethod
 #     def test(self):
 #         pass
 #
 # class ServiceTestImpl(ServiceTest):
-#     def __init__(self,
-#         implementations, name, protocol, tags, transport):
-#         implementations["Service"].__init__(self,
-#             implementations, name, protocol, tags, transport)
+#     def __init__(self, context):
+#         context.get_implementation("Service").__init__(self, context)
 #
 #     def test(self):
 #         print("ServiceTestImpl.test() invoked")
@@ -101,7 +99,7 @@ from aiko_services import *
 __all__ = [
     "ServiceFields", "ServiceFilter", "ServiceProtocol",
     "ServiceTags", "ServiceTopicPath", "Services",
-    "Service", "ServiceImpl", "service_args"
+    "Service", "ServiceImpl"
 ]
 
 class ServiceProtocol:
@@ -494,7 +492,7 @@ class Services:
 # --------------------------------------------------------------------------- #
 
 class Service(ServiceProtocolInterface):
-    Interface.implementations["Service"] = "aiko_services.service.ServiceImpl"
+    Interface.default("Service", "aiko_services.service.ServiceImpl")
 
     @abstractmethod
     def add_message_handler(self, message_handler, topic, binary=False):
@@ -526,22 +524,15 @@ class Service(ServiceProtocolInterface):
 
 # --------------------------------------------------------------------------- #
 
-def service_args(name=None, protocol=None, tags=[], transport="mqtt"):
-    return {"name": name,
-            "protocol": protocol,
-            "tags": tags,
-            "transport": transport}
-
 class ServiceImpl(Service):
-    def __init__(self,
-        implementations, name=None, protocol=None, tags=[], transport="mqtt"):
+    def __init__(self, context):
 
     # TODO: Move name, protocol, tags, topic_path, transport into ServiceFields
         self.time_started = time.time()
-        self.name = name
-        self.protocol = protocol
-        self._tags = tags
-        self.transport = transport
+        self.name = context.name
+        self.protocol = context.protocol
+        self._tags = context.tags
+        self.transport = context.transport
         aiko.process.add_service(self)  # Initializes service_id and topic_path
 
         self._registrar_handler_function = None

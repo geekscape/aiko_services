@@ -28,11 +28,12 @@ from collections import deque
 from aiko_services import *
 from aiko_services.utilities import *
 
+_VERSION = 0
+
 SERVICE_TYPE = "recorder"
-PROTOCOL = f"{ServiceProtocol.AIKO}/{SERVICE_TYPE}:0"
+PROTOCOL = f"{ServiceProtocol.AIKO}/{SERVICE_TYPE}:{_VERSION}"
 
 _LOGGER = aiko.logger(__name__)
-_VERSION = 0
 
 _LRU_CACHE_SIZE = 2    # 128
 _RING_BUFFER_SIZE = 2  # 128
@@ -40,12 +41,8 @@ _RING_BUFFER_SIZE = 2  # 128
 # --------------------------------------------------------------------------- #
 
 class Recorder(Service):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        topic_path_filter):
-
-        implementations["Service"].__init__(self,
-            implementations, name, protocol, tags, transport)
+    def __init__(self, context, topic_path_filter):
+        context.get_implementation("Service").__init__(self, context)
 
 # TODO: Add LRUCache popitem() handler to remove oldest ring buffer ?
 #       And send ECProducer.remove(topic) to update the ECConsumer
@@ -99,7 +96,7 @@ class Recorder(Service):
 
 def main(topic_path_filter):
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
-    init_args = service_args(SERVICE_TYPE, PROTOCOL, tags)
+    init_args = service_args(SERVICE_TYPE, None, None, PROTOCOL, tags)
     init_args["topic_path_filter"] = topic_path_filter
     recorder = compose_instance(Recorder, init_args)
     aiko.process.run()

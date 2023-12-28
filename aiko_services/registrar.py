@@ -118,10 +118,12 @@ import time
 from aiko_services import *
 from aiko_services.utilities import *
 
-REGISTRAR_PROTOCOL = f"{ServiceProtocol.AIKO}/registrar:2"
+_VERSION = 2
+
+SERVICE_TYPE = "registrar"
+REGISTRAR_PROTOCOL = f"{ServiceProtocol.AIKO}/{SERVICE_TYPE}:{_VERSION}"
 
 _LOGGER = aiko.logger(__name__)
-_VERSION = 2
 
 _HISTORY_LIMIT_DEFAULT = 16
 _HISTORY_RING_BUFFER_SIZE = 4096
@@ -188,15 +190,11 @@ class StateMachineModel():
 # --------------------------------------------------------------------------- #
 
 class Registrar(Service):
-    Interface.implementations["Registrar"] =  \
-        "aiko_services.registrar.RegistrarImpl"
+    Interface.default("Registrar", "aiko_services.registrar.RegistrarImpl")
 
 class RegistrarImpl(Registrar):
-    def __init__(self,
-        implementations, name, protocol, tags, transport):
-
-        implementations["Service"].__init__(self,
-            implementations, name, protocol, tags, transport)
+    def __init__(self, context):
+        context.get_implementation("Service").__init__(self, context)
 
         state_machine_model = StateMachineModel(self)
         self.state_machine = StateMachine(state_machine_model)
@@ -364,7 +362,8 @@ class RegistrarImpl(Registrar):
 
 def main():
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
-    init_args = service_args("registrar", REGISTRAR_PROTOCOL, tags)
+    init_args = service_args(
+        SERVICE_TYPE, None, None, REGISTRAR_PROTOCOL, tags)
     registrar = compose_instance(RegistrarImpl, init_args)
     aiko.process.run(True)
 

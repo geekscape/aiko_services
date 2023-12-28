@@ -3,7 +3,9 @@
 # Usage
 # ~~~~~
 # aiko_registrar
-# AIKO_LOG_MQTT=false ./share.py ec_test
+# AIKO_LOG_MQTT=false ./share.py sc_test  # ServicesCache test
+#
+# AIKO_LOG_MQTT=false ./share.py ec_test  # EventualConsistency test
 # AIKO_LOG_MQTT=false ./share.py ec_test PRODUCER_PID [EC_PRODUCER_SID]
 #
 # NAMESPACE=aiko
@@ -71,17 +73,20 @@ __all__ = [
     "services_cache_create_singleton", "services_cache_delete"
 ]
 
+_VERSION = 0
+
 SERVICE_TYPE_EC_CONSUMER = "ec_consumer_test"
-PROTOCOL_EC_CONSUMER = f"{ServiceProtocol.AIKO}/{SERVICE_TYPE_EC_CONSUMER}:0"
+PROTOCOL_EC_CONSUMER =  \
+    f"{ServiceProtocol.AIKO}/{SERVICE_TYPE_EC_CONSUMER}:{_VERSION}"
 
 SERVICE_TYPE_EC_PRODUCER = "ec_producer_test"
-PROTOCOL_EC_PRODUCER = f"{ServiceProtocol.AIKO}/{SERVICE_TYPE_EC_PRODUCER}:0"
+PROTOCOL_EC_PRODUCER =  \
+    f"{ServiceProtocol.AIKO}/{SERVICE_TYPE_EC_PRODUCER}:{_VERSION}"
 
 _LEASE_TIME = 300  # seconds
 
 _AIKO_LOG_LEVEL_SHARE = os.environ.get("AIKO_LOG_LEVEL_SHARE", "INFO")
 _LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_SHARE)
-_VERSION = 0
 
 # --------------------------------------------------------------------------- #
 
@@ -653,12 +658,8 @@ def services_cache_delete():
 # --------------------------------------------------------------------------- #
 
 class ECProducerTest(Service):
-    def __init__(self,
-        implementations, name, protocol, tags, transport):
-
-        implementations["Service"].__init__(self,
-            implementations, name, protocol, tags, transport)
-
+    def __init__(self, context):
+        context.get_implementation("Service").__init__(self, context)
         _LOGGER.info(f"ECProducer: topic path: {self.topic_path}")
 
         self.state = {
@@ -681,13 +682,8 @@ class ECProducerTest(Service):
 # --------------------------------------------------------------------------- #
 
 class ECConsumerTest(Service):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        ec_producer_pid, ec_producer_sid, filter="*"):
-
-        implementations["Service"].__init__(self,
-            implementations, name, protocol, tags, transport)
-
+    def __init__(self, context, ec_producer_pid, ec_producer_sid, filter):
+        context.get_implementation("Service").__init__(self, context)
         _LOGGER.info(f"ECConsumer: topic path: {self.topic_path}")
 
         self.state_producer = {
@@ -751,14 +747,14 @@ def ec_test(ec_producer_pid, ec_producer_sid, filter):
 
     if ec_producer_pid:
         init_args = service_args(
-            SERVICE_TYPE_EC_CONSUMER, PROTOCOL_EC_CONSUMER, tags)
+            SERVICE_TYPE_EC_CONSUMER, None, None, PROTOCOL_EC_CONSUMER, tags)
         init_args["ec_producer_pid"] = ec_producer_pid
         init_args["ec_producer_sid"] = ec_producer_sid
         init_args["filter"] = filter
         ec_consumer_test = compose_instance(ECConsumerTest, init_args)
     else:
         init_args = service_args(
-            SERVICE_TYPE_EC_PRODUCER, PROTOCOL_EC_PRODUCER, tags)
+            SERVICE_TYPE_EC_PRODUCER, None, None, PROTOCOL_EC_PRODUCER, tags)
         ec_producer_test = compose_instance(ECProducerTest, init_args)
 
     aiko.process.run(True)

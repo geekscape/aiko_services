@@ -55,11 +55,12 @@ from xgolib import XGO
 
 from aiko_services import *
 
+_VERSION = 0
+
 ACTOR_TYPE = "xgo_robot"
-PROTOCOL = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE}:0"
+PROTOCOL = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE}:{_VERSION}"
 
 _LOGGER = aiko.logger(__name__)
-_VERSION = 0
 
 # --------------------------------------------------------------------------- #
 
@@ -80,8 +81,8 @@ TOPIC_VIDEO = f"{get_namespace()}/video"
 # --------------------------------------------------------------------------- #
 
 class XGORobot(Actor):
-    Interface.implementations["XGORobot"] =  \
-        "aiko_services.examples.xgo_robot.xgo_robot.XGORobotImpl"
+    Interface.default("XGORobot",
+        "aiko_services.examples.xgo_robot.xgo_robot.XGORobotImpl")
 
     @abstractmethod
     def action(self, value):
@@ -136,9 +137,8 @@ class XGORobot(Actor):
         pass
 
 class XGORobotImpl(XGORobot):
-    def __init__(self, implementations, name, protocol, tags, transport):
-        implementations["Actor"].__init__(self,
-            implementations, name, protocol, tags, transport)
+    def __init__(self, context):
+        context.get_implementation("Actor").__init__(self, context)
 
         self._xgo = XGO(port="/dev/ttyAMA0", version="xgomini")
 
@@ -371,7 +371,7 @@ class XGORobotImpl(XGORobot):
 # --------------------------------------------------------------------------- #
 
 if __name__ == "__main__":
-    init_args = actor_args(ACTOR_TYPE, PROTOCOL)
+    init_args = actor_args(ACTOR_TYPE, protocol=PROTOCOL)
     xgo_robot = compose_instance(XGORobotImpl, init_args)
     aiko.process.run()
 

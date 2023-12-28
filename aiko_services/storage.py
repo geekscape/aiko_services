@@ -13,7 +13,7 @@
 #
 # To Do
 # ~~~~~
-# - Compare "do_command()" and "do_request()" with AM / SSM
+# - Compare "do_command()" and "do_request()" with HL AM / HL SSM
 #   - Refactor into "service.py" ?
 #
 # - Consider GraphQL over MQTT !
@@ -26,18 +26,18 @@ from aiko_services import *
 from aiko_services.transport import *
 from aiko_services.utilities import *
 
-ACTOR_TYPE = "storage_manager"
-PROTOCOL = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE}:0"
+_VERSION = 0
+
+ACTOR_TYPE = "storage"
+PROTOCOL = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE}:{_VERSION}"
 
 _LOGGER = aiko.logger(__name__)
 _TOPIC_RESPONSE = f"{aiko.topic_out}/storage_response"
-_VERSION = 0
 
 # --------------------------------------------------------------------------- #
 
-class StorageManager(Actor):
-    Interface.implementations["StorageManager"] =  \
-        "aiko_services.storage.StorageManagerImpl"
+class Storage(Actor):
+    Interface.default("Storage", "aiko_services.storage.StorageImpl")
 
     @abstractmethod
     def test_command(self, parameter):
@@ -47,12 +47,9 @@ class StorageManager(Actor):
     def test_request(self, topic_path_response, request):
         pass
 
-class StorageManagerImpl(StorageManager):
-    def __init__(self,
-        implementations, name, protocol, tags, transport, database_pathname):
-
-        implementations["Actor"].__init__(self,
-            implementations, name, protocol, tags, transport)
+class StorageImpl(Storage):
+    def __init__(self, context, database_pathname):
+        context.get_implementation("Actor").__init__(self, context)
 
         self.connection = sqlite3.connect(database_pathname)
 
@@ -118,22 +115,20 @@ def waiting_timer():
 def main():
     pass
 
-@main.command(help="Start StorageManager")
+@main.command(help="Start Storage")
 @click.argument("database_pathname", default="aiko_storage.db")
 
 def start(database_pathname):
     tags = ["ec=true"]
-    init_args = actor_args(ACTOR_TYPE, PROTOCOL, tags)
+    init_args = actor_args(ACTOR_TYPE, protocol=PROTOCOL, tags=tags)
     init_args["database_pathname"] = database_pathname
-    storage_manager = compose_instance(StorageManagerImpl, init_args)
-    storage_manager.run()
+    storage = compose_instance(StorageImpl, init_args)
+    storage.run()
 
 @main.command(name="test_command")
 
 def test_command():
-    do_command(StorageManager, lambda storage_manager:
-        storage_manager.test_command("hello")
-    )
+    do_command(Storage, lambda storage: storage.test_command("hello"))
 
 @main.command(name="test_request")
 @click.argument("request")
@@ -143,9 +138,8 @@ def test_request(request):
         print(f"Response: {response}")
         import time; time.sleep(1)
 
-    do_request(StorageManager,
-        lambda storage_manager:
-            storage_manager.test_request(_TOPIC_RESPONSE, request),
+    do_request(Storage,
+        lambda storage: storage.test_request(_TOPIC_RESPONSE, request),
         response_handler
     )
 

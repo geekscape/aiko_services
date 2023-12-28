@@ -11,27 +11,29 @@ These examples require the Aiko Services [framework](https://en.wikipedia.org/wi
 
 The Aiko Services framework relies on (at least) these two Core Services ...
 
-* [MQTT server](https://en.wikipedia.org/wiki/MQTT#MQTT_broker) for passing messages between Services (Actors)
-* Aiko Registrar for discovering what Services (Actors) are available
+* [MQTT server](https://en.wikipedia.org/wiki/MQTT#MQTT_broker) for transmitting messages between Services (Actors)
+* Aiko Registrar for discovering which Services (Actors) are available
 
-Other Services (Actors), like AlohaHonua and the Aiko Dashboard can then send messages via the [MQTT](https://mqtt.org) protocol to communicate with each other.
+Other Services (Actors), like AlohaHonua and the Aiko Dashboard can then
+publish messages via the [MQTT](https://mqtt.org) protocol to communicate
+with each other.
 
-## A minimal Actor: aloha\_honua\_0.py
+## The simplest Actor: aloha\_honua\_0.py
 
-In computer science, it is traditional to start with an example [hello world program](https://en.wikipedia.org/wiki/%22Hello,_World!%22_program).  For a programming language, that example program may be just a single line of code or a few lines of code.  The simpliest Aiko Services equivalent is currently around 14 lines of code.  Clearly, there is a lot more going on here than just printing "Hello World !".
+In computer science, it is traditional to start with an example [hello world program](https://en.wikipedia.org/wiki/%22Hello,_World!%22_program).  For a given programming language, that example program may be just a single line of code or a few lines of code.  The simpliest Aiko Services equivalent is currently around 15 lines of code.  Clearly, there is a lot more going on here than just printing "Hello World !".
 
-The AlohaHonua [Actor](https://en.wikipedia.org/wiki/Actor_model) below is a distributed Service that can be discovered, [receive and send messages](https://en.wikipedia.org/wiki/Actor_model#Fundamental_concepts), perform distributed logging and be inspected via the Aiko Dashboard.  Subsequent examples will extend this basic building block to do much more.
+The AlohaHonua [Actor](https://en.wikipedia.org/wiki/Actor_model) below is a distributed Service that can be discovered, [subscribe and publish messages](https://en.wikipedia.org/wiki/Actor_model#Fundamental_concepts), perform distributed logging and be monitored via the Aiko Dashboard.  Subsequent examples will extend this basic building block to do much more.
 
 *Source code: [aloha\_honua\_0.py](aloha_honua_0.py)*
 
     from aiko_services import *
 
-    _LOGGER = aiko.logger(__name__)
+    ACTOR_NAME = "aloha_honua"
+    _LOGGER = aiko.logger(ACTOR_NAME)
 
     class AlohaHonua(Actor):
-        def __init__(self, implementations, name, protocol, tags, transport):
-            implementations["Actor"].__init__(self,
-                implementations, name, protocol, tags, transport)
+        def __init__(self, context):
+            context.get_implementation("Actor").__init__(self, context)
             print(f"MQTT topic: {self.topic_in}")
 
         def get_logger(self):
@@ -41,7 +43,7 @@ The AlohaHonua [Actor](https://en.wikipedia.org/wiki/Actor_model) below is a dis
             _LOGGER.info(f"AlohaHonua {name} !")
 
     if __name__ == "__main__":
-        init_args = actor_args("aloha_honua", "*")
+        init_args = actor_args(ACTOR_NAME)
         aloha_honua = compose_instance(AlohaHonua, init_args)
         aiko.process.run()
 
@@ -94,7 +96,8 @@ Start by importing the Aiko Services [module](https://www.w3schools.com/python/p
 
     from aiko_services import *
 
-    _LOGGER = aiko.logger(__name__)
+    ACTOR_NAME = "aloha_honua"
+    _LOGGER = aiko.logger(ACTOR_NAME)
 
 The `_LOGGER` variable is specific to each Actor instance, so that log records can be shown for just that Actor instance.  The logging level can be independently changed on-the-fly by the Aiko Dashboard or given an initial value via the command line ...
 
@@ -107,9 +110,8 @@ By default, the `_LOGGER` instance will use distributed logging (via MQTT) that 
 The AlohaHonua Actor is defined as a Python class that inherits from the Aiko Actor class.  The class constructor method `__init__()` is required, but don't worry about its implementation for the moment.  The `print()` statement shows the automagically generated MQTT topic path (input) for communicating with this Actor.
 
     class AlohaHonua(Actor):
-        def __init__(self, implementations, name, protocol, tags, transport):
-            implementations["Actor"].__init__(self,
-                implementations, name, protocol, tags, transport)
+        def __init__(self, context):
+            context.get_implementation("Actor").__init__(self, context)
             print(f"MQTT topic: {self.topic_in}")
 
 Actors are required to create their own logger instance and provide an accessor method.
@@ -122,12 +124,12 @@ Actors can define functions that can be invoked directly by other Actors (via MQ
         def aloha(self, name):
             _LOGGER.info(f"AlohaHonua {name} !")
 
-When coding in Python, Aiko Actors can be discovered and their functions invoked via a regular Python function call.  For testing and diagnosis, MQTT CLI tools can also used to *publish* hand-crafted messages and *subscribe* to observe one or more Actor's output.
+When coding in Python, Aiko Actors can be discovered and their functions invoked via a regular Python function call.  For testing and diagnosis, MQTT CLI tools can also used to *publish* hand-crafted messages and *subscribe* to observe the output from one or more Actors.
 
-The standard Python `__main__` code defines the AlohaHonua class constructor method` __init__()` arguments, e.g the Actor `name` and `protocol`.  Then creates (*composes*) the AlohaHonua Actor instance.  Finally, the Aiko Process main event loop can be run (which is a blocking call).
+The standard Python `__main__` code defines the AlohaHonua class constructor method` __init__()` arguments, e.g the Actor `name`.  Then creates (*composes*) the AlohaHonua Actor instance.  Finally, the Aiko Process main event loop can be run (which is a blocking call).
 
     if __name__ == "__main__":
-        init_args = actor_args("aloha_honua", "*")
+        init_args = actor_args(ACTOR_NAME)
         aloha_honua = compose_instance(AlohaHonua, init_args)
         aiko.process.run()
 
@@ -135,4 +137,4 @@ The Aiko Services framework uses the [Inversion of Control (IoC)](https://en.wik
 
 The Aiko Services framework also utilizes [Design by Composition](https://en.wikipedia.org/wiki/Composition_over_inheritance) and [Interfaces](https://en.wikipedia.org/wiki/Interface_(object-oriented_programming)), which promotes code reuse ([DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself)) and enables [Aspect Oriented Programming (AOP)](https://en.wikipedia.org/wiki/Aspect-oriented_programming) to deal with cross-cutting concerns.
 
-*Note: About 6 lines of code above are [boilerplate](https://en.wikipedia.org/wiki/Boilerplate_code), i.e the `aiko.logger()`, `__init__()` and `get_logger()` methods.  Over time, the aim is to eliminate as much boilerplate code as possible.*
+*Note: About 7 lines of code above are [boilerplate](https://en.wikipedia.org/wiki/Boilerplate_code), i.e the `aiko.logger()`, `__init__()` and `get_logger()` methods.  Over time, the aim is to eliminate as much boilerplate code as possible.*

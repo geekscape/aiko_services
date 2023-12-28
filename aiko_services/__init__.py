@@ -6,6 +6,15 @@
 
 __version__ = "0"
 
+from .context import (
+    Context, Interface, ServiceProtocolInterface, ContextService,
+    ContextPipelineElement, ContextPipeline, ContextStream,
+    service_args, actor_args,
+    pipeline_element_args, pipeline_args, stream_args
+)
+
+from .component import compose_class, compose_instance
+
 from .connection import ConnectionState, Connection
 
 from .event import (
@@ -17,20 +26,14 @@ from .event import (
     terminate
 )
 
-import aiko_services.event as event  # TODO: Remove this
-
 from .process import aiko, process_create
 
 from .lease import Lease
 
-from .component import (
-    Interface, ServiceProtocolInterface, compose_class, compose_instance
-)
-
 from .service import (
     ServiceFields, ServiceFilter, ServiceProtocol,
     ServiceTags, ServiceTopicPath, Services,
-    Service, ServiceImpl, service_args
+    Service, ServiceImpl
 )
 
 from .state import StateMachine
@@ -44,7 +47,7 @@ from .share import (
 )
 
 from .actor import (
-    Actor, ActorImpl, actor_args, ActorTest, ActorTestImpl, actor_args
+    Actor, ActorImpl, ActorTest, ActorTestImpl
 )
 
 from .process_manager import ProcessManager
@@ -53,7 +56,7 @@ from .lifecycle import LifeCycleClient, LifeCycleManager
 
 from .pipeline import (
     Pipeline, PipelineElement, PipelineElementImpl, PipelineImpl,
-    pipeline_args, pipeline_element_args, PROTOCOL_PIPELINE
+    PROTOCOL_PIPELINE
 )
 
 from .registrar import *

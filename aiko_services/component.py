@@ -1,22 +1,29 @@
+# Description
+# ~~~~~~~~~~~
+# Provide functions for ... design by composition (of interfaces).
+# Utilize "context.py" to provide required data fields as a single argument.
+# Support defining interface default implementation, which may be over-ridden.
+#
 # Usage
 # ~~~~~
 # from abc import abstractmethod
 # from aiko_services import *
 #
 # class Example(Interface):
-#     Interface.implementations["Example"] = "__main__.ExampleImpl"
+#     Interface.default("Example", "__main__.ExampleImpl")
 #
 #     @abstractmethod
 #     def method_0(self): pass
 #
 # class ExampleImpl(Example):
-#     def __init__(self, implementations, parameter_1):
-#         print(f"ExampleImpl.__init__({parameter_1})")
+#     def __init__(self, context, parameter):
+#         print(f"ExampleImpl.__init__({parameter})")
 #
 #     def method_0(self):
 #         print("ExampleImpl.method_0()")
 #
-# init_args = {"parameter_1": "value_1"}
+# init_args = server_args("example")
+# init_args["parameter"] = "value"
 # example = compose_instance(ExampleImpl, init_args)
 # example.method_0()
 #
@@ -26,8 +33,8 @@
 #
 # - Support composing a class once and using it to create multiple instances
 #
-# - "impl_seed_class.implementations" always picks up all the AikoServices
-#   interfaces default implementations
+# - "impl_seed_class.get_implementations()" always picks up all the
+#     AikoServices #   interfaces default implementations
 #
 # - Design "protocol" (Interface hieracrchy) for inbound and outbound methods
 #   - Different Interfaces may optionally have different "connection pads"
@@ -35,17 +42,10 @@
 from abc import ABC
 from inspect import getmembers, isclass, isfunction
 
+from aiko_services import *
 from aiko_services.utilities import *
 
-__all__ = [
-    "Interface", "ServiceProtocolInterface", "compose_class", "compose_instance"
-]
-
-class Interface(ABC):
-    implementations = {}
-
-class ServiceProtocolInterface(Interface):
-    """Interface marker representing an Aiko Service protocol"""
+__all__ = ["compose_class", "compose_instance"]
 
 def compose_class(impl_seed_class, impl_overrides=None):
     """
@@ -63,7 +63,9 @@ def compose_class(impl_seed_class, impl_overrides=None):
     if impl_overrides == None:
         impl_overrides = {}
 
-    all_implementations = {**impl_seed_class.implementations, **impl_overrides}
+    all_implementations = {
+        **impl_seed_class.get_implementations(), **impl_overrides
+    }
     implementations = _keep_specified_implementations(
         impl_seed_class, all_implementations)
 
@@ -100,7 +102,9 @@ def compose_instance(impl_seed_class, init_args, impl_overrides=None):
     # It's alive ... https://www.youtube.com/watch?v=1qNeGSJaQ9Q&t=2m24s !!
     # Of course, Frankstein was the doctor's name and not his creation :)
 
-    return frankenstein_class(implementations, **init_args)
+    context = init_args["context"]
+    context.set_implementations(implementations)
+    return frankenstein_class(**init_args)
 
 def _add_methods(base_class, implementations):
     """

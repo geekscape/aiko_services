@@ -17,14 +17,12 @@
 
 from aiko_services import *
 
-ACTOR_TYPE = "aloha_honua"
-PROTOCOL = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE}:0"
-_LOGGER = aiko.logger(__name__)
+ACTOR_NAME = "aloha_honua"
+_LOGGER = aiko.logger(ACTOR_NAME)
 
 class AlohaHonua(Actor):
-    def __init__(self, implementations, name, protocol, tags, transport):
-        implementations["Actor"].__init__(self,
-            implementations, name, protocol, tags, transport)
+    def __init__(self, context):
+        context.get_implementation("Actor").__init__(self, context)
         print(f"MQTT topic: {self.topic_in}")
 
     def get_logger(self):
@@ -34,6 +32,6 @@ class AlohaHonua(Actor):
         _LOGGER.info(f"Aloha {name} !")
 
 if __name__ == "__main__":
-    init_args = actor_args(ACTOR_TYPE, PROTOCOL)
+    init_args = actor_args(ACTOR_NAME)
     aloha_honua = compose_instance(AlohaHonua, init_args)
     aiko.process.run()

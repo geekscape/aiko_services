@@ -59,33 +59,29 @@ import zlib
 
 from aiko_services import *
 
+_VERSION = 0
+
 ACTOR_TYPE_UI = "robot_control"
-PROTOCOL_UI = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_UI}:0"
+PROTOCOL_UI = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_UI}:{_VERSION}"
 ACTOR_TYPE_VIDEO_TEST = "video_test"
-PROTOCOL_VIDEO_TEST = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_VIDEO_TEST}:0"
+PROTOCOL_VIDEO_TEST = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_VIDEO_TEST}:{_VERSION}"
 TOPIC_SPEECH = f"{get_namespace()}/speech"
 TOPIC_VIDEO = f"{get_namespace()}/video"
 
 _LOGGER = aiko.logger(__name__)
-_VERSION = 0
 
 # --------------------------------------------------------------------------- #
 
 class RobotControl(Actor):
-    Interface.implementations["RobotControl"] =  \
-        "__main__.RobotControlImpl"
+    Interface.default("RobotControl", "__main__.RobotControlImpl")
 
     @abstractmethod
     def image(self, aiko, topic, payload_in):
         pass
 
 class RobotControlImpl(RobotControl):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        robot_topic):
-
-        implementations["Actor"].__init__(self,
-            implementations, name, protocol, tags, transport)
+    def __init__(self, context, robot_topic):
+        context.get_implementation("Actor").__init__(self, context)
 
         self.state["frame_id"] = 0
         self.state["robot_topic"] = robot_topic
@@ -150,7 +146,8 @@ class RobotControlImpl(RobotControl):
                 if stop:
                     aiko.message.publish(topic_out, "(stop)")
                 if payload_out:
-                    speech = speech.replace(" ", " ")  # Unicode U00A0 (NBSP)
+                #   speech = speech.replace(" ", " ")  # Unicode U00A0 (NBSP)
+                    speech = speech.replace(" ", "_")  # TODO: Fix this mess :(
                     aiko.message.publish(topic_out, f"(speech {speech})")
                     aiko.message.publish(topic_out, payload_out)
         except:
@@ -205,13 +202,12 @@ SLEEP_PERIOD = 0.2     # seconds
 STATUS_XY = (10, 230)  # (10, 15)
 
 class VideoTest(Actor):
-    Interface.implementations["VideoTest"] =  \
-        "aiko_services.examples.xgo_robot.robot_control.VideoTestImpl"
+    Interface.default("VideoTest",
+        "aiko_services.examples.xgo_robot.robot_control.VideoTestImpl")
 
 class VideoTestImpl(VideoTest):
-    def __init__(self, implementations, name, protocol, tags, transport):
-        implementations["Actor"].__init__(self,
-            implementations, name, protocol, tags, transport)
+    def __init__(self, context):
+        context.get_implementation("Actor").__init__(self, context)
 
         self.state["sleep_period"] = SLEEP_PERIOD
         self.state["source_file"] = f"v{_VERSION}⇒ {__file__}"
@@ -274,7 +270,7 @@ def main():
 @click.argument("robot_topic", default=None, required=False)
 
 def ui(robot_topic):
-    init_args = actor_args(ACTOR_TYPE_UI, PROTOCOL_UI)
+    init_args = actor_args(ACTOR_TYPE_UI, protocol=PROTOCOL_UI)
     init_args["robot_topic"] = robot_topic
     robot_control = compose_instance(RobotControlImpl, init_args)
     aiko.process.run()
@@ -282,7 +278,7 @@ def ui(robot_topic):
 @main.command(name="video_test", help="Video test output")
 
 def video_test():
-    init_args = actor_args(ACTOR_TYPE_VIDEO_TEST, PROTOCOL_VIDEO_TEST)
+    init_args = actor_args(ACTOR_TYPE_VIDEO_TEST, protocol=PROTOCOL_VIDEO_TEST)
     video_test = compose_instance(VideoTestImpl, init_args)
     aiko.process.run()
 

@@ -38,15 +38,12 @@ __all__ = [
 _LOGGER = aiko.logger(__name__)
 
 class TransportMQTT(Actor):
-    Interface.implementations["TransportMQTT"] =  \
-        "aiko_services.transport.TransportMQTTImpl"
+    Interface.default("TransportMQTT",
+        "aiko_services.transport.transport_mqtt.TransportMQTTImpl")
 
 class TransportMQTTImpl(TransportMQTT):
-    def __init__(self,
-        implementations, name, protocol, tags, transport):
-
-        implementations["Actor"].__init__(self,
-            implementations, name, protocol, tags, transport)
+    def __init__(self, context):
+        context.get_implementation("Actor").__init__(self, context)
 
     def get_logger(self):
         return _LOGGER

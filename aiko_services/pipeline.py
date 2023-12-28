@@ -113,17 +113,18 @@ from aiko_services.utilities import *
 
 __all__ = [
     "Pipeline", "PipelineElement", "PipelineElementImpl", "PipelineImpl",
-    "pipeline_args", "pipeline_element_args", "PROTOCOL_PIPELINE"
+    "PROTOCOL_PIPELINE"
 ]
+
+_VERSION = 0
 
 ACTOR_TYPE_PIPELINE = "pipeline"
 ACTOR_TYPE_ELEMENT = "pipeline_element"
-PROTOCOL_PIPELINE =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_PIPELINE}:0"
-PROTOCOL_ELEMENT =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_ELEMENT}:0"
+PROTOCOL_PIPELINE =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_PIPELINE}:{_VERSION}"
+PROTOCOL_ELEMENT =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_ELEMENT}:{_VERSION}"
 
 _GRACE_TIME = 60
 _LOGGER = aiko.logger(__name__)
-_VERSION = 0
 
 # --------------------------------------------------------------------------- #
 
@@ -189,8 +190,8 @@ class FrameContext:
     frame_id: int
 
 class PipelineElement(Actor):
-    Interface.implementations["PipelineElement"] =  \
-        "aiko_services.pipeline.PipelineElementImpl"
+    Interface.default("PipelineElement",
+        "aiko_services.pipeline.PipelineElementImpl")
 
     @abstractmethod
     def create_frame(self, context, swag):
@@ -216,25 +217,15 @@ class PipelineElement(Actor):
     def stop_stream(self, context, stream_id):
         pass
 
-def pipeline_element_args(name=None, protocol=None, tags=[], transport="mqtt",
-    definition=None, pipeline=None):
-
-    return {**actor_args(name.lower(), protocol, tags, transport),
-            "definition": definition, "pipeline": pipeline}
-
 class PipelineElementImpl(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
-        self.definition = definition
-        self.pipeline = pipeline
-        self.is_pipeline = (self == pipeline)  # Pipeline or PipelineElement ?
-        if protocol == None:
-            protocol = PROTOCOL_ELEMENT
-
-        implementations["Actor"].__init__(self,
-            implementations, name, protocol, tags, transport)
+    def __init__(self, context):
+        self.definition = context.get_definition()
+        self.pipeline = context.get_pipeline()
+        self.is_pipeline = (self.pipeline == None)
+        if context.protocol == "*":
+            context.set_protocol(
+                PROTOCOL_PIPELINE if self.is_pipeline else PROTOCOL_ELEMENT)
+        context.get_implementation("Actor").__init__(self, context)
 
         self.state["source_file"] = f"v{_VERSION}⇒ {__file__}"
         self.state.update(self.definition.parameters)
@@ -273,14 +264,8 @@ class PipelineElementRemote(PipelineElement):
     pass
 
 class PipelineElementRemoteAbsent(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
-
+    def __init__(self, context):
+        context.get_implementation("PipelineElement").__init__(self, context)
         self.state["lifecycle"] = "absent"
 
     def process_frame(self, context, **kwargs) -> Tuple[bool, dict]:
@@ -290,14 +275,8 @@ class PipelineElementRemoteAbsent(PipelineElement):
         return True, {}
 
 class PipelineElementRemoteFound(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
-
+    def __init__(self, context):
+        context.get_implementation("PipelineElement").__init__(self, context)
         self.state["lifecycle"] = "ready"
 
     def process_frame(self, context, **kwargs) -> Tuple[bool, dict]:
@@ -308,8 +287,7 @@ class PipelineElementRemoteFound(PipelineElement):
 # --------------------------------------------------------------------------- #
 
 class Pipeline(PipelineElement):
-    Interface.implementations["Pipeline"] =  \
-        "aiko_services.pipeline.PipelineImpl"
+    Interface.default("Pipeline", "aiko_services.pipeline.PipelineImpl")
 
     @abstractmethod
     def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME):
@@ -319,13 +297,6 @@ class Pipeline(PipelineElement):
     def destroy_stream(self, stream_id):
         pass
 
-def pipeline_args(name=None, protocol=None, tags=[], transport="mqtt",
-    definition=None, pipeline=None, definition_pathname=""):
-
-    init_args = pipeline_element_args(
-                    name, protocol, tags, transport, definition, pipeline)
-    return {**init_args, "definition_pathname": definition_pathname}
-
 class PipelineImpl(Pipeline):
     DEPLOY_TYPE_LOOKUP = {
         DeployType.LOCAL.value: PipelineElementDeployLocal,
@@ -334,22 +305,18 @@ class PipelineImpl(Pipeline):
     DEPLOY_TYPE_LOCAL_NAME = PipelineElementDeployLocal.__name__
     DEPLOY_TYPE_REMOTE_NAME = PipelineElementDeployRemote.__name__
 
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline, definition_pathname=""):
-
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, self)  # Note: Pipeline is its own parent 🤔
+    def __init__(self, context):
+        context.get_implementation("PipelineElement").__init__(self, context)
         print(f"MQTT topic: {self.topic_in}")
 
         self.state["lifecycle"] = "start"
         self.remote_pipelines = {}  # Service name --> PipelineElement name
         self.services_cache = None
-        self.state["definition_pathname"] = definition_pathname
+
+        self.state["definition_pathname"] = context.definition_pathname
         self.stream_leases = {}
 
-        self.pipeline_graph = self._create_pipeline(definition)
+        self.pipeline_graph = self._create_pipeline(context.definition)
         self.state["element_count"] = self.pipeline_graph.element_count
         self.state["lifecycle"] = "ready"
 
@@ -414,8 +381,7 @@ class PipelineImpl(Pipeline):
                     f"PipelineDefinition: PipelineElement type unknown: "
                     f"{deploy_type_name}")
 
-            init_args = pipeline_element_args(
-                **actor_args(element_name),
+            init_args = pipeline_element_args(element_name,
                 definition=pipeline_element_definition,
                 pipeline=self
             )
@@ -539,8 +505,7 @@ class PipelineImpl(Pipeline):
             if command == "remove":
                 element_class = PipelineElementRemoteAbsent
 
-            init_args = pipeline_element_args(
-                **actor_args(element_name),
+            init_args = pipeline_element_args(element_name,
                 definition=element_definition,
                 pipeline=self
             )
@@ -552,6 +517,7 @@ class PipelineImpl(Pipeline):
             node._element = element_instance
             print(f"Pipeline update: --> {element_name} proxy")
 
+                                   # SWAG: Stuff We All Get 😅
     def process_frame(self, context, swag) -> Tuple[bool, None]:
         if "stream_id" not in context:    # Default stream_id
             context["stream_id"] = 0
@@ -787,10 +753,9 @@ def create(definition_pathname, name):
         definition_pathname)
     name = name if name else pipeline_definition.name
 
-    init_args = pipeline_args(
-        **actor_args(name, PROTOCOL_PIPELINE),
+    init_args = pipeline_args(name,
+        protocol=PROTOCOL_PIPELINE,
         definition=pipeline_definition,
-        pipeline=None,
         definition_pathname=definition_pathname
     )
     pipeline = compose_instance(PipelineImpl, init_args)

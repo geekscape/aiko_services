@@ -31,13 +31,8 @@ _LOGGER = aiko.logger(__name__)
 # TODO: Replace thread with "event.add_timer_handler()"
 
 class PE_GenerateNumbers(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+    def __init__(self, context):
+        context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, number) -> Tuple[bool, dict]:
         _LOGGER.debug(f"{self._id(context)}: in/out number: {number}")
@@ -62,14 +57,9 @@ class PE_GenerateNumbers(PipelineElement):
 # --------------------------------------------------------------------------- #
 
 class PE_0(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
-        protocol = "increment:0"  # data_source:0
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+    def __init__(self, context):
+        context.set_protocol("increment:0")  # data_source:0
+        context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, a) -> Tuple[bool, dict]:
         b = int(a) + 1
@@ -79,31 +69,26 @@ class PE_0(PipelineElement):
 # --------------------------------------------------------------------------- #
 
 class PE_1(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
-        protocol = "increment:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+    def __init__(self, context):
+        context.set_protocol("increment:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, b) -> Tuple[bool, dict]:
-        c = int(b) + 1
+        increment = 1
+        pe_1_inc, found = self.get_parameter("pe_1_inc")
+        if found:
+            increment = int(pe_1_inc)
+        c = int(b) + increment
         _LOGGER.info(f"PE_1: {context}, in b: {b}, out c: {c}")
+        _LOGGER.info(f"PE_1:            parameter pe_1_inc: {pe_1_inc}")
         return True, {"c": c}
 
 # --------------------------------------------------------------------------- #
 
 class PE_2(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
-        protocol = "increment:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+    def __init__(self, context):
+        context.set_protocol("increment:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, c) -> Tuple[bool, dict]:
         d = int(c) + 1
@@ -113,14 +98,9 @@ class PE_2(PipelineElement):
 # --------------------------------------------------------------------------- #
 
 class PE_3(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
-        protocol = "increment:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+    def __init__(self, context):
+        context.set_protocol("increment:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, c) -> Tuple[bool, dict]:
         e = int(c) + 1
@@ -130,14 +110,9 @@ class PE_3(PipelineElement):
 # --------------------------------------------------------------------------- #
 
 class PE_4(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
-        protocol = "sum:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+    def __init__(self, context):
+        context.set_protocol("sum:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, d, e) -> Tuple[bool, dict]:
         f = int(d) + int(e)
@@ -147,13 +122,8 @@ class PE_4(PipelineElement):
 # --------------------------------------------------------------------------- #
 
 class PE_DataDecode(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+    def __init__(self, context):
+        context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, data) -> Tuple[bool, dict]:
         data = base64.b64decode(data.encode("utf-8"))
@@ -165,13 +135,8 @@ class PE_DataDecode(PipelineElement):
 # --------------------------------------------------------------------------- #
 
 class PE_DataEncode(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+    def __init__(self, context):
+        context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, data) -> Tuple[bool, dict]:
     #   _LOGGER.info(f"PE_DataEncode: {context}, data: {data}")

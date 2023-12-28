@@ -9,23 +9,21 @@
 # from aiko_services import *
 #
 # class ActorTest(Actor):
-#     Interface.implementations["ActorTest"] = "__main__.ActorTestImpl"
+#     Interface.default("ActorTest", "__main__.ActorTestImpl")
 #
 #     @abstractmethod
 #     def test(self):
 #         pass
 #
 # class ActorTestImpl(ActorTest):
-#     def __init__(self,
-#         implementations, name, protocol, tags, transport):
-#         implementations["Actor"].__init__(self,
-#             implementations, name, protocol, tags, transport)
+#     def __init__(self, context):
+#         context.get_implementation("Actor").__init__(self, context)
 #
 #     def test(self):
 #         print("ActorTestImpl.test() invoked")
 #
 # protocol = f"{ServiceProtocol.AIKO}/actor_test:0"
-# init_args = actor_args("actor_test", protocol)
+# init_args = actor_args("actor_test", protocol=protocol)
 # actor_test = compose_instance(ActorTestImpl, init_args)
 # actor_test.test()
 # aiko.process.run()
@@ -107,7 +105,7 @@ import traceback
 from aiko_services import *
 from aiko_services.utilities import *
 
-__all__ = ["Actor", "ActorImpl", "ActorTest", "ActorTestImpl", "actor_args"]
+__all__ = ["Actor", "ActorImpl", "ActorTest", "ActorTestImpl"]
 
 _AIKO_LOG_LEVEL_ACTOR = os.environ.get("AIKO_LOG_LEVEL_ACTOR", "INFO")
 _LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_ACTOR)
@@ -163,14 +161,11 @@ class Topic:
         self.topic_name = topic_name
 
 class Actor(Service):
-    Interface.implementations["Actor"] = "aiko_services.actor.ActorImpl"
+    Interface.default("Actor", "aiko_services.actor.ActorImpl")
 
 #   @abstractmethod
 #   def run(self):  # TODO: Decide what methods are required to be an Actor
 #       pass
-
-def actor_args(name=None, protocol=None, tags=[], transport="mqtt"):
-    return service_args(name, protocol, tags, transport)
 
 class ActorImpl(Actor):
     @classmethod
@@ -184,11 +179,8 @@ class ActorImpl(Actor):
         actual_object._post_message(
             topic, command, args, target_function=actual_function)
 
-    def __init__(self,
-        implementations, name=None, protocol=None, tags=[], transport="mqtt"):
-
-        implementations["Service"].__init__(self,
-            implementations, name, protocol, tags, transport)
+    def __init__(self, context):
+        context.get_implementation("Service").__init__(self, context)
 
         self.state = {
             "lifecycle": "ready",
@@ -263,7 +255,7 @@ class ActorImpl(Actor):
         pass
 
 class ActorTest(Actor):  # TODO: Move into "../examples/"
-    Interface.implementations["ActorTest"] = "aiko_services.actor.ActorTestImpl"
+    Interface.default("ActorTest", "aiko_services.actor.ActorTestImpl")
 
     __test__ = False  # Stop PyTest from collecting and instantiating this class
 
@@ -280,11 +272,8 @@ class ActorTest(Actor):  # TODO: Move into "../examples/"
         pass
 
 class ActorTestImpl(ActorTest):  # TODO: Move into "../examples/"
-    def __init__(self,
-        implementations, name, protocol, tags, transport):
-
-        implementations["Actor"].__init__(self,
-            implementations, name, protocol, tags, transport)
+    def __init__(self, context):
+        context.get_implementation("Actor").__init__(self, context)
 
         self.test_count = None
 
