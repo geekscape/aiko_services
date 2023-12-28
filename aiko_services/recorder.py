@@ -48,7 +48,7 @@ class Recorder(Service):
 #       And send ECProducer.remove(topic) to update the ECConsumer
         self.lru_cache = LRUCache(_LRU_CACHE_SIZE)
 
-        self.state = {
+        self.share = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
             "source_file": f"v{_VERSION}⇒ {__file__}",
@@ -57,7 +57,7 @@ class Recorder(Service):
             "ring_buffer_size": _RING_BUFFER_SIZE,
             "topic_path_filter": topic_path_filter
         }
-        self.ec_producer = ECProducer(self, self.state)
+        self.ec_producer = ECProducer(self, self.share)
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
         self.add_message_handler(self.recorder_handler, topic_path_filter)

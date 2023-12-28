@@ -73,10 +73,10 @@
 #         All would share ECConsumers for ServiceDiscovery and LifeCycleClient
 #
 # - State Machine ...
-#   - Consolidate  self.state["lifecycle"] and self.state["running"]
-#     - into self.state["state"] ?
+#   - Consolidate  self.share["lifecycle"] and self.share["running"]
+#     - into self.share["state"] ?
 #   - Turn "self.is_running()" into "self.get_state()"
-#   - Stop Actor by changing "self.state" to "STOP"
+#   - Stop Actor by changing "self.share" to "STOP"
 #   - Hard terminate Actor using "self._terminate()"
 #
 # - function() > Remote Actor >  Message > Mailbox > Event loop > function()
@@ -182,12 +182,12 @@ class ActorImpl(Actor):
     def __init__(self, context):
         context.get_implementation("Service").__init__(self, context)
 
-        self.state = {
+        self.share = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(self.get_logger()),
-            "running": False  # TODO: Consolidate into self.state ?
+            "running": False  # TODO: Consolidate into self.share ?
         }
-        self.ec_producer = ECProducer(self, self.state)
+        self.ec_producer = ECProducer(self, self.share)
         self.ec_producer.add_handler(self.ec_producer_change_handler)
 
         # First mailbox added has priority handling for all posted messages
@@ -239,17 +239,17 @@ class ActorImpl(Actor):
 #       return _LOGGER
 
     def is_running(self):
-        return self.state["running"]
+        return self.share["running"]
 
     def run(self):
-        self.state["running"] = True
+        self.share["running"] = True
         try:
             aiko.process.run()
         except Exception as exception:
         #   _LOGGER.error(f"Exception caught in {self.__class__.__name__}: {type(exception).__name__}: {exception}")
             _LOGGER.error(traceback.format_exc())
             raise exception
-        self.state["running"] = False
+        self.share["running"] = False
 
     def set_log_level(self, level):  # Override to set subclass _LOGGER level
         pass

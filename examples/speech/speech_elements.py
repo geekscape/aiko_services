@@ -12,7 +12,7 @@
 # - Pipeline "lifecycle" should depend on all PipelineElement "lifecycle"
 #   - Wait until WhisperX ML Model is loaded, before Pipeline is "ready"
 #
-# - "AUDIO_CHUNK_DURATION" and "AUDIO_SAMPLE_DURATION" --> self.state[]
+# - "AUDIO_CHUNK_DURATION" and "AUDIO_SAMPLE_DURATION" --> self.share[]
 #
 # - PE_MicrophoneFile could more precisely send the exact sample chunk size
 #   - Carve off desired sample length from that given to _audio_sampler()
@@ -44,14 +44,9 @@ AUDIO_SAMPLE_RATE = 16000    # or 44100 Hz
 AUDIO_CACHE_SIZE = int(AUDIO_SAMPLE_DURATION / AUDIO_CHUNK_DURATION)
 
 class PE_AudioFraming(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
-        protocol = "audio_framing:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+    def __init__(self, context):
+        context.set_protocol("audio_framing:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
 
         self._lru_cache = LRUCache(AUDIO_CACHE_SIZE)
         _LOGGER.info(f"PE_AudioFraming: Sliding windows: {AUDIO_CACHE_SIZE}")
@@ -78,14 +73,9 @@ class PE_AudioFraming(PipelineElement):
 AUDIO_PATH_TEMPLATE = "y_audio_{frame_id:06}.wav"
 
 class PE_AudioWriteFile(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
-        protocol = "audio_write_file:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+    def __init__(self, context):
+        context.set_protocol("audio_write_file:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
         frame_id = context["frame_id"]
@@ -113,14 +103,10 @@ except Exception as exception:
 
 if COQUI_TTS_LOADED: 
     class PE_COQUI_TTS(PipelineElement):
-        def __init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline):
-
-            protocol = "text_to_speech:0"
-            implementations["PipelineElement"].__init__(self,
-                implementations, name, protocol, tags, transport,
-                definition, pipeline)
+        def __init__(self, context):
+            context.set_protocol("text_to_speech:0")
+            implementation = context.get_implementation("PipelineElement")
+            implementation.__init__(self, context)
 
             self._ml_model = TTS(COQUI_MODEL_NAME)
             _LOGGER.info(f"PE_COQUI_TTS: ML model loaded: {COQUI_MODEL_NAME}")
@@ -129,7 +115,7 @@ if COQUI_TTS_LOADED:
             self.ec_producer.update("frame_id", -1)
 
         def process_frame(self, context, text) -> Tuple[bool, dict]:
-            frame_id = self.state["frame_id"] + 1
+            frame_id = self.share["frame_id"] + 1
             self.ec_producer.update("frame_id", frame_id)
             if text:
                 audio = self._ml_model.tts(text, speaker=COQUI_SPEAKER_ID)
@@ -144,14 +130,9 @@ if COQUI_TTS_LOADED:
 # --------------------------------------------------------------------------- #
 
 class PE_SpeechFraming(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
-        protocol = "speech_framing:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+    def __init__(self, context):
+        context.set_protocol("speech_framing:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, text) -> Tuple[bool, dict]:
         return True, {"text": text}
@@ -203,14 +184,10 @@ except Exception as exception:
 
 if WHISPERX_LOADED:
     class PE_WhisperX(PipelineElement):
-        def __init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline):
-
-            protocol = "speech_to_text:0"
-            implementations["PipelineElement"].__init__(self,
-                implementations, name, protocol, tags, transport,
-                definition, pipeline)
+        def __init__(self, context):
+            context.set_protocol("speech_to_text:0")
+            implementation = context.get_implementation("PipelineElement")
+            implementation.__init__(self, context)
 
             self._ml_model = whisperx.load_model(
                 WHISPERX_MODEL_SIZE, CUDA_DEVICE)

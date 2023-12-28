@@ -297,13 +297,13 @@ class LifeCycleManagerTestImpl(LifeCycleManagerTest):
     def __init__(self, context, client_count):
         context.get_implementation("Actor").__init__(self, context)
 
-        self.state = {
+        self.share = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
             "source_file": f"v{_VERSION}⇒ {__file__}",
             "client_count": client_count
         }
-        self.ec_producer = ECProducer(self, self.state)
+        self.ec_producer = ECProducer(self, self.share)
         self.process_manager = ProcessManager()
 
         context.get_implementation("LifeCycleManager").__init__(self,
@@ -323,7 +323,7 @@ class LifeCycleManagerTestImpl(LifeCycleManagerTest):
 
     def _connection_state_handler(self, connection, connection_state):
         if connection.is_connected(ConnectionState.REGISTRAR):
-            for client_count in range(self.state["client_count"]):
+            for client_count in range(self.share["client_count"]):
                 lifecycle_client_id =  \
                     self.lcm_create_client(CLIENT_SHELL_COMMAND)
                 time.sleep(0.01)
@@ -400,13 +400,13 @@ class LifeCycleClientTestImpl(LifeCycleClientTest):
     def __init__(self, context, client_id, lifecycle_manager_topic):
         context.get_implementation("Actor").__init__(self, context)
 
-        self.state = {
+        self.share = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
             "source_file": f"v{_VERSION}⇒ {__file__}",
             "client_id": client_id
         }
-        self.ec_producer = ECProducer(self, self.state)
+        self.ec_producer = ECProducer(self, self.share)
 
         context.get_implementation("LifeCycleClient").__init__(self,
             context, client_id, lifecycle_manager_topic, self.ec_producer)

@@ -142,13 +142,13 @@ class XGORobotImpl(XGORobot):
 
         self._xgo = XGO(port="/dev/ttyAMA0", version="xgomini")
 
-        self.state["battery"] = -1
-        self.state["screen_detail"] = False
-        self.state["sleep_period"] = SLEEP_PERIOD
-        self.state["source_file"] = f"v{_VERSION}⇒ {__file__}"
-        self.state["topic_video"] = TOPIC_VIDEO
-        self.state["version_firmware"] = self._xgo.read_firmware()
-        self.state["version_xgolib"] = self._xgo.read_lib_version()
+        self.share["battery"] = -1
+        self.share["screen_detail"] = False
+        self.share["sleep_period"] = SLEEP_PERIOD
+        self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"
+        self.share["topic_video"] = TOPIC_VIDEO
+        self.share["version_firmware"] = self._xgo.read_firmware()
+        self.share["version_xgolib"] = self._xgo.read_lib_version()
 
         event.add_timer_handler(
             self._monitor_battery, BATTERY_MONITOR_PERIOD, immediate=True)
@@ -238,9 +238,9 @@ class XGORobotImpl(XGORobot):
         return image
 
     def _monitor_battery(self):
-        self.state["battery"] = self._xgo.read_battery()
-        self.ec_producer.update("battery", self.state["battery"])
-        payload_out = f"(battery {self.state['battery']})"
+        self.share["battery"] = self._xgo.read_battery()
+        self.ec_producer.update("battery", self.share["battery"])
+        payload_out = f"(battery {self.share['battery']})"
         aiko.message.publish(self.topic_out, payload_out)
 
     def move(self, direction, stride="nil"):
@@ -258,7 +258,7 @@ class XGORobotImpl(XGORobot):
         payload_out = BytesIO()
         np.save(payload_out, image, allow_pickle=True)
         payload_out = zlib.compress(payload_out.getvalue())
-        aiko.message.publish(self.state["topic_video"], payload_out)
+        aiko.message.publish(self.share["topic_video"], payload_out)
 
     def reset(self):
         self._xgo.reset()
@@ -293,7 +293,7 @@ class XGORobotImpl(XGORobot):
     def screen_detail(self, enabled=None):
         if enabled == None:  # Toggle "screen_detail" enabled
             try:
-                enabled = not bool(self.state["screen_detail"])
+                enabled = not bool(self.share["screen_detail"])
             except:
                 enabled = False
         self.ec_producer.update("screen_detail", enabled)
@@ -308,10 +308,10 @@ class XGORobotImpl(XGORobot):
         return screen
 
     def _screen_overlay(self, image, fps, time_process):
-        status = f"{self.state['battery']}%  {time_process:.01f} ms  {fps} FPS"
+        status = f"{self.share['battery']}%  {time_process:.01f} ms  {fps} FPS"
         cv2.putText(image, status, STATUS_XY, 0, 0.7, (255, 255, 255), 2)
 
-        if self.state["screen_detail"]:
+        if self.share["screen_detail"]:
             detail = f"{self.topic_path}"
             cv2.putText(image, detail, DETAIL_XY, 0, 0.7, (255, 255, 255), 2)
 
@@ -322,7 +322,7 @@ class XGORobotImpl(XGORobot):
     def _sleep(self, period=None):
         if not period:
             try:
-                period = float(self.state["sleep_period"])
+                period = float(self.share["sleep_period"])
             except:
                 period = SLEEP_PERIOD
         time.sleep(period)

@@ -45,8 +45,8 @@ class MQTTTestImpl(MQTTTest):
     def __init__(self, context):
         context.get_implementation("TransportMQTT").__init__(self, context)
 
-        self.state["source_file"] = f"v{_VERSION}⇒ {__file__}"
-        self.state["message"] = None
+        self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"
+        self.share["message"] = None
 
         self.actor_discovery = ActorDiscovery(self)
         tags = "*"  # ["class=AlohaHonuaActor"]  # TODO: CLI parameter

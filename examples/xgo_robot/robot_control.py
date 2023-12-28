@@ -83,10 +83,10 @@ class RobotControlImpl(RobotControl):
     def __init__(self, context, robot_topic):
         context.get_implementation("Actor").__init__(self, context)
 
-        self.state["frame_id"] = 0
-        self.state["robot_topic"] = robot_topic
-        self.state["source_file"] = f"v{_VERSION}⇒ {__file__}"
-        self.state["topic_video"] = TOPIC_VIDEO
+        self.share["frame_id"] = 0
+        self.share["robot_topic"] = robot_topic
+        self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"
+        self.share["topic_video"] = TOPIC_VIDEO
 
         self.add_message_handler(self.speech, TOPIC_SPEECH)
         self.add_message_handler(self.image, TOPIC_VIDEO, binary=True)
@@ -96,7 +96,7 @@ class RobotControlImpl(RobotControl):
             command, parameters = parse(payload_in)
             if command == "speech" and len(parameters) == 1:
                 speech = parameters[0]
-                topic_out = f"{self.state['robot_topic']}/in"
+                topic_out = f"{self.share['robot_topic']}/in"
                 payload_out = None
                 stop = False
                 if "reset" in speech:
@@ -157,7 +157,7 @@ class RobotControlImpl(RobotControl):
         return _LOGGER
 
     def image(self, aiko, topic, payload_in):
-        frame_id = self.state["frame_id"]
+        frame_id = self.share["frame_id"]
         self.ec_producer.update("frame_id", frame_id + 1)
 
         payload_in = zlib.decompress(payload_in)
@@ -170,16 +170,16 @@ class RobotControlImpl(RobotControl):
         if key == ord("r"):
             payload_out = "(reset)"
             aiko.message.publish(
-                f"{self.state['robot_topic']}/in", payload_out)
+                f"{self.share['robot_topic']}/in", payload_out)
             payload_out = "(claw 128)"
             aiko.message.publish(
-                f"{self.state['robot_topic']}/in", payload_out)
+                f"{self.share['robot_topic']}/in", payload_out)
         if key == ord("s"):
             cv2.imwrite(f"z_image_{frame_id:06d}.jpg", image)
         if key == ord("v"):
             payload_out = "(screen_detail)"  # toggle state
             aiko.message.publish(
-                f"{self.state['robot_topic']}/in", payload_out)
+                f"{self.share['robot_topic']}/in", payload_out)
         if key == ord("x"):
             cv2.destroyAllWindows()
             raise SystemExit()
@@ -209,9 +209,9 @@ class VideoTestImpl(VideoTest):
     def __init__(self, context):
         context.get_implementation("Actor").__init__(self, context)
 
-        self.state["sleep_period"] = SLEEP_PERIOD
-        self.state["source_file"] = f"v{_VERSION}⇒ {__file__}"
-        self.state["topic_video"] = TOPIC_VIDEO
+        self.share["sleep_period"] = SLEEP_PERIOD
+        self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"
+        self.share["topic_video"] = TOPIC_VIDEO
 
         self._camera = self._camera_initialize()
         self._thread = Thread(target=self._run).start()
@@ -234,7 +234,7 @@ class VideoTestImpl(VideoTest):
         payload_out = BytesIO()
         np.save(payload_out, image, allow_pickle=True)
         payload_out = zlib.compress(payload_out.getvalue())
-        aiko.message.publish(self.state["topic_video"], payload_out)
+        aiko.message.publish(self.share["topic_video"], payload_out)
 
     def _run(self):
         fps = 0
@@ -254,7 +254,7 @@ class VideoTestImpl(VideoTest):
     def _sleep(self, period=None):
         if not period:
             try:
-                period = float(self.state["sleep_period"])
+                period = float(self.share["sleep_period"])
             except:
                 period = SLEEP_PERIOD
         time.sleep(period)

@@ -152,7 +152,7 @@ class ECLease(Lease):
 
 class ECProducer:
     def __init__(self, service, state, topic_in=None, topic_out=None):
-        self.state = state
+        self.share = state
         self.topic_in = topic_in if topic_in else service.topic_control
         self.topic_out = topic_out if topic_out else service.topic_state
         self.handlers = set()
@@ -161,14 +161,14 @@ class ECProducer:
         service.add_tags(["ec=true"])
 
     def add_handler(self, handler):
-        for item_name, item_value in _flatten_dictionary(self.state):
+        for item_name, item_value in _flatten_dictionary(self.share):
             handler("add", item_name, item_value)
         self.handlers.add(handler)
 
     def get(self, item_name):
         success = True
         item_path = _ec_parse_item_path(item_name)
-        item = self.state
+        item = self.share
         for key in item_path:
             if isinstance(item, dict) and key in item:
                 item = item.get(key)
@@ -182,7 +182,7 @@ class ECProducer:
         item_path = _ec_parse_item_path(item_name)
         success = False
         try:
-            _ec_update_item(self.state, item_path, item_value)
+            _ec_update_item(self.share, item_path, item_value)
             success = True
         except ValueError as value_error:
             diagnostic = f'update {item_name}: {value_error}'
@@ -194,7 +194,7 @@ class ECProducer:
         item_path = _ec_parse_item_path(item_name)
         success = False
         try:
-            _ec_remove_item(self.state, item_path)
+            _ec_remove_item(self.share, item_path)
             success = True
         except ValueError as value_error:
             diagnostic = f'remove {item_name}: {value_error}'
@@ -256,7 +256,7 @@ class ECProducer:
 
             success = False
             try:
-                _ec_update_item(self.state, item_path, item_value)
+                _ec_update_item(self.share, item_path, item_value)
                 success = True
             except ValueError as value_error:
                 diagnostic = f'command "{command}", {parameters}: {value_error}'
@@ -271,7 +271,7 @@ class ECProducer:
 
             success = False
             try:
-                _ec_remove_item(self.state, item_path)
+                _ec_remove_item(self.share, item_path)
                 success = True
             except ValueError as value_error:
                 diagnostic = f'command "{command}", {parameters}: {value_error}'
@@ -317,7 +317,7 @@ class ECProducer:
         return state
 
     def _filter_state(self, filter):
-        return self._filter_dictionary(self.state, filter, [])
+        return self._filter_dictionary(self.share, filter, [])
 
     def _synchronize(self, response_topic, filter):
         filtered_state = self._filter_state(filter)
@@ -662,7 +662,7 @@ class ECProducerTest(Service):
         context.get_implementation("Service").__init__(self, context)
         _LOGGER.info(f"ECProducer: topic path: {self.topic_path}")
 
-        self.state = {
+        self.share = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
             "source_file": f"v{_VERSION}⇒ {__file__}",
@@ -671,7 +671,7 @@ class ECProducerTest(Service):
                 "key_2": ["item_2a", "item_2b"]
             }
         }
-        self.ec_producer = ECProducer(self, self.state)
+        self.ec_producer = ECProducer(self, self.share)
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
     def _ec_producer_change_handler(self, command, item_name, item_value):

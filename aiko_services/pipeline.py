@@ -227,10 +227,10 @@ class PipelineElementImpl(PipelineElement):
                 PROTOCOL_PIPELINE if self.is_pipeline else PROTOCOL_ELEMENT)
         context.get_implementation("Actor").__init__(self, context)
 
-        self.state["source_file"] = f"v{_VERSION}⇒ {__file__}"
-        self.state.update(self.definition.parameters)
+        self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"
+        self.share.update(self.definition.parameters)
     # TODO: Fix Aiko Dashboard / EC_Producer incorrectly updates this approach
-    #   self.state["parameters"] = self.definition.parameters  # TODO
+    #   self.share["parameters"] = self.definition.parameters  # TODO
 
     def create_frame(self, context, swag):
         self.pipeline.create_frame(context, swag)
@@ -241,8 +241,8 @@ class PipelineElementImpl(PipelineElement):
     def get_parameter(self, name, use_pipeline=True):
         value = None
         found = False
-        if name in self.definition.parameters and name in self.state:
-            value = self.state[name]
+        if name in self.definition.parameters and name in self.share:
+            value = self.share[name]
             found = True
         if not found and use_pipeline and not self.is_pipeline:
             if name in self.pipeline.definition.parameters:
@@ -266,7 +266,7 @@ class PipelineElementRemote(PipelineElement):
 class PipelineElementRemoteAbsent(PipelineElement):
     def __init__(self, context):
         context.get_implementation("PipelineElement").__init__(self, context)
-        self.state["lifecycle"] = "absent"
+        self.share["lifecycle"] = "absent"
 
     def process_frame(self, context, **kwargs) -> Tuple[bool, dict]:
         _LOGGER.error( "PipelineElement.process_frame(): "
@@ -277,7 +277,7 @@ class PipelineElementRemoteAbsent(PipelineElement):
 class PipelineElementRemoteFound(PipelineElement):
     def __init__(self, context):
         context.get_implementation("PipelineElement").__init__(self, context)
-        self.state["lifecycle"] = "ready"
+        self.share["lifecycle"] = "ready"
 
     def process_frame(self, context, **kwargs) -> Tuple[bool, dict]:
         _LOGGER.info("PipelineElementRemoteFound.process_frame(): "
@@ -309,16 +309,16 @@ class PipelineImpl(Pipeline):
         context.get_implementation("PipelineElement").__init__(self, context)
         print(f"MQTT topic: {self.topic_in}")
 
-        self.state["lifecycle"] = "start"
+        self.share["lifecycle"] = "start"
         self.remote_pipelines = {}  # Service name --> PipelineElement name
         self.services_cache = None
 
-        self.state["definition_pathname"] = context.definition_pathname
+        self.share["definition_pathname"] = context.definition_pathname
         self.stream_leases = {}
 
         self.pipeline_graph = self._create_pipeline(context.definition)
-        self.state["element_count"] = self.pipeline_graph.element_count
-        self.state["lifecycle"] = "ready"
+        self.share["element_count"] = self.pipeline_graph.element_count
+        self.share["lifecycle"] = "ready"
 
     # TODO: Better visualization of the Pipeline / PipelineElements details
     #   print(f"PIPELINE: {self.pipeline_graph.nodes()}")
@@ -534,7 +534,7 @@ class PipelineImpl(Pipeline):
 
      #  _LOGGER.debug(f"Process frame: {self._id(context)}, swag: {swag}")
 
-        definition_pathname = self.state["definition_pathname"]
+        definition_pathname = self.share["definition_pathname"]
 
         for node in self.pipeline_graph:
             element = node.element
@@ -578,7 +578,7 @@ class PipelineImpl(Pipeline):
         return True, swag
 
     def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME):
-        if self.state["lifecycle"] != "ready":
+        if self.share["lifecycle"] != "ready":
             self._post_message(
                 "in", "create_stream", [stream_id, parameters, grace_time])
             return

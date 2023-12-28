@@ -202,13 +202,13 @@ class RegistrarImpl(Registrar):
         self.history = deque(maxlen=_HISTORY_RING_BUFFER_SIZE)
         self.services = Services()
 
-        self.state = {
+        self.share = {
             "lifecycle": "start",
             "log_level": get_log_level_name(_LOGGER),
             "source_file": f"v{_VERSION}⇒ {__file__}",
             "service_count": 0
         }
-        self.ec_producer = ECProducer(self, self.state)
+        self.ec_producer = ECProducer(self, self.share)
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
         self.add_message_handler(
@@ -326,7 +326,7 @@ class RegistrarImpl(Registrar):
             }
 
             self.services.add_service(topic_path, service_details)
-            service_count = self.state["service_count"] + 1
+            service_count = self.share["service_count"] + 1
             self.ec_producer.update("service_count", service_count)
 
             aiko.message.publish(self.topic_out, payload_out)
@@ -350,7 +350,7 @@ class RegistrarImpl(Registrar):
                     self.history.appendleft(service_details)
 
                     self.services.remove_service(topic_path)
-                    service_count = self.state["service_count"] - 1
+                    service_count = self.share["service_count"] - 1
                     self.ec_producer.update("service_count", service_count)
 
                     payload_out = f"(remove {topic_path})"
