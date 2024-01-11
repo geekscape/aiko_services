@@ -31,10 +31,10 @@ setup(
         "paho-mqtt>=1.6.1",
         "Pillow>=9.0.0",
         "PyAudio>=0.2.13",
+        "pyperclip>=1.8.2",
         "requests>=2.25.1",
         "transitions>=0.9.0",
-        "wrapt>=1.12.1",
-        "xerox>=0.4.1"
+        "wrapt>=1.12.1"
     ],
     entry_points={
         "console_scripts": [

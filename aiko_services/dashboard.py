@@ -2,7 +2,7 @@
 #
 # Set-up ssh X11 forwarding for copy-paste support
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# # Requires Python package "xerox-0.4.1"
+# # Requires Python package "pyperclip-1.8.2"
 # xhost +
 # ssh -Y username@hostname
 # export DISPLAY=localhost:10.0
@@ -124,7 +124,7 @@
 import click
 from collections import defaultdict, deque
 from subprocess import Popen
-import xerox  # Clipboard support
+import pyperclip  # Clipboard support
 
 from asciimatics.event import KeyboardEvent
 from asciimatics.exceptions import (
@@ -478,7 +478,7 @@ class DashboardFrame(FrameCommon, Frame):
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
             if event.key_code == ord("c") and self.selected_service:
-                xerox.copy(self.selected_service[0])
+                pyperclip.copy(self.selected_service[0])
             if event.key_code == ord("l") and self.selected_service:
                 self.scene.add_effect(LogLevelPopupMenu(self._screen,
                     self._services_widget, self.selected_service[0]))
