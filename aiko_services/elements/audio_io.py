@@ -27,7 +27,8 @@ import numpy as np
 from typing import Tuple
 import zlib
 
-from aiko_services import aiko, PipelineElement
+from aiko_services import aiko, PipelineElement, ServiceFilter
+from aiko_services.transport import ActorDiscovery
 from aiko_services.utilities import get_namespace, parse_number
 
 __all__ = [
@@ -40,7 +41,7 @@ _LOGGER = aiko.logger(__name__)
 
 # --------------------------------------------------------------------------- #
 # TODO: Turn some of these literals into PipelineElement parameters
-# TODO: Place some of these PipelineElement parameters into self.state[]
+# TODO: Place some of these PipelineElement parameters into self.share[]
 # TODO: Update via ECProducer
 
 AF_AMPLITUDE_MINIMUM = 0.1
@@ -50,14 +51,9 @@ AF_FREQUENCY_MAXIMUM = 9000  # Hertz
 AF_SAMPLES_MAXIMUM = 100
 
 class PE_AudioFilter(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
+    def __init__(self, context):
         protocol = "audio_filter:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+        context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self,
         context, amplitudes, frequencies) -> Tuple[bool, dict]:
@@ -79,21 +75,15 @@ class PE_AudioFilter(PipelineElement):
 
 # --------------------------------------------------------------------------- #
 # TODO: Turn some of these literals into PipelineElement parameters
-# TODO: Place some of these PipelineElement parameters into self.state[]
+# TODO: Place some of these PipelineElement parameters into self.share[]
 # TODO: Update via ECProducer
 
 AR_BAND_COUNT = 8
 
 class PE_AudioResampler(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
+    def __init__(self, context):
         protocol = "resample:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
-
+        context.get_implementation("PipelineElement").__init__(self, context)
         self.counter = 0
 
 # Frequencies: [0:2399] --> 0, 10, 20, ... 23990 Hz
@@ -147,20 +137,15 @@ class PE_AudioResampler(PipelineElement):
 
 # --------------------------------------------------------------------------- #
 # TODO: Turn some of these literals into PipelineElement parameters
-# TODO: Place some of these PipelineElement parameters into self.state[]
+# TODO: Place some of these PipelineElement parameters into self.share[]
 # TODO: Update via ECProducer
 
 FFT_AMPLITUDE_SCALER = 1_000_000
 
 class PE_FFT(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
+    def __init__(self, context):
         protocol = "fft:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+        context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
         fft_output = np.fft.fft(audio)
@@ -179,7 +164,7 @@ class PE_FFT(PipelineElement):
 
 # --------------------------------------------------------------------------- #
 # TODO: Turn some of these literals into PipelineElement parameters
-# TODO: Place some of these PipelineElement parameters into self.state[]
+# TODO: Place some of these PipelineElement parameters into self.share[]
 # TODO: Update via ECProducer
 
 import cv2
@@ -192,14 +177,9 @@ GRAPH_TITLE = "Spectrum"
 WINDOW_TITLE = GRAPH_TITLE
 
 class PE_GraphXY(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
+    def __init__(self, context):
         protocol = "graph_xy:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+        context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self,
         context, amplitudes, frequencies) -> Tuple[bool, dict]:
@@ -228,7 +208,7 @@ class PE_GraphXY(PipelineElement):
 
 # --------------------------------------------------------------------------- #
 # TODO: Turn some of these literals into PipelineElement parameters
-# TODO: Place some of these PipelineElement parameters into self.state[]
+# TODO: Place some of these PipelineElement parameters into self.share[]
 # TODO: Update via ECProducer
 
 import pyaudio
@@ -275,16 +255,11 @@ def pyaudio_initialize():
     return py_audio
 
 class PE_MicrophonePA(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
+    def __init__(self, context):
         protocol = "microphone:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+        context.get_implementation("PipelineElement").__init__(self, context)
 
-        self.state["frame_id"] = -1
+        self.share["frame_id"] = -1
 
         self.py_audio = pyaudio_initialize()
         self.audio_stream = self.py_audio.open(
@@ -302,10 +277,10 @@ class PE_MicrophonePA(PipelineElement):
             audio_sample_raw = self.audio_stream.read(PA_AUDIO_CHUNK_SIZE)
             audio_sample = np.frombuffer(audio_sample_raw, dtype=np.int16)
 
-            frame_id = self.state["frame_id"] + 1
+            frame_id = self.share["frame_id"] + 1
             self.ec_producer.update("frame_id", frame_id)
             context = {"stream_id": 0, "frame_id": frame_id}
-            self.pipeline.create_frame(context, {"audio": audio_sample})
+            self.create_frame(context, {"audio": audio_sample})
 
         self.audio_stream.close()
         self.py_audio.terminate()
@@ -323,10 +298,10 @@ class PE_MicrophonePA(PipelineElement):
 
 SD_AUDIO_CHANNELS = 1            # 1 or 2 channels
 
-SD_AUDIO_CHUNK_DURATION = 3.0    # voice: audio chunk duration in seconds
+SD_AUDIO_CHUNK_DURATION = 5.0    # voice: audio chunk duration in seconds
 # SD_AUDIO_CHUNK_DURATION = 0.1  # music / spectrum analyser
 
-SD_AUDIO_SAMPLE_DURATION = 3.0   # audio sample size to process
+SD_AUDIO_SAMPLE_DURATION = 5.0   # audio sample size to process
 SD_AUDIO_SAMPLE_RATE = 16000     # voice 16,000 or 44,100 or 48,000 Hz
 # SD_AUDIO_SAMPLE_RATE = 48000   # music / spectrum analyser
 
@@ -335,17 +310,12 @@ SD_SAMPLES_PER_CHUNK = SD_AUDIO_SAMPLE_RATE * SD_AUDIO_CHUNK_DURATION
 import sounddevice as sd
 
 class PE_MicrophoneSD(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
+    def __init__(self, context):
         protocol = "microphone:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+        context.get_implementation("PipelineElement").__init__(self, context)
 
-        self.state["mute"] = 0
-        self.state["frame_id"] = -1
+        self.share["mute"] = 0
+        self.share["frame_id"] = -1
         self.pipeline.create_stream(0)
         self._time_mute = 0
         self._thread = Thread(target=self._audio_run).start()
@@ -360,7 +330,7 @@ class PE_MicrophoneSD(PipelineElement):
                 sd.sleep(int(SD_AUDIO_CHUNK_DURATION * 1000))
 
     def _audio_sampler_start(self):
-        frame_id = self.state["frame_id"] + 1
+        frame_id = self.share["frame_id"] + 1
         self.ec_producer.update("frame_id", frame_id)
         self._audio_sample = np.empty((0, 1), dtype=np.float32)
         return frame_id - 1
@@ -382,7 +352,7 @@ class PE_MicrophoneSD(PipelineElement):
                     audio_sample = self._audio_sample
                     frame_id = self._audio_sampler_start()
                     context = {"stream_id": 0, "frame_id": frame_id}
-                    self.pipeline.create_frame(context, {"audio": audio_sample})
+                    self.create_frame(context, {"audio": audio_sample})
 
     def mute(self, duration):
         duration = parse_number(duration)
@@ -404,19 +374,14 @@ class PE_MicrophoneSD(PipelineElement):
 TOPIC_AUDIO = f"{get_namespace()}/audio"
 
 class PE_RemoteReceive0(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
+    def __init__(self, context):
         protocol = "remote_receive:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+        context.get_implementation("PipelineElement").__init__(self, context)
 
-        self.state["frame_id"] = 0
-        self.state["topic_audio"] = f"{TOPIC_AUDIO}/{self.name[-1]}"
+        self.share["frame_id"] = 0
+        self.share["topic_audio"] = f"{TOPIC_AUDIO}/{self.name[-1]}"
         self.add_message_handler(
-            self._audio_receive, self.state["topic_audio"], binary=True)
+            self._audio_receive, self.share["topic_audio"], binary=True)
 
     def _audio_receive(self, aiko, topic, payload_in):
         parameter_name = "audio"
@@ -427,12 +392,12 @@ class PE_RemoteReceive0(PipelineElement):
         if False:
             buffer = payload_in.getbuffer()
             digest = md5(buffer).hexdigest()
-            print(f"payload_in: len: {len(buffer)}, md5: {digest}")
+            _LOGGER.debug(f"payload_in: len: {len(buffer)}, md5: {digest}")
         audio_sample = np.load(payload_in, allow_pickle=True)
-        frame_id = self.state["frame_id"]
+        frame_id = self.share["frame_id"]
         self.ec_producer.update("frame_id", frame_id + 1)
         context = {"stream_id": 0, "frame_id": frame_id}
-        self.pipeline.create_frame(context, {parameter_name: audio_sample})
+        self.create_frame(context, {parameter_name: audio_sample})
 
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
         return True, {"audio": audio}
@@ -450,16 +415,11 @@ class PE_RemoteReceive2(PE_RemoteReceive0):
 # --------------------------------------------------------------------------- #
 
 class PE_RemoteSend0(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
+    def __init__(self, context):
         protocol = "remote_send:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+        context.get_implementation("PipelineElement").__init__(self, context)
 
-        self.state["topic_audio"] = f"{TOPIC_AUDIO}/{self.name[-1]}"
+        self.share["topic_audio"] = f"{TOPIC_AUDIO}/{self.name[-1]}"
 
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
         payload_out = BytesIO()
@@ -467,9 +427,9 @@ class PE_RemoteSend0(PipelineElement):
         if False:
             buffer = payload_out.getbuffer()
             digest = md5(buffer).hexdigest()
-            print(f"{self._id(context)}, len: {len(buffer)}, md5: {digest}")
+            _LOGGER.debug(f"{self._id(context)}, len: {len(buffer)}, md5: {digest}")
         payload_out = zlib.compress(payload_out.getvalue())
-        aiko.message.publish(self.state["topic_audio"], payload_out)
+        aiko.message.publish(self.share["topic_audio"], payload_out)
         return True, {}
 
 class PE_RemoteSend1(PE_RemoteSend0):
@@ -487,21 +447,36 @@ import time
 # SP_AUDIO_SAMPLE_RATE = PA_AUDIO_SAMPLE_RATE
 # SP_AUDIO_SAMPLE_RATE = SD_AUDIO_SAMPLE_RATE
 SP_AUDIO_SAMPLE_RATE = 22050                   # coqui.ai text-to-speech
+SP_SPEED_UP = 0.7                              # talk time fine tuning !
 
 class PE_Speaker(PipelineElement):
-    def __init__(self,
-        implementations, name, protocol, tags, transport,
-        definition, pipeline):
-
+    def __init__(self, context):
         protocol = "speaker:0"
-        implementations["PipelineElement"].__init__(self,
-            implementations, name, protocol, tags, transport,
-            definition, pipeline)
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+        self._microphone_topic_path = None
+        service_filter = ServiceFilter("*", "*", "microphone:0", "*", "*", "*")
+        actor_discovery = ActorDiscovery(self)
+        actor_discovery.add_handler(
+            self.actor_discovery_handler, service_filter)
+
+    def actor_discovery_handler(self, command, service_details):
+        if command == "add":
+            self._microphone_topic_path = service_details[0]
+            _LOGGER.debug(f"Discover microphone: {self._microphone_topic_path}")
+        if command == "remove":
+            if service_details[0] == self._microphone_topic_path:
+                _LOGGER.debug(f"Lost microphone: {self._microphone_topic_path}")
+                self._microphone_topic_path = None
 
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
         if audio:
             sd.play(audio, SP_AUDIO_SAMPLE_RATE)
-        #   time.sleep(len(audio) / SD_AUDIO_SAMPLE_RATE)
+            duration = len(audio) / SD_AUDIO_SAMPLE_RATE * SP_SPEED_UP
+            topic_path = f"{self._microphone_topic_path}/in"
+            payload_out = f"(mute {duration})"
+            aiko.message.publish(topic_path, payload_out)
+            time.sleep(duration)
         return True, {"audio": audio}
 
 # --------------------------------------------------------------------------- #
