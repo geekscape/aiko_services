@@ -64,9 +64,6 @@ class MQTTTestImpl(MQTTTest):
         else:
             _LOGGER.debug(f"{command}: {service_details}")
 
-    def get_logger(self):
-        return _LOGGER
-
     def test(self, message):
         _LOGGER.info(f"{self.name}: test({message})")
         self.ec_producer.update("message", message)

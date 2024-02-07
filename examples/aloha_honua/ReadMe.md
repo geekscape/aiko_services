@@ -36,9 +36,6 @@ The AlohaHonua [Actor](https://en.wikipedia.org/wiki/Actor_model) below is a dis
             context.get_implementation("Actor").__init__(self, context)
             print(f"MQTT topic: {self.topic_in}")
 
-        def get_logger(self):
-            return _LOGGER
-
         def aloha(self, name):
             _LOGGER.info(f"AlohaHonua {name} !")
 
@@ -114,11 +111,6 @@ The AlohaHonua Actor is defined as a Python class that inherits from the Aiko Ac
             context.get_implementation("Actor").__init__(self, context)
             print(f"MQTT topic: {self.topic_in}")
 
-Actors are required to create their own logger instance and provide an accessor method.
-
-        def get_logger(self):
-            return _LOGGER
-
 Actors can define functions that can be invoked directly by other Actors (via MQTT messages).
 
         def aloha(self, name):
@@ -137,4 +129,4 @@ The Aiko Services framework uses the [Inversion of Control (IoC)](https://en.wik
 
 The Aiko Services framework also utilizes [Design by Composition](https://en.wikipedia.org/wiki/Composition_over_inheritance) and [Interfaces](https://en.wikipedia.org/wiki/Interface_(object-oriented_programming)), which promotes code reuse ([DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself)) and enables [Aspect Oriented Programming (AOP)](https://en.wikipedia.org/wiki/Aspect-oriented_programming) to deal with cross-cutting concerns.
 
-*Note: About 7 lines of code above are [boilerplate](https://en.wikipedia.org/wiki/Boilerplate_code), i.e the `aiko.logger()`, `__init__()` and `get_logger()` methods.  Over time, the aim is to eliminate as much boilerplate code as possible.*
+*Note: About 7 lines of code above are [boilerplate](https://en.wikipedia.org/wiki/Boilerplate_code), i.e the `aiko.logger()` and `__init__()` methods.  Over time, the aim is to eliminate as much boilerplate code as possible.*

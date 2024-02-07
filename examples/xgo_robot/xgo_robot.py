@@ -229,9 +229,6 @@ class XGORobotImpl(XGORobot):
         except:
             pass
 
-    def get_logger(self):
-        return _LOGGER
-
     def _image_to_rgb(self, image):
         b, g, r = cv2.split(image)
         image = cv2.merge((r, g, b))

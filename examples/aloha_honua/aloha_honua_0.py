@@ -17,21 +17,15 @@
 
 from aiko_services import *
 
-ACTOR_NAME = "aloha_honua"
-_LOGGER = aiko.logger(ACTOR_NAME)
-
 class AlohaHonua(Actor):
     def __init__(self, context):
         context.get_implementation("Actor").__init__(self, context)
         print(f"MQTT topic: {self.topic_in}")
 
-    def get_logger(self):
-        return _LOGGER
-
     def aloha(self, name):
-        _LOGGER.info(f"Aloha {name} !")
+        self.logger.debug(f"Aloha {name} !")
 
 if __name__ == "__main__":
-    init_args = actor_args(ACTOR_NAME)
+    init_args = actor_args("aloha_honua")
     aloha_honua = compose_instance(AlohaHonua, init_args)
     aiko.process.run()

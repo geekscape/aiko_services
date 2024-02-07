@@ -45,9 +45,6 @@ class TransportMQTTImpl(TransportMQTT):
     def __init__(self, context):
         context.get_implementation("Actor").__init__(self, context)
 
-    def get_logger(self):
-        return _LOGGER
-
     def terminate(self):
         self._stop()
 

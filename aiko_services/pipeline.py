@@ -235,9 +235,6 @@ class PipelineElementImpl(PipelineElement):
     def create_frame(self, context, swag):
         self.pipeline.create_frame(context, swag)
 
-    def get_logger(self):
-        return _LOGGER
-
     def get_parameter(self, name, use_pipeline=True):
         value = None
         found = False

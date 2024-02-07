@@ -57,9 +57,6 @@
 # ~~~~~
 # - If default ActorImpl is too heavy, then create lightweight ActorCoreImpl
 #
-# * Improve ActorImpl, so that all other Actor implementations don't need
-#     to implement the same boilerplate get_logger() method
-#
 # * Provide "priority" mailbox for internal requirements, e.g
 #   - If an Exception is raised during initialization / setup,
 #     then post a "(raise_exception exception)" message to the mailbox
@@ -181,10 +178,12 @@ class ActorImpl(Actor):
 
     def __init__(self, context):
         context.get_implementation("Service").__init__(self, context)
+        if not hasattr(self, "logger"):
+            self.logger = aiko.logger(context.name)
 
         self.share = {
             "lifecycle": "ready",
-            "log_level": get_log_level_name(self.get_logger()),
+            "log_level": get_log_level_name(self.logger),
             "running": False  # TODO: Consolidate into self.share ?
         }
         self.ec_producer = ECProducer(self, self.share)
@@ -230,13 +229,9 @@ class ActorImpl(Actor):
     #       _LOGGER.debug(f"ECProducer: {command} {item_name} {item_value}")
         if item_name == "log_level":
             try:
-                log_level = str(item_value).upper()
-                self.get_logger().setLevel(log_level)
+                self.logger.setLevel(str(item_value).upper())
             except ValueError:
                 pass
-
-#   def get_logger(self):  # Override to get Actor subclass _LOGGER
-#       return _LOGGER
 
     def is_running(self):
         return self.share["running"]
@@ -274,11 +269,7 @@ class ActorTest(Actor):  # TODO: Move into "../examples/"
 class ActorTestImpl(ActorTest):  # TODO: Move into "../examples/"
     def __init__(self, context):
         context.get_implementation("Actor").__init__(self, context)
-
         self.test_count = None
-
-    def get_logger(self):
-        return _LOGGER
 
     def initialize(self):
         self.control_test(0)

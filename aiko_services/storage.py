@@ -56,9 +56,6 @@ class StorageImpl(Storage):
         self.share["database_pathname"] = database_pathname
         self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"
 
-    def get_logger(self):
-        return _LOGGER
-
     def test_command(self, parameter):
         print(f"Command: test_command({parameter})")
 

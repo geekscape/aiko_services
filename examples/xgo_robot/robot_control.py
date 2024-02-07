@@ -153,9 +153,6 @@ class RobotControlImpl(RobotControl):
         except:
             pass
 
-    def get_logger(self):
-        return _LOGGER
-
     def image(self, aiko, topic, payload_in):
         frame_id = self.share["frame_id"]
         self.ec_producer.update("frame_id", frame_id + 1)
@@ -215,9 +212,6 @@ class VideoTestImpl(VideoTest):
 
         self._camera = self._camera_initialize()
         self._thread = Thread(target=self._run).start()
-
-    def get_logger(self):
-        return _LOGGER
 
     def _camera_initialize(self):
         camera = cv2.VideoCapture(0)
