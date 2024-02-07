@@ -7,8 +7,8 @@
 # - Create shared code base: common.sh
 # - "terminate.sh" option to shutdown robot
 
-AIKO_MQTT_HOST=geekscape.freeddns.org
-ROBOT_HOSTNAME=laika
+AIKO_MQTT_HOST=
+ROBOT_HOSTNAME=
 
 PID=`ps ax | grep xgo_robot | grep python3 | grep -v grep | tr -s " " | cut -d" " -f2`
 TOPIC_PATH=aiko/$ROBOT_HOSTNAME/$PID/1/in

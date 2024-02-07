@@ -35,7 +35,7 @@
       "deploy": {
         "local": { "module": "speech_elements.py" }
       }
-    }
+    },
     { "name":   "PE_RemoteSend1",
       "input":  [{ "name": "audio", "type": "bytes" }],
       "output": [],
