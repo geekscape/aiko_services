@@ -12,7 +12,7 @@ avro-validator = "^1.2.1"
 click = "^8.0"
 numpy = "^1.19.1"
 opencv-python = { version = "^4.4.0", optional = true }
-paho-mqtt = "^1.6.1"
+paho-mqtt = ">=1.6.1,<2.0.0"
 Pillow = "^9.0.0"
 PyAudio = { version = "^0.2.13", optional = true }
 pyperclip = "^1.8.2"
@@ -21,8 +21,8 @@ transitions = "^0.9.0"
 wrapt = "^1.12.1"
 
 [tool.poetry.extras]
-linux = ["PyAudio", "xerox"]
-macosx = ["PyAudio", "xerox"]
+linux = ["PyAudio"]
+macosx = ["PyAudio"]
 opencv = ["opencv-python"]
 
 [tool.poetry.scripts]

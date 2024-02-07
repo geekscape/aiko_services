@@ -28,7 +28,7 @@ setup(
         "avro-validator>=1.2.1",
         "click>=8.0",
         "numpy>=1.19.1",
-        "paho-mqtt>=1.6.1",
+        "paho-mqtt>=1.6.1,<2.0.0",
         "Pillow>=9.0.0",
         "PyAudio>=0.2.13",
         "pyperclip>=1.8.2",
