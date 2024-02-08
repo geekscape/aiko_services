@@ -23,7 +23,7 @@ setup(
     author_email="geekscape@gmail.com",
     packages=find_packages(),
     install_requires=[
-    #   "asciimatics>=1.14.0",
+        "asciimatics>=1.14.0",
         "avro>=1.11.1",
         "avro-validator>=1.2.1",
         "click>=8.0",
@@ -31,7 +31,7 @@ setup(
         "paho-mqtt>=1.6.1,<2.0.0",
         "Pillow>=9.0.0",
     #   "PyAudio>=0.2.13",
-    #   "pyperclip>=1.8.2",
+        "pyperclip>=1.8.2",
         "requests>=2.25.1",
         "transitions>=0.9.0",
         "wrapt>=1.12.1"
