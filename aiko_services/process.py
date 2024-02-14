@@ -154,9 +154,11 @@ class ProcessImplementation(ProcessData):
         self.initialize()
 
         if not self.running:
-            self.running = True
-            event.loop(loop_when_no_handlers)  ## Blocking call ##
-            self.running = False
+            try:
+                self.running = True
+                event.loop(loop_when_no_handlers)  ## Blocking call ##
+            finally:
+                self.running = False
 
         if self._exit_status:
             sys.exit(self._exit_status)
