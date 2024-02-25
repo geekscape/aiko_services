@@ -41,7 +41,7 @@ The AlohaHonua [Actor](https://en.wikipedia.org/wiki/Actor_model) below is a dis
         aloha_honua = compose_instance(AlohaHonua, init_args)
         aiko.process.run()
 
-### Running the AlohaHonua Actor with a local MQTT server
+[### Running the AlohaHonua Actor with a local MQTT server](#run-local-server)
 
 After the Aiko Services framework has been installed, you'll need to start the Core Services, which are the [mosquitto](https://mosquitto.org) ([MQTT server](https://en.wikipedia.org/wiki/MQTT#MQTT_broker)) and the Aiko Registrar on your computer.  The Aiko Dashboard will also be started, which provides interactive monitoring and control.
 
