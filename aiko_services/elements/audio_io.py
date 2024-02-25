@@ -52,7 +52,7 @@ AF_SAMPLES_MAXIMUM = 100
 
 class PE_AudioFilter(PipelineElement):
     def __init__(self, context):
-        protocol = "audio_filter:0"
+        context.set_protocol("audio_filter:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self,
@@ -82,7 +82,7 @@ AR_BAND_COUNT = 8
 
 class PE_AudioResampler(PipelineElement):
     def __init__(self, context):
-        protocol = "resample:0"
+        context.set_protocol("resample:0")
         context.get_implementation("PipelineElement").__init__(self, context)
         self.counter = 0
 
@@ -144,7 +144,7 @@ FFT_AMPLITUDE_SCALER = 1_000_000
 
 class PE_FFT(PipelineElement):
     def __init__(self, context):
-        protocol = "fft:0"
+        context.set_protocol("fft:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
@@ -178,7 +178,7 @@ WINDOW_TITLE = GRAPH_TITLE
 
 class PE_GraphXY(PipelineElement):
     def __init__(self, context):
-        protocol = "graph_xy:0"
+        context.set_protocol("graph_xy:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self,
@@ -256,7 +256,7 @@ def pyaudio_initialize():
 
 class PE_MicrophonePA(PipelineElement):
     def __init__(self, context):
-        protocol = "microphone:0"
+        context.set_protocol("microphone:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
         self.share["frame_id"] = -1
@@ -311,7 +311,7 @@ import sounddevice as sd
 
 class PE_MicrophoneSD(PipelineElement):
     def __init__(self, context):
-        protocol = "microphone:0"
+        context.set_protocol("microphone:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
         self.share["mute"] = 0
@@ -375,7 +375,7 @@ TOPIC_AUDIO = f"{get_namespace()}/audio"
 
 class PE_RemoteReceive0(PipelineElement):
     def __init__(self, context):
-        protocol = "remote_receive:0"
+        context.set_protocol("remote_receive:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
         self.share["frame_id"] = 0
@@ -416,7 +416,7 @@ class PE_RemoteReceive2(PE_RemoteReceive0):
 
 class PE_RemoteSend0(PipelineElement):
     def __init__(self, context):
-        protocol = "remote_send:0"
+        context.set_protocol("remote_send:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
         self.share["topic_audio"] = f"{TOPIC_AUDIO}/{self.name[-1]}"
@@ -451,7 +451,7 @@ SP_SPEED_UP = 0.7                              # talk time fine tuning !
 
 class PE_Speaker(PipelineElement):
     def __init__(self, context):
-        protocol = "speaker:0"
+        context.set_protocol("speaker:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
         self._microphone_topic_path = None
