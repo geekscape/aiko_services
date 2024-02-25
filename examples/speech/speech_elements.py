@@ -234,6 +234,8 @@ if WHISPERX_LOADED:
                 #   topic_out = f"{get_namespace()}/speech"
                 #   payload_out = generate("text", [reply])
                 #   aiko.message.publish(topic_out, payload_out)
+
+                    reply = text
                 else:
                     reply = ""
 
