@@ -101,7 +101,7 @@ except Exception as exception:
     print(f"WARNING: {diagnostic}")
     _LOGGER.warning(diagnostic)
 
-if COQUI_TTS_LOADED: 
+if COQUI_TTS_LOADED:
     class PE_COQUI_TTS(PipelineElement):
         def __init__(self, context):
             context.set_protocol("text_to_speech:0")
@@ -166,12 +166,12 @@ def aide_http_request(user_id, message, welcome=False):
     return reply
 
 CUDA_DEVICE = "cuda"
-                                  # Parameters    VRAM size  Relative speed
-# WHISPERX_MODEL_SIZE = "tiny"    #    39 M       2,030 Mb   32x
-# WHISPERX_MODEL_SIZE = "base"    #    74 M       2,054 Mb   16x
-# WHISPERX_MODEL_SIZE = "small"   #   244 M       2,926 Mb    6x
-WHISPERX_MODEL_SIZE = "medium"    #   769 M       5,890 Mb    2x
-# WHISPERX_MODEL_SIZE = "large"   # 1,550 M     > 6,140 Mb    1x
+# WhisperX: version 3.1.2           Parameters    VRAM size  Relative speed
+WHISPERX_MODEL_SIZE = "tiny"      #    39 M         442 Mb   32x
+# WHISPERX_MODEL_SIZE = "base"    #    74 M         506 Mb   16x
+# WHISPERX_MODEL_SIZE = "small"   #   244 M         890 Mb    6x
+# WHISPERX_MODEL_SIZE = "medium"  #   769 M       1,914 Mb    2x
+# WHISPERX_MODEL_SIZE = "large"   # 1,550 M       3,418 Mb    1x
 
 WHISPERX_LOADED = False  # whisperX Speech-To-Text (STT)
 try:
@@ -189,8 +189,22 @@ if WHISPERX_LOADED:
             implementation = context.get_implementation("PipelineElement")
             implementation.__init__(self, context)
 
+        # WORKAROUND: https://github.com/m-bain/whisperX/issues/708
+        # 2024-02-25: "faster-whisper" updated recently and
+        # "https://github.com/m-bain/whisperX" needs to catch up !
+        #
+        # whisperx/asr.py:TranscriptionOptions:
+        #   __new__() missing 3 required positional arguments:
+        #  'max_new_tokens', 'clip_timestamps', and
+        #  'hallucination_silence_threshold'
+
+            asr_options = {
+                "max_new_tokens": None,
+                "clip_timestamps": None,
+                "hallucination_silence_threshold": None
+            }
             self._ml_model = whisperx.load_model(
-                WHISPERX_MODEL_SIZE, CUDA_DEVICE)
+                WHISPERX_MODEL_SIZE, CUDA_DEVICE, asr_options=asr_options)
             _LOGGER.info(f"PE_WhisperX: ML model loaded: {WHISPERX_MODEL_SIZE}")
             self._welcome = True
 
@@ -213,13 +227,13 @@ if WHISPERX_LOADED:
                     text = text.removesuffix(".")
                     _LOGGER.info(f"PE_WhisperX[{frame_id}] INPUT: {text}")
 
-                    reply = aide_http_request(0, text, welcome=self._welcome)
-                    self._welcome = False
-                    _LOGGER.info(f"PE_WhisperX[{frame_id}] OUTPUT: {reply}")
+                #   reply = aide_http_request(0, text, welcome=self._welcome)
+                #   self._welcome = False
+                #   _LOGGER.info(f"PE_WhisperX[{frame_id}] OUTPUT: {reply}")
 
-                    topic_out = f"{get_namespace()}/speech"
-                    payload_out = generate("text", [reply])
-                    aiko.message.publish(topic_out, payload_out)
+                #   topic_out = f"{get_namespace()}/speech"
+                #   payload_out = generate("text", [reply])
+                #   aiko.message.publish(topic_out, payload_out)
                 else:
                     reply = ""
 
