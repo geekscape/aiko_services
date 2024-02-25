@@ -470,7 +470,7 @@ class PE_Speaker(PipelineElement):
                 self._microphone_topic_path = None
 
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
-        if audio:
+        if audio is not None:
             sd.play(audio, SP_AUDIO_SAMPLE_RATE)
             duration = len(audio) / SD_AUDIO_SAMPLE_RATE * SP_SPEED_UP
             topic_path = f"{self._microphone_topic_path}/in"
