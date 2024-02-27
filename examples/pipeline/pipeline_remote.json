@@ -24,7 +24,7 @@
   "elements": [
     { "name":   "PE_0",
       "#": "PipelineElement that is the Pipeline graph head node",
-      "parameters": { "pe_1_0": 0 },              "#": "Optional parameters",
+      "parameters": { "pe_1_inc": 1 },            "#": "Optional parameters",
       "input":  [{ "name": "a", "type": "int" }], "#": "Single input argument",
       "output": [{ "name": "b", "type": "int" }], "#": "Single output argument",
       "deploy": {

@@ -198,7 +198,7 @@ class PipelineElement(Actor):
         pass
 
     @abstractmethod
-    def get_parameter(self, name, use_pipeline):
+    def get_parameter(self, name, default, use_pipeline):
         pass
 
     @abstractmethod
@@ -235,7 +235,7 @@ class PipelineElementImpl(PipelineElement):
     def create_frame(self, context, swag):
         self.pipeline.create_frame(context, swag)
 
-    def get_parameter(self, name, use_pipeline=True):
+    def get_parameter(self, name, default=None, use_pipeline=True):
         value = None
         found = False
         if name in self.definition.parameters and name in self.share:
@@ -243,9 +243,11 @@ class PipelineElementImpl(PipelineElement):
             found = True
         if not found and use_pipeline and not self.is_pipeline:
             if name in self.pipeline.definition.parameters:
-                if name in self.pipeline.state:
-                    value = self.pipeline.state[name]
+                if name in self.pipeline.share:
+                    value = self.pipeline.share[name]
                     found = True
+        if not found and default:
+            value = default  # Note: "found" is deliberately left as False
         return value, found
 
     def _id(self, context):
@@ -740,8 +742,14 @@ def main():
 @click.argument("definition_pathname", nargs=1, type=str)
 @click.option("--name", "-n", type=str, default=None, required=False,
     help="Pipeline Actor name")
+@click.option("--stream_id", "-s", type=int, default=None, required=False,
+  help="Create Stream with identifier")
+@click.option("--frame_id", "-fi", type=int, default=0, required=False,
+  help="Process Frame with identifier")
+@click.option("--frame_data", "-fd", type=str, default=None, required=False,
+  help="Process Frame with data")
 
-def create(definition_pathname, name):
+def create(definition_pathname, name, stream_id, frame_id, frame_data):
     if not os.path.exists(definition_pathname):
         raise SystemExit(
             f"Error: PipelineDefinition not found: {definition_pathname}")
@@ -756,6 +764,21 @@ def create(definition_pathname, name):
         definition_pathname=definition_pathname
     )
     pipeline = compose_instance(PipelineImpl, init_args)
+
+    if stream_id is not None:
+        pipeline.create_stream(stream_id)
+        context = pipeline.stream_leases[stream_id].context
+    else:
+        context = { "frame_id": frame_id, "parameters": {}, "stream_id": 0 }
+
+    if frame_data is not None:
+        function_name, parameters = parse(f"(process_frame {frame_data})")
+        if len(parameters):
+            pipeline.create_frame(context, parameters[0])
+        else:
+            raise SystemExit(
+                f"Error: Frame data must be provided")
+
     pipeline.run()
 
 @main.command(help="Delete Pipeline")

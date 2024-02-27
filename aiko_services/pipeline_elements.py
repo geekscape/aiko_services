@@ -63,7 +63,7 @@ class PE_0(PipelineElement):
 
     def process_frame(self, context, a) -> Tuple[bool, dict]:
         b = int(a) + 1
-        _LOGGER.info(f"PE_0: {context}, in a: {a}, out b: {b}")
+        _LOGGER.info(f"PE_0: {self._id(context)}, in a: {a}, out b: {b}")
         return True, {"b": b}
 
 # --------------------------------------------------------------------------- #
@@ -75,11 +75,10 @@ class PE_1(PipelineElement):
 
     def process_frame(self, context, b) -> Tuple[bool, dict]:
         increment = 1
-        pe_1_inc, found = self.get_parameter("pe_1_inc")
-        if found:
-            increment = int(pe_1_inc)
-        c = int(b) + increment
-        _LOGGER.info(f"PE_1: {context}, in b: {b}, out c: {c}")
+        p_1, found = self.get_parameter("p_1")
+        pe_1_inc, found = self.get_parameter("pe_1_inc", 1)
+        c = int(b) + int(pe_1_inc)
+        _LOGGER.info(f"PE_1: {self._id(context)}, in b: {b}, out c: {c}")
         _LOGGER.info(f"PE_1:            parameter pe_1_inc: {pe_1_inc}")
         return True, {"c": c}
 
@@ -92,7 +91,7 @@ class PE_2(PipelineElement):
 
     def process_frame(self, context, c) -> Tuple[bool, dict]:
         d = int(c) + 1
-        _LOGGER.info(f"PE_2: {context}, in c: {c}, out d: {d}")
+        _LOGGER.info(f"PE_2: {self._id(context)}, in c: {c}, out d: {d}")
         return True, {"d": d}
 
 # --------------------------------------------------------------------------- #
@@ -104,7 +103,7 @@ class PE_3(PipelineElement):
 
     def process_frame(self, context, c) -> Tuple[bool, dict]:
         e = int(c) + 1
-        _LOGGER.info(f"PE_3: {context}, in c: {c}, out e: {e}")
+        _LOGGER.info(f"PE_3: {self._id(context)}, in c: {c}, out e: {e}")
         return True, {"e": e}
 
 # --------------------------------------------------------------------------- #
@@ -116,7 +115,7 @@ class PE_4(PipelineElement):
 
     def process_frame(self, context, d, e) -> Tuple[bool, dict]:
         f = int(d) + int(e)
-        _LOGGER.info(f"PE_4: {context}, in d, e {d} {e}, out: d + e = f: {f}")
+        _LOGGER.info(f"PE_4: {self._id(context)}, in d, e {d} {e}, out: d + e = f: {f}")
         return True, {"f": f}
 
 # --------------------------------------------------------------------------- #
@@ -129,7 +128,7 @@ class PE_DataDecode(PipelineElement):
         data = base64.b64decode(data.encode("utf-8"))
         np_bytes = BytesIO(data)
         data = np.load(np_bytes, allow_pickle=True)
-    #   _LOGGER.info(f"PE_DataDecode: {context}, data: {data}")
+    #   _LOGGER.info(f"PE_DataDecode: {self._id(context)}, data: {data}")
         return True, {"data": data}
 
 # --------------------------------------------------------------------------- #
@@ -139,7 +138,7 @@ class PE_DataEncode(PipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, data) -> Tuple[bool, dict]:
-    #   _LOGGER.info(f"PE_DataEncode: {context}, data: {data}")
+    #   _LOGGER.info(f"PE_DataEncode: {self._id(context)}, data: {data}")
         if isinstance(data, str):
             data = str.encode(data)
         if isinstance(data, np.ndarray):
