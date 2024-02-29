@@ -5,7 +5,7 @@ description = "Distributed embedded service framework"
 authors = ["Andy Gelme <geekscape@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.10.4"
+python = "^3.10.0"
 asciimatics = "^1.14.0"
 avro = "^1.11.1"
 avro-validator = "^1.2.1"
