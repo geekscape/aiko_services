@@ -6,6 +6,13 @@
 #
 # To Do
 # ~~~~~
+# - Wrap as a PipelineElement for audio / video / LLM Pipeline
+#   - Can operate independently of "robot_control.py"
+#
+# - Replace "REAL_ROBOTS" with a mapping of host names to implementations
+#   - Command line option: robot_implementation_class
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - Add "period" to "move(direction, stride)" and "turn(speed)"
 #
 # - Implement (lamda NAME (COMMAND ...) (COMMAND ...)) --> saved as "NAME"
@@ -42,16 +49,30 @@ from abc import abstractmethod
 import cv2              # pip install opencv-python
 from io import BytesIO
 import numpy as np
+import os
 from PIL import Image
-import RPi              # pip install RPi.GPIO
-import spidev
 from threading import Thread
 import time
 import zlib
 
-from key import Button
-import LCD_2inch
-from xgolib import XGO
+IS_ROBOT = None
+REAL_ROBOTS = ["laika", "oscar"]  # real robot hostnames
+
+def is_robot():
+    global IS_ROBOT
+    if IS_ROBOT is None:
+        hostname = os.uname()[1]
+        IS_ROBOT = hostname in REAL_ROBOTS
+    return IS_ROBOT
+
+if is_robot():
+    import RPi  # pip install RPi.GPIO
+    import spidev
+    from key import Button
+    import LCD_2inch
+    from xgolib import XGO
+
+# --------------------------------------------------------------------------- #
 
 from aiko_services import *
 
@@ -61,6 +82,11 @@ ACTOR_TYPE = "xgo_robot"
 PROTOCOL = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE}:{_VERSION}"
 
 _LOGGER = aiko.logger(__name__)
+
+if is_robot():
+    MODULE_PATH = "aiko_services.examples.xgo_robot.xgo_robot"
+else:
+    MODULE_PATH = "__main__"
 
 # --------------------------------------------------------------------------- #
 
@@ -81,8 +107,7 @@ TOPIC_VIDEO = f"{get_namespace()}/video"
 # --------------------------------------------------------------------------- #
 
 class XGORobot(Actor):
-    Interface.default("XGORobot",
-        "aiko_services.examples.xgo_robot.xgo_robot.XGORobotImpl")
+    Interface.default("XGORobot", f"{MODULE_PATH}.XGORobotImpl")
 
     @abstractmethod
     def action(self, value):
@@ -136,48 +161,89 @@ class XGORobot(Actor):
     def turn(self, speed):  # speed: -100 (clockwise) to 100 degrees / second
         pass
 
-class XGORobotImpl(XGORobot):
-    def __init__(self, context):
-        context.get_implementation("Actor").__init__(self, context)
+# --------------------------------------------------------------------------- #
 
-        self._xgo = XGO(port="/dev/ttyAMA0", version="xgomini")
+class RobotCore:
+    def __init__(self, context):
+        print(f"MQTT topic: {self.topic_path}")
 
         self.share["battery"] = -1
         self.share["screen_detail"] = False
         self.share["sleep_period"] = SLEEP_PERIOD
         self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"
         self.share["topic_video"] = TOPIC_VIDEO
-        self.share["version_firmware"] = self._xgo.read_firmware()
-        self.share["version_xgolib"] = self._xgo.read_lib_version()
+        self.share["version_firmware"] = "v0"
 
-        event.add_timer_handler(
-            self._monitor_battery, BATTERY_MONITOR_PERIOD, immediate=True)
-
-        self._button = Button()
-        self._camera = self._camera_initialize()
         self._direction = "x"
         self._pitch = 0
         self._roll = 0
-        self._screen = self._screen_initialize()
         self._stride = 0
         self._terminated = False
-        self._thread = Thread(target=self._run).start()
         self._x = 0
-        self._xgo.claw(0)  # Show signs of life !
         self._y = 0
         self._yaw = 0
         self._z = 0
 
+        self._xgo = None
+      # self._button = Button()                   # TODO: Mock later
+        self._camera = self._camera_initialize()  # TODO: Optional
+        self._screen = None
+        self._thread = Thread(target=self._run).start()
+
+    def _run(self):
+        fps = 0
+        while not self._terminated:
+            time_loop = time.time()
+            status, image = self._camera.read()
+            image = cv2.flip(image, 1)
+            image = self._image_to_rgb(image)
+            time_process = (time.time() - time_loop) * 1000
+
+            if self._screen:
+                self._screen_overlay(image, fps, time_process)  # TODO: Always
+                self._screen_show(image)
+            self._publish_image(image)
+
+    # GUI robot_control.py button(s) --[MQTT function call]--> xgo_robot.py
+        if is_robot():                  # TODO: Mock later
+            if self._button.press_c():  # Top-left button
+                self.screen_detail()
+
+            if self._button.press_b():  # Bottom-left button
+                self.terminate()
+
+        self._sleep()
+        fps = int(1 / (time.time() - time_loop))
+
+# --------------------------------------------------------------------------- #
+
+class XGORobotImpl(XGORobot, RobotCore):
+    def __init__(self, context):
+        context.get_implementation("Actor").__init__(self, context)
+        RobotCore.__init__(self, context)
+
+        if is_robot():
+            self._xgo = XGO(port="/dev/ttyAMA0", version="xgomini")
+            self.share["version_firmware"] = self._xgo.read_firmware()
+            self.share["version_xgolib"] = self._xgo.read_lib_version()
+
+            self._button = Button()
+            self._screen = self._screen_initialize()
+            self._xgo.claw(0)  # Show signs of life !
+
+            event.add_timer_handler(  # TODO: Use laptop battery status
+                self._monitor_battery, BATTERY_MONITOR_PERIOD, immediate=True)
+
     # Review "xgolib": Blocks robot (all threads) until action is completed :(
     def action(self, action_type):
         if action_type in ACTIONS:
-            self._xgo.action(ACTIONS[action_type])
+# MOCK      self._xgo.action(ACTIONS[action_type])
             payload_out = f"(action {action_type})"
             aiko.message.publish(self.topic_out, payload_out)
 
     def arm(self, x, z):
         try:
-            self._xgo.arm(int(x), int(z))
+# MOCK      self._xgo.arm(int(x), int(z))
             payload_out = f"(arm {x} {z})"
             aiko.message.publish(self.topic_out, payload_out)
         except:
@@ -185,7 +251,7 @@ class XGORobotImpl(XGORobot):
 
     def arm_mode(self, stabilize):
         stabilize = 1 if stabilize == "true" else 0
-        self._xgo.arm_mode(stabilize)
+# MOCK  self._xgo.arm_mode(stabilize)
         payload_out = f"(arm_mode {stabilize})"
         aiko.message.publish(self.topic_out, payload_out)
 
@@ -205,13 +271,13 @@ class XGORobotImpl(XGORobot):
         except:
             pass
 
-        self._xgo.attitude(["p","r","y"], [self._pitch, self._roll, self._yaw])
+# MOCK  self._xgo.attitude(["p","r","y"], [self._pitch, self._roll, self._yaw])
         payload_out = f"(attitude {self._pitch} {self._roll} {self._yaw})"
         aiko.message.publish(self.topic_out, payload_out)
 
     def body_mode(self, stabilize):
         stabilize = 1 if stabilize == "true" else 0
-        self._xgo.imu(stabilize)
+# MOCK  self._xgo.imu(stabilize)
         payload_out = f"(body_mode {stabilize})"
         aiko.message.publish(self.topic_out, payload_out)
 
@@ -223,7 +289,7 @@ class XGORobotImpl(XGORobot):
 
     def claw(self, grip):  # grip: 0% - 100%
         try:
-            self._xgo.claw(int(grip))
+# MOCK      self._xgo.claw(int(grip))
             payload_out = f"(claw {grip})"
             aiko.message.publish(self.topic_out, payload_out)
         except:
@@ -247,7 +313,7 @@ class XGORobotImpl(XGORobot):
         except:
             pass
 
-        self._xgo.move(self._direction, self._stride)
+# MOCK  self._xgo.move(self._direction, self._stride)
         payload_out = f"(move {self._direction} {self._stride})"
         aiko.message.publish(self.topic_out, payload_out)
 
@@ -258,34 +324,12 @@ class XGORobotImpl(XGORobot):
         aiko.message.publish(self.share["topic_video"], payload_out)
 
     def reset(self):
-        self._xgo.reset()
+# MOCK  self._xgo.reset()
         self._pitch = self._roll = self._yaw = 0
         self._x = self._y = self._z = 0
         self._direction = "x"
         self._stride = 0
         aiko.message.publish(self.topic_out, "(reset)")
-
-    def _run(self):
-        fps = 0
-        while not self._terminated:
-            time_loop = time.time()
-            status, image = self._camera.read()
-            image = cv2.flip(image, 1)
-            image = self._image_to_rgb(image)
-            time_process = (time.time() - time_loop) * 1000
-
-            self._screen_overlay(image, fps, time_process)
-            self._screen_show(image)
-            self._publish_image(image)
-
-            if self._button.press_c():  # Top-left button
-                self.screen_detail()
-
-            if self._button.press_b():  # Bottom-left button
-                self.terminate()
-            else:
-                self._sleep()
-            fps = int(1 / (time.time() - time_loop))
 
     def screen_detail(self, enabled=None):
         if enabled == None:  # Toggle "screen_detail" enabled
@@ -298,10 +342,11 @@ class XGORobotImpl(XGORobot):
         aiko.message.publish(self.topic_out, payload_out)
 
     def _screen_initialize(self):
-        screen = LCD_2inch.LCD_2inch()
-        screen.clear()
-        image = Image.new("RGB", (screen.height, screen.width), "black")
-        screen.ShowImage(image)
+        screen = None
+    #   screen = LCD_2inch.LCD_2inch()
+    #   screen.clear()
+    #   image = Image.new("RGB", (screen.height, screen.width), "black")
+    #   screen.ShowImage(image)
         return screen
 
     def _screen_overlay(self, image, fps, time_process):
@@ -314,7 +359,7 @@ class XGORobotImpl(XGORobot):
 
     def _screen_show(self, image):
         image = Image.fromarray(image)
-        self._screen.ShowImage(image)
+# MOCK  self._screen.ShowImage(image)
 
     def _sleep(self, period=None):
         if not period:
@@ -325,15 +370,15 @@ class XGORobotImpl(XGORobot):
         time.sleep(period)
 
     def stop(self):
-        self._xgo.stop()
+# MOCK  self._xgo.stop()
         self._direction = "x"
         self._stride = 0
         payload_out = f"(stop)"
         aiko.message.publish(self.topic_out, payload_out)
 
     def terminate(self, immediate=False):
-        self._xgo.reset()
-        self._xgo.claw(128)
+# MOCK  self._xgo.reset()
+# MOCK  self._xgo.claw(128)
         aiko.process.terminate()
         self._terminated = True
 
@@ -353,13 +398,13 @@ class XGORobotImpl(XGORobot):
         except:
             pass
 
-        self._xgo.translation(["x", "y", "z"], [self._x, self._y, self._z])
+# MOCK  self._xgo.translation(["x", "y", "z"], [self._x, self._y, self._z])
         payload_out = f"(attitude {self._x} {self._y} {self._z})"
         aiko.message.publish(self.topic_out, payload_out)
 
     def turn(self, speed):  # speed: -100 (clockwise) to 100 degrees / second
         try:
-            self._xgo.turn(int(speed))
+# MOCK      self._xgo.turn(int(speed))
             payload_out = f"(turn {speed})"
             aiko.message.publish(self.topic_out, payload_out)
         except:

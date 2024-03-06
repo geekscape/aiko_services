@@ -24,11 +24,12 @@
 #
 # To Do
 # ~~~~~
-# - Video image flip on vertical axis for correct orientation (robot view) !
-#
 # - Discover "xgo_robot" Actor and use "topic_path/video" instead
 #   - When absent, display a video image that shows "robot not found"
 #   - Replace low-level aiko.message.publish() with high-level function calls
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - Video image flip on vertical axis for correct orientation (robot view) !
 #
 # - Keyboard commands: Display "help" on screen, key='?' ...
 #   - Reset (R)
