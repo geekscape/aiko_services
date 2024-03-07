@@ -49,8 +49,8 @@ from abc import abstractmethod
 import cv2              # pip install opencv-python
 from io import BytesIO
 import numpy as np
-import os
 from PIL import Image
+import platform
 from threading import Thread
 import time
 import zlib
@@ -61,7 +61,7 @@ REAL_ROBOTS = ["laika", "oscar"]  # real robot hostnames
 def is_robot():
     global IS_ROBOT
     if IS_ROBOT is None:
-        hostname = os.uname()[1]
+        hostname = platform.uname()[1]
         IS_ROBOT = hostname in REAL_ROBOTS
     return IS_ROBOT
 
