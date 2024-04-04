@@ -33,10 +33,14 @@ from aiko_services.utilities import generate, get_namespace, LRUCache
 
 _LOGGER = aiko.logger(__name__)
 
+# PipelineElement parameters
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~
+# PE_AudioWriteFile
+AUDIO_CHANNELS = 1  # 1 or 2 channels
+
 # --------------------------------------------------------------------------- #
 # TODO: Turn some of these literals into Pipeline parameters
 
-AUDIO_CHANNELS = 1           # or 2 channels
 AUDIO_CHUNK_DURATION = 3.0   # audio chunk duration in seconds
 AUDIO_SAMPLE_DURATION = 3.0  # audio sample size to process
 AUDIO_SAMPLE_RATE = 16000    # or 44100 Hz
@@ -80,8 +84,9 @@ class PE_AudioWriteFile(PipelineElement):
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
         frame_id = context["frame_id"]
         audio_pathname = AUDIO_PATH_TEMPLATE.format(frame_id=frame_id)
+        audio_channels = self.get_parameter("audio_channels", AUDIO_CHANNELS)
         audio_writer = sf.SoundFile(audio_pathname, mode="w",
-            samplerate=AUDIO_SAMPLE_RATE, channels=AUDIO_CHANNELS)
+            samplerate=AUDIO_SAMPLE_RATE, channels=audio_channels)
         audio_writer.write(indata.copy())
         audio_writer.close()
         return True, {"audio", audio_pathname}
@@ -91,6 +96,7 @@ class PE_AudioWriteFile(PipelineElement):
 
 COQUI_MODEL_NAME = "tts_models/en/vctk/vits"  # TTS().list_models()[0]
 COQUI_SPEAKER_ID = "p364"                     # British, female
+# COQUI_SPEAKER_ID = "p226"                   # Male
 
 COQUI_TTS_LOADED = False  # coqui.ai Text-To-Speech (TTS)
 try:
@@ -167,9 +173,9 @@ def aide_http_request(user_id, message, welcome=False):
 
 CUDA_DEVICE = "cuda"
 # WhisperX: version 3.1.2           Parameters    VRAM size  Relative speed
-WHISPERX_MODEL_SIZE = "tiny"      #    39 M         442 Mb   32x
+# WHISPERX_MODEL_SIZE = "tiny"    #    39 M         442 Mb   32x
 # WHISPERX_MODEL_SIZE = "base"    #    74 M         506 Mb   16x
-# WHISPERX_MODEL_SIZE = "small"   #   244 M         890 Mb    6x
+WHISPERX_MODEL_SIZE = "small"     #   244 M         890 Mb    6x
 # WHISPERX_MODEL_SIZE = "medium"  #   769 M       1,914 Mb    2x
 # WHISPERX_MODEL_SIZE = "large"   # 1,550 M       3,418 Mb    1x
 

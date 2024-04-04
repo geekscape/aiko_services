@@ -39,6 +39,11 @@ __all__ = [
 
 _LOGGER = aiko.logger(__name__)
 
+# PipelineElement parameters
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~
+# PE_MicrophonePA, PE_MicrophoneSD
+AUDIO_CHANNELS = 1  # 1 or 2 channels
+
 # --------------------------------------------------------------------------- #
 # TODO: Turn some of these literals into PipelineElement parameters
 # TODO: Place some of these PipelineElement parameters into self.share[]
@@ -214,7 +219,6 @@ class PE_GraphXY(PipelineElement):
 import pyaudio
 from threading import Thread
 
-PA_AUDIO_CHANNELS = 1              # 1 or 2 channels
 PA_AUDIO_FORMAT = pyaudio.paInt16
 
 PA_AUDIO_SAMPLE_RATE = 16000       # voice 16,000 or 44,100 or 48,000 Hz
@@ -261,9 +265,10 @@ class PE_MicrophonePA(PipelineElement):
 
         self.share["frame_id"] = -1
 
+        audio_channels, _ = self.get_parameter("audio_channels", AUDIO_CHANNELS)
         self.py_audio = pyaudio_initialize()
         self.audio_stream = self.py_audio.open(
-            channels=PA_AUDIO_CHANNELS,
+            channels=audio_channels,
             format=PA_AUDIO_FORMAT,
             frames_per_buffer=PA_AUDIO_CHUNK_SIZE,
             input=True,
@@ -294,9 +299,6 @@ class PE_MicrophonePA(PipelineElement):
         self.terminate = True
 
 # --------------------------------------------------------------------------- #
-# TODO: Turn some of these literals into Pipeline parameters
-
-SD_AUDIO_CHANNELS = 1            # 1 or 2 channels
 
 SD_AUDIO_CHUNK_DURATION = 5.0    # voice: audio chunk duration in seconds
 # SD_AUDIO_CHUNK_DURATION = 0.1  # music / spectrum analyser
@@ -323,8 +325,10 @@ class PE_MicrophoneSD(PipelineElement):
     def _audio_run(self):
         self.terminate = False
         self._audio_sampler_start()
+        audio_channels, _ = self.get_parameter("audio_channels", AUDIO_CHANNELS)
+
         with sd.InputStream(callback=self._audio_sampler,
-            channels=SD_AUDIO_CHANNELS, samplerate=SD_AUDIO_SAMPLE_RATE):
+            channels=audio_channels, samplerate=SD_AUDIO_SAMPLE_RATE):
 
             while not self.terminate:
                 sd.sleep(int(SD_AUDIO_CHUNK_DURATION * 1000))
@@ -363,6 +367,8 @@ class PE_MicrophoneSD(PipelineElement):
             self.ec_producer.update("mute", duration)
 
     def process_frame(self, context, audio) -> Tuple[bool, dict]:
+        audio_channels, _ = self.get_parameter("audio_channels", AUDIO_CHANNELS)
+        _LOGGER.info(f"SoundDevice audio_channels: {audio_channels}")
         return True, {"audio": audio}
 
     def stop_stream(self, context, stream_id):

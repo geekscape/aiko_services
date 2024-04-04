@@ -11,6 +11,9 @@
     { "name":   "PE_MicrophoneSD",
       "input":  [{ "name": "audio", "type": "bytes" }],
       "output": [{ "name": "audio", "type": "bytes" }],
+      "parameters": {
+        "audio_channels": 1
+      },
       "deploy": {
         "local": { "module": "aiko_services.elements.audio_io" }
       }
