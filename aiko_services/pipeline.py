@@ -198,7 +198,7 @@ class PipelineElement(Actor):
         pass
 
     @abstractmethod
-    def get_parameter(self, name, default, use_pipeline):
+    def get_parameter(self, name, default=None, use_pipeline=True):
         pass
 
     @abstractmethod
