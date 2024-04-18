@@ -744,12 +744,18 @@ def main():
     help="Pipeline Actor name")
 @click.option("--stream_id", "-s", type=int, default=None, required=False,
   help="Create Stream with identifier")
+@click.option("--stream_parameters", "-sp", type=click.Tuple((str, str)),
+  default=None, multiple=True, required=False, help="Define Stream parameters")
 @click.option("--frame_id", "-fi", type=int, default=0, required=False,
   help="Process Frame with identifier")
 @click.option("--frame_data", "-fd", type=str, default=None, required=False,
   help="Process Frame with data")
 
-def create(definition_pathname, name, stream_id, frame_id, frame_data):
+def create(
+    definition_pathname, name,
+    stream_id, stream_parameters,
+    frame_id, frame_data):
+
     if not os.path.exists(definition_pathname):
         raise SystemExit(
             f"Error: PipelineDefinition not found: {definition_pathname}")
@@ -766,7 +772,7 @@ def create(definition_pathname, name, stream_id, frame_id, frame_data):
     pipeline = compose_instance(PipelineImpl, init_args)
 
     if stream_id is not None:
-        pipeline.create_stream(stream_id)
+        pipeline.create_stream(stream_id, dict(stream_parameters))
         context = pipeline.stream_leases[stream_id].context
     else:
         context = { "frame_id": frame_id, "parameters": {}, "stream_id": 0 }
