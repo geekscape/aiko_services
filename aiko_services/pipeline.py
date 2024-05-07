@@ -246,7 +246,7 @@ class PipelineElementImpl(PipelineElement):
                 if name in self.pipeline.share:
                     value = self.pipeline.share[name]
                     found = True
-        if not found and default:
+        if not found and default is not None:
             value = default  # Note: "found" is deliberately left as False
         return value, found
 
@@ -334,7 +334,7 @@ class PipelineImpl(Pipeline):
         raise SystemExit(complete_diagnostic)
 
     def create_frame(self, context, swag):
-        self._post_message("in", "process_frame", [context, swag])
+        self._post_message(ActorTopic.IN, "process_frame", [context, swag])
 
     def _create_pipeline(self, definition):
         header = f"Error: Creating Pipeline: {definition.name}"
@@ -578,8 +578,8 @@ class PipelineImpl(Pipeline):
 
     def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME):
         if self.share["lifecycle"] != "ready":
-            self._post_message(
-                "in", "create_stream", [stream_id, parameters, grace_time])
+            self._post_message(ActorTopic.IN,
+                "create_stream", [stream_id, parameters, grace_time])
             return
 
         if stream_id in self.stream_leases:

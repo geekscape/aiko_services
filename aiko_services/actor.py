@@ -102,7 +102,7 @@ import traceback
 from aiko_services import *
 from aiko_services.utilities import *
 
-__all__ = ["Actor", "ActorImpl", "ActorTest", "ActorTestImpl"]
+__all__ = ["Actor", "ActorImpl", "ActorTest", "ActorTestImpl", "ActorTopic"]
 
 _AIKO_LOG_LEVEL_ACTOR = os.environ.get("AIKO_LOG_LEVEL_ACTOR", "INFO")
 _LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_ACTOR)
@@ -143,7 +143,7 @@ class Message:
         #   raise RuntimeError(diagnostic)  # TODO: Enable traceback option
             _LOGGER.error(diagnostic)  # Was ... raise RuntimeError(diagnostic)
 
-class Topic:
+class ActorTopic:
     # Application topics
     IN = "in"
     OUT = "out"
@@ -170,8 +170,8 @@ class ActorImpl(Actor):
         cls, proxy_name, actual_object, actual_function, *args, **kwargs):
 
         command = actual_function.__name__
-        control_command = command.startswith(f"{Topic.CONTROL}_")
-        topic = Topic.CONTROL if control_command else Topic.IN
+        control_command = command.startswith(f"{ActorTopic.CONTROL}_")
+        topic = ActorTopic.CONTROL if control_command else ActorTopic.IN
 
         actual_object._post_message(
             topic, command, args, target_function=actual_function)
@@ -190,7 +190,7 @@ class ActorImpl(Actor):
         self.ec_producer.add_handler(self.ec_producer_change_handler)
 
         # First mailbox added has priority handling for all posted messages
-        for topic in [Topic.CONTROL, Topic.IN]:
+        for topic in [ActorTopic.CONTROL, ActorTopic.IN]:
             mailbox_name = self._actor_mailbox_name(topic)
             event.add_mailbox_handler(self._mailbox_handler, mailbox_name)
         self.add_message_handler(self._topic_in_handler, self.topic_in)
@@ -208,7 +208,7 @@ class ActorImpl(Actor):
     #       _LOGGER.debug(
     #           f"{self.name}: topic_in_handler(): {command}:{parameters}"
     #       )
-        self._post_message(Topic.IN, command, parameters)
+        self._post_message(ActorTopic.IN, command, parameters)
 
     def _post_message(self, topic, command, args, target_function=None):
         target_object = self
@@ -283,7 +283,7 @@ class ActorTestImpl(ActorTest):  # TODO: Move into "../examples/"
               f"{topic}: {message.command}{message.arguments}")
         super()._mailbox_handler(topic, message, time_posted)
 
-        if topic == self._actor_mailbox_name(Topic.IN):
+        if topic == self._actor_mailbox_name(ActorTopic.IN):
             if self.test_count and self.test_count <= 5:
                 self.control_test(self.test_count)
                 self.test_count += 1

@@ -1,3 +1,10 @@
+# Investigate Behaviour Trees !
+#
+# For simple operational FSMs, name the machine states using descriptive
+# adjectives that directly correspond to the state transition operations,
+# i.e use the past tense of the transitive verb for each state transition
+# operation, e.g pending, running, success, error
+
 import os
 import traceback
 from transitions import Machine

@@ -47,7 +47,7 @@ from .share import (
 )
 
 from .actor import (
-    Actor, ActorImpl, ActorTest, ActorTestImpl
+    Actor, ActorImpl, ActorTest, ActorTestImpl, ActorTopic
 )
 
 from .process_manager import ProcessManager
