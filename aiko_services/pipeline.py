@@ -104,6 +104,7 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 import json
 import os
+import time
 import traceback
 from typing import Any, Dict, List, Tuple
 
@@ -185,7 +186,7 @@ class PipelineGraph(Graph):
 # PipelineElement: service_level_agreement: low_latency, etc
 
 @dataclass
-class FrameContext:
+class FrameContext:  # TODO: Unused: Change to "Stream" and replace "context"
     stream_id: int
     frame_id: int
 
@@ -533,6 +534,15 @@ class PipelineImpl(Pipeline):
 
      #  _LOGGER.debug(f"Process frame: {self._id(context)}, swag: {swag}")
 
+        if "metrics" in context:
+            metrics = context["metrics"]
+        else:
+            metrics = {}
+            context["metrics"] = metrics
+
+        metrics["time_pipeline_start"] = time.time()
+        metrics_elements = metrics["pipeline_elements"] = {}
+
         definition_pathname = self.share["definition_pathname"]
 
         for node in self.pipeline_graph:
@@ -553,6 +563,8 @@ class PipelineImpl(Pipeline):
 
             frame_output = {}
             okay = True
+            time_element_start = time.time()
+
             try:
                 # TODO: "ServiceRemoteProxy" isn't set anywhere ?!?
                 if element_name != "ServiceRemoteProxy":
@@ -563,6 +575,12 @@ class PipelineImpl(Pipeline):
                     # TODO: Pipeline stream needs to "pause" waiting for result
             except Exception as exception:
                 self._error(header, traceback.format_exc())
+
+            time_element = time.time() - time_element_start
+            metrics_elements[f"time_{element_name}"] = time_element
+
+            time_pipeline = time.time() - metrics["time_pipeline_start"]
+            metrics["time_pipeline"] = time_pipeline  # Total time, so far !
 
             if not okay:
                 for stream_id in self.stream_leases.copy():

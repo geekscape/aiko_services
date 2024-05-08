@@ -12,6 +12,10 @@
 #
 # To Do
 # ~~~~~
+# - PE_Metrics: Make visible to Aiko Dashboard via self.share[]
+# - PE_Metrics: Store to file (JSON, CSV), SQLite, InfluxDB
+# - PE_Metrics: Add run-time average calculation
+#
 # - Consider PE_DataDecode and PE_DataEncode using "kwargs" for flexible
 #   choices of data type to transfer via function parameters
 
@@ -53,6 +57,26 @@ class PE_GenerateNumbers(PipelineElement):
 
     def stop_stream(self, context, stream_id):
         context["terminate"] = True
+
+# --------------------------------------------------------------------------- #
+
+class PE_Metrics(PipelineElement):
+    def __init__(self, context):
+        context.set_protocol("metrics:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, context) -> Tuple[bool, dict]:
+        metrics = context["metrics"]
+        metrics_elements = metrics["pipeline_elements"]
+        for metrics_name, metrics_value in metrics_elements.items():
+            metrics_value *= 1000
+            _LOGGER.info(
+                f"PE_Metrics: {metrics_name}: {metrics_value:.3f} ms")
+
+        time_pipeline = metrics["time_pipeline"] * 1000
+        _LOGGER.info(
+            f"PE_Metrics: Pipeline total: {time_pipeline:.3f} ms")
+        return True, {}
 
 # --------------------------------------------------------------------------- #
 
