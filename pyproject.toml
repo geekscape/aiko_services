@@ -13,7 +13,7 @@ click = "^8.0"
 numpy = "^1.19.1"
 opencv-python = { version = "^4.4.0", optional = true }
 paho-mqtt = ">=1.6.1,<2.0.0"
-Pillow = "^9.0.0"
+Pillow = "^10.0.0"
 PyAudio = { version = "^0.2.13", optional = true }
 pyperclip = "^1.8.2"
 requests = "^2.25.1"

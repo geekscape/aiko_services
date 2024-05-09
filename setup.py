@@ -29,7 +29,7 @@ setup(
         "click>=8.0",
         "numpy>=1.19.1",
         "paho-mqtt>=1.6.1,<2.0.0",
-        "Pillow>=9.0.0",
+        "Pillow>=10.0.0",
         "PyAudio>=0.2.13",
         "pyperclip>=1.8.2",
         "requests>=2.25.1",
