@@ -146,7 +146,7 @@ class PipelineDefinition:
 @dataclass
 class PipelineElementDefinition:
 #   comment: str  # Specified in Avro schema and discarded by parser
-    name: str
+    name: str     # unique name
     input: Dict[str, str]
     output: Dict[str, str]
     parameters: Dict  # Optional field, default: {}
@@ -154,6 +154,7 @@ class PipelineElementDefinition:
 
 @dataclass
 class PipelineElementDeployLocal:
+    class_name: str  # optional field, default: name
     module: str
 
 @dataclass
@@ -167,7 +168,7 @@ class RemoteServiceFilter:
 
 @dataclass
 class PipelineElementDeployRemote:
-    module: str
+    module: str  # TODO: Is this really needed ?  Probably not !
     service_filter: RemoteServiceFilter
 
 class PipelineGraph(Graph):
@@ -355,8 +356,9 @@ class PipelineImpl(Pipeline):
             deploy_type_name = type(deploy_definition).__name__
 
             if deploy_type_name == PipelineImpl.DEPLOY_TYPE_LOCAL_NAME:
+                class_name = pipeline_element_definition.deploy.class_name
                 element_class = self._load_element_class(
-                    deploy_definition.module, element_name, header)
+                    deploy_definition.module, class_name, header)
 
             # TODO: Make sure element_name is correct for remote case
 
@@ -413,6 +415,7 @@ class PipelineImpl(Pipeline):
 
     @classmethod
     def parse_pipeline_definition(cls, pipeline_definition_pathname):
+        CLASS_NAME_FIELD = "class_name"
         COMMENT_FIELD = "#"
         PARAMETERS_FIELD = "parameters"
         header = f"Error: Parsing PipelineDefinition: {pipeline_definition_pathname}"
@@ -471,9 +474,15 @@ class PipelineImpl(Pipeline):
                     f"{element_definition.name}: "
                     f"Unknown Pipeline deploy type: {deploy_type}")
 
-            deploy = pipeline_element_deploy_type(
-                **element_definition.deploy[deploy_type])
-            element_definition.deploy = deploy
+            element_deploy_fields = element_definition.deploy[deploy_type]
+
+            if deploy_type == DeployType.LOCAL.value:
+                if CLASS_NAME_FIELD not in element_deploy_fields:  # optional
+                    element_deploy_fields[CLASS_NAME_FIELD] =  \
+                        element_definition.name
+
+            element_definition.deploy =  \
+                pipeline_element_deploy_type(**element_deploy_fields)
 
             element_definitions.append(element_definition)
 
@@ -499,6 +508,7 @@ class PipelineImpl(Pipeline):
             if command == "add":
                 header = f"Error: Updating Pipeline: {element_definition.name}"
             # TODO: Don't create another PipelineElement Service !
+            # TODO: Shouldn't need to load "element_definition.deploy.module"
                 element_class = self._load_element_class(
                     element_definition.deploy.module, element_name, header)
 
@@ -697,6 +707,7 @@ try:
                         { "name": "local_fields",
                           "type": "record",
                           "fields": [
+                            { "name": "class_name", "type": "string" },
                             { "name": "module", "type": "string" }
                           ]
                         }

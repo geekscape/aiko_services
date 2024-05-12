@@ -28,7 +28,10 @@
       "input":  [{ "name": "a", "type": "int" }], "#": "Single input argument",
       "output": [{ "name": "b", "type": "int" }], "#": "Single output argument",
       "deploy": {
-        "local": { "module": "aiko_services.pipeline_elements" }
+        "local": {
+            "class_name": "PE_0",
+            "module": "aiko_services.pipeline_elements"
+         }
       }
     },
     { "name":   "PE_1",
