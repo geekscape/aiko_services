@@ -11,6 +11,18 @@
 #
 # heads, successors = graph.traverse(["(a (b d) (c d))"])
 #
+# Nodes may optionally have a dictionary of properties
+#
+# def node_properties_callback(node_name, properties, predecessor_name):
+#   print(node_name, properties, predecessor_name)
+#
+# heads, successors = graph.traverse([
+#   "(a (b d (key_0: value_0)) (c d (key_1: value_1)))"],
+#   node_properties_callback)
+#
+# --> "D"  {"key_0": "value_0"}  "B"
+# --> "D"  {"key_1": "value_1"}  "C"
+#
 # To Do
 # ~~~~~
 # - For serialization, use dataclasses and JSON
@@ -38,6 +50,8 @@ class Graph:
                 del nodes[node]
             nodes[node] = None
             for successor in node.successors:
+                if successor is None:
+                    breakpoint()
                 traverse(self._graph[successor])
 
         if self._head_nodes:
@@ -68,15 +82,26 @@ class Graph:
             del self._graph[node.name]
 
     @classmethod
-    def traverse(cls, graph_definition):
+    def traverse(cls, graph_definition, node_properties_callback=None):
         node_heads = OrderedDict()
         node_successors = OrderedDict()
 
+# if "node" is a dictionary of properties, then ignore it ... because ...
+# if "successor" is a dictionary of properties, then optionally invoke callback
+
         def add_successor(node, successor):
-            if not node in node_successors:
-                node_successors[node] = OrderedDict()
-            if successor:
-                node_successors[node][successor] = successor
+            if not isinstance(node, dict):
+                if not node in node_successors:
+                    node_successors[node] = OrderedDict()
+                if isinstance(successor, str):
+                    node_successors[node][successor] = successor
+                elif successor and isinstance(successor, dict):
+                    if node_properties_callback:
+                        successor_name = list(node_successors[node].keys())[-1]
+                        properties = successor
+                        predecessor_name = node
+                        node_properties_callback(
+                            successor_name, properties, predecessor_name)
 
         def traverse_successors(node, successors):
             for successor in successors:

@@ -352,6 +352,10 @@ class PipelineImpl(Pipeline):
         for pipeline_element_definition in definition.elements:
             element_instance = None
             element_name = pipeline_element_definition.name
+            if element_name not in node_successors:
+                print(f'Warning: Skipping PipelineElement {element_name}: '
+                      f'Not used within the "graph" definition')
+                continue
             deploy_definition = pipeline_element_definition.deploy
             deploy_type_name = type(deploy_definition).__name__
 
