@@ -86,7 +86,7 @@ class VideoWriteFile(StreamElement):
     def stream_start_handler(self, stream_id, frame_id, swag):
         self.logger.debug(f"stream_start_handler(): stream_id: {stream_id}")
         self.image_shape = None
-        self.video_format = self.parameters.get("video_format", "MP4V")
+        self.video_format = self.parameters.get("video_format", "AVC1")
         self.video_frame_rate = self.parameters["video_frame_rate"]
         self.video_pathname = self.parameters["video_pathname"]
         self.video_writer = None
