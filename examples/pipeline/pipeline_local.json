@@ -10,7 +10,7 @@
   "#": "Graph may consist of one or more sub-graphs",
   "#": "This graph demonstrates fan-out and fan-in (diamond network)",
   "graph": [
-    "(PE_1 (PE_2 PE_4) (PE_3 PE_4) PE_5 PE_Metrics)"
+    "(PE_1 (PE_2 PE_4) (PE_3 PE_4) PE_Metrics)"
   ],
 
   "#": "Optional parameters may be either null, boolean, integer or string",

@@ -100,6 +100,7 @@ from abc import abstractmethod
 import avro.schema
 from avro_validator.schema import Schema
 import click
+from collections import OrderedDict  # All OrderedDict operations are O(1)
 from dataclasses import dataclass, asdict
 from enum import Enum
 import json
@@ -171,19 +172,94 @@ class PipelineElementDeployRemote:
     module: str  # TODO: Is this really needed ?  Probably not !
     service_filter: RemoteServiceFilter
 
+# --------------------------------------------------------------------------- #
+
 class PipelineGraph(Graph):
     def __init__(self, head_nodes=None):
         super().__init__(head_nodes)
 
     def add_element(self, element):
         self.add(element)
+        element.predecessors = OrderedDict()
 
     @property
     def element_count(self):
         return len(self._graph)
 
+# TODO: Work-in-progress
+# - Pass 1: Validate_inputs_by_name_and_type()
+#   - Each input NAME and TYPE provided by exactly one parent predecessor
+#   - Each input NAME and TYPE provided by exactly one predecessor (recursive)
+#
+# - Pass 2: Validate_inputs_by_position_and_type()
+#   - Each input TYPE provided exactly in order by parent predecessor
+#   - Each input TYPE provided by exactly one predecessor (recursive) ?
+#
+# - Pass 3: Perform mapping first, then ...
+#   - Check mapping output --> input: NAME and TYPE must match
+#     "graph": ["(A (B D (d0: d1)) (C D))"],
+#
+# - Provide mapping clues
+# - Flexible or Strict (exact match predecessor output --> successor input)
+# - Reflect on PipelineElement function signatures to create definition.elements
+
+    def validate_inputs(self, inputs, predecessors, checked=None, strict=False):
+        checked = checked if checked else []  # each predecessor checked once
+        for predecessor in predecessors.values():
+            if predecessor not in checked:
+                checked.append(predecessor)
+                predecessor_outputs = predecessor.element.definition.output
+                for input in inputs:
+                    for predecessor_output in predecessor_outputs:
+                        if predecessor_output["name"] == input["name"]:
+                            input["found"] += 1
+                if not strict:
+                    inputs, checked = self.validate_inputs(
+                                      inputs, predecessor.predecessors, checked)
+        return inputs, checked
+
+    def validate_mapping(self, mapping_fan_in, element_name, input):
+        valid_mappings = []
+        if element_name in mapping_fan_in:
+            fan_in = mapping_fan_in[element_name]
+            for predecessor_name, mapping in fan_in.items():
+                if input["name"] in mapping.values():
+                    valid_mappings.append((predecessor_name, mapping))
+        return valid_mappings
+
+    def validate(self, pipeline_definition, strict=False):
+        for node in self:
+            element = node.element
+            element_name = element.__class__.__name__
+            element_inputs = element.definition.input
+            element_inputs = [{**item, "found": 0} for item in element_inputs]
+
+            if element_name not in self._head_nodes:
+                predecessors = node.predecessors
+                inputs, _ = self.validate_inputs(
+                                element_inputs, predecessors, strict)
+                for input in inputs:
+                    try_mapping_fan_in_out = False
+                    diagnostic = f"PipelineElement {element_name}: input \"{input['name']}\" not produced by any "
+                    if strict and input["found"] != 1:
+                        diagnostic += "immediate predecessor PipelineElement"
+                        try_mapping_fan_in_out = True
+                        print(f"{diagnostic}")
+                    elif input["found"] == 0:
+                        diagnostic += "previous PipelineElements"
+                        try_mapping_fan_in_out = True
+
+                    if try_mapping_fan_in_out:
+                        mapping_fan_in = pipeline_definition.mapping_fan_in
+                        if not self.validate_mapping(
+                            mapping_fan_in, element_name, input):
+                            print(f"{diagnostic}")
+
+            for successor_name in node.successors:
+                successor = self.get_node(successor_name)
+                successor.predecessors[element_name] = node
+
 # --------------------------------------------------------------------------- #
-# Pipeline:        fan-out, fan-in and name_mapping ?
 # PipelineElement: service_level_agreement: low_latency, etc
 
 @dataclass
@@ -322,9 +398,10 @@ class PipelineImpl(Pipeline):
         self.share["lifecycle"] = "ready"
 
     # TODO: Better visualization of the Pipeline / PipelineElements details
-    #   print(f"PIPELINE: {self.pipeline_graph.nodes()}")
-    #   for node in self.pipeline_graph:
-    #       print(f"NODE: {node.name}")
+        if False:
+            print(f"PIPELINE: {self.pipeline_graph.nodes()}")
+            for node in self.pipeline_graph:
+                print(f"NODE: {node.name}")
 
     def _error(self, header, diagnostic):
         PipelineImpl._exit(header, diagnostic)
@@ -338,6 +415,17 @@ class PipelineImpl(Pipeline):
     def create_frame(self, context, swag):
         self._post_message(ActorTopic.IN, "process_frame", [context, swag])
 
+    def _add_node_properties(self, node_name, properties, predecessor_name):
+        definition = self.definition
+
+        if node_name not in definition.mapping_fan_in:
+            definition.mapping_fan_in[node_name] = {}
+        definition.mapping_fan_in[node_name][predecessor_name] = properties
+
+        if predecessor_name not in definition.mapping_fan_out:
+            definition.mapping_fan_out[predecessor_name] = {}
+        definition.mapping_fan_out[predecessor_name][node_name] = properties
+
     def _create_pipeline(self, definition):
         header = f"Error: Creating Pipeline: {definition.name}"
 
@@ -345,7 +433,10 @@ class PipelineImpl(Pipeline):
             self._error(header,
                 "PipelineDefinition: Doesn't define any PipelineElements")
 
-        node_heads, node_successors = Graph.traverse(definition.graph)
+        definition.mapping_fan_in = {}
+        definition.mapping_fan_out = {}
+        node_heads, node_successors = Graph.traverse(
+            definition.graph, self._add_node_properties)
         pipeline_graph = PipelineGraph(node_heads)
         self.parameters = definition.parameters
 
@@ -398,6 +489,7 @@ class PipelineImpl(Pipeline):
                 element_name, element_instance, node_successors[element_name])
             pipeline_graph.add_element(element)
 
+        pipeline_graph.validate(definition)
         return pipeline_graph
 
     def _load_element_class(self,
@@ -492,10 +584,6 @@ class PipelineImpl(Pipeline):
 
         pipeline_definition.elements = element_definitions
 
-        nodes = {}
-        for sub_graph in pipeline_definition.graph:
-            node_head, node_successors = parse(sub_graph)
-
         _LOGGER.info(
             f"PipelineDefinition parsed: {pipeline_definition_pathname}")
         return(pipeline_definition)
@@ -566,11 +654,22 @@ class PipelineImpl(Pipeline):
             header = f'Error: Invoking Pipeline "{definition_pathname}": ' \
                      f'PipelineElement "{element_name}": process_frame()'
 
+            fan_in_names = {}
+            if element_name in self.definition.mapping_fan_in:
+                fan_in = self.definition.mapping_fan_in[element_name]
+                for in_element, in_map in fan_in.items():
+                    from_name, to_name = next(iter(in_map.items()))
+                    fan_in_names[to_name] = f"{element_name}.{to_name}"
+
             inputs = {}
             input_names = [input["name"] for input in element.definition.input]
+
             for input_name in input_names:
                 try:
-                    inputs[input_name] = swag[input_name]
+                    if input_name in fan_in_names:
+                        inputs[input_name] = swag[fan_in_names[input_name]]
+                    else:
+                        inputs[input_name] = swag[input_name]
                 except KeyError as key_error:
                     self._error(header,
                         f'Function parameter "{input_name}" not found')
@@ -584,6 +683,13 @@ class PipelineImpl(Pipeline):
                 if element_name != "ServiceRemoteProxy":
                     okay, frame_output = element.process_frame(
                         context, **inputs)
+
+                    if element_name in self.definition.mapping_fan_out:
+                        fan_out = self.definition.mapping_fan_out[element_name]
+                        for out_element, out_map in fan_out.items():
+                            from_name, to_name = next(iter(out_map.items()))
+                            to_name = f"{out_element}.{to_name}"
+                            frame_output[to_name] = frame_output.pop(from_name)
                 else:
                     element.process_frame(context, **inputs)
                     # TODO: Pipeline stream needs to "pause" waiting for result
