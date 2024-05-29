@@ -103,6 +103,8 @@ class PE_AudioWriteFile(PipelineElement):
 
 # --------------------------------------------------------------------------- #
 # CoqUI produces audio as Python list, sampled at 22,050 Hz
+#
+# CoqUI TTS: version 0.22.0  VRAM size: 594 Mb
 
 COQUI_MODEL_NAME = "tts_models/en/vctk/vits"  # TTS().list_models()[0]
 COQUI_SPEAKER_ID = "p364"                     # British, female
