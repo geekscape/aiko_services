@@ -8,9 +8,8 @@ __version__ = "0"
 
 from .context import (
     Context, Interface, ServiceProtocolInterface, ContextService,
-    ContextPipelineElement, ContextPipeline, ContextStream,
-    service_args, actor_args,
-    pipeline_element_args, pipeline_args, stream_args
+    ContextPipelineElement, ContextPipeline,
+    service_args, actor_args, pipeline_element_args, pipeline_args
 )
 
 from .component import compose_class, compose_instance

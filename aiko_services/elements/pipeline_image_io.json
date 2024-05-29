@@ -1,0 +1,54 @@
+{
+  "version": 0,
+  "name":    "p_image_io",
+  "runtime": "python",
+
+  "#": ["(PE_GenerateNumbers)"],
+  "graph": ["(ImageRead0 ImageRead1)"],
+
+  "parameters": {
+    "width":  640,
+    "height": 480
+  },
+
+  "elements": [
+    { "name":   "PE_GenerateNumbers",
+      "parameters": {
+          "test": 0
+      },
+      "input":  [{ "name": "number", "type": "int" }],
+      "output": [{ "name": "number", "type": "int" }],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.image_io"}
+      }
+    },
+    { "name":   "ImageRead0",
+      "parameters": {
+          "_stream_required": true,
+          "path": "z_00.jpeg"
+      },
+      "input":  [{ "name": "path", "type": "str" }],
+      "output": [{ "name": "image", "type": "image" }],
+      "deploy": {
+        "local": {
+          "class_name": "ImageReadFile",
+          "module": "aiko_services.elements.image_io"
+        }
+      }
+    },
+    { "name":   "ImageRead1",
+      "parameters": {
+          "_stream_required": true,
+          "path": "z_01.jpeg"
+      },
+      "input":  [{ "name": "path", "type": "str" }],
+      "output": [{ "name": "image", "type": "image" }],
+      "deploy": {
+        "local": {
+          "class_name": "ImageReadFile",
+          "module": "aiko_services.elements.image_io"
+        }
+      }
+    }
+  ]
+}

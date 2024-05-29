@@ -236,6 +236,8 @@ class PipelineGraph(Graph):
 
             if element_name not in self._head_nodes:
                 predecessors = node.predecessors
+                if len(predecessors) == 0:  # Don't worry about graph head nodes
+                    continue
                 inputs, _ = self.validate_inputs(
                                 element_inputs, predecessors, strict)
                 for input in inputs:
@@ -263,7 +265,7 @@ class PipelineGraph(Graph):
 # PipelineElement: service_level_agreement: low_latency, etc
 
 @dataclass
-class FrameContext:  # TODO: Unused: Change to "Stream" and replace "context"
+class FrameStream:  # TODO: Use it or lose it !
     stream_id: int
     frame_id: int
 
@@ -272,7 +274,7 @@ class PipelineElement(Actor):
         "aiko_services.pipeline.PipelineElementImpl")
 
     @abstractmethod
-    def create_frame(self, context, swag):
+    def create_frame(self, stream, swag):
         pass
 
     @abstractmethod
@@ -280,7 +282,11 @@ class PipelineElement(Actor):
         pass
 
     @abstractmethod
-    def process_frame(self, context, **kwargs) -> Tuple[bool, Any]:
+    def get_stream(self):
+        pass
+
+    @abstractmethod
+    def process_frame(self, stream, **kwargs) -> Tuple[bool, Any]:
         """
         Returns a tuple of (success, output) where "success" indicates
         success or failure of processing the frame
@@ -288,11 +294,11 @@ class PipelineElement(Actor):
         pass
 
     @abstractmethod
-    def start_stream(self, context, stream_id):
+    def start_stream(self, stream, stream_id):
         pass
 
     @abstractmethod
-    def stop_stream(self, context, stream_id):
+    def stop_stream(self, stream, stream_id):
         pass
 
 class PipelineElementImpl(PipelineElement):
@@ -310,17 +316,35 @@ class PipelineElementImpl(PipelineElement):
     # TODO: Fix Aiko Dashboard / EC_Producer incorrectly updates this approach
     #   self.share["parameters"] = self.definition.parameters  # TODO
 
-    def create_frame(self, context, swag):
-        self.pipeline.create_frame(context, swag)
+    def create_frame(self, stream, swag):
+        self.pipeline.create_frame(stream, swag)
 
     def get_parameter(self, name, default=None, use_pipeline=True):
+    # TODO: During process_frame(), stream parameters should be updated
+    #       in self.share, just like PipelineDefinition parameters.
+    #       Note: Consider the performance implications when doing this !
+
         value = None
         found = False
-        if name in self.definition.parameters and name in self.share:
-            value = self.share[name]
+
+        element_parameter_name = f"{self.definition.name}.{name}"
+        stream_parameters = self.get_stream()["parameters"]
+
+        if element_parameter_name in stream_parameters:
+            value = stream_parameters[element_parameter_name]
             found = True
+        elif name in self.definition.parameters:
+            if name in self.share:
+                value = self.share[name]
+                found = True
+
+    # TODO: Should also allow Pipeline parameters to be updated
+
         if not found and use_pipeline and not self.is_pipeline:
-            if name in self.pipeline.definition.parameters:
+            if name in stream_parameters:
+                value = stream_parameters[name]
+                found = True
+            elif name in self.pipeline.definition.parameters:
                 if name in self.pipeline.share:
                     value = self.pipeline.share[name]
                     found = True
@@ -328,13 +352,16 @@ class PipelineElementImpl(PipelineElement):
             value = default  # Note: "found" is deliberately left as False
         return value, found
 
-    def _id(self, context):
-        return f"{self.name}<{context['stream_id']}:{context['frame_id']}>"
+    def get_stream(self):
+        return self.pipeline.get_stream()
 
-    def start_stream(self, context, stream_id):
+    def _id(self, stream):
+        return f"{self.name}<{stream['stream_id']}:{stream['frame_id']}>"
+
+    def start_stream(self, stream, stream_id):
         pass
 
-    def stop_stream(self, context, stream_id):
+    def stop_stream(self, stream, stream_id):
         pass
 
 class PipelineElementRemote(PipelineElement):
@@ -345,7 +372,7 @@ class PipelineElementRemoteAbsent(PipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
         self.share["lifecycle"] = "absent"
 
-    def process_frame(self, context, **kwargs) -> Tuple[bool, dict]:
+    def process_frame(self, stream, **kwargs) -> Tuple[bool, dict]:
         _LOGGER.error( "PipelineElement.process_frame(): "
                       f"{self.definition.name}: invoked when "
                        "remote Pipeline Actor hasn't been discovered")
@@ -356,7 +383,7 @@ class PipelineElementRemoteFound(PipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
         self.share["lifecycle"] = "ready"
 
-    def process_frame(self, context, **kwargs) -> Tuple[bool, dict]:
+    def process_frame(self, stream, **kwargs) -> Tuple[bool, dict]:
         _LOGGER.info("PipelineElementRemoteFound.process_frame(): "
                      "invoked after remote Pipeline Actor discovered")
         return True, {}
@@ -372,6 +399,10 @@ class Pipeline(PipelineElement):
 
     @abstractmethod
     def destroy_stream(self, stream_id):
+        pass
+
+    @abstractmethod
+    def set_parameter(self, stream_id, name, value):
         pass
 
 class PipelineImpl(Pipeline):
@@ -391,6 +422,7 @@ class PipelineImpl(Pipeline):
         self.services_cache = None
 
         self.share["definition_pathname"] = context.definition_pathname
+        self.stream = None
         self.stream_leases = {}
 
         self.pipeline_graph = self._create_pipeline(context.definition)
@@ -412,8 +444,8 @@ class PipelineImpl(Pipeline):
         _LOGGER.error(complete_diagnostic)
         raise SystemExit(complete_diagnostic)
 
-    def create_frame(self, context, swag):
-        self._post_message(ActorTopic.IN, "process_frame", [context, swag])
+    def create_frame(self, stream, swag):
+        self._post_message(ActorTopic.IN, "process_frame", [stream, swag])
 
     def _add_node_properties(self, node_name, properties, predecessor_name):
         definition = self.definition
@@ -438,7 +470,7 @@ class PipelineImpl(Pipeline):
         node_heads, node_successors = Graph.traverse(
             definition.graph, self._add_node_properties)
         pipeline_graph = PipelineGraph(node_heads)
-        self.parameters = definition.parameters
+    #   self.parameters = definition.parameters  # TODO: Use it or lose it !
 
         for pipeline_element_definition in definition.elements:
             element_instance = None
@@ -491,6 +523,9 @@ class PipelineImpl(Pipeline):
 
         pipeline_graph.validate(definition)
         return pipeline_graph
+
+    def get_stream(self):
+        return self.stream
 
     def _load_element_class(self,
         module_descriptor, element_name, header):
@@ -620,27 +655,28 @@ class PipelineImpl(Pipeline):
             print(f"Pipeline update: --> {element_name} proxy")
 
                                    # SWAG: Stuff We All Get 😅
-    def process_frame(self, context, swag) -> Tuple[bool, None]:
-        if "stream_id" not in context:    # Default stream_id
-            context["stream_id"] = 0
-        if "frame_id" not in context:     # Default frame_id
-            context["frame_id"] = 0
+    def process_frame(self, stream, swag) -> Tuple[bool, None]:
+        if "stream_id" not in stream:     # Default stream_id
+            stream["stream_id"] = 0
+        if "frame_id" not in stream:      # Default frame_id
+            stream["frame_id"] = 0
         swag = swag if len(swag) else {}  # Default swag
+        self.stream = stream
 
-        # Use existing stream content and update with process_frame(context)
-        if context["stream_id"] in self.stream_leases:
-            stream_lease = self.stream_leases[context["stream_id"]]
+        # Individual Stream data is stored in the "Lease.context"
+        if stream["stream_id"] in self.stream_leases:
+            stream_lease = self.stream_leases[stream["stream_id"]]
             stream_lease.extend()
-            stream_lease.context.update(context)
-            context = stream_lease.context
+            stream_lease.context.update(stream)  # process_frame(stream) data
+            self.stream = stream_lease.context
 
-     #  _LOGGER.debug(f"Process frame: {self._id(context)}, swag: {swag}")
+     #  _LOGGER.debug(f"Process frame: {self._id(stream)}, swag: {swag}")
 
-        if "metrics" in context:
-            metrics = context["metrics"]
+        if "metrics" in stream:
+            metrics = stream["metrics"]
         else:
             metrics = {}
-            context["metrics"] = metrics
+            stream["metrics"] = metrics
 
         metrics["time_pipeline_start"] = time.time()
         metrics_elements = metrics["pipeline_elements"] = {}
@@ -682,7 +718,7 @@ class PipelineImpl(Pipeline):
                 # TODO: "ServiceRemoteProxy" isn't set anywhere ?!?
                 if element_name != "ServiceRemoteProxy":
                     okay, frame_output = element.process_frame(
-                        context, **inputs)
+                        stream, **inputs)
 
                     if element_name in self.definition.mapping_fan_out:
                         fan_out = self.definition.mapping_fan_out[element_name]
@@ -691,7 +727,7 @@ class PipelineImpl(Pipeline):
                             to_name = f"{out_element}.{to_name}"
                             frame_output[to_name] = frame_output.pop(from_name)
                 else:
-                    element.process_frame(context, **inputs)
+                    element.process_frame(stream, **inputs)
                     # TODO: Pipeline stream needs to "pause" waiting for result
             except Exception as exception:
                 self._error(header, traceback.format_exc())
@@ -710,6 +746,8 @@ class PipelineImpl(Pipeline):
                     "Pipeline stopped")
 
             swag = {**swag, **frame_output}  # TODO: Consider all failure modes
+
+        self.stream = None
 
         # TODO: May need to return the result to a parent Pipeline
         return True, swag
@@ -731,22 +769,30 @@ class PipelineImpl(Pipeline):
                 "stream_id": stream_id
             }
             self.stream_leases[stream_id] = stream_lease
+            self.stream = stream_lease.context
 
         # FIX: Handle Exceptions and "return False, ..."
             for node in self.pipeline_graph:
-                node.element.start_stream(stream_lease.context, stream_id)
+                node.element.start_stream(self.stream, stream_id)
+            self.stream = None
 
     def destroy_stream(self, stream_id):
         if stream_id in self.stream_leases:
             stream_lease = self.stream_leases[stream_id]
             del self.stream_leases[stream_id]
-            context = stream_lease.context
-            frame_id = context["frame_id"]
-            _LOGGER.info(f"Pipeline destroy stream: {self._id(context)}")
+            self.stream = stream_lease.context
+            _LOGGER.info(f"Pipeline destroy stream: {self._id(self.stream)}")
 
         # FIX: Handle Exceptions and "return False, ..."
             for node in self.pipeline_graph:
-                node.element.stop_stream(context, stream_id)
+                node.element.stop_stream(self.stream, stream_id)
+            self.stream = None
+
+    def set_parameter(self, stream_id, name, value):
+        if stream_id in self.stream_leases:
+            stream_lease = self.stream_leases[stream_id]
+            parameters = stream_lease.context["parameters"]
+            parameters[name] = value
 
 # --------------------------------------------------------------------------- #
 
@@ -912,14 +958,14 @@ def create(
 
     if stream_id is not None:
         pipeline.create_stream(stream_id, dict(stream_parameters))
-        context = pipeline.stream_leases[stream_id].context
+        stream = pipeline.stream_leases[stream_id].context
     else:
-        context = { "frame_id": frame_id, "parameters": {}, "stream_id": 0 }
+        stream = { "frame_id": frame_id, "parameters": {}, "stream_id": 0 }
 
     if frame_data is not None:
-        function_name, parameters = parse(f"(process_frame {frame_data})")
-        if len(parameters):
-            pipeline.create_frame(context, parameters[0])
+        function_name, arguments = parse(f"(process_frame {frame_data})")
+        if len(arguments):
+            pipeline.create_frame(stream, arguments[0])
         else:
             raise SystemExit(
                 f"Error: Frame data must be provided")
