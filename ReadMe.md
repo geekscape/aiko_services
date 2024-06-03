@@ -13,7 +13,7 @@ python3 -m venv venv             # Once only
 source venv/bin/activate         # Each terminal session
 pip install -U pip hatch         # Install latest pip and hatch
 hatch shell                      # Open a local shell with the dependances installed
-hatch run test                   # Run local tests
+hatch test                       # Run local tests
 ```
 
 Alternative ... # without Hatch
