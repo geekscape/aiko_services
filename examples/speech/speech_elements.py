@@ -39,10 +39,20 @@ _LOGGER = aiko.logger(__name__)
 AUDIO_CHANNELS = 1  # 1 or 2 channels
 
 # --------------------------------------------------------------------------- #
+
+class PE_LLM(PipelineElement):
+    def __init__(self, context):
+        context.set_protocol("llm:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, context, text) -> Tuple[bool, dict]:
+        return True, {"text": text}
+
+# --------------------------------------------------------------------------- #
 # TODO: Turn some of these literals into Pipeline parameters
 
-AUDIO_CHUNK_DURATION = 3.0   # audio chunk duration in seconds
-AUDIO_SAMPLE_DURATION = 3.0  # audio sample size to process
+AUDIO_CHUNK_DURATION = 5.0   # audio chunk duration in seconds
+AUDIO_SAMPLE_DURATION = 5.0  # audio sample size to process
 AUDIO_SAMPLE_RATE = 16000    # or 44100 Hz
 
 AUDIO_CACHE_SIZE = int(AUDIO_SAMPLE_DURATION / AUDIO_CHUNK_DURATION)
@@ -93,6 +103,8 @@ class PE_AudioWriteFile(PipelineElement):
 
 # --------------------------------------------------------------------------- #
 # CoqUI produces audio as Python list, sampled at 22,050 Hz
+#
+# CoqUI TTS: version 0.22.0  VRAM size: 594 Mb
 
 COQUI_MODEL_NAME = "tts_models/en/vctk/vits"  # TTS().list_models()[0]
 COQUI_SPEAKER_ID = "p364"                     # British, female
@@ -114,7 +126,7 @@ if COQUI_TTS_LOADED:
             implementation = context.get_implementation("PipelineElement")
             implementation.__init__(self, context)
 
-            self._ml_model = TTS(COQUI_MODEL_NAME)
+            self._ml_model = TTS(COQUI_MODEL_NAME, gpu=True)
             _LOGGER.info(f"PE_COQUI_TTS: ML model loaded: {COQUI_MODEL_NAME}")
 
             self.ec_producer.update("speech", "<silence>")
@@ -123,7 +135,7 @@ if COQUI_TTS_LOADED:
         def process_frame(self, context, text) -> Tuple[bool, dict]:
             frame_id = self.share["frame_id"] + 1
             self.ec_producer.update("frame_id", frame_id)
-            if text:
+            if text != "<silence>":
                 audio = self._ml_model.tts(text, speaker=COQUI_SPEAKER_ID)
                 text = text.replace(" ", " ")  # Unicode U00A0 (NBSP)
             else:
@@ -175,9 +187,9 @@ CUDA_DEVICE = "cuda"
 # WhisperX: version 3.1.2           Parameters    VRAM size  Relative speed
 # WHISPERX_MODEL_SIZE = "tiny"    #    39 M         442 Mb   32x
 # WHISPERX_MODEL_SIZE = "base"    #    74 M         506 Mb   16x
-WHISPERX_MODEL_SIZE = "small"     #   244 M         890 Mb    6x
+# WHISPERX_MODEL_SIZE = "small"   #   244 M         890 Mb    6x
 # WHISPERX_MODEL_SIZE = "medium"  #   769 M       1,914 Mb    2x
-# WHISPERX_MODEL_SIZE = "large"   # 1,550 M       3,418 Mb    1x
+WHISPERX_MODEL_SIZE = "large"     # 1,550 M       3,418 Mb    1x
 
 WHISPERX_LOADED = False  # whisperX Speech-To-Text (STT)
 try:
@@ -224,7 +236,7 @@ if WHISPERX_LOADED:
                 _LOGGER.debug(f"PE_WhisperX[{frame_id}] Time: {time_used:0.3f}")
 
             text = ""
-            reply = ""
+            reply = "<silence>"
             if len(prediction["segments"]):
                 text = prediction["segments"][0]["text"].strip().lower()
                 if len(text) and  \
@@ -243,7 +255,7 @@ if WHISPERX_LOADED:
 
                     reply = text
                 else:
-                    reply = ""
+                    reply = "<silence>"
 
             if text == "terminate":
                 raise SystemExit()

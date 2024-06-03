@@ -21,9 +21,7 @@
 #
 # To Do
 # ~~~~~
-# - Consider ContextStream data fields, since a Stream isn't a Service
-#
-# - Provide get_parameter() (using existing code) ?
+# - Provide get_parameter() and set_parameter() (using existing code) ?
 #
 # - Use "__file__" instead of "__name__" and ...
 #   - Provide "__file__" --> "__name__" function to avoid "__main__"
@@ -42,9 +40,8 @@ from typing import Dict, List
 
 __all__ = {
     "Context", "Interface", "ServiceProtocolInterface", "ContextService",
-    "ContextPipelineElement", "ContextPipeline", "ContextStream",
-    "service_args", "actor_args",
-    "pipeline_element_args", "pipeline_args", "stream_args"
+    "ContextPipelineElement", "ContextPipeline"
+    "service_args", "actor_args", "pipeline_element_args", "pipeline_args"
 }
 
 DEFAULT_PARAMETERS = {}
@@ -156,28 +153,6 @@ class ContextPipeline(ContextPipelineElement):
     def get_definition_pathname(self) -> str:
         return self.definition_pathname
 
-@dataclass
-class ContextStream(ContextPipeline):
-    stream_id: int = DEFAULT_STREAM_ID
-    frame_id: int = DEFAULT_FRAME_ID
-
-    def __post_init__(self):
-        super().__post_init__()
-        if self.stream_id is None:
-            self.stream_id = DEFAULT_STREAM_ID
-        if not isinstance(self.stream_id, int):
-            raise ValueError(f"Stream id must be an integer: {self.stream_id}")
-        if self.frame_id is None:
-            self.frame_id = DEFAULT_FRAME_ID
-        if not isinstance(self.frame_id, int):
-            raise ValueError(f"Frame id must be an integer: {self.frame_id}")
-
-    def get_stream_id(self) -> int:
-        return self.stream_id
-
-    def get_frame_id(self) -> int:
-        return self.frame_id
-
 def service_args(name, implementations=None,
     parameters=None, protocol=None, tags=None, transport=None):
 
@@ -208,13 +183,3 @@ def pipeline_args(name, implementations=None,
         ContextPipeline(name, implementations,
             parameters, protocol, tags, transport,
             definition, pipeline, definition_pathname)}
-
-def stream_args(name, implementations=None,
-    parameters=None, protocol=None, tags=None, transport=None,
-    definition=None, pipeline=None, definition_pathname=None,
-    stream_id=DEFAULT_STREAM_ID, frame_id=DEFAULT_FRAME_ID):
-
-    return {"context":
-        ContextStream(name, implementations,
-            parameters, protocol, tags, transport,
-            definition, pipeline, definition_pathname, stream_id, frame_id)}

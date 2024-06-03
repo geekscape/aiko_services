@@ -1,86 +1,150 @@
+# Usage
+# ~~~~~
+# cd aiko_services/elements
+# aiko_pipeline create pipeline_image_io.json --stream_id 1  \
+#   --stream_parameters width 320 -sp ImageReadFile.path image.jpeg
+#
 # To Do
 # ~~~~~
-# - Update to latest Pipeline API
+# - PE_Metrics: Consider what to measure ?
+#   choices of data type to transfer via function parameters
 
-from aiko_services import *
-
+import copy
+from threading import Thread
+import time
+from typing import Tuple
 import numpy as np
 from pathlib import Path
 from PIL import Image
 
-__all__ = [
-    "ImageAnnotate1", "ImageAnnotate2", "ImageOverlay",
-    "ImageReadFile", "ImageResize", "ImageWriteFile"
-]
+from aiko_services import aiko, PipelineElement, ContextPipelineElement
 
+_LOGGER = aiko.logger(__name__)
 
-class ImageAnnotate1(StreamElement):
-    def stream_frame_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"stream_frame_handler(): stream_id: {stream_id}, frame_id: {frame_id}")
-        image = swag[self.predecessor]["image"]
-        return True, {"image": image}
+# --------------------------------------------------------------------------- #
+# TODO: Replace thread with "event.add_timer_handler()"
 
-class ImageAnnotate2(StreamElement):
-    def stream_frame_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"stream_frame_handler(): stream_id: {stream_id}, frame_id: {frame_id}")
-        image = swag[self.predecessor]["image"]
-        return True, {"image": image}
+class PE_GenerateNumbers(PipelineElement):
+    def __init__(self, context):
+        context.get_implementation("PipelineElement").__init__(self, context)
 
-class ImageOverlay(StreamElement):
-    def stream_frame_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"stream_frame_handler(): stream_id: {stream_id}, frame_id: {frame_id}")
-        image = swag[self.predecessor]["image"]
-        return True, {"image": image}
+    def start_stream(self, stream, stream_id):
+        stream["terminate"] = False
+        Thread(target=self._run, args=(stream, )).start()
 
-class ImageReadFile(StreamElement):
-    def stream_start_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"stream_start_handler(): stream_id: {stream_id}")
-        self.image_pathname = self.parameters["image_pathname"]
-        image_directory = Path(self.image_pathname).parent
-        if not image_directory.exists:
-            self.logger.error(f"Couldn't find directory: {image_directory}")
-            return False, None
-        return True, None
+    def _run(self, stream):
+        frame_id = 0
+        while not stream["terminate"]:
+            frame_stream = copy.deepcopy(stream)
+            frame_stream["frame_id"] = frame_id
+            self.create_frame(frame_stream, {"number": frame_id})
+            frame_id += 1
+            time.sleep(1.0)
 
-    def stream_frame_handler(self, stream_id, frame_id, swag):
-        image_path = self.image_pathname.format(frame_id)
+    def process_frame(self, stream, number) -> Tuple[bool, dict]:
+        _LOGGER.info(f"{self._id(stream)}: in/out number: {number}")
+        return True, {"number": number}
+
+    def stop_stream(self, stream, stream_id):
+        stream["terminate"] = True
+
+# --------------------------------------------------------------------------- #
+
+class PE_0(PipelineElement):
+    def __init__(self, context):
+        context.set_protocol("increment:0")  # data_source:0
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, stream, a) -> Tuple[bool, dict]:
+        b = int(a) + 1
+        _LOGGER.info(f"PE_0: {self._id(stream)}, in a: {a}, out b: {b}")
+        return True, {"b": b}
+
+# --------------------------------------------------------------------------- #
+# To Do
+# ~~~~~
+# * aiko_pipeline create -s 1 -sp path --> load the stream parameter data
+#   - Overriding the PipelineDefinition
+#   - Same for HL Serving Tasks and HL Live
+#
+# *#1 PE.set_parameter(): parameters --> self.share[] ?
+#
+# * Consider process_frame() updating stream parameters --> self.share[]
+#
+# - If the DataSource needs internal PE.create_frame() --> pipeline.py
+#   - Each DataSource developer shouldn't have to do this
+#   - Work for both single Image and Images / Video
+# - Refactor common DataSource PipelineElement code into the framework
+#   - DataSource which already generates frames, e.g network camera
+#   - DataSource which needs frame generation. e.g file on disk
+#   - Implement frame window, which has a maximum size to minimise frames
+#   - Implement frame "push back" so subsequent PEs can manage frame flow
+#
+# * If DataSource has "stream_required" ...
+#   - Each DataSource developer shouldn't have to do this
+#
+# * Replace "raise SystemExit" with "return False, {}"
+#
+# * PipelineElement.process_frame() returns STATE, not boolean
+#
+# * pipeline.py (and everywhere) change from "context" to "stream"
+#
+# - Try to remove the need to write PE.__init__(...) in every PE
+#
+# - Check HL Serving Task and HL Live
+#   - process_datasources(stream_id, parameters, [data_sources])
+#     - data_sources: URL and MediaType
+#
+# - aiko_pipeline argument options for AIKO_LOG_LEVEL / AIKO_LOG_MQTT
+#   - AIKO_LOG_MQTT --> AIKO_LOG=mqtt,console,...
+#
+# - Return Pipeline result back to HL Serving Task
+#
+# - Read / Write, to/from File, to/from Stream
+#
+# - URLs
+#   - file://, mqtt://, hl:// (pre-signed URL), s3://
+#   - web_camera://, rtsp://, webrt://
+#   * Haplomic: Shared memory, e.g shm://
+#
+# - MediaTypes
+#   - image/raw|jpeg|png, video/h.264, audio/*, text/raw, pointcloud/2d|3d
+#   * Haplomic: image/raw
+#
+# ---------------------------------------------------------------------- #
+
+class ImageReadFile(PipelineElement):
+
+    def __init__(self, context: ContextPipelineElement):
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def start_stream(self, stream, stream_id):
+        width, found = self.get_parameter("width")  # TODO: Just testing
+
+        path, found = self.get_parameter("path")
+        if not found:
+            raise SystemExit('Must provide stream "path" parameter')
+
+        _LOGGER.info(f"{self._id(stream)}: image path: {path}")
+
+        if not Path(path).exists():
+            raise SystemExit(f"{path} does not exist")
+
+    # TODO: Move this into the Pipeline
+        frame_stream = copy.deepcopy(stream)
+        frame_stream["frame_id"] = 0
+        self.create_frame(frame_stream, {"path": path})
+
+    def process_frame(self, stream, path) -> Tuple[bool, dict]:
+        if stream["stream_id"] == 0:  # TODO: "stream_required"
+            raise SystemExit("Must create a stream")
+
         try:
-            pil_image = Image.open(image_path)
-            image = np.asarray(pil_image, dtype=np.uint8)
-        except Exception:
-            self.logger.debug("End of images")
-            return False, None
+            image = Image.open(path)
+        except Exception as exception:
+            raise SystemExit(f"Error loading image: {exception}")
 
-        self.logger.debug(f"stream_frame_handler(): stream_id: {stream_id}, frame_id: {frame_id}")
-        if frame_id % 10 == 0:
-            print(f"Frame Id: {frame_id}", end="\r")
+        _LOGGER.info(f"image shape: {image.size}")
         return True, {"image": image}
 
-class ImageResize(StreamElement):
-    def stream_start_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"stream_start_handler(): stream_id: {stream_id}")
-        self.new_height = self.parameters["new_height"]
-        self.new_width = self.parameters["new_width"]
-        return True, None
-
-    def stream_frame_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"stream_frame_handler(): stream_id: {stream_id}, frame_id: {frame_id}")
-        pil_image = Image.fromarray(swag[self.predecessor]["image"])
-        pil_image = pil_image.resize((self.new_width, self.new_height))
-        image = np.asarray(pil_image, dtype=np.uint8)
-        return True, {"image": image}
-
-class ImageWriteFile(StreamElement):
-    def stream_start_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"stream_start_handler(): stream_id: {stream_id}")
-        self.image_pathname = self.parameters["image_pathname"]
-# TODO: Error handling
-        Path(self.image_pathname).parent.mkdir(exist_ok=True, parents=True)
-        return True, None
-
-    def stream_frame_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"stream_frame_handler(): stream_id: {stream_id}, frame_id: {frame_id}")
-        pil_image = Image.fromarray(swag[self.predecessor]["image"])
-# TODO: Error handling: 1) format image, 2) save image
-        pil_image.save(self.image_pathname.format(frame_id))
-        return True, None
+# ---------------------------------------------------------------------- #
