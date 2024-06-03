@@ -11,13 +11,20 @@ git clone https://github.com/geekscape/aiko_services.git
 cd aiko_services
 python3 -m venv venv             # Once only
 source venv/bin/activate         # Each terminal session
-python setup.py develop          # Once only (development mode)
+pip install -U pip hatch         # Install latest pip and hatch
+hatch shell                      # Open a local shell with the dependances installed
+hatch test                       # Run local tests
 ```
 
-Alternative ...
+Alternative ... # without Hatch
 ```
-poetry install [--extras opencv]  # Once only
-poetry shell                      # Each terminal session
+pip install -e .
+```
+
+Build Package
+
+```
+hatch build
 ```
 
 # Examples
