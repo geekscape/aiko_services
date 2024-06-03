@@ -1,20 +1,20 @@
 [project]
 name = "aiko_services"
-version = "0.3"
+version = "0.4"
 readme = "ReadMe.md"
 description = "Distributed embedded service framework"
-requires-python = ">=3.10.0,<4.0"
+requires-python = ">=3.9.0,<=3.12.3"
 
 licence-files = { paths = ["LICENCE"]}
 
 keywords = [
- "ToDo"
+ "TO_BE_COMPLETED"
 ]
 
 
 # See: https://pypi.org/classifiers/
 classifiers = [
-    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: Unix",
     "Intended Audience :: Developers",
@@ -25,7 +25,6 @@ authors = [
 ]
 
 dependencies = [
-  "python~=3.10.0",
   "asciimatics~=1.14.0",
   "avro~=1.11.1",
   "avro-validator~=1.2.1",
