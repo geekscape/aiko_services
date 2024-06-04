@@ -8,9 +8,8 @@ requires-python = ">=3.9.0,<=3.12.3"
 licence-files = { paths = ["LICENCE"]}
 
 keywords = [
- "TO_BE_COMPLETED"
+    "ai", "distributed", "embedded", "framework", "media", "robotics"
 ]
-
 
 # See: https://pypi.org/classifiers/
 classifiers = [
@@ -37,6 +36,10 @@ dependencies = [
   "transitions~=0.9.0",
   "wrapt~=1.12.1",
 ]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+exclude = ["aiko_sercives.archive*"]
 
 [project.optional-dependencies]
 opencv-python = ["opencv-python~=4.4.0"]
