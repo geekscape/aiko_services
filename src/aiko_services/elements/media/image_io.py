@@ -17,12 +17,14 @@ import numpy as np
 from pathlib import Path
 from PIL import Image
 
-import aiko_services as aiko
+from aiko_services import aiko, PipelineElement, ContextPipelineElement
+
+_LOGGER = aiko.logger(__name__)
 
 # --------------------------------------------------------------------------- #
 # TODO: Replace thread with "event.add_timer_handler()"
 
-class PE_GenerateNumbers(aiko.PipelineElement):
+class PE_GenerateNumbers(PipelineElement):
     def __init__(self, context):
         context.get_implementation("PipelineElement").__init__(self, context)
 
@@ -40,7 +42,7 @@ class PE_GenerateNumbers(aiko.PipelineElement):
             time.sleep(1.0)
 
     def process_frame(self, stream, number) -> Tuple[bool, dict]:
-        self.logger.info(f"{self._id(stream)}: in/out number: {number}")
+        _LOGGER.info(f"{self._id(stream)}: in/out number: {number}")
         return True, {"number": number}
 
     def stop_stream(self, stream, stream_id):
@@ -48,14 +50,14 @@ class PE_GenerateNumbers(aiko.PipelineElement):
 
 # --------------------------------------------------------------------------- #
 
-class PE_0(aiko.PipelineElement):
+class PE_0(PipelineElement):
     def __init__(self, context):
         context.set_protocol("increment:0")  # data_source:0
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream, a) -> Tuple[bool, dict]:
         b = int(a) + 1
-        self.logger.info(f"PE_0: {self._id(stream)}, in a: {a}, out b: {b}")
+        _LOGGER.info(f"PE_0: {self._id(stream)}, in a: {a}, out b: {b}")
         return True, {"b": b}
 
 # --------------------------------------------------------------------------- #
@@ -111,10 +113,11 @@ class PE_0(aiko.PipelineElement):
 #
 # ---------------------------------------------------------------------- #
 
-class ImageReadFile(aiko.PipelineElement):
+class ImageReadFile(PipelineElement):
 
-    def __init__(self, context: aiko.ContextPipelineElement):
+    def __init__(self, context: ContextPipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
+        test = self.get_parameter("test", 0)
 
     def start_stream(self, stream, stream_id):
         width, found = self.get_parameter("width")  # TODO: Just testing
@@ -123,7 +126,7 @@ class ImageReadFile(aiko.PipelineElement):
         if not found:
             raise SystemExit('Must provide stream "path" parameter')
 
-        self.logger.info(f"{self._id(stream)}: image path: {path}")
+        _LOGGER.info(f"{self._id(stream)}: image path: {path}")
 
         if not Path(path).exists():
             raise SystemExit(f"{path} does not exist")
@@ -142,7 +145,7 @@ class ImageReadFile(aiko.PipelineElement):
         except Exception as exception:
             raise SystemExit(f"Error loading image: {exception}")
 
-        self.logger.info(f"image shape: {image.size}")
+        _LOGGER.info(f"image shape: {image.size}")
         return True, {"image": image}
 
 # ---------------------------------------------------------------------- #
