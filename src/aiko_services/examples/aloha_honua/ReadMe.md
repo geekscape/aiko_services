@@ -26,7 +26,7 @@ The AlohaHonua [Actor](https://en.wikipedia.org/wiki/Actor_model) below is a dis
 
 *Source code: [aloha\_honua\_0.py](aloha_honua_0.py)*
 
-    from aiko_services import *
+    from aiko_services.main import *
 
     class AlohaHonua(Actor):
         def __init__(self, context):
@@ -88,7 +88,7 @@ The AlohaHonua Actor example, Core Services and Aiko Dashboard can be stopped, a
 
 Start by importing the Aiko Services [module](https://www.w3schools.com/python/python_modules.asp) for the AlohaHonua Actor.
 
-    from aiko_services import *
+    from aiko_services.main import *
 
 The AlohaHonua class is defined as a Python class that inherits from the Aiko Services' Actor class.  The class constructor method `__init__()` is required, but don't worry about its implementation for the moment.  The `print()` statement shows the automagically generated MQTT topic path for communicating with this Actor instance and a target for publishing MQTT messages.
 

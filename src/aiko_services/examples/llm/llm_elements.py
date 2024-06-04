@@ -32,7 +32,7 @@ from typing import Tuple
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-from aiko_services import *
+from aiko_services.main import *
 
 LLM_MODEL_NAME = "llama3:latest"  # llava-llama3:8b-v1.1-fp16
 LLM_TEMPERATURE = 0.0

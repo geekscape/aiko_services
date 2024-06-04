@@ -13,7 +13,7 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # AIKO_LOG_LEVEL=INFO python                      # MQTT logging (default)
 # AIKO_LOG_LEVEL=INFO AIKO_LOG_MQTT=false python  # Console logging
-#   from aiko_services import *
+#   from aiko_services.main import *
 #   _LOGGER = aiko.logger(__name__)
 #   _LOGGER.info("Informative message")
 #   aiko.process.run(True)  # Required for MQTT based logging
@@ -21,14 +21,14 @@
 # Direct usage: Standalone Logger
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # AIKO_LOG_LEVEL=DEBUG python  # AIKO_LOG_LEVEL=INFO (default)
-#   from aiko_services.utilities import get_logger
+#   from aiko_services.main.utilities import get_logger
 #   _LOGGER = get_logger(__name__)
 #   _LOGGER.debug("Diagnostic message")
 #
 # Usage: Change logging level on-the-fly using ECProducer
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# from aiko_services import *
-# from aiko_services.utilities import *
+# from aiko_services.main import *
+# from aiko_services.main.utilities import *
 # _LOGGER = aiko.logger(__name__)
 #
 # def ec_producer_change_handler(command, item_name, item_value):
@@ -65,7 +65,7 @@ import os
 import sys
 from typing import Any
 
-from aiko_services.utilities import *
+from aiko_services.main.utilities import *
 
 __all__ = [
     "DEBUG", "get_level_name", "get_logger", "LoggingHandlerMQTT", "print_error"
@@ -123,7 +123,7 @@ def print_error(*args, **kwargs):
 
 # -----------------------------------------------------------------------------
 
-from aiko_services.connection import ConnectionState
+from aiko_services.main.connection import ConnectionState
 
 class LoggingHandlerMQTT(logging.Handler):
     def __init__(self, aiko, topic, ring_buffer_size=_RING_BUFFER_SIZE):

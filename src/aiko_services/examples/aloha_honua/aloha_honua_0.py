@@ -15,7 +15,7 @@
 # ~~~~~
 # - None, yet !
 
-from aiko_services import *
+from aiko_services.main import *
 
 class AlohaHonua(Actor):
     def __init__(self, context):

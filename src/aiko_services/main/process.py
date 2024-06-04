@@ -8,7 +8,7 @@
 # def time_handler():
 #     print("timer_handler()")
 #
-# from aiko_services import *            # Invokes __init__.py
+# from aiko_services.main import *       # Invokes __init__.py
 # aiko.process = process_create()        # Invoked from __init__.py
 # event.add_timer_handler(handler, 1.0)
 # aiko.process.run()                     # Invoked by application code
@@ -58,9 +58,9 @@ import os
 import sys
 import traceback
 
-from aiko_services import *
-from aiko_services.message import *
-from aiko_services.utilities import *
+from aiko_services.main import *
+from aiko_services.main.message import *
+from aiko_services.main.utilities import *
 
 __all__ = ["aiko", "process_create"]
 

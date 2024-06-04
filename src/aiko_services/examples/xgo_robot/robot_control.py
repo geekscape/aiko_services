@@ -64,7 +64,7 @@ import zlib
 import torch
 from ultralytics import YOLO
 
-from aiko_services import *
+from aiko_services.main import *
 
 _VERSION = 0
 

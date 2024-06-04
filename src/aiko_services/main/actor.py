@@ -6,7 +6,7 @@
 # Example 1
 # ~~~~~~~~~
 # from abc import abstractmethod
-# from aiko_services import *
+# from aiko_services.main import *
 #
 # class ActorTest(Actor):
 #     Interface.default("ActorTest", "__main__.ActorTestImpl")
@@ -30,14 +30,14 @@
 #
 # Example 2
 # ~~~~~~~~~
-# from aiko_services import *
+# from aiko_services.main import *
 # actor_test = actor.ActorTest("ActorTest")
 # actor_test.initialize()
 # aiko.process.run()
 #
 # Example 3
 # ~~~~~~~~~
-# from aiko_services import *
+# from aiko_services.main import *
 # actor_test = actor.ActorTest("ActorTest")
 # actor_test_proxy = proxy.ProxyAllMethods(
 #    "ProxyTest", actor_test, Actor.proxy_post_message)
@@ -99,8 +99,8 @@ from abc import abstractmethod
 import os
 import traceback
 
-from aiko_services import *
-from aiko_services.utilities import *
+from aiko_services.main import *
+from aiko_services.main.utilities import *
 
 __all__ = ["Actor", "ActorImpl", "ActorTest", "ActorTestImpl", "ActorTopic"]
 
@@ -158,7 +158,7 @@ class ActorTopic:
         self.topic_name = topic_name
 
 class Actor(Service):
-    Interface.default("Actor", "aiko_services.actor.ActorImpl")
+    Interface.default("Actor", "aiko_services.main.actor.ActorImpl")
 
 #   @abstractmethod
 #   def run(self):  # TODO: Decide what methods are required to be an Actor
@@ -250,7 +250,7 @@ class ActorImpl(Actor):
         pass
 
 class ActorTest(Actor):  # TODO: Move into "../examples/"
-    Interface.default("ActorTest", "aiko_services.actor.ActorTestImpl")
+    Interface.default("ActorTest", "aiko_services.main.actor.ActorTestImpl")
 
     __test__ = False  # Stop PyTest from collecting and instantiating this class
 

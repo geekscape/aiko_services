@@ -1,6 +1,6 @@
 # Usage
 # ~~~~~
-# from aiko_services.utilities import *
+# from aiko_services.main.utilities import *
 #
 # with ContextManager({}) as context:
 #     print(context.aiko, context.message)

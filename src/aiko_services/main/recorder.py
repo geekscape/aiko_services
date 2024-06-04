@@ -25,8 +25,8 @@
 import click
 from collections import deque
 
-from aiko_services import *
-from aiko_services.utilities import *
+from aiko_services.main import *
+from aiko_services.main.utilities import *
 
 _VERSION = 0
 

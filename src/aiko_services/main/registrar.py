@@ -115,8 +115,8 @@ import click
 from collections import deque
 import time
 
-from aiko_services import *
-from aiko_services.utilities import *
+from aiko_services.main import *
+from aiko_services.main.utilities import *
 
 _VERSION = 2
 
@@ -190,7 +190,7 @@ class StateMachineModel():
 # --------------------------------------------------------------------------- #
 
 class Registrar(Service):
-    Interface.default("Registrar", "aiko_services.registrar.RegistrarImpl")
+    Interface.default("Registrar", "aiko_services.main.registrar.RegistrarImpl")
 
 class RegistrarImpl(Registrar):
     def __init__(self, context):

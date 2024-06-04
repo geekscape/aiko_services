@@ -1,6 +1,6 @@
 # Usage
 # ~~~~~
-# from aiko_services.utilities import *
+# from aiko_services.main.utilities import *
 # lock_test = Lock(f"{__name__}.test", aiko.logger(__name__))
 # lock_test.acquire("add_service()")
 ### Critial code

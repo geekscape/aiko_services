@@ -33,7 +33,7 @@ import time
 from subprocess import Popen
 from threading import Thread
 
-from aiko_services import *
+from aiko_services.main import *
 
 __all__ = ["ProcessManager"]
 

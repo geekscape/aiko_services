@@ -1,6 +1,6 @@
 from asciimatics.widgets import Layout, MultiColumnListBox, Widget
 
-from aiko_services import *
+from aiko_services.main import *
 
 __all__ = []
 

@@ -15,7 +15,7 @@
 #   mosquitto_sub -h $AIKO_MQTT_HOST -t $AIKO_NAMESPACE/DASHBOARD -v
 #
 # Debugging approach #2
-#   from aiko_services.utilities import *
+#   from aiko_services.main.utilities import *
 #   print_error("I've got a bad feeling about this !")
 #
 #   aiko_dashboard 1>/dev/null  # Debug messages only
@@ -139,8 +139,8 @@ from asciimatics.widgets import (
 )
 from asciimatics.widgets.utilities import THEMES
 
-from aiko_services import *
-from aiko_services.utilities import *
+from aiko_services.main import *
+from aiko_services.main.utilities import *
 
 __all__ = ["LogUI", "ServiceFrame"]
 

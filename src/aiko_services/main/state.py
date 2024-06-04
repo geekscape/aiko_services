@@ -10,8 +10,8 @@ import traceback
 from transitions import Machine
 from transitions.core import MachineError
 
-from aiko_services import *
-from aiko_services.utilities import *
+from aiko_services.main import *
+from aiko_services.main.utilities import *
 
 __all__ = ["StateMachine"]
 

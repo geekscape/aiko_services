@@ -109,9 +109,9 @@ import time
 import traceback
 from typing import Any, Dict, List, Tuple
 
-from aiko_services import *
-from aiko_services.transport import *
-from aiko_services.utilities import *
+from aiko_services.main import *
+from aiko_services.main.transport import *
+from aiko_services.main.utilities import *
 
 __all__ = [
     "Pipeline", "PipelineElement", "PipelineElementImpl", "PipelineImpl",
@@ -271,7 +271,7 @@ class FrameStream:  # TODO: Use it or lose it !
 
 class PipelineElement(Actor):
     Interface.default("PipelineElement",
-        "aiko_services.pipeline.PipelineElementImpl")
+        "aiko_services.main.pipeline.PipelineElementImpl")
 
     @abstractmethod
     def create_frame(self, stream, swag):
@@ -391,7 +391,7 @@ class PipelineElementRemoteFound(PipelineElement):
 # --------------------------------------------------------------------------- #
 
 class Pipeline(PipelineElement):
-    Interface.default("Pipeline", "aiko_services.pipeline.PipelineImpl")
+    Interface.default("Pipeline", "aiko_services.main.pipeline.PipelineImpl")
 
     @abstractmethod
     def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME):

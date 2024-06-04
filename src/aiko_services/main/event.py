@@ -67,7 +67,7 @@ import queue
 import time
 from typing import Any, Tuple
 
-from aiko_services.utilities import *
+from aiko_services.main.utilities import *
 
 __all__ = [
     "add_flatout_handler", "add_mailbox_handler",

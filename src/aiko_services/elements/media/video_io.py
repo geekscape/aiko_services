@@ -20,7 +20,7 @@ except ModuleNotFoundError:
 
 from pathlib import Path
 
-from aiko_services import *
+from aiko_services.main import *
 
 __all__ = ["VideoReadFile", "VideoShow", "VideoWriteFile"]
 

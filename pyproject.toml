@@ -52,10 +52,10 @@ dependencies = [
 # macosx = ["PyAudio~=0.2.13"]
 
 [project.scripts]
-# aiko = "aiko_services.cli:main"
-aiko_dashboard = "aiko_services.dashboard:main"
-aiko_pipeline = "aiko_services.pipeline:main"
-aiko_registrar = "aiko_services.registrar:main"
+# aiko = "aiko_services.main.cli:main"
+aiko_dashboard = "aiko_services.main.dashboard:main"
+aiko_pipeline = "aiko_services.main.pipeline:main"
+aiko_registrar = "aiko_services.main.registrar:main"
 
 [tool.hatch]
 [build-system]

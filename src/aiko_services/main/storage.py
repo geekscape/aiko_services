@@ -22,9 +22,9 @@ from abc import abstractmethod
 import click
 import sqlite3
 
-from aiko_services import *
-from aiko_services.transport import *
-from aiko_services.utilities import *
+from aiko_services.main import *
+from aiko_services.main.transport import *
+from aiko_services.main.utilities import *
 
 _VERSION = 0
 
@@ -37,7 +37,7 @@ _TOPIC_RESPONSE = f"{aiko.topic_out}/storage_response"
 # --------------------------------------------------------------------------- #
 
 class Storage(Actor):
-    Interface.default("Storage", "aiko_services.storage.StorageImpl")
+    Interface.default("Storage", "aiko_services.main.storage.StorageImpl")
 
     @abstractmethod
     def test_command(self, parameter):

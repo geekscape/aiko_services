@@ -1,6 +1,6 @@
 # Usage
 # ~~~~~
-# from aiko_services.utilities import *
+# from aiko_services.main.utilities import *
 # graph = Graph()
 # node_a = Node("a", None)
 # node_b = Node("b", None)

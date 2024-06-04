@@ -55,9 +55,9 @@ import os
 import time
 from typing import Dict, List
 
-from aiko_services import *
-from aiko_services.transport import *
-from aiko_services.utilities import *
+from aiko_services.main import *
+from aiko_services.main.transport import *
+from aiko_services.main.utilities import *
 
 CLIENT_SHELL_COMMAND = "./lifecycle.py"
 
@@ -97,7 +97,7 @@ class LifeCycleClientDetails:
 
 class LifeCycleManager(ServiceProtocolInterface):
     Interface.default("LifeCycleManager",
-        "aiko_services.lifecycle.LifeCycleManagerImpl")
+        "aiko_services.main.lifecycle.LifeCycleManagerImpl")
 
     @abstractmethod
     def lcm_create_client(self, parameters=None):
@@ -117,7 +117,7 @@ class LifeCycleManager(ServiceProtocolInterface):
 
 class LifeCycleManagerPrivate(Interface):
     Interface.default("LifeCycleManagerPrivate",
-        "aiko_services.lifecycle.LifeCycleManagerImpl")
+        "aiko_services.main.lifecycle.LifeCycleManagerImpl")
 
     @abstractmethod
     def _lcm_create_client(
@@ -291,7 +291,7 @@ class LifeCycleManagerImpl(LifeCycleManager, LifeCycleManagerPrivate):
 
 class LifeCycleManagerTest(Actor, LifeCycleManager):
     Interface.default("LifeCycleManagerTest",
-        "aiko_services.lifecycle.LifeCycleManagerTestImpl")
+        "aiko_services.main.lifecycle.LifeCycleManagerTestImpl")
 
 class LifeCycleManagerTestImpl(LifeCycleManagerTest):
     def __init__(self, context, client_count):
@@ -338,11 +338,11 @@ class LifeCycleManagerTestImpl(LifeCycleManagerTest):
 
 class LifeCycleClient(ServiceProtocolInterface):
     Interface.default("LifeCycleClient",
-        "aiko_services.lifecycle.LifeCycleClientImpl")
+        "aiko_services.main.lifecycle.LifeCycleClientImpl")
 
 class LifeCycleClientPrivate(Interface):
     Interface.default("LifeCycleClientPrivate",
-        "aiko_services.lifecycle.LifeCycleClientImpl")
+        "aiko_services.main.lifecycle.LifeCycleClientImpl")
 
     @abstractmethod
     def _lcc_get_lifecycle_manager_topic(self):
@@ -391,7 +391,7 @@ class LifeCycleClientImpl(LifeCycleClient, LifeCycleClientPrivate):
 
 class LifeCycleClientTest(Actor, LifeCycleClient):
     Interface.default("LifeCycleClientTest",
-        "aiko_services.lifecycle.LifeCycleClientTestImpl")
+        "aiko_services.main.lifecycle.LifeCycleClientTestImpl")
 
 class LifeCycleClientTestImpl(LifeCycleClientTest):
     def __init__(self, context, client_id, lifecycle_manager_topic):

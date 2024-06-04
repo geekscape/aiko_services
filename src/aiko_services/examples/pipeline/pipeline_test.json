@@ -14,7 +14,7 @@
       "input":  [{ "name": "number", "type": "int" }],
       "output": [{ "name": "number", "type": "int" }],
       "deploy": {
-        "local": { "module": "aiko_services.pipeline_elements" }
+        "local": { "module": "aiko_services.examples.pipeline.test_elements" }
       }
     }
   ]

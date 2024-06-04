@@ -1,6 +1,6 @@
 # Example
 # ~~~~~~~
-# from aiko_services.proxy import ProxyAllMethods, proxy_trace, Example
+# from aiko_services.main.proxy import ProxyAllMethods, proxy_trace, Example
 # example_proxy = ProxyAllMethods("Example", Example("v0"), proxy_trace)
 # example_proxy.function_0("value_0", argument_1="value_1")
 #
@@ -90,7 +90,7 @@ class Example:
 #         return proxy_object
 #     return new_function
 #
-#   from aiko_services.proxy import proxy, proxy_trace
+#   from aiko_services.main.proxy import proxy, proxy_trace
 #   @proxy
 #   class C:
 #       def f(self, argument_0):

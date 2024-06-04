@@ -21,8 +21,8 @@
 from abc import abstractmethod
 import click
 
-from aiko_services import *
-from aiko_services.transport import *
+from aiko_services.main import *
+from aiko_services.main.transport import *
 
 _VERSION = 0
 
@@ -35,7 +35,7 @@ _LOGGER = aiko.logger(__name__)
 
 class MQTTTest(TransportMQTT):
     Interface.default("MQTTTest",
-        "aiko_services.transport.test_mqtt.MQTTTestImpl")
+        "aiko_services.main.transport.test_mqtt.MQTTTestImpl")
 
     @abstractmethod
     def test(self, message):

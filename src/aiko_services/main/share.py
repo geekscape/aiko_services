@@ -64,8 +64,8 @@
 import click
 import os
 
-from aiko_services import *
-from aiko_services.utilities import *
+from aiko_services.main import *
+from aiko_services.main.utilities import *
 
 __all__ = [
     "ECConsumer", "PROTOCOL_EC_CONSUMER",

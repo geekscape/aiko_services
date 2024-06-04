@@ -27,9 +27,9 @@ import numpy as np
 from typing import Tuple
 import zlib
 
-from aiko_services import aiko, PipelineElement, ServiceFilter
-from aiko_services.transport import ActorDiscovery
-from aiko_services.utilities import get_namespace, parse_number
+from aiko_services.main import aiko, PipelineElement, ServiceFilter
+from aiko_services.main.transport import ActorDiscovery
+from aiko_services.main.utilities import get_namespace, parse_number
 
 __all__ = [
     "PE_AudioFilter", "PE_AudioResampler",

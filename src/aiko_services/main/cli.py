@@ -78,8 +78,8 @@ import sys
 import yaml
 import json
 
-from aiko_services import *
-from aiko_services.utilities import *
+from aiko_services.main import *
+from aiko_services.main.utilities import *
 
 __all__ = []
 

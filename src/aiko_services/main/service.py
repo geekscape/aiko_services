@@ -6,7 +6,7 @@
 # Example
 # ~~~~~~~
 # from abc import abstractmethod
-# from aiko_services import *
+# from aiko_services.main import *
 #
 # class ServiceTest(Service):
 #     Interface.default("ServiceTest", "__main__.ServiceTestImpl")
@@ -94,7 +94,7 @@
 from abc import abstractmethod
 import time
 
-from aiko_services import *
+from aiko_services.main import *
 
 __all__ = [
     "ServiceFields", "ServiceFilter", "ServiceProtocol",
@@ -492,7 +492,7 @@ class Services:
 # --------------------------------------------------------------------------- #
 
 class Service(ServiceProtocolInterface):
-    Interface.default("Service", "aiko_services.service.ServiceImpl")
+    Interface.default("Service", "aiko_services.main.service.ServiceImpl")
 
     @abstractmethod
     def add_message_handler(self, message_handler, topic, binary=False):

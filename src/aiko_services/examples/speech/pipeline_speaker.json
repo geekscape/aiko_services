@@ -12,14 +12,14 @@
       "input":  [{ "name": "audio", "type": "bytes" }],
       "output": [{ "name": "audio", "type": "bytes" }],
       "deploy": {
-        "local": { "module": "aiko_services.elements.audio_io" }
+        "local": { "module": "aiko_services.elements.media.audio_io" }
       }
     },
     { "name":   "PE_Speaker",
       "input":  [{ "name": "audio", "type": "bytes" }],
       "output": [{ "name": "audio", "type": "bytes" }],
       "deploy": {
-        "local": { "module": "aiko_services.elements.audio_io" }
+        "local": { "module": "aiko_services.elements.media.audio_io" }
       }
     }
   ]

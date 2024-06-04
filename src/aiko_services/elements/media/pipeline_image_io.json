@@ -19,7 +19,7 @@
       "input":  [{ "name": "number", "type": "int" }],
       "output": [{ "name": "number", "type": "int" }],
       "deploy": {
-        "local": {"module": "aiko_services.elements.image_io"}
+        "local": {"module": "aiko_services.elements.media.image_io"}
       }
     },
     { "name":   "ImageRead0",
@@ -32,7 +32,7 @@
       "deploy": {
         "local": {
           "class_name": "ImageReadFile",
-          "module": "aiko_services.elements.image_io"
+          "module": "aiko_services.elements.media.image_io"
         }
       }
     },
@@ -46,7 +46,7 @@
       "deploy": {
         "local": {
           "class_name": "ImageReadFile",
-          "module": "aiko_services.elements.image_io"
+          "module": "aiko_services.elements.media.image_io"
         }
       }
     }

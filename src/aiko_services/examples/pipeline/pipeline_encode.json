@@ -12,7 +12,7 @@
       "input":  [{ "name": "data", "type": "bytes" }],
       "output": [{ "name": "data", "type": "bytes" }],
       "deploy": {
-        "local": { "module": "aiko_services.pipeline_elements" }
+        "local": { "module": "aiko_services.examples.pipeline.test_elements" }
       }
     },
     { "name":   "PE_DataDecode",
@@ -20,7 +20,7 @@
       "output": [{ "name": "data", "type": "bytes" }],
       "deploy": {
         "remote": {
-          "module": "aiko_services.pipeline_elements",
+          "module": "aiko_services.examples.pipeline.test_elements",
           "service_filter": {
             "topic_path": "*", "name": "p_decode",
             "owner": "*", "protocol": "*", "transport": "*", "tags": "*"

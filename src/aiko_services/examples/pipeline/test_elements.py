@@ -27,7 +27,7 @@ from threading import Thread
 import time
 from typing import Tuple
 
-from aiko_services import aiko, PipelineElement
+from aiko_services.main import aiko, PipelineElement
 
 _LOGGER = aiko.logger(__name__)
 

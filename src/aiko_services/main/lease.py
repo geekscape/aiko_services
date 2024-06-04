@@ -1,6 +1,6 @@
 # Example
 # ~~~~~~~
-# from aiko_services import *
+# from aiko_services.main import *
 #
 # def lease_expired(lease_uuid):
 #     if lease_uuid in leases:
@@ -25,8 +25,8 @@
 
 import os
 
-from aiko_services import *
-from aiko_services.utilities import *
+from aiko_services.main import *
+from aiko_services.main.utilities import *
 
 __all__ = ["Lease"]
 

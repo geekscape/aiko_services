@@ -15,14 +15,14 @@
         "audio_channels": 1
       },
       "deploy": {
-        "local": { "module": "aiko_services.elements.audio_io" }
+        "local": { "module": "aiko_services.elements.media.audio_io" }
       }
     },
     { "name":   "PE_RemoteSend0",
       "input":  [{ "name": "audio", "type": "bytes" }],
       "output": [],
       "deploy": {
-        "local": { "module": "aiko_services.elements.audio_io" }
+        "local": { "module": "aiko_services.elements.media.audio_io" }
       }
     }
   ]

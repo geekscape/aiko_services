@@ -17,7 +17,7 @@ import numpy as np
 from pathlib import Path
 from PIL import Image
 
-from aiko_services import aiko, PipelineElement, ContextPipelineElement
+from aiko_services.main import aiko, PipelineElement, ContextPipelineElement
 
 _LOGGER = aiko.logger(__name__)
 

@@ -1,0 +1,3 @@
+import aiko_services.main
+
+process = aiko_services.main.aiko  # TODO: Not quite right

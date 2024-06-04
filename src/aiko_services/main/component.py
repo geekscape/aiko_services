@@ -7,7 +7,7 @@
 # Usage
 # ~~~~~
 # from abc import abstractmethod
-# from aiko_services import *
+# from aiko_services.main import *
 #
 # class Example(Interface):
 #     Interface.default("Example", "__main__.ExampleImpl")
@@ -42,8 +42,8 @@
 from abc import ABC
 from inspect import getmembers, isclass, isfunction
 
-from aiko_services import *
-from aiko_services.utilities import *
+from aiko_services.main import *
+from aiko_services.main.utilities import *
 
 __all__ = ["compose_class", "compose_instance"]
 

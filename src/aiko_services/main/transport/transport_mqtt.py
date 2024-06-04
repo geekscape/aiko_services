@@ -28,8 +28,8 @@
 from abc import abstractmethod
 from inspect import getmembers, isfunction
 
-from aiko_services import *
-from aiko_services.utilities.parser import generate
+from aiko_services.main import *
+from aiko_services.main.utilities.parser import generate
 
 __all__ = [
     "TransportMQTT", "TransportMQTTImpl","ActorDiscovery", "get_actor_mqtt"
@@ -39,7 +39,7 @@ _LOGGER = aiko.logger(__name__)
 
 class TransportMQTT(Actor):
     Interface.default("TransportMQTT",
-        "aiko_services.transport.transport_mqtt.TransportMQTTImpl")
+        "aiko_services.main.transport.transport_mqtt.TransportMQTTImpl")
 
 class TransportMQTTImpl(TransportMQTT):
     def __init__(self, context):

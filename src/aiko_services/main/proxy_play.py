@@ -1,6 +1,6 @@
 # Example
 # ~~~~~~~
-# from aiko_services.proxy_play import Proxy, ProxyExample
+# from aiko_services.main.proxy_play import Proxy, ProxyExample
 # class C():
 #     def f(self, argument):
 #         print(f"C.f({argument})")

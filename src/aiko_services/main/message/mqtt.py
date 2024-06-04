@@ -45,8 +45,8 @@ import paho.mqtt.client as mqtt
 import time
 from typing import Any, List
 
-from aiko_services.message import *
-from aiko_services.utilities import *
+from aiko_services.main.message import *
+from aiko_services.main.utilities import *
 
 __all__ = ["MQTT"]
 
