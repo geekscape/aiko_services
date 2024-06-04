@@ -282,7 +282,7 @@ class PipelineElement(Actor):
         pass
 
     @abstractmethod
-    def get_stream(self):
+    def get_stream(self):  # may return None
         pass
 
     @abstractmethod
@@ -328,7 +328,7 @@ class PipelineElementImpl(PipelineElement):
         found = False
 
         element_parameter_name = f"{self.definition.name}.{name}"
-        stream_parameters = self.get_stream()["parameters"]
+        stream_parameters = self.get_stream_parameters()
 
         if element_parameter_name in stream_parameters:
             value = stream_parameters[element_parameter_name]
@@ -352,8 +352,15 @@ class PipelineElementImpl(PipelineElement):
             value = default  # Note: "found" is deliberately left as False
         return value, found
 
-    def get_stream(self):
+    def get_stream(self):  # may return None
         return self.pipeline.get_stream()
+
+    def get_stream_parameters(self):
+        parameters = {}
+        stream = self.get_stream()
+        if stream and "parameters" in stream:
+            parameters = stream["parameters"]
+        return parameters
 
     def _id(self, stream):
         return f"{self.name}<{stream['stream_id']}:{stream['frame_id']}>"
@@ -422,7 +429,7 @@ class PipelineImpl(Pipeline):
         self.services_cache = None
 
         self.share["definition_pathname"] = context.definition_pathname
-        self.stream = None
+        self.stream = None  # current stream, may be None
         self.stream_leases = {}
 
         self.pipeline_graph = self._create_pipeline(context.definition)
@@ -524,7 +531,7 @@ class PipelineImpl(Pipeline):
         pipeline_graph.validate(definition)
         return pipeline_graph
 
-    def get_stream(self):
+    def get_stream(self):  # may return None
         return self.stream
 
     def _load_element_class(self,
