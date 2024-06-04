@@ -28,7 +28,7 @@ from threading import Thread
 import time
 from typing import Tuple
 
-from aiko_services.main import aiko, PipelineElement
+import aiko_services as aiko
 from aiko_services.main.utilities import generate, get_namespace, LRUCache
 
 _LOGGER = aiko.logger(__name__)

@@ -27,7 +27,7 @@ import numpy as np
 from typing import Tuple
 import zlib
 
-from aiko_services.main import aiko, PipelineElement, ServiceFilter
+import aiko_services as aiko
 from aiko_services.main.transport import ActorDiscovery
 from aiko_services.main.utilities import get_namespace, parse_number
 

@@ -30,7 +30,7 @@
       "deploy": {
         "local": {
             "class_name": "PE_0",
-            "module": "aiko_services.examples.pipeline.test_elements"
+            "module": "aiko_services.examples.pipeline.elements"
          }
       }
     },
@@ -40,7 +40,7 @@
       "output": [{ "name": "f", "type": "int" }],
       "deploy": {
         "remote": {
-          "module": "aiko_services.examples.pipeline.test_elements",
+          "module": "aiko_services.examples.pipeline.elements",
           "service_filter": {
             "topic_path": "*", "name": "p_local",
             "owner": "*", "protocol": "*", "transport": "*", "tags": "*"

@@ -27,19 +27,17 @@ from threading import Thread
 import time
 from typing import Tuple
 
-from aiko_services.main import aiko, PipelineElement
-
-_LOGGER = aiko.logger(__name__)
+import aiko_services as aiko
 
 # --------------------------------------------------------------------------- #
 # TODO: Replace thread with "event.add_timer_handler()"
 
-class PE_GenerateNumbers(PipelineElement):
+class PE_GenerateNumbers(aiko.PipelineElement):
     def __init__(self, context):
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, number) -> Tuple[bool, dict]:
-        _LOGGER.debug(f"{self._id(context)}: in/out number: {number}")
+        self.logger.debug(f"{self._id(context)}: in/out number: {number}")
         return True, {"number": number}
 
     def _run(self, context):
@@ -60,7 +58,7 @@ class PE_GenerateNumbers(PipelineElement):
 
 # --------------------------------------------------------------------------- #
 
-class PE_Metrics(PipelineElement):
+class PE_Metrics(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("metrics:0")
         context.get_implementation("PipelineElement").__init__(self, context)
@@ -70,29 +68,29 @@ class PE_Metrics(PipelineElement):
         metrics_elements = metrics["pipeline_elements"]
         for metrics_name, metrics_value in metrics_elements.items():
             metrics_value *= 1000
-            _LOGGER.info(
+            self.logger.info(
                 f"PE_Metrics: {metrics_name}: {metrics_value:.3f} ms")
 
         time_pipeline = metrics["time_pipeline"] * 1000
-        _LOGGER.info(
+        self.logger.info(
             f"PE_Metrics: Pipeline total: {time_pipeline:.3f} ms")
         return True, {}
 
 # --------------------------------------------------------------------------- #
 
-class PE_0(PipelineElement):
+class PE_0(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("increment:0")  # data_source:0
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, a) -> Tuple[bool, dict]:
         b = int(a) + 1
-        _LOGGER.info(f"PE_0: {self._id(context)}, in a: {a}, out b: {b}")
+        self.logger.info(f"PE_0: {self._id(context)}, in a: {a}, out b: {b}")
         return True, {"b": b}
 
 # --------------------------------------------------------------------------- #
 
-class PE_1(PipelineElement):
+class PE_1(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("increment:0")
         context.get_implementation("PipelineElement").__init__(self, context)
@@ -102,49 +100,50 @@ class PE_1(PipelineElement):
         p_1, found = self.get_parameter("p_1")
         pe_1_inc, found = self.get_parameter("pe_1_inc", 1)
         c = int(b) + int(pe_1_inc)
-        _LOGGER.info(f"PE_1: {self._id(context)}, in b: {b}, out c: {c}")
-        _LOGGER.info(f"PE_1:            parameter pe_1_inc: {pe_1_inc}")
+        self.logger.info(f"PE_1: {self._id(context)}, in b: {b}, out c: {c}")
+        self.logger.info(f"PE_1:            parameter pe_1_inc: {pe_1_inc}")
         return True, {"c": c}
 
 # --------------------------------------------------------------------------- #
 
-class PE_2(PipelineElement):
+class PE_2(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("increment:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, c) -> Tuple[bool, dict]:
         d = int(c) + 1
-        _LOGGER.info(f"PE_2: {self._id(context)}, in c: {c}, out d: {d}")
+        self.logger.info(f"PE_2: {self._id(context)}, in c: {c}, out d: {d}")
         return True, {"d": d}
 
 # --------------------------------------------------------------------------- #
 
-class PE_3(PipelineElement):
+class PE_3(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("increment:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, c) -> Tuple[bool, dict]:
         e = int(c) + 1
-        _LOGGER.info(f"PE_3: {self._id(context)}, in c: {c}, out e: {e}")
+        self.logger.info(f"PE_3: {self._id(context)}, in c: {c}, out e: {e}")
         return True, {"e": e}
 
 # --------------------------------------------------------------------------- #
 
-class PE_4(PipelineElement):
+class PE_4(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("sum:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, d, e) -> Tuple[bool, dict]:
         f = int(d) + int(e)
-        _LOGGER.info(f"PE_4: {self._id(context)}, in d, e {d} {e}, out: d + e = f: {f}")
+        self.logger.info(
+            f"PE_4: {self._id(context)}, in d, e {d} {e}, out: d + e = f: {f}")
         return True, {"f": f}
 
 # --------------------------------------------------------------------------- #
 
-class PE_DataDecode(PipelineElement):
+class PE_DataDecode(aiko.PipelineElement):
     def __init__(self, context):
         context.get_implementation("PipelineElement").__init__(self, context)
 
@@ -152,17 +151,17 @@ class PE_DataDecode(PipelineElement):
         data = base64.b64decode(data.encode("utf-8"))
         np_bytes = BytesIO(data)
         data = np.load(np_bytes, allow_pickle=True)
-    #   _LOGGER.info(f"PE_DataDecode: {self._id(context)}, data: {data}")
+    #   self.logger.info(f"PE_DataDecode: {self._id(context)}, data: {data}")
         return True, {"data": data}
 
 # --------------------------------------------------------------------------- #
 
-class PE_DataEncode(PipelineElement):
+class PE_DataEncode(aiko.PipelineElement):
     def __init__(self, context):
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, context, data) -> Tuple[bool, dict]:
-    #   _LOGGER.info(f"PE_DataEncode: {self._id(context)}, data: {data}")
+    #   self.logger.info(f"PE_DataEncode: {self._id(context)}, data: {data}")
         if isinstance(data, str):
             data = str.encode(data)
         if isinstance(data, np.ndarray):

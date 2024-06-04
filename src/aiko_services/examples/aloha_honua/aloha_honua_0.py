@@ -15,9 +15,9 @@
 # ~~~~~
 # - None, yet !
 
-from aiko_services.main import *
+import aiko_services as aiko
 
-class AlohaHonua(Actor):
+class AlohaHonua(aiko.Actor):
     def __init__(self, context):
         context.get_implementation("Actor").__init__(self, context)
         print(f"MQTT topic: {self.topic_in}")
@@ -26,6 +26,6 @@ class AlohaHonua(Actor):
         self.logger.debug(f"Aloha {name} !")
 
 if __name__ == "__main__":
-    init_args = actor_args("aloha_honua")
-    aloha_honua = compose_instance(AlohaHonua, init_args)
+    init_args = aiko.actor_args("aloha_honua")
+    aloha_honua = aiko.compose_instance(AlohaHonua, init_args)
     aiko.process.run()

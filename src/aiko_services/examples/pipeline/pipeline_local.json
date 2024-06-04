@@ -28,21 +28,21 @@
       "input":  [{ "name": "b", "type": "int" }], "#": "Single input argument",
       "output": [{ "name": "c", "type": "int" }], "#": "Single output argument",
       "deploy": {
-        "local": { "module": "aiko_services.examples.pipeline.test_elements" }
+        "local": { "module": "aiko_services.examples.pipeline.elements" }
       }
     },
     { "name":   "PE_2",
       "input":  [{ "name": "c", "type": "int" }],
       "output": [{ "name": "d", "type": "int" }],
       "deploy": {
-        "local": { "module": "aiko_services.examples.pipeline.test_elements" }
+        "local": { "module": "aiko_services.examples.pipeline.elements" }
       }
     },
     { "name":   "PE_3",
       "input":  [{ "name": "c", "type": "int" }],
       "output": [{ "name": "e", "type": "int" }],
       "deploy": {
-        "local": { "module": "aiko_services.examples.pipeline.test_elements" }
+        "local": { "module": "aiko_services.examples.pipeline.elements" }
       }
     },
     { "name":   "PE_4",
@@ -50,7 +50,7 @@
                  { "name": "e", "type": "int" }],
       "output": [{ "name": "f", "type": "int" }],
       "deploy": {
-        "local": { "module": "aiko_services.examples.pipeline.test_elements" }
+        "local": { "module": "aiko_services.examples.pipeline.elements" }
       }
     },
     { "name":   "PE_5",
@@ -61,7 +61,7 @@
       "deploy": {
         "local": {
             "class_name": "PE_4",
-            "module": "aiko_services.examples.pipeline.test_elements"
+            "module": "aiko_services.examples.pipeline.elements"
          }
       }
     },
@@ -70,7 +70,7 @@
       "input":  [],
       "output": [],
       "deploy": {
-        "local": { "module": "aiko_services.examples.pipeline.test_elements" }
+        "local": { "module": "aiko_services.examples.pipeline.elements" }
       }
     }
   ]

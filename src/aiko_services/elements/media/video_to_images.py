@@ -4,7 +4,7 @@
 # ~~~~~
 # LOG_LEVEL=DEBUG ./video_to_images.py
 
-from aiko_services.main import *
+import aiko_services as aiko
 
 FRAME_RATE = 0   # Process flat-out without delay
 IMAGE_OUTPUT_PATHNAME = "z_output/image_{:06d}.jpg"

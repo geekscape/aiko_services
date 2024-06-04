@@ -12,7 +12,7 @@
       "input":  [{ "name": "data", "type": "bytes" }],
       "output": [{ "name": "data", "type": "bytes" }],
       "deploy": {
-        "local": { "module": "aiko_services.examples.pipeline.test_elements" }
+        "local": { "module": "aiko_services.examples.pipeline.elements" }
       }
     }
   ]
