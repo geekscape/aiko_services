@@ -5,31 +5,32 @@ AIoT, Machine Learning, Media streaming and Robotics
 
 # Development set-up
 
-Recommended ...
+Recommended regular development ...
 ```
 git clone https://github.com/geekscape/aiko_services.git
 cd aiko_services
-python3 -m venv venv             # Once only
-source venv/bin/activate         # Each terminal session
-pip install -U pip hatch         # Install latest pip and hatch
-hatch shell                      # Open a local shell with the dependances installed
-hatch test                       # Run local tests
+python3 -m venv venv      # Once only
+source venv/bin/activate  # Each terminal session
+pip install -U pip        # Install latest pip
+pip install -e .          # Install Aiko Services
 ```
 
-Alternative ... # without Hatch
+Recommended for package maintainers ...
 ```
-pip install -e .
+pip install -U hatch      # Install latest Hatch build and package manager
+hatch shell               # Run shell using Hatch to manage dependencies
+# hatch test              # Run local tests [to be completed]
 ```
 
-Build Package
+# Aiko Services Examples
+
+- [Aloha Honua documentation](examples/aloha_honua/ReadMe.md) (hello world)
+
+Build and publish Aiko Services Package to PyPi
 
 ```
 hatch build
 ```
-
-# Examples
-
-- [Aloha Honua documentation](examples/aloha_honua/ReadMe.md) (hello world)
 
 # To Do
 
