@@ -9,40 +9,26 @@
 # - PE_Metrics: Consider what to measure ?
 #   choices of data type to transfer via function parameters
 
-import copy
-from threading import Thread
-import time
 from typing import Tuple
-import numpy as np
 from pathlib import Path
 from PIL import Image
 
 from aiko_services import aiko, PipelineElement, ContextPipelineElement
 
-_LOGGER = aiko.logger(__name__)
-
 # --------------------------------------------------------------------------- #
-# TODO: Replace thread with "event.add_timer_handler()"
 
 class PE_GenerateNumbers(PipelineElement):
     def __init__(self, context):
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def start_stream(self, stream, stream_id):
-        stream["terminate"] = False
-        Thread(target=self._run, args=(stream, )).start()
+        def frame_data_producer(self, stream):
+          return {"number": stream["frame_id"]}
 
-    def _run(self, stream):
-        frame_id = 0
-        while not stream["terminate"]:
-            frame_stream = copy.deepcopy(stream)
-            frame_stream["frame_id"] = frame_id
-            self.create_frame(frame_stream, {"number": frame_id})
-            frame_id += 1
-            time.sleep(1.0)
+        self.create_frames(stream, frame_data_producer, rate=1)
 
     def process_frame(self, stream, number) -> Tuple[bool, dict]:
-        _LOGGER.info(f"{self._id(stream)}: in/out number: {number}")
+        self.logger.info(f"{self._id(stream)}: in/out number: {number}")
         return True, {"number": number}
 
     def stop_stream(self, stream, stream_id):
@@ -57,7 +43,7 @@ class PE_0(PipelineElement):
 
     def process_frame(self, stream, a) -> Tuple[bool, dict]:
         b = int(a) + 1
-        _LOGGER.info(f"PE_0: {self._id(stream)}, in a: {a}, out b: {b}")
+        self.logger.info(f"PE_0: {self._id(stream)}, in a: {a}, out b: {b}")
         return True, {"b": b}
 
 # --------------------------------------------------------------------------- #
@@ -71,12 +57,7 @@ class PE_0(PipelineElement):
 #
 # * Consider process_frame() updating stream parameters --> self.share[]
 #
-# - If the DataSource needs internal PE.create_frame() --> pipeline.py
-#   - Each DataSource developer shouldn't have to do this
-#   - Work for both single Image and Images / Video
-# - Refactor common DataSource PipelineElement code into the framework
-#   - DataSource which already generates frames, e.g network camera
-#   - DataSource which needs frame generation. e.g file on disk
+# * For "PipelineElement.create_frames()" ...
 #   - Implement frame window, which has a maximum size to minimise frames
 #   - Implement frame "push back" so subsequent PEs can manage frame flow
 #
@@ -105,6 +86,7 @@ class PE_0(PipelineElement):
 # - URLs
 #   - file://, mqtt://, hl:// (pre-signed URL), s3://
 #   - web_camera://, rtsp://, webrt://
+#   - youtube:// uploaded video or live stream
 #   * Haplomic: Shared memory, e.g shm://
 #
 # - MediaTypes
@@ -126,15 +108,12 @@ class ImageReadFile(PipelineElement):
         if not found:
             raise SystemExit('Must provide stream "path" parameter')
 
-        _LOGGER.info(f"{self._id(stream)}: image path: {path}")
+        self.logger.info(f"{self._id(stream)}: image path: {path}")
 
         if not Path(path).exists():
             raise SystemExit(f"{path} does not exist")
 
-    # TODO: Move this into the Pipeline
-        frame_stream = copy.deepcopy(stream)
-        frame_stream["frame_id"] = 0
-        self.create_frame(frame_stream, {"path": path})
+        self.create_frame(stream, {"path": path})
 
     def process_frame(self, stream, path) -> Tuple[bool, dict]:
         if stream["stream_id"] == 0:  # TODO: "stream_required"
@@ -145,7 +124,7 @@ class ImageReadFile(PipelineElement):
         except Exception as exception:
             raise SystemExit(f"Error loading image: {exception}")
 
-        _LOGGER.info(f"image shape: {image.size}")
+        self.logger.info(f"image shape: {image.size}")
         return True, {"image": image}
 
 # ---------------------------------------------------------------------- #

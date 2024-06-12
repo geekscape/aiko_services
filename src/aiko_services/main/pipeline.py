@@ -100,11 +100,13 @@ from abc import abstractmethod
 import avro.schema
 from avro_validator.schema import Schema
 import click
+import copy
 from collections import OrderedDict  # All OrderedDict operations are O(1)
 from dataclasses import dataclass, asdict
 from enum import Enum
 import json
 import os
+from threading import Thread
 import time
 import traceback
 from typing import Any, Dict, List, Tuple
@@ -274,7 +276,11 @@ class PipelineElement(Actor):
         "aiko_services.main.pipeline.PipelineElementImpl")
 
     @abstractmethod
-    def create_frame(self, stream, swag):
+    def create_frame(self, stream, frame_data):
+        pass
+
+    @abstractmethod
+    def create_frames(self, stream, frame_data_producer, rate=None):
         pass
 
     @abstractmethod
@@ -316,8 +322,26 @@ class PipelineElementImpl(PipelineElement):
     # TODO: Fix Aiko Dashboard / EC_Producer incorrectly updates this approach
     #   self.share["parameters"] = self.definition.parameters  # TODO
 
-    def create_frame(self, stream, swag):
-        self.pipeline.create_frame(stream, swag)
+    def create_frame(self, stream, frame_data, frame_id=0):
+        frame_stream_copy = copy.deepcopy(stream)  # don't share across frames
+        frame_stream_copy["frame_id"] = frame_id
+        self.pipeline.create_frame(frame_stream_copy, frame_data)
+
+# TODO: For "rate", measure time since last frame to be more accurate
+
+    def _create_frames_thread(self, stream, frame_data_producer, rate):
+        frame_id = 0
+        stream["terminate"] = False
+        while not stream["terminate"]:
+            frame_data = frame_data_producer(self, stream)
+            self.create_frame(stream, frame_data, frame_id=frame_id)
+            frame_id += 1
+            if rate:
+                time.sleep(1.0 / rate)
+
+    def create_frames(self, stream, frame_data_producer, rate=None):
+        thread_args=(stream, frame_data_producer, rate)
+        Thread(target=self._create_frames_thread, args=thread_args).start()
 
     def get_parameter(self, name, default=None, use_pipeline=True):
     # TODO: During process_frame(), stream parameters should be updated
@@ -451,8 +475,8 @@ class PipelineImpl(Pipeline):
         _LOGGER.error(complete_diagnostic)
         raise SystemExit(complete_diagnostic)
 
-    def create_frame(self, stream, swag):
-        self._post_message(ActorTopic.IN, "process_frame", [stream, swag])
+    def create_frame(self, stream, frame_data):
+        self._post_message(ActorTopic.IN, "process_frame", [stream, frame_data])
 
     def _add_node_properties(self, node_name, properties, predecessor_name):
         definition = self.definition
@@ -661,13 +685,13 @@ class PipelineImpl(Pipeline):
             node._element = element_instance
             print(f"Pipeline update: --> {element_name} proxy")
 
-                                   # SWAG: Stuff We All Get 😅
-    def process_frame(self, stream, swag) -> Tuple[bool, None]:
+    def process_frame(self, stream, frame_data) -> Tuple[bool, None]:
         if "stream_id" not in stream:     # Default stream_id
             stream["stream_id"] = 0
         if "frame_id" not in stream:      # Default frame_id
             stream["frame_id"] = 0
-        swag = swag if len(swag) else {}  # Default swag
+      # SWAG: Stuff We All Get 😅
+        swag = frame_data if len(frame_data) else {}  # Default swag
         self.stream = stream
 
         # Individual Stream data is stored in the "Lease.context"
