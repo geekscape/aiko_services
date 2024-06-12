@@ -20,41 +20,30 @@
 #   choices of data type to transfer via function parameters
 
 import base64
-import copy
 from io import BytesIO
 import numpy as np
-from threading import Thread
-import time
 from typing import Tuple
 
 import aiko_services as aiko
 
 # --------------------------------------------------------------------------- #
-# TODO: Replace thread with "event.add_timer_handler()"
 
 class PE_GenerateNumbers(aiko.PipelineElement):
     def __init__(self, context):
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, context, number) -> Tuple[bool, dict]:
-        self.logger.debug(f"{self._id(context)}: in/out number: {number}")
+    def start_stream(self, stream, stream_id):
+        def frame_data_producer(self, stream):
+          return {"number": stream["frame_id"]}
+
+        self.create_frames(stream, frame_data_producer, rate=1)
+
+    def process_frame(self, stream, number) -> Tuple[bool, dict]:
+        self.logger.info(f"{self._id(stream)}: in/out number: {number}")
         return True, {"number": number}
 
-    def _run(self, context):
-        frame_id = 0
-        while not context["terminate"]:
-            frame_context = copy.deepcopy(context)
-            frame_context["frame_id"] = frame_id
-            self.create_frame(frame_context, {"number": frame_id})
-            frame_id += 1
-            time.sleep(1.0)
-
-    def start_stream(self, context, stream_id):
-        context["terminate"] = False
-        Thread(target=self._run, args=(context, )).start()
-
-    def stop_stream(self, context, stream_id):
-        context["terminate"] = True
+    def stop_stream(self, stream, stream_id):
+        stream["terminate"] = True
 
 # --------------------------------------------------------------------------- #
 
@@ -63,8 +52,8 @@ class PE_Metrics(aiko.PipelineElement):
         context.set_protocol("metrics:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, context) -> Tuple[bool, dict]:
-        metrics = context["metrics"]
+    def process_frame(self, stream) -> Tuple[bool, dict]:
+        metrics = stream["metrics"]
         metrics_elements = metrics["pipeline_elements"]
         for metrics_name, metrics_value in metrics_elements.items():
             metrics_value *= 1000
@@ -83,9 +72,9 @@ class PE_0(aiko.PipelineElement):
         context.set_protocol("increment:0")  # data_source:0
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, context, a) -> Tuple[bool, dict]:
+    def process_frame(self, stream, a) -> Tuple[bool, dict]:
         b = int(a) + 1
-        self.logger.info(f"PE_0: {self._id(context)}, in a: {a}, out b: {b}")
+        self.logger.info(f"PE_0: {self._id(stream)}, in a: {a}, out b: {b}")
         return True, {"b": b}
 
 # --------------------------------------------------------------------------- #
@@ -95,12 +84,12 @@ class PE_1(aiko.PipelineElement):
         context.set_protocol("increment:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, context, b) -> Tuple[bool, dict]:
+    def process_frame(self, stream, b) -> Tuple[bool, dict]:
         increment = 1
         p_1, found = self.get_parameter("p_1")
         pe_1_inc, found = self.get_parameter("pe_1_inc", 1)
         c = int(b) + int(pe_1_inc)
-        self.logger.info(f"PE_1: {self._id(context)}, in b: {b}, out c: {c}")
+        self.logger.info(f"PE_1: {self._id(stream)}, in b: {b}, out c: {c}")
         self.logger.info(f"PE_1:            parameter pe_1_inc: {pe_1_inc}")
         return True, {"c": c}
 
@@ -111,9 +100,9 @@ class PE_2(aiko.PipelineElement):
         context.set_protocol("increment:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, context, c) -> Tuple[bool, dict]:
+    def process_frame(self, stream, c) -> Tuple[bool, dict]:
         d = int(c) + 1
-        self.logger.info(f"PE_2: {self._id(context)}, in c: {c}, out d: {d}")
+        self.logger.info(f"PE_2: {self._id(stream)}, in c: {c}, out d: {d}")
         return True, {"d": d}
 
 # --------------------------------------------------------------------------- #
@@ -123,9 +112,9 @@ class PE_3(aiko.PipelineElement):
         context.set_protocol("increment:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, context, c) -> Tuple[bool, dict]:
+    def process_frame(self, stream, c) -> Tuple[bool, dict]:
         e = int(c) + 1
-        self.logger.info(f"PE_3: {self._id(context)}, in c: {c}, out e: {e}")
+        self.logger.info(f"PE_3: {self._id(stream)}, in c: {c}, out e: {e}")
         return True, {"e": e}
 
 # --------------------------------------------------------------------------- #
@@ -135,10 +124,10 @@ class PE_4(aiko.PipelineElement):
         context.set_protocol("sum:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, context, d, e) -> Tuple[bool, dict]:
+    def process_frame(self, stream, d, e) -> Tuple[bool, dict]:
         f = int(d) + int(e)
         self.logger.info(
-            f"PE_4: {self._id(context)}, in d, e {d} {e}, out: d + e = f: {f}")
+            f"PE_4: {self._id(stream)}, in d, e {d} {e}, out: d + e = f: {f}")
         return True, {"f": f}
 
 # --------------------------------------------------------------------------- #
@@ -147,11 +136,11 @@ class PE_DataDecode(aiko.PipelineElement):
     def __init__(self, context):
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, context, data) -> Tuple[bool, dict]:
+    def process_frame(self, stream, data) -> Tuple[bool, dict]:
         data = base64.b64decode(data.encode("utf-8"))
         np_bytes = BytesIO(data)
         data = np.load(np_bytes, allow_pickle=True)
-    #   self.logger.info(f"PE_DataDecode: {self._id(context)}, data: {data}")
+    #   self.logger.info(f"PE_DataDecode: {self._id(stream)}, data: {data}")
         return True, {"data": data}
 
 # --------------------------------------------------------------------------- #
@@ -160,8 +149,8 @@ class PE_DataEncode(aiko.PipelineElement):
     def __init__(self, context):
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, context, data) -> Tuple[bool, dict]:
-    #   self.logger.info(f"PE_DataEncode: {self._id(context)}, data: {data}")
+    def process_frame(self, stream, data) -> Tuple[bool, dict]:
+    #   self.logger.info(f"PE_DataEncode: {self._id(stream)}, data: {data}")
         if isinstance(data, str):
             data = str.encode(data)
         if isinstance(data, np.ndarray):

@@ -3,7 +3,6 @@
   "name":    "p_image_io",
   "runtime": "python",
 
-  "#": ["(PE_GenerateNumbers)"],
   "graph": ["(ImageRead0 ImageRead1)"],
 
   "parameters": {
@@ -12,16 +11,6 @@
   },
 
   "elements": [
-    { "name":   "PE_GenerateNumbers",
-      "parameters": {
-          "test": 0
-      },
-      "input":  [{ "name": "number", "type": "int" }],
-      "output": [{ "name": "number", "type": "int" }],
-      "deploy": {
-        "local": {"module": "aiko_services.elements.media.image_io"}
-      }
-    },
     { "name":   "ImageRead0",
       "parameters": {
           "_stream_required": true,

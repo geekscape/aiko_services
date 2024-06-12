@@ -3,9 +3,7 @@
   "name":    "p_test",
   "runtime": "python",
 
-  "graph": [
-    "(PE_GenerateNumbers)"
-  ],
+  "graph": ["(PE_GenerateNumbers)"],
 
   "parameters": {},
 

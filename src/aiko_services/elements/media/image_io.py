@@ -13,38 +13,7 @@ from typing import Tuple
 from pathlib import Path
 from PIL import Image
 
-from aiko_services import aiko, PipelineElement, ContextPipelineElement
-
-# --------------------------------------------------------------------------- #
-
-class PE_GenerateNumbers(PipelineElement):
-    def __init__(self, context):
-        context.get_implementation("PipelineElement").__init__(self, context)
-
-    def start_stream(self, stream, stream_id):
-        def frame_data_producer(self, stream):
-          return {"number": stream["frame_id"]}
-
-        self.create_frames(stream, frame_data_producer, rate=1)
-
-    def process_frame(self, stream, number) -> Tuple[bool, dict]:
-        self.logger.info(f"{self._id(stream)}: in/out number: {number}")
-        return True, {"number": number}
-
-    def stop_stream(self, stream, stream_id):
-        stream["terminate"] = True
-
-# --------------------------------------------------------------------------- #
-
-class PE_0(PipelineElement):
-    def __init__(self, context):
-        context.set_protocol("increment:0")  # data_source:0
-        context.get_implementation("PipelineElement").__init__(self, context)
-
-    def process_frame(self, stream, a) -> Tuple[bool, dict]:
-        b = int(a) + 1
-        self.logger.info(f"PE_0: {self._id(stream)}, in a: {a}, out b: {b}")
-        return True, {"b": b}
+import aiko_services as aiko
 
 # --------------------------------------------------------------------------- #
 # To Do
@@ -95,9 +64,9 @@ class PE_0(PipelineElement):
 #
 # ---------------------------------------------------------------------- #
 
-class ImageReadFile(PipelineElement):
+class ImageReadFile(aiko.PipelineElement):
 
-    def __init__(self, context: ContextPipelineElement):
+    def __init__(self, context: aiko.ContextPipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
         test = self.get_parameter("test", 0)
 
