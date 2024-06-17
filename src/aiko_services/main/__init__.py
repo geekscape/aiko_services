@@ -53,6 +53,8 @@ from .process_manager import ProcessManager
 
 from .lifecycle import LifeCycleClient, LifeCycleManager
 
+from .stream import StreamEventDescription, StreamEvent, StreamState
+
 from .pipeline import (
     Pipeline, PipelineElement, PipelineElementImpl, PipelineImpl,
     PROTOCOL_PIPELINE

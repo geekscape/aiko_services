@@ -1,0 +1,20 @@
+{
+  "version": 0,
+  "name":    "p_example",
+  "runtime": "python",
+
+  "graph": ["(PE_RandomIntegers)"],
+
+  "parameters": {},
+
+  "elements": [
+    { "name":   "PE_RandomIntegers",
+      "parameters": {"limit": 3, "rate": 1.0},
+      "input":  [{ "name": "random", "type": "int" }],
+      "output": [{ "name": "random", "type": "int" }],
+      "deploy": {
+        "local": { "module": "aiko_services.examples.pipeline.elements" }
+      }
+    }
+  ]
+}

@@ -6,6 +6,9 @@
 #
 # To Do
 # ~~~~~
+# - ImageReadFile should also handle a DataSource type ...
+#   - URL: "file://" and media_type: "jpeg", "png", etc
+#
 # - PE_Metrics: Consider what to measure ?
 #   choices of data type to transfer via function parameters
 
@@ -16,7 +19,7 @@ from PIL import Image
 import aiko_services as aiko
 
 # --------------------------------------------------------------------------- #
-# To Do
+# Check
 # ~~~~~
 # * aiko_pipeline create -s 1 -sp path --> load the stream parameter data
 #   - Overriding the PipelineDefinition
@@ -32,12 +35,6 @@ import aiko_services as aiko
 #
 # * If DataSource has "stream_required" ...
 #   - Each DataSource developer shouldn't have to do this
-#
-# * Replace "raise SystemExit" with "return False, {}"
-#
-# * PipelineElement.process_frame() returns STATE, not boolean
-#
-# * pipeline.py (and everywhere) change from "context" to "stream"
 #
 # - Try to remove the need to write PE.__init__(...) in every PE
 #
@@ -60,40 +57,47 @@ import aiko_services as aiko
 #
 # - MediaTypes
 #   - image/raw|jpeg|png, video/h.264, audio/*, text/raw, pointcloud/2d|3d
-#   * Haplomic: image/raw
+#   * Laboratory camera: image/raw
 #
-# ---------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# ImageReadFile is a DataSource with an image "path" string parameter
+#
+# Supports both Streams and direct process_frame() calls
+#
+# Test
+# ~~~~
+# export AIKO_LOG_LEVEL=DEBUG; export AIKO_LOG_MQTT=false
+# aiko_pipeline create pipeline_image_io.json -fd "(path: z_00.jpeg)"
+# aiko_pipeline create pipeline_image_io.json -s 1
+# aiko_pipeline create pipeline_image_io.json -s 1  \
+#                                             -sp ImageReadFile.path z_00.jpeg
 
 class ImageReadFile(aiko.PipelineElement):
-
     def __init__(self, context: aiko.ContextPipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
-        test = self.get_parameter("test", 0)
 
     def start_stream(self, stream, stream_id):
-        width, found = self.get_parameter("width")  # TODO: Just testing
-
         path, found = self.get_parameter("path")
         if not found:
-            raise SystemExit('Must provide stream "path" parameter')
-
-        self.logger.info(f"{self._id(stream)}: image path: {path}")
-
-        if not Path(path).exists():
-            raise SystemExit(f"{path} does not exist")
+            diagnostic = 'Must provide image "path" parameter'
+            return aiko.StreamEvent.ERROR, diagnostic
 
         self.create_frame(stream, {"path": path})
+        return aiko.StreamEvent.OKAY, None
 
     def process_frame(self, stream, path) -> Tuple[bool, dict]:
-        if stream["stream_id"] == 0:  # TODO: "stream_required"
-            raise SystemExit("Must create a stream")
+        self.logger.debug(f"{self._id(stream)}: image path: {path}")
 
+        if not Path(path).exists():
+            diagnostic = f'Image "{path}" does not exist'
+            return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
         try:
             image = Image.open(path)
         except Exception as exception:
-            raise SystemExit(f"Error loading image: {exception}")
+            diagnostic = f"Error loading image: {exception}"
+            return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
-        self.logger.info(f"image shape: {image.size}")
-        return True, {"image": image}
+        self.logger.info(f"Image shape: {image.size}")
+        return aiko.StreamEvent.OKAY, {"image": image}
 
-# ---------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #

@@ -28,19 +28,30 @@ import aiko_services as aiko
 
 # --------------------------------------------------------------------------- #
 
-class PE_GenerateNumbers(aiko.PipelineElement):
-    def __init__(self, context):
+import random
+
+class PE_RandomIntegers(aiko.PipelineElement):
+    def __init__(self, context: aiko.ContextPipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
+    def frame_generator(self, stream):
+        limit, _ = self.get_parameter("limit")
+        if stream["frame_id"] < int(limit):
+            return aiko.StreamEvent.OKAY, {"random": random.randint(0, 8)}
+        else:
+            return aiko.StreamEvent.STOP, None
+
     def start_stream(self, stream, stream_id):
-        def frame_data_producer(self, stream):
-          return {"number": stream["frame_id"]}
+        rate, _ = self.get_parameter("rate", default=1)
+        self.create_frames(stream, self.frame_generator, rate=float(rate))
+        return aiko.StreamEvent.OKAY, None
 
-        self.create_frames(stream, frame_data_producer, rate=1)
+    def process_frame(self, stream, random) -> Tuple[bool, dict]:
+    #   if stream["stream_id"] == 0:  # TODO: "stream_required"
+    #       return aiko.StreamEvent.ERROR, "Must create a stream"
 
-    def process_frame(self, stream, number) -> Tuple[bool, dict]:
-        self.logger.info(f"{self._id(stream)}: in/out number: {number}")
-        return True, {"number": number}
+        self.logger.info(f"{self._id(stream)}: random: {random}")
+        return aiko.StreamEvent.OKAY, {"random": random}
 
     def stop_stream(self, stream, stream_id):
         stream["terminate"] = True

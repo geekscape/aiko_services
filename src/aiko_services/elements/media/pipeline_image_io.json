@@ -3,40 +3,17 @@
   "name":    "p_image_io",
   "runtime": "python",
 
-  "graph": ["(ImageRead0 ImageRead1)"],
+  "graph": ["(ImageReadFile)"],
 
-  "parameters": {
-    "width":  640,
-    "height": 480
-  },
+  "parameters": {"width": 640, "height": 480},
 
   "elements": [
-    { "name":   "ImageRead0",
-      "parameters": {
-          "_stream_required": true,
-          "path": "z_00.jpeg"
-      },
+    { "name":   "ImageReadFile",
+      "parameters": {"path": "z_00.jpeg"},
       "input":  [{ "name": "path", "type": "str" }],
       "output": [{ "name": "image", "type": "image" }],
       "deploy": {
-        "local": {
-          "class_name": "ImageReadFile",
-          "module": "aiko_services.elements.media.image_io"
-        }
-      }
-    },
-    { "name":   "ImageRead1",
-      "parameters": {
-          "_stream_required": true,
-          "path": "z_01.jpeg"
-      },
-      "input":  [{ "name": "path", "type": "str" }],
-      "output": [{ "name": "image", "type": "image" }],
-      "deploy": {
-        "local": {
-          "class_name": "ImageReadFile",
-          "module": "aiko_services.elements.media.image_io"
-        }
+        "local": {"module": "aiko_services.elements.media.image_io"}
       }
     }
   ]
