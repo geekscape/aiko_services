@@ -14,7 +14,7 @@
 # To Do
 # ~~~~~
 # - Improve CLI to record multiple different topic paths
-# - On-the-fly configuration ...
+# - On-the-fly configuration parameter updates ...
 #   - _RING_BUFFER_SIZE, _TOPIC_LRU_CACHE_SIZE
 #   - topic_path_filter causes unsubscribe and resubscribe to correct topic
 # - Keep statistics for ...
@@ -41,6 +41,13 @@ _RING_BUFFER_SIZE = 2  # 128
 # --------------------------------------------------------------------------- #
 
 class Recorder(Service):
+    Interface.default("Recorder", "aiko_services.main.recorder.RecorderImpl")
+
+#   @abstractmethod
+#   def METHOD_NAME(self):
+#       pass
+
+class RecorderImpl(Recorder):
     def __init__(self, context, topic_path_filter):
         context.get_implementation("Service").__init__(self, context)
 
@@ -98,7 +105,7 @@ def main(topic_path_filter):
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
     init_args = service_args(SERVICE_TYPE, None, None, PROTOCOL, tags)
     init_args["topic_path_filter"] = topic_path_filter
-    recorder = compose_instance(Recorder, init_args)
+    recorder = compose_instance(RecorderImpl, init_args)
     aiko.process.run()
 
 if __name__ == "__main__":
