@@ -5,8 +5,8 @@
 # Usage
 # ~~~~~
 # DEFINITION=pipeline_definition.json
-# aiko_pipeline create [--name $PIPELINE_NAME] $DEFINITION
-# aiko_pipeline delete $PIPELINE_NAME
+# aiko_pipeline create  [--name $PIPELINE_NAME] $DEFINITION
+# aiko_pipeline destroy $PIPELINE_NAME
 #
 # AIKO_LOG_LEVEL=DEBUG AIKO_LOG_MQTT=false aiko_pipeline create $DEFINITION
 #
@@ -985,7 +985,7 @@ except avro.errors.SchemaParseException as schema_parse_exception:
 @click.group()
 
 def main():
-    """Create and delete Pipelines"""
+    """Create and destroy Pipelines"""
     pass
 
 @main.command(help="Create Pipeline defined by PipelineDefinition pathname")
@@ -1037,11 +1037,29 @@ def create(
 
     pipeline.run()
 
-@main.command(help="Delete Pipeline")
+@main.command(help="Destroy Pipeline")
 @click.argument("name", nargs=1, type=str, required=True)
 
-def delete(name):
-    raise SystemExit("Error: pipeline.py delete: Unimplemented")
+def destroy(name):
+# TODO: D.R.Y: Refactor based on "storage.py" and put this in the right place !
+    def actor_discovery_handler(command, service_details):
+        if command == "add":
+            event.remove_timer_handler(waiting_timer)
+            topic_path = f"{service_details[0]}/in"
+            actor = get_actor_mqtt(topic_path, Pipeline)
+            actor.stop()
+            print(f'Destroyed Pipeline "{name}"')
+            aiko.process.terminate()
+
+    def waiting_timer():
+        event.remove_timer_handler(waiting_timer)
+        print(f'Waiting to discover Pipeline "{name}"')
+
+    actor_discovery = ActorDiscovery(aiko.process)
+    service_filter = ServiceFilter("*", name, "*", "*", "*", "*")
+    actor_discovery.add_handler(actor_discovery_handler, service_filter)
+    event.add_timer_handler(waiting_timer, 0.5)
+    aiko.process.run()
 
 if __name__ == "__main__":
     main()

@@ -160,9 +160,9 @@ class ActorTopic:
 class Actor(Service):
     Interface.default("Actor", "aiko_services.main.actor.ActorImpl")
 
-#   @abstractmethod
-#   def run(self):  # TODO: Decide what methods are required to be an Actor
-#       pass
+    @abstractmethod
+    def run(self):
+        pass
 
 class ActorImpl(Actor):
     @classmethod
@@ -220,10 +220,6 @@ class ActorImpl(Actor):
         return f"[{self.__module__}.{type(self).__name__} " \
                f"object at {hex(id(self))}]"
 
-    # TODO: make public
-    def _stop(self):
-        aiko.process.terminate()
-
     def ec_producer_change_handler(self, command, item_name, item_value):
     #   if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
     #       _LOGGER.debug(f"ECProducer: {command} {item_name} {item_value}")
@@ -236,7 +232,7 @@ class ActorImpl(Actor):
     def is_running(self):
         return self.share["running"]
 
-    def run(self):
+    def run(self):  # TODO: Refactor this method into "service.py"
         self.share["running"] = True
         try:
             aiko.process.run()

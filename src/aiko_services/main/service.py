@@ -507,7 +507,15 @@ class Service(ServiceProtocolInterface):
         pass
 
     @abstractmethod
+    def run(self):
+        pass
+
+    @abstractmethod
     def set_registrar_handler(self, registrar_handler):
+        pass
+
+    @abstractmethod
+    def stop(self):
         pass
 
     @abstractmethod
@@ -552,8 +560,14 @@ class ServiceImpl(Service):
         if self._registrar_handler_function:
             self._registrar_handler_function(action, registrar)
 
+    def run(self):
+        raise SystemExit("Unimplemented: Currently only supported by Actor")
+
     def set_registrar_handler(self, registrar_handler):
         self._registrar_handler_function = registrar_handler
+
+    def stop(self):
+        aiko.process.terminate()
 
     def add_tags(self, tags):
         for tag in tags:
