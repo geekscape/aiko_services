@@ -24,7 +24,8 @@ hatch shell               # Run shell using Hatch to manage dependencies
 
 # Aiko Services Examples
 
-- [Aloha Honua documentation](src/examples/aloha_honua/ReadMe.md) (hello world)
+- [Aloha Honua documentation](src/aiko_services/examples/aloha_honua/ReadMe.md)
+  (hello world)
 
 Build and publish Aiko Services Package to PyPi
 
