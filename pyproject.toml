@@ -33,15 +33,15 @@ classifiers = [
 ]
 
 dependencies = [
-    "asciimatics~=1.14.0",
+    "asciimatics~=1.15.0",
     "avro~=1.11.1",
     "avro-validator~=1.2.1",
     "click~=8.0",
     "numpy~=1.26.4",
     "paho-mqtt>=1.6.1,<2.0.0",
-    "Pillow~=10.3.0",
+    "Pillow~=10.2.0",
     "pyperclip~=1.8.2",
-    "requests~=2.26.0",
+    "requests~=2.31.0",
     "transitions~=0.9.0",
     "wrapt~=1.16.0"
 ]
