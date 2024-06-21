@@ -46,7 +46,7 @@ class TransportMQTTImpl(TransportMQTT):
         context.get_implementation("Actor").__init__(self, context)
 
     def terminate(self):
-        self._stop()
+        self.stop()
 
 # def _proxy_post_message(
 #   proxy_name, actual_object, actual_function,
