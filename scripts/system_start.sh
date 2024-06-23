@@ -5,13 +5,20 @@
 # - Aiko Registrar
 # - Aiko Dasboard
 #
+# Run if MQTT server is not localhost:
+# ./scripts/system_start.sh <AIKO_MQTT_HOST> <AIKO_NAMESPACE>
+#
+# or
+#
+# AIKO_MQTT_HOST=<MQTT server> ./scripts/system_start.sh
+#
 # To Do
 # ~~~~~
 # - Convert to Python and add to "setup.py:entry_points:console_scripts"
 #   - Test on Linux, Mac OS X and Windows
 
-export AIKO_MQTT_HOST=${1:-localhost}
-export AIKO_NAMESPACE=${2:-aiko}
+export AIKO_MQTT_HOST=${1:-${AIKO_MQTT_HOST:-localhost}}
+export AIKO_NAMESPACE=${2:-${AIKO_NAMESPACE:-aiko}}
 
 if [ `uname` == "Darwin" ]; then
   MOSQUITTO_COMMAND=/usr/local/sbin/mosquitto
