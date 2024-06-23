@@ -1,16 +1,21 @@
 #!/bin/bash
 #
-# Start core Aiko Services
-# - mosquitto (MQTT server) ... only start for "localhost"
-# - Aiko Registrar
-# - Aiko Dasboard
+# Description
+# ~~~~~~~~~~~
+# Starts the core Aiko Services ...
+# - mosquitto  # MQTT server: only start when run on "localhost"
+# - aiko_registrar
+# - aiko_dashboard
 #
-# Run if MQTT server is not localhost:
-# ./scripts/system_start.sh <AIKO_MQTT_HOST> <AIKO_NAMESPACE>
+# Usage
+# ~~~~~
+# Default MQTT server:    localhost
+# Default Aiko namespace: aiko
 #
-# or
+#   ./scripts/system_start.sh [AIKO_MQTT_HOST] [AIKO_NAMESPACE]
 #
-# AIKO_MQTT_HOST=<MQTT server> ./scripts/system_start.sh
+# Alternative ...
+#   AIKO_MQTT_HOST=<MQTT_HOST_NAME> ./scripts/system_start.sh
 #
 # To Do
 # ~~~~~
