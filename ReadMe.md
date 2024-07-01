@@ -3,7 +3,7 @@
 Distributed system framework supporting
 [AIoT](https://en.wikipedia.org/wiki/Artificial_intelligence_of_things), [Machine Learning](https://en.wikipedia.org/wiki/Machine_learning), [Media streaming](https://en.wikipedia.org/wiki/Streaming_media) and [Robotics](https://en.wikipedia.org/wiki/Robotics)
 
-Features
+## Features
 
 - Supports multi-nodal Machine Learning streaming pipelines ... that span from edge (embedded) devices all the way through to the data centre systems and back again
 
@@ -49,7 +49,7 @@ After **installing from GitHub** *(above)*, perform these additional commands
 ```
 pip install -U hatch  # Install latest Hatch build and package manager
 hatch shell           # Run shell using Hatch to manage dependencies
-# hatch test          # Run local tests [to be completed]
+# hatch test          # Run local tests (to be completed)
 hatch build           # Publish Aiko Services package to PyPI
 ```
 
@@ -57,7 +57,7 @@ hatch build           # Publish Aiko Services package to PyPI
 
 After **installing from GitHub** *(above)*, choose whether to use a public MQTT server ... or to install and run your own MQTT server
 
-It is usually easier to briefly use a public remotely hosted MQTT server to get going quickly.  
+It is easier to start by using a public remotely hosted MQTT server to tryout a few examples.  
 For the longer term, it is better and more secure to install and run your own MQTT server.
 
 ## Running your own mosquitto (MQTT) server

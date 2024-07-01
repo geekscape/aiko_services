@@ -50,8 +50,6 @@ class Graph:
                 del nodes[node]
             nodes[node] = None
             for successor in node.successors:
-                if successor is None:
-                    breakpoint()
                 traverse(self._graph[successor])
 
         if self._head_nodes:
