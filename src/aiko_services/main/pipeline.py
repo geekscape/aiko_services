@@ -109,7 +109,7 @@ import os
 from threading import Thread
 import time
 import traceback
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 from aiko_services.main import *
 from aiko_services.main.transport import *
@@ -327,7 +327,7 @@ class PipelineElementImpl(PipelineElement):
 
 # TODO: For "rate", measure time since last frame to be more accurate
 
-    def _create_frames_thread(self, stream, frame_generator, rate):
+    def _create_frames_thread_fn(self, stream, frame_generator, rate):
         frame_id = 0
         while not stream["terminate"]:
             self.pipeline.stream = stream
@@ -347,7 +347,7 @@ class PipelineElementImpl(PipelineElement):
 
     def create_frames(self, stream, frame_generator, rate=None):
         thread_args=(stream, frame_generator, rate)
-        Thread(target=self._create_frames_thread, args=thread_args).start()
+        self.pipeline._create_frames_thread = Thread(target=self._create_frames_thread_fn, args=thread_args)
 
     def get_parameter(self, name, default=None, use_pipeline=True):
     # TODO: During process_frame(), stream parameters should be updated
@@ -465,6 +465,8 @@ class PipelineImpl(Pipeline):
         self.pipeline_graph = self._create_pipeline(context.definition)
         self.share["element_count"] = self.pipeline_graph.element_count
         self.share["lifecycle"] = "ready"
+
+        self._create_frames_thread: Optional[Thread] = None
 
     # TODO: Better visualization of the Pipeline / PipelineElements details
         if False:
@@ -840,6 +842,9 @@ class PipelineImpl(Pipeline):
                         f"{event_description}: {event_diagnostic}",
                         "Pipeline stopped")
             self.stream = None
+
+        if self._create_frames_thread is not None:
+            self._create_frames_thread.start()
 
     def destroy_stream(self, stream_id):
         if stream_id in self.stream_leases:
