@@ -3,15 +3,31 @@
   "name":    "p_image_io",
   "runtime": "python",
 
-  "graph": ["(ImageReadFile)"],
+  "graph": ["(ImageReadFile ImageResize ImageWriteFile)"],
 
   "parameters": {"width": 640, "height": 480},
 
   "elements": [
     { "name":   "ImageReadFile",
-      "parameters": {"path": "z_00.jpeg"},
+      "parameters": {"path": "z_in_00.jpeg"},
       "input":  [{ "name": "path", "type": "str" }],
       "output": [{ "name": "image", "type": "image" }],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "ImageResize",
+      "input":  [{ "name": "image", "type": "image" }],
+      "output": [{ "name": "image", "type": "image" }],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "ImageWriteFile",
+      "parameters": {"path_template": "z_out_00.jpeg"},
+      "#":          {"path_template": "z_out_{}.jpeg"},
+      "input":  [{ "name": "image", "type": "image" }],
+      "output": [],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.image_io"}
       }

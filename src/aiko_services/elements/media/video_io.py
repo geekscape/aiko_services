@@ -8,6 +8,14 @@
 #     height = int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
 #     length = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
 #     frame_rate = int(video_capture.get(cv2.CAP_PROP_FPS))
+#
+# - Design video windowing, i.e collecting multiple frame for ML processing
+#   together, e.g gesture analysis
+#
+# - "Batching" images for CPU-GPU memory transfer efficiently for nVidia
+#   - For both images and video ... depending upon ML model
+#
+# Framing ?
 
 try:
     import cv2
@@ -24,7 +32,10 @@ import aiko_services as aiko
 
 __all__ = ["VideoReadFile", "VideoShow", "VideoWriteFile"]
 
+# class VideoSample():
+# Implement as a function which can be called from VideoRead* DataSources
 
+# TODO: Add sample rate parameter
 class VideoReadFile(StreamElement):
     def stream_start_handler(self, stream_id, frame_id, swag):
         self.logger.debug(f"stream_start_handler(): stream_id: {stream_id}")

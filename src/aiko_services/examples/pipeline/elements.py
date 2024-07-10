@@ -37,7 +37,7 @@ class PE_RandomIntegers(aiko.PipelineElement):
     def frame_generator(self, stream):
         limit, _ = self.get_parameter("limit")
         if stream["frame_id"] < int(limit):
-            return aiko.StreamEvent.OKAY, {"random": random.randint(0, 8)}
+            return aiko.StreamEvent.OKAY, {"random": random.randint(0, 9)}
         else:
             return aiko.StreamEvent.STOP, None
 

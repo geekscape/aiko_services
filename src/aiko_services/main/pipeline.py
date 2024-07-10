@@ -326,6 +326,7 @@ class PipelineElementImpl(PipelineElement):
         self.pipeline.create_frame(copy.deepcopy(stream), frame_data)
 
 # TODO: For "rate", measure time since last frame to be more accurate
+# FIX:  For "rate" check "rate=0" (fills mailbox) versus "rate=None" ?
 
     def _create_frames_thread(self, stream, frame_generator, rate):
         frame_id = 0
@@ -334,6 +335,11 @@ class PipelineElementImpl(PipelineElement):
             stream["frame_id"] = frame_id
             stream_event, frame_data = frame_generator(stream)
             self.pipeline.stream = None
+
+        #   if stream_event is StreamEvent.STOP:
+        #       Post STOP function_call onto the mailbox
+
+        # TODO: Remove this !
 
             if stream_event is StreamEvent.ERROR:
                 raise SystemExit("COMPLETE _CREATE_FRAMES_THEAD STREAMEVENT.ERROR")
@@ -396,7 +402,7 @@ class PipelineElementImpl(PipelineElement):
         return f"{self.name}<{stream['stream_id']}:{stream['frame_id']}>"
 
     def start_stream(self, stream, stream_id):
-        pass
+        return StreamEvent.OKAY, None
 
     def stop_stream(self, stream, stream_id):
         pass
