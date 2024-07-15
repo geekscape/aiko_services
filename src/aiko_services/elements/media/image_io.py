@@ -1,22 +1,22 @@
 # Usage
 # ~~~~~
-# cd aiko_services/elements
+# cd src/aiko_services/elements/media
 # aiko_pipeline create pipeline_image_io.json --stream_id 1  \
-#   --stream_parameters width 320 -sp ImageReadFile.path image.jpeg
+#   -sp ImageReadFile.path image.jpeg
+#   -sp ImageResize.width 320 -sp ImageResize.height 240
 #
 # To Do
 # ~~~~~
-# - Document "DataSource/StreamInput" and "DataTarget/StreamOutput"
+# - Document "DataSource" and "DataTarget" ...
 #   - ImageReadFile: start_stream() --> create_frame() --> process_frame()
 #                    Therefore pass parameters as required
 #   - ImageWriteFile: Mustn't use create_frame()
 #                     Therefore get parameters in process_frame()
 #
-# - ImageReadFile should also handle a DataSource type ...
+# - ImageReadFile should accept a DataSource type ...
 #   - URL: "file://" and media_type: "jpeg", "png", etc
 #
-# - PE_Metrics: Consider what to measure ?
-#   choices of data type to transfer via function parameters
+# - PE_Metrics: Determine what to measure ?
 
 from typing import Tuple
 from pathlib import Path
@@ -33,6 +33,9 @@ except:  # TODO: Optional warning flag to avoid being annoying !
     diagnostic = "image_io.py: Couldn't import numpy module"
     print(f"WARNING: {diagnostic}")
     _LOGGER.warning(diagnostic)
+
+def containsAll(source: str, match: chr):
+    return 0 not in [character in source for character in match]
 
 # --------------------------------------------------------------------------- #
 # Check
@@ -74,7 +77,7 @@ except:  # TODO: Optional warning flag to avoid being annoying !
 # - MediaTypes
 #   - image/raw|jpeg|png, video/h.264, audio/*, text/raw, pointcloud/2d|3d
 #   * Laboratory camera: image/raw
-#
+
 # --------------------------------------------------------------------------- #
 # ImageReadFile is a DataSource with an image "path" string parameter
 #
@@ -88,10 +91,9 @@ except:  # TODO: Optional warning flag to avoid being annoying !
 # Test
 # ~~~~
 # export AIKO_LOG_LEVEL=DEBUG; export AIKO_LOG_MQTT=false
-# aiko_pipeline create pipeline_image_io.json -fd "(path: z_in_00.jpeg)"
-# aiko_pipeline create pipeline_image_io.json -s 1
-# aiko_pipeline create pipeline_image_io.json -s 1  \
-#                                         -sp ImageReadFile.path z_in_00.jpeg
+# aiko_pipeline create pipeline_image_io_0.json -fd "(path: z_data/in_00.jpeg)"
+# aiko_pipeline create pipeline_image_io_0.json -s 1  \
+#                                  -sp ImageReadFile.path z_data/in_00.jpeg
 
 class ImageReadFile(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
@@ -130,6 +132,8 @@ class ImageOverlay(aiko.PipelineElement):
     pass
 
 # --------------------------------------------------------------------------- #
+# ToDo: Add logic for using different backends (opencv,...) or
+#           different input types (np.ndarray, ...)
 # ToDo: cv2.resize(image, dimensions, interpolation=cv2.INTER_CUBIC) ?
 
 class ImageResize(aiko.PipelineElement):
@@ -140,43 +144,42 @@ class ImageResize(aiko.PipelineElement):
         width, _ = self.get_parameter("width")
         height, _ = self.get_parameter("height")
 
-#       # ToDo: Add logic for using different backends (opencv,...) or
-#       #       different input types (np.ndarray, ...)
         image = image.resize((int(width), int(height)))
         return aiko.StreamEvent.OKAY, {"image": image}
 
 # --------------------------------------------------------------------------- #
-# ImageWriteFile is a DataTarget with an image parameter
+# ImageWriteFile is a DataTarget that writes an image to a file
+#
+# in:  "image" to be written to a file
+# out: None
+#
+# parameter: "path" is the write file path, format variable: "frame_id"
 #
 # Supports both Streams and direct process_frame() calls
-#
-# To Do
-# ~~~~~
-# - File path template, e.g variable frame_id
-# - Consider what causes Stream to be closed, e.g single frame processed ?
 #
 # Test
 # ~~~~
 # export AIKO_LOG_LEVEL=DEBUG; export AIKO_LOG_MQTT=false
-#                                          -sp ImageWriteFile.path z_in_01.jpeg
+# aiko_pipeline create pipeline_image_io_0.json -s 1  \
+#                                  -sp ImageWriteFile.path z_data/out_01.jpeg
 
 class ImageWriteFile(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream, image) -> Tuple[bool, dict]:
-        path_template, found = self.get_parameter("path_template")
+        path, found = self.get_parameter("path")
         if not found:
-            diagnostic = 'Must provide image "path_template" parameter'
+            diagnostic = 'Must provide image write file "path" parameter'
             return aiko.StreamEvent.ERROR, diagnostic
 
-        path = path_template  # TODO: Implement path_template processing
-
-        self.logger.debug(f"{self._id(stream)}: image path: {path}")
+        if containsAll(path, "{}"):
+            path = path.format(stream["frame_id"])
+        self.logger.debug(f"{self._id(stream)}: image write file path: {path}")
 
         if not isinstance(image, Image.Image):
             if isinstance(image, np.ndarray):  # TODO: Check NUMPY_IMPORTED
-                pass
+                pass                           # TODO: numpy conversion
             else:
                 diagnostic = "UNKNOWN IMAGE TYPE"  # FIX ME !
                 return aiko.StreamEvent.ERROR, diagnostic
@@ -190,4 +193,4 @@ class ImageWriteFile(aiko.PipelineElement):
         self.logger.info(f"Image shape: {image.size}")
         return aiko.StreamEvent.OKAY, {}
 
- # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #

@@ -1,0 +1,36 @@
+{
+  "version": 0,
+  "name":    "p_text_io_0",
+  "runtime": "python",
+
+  "graph": ["(TextReadFile TextFilter TextWriteFile)"],
+
+  "parameters": {"width": 640, "height": 480},
+
+  "elements": [
+    { "name":   "TextReadFile",
+      "parameters": {"path": "z_in_00.txt"},
+      "input":  [{ "name": "path", "type": "str" }],
+      "output": [{ "name": "text", "type": "str" }],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.text_io"}
+      }
+    },
+    { "name":   "TextFilter",
+      "input":  [{ "name": "text", "type": "str" }],
+      "output": [{ "name": "text", "type": "str" }],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.text_io"}
+      }
+    },
+    { "name":   "TextWriteFile",
+      "parameters": {"path_template": "z_out_00.txt"},
+      "#":          {"path_template": "z_out_{}.txt"},
+      "input":  [{ "name": "text", "type": "str" }],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.text_io"}
+      }
+    }
+  ]
+}
