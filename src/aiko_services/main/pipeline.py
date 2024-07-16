@@ -415,10 +415,19 @@ class PipelineElementRemoteAbsent(PipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
         self.share["lifecycle"] = "absent"
 
-    def process_frame(self, stream, **kwargs) -> Tuple[bool, dict]:
-        _LOGGER.error( "PipelineElement.process_frame(): "
+    def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME):
+        self.log_error("create_stream")
+
+    def destroy_stream(self, stream_id):
+        self.log_error("destroy_stream")
+
+    def log_error(self, function_name):
+        _LOGGER.error(f"PipelineElement.{function_name}(): "
                       f"{self.definition.name}: invoked when "
                        "remote Pipeline Actor hasn't been discovered")
+
+    def process_frame(self, stream, **kwargs) -> Tuple[bool, dict]:
+        self.log_error("process_frame")
         return True, {}
 
 class PipelineElementRemoteFound(PipelineElement):
@@ -426,10 +435,11 @@ class PipelineElementRemoteFound(PipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
         self.share["lifecycle"] = "ready"
 
-    def process_frame(self, stream, **kwargs) -> Tuple[bool, dict]:
-        _LOGGER.info("PipelineElementRemoteFound.process_frame(): "
-                     "invoked after remote Pipeline Actor discovered")
-        return True, {}
+    def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME):
+        pass
+
+    def destroy_stream(self, stream_id):
+        pass
 
 # --------------------------------------------------------------------------- #
 
@@ -764,8 +774,10 @@ class PipelineImpl(Pipeline):
             time_element_start = time.time()
 
             try:
-                # TODO: "ServiceRemoteProxy" isn't set anywhere ?!?
-                if element_name != "ServiceRemoteProxy":
+                if element_name == "ServiceRemoteProxy":
+                    # TODO: Pipeline stream needs to "pause" waiting for result
+                    element.process_frame(stream, **inputs)
+                else:
                     stream_event, frame_output = element.process_frame(
                         stream, **inputs)
 
@@ -775,9 +787,6 @@ class PipelineImpl(Pipeline):
                             from_name, to_name = next(iter(out_map.items()))
                             to_name = f"{out_element}.{to_name}"
                             frame_output[to_name] = frame_output.pop(from_name)
-                else:
-                    element.process_frame(stream, **inputs)
-                    # TODO: Pipeline stream needs to "pause" waiting for result
             except Exception as exception:
                 self._error(header, traceback.format_exc())
 
@@ -830,21 +839,25 @@ class PipelineImpl(Pipeline):
 
         # FIX: Handle Exceptions ..."
             for node in self.pipeline_graph:
-                stream_event, event_diagnostic = node.element.start_stream(
-                    self.stream, stream_id)
+                element = node.element
+                element_name = element.__class__.__name__
+                if element_name == "ServiceRemoteProxy":
+                    element.create_stream(stream_id, parameters, grace_time)
+                else:
+                    stream_event, event_diagnostic = element.start_stream(
+                        self.stream, stream_id)
 
-                if stream_event == StreamEvent.ERROR:
-                    self.destroy_stream(stream_id)
+                    if stream_event == StreamEvent.ERROR:
+                        self.destroy_stream(stream_id)
 
-                    element_name = node.element.__class__.__name__
-                    event_description = StreamEventDescription[stream_event]
-                    if event_diagnostic is None:
-                        event_diagnostic = "No diagnostic provided"
+                        event_description = StreamEventDescription[stream_event]
+                        if event_diagnostic is None:
+                            event_diagnostic = "No diagnostic provided"
 
-                    PipelineImpl._exit(  # FIX: Optionally terminate Pipeline
-                        f"PipelineElement {element_name}.start_stream(): "
-                        f"{event_description}: {event_diagnostic}",
-                        "Pipeline stopped")
+                        PipelineImpl._exit(  # FIX: Optional terminate Pipeline
+                            f"PipelineElement {element_name}.start_stream(): "
+                            f"{event_description}: {event_diagnostic}",
+                            "Pipeline stopped")
             self.stream = None
 
     def destroy_stream(self, stream_id):
@@ -856,7 +869,12 @@ class PipelineImpl(Pipeline):
 
         # FIX: Handle Exceptions ..."
             for node in self.pipeline_graph:
-                node.element.stop_stream(self.stream, stream_id)
+                element = node.element
+                element_name = element.__class__.__name__
+                if element_name == "ServiceRemoteProxy":
+                    element.destroy_stream(stream_id)
+                else:
+                    element.stop_stream(self.stream, stream_id)
             self.stream = None
 
     def set_parameter(self, stream_id, name, value):
