@@ -422,9 +422,9 @@ class PipelineElementRemoteAbsent(PipelineElement):
         self.log_error("destroy_stream")
 
     def log_error(self, function_name):
-        _LOGGER.error(f"PipelineElement.{function_name}(): "
-                      f"{self.definition.name}: invoked when "
-                       "remote Pipeline Actor hasn't been discovered")
+        self.logger.error(f"PipelineElement.{function_name}(): "
+                          f"{self.definition.name}: invoked when "
+                           "remote Pipeline Actor hasn't been discovered")
 
     def process_frame(self, stream, **kwargs) -> Tuple[bool, dict]:
         self.log_error("process_frame")
@@ -708,12 +708,114 @@ class PipelineImpl(Pipeline):
             print(f"Pipeline update: --> {element_name} proxy")
 
     def process_frame(self, stream, frame_data) -> Tuple[bool, None]:
-        if "stream_id" not in stream:     # Default stream_id
+        graph = self.pipeline_graph
+        return self._process_frame_common(graph, stream, frame_data)
+
+    def process_frame_response(self, stream, frame_data) -> Tuple[bool, None]:
+        graph = self.pipeline_graph  # TODO: graph.iterate_after(node_name)
+        return self._process_frame_common(graph, stream, frame_data)
+
+    def _process_frame_common(
+        self, graph, stream, frame_data) -> Tuple[bool, None]:
+
+        swag = self._process_stream_initialize(stream, frame_data)
+     #  self.logger.debug(
+     #      f"Process frame: {self._id(self.stream)}, swag: {swag}")
+        metrics = self._process_metrics_initialize()
+
+        definition_pathname = self.share["definition_pathname"]
+        for node in graph:
+            element = node.element
+            # TODO: Make sure element_name is correct for all error diagnostics
+            # TODO: Make sure element_name is correct for remote case
+            element_name = element.__class__.__name__  # TODO: or element.name ?
+            header = f'Error: Invoking Pipeline "{definition_pathname}": ' \
+                     f'PipelineElement "{element_name}": process_frame()'
+
+            frame_output = {}
+            inputs = self._process_fan_in(element, element_name, swag)
+            stream_event = StreamEvent.OKAY
+
+            try:
+                if element_name == "ServiceRemoteProxy":
+                    # TODO: Pipeline stream needs to "pause" waiting for result
+                    element.process_frame(self.stream, **inputs)
+                else:
+                    start_time = time.time()
+                    stream_event, frame_output = element.process_frame(
+                        self.stream, **inputs)
+
+                    self._process_fan_out(element_name, frame_output)
+
+                    self._process_metrics_capture(
+                        metrics, element.name, start_time)
+            except Exception as exception:
+                self._error(header, traceback.format_exc())
+
+            self._process_stream_event(element_name, frame_output, stream_event)
+            swag = {**swag, **frame_output}  # TODO: Consider all failure modes
+
+        self.stream = None
+
+        # TODO: May need to return the result to a parent Pipeline
+        # TODO: Replace "True" with StreamEvent.OKAY | STOP | ERROR
+        return True, swag
+
+    def _process_fan_in(self, element, element_name, swag):
+        fan_in_names = {}
+        if element_name in self.definition.mapping_fan_in:
+            fan_in = self.definition.mapping_fan_in[element_name]
+            for in_element, in_map in fan_in.items():
+                from_name, to_name = next(iter(in_map.items()))
+                fan_in_names[to_name] = f"{element_name}.{to_name}"
+
+        inputs = {}
+        input_names = [input["name"] for input in element.definition.input]
+
+        for input_name in input_names:
+            try:
+                if input_name in fan_in_names:
+                    inputs[input_name] = swag[fan_in_names[input_name]]
+                else:
+                    inputs[input_name] = swag[input_name]
+            except KeyError as key_error:
+                self._error(header,
+                    f'Function parameter "{input_name}" not found')
+        return inputs
+
+    def _process_fan_out(self, element_name, frame_output):
+        if element_name in self.definition.mapping_fan_out:
+            fan_out = self.definition.mapping_fan_out[element_name]
+            for out_element, out_map in fan_out.items():
+                from_name, to_name = next(iter(out_map.items()))
+                to_name = f"{out_element}.{to_name}"
+                frame_output[to_name] = frame_output.pop(from_name)
+
+# TODO: Refactor metrics into "utilities/metrics.py:class Metrics"
+    def _process_metrics_initialize(self):
+        if "metrics" in self.stream:
+            metrics = self.stream["metrics"]
+        else:
+            metrics = {}
+            self.stream["metrics"] = metrics
+
+        metrics["time_pipeline_start"] = time.time()
+        metrics["pipeline_elements"] = {}
+        return metrics
+
+    def _process_metrics_capture(self, metrics, element_name, start_time):
+        time_element = time.time() - start_time
+        metrics["pipeline_elements"][f"time_{element_name}"] = time_element
+
+        time_pipeline = time.time() - metrics["time_pipeline_start"]
+        metrics["time_pipeline"] = time_pipeline  # Total time, so far !
+
+# TODO: Consider refactoring Stream into "stream.py" ?
+    def _process_stream_initialize(self, stream, frame_data):
+        if "stream_id" not in stream:  # Default stream_id
             stream["stream_id"] = 0
-        if "frame_id" not in stream:      # Default frame_id
+        if "frame_id" not in stream:   # Default frame_id
             stream["frame_id"] = 0
-      # SWAG: Stuff We All Get 😅
-        swag = frame_data if len(frame_data) else {}  # Default swag
         self.stream = stream
 
         # Individual Stream data is stored in the "Lease.data"
@@ -728,94 +830,24 @@ class PipelineImpl(Pipeline):
             stream_lease.data.update(stream)  # process_frame(stream) data
             self.stream = stream_lease.data
 
-     #  _LOGGER.debug(f"Process frame: {self._id(stream)}, swag: {swag}")
+        swag = frame_data if len(frame_data) else {}  # Default swag
+        return swag  # Stuff We All Get 😅
 
-        if "metrics" in stream:
-            metrics = stream["metrics"]
-        else:
-            metrics = {}
-            stream["metrics"] = metrics
+# TODO: Consider refactoring Stream into "stream.py" ?
+    def _process_stream_event(self, element_name, frame_output, stream_event):
+        if stream_event == StreamEvent.ERROR:
+            for stream_id in self.stream_leases.copy():
+                self.destroy_stream(stream_id)
 
-        metrics["time_pipeline_start"] = time.time()
-        metrics_elements = metrics["pipeline_elements"] = {}
+            event_description = StreamEventDescription[stream_event]
+            event_diagnostic = "No diagnostic provided"
+            if "diagnostic" in frame_output:
+                event_diagnostic = frame_output["diagnostic"]
 
-        definition_pathname = self.share["definition_pathname"]
-
-        for node in self.pipeline_graph:
-            element = node.element
-            # TODO: Make sure element_name is correct for all error diagnostics
-            # TODO: Make sure element_name is correct for remote case
-            element_name = element.__class__.__name__
-            header = f'Error: Invoking Pipeline "{definition_pathname}": ' \
-                     f'PipelineElement "{element_name}": process_frame()'
-
-            fan_in_names = {}
-            if element_name in self.definition.mapping_fan_in:
-                fan_in = self.definition.mapping_fan_in[element_name]
-                for in_element, in_map in fan_in.items():
-                    from_name, to_name = next(iter(in_map.items()))
-                    fan_in_names[to_name] = f"{element_name}.{to_name}"
-
-            inputs = {}
-            input_names = [input["name"] for input in element.definition.input]
-
-            for input_name in input_names:
-                try:
-                    if input_name in fan_in_names:
-                        inputs[input_name] = swag[fan_in_names[input_name]]
-                    else:
-                        inputs[input_name] = swag[input_name]
-                except KeyError as key_error:
-                    self._error(header,
-                        f'Function parameter "{input_name}" not found')
-
-            frame_output = {}
-            stream_event = StreamEvent.OKAY
-            time_element_start = time.time()
-
-            try:
-                if element_name == "ServiceRemoteProxy":
-                    # TODO: Pipeline stream needs to "pause" waiting for result
-                    element.process_frame(stream, **inputs)
-                else:
-                    stream_event, frame_output = element.process_frame(
-                        stream, **inputs)
-
-                    if element_name in self.definition.mapping_fan_out:
-                        fan_out = self.definition.mapping_fan_out[element_name]
-                        for out_element, out_map in fan_out.items():
-                            from_name, to_name = next(iter(out_map.items()))
-                            to_name = f"{out_element}.{to_name}"
-                            frame_output[to_name] = frame_output.pop(from_name)
-            except Exception as exception:
-                self._error(header, traceback.format_exc())
-
-            time_element = time.time() - time_element_start
-            metrics_elements[f"time_{element_name}"] = time_element
-
-            time_pipeline = time.time() - metrics["time_pipeline_start"]
-            metrics["time_pipeline"] = time_pipeline  # Total time, so far !
-
-            if stream_event == StreamEvent.ERROR:
-                for stream_id in self.stream_leases.copy():
-                    self.destroy_stream(stream_id)
-
-                event_description = StreamEventDescription[stream_event]
-                event_diagnostic = "No diagnostic provided"
-                if "diagnostic" in frame_output:
-                    event_diagnostic = frame_output["diagnostic"]
-
-                PipelineImpl._exit(  # FIX: Optionally terminate Pipeline
-                    f"PipelineElement {element_name}.process_frame(): "
-                    f"{event_description}: {event_diagnostic}",
-                    "Pipeline stopped")
-
-            swag = {**swag, **frame_output}  # TODO: Consider all failure modes
-
-        self.stream = None
-
-        # TODO: May need to return the result to a parent Pipeline
-        return True, swag
+            PipelineImpl._exit(  # FIX: Optionally terminate Pipeline
+                f"PipelineElement {element_name}.process_frame(): "
+                f"{event_description}: {event_diagnostic}",
+                "Pipeline stopped")
 
     def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME):
         if self.share["lifecycle"] != "ready":
@@ -824,7 +856,8 @@ class PipelineImpl(Pipeline):
             return
 
         if stream_id in self.stream_leases:
-            _LOGGER.error(f"Pipeline create stream: {stream_id} already exists")
+            self.logger.error(
+                f"Pipeline create stream: {stream_id} already exists")
         else:
             stream_lease = Lease(int(grace_time), stream_id,
                 lease_expired_handler=self.destroy_stream)
@@ -865,7 +898,8 @@ class PipelineImpl(Pipeline):
             stream_lease = self.stream_leases[stream_id]
             del self.stream_leases[stream_id]
             self.stream = stream_lease.data
-            _LOGGER.info(f"Pipeline destroy stream: {self._id(self.stream)}")
+            self.logger.info(
+                f"Pipeline destroy stream: {self._id(self.stream)}")
 
         # FIX: Handle Exceptions ..."
             for node in self.pipeline_graph:

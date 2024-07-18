@@ -133,6 +133,9 @@ class Message:
             diagnostic = f"{self}: Function not found in: {self.target_object}"
         else:
             if callable(target_function):
+            # TODO: Catching all TypeError hides problems in "target_function"
+            #       Must only catch TypeError problems in this actor code below
+            #       For the specific argument TypeErrors and nothing else
                 try:
                     target_function(*self.arguments)
                 except TypeError as type_error:

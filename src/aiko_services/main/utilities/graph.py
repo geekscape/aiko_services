@@ -2,8 +2,8 @@
 # ~~~~~
 # from aiko_services.main.utilities import *
 # graph = Graph()
-# node_a = Node("a", None)
-# node_b = Node("b", None)
+# node_a = Node("a")  # Node("a", data_a)
+# node_b = Node("b")  # Node("b", data_b)
 # node_a.add("b")
 # graph.add(node_a)
 # graph.add(node_b)
@@ -25,6 +25,8 @@
 #
 # To Do
 # ~~~~~
+# - Optimize Graph.__iter__() with execution order cache, invalidate on changes
+#
 # - For serialization, use dataclasses and JSON
 #   - Consider Avro support for classes built with Pydantic
 #       import json;  string = json.dump(...)
@@ -43,20 +45,20 @@ class Graph:
         self._head_nodes = head_nodes if head_nodes else OrderedDict()
 
     def __iter__(self):
-        nodes = OrderedDict()
+        ordered_nodes = OrderedDict()
 
-        def traverse(node):
-            if node in nodes:
-                del nodes[node]
-            nodes[node] = None
+        def execution_order(node):
+            if node in ordered_nodes:
+                del ordered_nodes[node]
+            ordered_nodes[node] = None
             for successor in node.successors:
-                traverse(self._graph[successor])
+                execution_order(self._graph[successor])
 
         if self._head_nodes:
-            node = self._graph[next(iter(self._head_nodes))]
-            traverse(node)
+            node = self._graph[next(iter(self._head_nodes))]  # first head nodes
+            execution_order(node)
 
-        return iter(nodes)
+        return iter(ordered_nodes)
 
     def __repr__(self):
         return str(self.nodes(as_strings=True))
@@ -69,11 +71,20 @@ class Graph:
     def get_node(self, node_name):
         return self._graph[node_name]
 
+    def iterate_after(self, node_name):
+        node = self.get_node(node_name)
+        ordered_nodes = list(self)
+        try:
+            index = ordered_nodes.index(node)
+            return ordered_nodes[index+1:]
+        except ValueError:
+            return []
+
     def nodes(self, as_strings=False):
-        nodes = []
+        ordered_nodes = []
         for node in self._graph.values():
-            nodes.append(node.name if as_strings else node)
-        return nodes
+            ordered_nodes.append(node.name if as_strings else node)
+        return ordered_nodes
 
     def remove(self, node):
         if node.name in self._graph:
@@ -119,7 +130,7 @@ class Graph:
         return node_heads, node_successors
 
 class Node:
-    def __init__(self, name, element, successors=None):
+    def __init__(self, name, element=None, successors=None):
         self._name = name
         self._element = element
         self._successors = successors if successors else OrderedDict()
