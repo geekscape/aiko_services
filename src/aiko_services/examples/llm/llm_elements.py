@@ -47,8 +47,8 @@ class PE_COQUI_TTS(PipelineElement):
         context.set_protocol("text_to_speech:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, context, text) -> Tuple[bool, dict]:
-        return True, {"text": text}
+    def process_frame(self, context, text) -> Tuple[aiko.StreamEvent, dict]:
+        return aiko.StreamEvent.OKAY, {"text": text}
 
 # --------------------------------------------------------------------------- #
 
@@ -182,7 +182,7 @@ class PE_LLM(PipelineElement):
     def detection_handler(self, aiko, topic, payload_in):
         self.detections = (time.time(), payload_in.split()[1:])
 
-    def process_frame(self, context, text) -> Tuple[bool, dict]:
+    def process_frame(self, context, text) -> Tuple[aiko.StreamEvent, dict]:
         if text != "<silence>":
             detections = ""
             if self.detections:
@@ -200,6 +200,6 @@ class PE_LLM(PipelineElement):
         else:
             response = text
 
-        return True, {"text": response}
+        return aiko.StreamEvent.OKAY, {"text": response}
 
 # --------------------------------------------------------------------------- #

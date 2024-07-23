@@ -108,7 +108,7 @@ class ImageReadFile(aiko.PipelineElement):
         self.create_frame(stream, {"path": path})
         return aiko.StreamEvent.OKAY, None
 
-    def process_frame(self, stream, path) -> Tuple[bool, dict]:
+    def process_frame(self, stream, path) -> Tuple[StreamEvent, dict]:
         self.logger.debug(f"{self._id(stream)}: image path: {path}")
 
         if not Path(path).exists():
@@ -140,7 +140,7 @@ class ImageResize(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, stream, image) -> Tuple[bool, dict]:
+    def process_frame(self, stream, image) -> Tuple[StreamEvent, dict]:
         width, _ = self.get_parameter("width")
         height, _ = self.get_parameter("height")
 
@@ -167,7 +167,7 @@ class ImageWriteFile(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, stream, image) -> Tuple[bool, dict]:
+    def process_frame(self, stream, image) -> Tuple[StreamEvent, dict]:
         path, found = self.get_parameter("path")
         if not found:
             diagnostic = 'Must provide image write file "path" parameter'

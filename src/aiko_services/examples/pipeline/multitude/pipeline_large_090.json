@@ -1,0 +1,118 @@
+{
+  "version": 0,
+  "name":    "p_large_090",
+  "runtime": "python",
+
+  "graph": ["(PE_090 PE_091 PE_092 PE_093 PE_094 PE_095 PE_096 PE_097 PE_098 PE_099 PE_Metrics)"],
+  "parameters": { "constant": 1, "delay": 0 },
+
+  "elements": [
+    { "name":   "PE_090",
+      "input":  [{ "name": "i", "type": "int" }],
+      "output": [{ "name": "i", "type": "int" }],
+      "deploy": {
+        "local": {
+            "class_name": "PE_Add",
+            "module": "aiko_services.examples.pipeline.elements"
+         }
+      }
+    },
+    { "name":   "PE_091",
+      "input":  [{ "name": "i", "type": "int" }],
+      "output": [{ "name": "i", "type": "int" }],
+      "deploy": {
+        "local": {
+            "class_name": "PE_Add",
+            "module": "aiko_services.examples.pipeline.elements"
+         }
+      }
+    },
+    { "name":   "PE_092",
+      "input":  [{ "name": "i", "type": "int" }],
+      "output": [{ "name": "i", "type": "int" }],
+      "deploy": {
+        "local": {
+            "class_name": "PE_Add",
+            "module": "aiko_services.examples.pipeline.elements"
+         }
+      }
+    },
+    { "name":   "PE_093",
+      "input":  [{ "name": "i", "type": "int" }],
+      "output": [{ "name": "i", "type": "int" }],
+      "deploy": {
+        "local": {
+            "class_name": "PE_Add",
+            "module": "aiko_services.examples.pipeline.elements"
+         }
+      }
+    },
+    { "name":   "PE_094",
+      "input":  [{ "name": "i", "type": "int" }],
+      "output": [{ "name": "i", "type": "int" }],
+      "deploy": {
+        "local": {
+            "class_name": "PE_Add",
+            "module": "aiko_services.examples.pipeline.elements"
+         }
+      }
+    },
+    { "name":   "PE_095",
+      "input":  [{ "name": "i", "type": "int" }],
+      "output": [{ "name": "i", "type": "int" }],
+      "deploy": {
+        "local": {
+            "class_name": "PE_Add",
+            "module": "aiko_services.examples.pipeline.elements"
+         }
+      }
+    },
+    { "name":   "PE_096",
+      "input":  [{ "name": "i", "type": "int" }],
+      "output": [{ "name": "i", "type": "int" }],
+      "deploy": {
+        "local": {
+            "class_name": "PE_Add",
+            "module": "aiko_services.examples.pipeline.elements"
+         }
+      }
+    },
+    { "name":   "PE_097",
+      "input":  [{ "name": "i", "type": "int" }],
+      "output": [{ "name": "i", "type": "int" }],
+      "deploy": {
+        "local": {
+            "class_name": "PE_Add",
+            "module": "aiko_services.examples.pipeline.elements"
+         }
+      }
+    },
+    { "name":   "PE_098",
+      "input":  [{ "name": "i", "type": "int" }],
+      "output": [{ "name": "i", "type": "int" }],
+      "deploy": {
+        "local": {
+            "class_name": "PE_Add",
+            "module": "aiko_services.examples.pipeline.elements"
+         }
+      }
+    },
+    { "name":   "PE_099",
+      "input":  [{ "name": "i", "type": "int" }],
+      "output": [{ "name": "i", "type": "int" }],
+      "deploy": {
+        "local": {
+            "class_name": "PE_Add",
+            "module": "aiko_services.examples.pipeline.elements"
+         }
+      }
+    },
+    { "name":   "PE_Metrics",
+      "input":  [],
+			"output": [{ "name": "i", "type": "int" }],
+      "deploy": {
+        "local": { "module": "aiko_services.examples.pipeline.elements" }
+      }
+    }
+  ]
+}

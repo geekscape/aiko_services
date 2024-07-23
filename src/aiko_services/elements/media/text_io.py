@@ -53,7 +53,7 @@ class TextReadFile(aiko.PipelineElement):
         self.create_frame(stream, {"path": path})
         return aiko.StreamEvent.OKAY, None
 
-    def process_frame(self, stream, path) -> Tuple[bool, dict]:
+    def process_frame(self, stream, path) -> Tuple[aiko.StreamEvent, dict]:
         self.logger.debug(f"{self._id(stream)}: text file: {path}")
 
         if not Path(path).exists():
@@ -75,7 +75,7 @@ class TextFilter(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, stream, text) -> Tuple[bool, dict]:
+    def process_frame(self, stream, text) -> Tuple[aiko.StreamEvent, dict]:
     #   option, _ = self.get_parameter("option")
         text = text.upper()
         return aiko.StreamEvent.OKAY, {"text": text}
@@ -99,7 +99,7 @@ class TextWriteFile(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, stream, text) -> Tuple[bool, dict]:
+    def process_frame(self, stream, text) -> Tuple[aiko.StreamEvent, dict]:
         path, found = self.get_parameter("path")
         if not found:
             diagnostic = 'Must provide text file "path" parameter'

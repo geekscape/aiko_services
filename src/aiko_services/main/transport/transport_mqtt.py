@@ -1,10 +1,19 @@
 # To Do
 # ~~~~~
+# * Make Service/ActorDiscovery and get_actor_mqtt() more convenient
+#   * Integrate with do_command() and do_request()
+#   * Also, support a cache or remote Service/Actor proxies, use LRUCache
+#
+# * Improve get_actor_mqtt() and make_proxy_mqtt() to be re-usable
+#   * Can just replace target_service_topic_in or target_topic_in
+#     without have to call get_public_methods() on the Interface or Class
+#
 # * Rename TransportMQTT --> MQTTActor
 #   Rename "transport_mqtt.py" --> "mqtt_actor.py"
 #
 # * Refactor current code into ServiceDiscovery
-#   - ServiceDiscovery should handle multiple simultaneous ServiceFilters
+#   * ServiceDiscovery should handle multiple simultaneous ServiceFilters
+#   * Rename get_actor_mqtt() to be get_service_mqtt()
 #
 # * Design Pattern for creating Actors of different types, e.g MQTT or Ray
 #
