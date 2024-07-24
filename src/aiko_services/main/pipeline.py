@@ -475,21 +475,33 @@ class PipelineImpl(Pipeline):
         context.get_implementation("PipelineElement").__init__(self, context)
         print(f"MQTT topic: {self.topic_in}")
 
+        self.share["definition_pathname"] = context.definition_pathname
         self.share["lifecycle"] = "start"
         self.remote_pipelines = {}  # Service name --> PipelineElement name
         self.services_cache = None
 
-        self.share["definition_pathname"] = context.definition_pathname
-        self.stream = None
-        self.stream_leases = {}  # See _enable_stream_thread_local()
+        self.stream = None       # See _enable_stream_thread_local()
+        self.stream_leases = {}
 
         self.pipeline_graph = self._create_pipeline(context.definition)
         self.share["element_count"] = self.pipeline_graph.element_count
         self.share["lifecycle"] = "ready"
-
         self.share["streams"] = 0
         self.share["streams_paused"] = 0
+
         event.add_timer_handler(self._status_update_timer, 1.0)
+
+    def _status_update_timer(self):
+        streams_paused = 0
+        for stream_lease in self.stream_leases.values():
+            streams_paused += len(stream_lease.data["paused"])
+
+        self.ec_producer.update("streams", len(self.stream_leases))
+        self.ec_producer.update("streams_paused", streams_paused)
+
+# Pipeline "current" stream is a thread-local instance variable
+# Only valid during create_stream(), process_frame() and destroy_stream()
+# This also includes the PipelineElement._create_frames_thread()
 
     def _enable_stream_thread_local(self, stream_id):
         stream_thread_local = local()
@@ -499,13 +511,8 @@ class PipelineImpl(Pipeline):
     def _disable_stream_thread_local(self):
         self.stream = None
 
-    def _status_update_timer(self):
-        streams_paused = 0
-        for stream_lease in self.stream_leases.values():
-            streams_paused += len(stream_lease.data["paused"])
-
-        self.ec_producer.update("streams", len(self.stream_leases))
-        self.ec_producer.update("streams_paused", streams_paused)
+    def get_stream(self):   # See _enable_stream_thread_local()
+        return self.stream
 
     # TODO: Better visualization of the Pipeline / PipelineElements details
         if False:
@@ -601,13 +608,6 @@ class PipelineImpl(Pipeline):
 
         pipeline_graph.validate(definition)
         return pipeline_graph
-
-# Current Pipeline stream is a thread-local instance variable
-# Only valid during create_stream(), process_frame() and destroy_stream()
-# This also includes the PipelineElement._create_frames_thread()
-
-    def get_stream(self):
-        return self.stream
 
     def _load_element_class(self,
         module_descriptor, element_name, header):
