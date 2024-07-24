@@ -106,7 +106,7 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 import json
 import os
-from threading import Thread
+from threading import Thread, local
 import time
 import traceback
 from typing import Any, Dict, List, Tuple
@@ -331,10 +331,10 @@ class PipelineElementImpl(PipelineElement):
     def _create_frames_thread(self, stream, frame_generator, rate):
         frame_id = 0
         while not stream["terminate"]:
-            self.pipeline.stream = stream
+            self.pipeline._enable_stream_thread_local(stream["stream_id"])
             stream["frame_id"] = str(frame_id)  # TODO: Make integer everywhere
             stream_event, frame_data = frame_generator(stream)
-            self.pipeline.stream = None
+            self.pipeline._disable_stream_thread_local()
 
         #   if stream_event is StreamEvent.STOP:
         #       Post STOP function_call onto the mailbox
@@ -480,8 +480,8 @@ class PipelineImpl(Pipeline):
         self.services_cache = None
 
         self.share["definition_pathname"] = context.definition_pathname
-        self.stream = None  # current stream, may be None
-        self.stream_leases = {}
+        self.stream = None
+        self.stream_leases = {}  # See _enable_stream_thread_local()
 
         self.pipeline_graph = self._create_pipeline(context.definition)
         self.share["element_count"] = self.pipeline_graph.element_count
@@ -490,6 +490,14 @@ class PipelineImpl(Pipeline):
         self.share["streams"] = 0
         self.share["streams_paused"] = 0
         event.add_timer_handler(self._status_update_timer, 1.0)
+
+    def _enable_stream_thread_local(self, stream_id):
+        stream_thread_local = local()
+        stream_thread_local.data = self.stream_leases[stream_id].data
+        self.stream = stream_thread_local.data
+
+    def _disable_stream_thread_local(self):
+        self.stream = None
 
     def _status_update_timer(self):
         streams_paused = 0
@@ -594,7 +602,11 @@ class PipelineImpl(Pipeline):
         pipeline_graph.validate(definition)
         return pipeline_graph
 
-    def get_stream(self):  # may return None
+# Current Pipeline stream is a thread-local instance variable
+# Only valid during create_stream(), process_frame() and destroy_stream()
+# This also includes the PipelineElement._create_frames_thread()
+
+    def get_stream(self):
         return self.stream
 
     def _load_element_class(self,
@@ -735,8 +747,9 @@ class PipelineImpl(Pipeline):
     def _process_frame_common(self,
         stream, frame_data_in, new_frame=True) -> Tuple[StreamEvent, dict]:
 
-        self.stream, graph = self._process_stream_initialize(
+        graph = self._process_stream_initialize(
             stream, frame_data_in, new_frame)
+        self._enable_stream_thread_local(stream["stream_id"])
         metrics = self._process_metrics_initialize(new_frame)
 
         definition_pathname = self.share["definition_pathname"]
@@ -796,7 +809,7 @@ class PipelineImpl(Pipeline):
             pass  # TODO: Handle empty graph / "frame_data_out"
                   #       Still needs to invoke process_frame_response()
 
-        self.stream = None
+        self._disable_stream_thread_local()
         return StreamEvent.OKAY, {}
 
     def _process_fan_in(self, header, element, element_name, swag):
@@ -884,7 +897,7 @@ class PipelineImpl(Pipeline):
                 pass  # TODO: Handle not new_frame and no paused_stream_frame !
 
         current_stream["swag"].update(frame_data_in)
-        return current_stream, graph
+        return graph
 
 # TODO: Consider refactoring Stream into "stream.py" ?
     def _process_stream_event(self, element_name, frame_data_out, stream_event):
@@ -922,7 +935,7 @@ class PipelineImpl(Pipeline):
                 "terminate": False
             }
             self.stream_leases[stream_id] = stream_lease
-            self.stream = stream_lease.data
+            self._enable_stream_thread_local(stream_id)
 
         # FIX: Handle Exceptions ..."
             for node in self.pipeline_graph:
@@ -945,7 +958,7 @@ class PipelineImpl(Pipeline):
                             f"PipelineElement {element_name}.start_stream(): "
                             f"{event_description}: {event_diagnostic}",
                             "Pipeline stopped")
-            self.stream = None
+            self._disable_stream_thread_local()
 
     def destroy_stream(self, stream_id):
         if stream_id in self.stream_leases:
@@ -953,6 +966,7 @@ class PipelineImpl(Pipeline):
             del self.stream_leases[stream_id]
             self.stream = stream_lease.data
             self.logger.debug(f"Destroy stream: {self._id(self.stream)}")
+            self._enable_stream_thread_local(stream_id)
 
         # FIX: Handle Exceptions ..."
             for node in self.pipeline_graph:
@@ -962,7 +976,7 @@ class PipelineImpl(Pipeline):
                     element.destroy_stream(stream_id)
                 else:
                     element.stop_stream(self.stream, stream_id)
-            self.stream = None
+            self._disable_stream_thread_local()
 
     def set_parameter(self, stream_id, name, value):
         if stream_id in self.stream_leases:
