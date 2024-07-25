@@ -768,7 +768,7 @@ class PipelineImpl(Pipeline):
             frame_data_out = {}
             stream_event = StreamEvent.OKAY
             try:
-                if element_name != "ServiceRemoteProxy":
+                if element_name != "ServiceRemoteProxy":  ## Local element ##
                     start_time = time.time()
                     stream_event, frame_data_out = element.process_frame(
                         self.stream, **inputs)
@@ -778,7 +778,7 @@ class PipelineImpl(Pipeline):
                     self._process_stream_event(
                         element_name, frame_data_out, stream_event)
                     self.stream["swag"].update(frame_data_out)
-                else:
+                else:                                     ## Remote element ##
                     frame_id = self.stream["frame_id"]
                     paused_frame = (
                         node.name, self.stream["metrics"], self.stream["swag"])
@@ -794,7 +794,7 @@ class PipelineImpl(Pipeline):
                 self._error(header, traceback.format_exc())
 
         if element_name:
-            if element_name != "ServiceRemoteProxy":
+            if element_name != "ServiceRemoteProxy":  ## Local element ##
                 if "topic_response" in self.stream:
                     actor = get_actor_mqtt(
                         self.stream["topic_response"], Pipeline)
@@ -802,7 +802,7 @@ class PipelineImpl(Pipeline):
                         "stream_id": self.stream["stream_id"],
                         "frame_id": self.stream["frame_id"]}
                     actor.process_frame_response(remote_stream, frame_data_out)
-            else:
+            else:                                     ## Remote element ##
                 pass  # TODO: Handle "ServiceRemoteProxy" being the tail element
                       #       Still needs to invoke process_frame_response()
         else:
@@ -941,9 +941,7 @@ class PipelineImpl(Pipeline):
             for node in self.pipeline_graph:
                 element = node.element
                 element_name = element.__class__.__name__
-                if element_name == "ServiceRemoteProxy":
-                    element.create_stream(stream_id, parameters, grace_time)
-                else:
+                if element_name != "ServiceRemoteProxy":  ## Local element ##
                     stream_event, event_diagnostic = element.start_stream(
                         self.stream, stream_id)
 
@@ -958,25 +956,28 @@ class PipelineImpl(Pipeline):
                             f"PipelineElement {element_name}.start_stream(): "
                             f"{event_description}: {event_diagnostic}",
                             "Pipeline stopped")
+                else:                                     ## Remote element ##
+                    element.create_stream(stream_id, parameters, grace_time)
+
             self._disable_stream_thread_local()
 
     def destroy_stream(self, stream_id):
         if stream_id in self.stream_leases:
-            stream_lease = self.stream_leases[stream_id]
-            del self.stream_leases[stream_id]
-            self.stream = stream_lease.data
-            self.logger.debug(f"Destroy stream: {self._id(self.stream)}")
             self._enable_stream_thread_local(stream_id)
+            self.logger.debug(f"Destroy stream: {self._id(self.stream)}")
 
         # FIX: Handle Exceptions ..."
             for node in self.pipeline_graph:
                 element = node.element
                 element_name = element.__class__.__name__
-                if element_name == "ServiceRemoteProxy":
-                    element.destroy_stream(stream_id)
-                else:
+                if element_name != "ServiceRemoteProxy":  ## Local element ##
                     element.stop_stream(self.stream, stream_id)
+                else:                                     ## Remote element ##
+                    element.destroy_stream(stream_id)
             self._disable_stream_thread_local()
+
+            stream_lease = self.stream_leases[stream_id]
+            del self.stream_leases[stream_id]
 
     def set_parameter(self, stream_id, name, value):
         if stream_id in self.stream_leases:
