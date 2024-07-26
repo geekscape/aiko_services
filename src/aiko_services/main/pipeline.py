@@ -322,6 +322,7 @@ class PipelineElement(Actor):
 class PipelineElementImpl(PipelineElement):
     def __init__(self, context):
         self.definition = context.get_definition()
+        self.frame_generator_arguments = None
         self.pipeline = context.get_pipeline()
         self.is_pipeline = (self.pipeline == None)
         if context.protocol == "*":
@@ -337,9 +338,12 @@ class PipelineElementImpl(PipelineElement):
     def create_frame(self, stream, frame_data):
         self.pipeline.create_frame(copy.deepcopy(stream), frame_data)
 
+# Starting the optional "frame_generator" occurs during "create_stream()"
+
     def create_frames(self, stream, frame_generator, rate=None):
-        thread_args=(stream, frame_generator, rate)
-        Thread(target=self._create_frames_generator, args=thread_args).start()
+        self.frame_generator_arguments = (stream, frame_generator, rate)
+        Thread(target=self._create_frames_generator,
+            args=self.frame_generator_arguments).start()
 
 # TODO: For "rate", measure time since last frame to be more accurate
 # FIX:  For "rate" check "rate=0" (fills mailbox) versus "rate=None" ?
