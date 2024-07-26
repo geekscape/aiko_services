@@ -61,7 +61,7 @@ class PE_AudioFilter(PipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self,
-        context, amplitudes, frequencies) -> Tuple[aiko.StreamEvent, dict]:
+        stream, amplitudes, frequencies) -> Tuple[aiko.StreamEvent, dict]:
 
         data = list(zip(np.abs(frequencies), amplitudes))
         data = [(x,y) for x,y in data if y >= AF_AMPLITUDE_MINIMUM]
@@ -98,7 +98,7 @@ class PE_AudioResampler(PipelineElement):
 # Check the maths and the normalization !
 
     def process_frame(self,
-        context, amplitudes, frequencies) -> Tuple[aiko.StreamEvent, dict]:
+        stream, amplitudes, frequencies) -> Tuple[aiko.StreamEvent, dict]:
 
         amplitudes = amplitudes[0:len(amplitudes) // 2]     # len: 2400
         frequencies = frequencies[0:len(frequencies) // 2]  # len: 2400
@@ -153,7 +153,7 @@ class PE_FFT(PipelineElement):
         context.set_protocol("fft:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, context, audio) -> Tuple[aiko.StreamEvent, dict]:
+    def process_frame(self, stream, audio) -> Tuple[aiko.StreamEvent, dict]:
         fft_output = np.fft.fft(audio)
 
         amplitudes = np.abs(fft_output / FFT_AMPLITUDE_SCALER)
@@ -164,7 +164,7 @@ class PE_FFT(PipelineElement):
         top_amplitude = int(amplitudes[top_index])
         top_frequency = np.abs(frequencies[top_index])
         _LOGGER.debug(
-            f"{self._id(context)} Loudest: {top_frequency} Hz: {top_amplitude}")
+            f"{self.my_id()} Loudest: {top_frequency} Hz: {top_amplitude}")
 
         return aiko.StreamEvent.OKAY,
                {"amplitudes": amplitudes, "frequencies": frequencies}
@@ -189,7 +189,7 @@ class PE_GraphXY(PipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self,
-        context, amplitudes, frequencies) -> Tuple[aiko.StreamEvent, dict]:
+        stream, amplitudes, frequencies) -> Tuple[aiko.StreamEvent, dict]:
 
         data = list(zip(np.abs(frequencies), amplitudes))
 
@@ -287,18 +287,18 @@ class PE_MicrophonePA(PipelineElement):
 
             frame_id = self.share["frame_id"] + 1
             self.ec_producer.update("frame_id", frame_id)
-            context = {"stream_id": 0, "frame_id": frame_id}
-            self.create_frame(context, {"audio": audio_sample})
+            stream = {"stream_id": 0, "frame_id": frame_id}
+            self.create_frame(stream, {"audio": audio_sample})
 
         self.audio_stream.close()
         self.py_audio.terminate()
 
-    def process_frame(self, context, audio) -> Tuple[aiko.StreamEvent, dict]:
-    #   _LOGGER.debug(f"{self._id(context)} len(audio): {len(audio)}")
+    def process_frame(self, stream, audio) -> Tuple[aiko.StreamEvent, dict]:
+    #   _LOGGER.debug(f"{self.my_id()} len(audio): {len(audio)}")
         return aiko.StreamEvent.OKAY, {"audio": audio}
 
-    def stop_stream(self, context, stream_id):
-        _LOGGER.debug(f"{self._id(context)}: stop_stream()")
+    def stop_stream(self, stream, stream_id):
+        _LOGGER.debug(f"{self.my_id()}: stop_stream()")
         self.terminate = True
 
 # --------------------------------------------------------------------------- #
@@ -358,8 +358,8 @@ class PE_MicrophoneSD(PipelineElement):
                 if len(self._audio_sample) > SD_SAMPLES_PER_CHUNK:
                     audio_sample = self._audio_sample
                     frame_id = self._audio_sampler_start()
-                    context = {"stream_id": 0, "frame_id": frame_id}
-                    self.create_frame(context, {"audio": audio_sample})
+                    stream = {"stream_id": 0, "frame_id": frame_id}
+                    self.create_frame(stream, {"audio": audio_sample})
 
     def mute(self, duration):
         duration = parse_number(duration)
@@ -369,13 +369,13 @@ class PE_MicrophoneSD(PipelineElement):
             self._time_mute = time_mute
             self.ec_producer.update("mute", duration)
 
-    def process_frame(self, context, audio) -> Tuple[aiko.StreamEvent, dict]:
+    def process_frame(self, stream, audio) -> Tuple[aiko.StreamEvent, dict]:
         audio_channels, _ = self.get_parameter("audio_channels", AUDIO_CHANNELS)
         _LOGGER.info(f"SoundDevice audio_channels: {audio_channels}")
         return aiko.StreamEvent.OKAY, {"audio": audio}
 
-    def stop_stream(self, context, stream_id):
-        _LOGGER.debug(f"{self._id(context)}: stop_stream()")
+    def stop_stream(self, stream, stream_id):
+        _LOGGER.debug(f"{self.my_id()}: stop_stream()")
         self.terminate = True
 
 # --------------------------------------------------------------------------- #
@@ -405,17 +405,17 @@ class PE_RemoteReceive0(PipelineElement):
         audio_sample = np.load(payload_in, allow_pickle=True)
         frame_id = self.share["frame_id"]
         self.ec_producer.update("frame_id", frame_id + 1)
-        context = {"stream_id": 0, "frame_id": frame_id}
-        self.create_frame(context, {parameter_name: audio_sample})
+        stream = {"stream_id": 0, "frame_id": frame_id}
+        self.create_frame(stream, {parameter_name: audio_sample})
 
-    def process_frame(self, context, audio) -> Tuple[aiko.StreamEvent, dict]:
+    def process_frame(self, stream, audio) -> Tuple[aiko.StreamEvent, dict]:
         return aiko.StreamEvent.OKAY, {"audio": audio}
 
 class PE_RemoteReceive1(PE_RemoteReceive0):
     pass
 
 class PE_RemoteReceive2(PE_RemoteReceive0):
-    def process_frame(self, context, text) -> Tuple[aiko.StreamEvent, dict]:
+    def process_frame(self, stream, text) -> Tuple[aiko.StreamEvent, dict]:
         text = str(text)
         if not text:
             text = None
@@ -430,20 +430,20 @@ class PE_RemoteSend0(PipelineElement):
 
         self.share["topic_audio"] = f"{TOPIC_AUDIO}/{self.name[-1]}"
 
-    def process_frame(self, context, audio) -> Tuple[aiko.StreamEvent, dict]:
+    def process_frame(self, stream, audio) -> Tuple[aiko.StreamEvent, dict]:
         payload_out = BytesIO()
         np.save(payload_out, audio, allow_pickle=True)
         if False:
             buffer = payload_out.getbuffer()
             digest = md5(buffer).hexdigest()
-            _LOGGER.debug(f"{self._id(context)}, len: {len(buffer)}, md5: {digest}")
+            _LOGGER.debug(f"{self.my_id()}, len: {len(buffer)}, md5: {digest}")
         payload_out = zlib.compress(payload_out.getvalue())
         aiko.message.publish(self.share["topic_audio"], payload_out)
         return aiko.StreamEvent.OKAY, {}
 
 class PE_RemoteSend1(PE_RemoteSend0):
-    def process_frame(self, context, text) -> Tuple[aiko.StreamEvent, dict]:
-        super().process_frame(context, text)
+    def process_frame(self, stream, text) -> Tuple[aiko.StreamEvent, dict]:
+        super().process_frame(stream, text)
         return aiko.StreamEvent.OKAY, {}
 
 class PE_RemoteSend2(PE_RemoteSend1):
@@ -478,7 +478,7 @@ class PE_Speaker(PipelineElement):
                 _LOGGER.debug(f"Lost microphone: {self._microphone_topic_path}")
                 self._microphone_topic_path = None
 
-    def process_frame(self, context, audio) -> Tuple[aiko.StreamEvent, dict]:
+    def process_frame(self, stream, audio) -> Tuple[aiko.StreamEvent, dict]:
         if audio is not None:
             sd.play(audio, SP_AUDIO_SAMPLE_RATE)
             duration = len(audio) / SD_AUDIO_SAMPLE_RATE * SP_SPEED_UP

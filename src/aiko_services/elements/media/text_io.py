@@ -54,7 +54,7 @@ class TextReadFile(aiko.PipelineElement):
         return aiko.StreamEvent.OKAY, None
 
     def process_frame(self, stream, path) -> Tuple[aiko.StreamEvent, dict]:
-        self.logger.debug(f"{self._id(stream)}: text file: {path}")
+        self.logger.debug(f"{self.my_id()}: text file: {path}")
 
         if not Path(path).exists():
             diagnostic = f'Text file "{path}" does not exist'
@@ -107,7 +107,7 @@ class TextWriteFile(aiko.PipelineElement):
 
     #   path = path_template  # TODO: Implement path_template processing
 
-        self.logger.debug(f"{self._id(stream)}: text file path: {path}")
+        self.logger.debug(f"{self.my_id()}: text file path: {path}")
 
         try:
             with open(path, "w") as file:

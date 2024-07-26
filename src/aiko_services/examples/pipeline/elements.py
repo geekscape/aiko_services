@@ -39,7 +39,7 @@ class PE_Add(aiko.PipelineElement):
         constant, _ = self.get_parameter("constant", default=1)
         i_new = int(i) + int(constant)
 
-        self.logger.info(f"{self._id(stream)}, i in: {i}, out: {i_new}")
+        self.logger.info(f"{self.my_id()}, i in: {i}, out: {i_new}")
 
         delay, _ = self.get_parameter("delay", default=0)  # seconds
         if delay:
@@ -102,7 +102,7 @@ class PE_RandomIntegers(aiko.PipelineElement):
     #   if stream["stream_id"] == 0:  # TODO: "stream_required"
     #       return aiko.StreamEvent.ERROR, "Must create a stream"
 
-        self.logger.info(f"{self._id(stream)}: random: {random}")
+        self.logger.info(f"{self.my_id()}: random: {random}")
         return aiko.StreamEvent.OKAY, {"random": random}
 
     def stop_stream(self, stream, stream_id):
@@ -118,7 +118,7 @@ class PE_0(aiko.PipelineElement):
     def process_frame(self, stream, a) -> Tuple[aiko.StreamEvent, dict]:
         pe_0_inc, found = self.get_parameter("pe_0_inc", 1)
         b = int(a) + int(pe_0_inc)
-        self.logger.info(f"PE_0: {self._id(stream)}, in a: {a}, out b: {b}")
+        self.logger.info(f"PE_0: {self.my_id()}, in a: {a}, out b: {b}")
         return aiko.StreamEvent.OKAY, {"b": b}
 
 # --------------------------------------------------------------------------- #
@@ -133,7 +133,7 @@ class PE_1(aiko.PipelineElement):
         p_1, found = self.get_parameter("p_1")
         pe_1_inc, found = self.get_parameter("pe_1_inc", 1)
         c = int(b) + int(pe_1_inc)
-        self.logger.info(f"PE_1: {self._id(stream)}, in b: {b}, out c: {c}")
+        self.logger.info(f"PE_1: {self.my_id()}, in b: {b}, out c: {c}")
         self.logger.info(f"PE_1:            parameter pe_1_inc: {pe_1_inc}")
         return aiko.StreamEvent.OKAY, {"c": c}
 
@@ -146,7 +146,7 @@ class PE_2(aiko.PipelineElement):
 
     def process_frame(self, stream, c) -> Tuple[aiko.StreamEvent, dict]:
         d = int(c) + 1
-        self.logger.info(f"PE_2: {self._id(stream)}, in c: {c}, out d: {d}")
+        self.logger.info(f"PE_2: {self.my_id()}, in c: {c}, out d: {d}")
         return aiko.StreamEvent.OKAY, {"d": d}
 
 # --------------------------------------------------------------------------- #
@@ -158,7 +158,7 @@ class PE_3(aiko.PipelineElement):
 
     def process_frame(self, stream, c) -> Tuple[aiko.StreamEvent, dict]:
         e = int(c) + 1
-        self.logger.info(f"PE_3: {self._id(stream)}, in c: {c}, out e: {e}")
+        self.logger.info(f"PE_3: {self.my_id()}, in c: {c}, out e: {e}")
         return aiko.StreamEvent.OKAY, {"e": e}
 
 # --------------------------------------------------------------------------- #
@@ -171,7 +171,7 @@ class PE_4(aiko.PipelineElement):
     def process_frame(self, stream, d, e) -> Tuple[aiko.StreamEvent, dict]:
         f = int(d) + int(e)
         self.logger.info(
-            f"PE_4: {self._id(stream)}, in d, e {d} {e}, out: d + e = f: {f}")
+            f"PE_4: {self.my_id()}, in d, e {d} {e}, out: d + e = f: {f}")
         return aiko.StreamEvent.OKAY, {"f": f}
 
 # --------------------------------------------------------------------------- #
@@ -184,7 +184,7 @@ class PE_DataDecode(aiko.PipelineElement):
         data = base64.b64decode(data.encode("utf-8"))
         np_bytes = BytesIO(data)
         data = np.load(np_bytes, allow_pickle=True)
-    #   self.logger.info(f"{self._id(stream)}, data: {data}")
+    #   self.logger.info(f"{self.my_id()}, data: {data}")
         return aiko.StreamEvent.OKAY, {"data": data}
 
 # --------------------------------------------------------------------------- #
@@ -194,7 +194,7 @@ class PE_DataEncode(aiko.PipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream, data) -> Tuple[aiko.StreamEvent, dict]:
-    #   self.logger.info(f"{self._id(stream)}, data: {data}")
+    #   self.logger.info(f"{self.my_id()}, data: {data}")
         if isinstance(data, str):
             data = str.encode(data)
         if isinstance(data, np.ndarray):

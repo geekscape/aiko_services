@@ -109,7 +109,7 @@ class ImageReadFile(aiko.PipelineElement):
         return aiko.StreamEvent.OKAY, None
 
     def process_frame(self, stream, path) -> Tuple[StreamEvent, dict]:
-        self.logger.debug(f"{self._id(stream)}: image path: {path}")
+        self.logger.debug(f"{self.my_id()}: image path: {path}")
 
         if not Path(path).exists():
             diagnostic = f'Image "{path}" does not exist'
@@ -175,7 +175,7 @@ class ImageWriteFile(aiko.PipelineElement):
 
         if containsAll(path, "{}"):
             path = path.format(stream["frame_id"])
-        self.logger.debug(f"{self._id(stream)}: image write file path: {path}")
+        self.logger.debug(f"{self.my_id()}: image write file path: {path}")
 
         if not isinstance(image, Image.Image):
             if isinstance(image, np.ndarray):  # TODO: Check NUMPY_IMPORTED

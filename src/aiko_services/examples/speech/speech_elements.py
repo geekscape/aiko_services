@@ -45,7 +45,7 @@ class PE_LLM(PipelineElement):
         context.set_protocol("llm:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, context, text) -> Tuple[StreamEvent, dict]:
+    def process_frame(self, stream, text) -> Tuple[StreamEvent, dict]:
         return aiko.StreamEvent.OKAY, {"text": text}
 
 # --------------------------------------------------------------------------- #
@@ -65,18 +65,18 @@ class PE_AudioFraming(PipelineElement):
         self._lru_cache = LRUCache(AUDIO_CACHE_SIZE)
         _LOGGER.info(f"PE_AudioFraming: Sliding windows: {AUDIO_CACHE_SIZE}")
 
-    def process_frame(self, context, audio) -> Tuple[StreamEvent, dict]:
+    def process_frame(self, stream, audio) -> Tuple[StreamEvent, dict]:
         time_start = time.time()
         audio_input_file = audio
         audio_waveform = whisperx.load_audio(audio_input_file)
         os.remove(audio_input_file)
 
-        self._lru_cache.put(context["frame_id"], audio_waveform)
+        self._lru_cache.put(stream["frame_id"], audio_waveform)
         audio_waveform = np.concatenate(self._lru_cache.get_list())
 
         time_used = time.time() - time_start
         if time_used > 0.5:
-            frame_id = context["frame_id"]
+            frame_id = stream["frame_id"]
             lru_cache_size = len(self._lru_cache.lru_cache)
             _LOGGER.info(f"PE_AudioFraming[{frame_id}] Time: {time_used:0.3f}s: LRU: {lru_cache_size}, Audio: {audio_waveform.shape}")
 
@@ -91,8 +91,8 @@ class PE_AudioWriteFile(PipelineElement):
         context.set_protocol("audio_write_file:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, context, audio) -> Tuple[StreamEvent, dict]:
-        frame_id = context["frame_id"]
+    def process_frame(self, stream, audio) -> Tuple[StreamEvent, dict]:
+        frame_id = stream["frame_id"]
         audio_pathname = AUDIO_PATH_TEMPLATE.format(frame_id=frame_id)
         audio_channels = self.get_parameter("audio_channels", AUDIO_CHANNELS)
         audio_writer = sf.SoundFile(audio_pathname, mode="w",
@@ -132,7 +132,7 @@ if COQUI_TTS_LOADED:
             self.ec_producer.update("speech", "<silence>")
             self.ec_producer.update("frame_id", -1)
 
-        def process_frame(self, context, text) -> Tuple[StreamEvent, dict]:
+        def process_frame(self, stream, text) -> Tuple[StreamEvent, dict]:
             frame_id = self.share["frame_id"] + 1
             self.ec_producer.update("frame_id", frame_id)
             if text != "<silence>":
@@ -152,7 +152,7 @@ class PE_SpeechFraming(PipelineElement):
         context.set_protocol("speech_framing:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, context, text) -> Tuple[StreamEvent, dict]:
+    def process_frame(self, stream, text) -> Tuple[StreamEvent, dict]:
         return aiko.StreamEvent.OKAY, {"text": text}
 
 # --------------------------------------------------------------------------- #
@@ -226,9 +226,9 @@ if WHISPERX_LOADED:
             _LOGGER.info(f"PE_WhisperX: ML model loaded: {WHISPERX_MODEL_SIZE}")
             self._welcome = True
 
-        def process_frame(self, context, audio) -> Tuple[StreamEvent, dict]:
+        def process_frame(self, stream, audio) -> Tuple[StreamEvent, dict]:
             audio = np.squeeze(audio)
-            frame_id = context["frame_id"]
+            frame_id = stream["frame_id"]
             time_start = time.time()
             prediction = self._ml_model.transcribe(audio=audio, language="en")
             time_used = time.time() - time_start
