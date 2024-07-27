@@ -190,6 +190,13 @@ class PipelineGraph(Graph):
     def element_count(self):
         return len(self._graph)
 
+    @classmethod
+    def get_element(cls, node):
+        element = node.element
+        name = element.__class__.__name__
+        is_local = name != "ServiceRemoteProxy"
+        return element, name, is_local
+
 # TODO: Work-in-progress
 # - Pass 1: Validate_inputs_by_name_and_type()
 #   - Each input NAME and TYPE provided by exactly one parent predecessor
@@ -233,8 +240,7 @@ class PipelineGraph(Graph):
 
     def validate(self, pipeline_definition, strict=False):
         for node in self:
-            element = node.element
-            element_name = element.__class__.__name__
+            element, element_name, is_local = PipelineGraph.get_element(node)
             element_inputs = element.definition.input
             element_inputs = [{**item, "found": 0} for item in element_inputs]
 
@@ -322,7 +328,6 @@ class PipelineElement(Actor):
 class PipelineElementImpl(PipelineElement):
     def __init__(self, context):
         self.definition = context.get_definition()
-        self.frame_generator_arguments = None
         self.pipeline = context.get_pipeline()
         self.is_pipeline = (self.pipeline == None)
         if context.protocol == "*":
@@ -341,20 +346,19 @@ class PipelineElementImpl(PipelineElement):
 # Starting the optional "frame_generator" occurs during "create_stream()"
 
     def create_frames(self, stream, frame_generator, rate=None):
-        self.frame_generator_arguments = (stream, frame_generator, rate)
-        Thread(target=self._create_frames_generator,
-            args=self.frame_generator_arguments).start()
+        thread_args = (stream, frame_generator, rate)
+        Thread(target=self._create_frames_generator, args=thread_args).start()
 
-# TODO: For "rate", measure time since last frame to be more accurate
+# TODO: For "rate" measure time since last frame to be more accurate
 # FIX:  For "rate" check "rate=0" (fills mailbox) versus "rate=None" ?
 
     def _create_frames_generator(self, stream, frame_generator, rate):
         frame_id = _FIRST_FRAME_ID
+        self.pipeline._enable_stream_thread_local(stream["stream_id"])
+
         while not stream["terminate"]:
-            self.pipeline._enable_stream_thread_local(stream["stream_id"])
             stream["frame_id"] = str(frame_id)  # TODO: Make integer everywhere
             stream_event, frame_data = frame_generator(stream)
-            self.pipeline._disable_stream_thread_local()
 
         #   if stream_event is StreamEvent.STOP:
         #       Post STOP function_call onto the mailbox
@@ -370,6 +374,8 @@ class PipelineElementImpl(PipelineElement):
                 frame_id += 1
             else:
                 self.pipeline.destroy_stream(stream["stream_id"])
+
+        self.pipeline._disable_stream_thread_local()
 
     def get_parameter(self, name, default=None, use_pipeline=True):
     # TODO: During process_frame(), stream parameters should be updated
@@ -642,9 +648,9 @@ class PipelineImpl(Pipeline):
 
         # FIX: Handle Exceptions ..."
             for node in self.pipeline_graph:
-                element = node.element
-                element_name = element.__class__.__name__
-                if element_name != "ServiceRemoteProxy":  ## Local element ##
+                element, element_name, is_local =  \
+                    PipelineGraph.get_element(node)
+                if is_local:  ## Local element ##
                     stream_event, event_diagnostic = element.start_stream(
                         self.stream, stream_id)
 
@@ -659,7 +665,7 @@ class PipelineImpl(Pipeline):
                             f"PipelineElement {element_name}.start_stream(): "
                             f"{event_description}: {event_diagnostic}",
                             "Pipeline stopped")
-                else:                                     ## Remote element ##
+                else:  ## Remote element ##
                     element.create_stream(stream_id, parameters, grace_time)
 
             self._disable_stream_thread_local()
@@ -671,11 +677,11 @@ class PipelineImpl(Pipeline):
 
         # FIX: Handle Exceptions ..."
             for node in self.pipeline_graph:
-                element = node.element
-                element_name = element.__class__.__name__
-                if element_name != "ServiceRemoteProxy":  ## Local element ##
+                element, element_name, is_local =  \
+                    PipelineGraph.get_element(node)
+                if is_local:  ## Local element ##
                     element.stop_stream(self.stream, stream_id)
-                else:                                     ## Remote element ##
+                else:          ## Remote element ##
                     element.destroy_stream(stream_id)
             self._disable_stream_thread_local()
 
@@ -841,9 +847,8 @@ class PipelineImpl(Pipeline):
         element_name = None
         frame_data_out = {}
         for node in graph:
-            element = node.element
             # TODO: Make sure element_name is correct for all error diagnostics
-            element_name = element.__class__.__name__  # TODO: or element.name ?
+            element, element_name, is_local = PipelineGraph.get_element(node)
             header = f'Error: Invoking Pipeline "{definition_pathname}": ' \
                      f'PipelineElement "{element_name}": process_frame()'
 
@@ -853,7 +858,7 @@ class PipelineImpl(Pipeline):
             frame_data_out = {}
             stream_event = StreamEvent.OKAY
             try:
-                if element_name != "ServiceRemoteProxy":  ## Local element ##
+                if is_local:  ## Local element ##
                     start_time = time.time()
                     stream_event, frame_data_out = element.process_frame(
                         self.stream, **inputs)
@@ -863,7 +868,7 @@ class PipelineImpl(Pipeline):
                     self._process_stream_event(
                         element_name, frame_data_out, stream_event)
                     self.stream["swag"].update(frame_data_out)
-                else:                                     ## Remote element ##
+                else:         ## Remote element ##
                     frame_id = self.stream["frame_id"]
                     paused_frame = (
                         node.name, self.stream["metrics"], self.stream["swag"])
@@ -879,7 +884,7 @@ class PipelineImpl(Pipeline):
                 self._error(header, traceback.format_exc())
 
         if element_name:
-            if element_name != "ServiceRemoteProxy":  ## Local element ##
+            if is_local:  ## Local element ##
                 if "topic_response" in self.stream:
                     actor = get_actor_mqtt(
                         self.stream["topic_response"], Pipeline)
@@ -887,7 +892,7 @@ class PipelineImpl(Pipeline):
                         "stream_id": self.stream["stream_id"],
                         "frame_id": self.stream["frame_id"]}
                     actor.process_frame_response(remote_stream, frame_data_out)
-            else:                                     ## Remote element ##
+            else:         ## Remote element ##
                 pass  # TODO: Handle "ServiceRemoteProxy" being the tail element
                       #       Still needs to invoke process_frame_response()
         else:
