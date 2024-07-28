@@ -9,23 +9,26 @@
 # - Refactor from "pipeline.py", extract Stream concepts including Parameters
 #   - Review "../archive/main/stream_2020.py"
 
-from enum import Enum
+__all__ = ["StreamEvent", "StreamEventName", "StreamState", "StreamStateName"]
 
-__all__ = ["StreamEventDescription", "StreamEvent", "StreamState"]
+class StreamEvent:
+    ERROR = -1  # Move to StreamState.ERROR
+    OKAY  =  0  # Stay calm and keep on running
+    STOP  =  1  # Move to StreamState.STOP
 
-class StreamEvent(Enum):
-    ERROR = -1
-    OKAY = 0
-    STOP = 1
-
-StreamEventDescription = {
+StreamEventName = {
     StreamEvent.ERROR: "Error",
-    StreamEvent.OKAY: "Okay",
-    StreamEvent.STOP: "Stop"
+    StreamEvent.OKAY:  "Okay",
+    StreamEvent.STOP:  "Stop"
 }
 
-class StreamState(Enum):
-    START = 0
-    RUN = 1
-    STOP = 2
-    COMPLETE = 3
+class StreamState:
+    ERROR = -1  # Don't generate new frames and ignore queued frames
+    RUN   =  0  # Generate new frames and process queued frames
+    STOP  =  1  # Don't generate new frames and process queued frames
+
+StreamStateName = {
+    StreamState.ERROR: "Error",
+    StreamState.RUN:   "Run",
+    StreamState.STOP:  "Stop"
+}
