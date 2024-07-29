@@ -4,12 +4,10 @@
   "runtime": "python",
 
   "graph": ["(PE_RandomIntegers)"],
-
-  "parameters": {},
+  "parameters": {"limit": 2, "rate": 1.0},
 
   "elements": [
     { "name":   "PE_RandomIntegers",
-      "parameters": {"limit": 3, "rate": 1.0},
       "input":  [{ "name": "random", "type": "int" }],
       "output": [{ "name": "random", "type": "int" }],
       "deploy": {
