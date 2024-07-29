@@ -523,12 +523,12 @@ class PipelineImpl(Pipeline):
         stream = getattr(self.thread_local, "stream", None)
         assert not stream, "self.thread_local.stream must not be assigned"
         self.thread_local.stream = self.stream_leases[stream_id].data
-    #   self.logger.debug(f"Enable:  {function_name}: {self.my_id()}")
+    #   self.logger.debug(f"Enable:  {function_name}: {self.my_id()}")  # useful
 
     def _disable_stream_thread_local(self, function_name):
         stream = self.thread_local.stream
         assert stream, "self.thread_local.stream must be assigned"
-    #   self.logger.debug(f"Disable: {function_name}: {self.my_id()}")
+    #   self.logger.debug(f"Disable: {function_name}: {self.my_id()}")  # useful
         self.thread_local.stream = None
 
     def create_frame(self, stream, frame_data):
@@ -1201,7 +1201,7 @@ def main():
   help="Process Frame with identifier")
 @click.option("--frame_data", "-fd", type=str, default=None, required=False,
   help="Process Frame with data")
-@click.option("--grace_time", "-gt", type=int, default=None, required=False,
+@click.option("--grace_time", "-gt", type=int, default=_GRACE_TIME, required=False,
   help="Waiting for frame time-out")
 
 def create(definition_pathname,
