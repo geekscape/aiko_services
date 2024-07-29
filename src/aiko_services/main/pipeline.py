@@ -128,9 +128,9 @@ ACTOR_TYPE_ELEMENT = "pipeline_element"
 PROTOCOL_PIPELINE =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_PIPELINE}:{_VERSION}"
 PROTOCOL_ELEMENT =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_ELEMENT}:{_VERSION}"
 
-_DEFAULT_STREAM_ID = "0"
-_FIRST_FRAME_ID = 0
-_GRACE_TIME = 60
+_DEFAULT_STREAM_ID = "0"  # string (or bytes ?)
+_FIRST_FRAME_ID = 0       # integer
+_GRACE_TIME = 60          # seconds
 _LOGGER = aiko.logger(__name__)
 
 # --------------------------------------------------------------------------- #
@@ -642,7 +642,7 @@ class PipelineImpl(Pipeline):
                         print("_CREATE_STREAM STREAMEVENT.ERROR")
                         raise SystemExit("_CREATE_STREAM STREAMEVENT.ERROR")
 
-                        self.destroy_stream(stream_id)
+                        self.destroy_stream(stream_id)  # TODO: POST MESSAGE
 
                         event_name = StreamEventName[stream_event]
                         if event_diagnostic is None:
