@@ -128,9 +128,9 @@ ACTOR_TYPE_ELEMENT = "pipeline_element"
 PROTOCOL_PIPELINE =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_PIPELINE}:{_VERSION}"
 PROTOCOL_ELEMENT =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_ELEMENT}:{_VERSION}"
 
-_DEFAULT_STREAM_ID = "0"  # string (or bytes ?)
-_FIRST_FRAME_ID = 0       # integer
-_GRACE_TIME = 60          # seconds
+_DEFAULT_STREAM_ID = "default"  # string (or bytes ?)
+_FIRST_FRAME_ID = 0             # integer
+_GRACE_TIME = 60                # seconds
 _LOGGER = aiko.logger(__name__)
 
 # --------------------------------------------------------------------------- #
@@ -840,11 +840,12 @@ class PipelineImpl(Pipeline):
     def _process_frame_common(self,
         stream, frame_data_in, new_frame=True) -> Tuple[StreamEvent, dict]:
 
-        graph = self._process_initialize(stream, frame_data_in, new_frame)
+        graph, stream_id = self._process_initialize(  \
+            stream, frame_data_in, new_frame)
         if not graph:
             return
 
-        self._enable_stream_thread_local("process_frame", stream["stream_id"])
+        self._enable_stream_thread_local("process_frame", stream_id)
         stream = self.get_stream()
         metrics = self._process_metrics_initialize(stream, new_frame)
 
@@ -956,7 +957,7 @@ class PipelineImpl(Pipeline):
             frame_id = current_stream["frame_id"]
             self.logger.warning(
                 f"Process frame {frame_id}: stream {stream_id} not found")
-            return graph
+            stream_id = None
         else:
             stream_lease = self.stream_leases[stream_id]
             stream_lease.extend()
@@ -967,26 +968,25 @@ class PipelineImpl(Pipeline):
             stream_lease.data.update(current_stream)
             current_stream = stream_lease.data
 
-    # SWAG: Stuff We All Get 😅
-        if new_frame:
-            current_stream["swag"] = {}
-            graph = self.pipeline_graph
-        else:
-            frame_id = current_stream["frame_id"]
-            if frame_id in current_stream["paused"]:
-                paused_frame = current_stream["paused"][frame_id]
-                del current_stream["paused"][frame_id]
-                paused_pe_name = paused_frame[0]
-                current_stream["metrics"] = paused_frame[1]
-                current_stream["swag"] = paused_frame[2]
-                graph = self.pipeline_graph.iterate_after(paused_pe_name)
+        # SWAG: Stuff We All Get 😅
+            if new_frame:
+                current_stream["swag"] = {}
+                graph = self.pipeline_graph
             else:
-                self.logger.warning(
-                    f"Process frame <{stream_id}:{frame_id}> no paused frame")
-                return graph
+                frame_id = current_stream["frame_id"]
+                if frame_id in current_stream["paused"]:
+                    paused_frame = current_stream["paused"][frame_id]
+                    paused_pe_name = paused_frame[0]
+                    current_stream["metrics"] = paused_frame[1]
+                    current_stream["swag"] = paused_frame[2]
+                    graph = self.pipeline_graph.iterate_after(paused_pe_name)
+                    del current_stream["paused"][frame_id]
+                else:
+                    self.logger.warning(
+                        f"Process frame <{stream_id}:{frame_id}> wasn't paused")
 
         current_stream["swag"].update(frame_data_in)
-        return graph
+        return graph, stream_id
 
 # TODO: Refactor metrics into "utilities/metrics.py:class Metrics"
     def _process_metrics_initialize(self, stream, new_frame):
