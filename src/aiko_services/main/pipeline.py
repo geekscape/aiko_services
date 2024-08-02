@@ -426,9 +426,10 @@ class PipelineElementImpl(PipelineElement):
             parameters = stream["parameters"]
         return parameters
 
-    def my_id(self):
+    def my_id(self, name_enabled=False):
+        name = self.name if name_enabled else ""
         stream = self.get_stream()
-        return f"{self.name}<{stream['stream_id']}:{stream['frame_id']}>"
+        return f"{name}<{stream['stream_id']}:{stream['frame_id']}>"
 
     def start_stream(self, stream, stream_id):
         return StreamEvent.OKAY, None
