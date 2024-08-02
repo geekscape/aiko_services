@@ -42,6 +42,7 @@
 
 import os
 import paho.mqtt.client as mqtt
+import socket
 import time
 from typing import Any, List
 
@@ -92,7 +93,10 @@ class MQTT(Message):
         if self.mqtt_host:
             self._connect(topic_lwt, payload_lwt, retain_lwt)
         else:
-            _LOGGER.error(f"Error: Couldn't connect to MQTT server {self.mqtt_info}")
+            _LOGGER.warning(
+                f"Couldn't connect to MQTT server {self.mqtt_info}\n"
+                 "Environment variable AIKO_MQTT_HOST not configured properly\n"
+                 "Running as a single process without MQTT server (broker)")
 
     def _connect(
         self: Any,
@@ -117,15 +121,15 @@ class MQTT(Message):
             self.mqtt_client.username_pw_set(
                 self.mqtt_username, self.mqtt_password)
 
-        diagnostic = None
+        diagnostic = f"Error: Couldn't connect to MQTT server {self.mqtt_info}"
         try:
             self.mqtt_client.connect(
                 host=self.mqtt_host, port=self.mqtt_port, keepalive=60)
             self.mqtt_client.loop_start()
+        except socket.gaierror:
+            raise SystemExit(diagnostic)
         except ConnectionRefusedError:
-            diagnostic = f"Error: Couldn't connect to MQTT server {self.mqtt_info}"
-        if diagnostic:
-            raise SystemError(diagnostic)
+            raise SystemExit(diagnostic)
 
     def _disconnect(self: Any) -> None:
         _LOGGER.debug(f"disconnect from {self.mqtt_info}")

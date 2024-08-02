@@ -128,9 +128,9 @@ ACTOR_TYPE_ELEMENT = "pipeline_element"
 PROTOCOL_PIPELINE =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_PIPELINE}:{_VERSION}"
 PROTOCOL_ELEMENT =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_ELEMENT}:{_VERSION}"
 
-_DEFAULT_STREAM_ID = "default"  # string (or bytes ?)
-_FIRST_FRAME_ID = 0             # integer
-_GRACE_TIME = 60                # seconds
+_DEFAULT_STREAM_ID = "*"  # string (or bytes ?)
+_FIRST_FRAME_ID = 0       # integer
+_GRACE_TIME = 60          # seconds
 _LOGGER = aiko.logger(__name__)
 
 # --------------------------------------------------------------------------- #

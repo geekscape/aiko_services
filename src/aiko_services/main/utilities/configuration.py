@@ -24,6 +24,15 @@
 # - Implement discovery for finding the default MQTT hostname
 # - Implement discovery for finding the default namespace
 #   - Define Namespace class for holding information about a specific namespace
+#
+# To Do: Tests
+# ~~~~~~~~~~~~
+# unset AIKO_MQTT_HOST  # unconfigured
+#                       # --> try "localhost"
+# export AIKO_MQTT_HOST=no_such_host.com  # DNS host name or service unknown
+#                       # --> try and fail during MQTT.connect()
+# export AIKO_MQTT_HOST=valid_host.com    # No MQTT server (broker)
+#                       # --> try and fail during MQTT.connect()
 
 import getpass
 import os
@@ -31,6 +40,8 @@ import secrets
 import socket
 from threading import Thread
 import time
+
+from .logger import get_logger
 
 __all__ = [
     "create_password",
@@ -45,19 +56,26 @@ _AIKO_MQTT_PORT = 1883        # TCP/IP: 9883, WebSockets: 9884
 _AIKO_MQTT_TRANSPORT = "tcp"  # "websockets"
 _AIKO_NAMESPACE = "aiko"
 
+_LOCALHOST_IP = "127.0.0.1"
+_LOGGER = get_logger(__name__)
+
 def create_password(length=32):
     return secrets.token_hex(length)
 
 def _get_lan_ip_address():
-    ip_address = ((
-            [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2]
-                 if not ip.startswith("127.")
-            ]
-            or
-            [[(s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close())
-                for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]
-            ][0][1]]
-        ) + ["127.0.0.1"])[0]
+    try:
+        ip_address = ((
+                [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2]
+                     if not ip.startswith("127.")
+                ]
+                or
+                [[(s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close())
+                    for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]
+                ][0][1]]
+            ) + [_LOCALHOST_IP])[0]
+    except Exception:  # typically this will be "socket.gaierror"
+        _LOGGER.warning('Aiko Services using "localhost" as your hostname')
+        ip_address = _LOCALHOST_IP
     return ip_address
 
 def _host_service_up(host, port):
