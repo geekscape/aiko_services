@@ -128,9 +128,7 @@ ACTOR_TYPE_ELEMENT = "pipeline_element"
 PROTOCOL_PIPELINE =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_PIPELINE}:{_VERSION}"
 PROTOCOL_ELEMENT =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_ELEMENT}:{_VERSION}"
 
-_DEFAULT_STREAM_ID = "*"  # string (or bytes ?)
-_FIRST_FRAME_ID = 0       # integer
-_GRACE_TIME = 60          # seconds
+_GRACE_TIME = 60  # seconds
 _LOGGER = aiko.logger(__name__)
 
 # --------------------------------------------------------------------------- #
@@ -290,7 +288,7 @@ class PipelineElement(Actor):
 
     @abstractmethod
     def create_frames(self, stream, frame_generator,
-        frame_id=_FIRST_FRAME_ID, rate=None):
+        frame_id=FIRST_FRAME_ID, rate=None):
         pass
 
     @abstractmethod
@@ -348,7 +346,7 @@ class PipelineElementImpl(PipelineElement):
 # Optional "frame_generator" starts during "create_stream() --> start_stream()"
 
     def create_frames(self, stream, frame_generator,
-        frame_id=_FIRST_FRAME_ID, rate=None):
+        frame_id=FIRST_FRAME_ID, rate=None):
 
         thread_args = (stream, frame_generator, frame_id, rate)
         Thread(target=self._create_frames_generator, args=thread_args).start()
@@ -616,7 +614,7 @@ class PipelineImpl(Pipeline):
             stream_lease = Lease(int(grace_time), stream_id,
                 lease_expired_handler=self.destroy_stream)
             stream_lease.data = {
-                "frame_id": str(_FIRST_FRAME_ID),
+                "frame_id": str(FIRST_FRAME_ID),
                 "parameters": parameters if parameters else {},
                 "paused": {},
                 "state": StreamState.RUN,
@@ -944,11 +942,11 @@ class PipelineImpl(Pipeline):
 
     def _process_initialize(self, stream, frame_data_in, new_frame):
         current_stream = {
-            "stream_id": _DEFAULT_STREAM_ID, "frame_id": str(_FIRST_FRAME_ID)}
+            "stream_id": DEFAULT_STREAM_ID, "frame_id": str(FIRST_FRAME_ID)}
         current_stream.update(stream)
         graph = None
 
-        if current_stream["stream_id"] == _DEFAULT_STREAM_ID:
+        if current_stream["stream_id"] == DEFAULT_STREAM_ID:
             if current_stream["stream_id"] not in self.stream_leases:
                 parameters = current_stream.get("parameters", {})
                 self.create_stream(current_stream["stream_id"], parameters)
