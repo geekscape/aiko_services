@@ -9,6 +9,9 @@
 #
 # Notes
 # ~~~~~
+# - Watch out for "stream.py:Frame()" dataclass and
+#   "dashboard.py" use of "asciimatics.widgets.Frame()"
+#
 # Debugging approach #1
 #   aiko.process.message.publish("$AIKO_NAMESPACE/DASHBOARD", f"Debug message")
 #
@@ -133,14 +136,15 @@ from asciimatics.exceptions import (
 from asciimatics.parsers import AnsiTerminalParser
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
+from asciimatics.widgets import Frame as asciimatics_Frame  # avoid confusion !
 from asciimatics.widgets import (
-    Frame, Label, Layout, MultiColumnListBox,
+    Label, Layout, MultiColumnListBox,
     PopUpDialog, PopupMenu, Text, TextBox, Widget
 )
 from asciimatics.widgets.utilities import THEMES
 
-from aiko_services.main import *
-from aiko_services.main.utilities import *
+import aiko_services as aiko  # designed to be external to the main framework
+from aiko_services.main.utilities import get_mqtt_configuration, load_module
 
 __all__ = ["LogUI", "ServiceFrame"]
 
@@ -225,7 +229,7 @@ class FrameCommon:
     def _update_ecproducer_variable(self, topic_path, name, value):
         topic_path_control = topic_path + "/control"
         payload_out = f"(update {name} {value})"
-        aiko.message.publish(topic_path_control, payload_out)
+        aiko.process.message.publish(topic_path_control, payload_out)
 
 # TODO: Replace _process_event_common() with the following ...
 # https://asciimatics.readthedocs.io/en/stable/widgets.html#global-key-handling
@@ -259,7 +263,7 @@ class FrameCommon:
                     PopUpDialog(self._screen, text, ["OK"], theme="nice"))
             if event.key_code in [ord("x"), ord("X"), Screen.ctrl("c")]:
                 self.services_cache = None
-                services_cache_delete()
+                aiko.services_cache_delete()
                 raise StopApplication("User quit request")
 
     def _update_field(self, list, name, value, width):  # wrap long lines
@@ -276,7 +280,7 @@ class FrameCommon:
             if padding == 0:
                 padding = 2
 
-class DashboardFrame(FrameCommon, Frame):
+class DashboardFrame(FrameCommon, asciimatics_Frame):
     dashboard_singleton = None  # Instance reference for ServiceFrames plugins
 
     @classmethod
@@ -299,9 +303,9 @@ class DashboardFrame(FrameCommon, Frame):
         self.selected_services = {}
         self.subscribed_service = None
 
-        self.services_cache = services_cache_create_singleton(
+        self.services_cache = aiko.services_cache_create_singleton(
             aiko.process, True, history_limit=_HISTORY_LIMIT)
-    #   filter = ServiceFilter("*", "*", "*", "*", "*", "*")
+    #   filter = aiko.ServiceFilter("*", "*", "*", "*", "*", "*")
 
         self._services_widget = MultiColumnListBox(
             screen.height // 3,
@@ -331,7 +335,7 @@ class DashboardFrame(FrameCommon, Frame):
         layout_0.add_widget(self._services_widget)
         layout_0.add_widget(self._service_widget)
         layout_0.add_widget(self._history_widget)
-        self.fix()  # Prepare Frame for use
+        self.fix()  # Prepare asciimatics_Frame for use
         self._value_width = self._service_widget.width - 16
 
     def _ec_consumer_set(self, index):
@@ -346,9 +350,9 @@ class DashboardFrame(FrameCommon, Frame):
             service_topic_path = services_topic_paths[index]
             self.selected_service = services.get_service(service_topic_path)
             self.service_tags = self.selected_service[5]
-            if ServiceTags.match_tags(self.service_tags, ["ec=true"]):
+            if aiko.ServiceTags.match_tags(self.service_tags, ["ec=true"]):
                 topic_control = f"{service_topic_path}/control"
-                self.ec_consumer = ECConsumer(
+                self.ec_consumer = aiko.ECConsumer(
                     aiko.process, 0, self.service_cache, topic_control)
 
     def _ec_consumer_reset(self):
@@ -363,7 +367,7 @@ class DashboardFrame(FrameCommon, Frame):
         transport = service[3]
         kill_signal = "-2" if transport == "ray" else "-9"
         if topic_path.count("/") == 3:
-            process_id = ServiceTopicPath.parse(topic_path).process_id
+            process_id = aiko.ServiceTopicPath.parse(topic_path).process_id
             if process_id.isnumeric():
                 command_line = ["kill", kill_signal, process_id]
                 Popen(command_line, bufsize=0, shell=False)
@@ -407,7 +411,7 @@ class DashboardFrame(FrameCommon, Frame):
                 variable_value = variable[0][1]
                 text_box.value[0] = variable_value
                 title = f"Update {variable_name}" + " "*32
-            # TODO: Replace with "maps.py:EnterLocation(Frame)"
+            # TODO: Replace with "maps.py:EnterLocation(asciimatics_Frame)"
                 popup_dialog = PopUpDialog(
                     self._screen, title, ["Cancel", "OK"],
                     on_close=_on_close, theme="nice")
@@ -424,7 +428,7 @@ class DashboardFrame(FrameCommon, Frame):
         services = self.services_cache.get_services().copy()
         services_formatted = []
         for service in services:
-            topic_path = ServiceTopicPath.parse(service[0])
+            topic_path = aiko.ServiceTopicPath.parse(service[0])
             topic_path = self._service_selection_color(
                 self.YELLOW, str(topic_path), topic_path.terse)
             protocol = self._short_name(service[2])
@@ -464,7 +468,7 @@ class DashboardFrame(FrameCommon, Frame):
         service_history = list(self.services_cache.get_history())
         services_formatted = []
         for service in service_history:
-            topic_path = ServiceTopicPath.parse(service[0]).terse
+            topic_path = aiko.ServiceTopicPath.parse(service[0]).terse
             protocol = self._short_name(service[2])
             services_formatted.append(
                 (topic_path, service[1], service[4], protocol, service[3]))
@@ -510,7 +514,7 @@ class DashboardFrame(FrameCommon, Frame):
 
 # ServiceFrame subclass __init__() must include "self.fix()"
 
-class ServiceFrame(FrameCommon, Frame):
+class ServiceFrame(FrameCommon, asciimatics_Frame):
     def __init__(self, screen, dashboard, name="service_frame"):
         super(ServiceFrame, self).__init__(
             screen, screen.height, screen.width, has_border=False, name=name
@@ -529,7 +533,7 @@ class ServiceFrame(FrameCommon, Frame):
         if self.dashboard.selected_service != self.dashboard.subscribed_service:
             self.dashboard.subscribed_service = self.dashboard.selected_service
             self.service = self.dashboard.selected_service
-            topic_path = ServiceTopicPath.parse(self.service[0]).terse
+            topic_path = aiko.ServiceTopicPath.parse(self.service[0]).terse
             name = self._short_name(self.service[1])
             self._service_title.value = f"Service: {topic_path}: {name}"
         # Plugins that add handlers to the ec_consumer must also remove them !
@@ -644,7 +648,7 @@ class LogFrame(ServiceFrame):
     def __init__(self, screen, dashboard):
         super(LogFrame, self).__init__(screen, dashboard, name="log_frame")
         self.log_ui = LogUI(self)
-        self.fix()  # Prepare Frame for use
+        self.fix()  # Prepare asciimatics_Frame for use
 
     def process_event(self, event):
         self.log_ui.process_event(event)
@@ -726,7 +730,7 @@ def update_plugins(plugins):
 @click.option("--history_limit", "-hl", type=click.INT, default=32,
     help="History length requested from Registrar")
 @click.option("--plugin", "-p", multiple=True, required=False,
-    default=["aiko_services.dashboard_plugins"])
+    default=["aiko_services.main.dashboard_plugins"])
 
 def main(plugin, history_limit):
     global _HISTORY_LIMIT

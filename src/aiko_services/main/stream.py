@@ -4,15 +4,21 @@
 # SWAG: Stuff We All Get
 # SWAG: https://en.wikipedia.org/wiki/Scientific_wild-ass_guess :)
 #
+# Notes
+# ~~~~~
+# - Watch out for "stream.py:Frame()" dataclass and
+#   "dashboard.py" use of "asciimatics.widgets.Frame()"
+#
 # To Do
 # ~~~~~
 # - Refactor from "pipeline.py", extract Stream concepts including Parameters
 #   - Review "../archive/main/stream_2020.py"
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any, Dict
 
 __all__ = [
-    "DEFAULT_STREAM_ID", "FIRST_FRAME_ID", "Stream",
+    "DEFAULT_STREAM_ID", "FIRST_FRAME_ID", "Frame", "Stream",
     "StreamEvent", "StreamEventName", "StreamState", "StreamStateName"
 ]
 
@@ -42,5 +48,19 @@ StreamStateName = {
 }
 
 @dataclass
+class Frame:
+    frame_id: int = FIRST_FRAME_ID
+    parameters: Dict[str, Any] = field(default_factory=dict)
+    paused_pe_name: str = None
+    metrics: Dict[str, Any] = field(default_factory=dict)
+    swag: Dict[str, Any] = field(default_factory=dict)
+    variables: Dict[str, Any] = field(default_factory=dict)
+
+@dataclass
 class Stream:
     stream_id: str = DEFAULT_STREAM_ID
+    frame_id: int = FIRST_FRAME_ID  # main thread only
+    frames: Dict[int, Frame] = field(default_factory=dict)
+    parameters: Dict[str, Any] = field(default_factory=dict)  # initial
+    state: StreamState = StreamState.RUN
+#   topic_reponse

@@ -54,7 +54,7 @@ from .process_manager import ProcessManager
 from .lifecycle import LifeCycleClient, LifeCycleManager
 
 from .stream import (
-    DEFAULT_STREAM_ID, FIRST_FRAME_ID, Stream,
+    DEFAULT_STREAM_ID, FIRST_FRAME_ID, Frame, Stream,
     StreamEvent, StreamEventName, StreamState, StreamStateName
 )
 
