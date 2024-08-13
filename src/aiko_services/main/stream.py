@@ -47,7 +47,7 @@ class StreamState:
 StreamStateName = {
     StreamState.ERROR: "Error",
     StreamState.STOP:  "Stop",
-    StreamState.RUN:   "Run"
+    StreamState.RUN:   "Run",
     StreamState.USER:  "User"
 }
 
