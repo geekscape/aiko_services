@@ -26,29 +26,33 @@ DEFAULT_STREAM_ID = "*"  # string (or bytes ?)
 FIRST_FRAME_ID = 0       # integer
 
 class StreamEvent:
-    ERROR = -2  # Move to StreamState.ERROR
-    STOP  = -1  # Move to StreamState.STOP
-    OKAY  =  0  # Stay calm and keep on running
+    ERROR =   -2  # Move to StreamState.ERROR
+    STOP  =   -1  # Move to StreamState.STOP
+    OKAY  =    0  # Stay calm and keep on running
+    USER  = 1000  # User defined custom StreamEvents start from here
 
 StreamEventName = {
     StreamEvent.ERROR: "Error",
     StreamEvent.OKAY:  "Okay",
-    StreamEvent.STOP:  "Stop"
+    StreamEvent.STOP:  "Stop",
+    StreamEvent.USER:  "User"
 }
 
 class StreamState:
-    ERROR = -2  # Don't generate new frames and ignore queued frames
-    STOP  = -1  # Don't generate new frames and process queued frames
-    RUN   =  0  # Generate new frames and process queued frames
+    ERROR =   -2  # Don't generate new frames and ignore queued frames
+    STOP  =   -1  # Don't generate new frames and process queued frames
+    RUN   =    0  # Generate new frames and process queued frames
+    USER  = 1000  # User defined custom StreamStates start from here
 
 StreamStateName = {
     StreamState.ERROR: "Error",
     StreamState.STOP:  "Stop",
     StreamState.RUN:   "Run"
+    StreamState.USER:  "User"
 }
 
 @dataclass
-class Frame:
+class Frame:  # effectively a continuation :)
     frame_id: int = FIRST_FRAME_ID
     parameters: Dict[str, Any] = field(default_factory=dict)
     paused_pe_name: str = None
@@ -63,4 +67,4 @@ class Stream:
     frames: Dict[int, Frame] = field(default_factory=dict)
     parameters: Dict[str, Any] = field(default_factory=dict)  # initial
     state: StreamState = StreamState.RUN
-#   topic_reponse
+#   topic_response
