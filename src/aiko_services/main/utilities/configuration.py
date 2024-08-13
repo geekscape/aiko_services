@@ -78,7 +78,7 @@ def _get_lan_ip_address():
         ip_address = _LOCALHOST_IP
     return ip_address
 
-def _host_service_up(host, port):
+def _host_server_up(host, port):
     try:
         _socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         _socket.connect((host, port))
@@ -99,38 +99,44 @@ def get_hostname():
     return hostname
 
 def get_mqtt_configuration(tls_enabled=None):
-    mqtt_host, mqtt_port = get_mqtt_host()
+    server_up, mqtt_host, mqtt_port = get_mqtt_host()
     mqtt_transport = os.environ.get("AIKO_MQTT_TRANSPORT", _AIKO_MQTT_TRANSPORT)
     username = os.environ.get("AIKO_USERNAME", None)
     password = os.environ.get("AIKO_PASSWORD", None)
+
     if tls_enabled == None:
         mqtt_tls = os.environ.get("AIKO_MQTT_TLS", None)
         if mqtt_tls:
             tls_enabled = mqtt_tls == "true"
         else:
             tls_enabled = (username is not None) and (len(username) > 0)
-    return (mqtt_host, mqtt_port, mqtt_transport, username, password, tls_enabled)
+    return (server_up, mqtt_host, mqtt_port,  \
+            mqtt_transport, username, password, tls_enabled)
 
 # Try in order ...
 # - Environment variables: AIKO_MQTT_HOST and AIKO_MQTT_PORT
 # - _AIKO_MQTT_HOSTS list
-# - Default: _AIKO_MQTT_HOST and _AIKO_MQTT_PORT
+# - _AIKO_MQTT_HOST and _AIKO_MQTT_PORT
 
 def get_mqtt_host():
     mqtt_hosts = _AIKO_MQTT_HOSTS.copy()
+
     mqtt_host = os.environ.get("AIKO_MQTT_HOST", None)
     mqtt_port = get_mqtt_port()
     if mqtt_host:
         mqtt_hosts.insert(0, (mqtt_host, mqtt_port))
+
     mqtt_hosts.append((_AIKO_MQTT_HOST, mqtt_port))
 
+    server_up = False
     for host, port in mqtt_hosts:
-        if _host_service_up(host, port):
+        if _host_server_up(host, port):
+            server_up = True
             mqtt_host = host
             mqtt_port = port
             break
 
-    return mqtt_host, mqtt_port
+    return server_up, mqtt_host, mqtt_port
 
 def get_mqtt_port():
     return int(os.environ.get("AIKO_MQTT_PORT", _AIKO_MQTT_PORT))

@@ -157,7 +157,6 @@ class ProcessImplementation(ProcessData):
                     _LOGGER.error(system_error)
                 else:
                     _LOGGER.warning(system_error)
-
             if mqtt_connection_required and not mqtt_connected:
                 raise SystemExit()
 

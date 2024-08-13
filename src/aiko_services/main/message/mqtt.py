@@ -81,22 +81,21 @@ class MQTT(Message):
         self.subscribe(topics_subscribe)
 
         mqtt_configuration = get_mqtt_configuration()
-        self.mqtt_host = mqtt_configuration[0]
-        self.mqtt_port = mqtt_configuration[1]
-        self.mqtt_transport = mqtt_configuration[2]
-        self.mqtt_username = mqtt_configuration[3]
-        self.mqtt_password = mqtt_configuration[4]
-        self.mqtt_tls_enabled = mqtt_configuration[5]
+        server_up = mqtt_configuration[0]
+        self.mqtt_host = mqtt_configuration[1]
+        self.mqtt_port = mqtt_configuration[2]
+        self.mqtt_transport = mqtt_configuration[3]
+        self.mqtt_username = mqtt_configuration[4]
+        self.mqtt_password = mqtt_configuration[5]
+        self.mqtt_tls_enabled = mqtt_configuration[6]
         tls_state = "TLS enabled" if self.mqtt_tls_enabled else "TLS disabled"
         self.mqtt_info = f"{self.mqtt_host}:{self.mqtt_port}:{tls_state}"
 
-        if self.mqtt_host:
+        if server_up:
             self._connect(topic_lwt, payload_lwt, retain_lwt)
         else:
-            _LOGGER.warning(
-                f"Couldn't connect to MQTT server {self.mqtt_info}\n"
-                 "Environment variable AIKO_MQTT_HOST not configured properly\n"
-                 "Running as a single process without MQTT server (broker)")
+            diagnostic = f"Couldn't connect to MQTT server {self.mqtt_info}"
+            raise SystemError(diagnostic)
 
     def _connect(
         self: Any,

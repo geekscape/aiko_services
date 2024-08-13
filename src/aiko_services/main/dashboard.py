@@ -164,18 +164,18 @@ NICE_COLORS["selected_focus_field"] = (GREEN, FONT_BOLD, BLACK)
 NICE_COLORS["title"] = (BLACK, FONT_BOLD, WHITE)
 THEMES["nice"] = NICE_COLORS
 
-mqtt_configuration = get_mqtt_configuration()
-mqtt_host = mqtt_configuration[0]
-mqtt_port = mqtt_configuration[1]
-if not mqtt_host:
-    raise SystemExit(
-        "$AIKO_MQTT_HOST environment variable must refer to an MQTT server")
-
 class FrameCommon:
     def __init__(self, screen, height, width, has_border, name):
         super(FrameCommon, self).__init__(
             screen, height, width, has_border=has_border, name=name)
         self.adjust_palette_required = True
+
+        mqtt_configuration = get_mqtt_configuration()
+        server_up = mqtt_configuration[0]
+        self.mqtt_host = mqtt_configuration[1]
+        self.mqtt_port = mqtt_configuration[2]
+        if not server_up:
+            self.mqtt_host = "MQTT SERVER UNAVAILABLE"
 
     def _add_service_bar(self):
         layout = Layout([1])
@@ -194,7 +194,7 @@ class FrameCommon:
         if context:
             title += context
         else:
-            title += f"{mqtt_host[0:40]}:{mqtt_port}"
+            title += f"{self.mqtt_host[0:40]}:{self.mqtt_port}"
         return title
 
     def _add_title_bar(self):
