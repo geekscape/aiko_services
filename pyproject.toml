@@ -1,6 +1,6 @@
 [project]
 name = "aiko_services"
-version = "0.4"
+version = "0.5"
 readme = "ReadMe.md"
 description = "Distributed embedded service framework for A.I and robotics"
 requires-python = ">=3.9.0,<=3.12.3"
