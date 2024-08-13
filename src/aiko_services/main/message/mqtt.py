@@ -121,15 +121,17 @@ class MQTT(Message):
             self.mqtt_client.username_pw_set(
                 self.mqtt_username, self.mqtt_password)
 
-        diagnostic = f"Error: Couldn't connect to MQTT server {self.mqtt_info}"
+        diagnostic = f"Couldn't connect to MQTT server {self.mqtt_info}"
         try:
             self.mqtt_client.connect(
                 host=self.mqtt_host, port=self.mqtt_port, keepalive=60)
             self.mqtt_client.loop_start()
         except socket.gaierror:
-            raise SystemExit(diagnostic)
+            raise SystemError(diagnostic)
         except ConnectionRefusedError:
-            raise SystemExit(diagnostic)
+            raise SystemError(diagnostic)
+    #   except ConnectionResetError:  # TODO: Is this required as well ?
+    #       raise SystemError(diagnostic)
 
     def _disconnect(self: Any) -> None:
         _LOGGER.debug(f"disconnect from {self.mqtt_info}")

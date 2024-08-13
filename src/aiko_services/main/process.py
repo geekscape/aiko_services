@@ -138,20 +138,33 @@ class ProcessImplementation(ProcessData):
         self._services = {}
         self._services_lock = Lock(f"{__name__}._services", _LOGGER)
 
-    def initialize(self):
+    def initialize(self, mqtt_connection_required=True):
         if not self.initialized:
             self.initialized = True
             event.add_queue_handler(self.on_message_queue_handler, ["message"])
             self.add_message_handler(
                 self.on_registrar, aiko.TOPIC_REGISTRAR_BOOT)
-            aiko.message = MQTT(
-                self.on_message, self._message_handlers,
-                aiko.topic_lwt, aiko.payload_lwt, False
-            )
+
+            mqtt_connected = False
+            try:
+                aiko.message = MQTT(
+                    self.on_message, self._message_handlers,
+                    aiko.topic_lwt, aiko.payload_lwt, False
+                )
+                mqtt_connected = True
+            except SystemError as system_error:
+                if mqtt_connection_required:
+                    _LOGGER.error(system_error)
+                else:
+                    _LOGGER.warning(system_error)
+
+            if mqtt_connection_required and not mqtt_connected:
+                raise SystemExit()
+
             context = ContextManager(aiko, aiko.message)
 
-    def run(self, loop_when_no_handlers=False):
-        self.initialize()
+    def run(self, loop_when_no_handlers=False, mqtt_connection_required=True):
+        self.initialize(mqtt_connection_required=mqtt_connection_required)
 
         if not self.running:
             try:

@@ -164,7 +164,7 @@ class Actor(Service):
     Interface.default("Actor", "aiko_services.main.actor.ActorImpl")
 
     @abstractmethod
-    def run(self):
+    def run(self, mqtt_connection_required=True):
         pass
 
 class ActorImpl(Actor):
@@ -235,10 +235,11 @@ class ActorImpl(Actor):
     def is_running(self):
         return self.share["running"]
 
-    def run(self):  # TODO: Refactor this method into "service.py"
+# TODO: Refactor this method into "service.py"
+    def run(self, mqtt_connection_required=True):
         self.share["running"] = True
         try:
-            aiko.process.run()
+            aiko.process.run(mqtt_connection_required=mqtt_connection_required)
         except Exception as exception:
         #   _LOGGER.error(f"Exception caught in {self.__class__.__name__}: {type(exception).__name__}: {exception}")
             _LOGGER.error(traceback.format_exc())

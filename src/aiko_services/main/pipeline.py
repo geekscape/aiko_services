@@ -481,7 +481,7 @@ class PipelineImpl(Pipeline):
         self.stream_leases = {}
         self.thread_local = threading.local()  #  _enable_stream_thread_local()
 
-        self.pipeline_graph = self._create_pipeline(context.definition)
+        self.pipeline_graph = self._create_pipeline_graph(context.definition)
         self.share["element_count"] = self.pipeline_graph.element_count
         self.share["lifecycle"] = "ready"
         self.share["streams"] = 0
@@ -533,7 +533,38 @@ class PipelineImpl(Pipeline):
     def create_frame(self, stream, frame_data):
         self._post_message(ActorTopic.IN, "process_frame", [stream, frame_data])
 
-    def _create_pipeline(self, definition):
+    @classmethod
+    def create_pipeline(cls, definition_pathname, pipeline_definition,
+        name, stream_id, stream_parameters, frame_id, frame_data, grace_time,
+        mqtt_connection_required=False):
+
+        name = name if name else pipeline_definition.name
+
+        init_args = pipeline_args(name,
+            protocol=PROTOCOL_PIPELINE,
+            definition=pipeline_definition,
+            definition_pathname=definition_pathname
+        )
+        pipeline = compose_instance(PipelineImpl, init_args)
+
+        if stream_id is not None:
+            stream_parameters = dict(stream_parameters)
+            pipeline.create_stream(stream_id, stream_parameters, grace_time)
+            stream = pipeline.stream_leases[stream_id].data
+        else:
+            stream = {"frame_id": frame_id, "parameters": {}}
+
+        if frame_data is not None:
+            function_name, arguments = parse(f"(process_frame {frame_data})")
+            if len(arguments):
+                pipeline.create_frame(stream, arguments[0])
+            else:
+                raise SystemExit(
+                    f"Error: Frame data must be provided")
+
+        pipeline.run(mqtt_connection_required=mqtt_connection_required)
+
+    def _create_pipeline_graph(self, definition):
         header = f"Error: Creating Pipeline: {definition.name}"
 
         if len(definition.elements) == 0:
@@ -1212,30 +1243,9 @@ def create(definition_pathname,
 
     pipeline_definition = PipelineImpl.parse_pipeline_definition(
         definition_pathname)
-    name = name if name else pipeline_definition.name
 
-    init_args = pipeline_args(name,
-        protocol=PROTOCOL_PIPELINE,
-        definition=pipeline_definition,
-        definition_pathname=definition_pathname
-    )
-    pipeline = compose_instance(PipelineImpl, init_args)
-
-    if stream_id is not None:
-        pipeline.create_stream(stream_id, dict(stream_parameters), grace_time)
-        stream = pipeline.stream_leases[stream_id].data
-    else:
-        stream = { "frame_id": frame_id, "parameters": {}, "stream_id": "0" }
-
-    if frame_data is not None:
-        function_name, arguments = parse(f"(process_frame {frame_data})")
-        if len(arguments):
-            pipeline.create_frame(stream, arguments[0])
-        else:
-            raise SystemExit(
-                f"Error: Frame data must be provided")
-
-    pipeline.run()
+    PipelineImpl.create_pipeline(definition_pathname, pipeline_definition,
+        name, stream_id, stream_parameters, frame_id, frame_data, grace_time)
 
 @main.command(help="Destroy Pipeline")
 @click.argument("name", nargs=1, type=str, required=True)

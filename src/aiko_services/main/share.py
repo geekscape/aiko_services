@@ -622,7 +622,7 @@ class ServicesCache():
             diagnostic = None
             try:
                 aiko.process.run()
-            except ConnectionResetError:
+            except SystemError:
                 diagnostic = "Error: MQTT Connection Reset: Incorrect configuration or security credentials ?"
             if diagnostic:
                 _LOGGER.error(diagnostic)
