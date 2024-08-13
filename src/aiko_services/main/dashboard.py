@@ -167,6 +167,9 @@ THEMES["nice"] = NICE_COLORS
 mqtt_configuration = get_mqtt_configuration()
 mqtt_host = mqtt_configuration[0]
 mqtt_port = mqtt_configuration[1]
+if not mqtt_host:
+    raise SystemExit(
+        "$AIKO_MQTT_HOST environment variable must refer to an MQTT server")
 
 class FrameCommon:
     def __init__(self, screen, height, width, has_border, name):
