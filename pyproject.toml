@@ -3,7 +3,7 @@ name = "aiko_services"
 version = "0.5"
 readme = "ReadMe.md"
 description = "Distributed embedded service framework for A.I and robotics"
-requires-python = ">=3.9.0,<=3.12.3"
+requires-python = ">=3.9.0,<=3.13.3"
 
 authors = [
     {name = "Andy Gelme", email = "geekscape@gmail.com"}
@@ -22,6 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: MacOS",
@@ -64,11 +65,32 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.sdist]
 packages = ["src/aiko_services"]
-exclude = ["src/aiko_services/archive"]
+exclude = [
+    "src/aiko_services/archive",
+    "src/aiko_services/elements/media/data",
+    "src/aiko_services/examples/jukebox",
+    "src/aiko_services/examples/onnx",
+    "src/aiko_services/examples/yolo",
+#   "src/aiko_services/examples/yolo/datasets",
+#   "src/aiko_services/examples/yolo/media",
+    "cache",
+    "venv*"
+]
 
 # https://hatch.pypa.io/latest/config/build/#build-targets
 [tool.hatch.build.targets.wheel]
 packages = ["src/aiko_services"]
+exclude = [
+    "src/aiko_services/archive",
+    "src/aiko_services/elements/media/data",
+    "src/aiko_services/examples/jukebox",
+    "src/aiko_services/examples/onnx",
+    "src/aiko_services/examples/yolo",
+#   "src/aiko_services/examples/yolo/datasets",
+#   "src/aiko_services/examples/yolo/media",
+    "cache",
+    "venv*"
+]
 
 [tool.hatch.envs.default]
 pytest = "^8.0"
