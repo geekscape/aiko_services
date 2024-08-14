@@ -192,9 +192,15 @@ class PipelineGraph(Graph):
     @classmethod
     def get_element(cls, node):
         element = node.element
-        name = element.__class__.__name__
-        is_local = name != "ServiceRemoteProxy"
-        return element, name, is_local
+        if element.__class__.__name__ != "ServiceRemoteProxy":
+            name = element.__class__.__name__
+            local = element.is_local()
+            lifecycle = element.share["lifecycle"]
+        else:
+            name = node.name
+            local = False
+            lifecycle = "ready"
+        return element, name, local, lifecycle
 
 # TODO: Work-in-progress
 # - Pass 1: Validate_inputs_by_name_and_type()
@@ -239,7 +245,7 @@ class PipelineGraph(Graph):
 
     def validate(self, pipeline_definition, strict=False):
         for node in self:
-            element, element_name, is_local = PipelineGraph.get_element(node)
+            element, element_name, _, _ = PipelineGraph.get_element(node)
             element_inputs = element.definition.input
             element_inputs = [{**item, "found": 0} for item in element_inputs]
 
@@ -302,6 +308,10 @@ class PipelineElement(Actor):
     @abstractmethod
     def get_stream_parameters(self):
         pass
+
+    @classmethod
+    def is_local(cls):
+        return True
 
     @abstractmethod
     def my_id(self):
@@ -474,7 +484,7 @@ class PipelineImpl(Pipeline):
         print(f"MQTT topic: {self.topic_in}")
 
         self.share["definition_pathname"] = context.definition_pathname
-        self.share["lifecycle"] = "start"
+        self.share["lifecycle"] = "waiting"
         self.remote_pipelines = {}  # Service name --> PipelineElement name
         self.services_cache = None
 
@@ -483,9 +493,9 @@ class PipelineImpl(Pipeline):
 
         self.pipeline_graph = self._create_pipeline_graph(context.definition)
         self.share["element_count"] = self.pipeline_graph.element_count
-        self.share["lifecycle"] = "ready"
         self.share["streams"] = 0
         self.share["streams_paused"] = 0
+        self._update_lifecycle_state()
 
     # TODO: Better visualization of the Pipeline / PipelineElements details
         if False:
@@ -494,6 +504,14 @@ class PipelineImpl(Pipeline):
                 print(f"NODE: {node.name}")
 
         event.add_timer_handler(self._status_update_timer, 1.0)
+
+    def _update_lifecycle_state(self):
+        pe_lifecycles = []
+        for node in self.pipeline_graph:
+            element, name, local, lifecycle = PipelineGraph.get_element(node)
+            pe_lifecycles.append(lifecycle == "ready")
+        lifecycle = "ready" if all(pe_lifecycles) else "waiting"
+        self.ec_producer.update("lifecycle", lifecycle)
 
     def _status_update_timer(self):
         streams_paused = 0
@@ -547,12 +565,12 @@ class PipelineImpl(Pipeline):
         )
         pipeline = compose_instance(PipelineImpl, init_args)
 
+        stream = {"frame_id": frame_id, "parameters": {}}
+
         if stream_id is not None:
             stream_parameters = dict(stream_parameters)
             pipeline.create_stream(stream_id, stream_parameters, grace_time)
-            stream = pipeline.stream_leases[stream_id].data
-        else:
-            stream = {"frame_id": frame_id, "parameters": {}}
+            stream["stream_id"] = stream_id
 
         if frame_data is not None:
             function_name, arguments = parse(f"(process_frame {frame_data})")
@@ -633,10 +651,11 @@ class PipelineImpl(Pipeline):
 # TODO: Consider refactoring Stream into "stream.py" ?
 
     def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME):
+    # TODO: Implement limit on delayed post message
         if self.share["lifecycle"] != "ready":
-            self._post_message(ActorTopic.IN,
-                "create_stream", [stream_id, parameters, grace_time])
-            return
+            self._post_message(ActorTopic.IN, "create_stream",
+                [stream_id, parameters, grace_time], delay=1.0)
+            return False
 
         self.logger.debug(f"Create stream: {self.name}<{stream_id}>")
         if stream_id in self.stream_leases:
@@ -656,7 +675,7 @@ class PipelineImpl(Pipeline):
 
         # FIX: Handle Exceptions: Same as StreamEvent.ERROR, but with stacktrace
             for node in self.pipeline_graph:
-                element, element_name, is_local =  \
+                element, element_name, is_local, _ =  \
                     PipelineGraph.get_element(node)
                 if is_local:  ## Local element ##
                     stream = self.get_stream()
@@ -687,35 +706,38 @@ class PipelineImpl(Pipeline):
                     element.create_stream(stream_id, parameters, grace_time)
 
             self._disable_stream_thread_local("create_stream")
+        return True
 
     def destroy_stream(self, stream_id):
-        if stream_id in self.stream_leases:
-            self._enable_stream_thread_local("destroy_stream", stream_id)
-            self.logger.debug(f"Destroy stream: {self.my_id()}")
+        if stream_id not in self.stream_leases:
+            return False
 
-        # FIX: Handle Exceptions: Same as StreamEvent.ERROR, but with stacktrace
-            for node in self.pipeline_graph:
-                element, element_name, is_local =  \
-                    PipelineGraph.get_element(node)
-                if is_local:  ## Local element ##
-                    stream = self.get_stream()
-                    stream_event, event_diagnostic = element.stop_stream(
-                        stream, stream_id)
+        self._enable_stream_thread_local("destroy_stream", stream_id)
+        self.logger.debug(f"Destroy stream: {self.my_id()}")
 
-                    if stream_event == StreamEvent.STOP:
-                #       Post STOP function_call onto the mailbox
-                        print("_CREATE_STREAM STREAMEVENT.STOP")
-                        raise SystemExit("_CREATE_STREAM STREAMEVENT.STOP")
+    # FIX: Handle Exceptions: Same as StreamEvent.ERROR, but with stacktrace
+        for node in self.pipeline_graph:
+            element, element_name, is_local, _ = PipelineGraph.get_element(node)
+            if is_local:  ## Local element ##
+                stream = self.get_stream()
+                stream_event, event_diagnostic = element.stop_stream(
+                    stream, stream_id)
 
-                    if stream_event == StreamEvent.ERROR:
-                        print("_CREATE_STREAM STREAMEVENT.ERROR")
-                        raise SystemExit("_CREATE_STREAM STREAMEVENT.ERROR")
-                else:  ## Remote element ##
-                    element.destroy_stream(stream_id)
+                if stream_event == StreamEvent.STOP:
+            #       Post STOP function_call onto the mailbox
+                    print("_CREATE_STREAM STREAMEVENT.STOP")
+                    raise SystemExit("_CREATE_STREAM STREAMEVENT.STOP")
 
-            self._disable_stream_thread_local("destroy_stream")
-            stream_lease = self.stream_leases[stream_id]
-            del self.stream_leases[stream_id]
+                if stream_event == StreamEvent.ERROR:
+                    print("_CREATE_STREAM STREAMEVENT.ERROR")
+                    raise SystemExit("_CREATE_STREAM STREAMEVENT.ERROR")
+            else:  ## Remote element ##
+                element.destroy_stream(stream_id)
+
+        self._disable_stream_thread_local("destroy_stream")
+        stream_lease = self.stream_leases[stream_id]
+        del self.stream_leases[stream_id]
+        return True
 
     def _error_pipeline(self, header, diagnostic):
         PipelineImpl._exit(header, diagnostic)
@@ -857,6 +879,8 @@ class PipelineImpl(Pipeline):
                     topic_path, PipelineRemoteFound)
                 element_instance.definition = element_definition
             node._element = element_instance
+
+            self._update_lifecycle_state()
             print(f"Pipeline update: --> {element_name} proxy")
 
     def process_frame(self, stream, frame_data) -> Tuple[StreamEvent, dict]:
@@ -886,7 +910,7 @@ class PipelineImpl(Pipeline):
             if stream["state"] == StreamState.ERROR:
                 break
             # TODO: Make sure element_name is correct for all error diagnostics
-            element, element_name, is_local = PipelineGraph.get_element(node)
+            element, element_name, is_local, _ = PipelineGraph.get_element(node)
             header = f'Error: Invoking Pipeline "{definition_pathname}": ' \
                      f'PipelineElement "{element_name}": process_frame()'
 
@@ -1014,8 +1038,8 @@ class PipelineImpl(Pipeline):
                 else:
                     self.logger.warning(
                         f"Process frame <{stream_id}:{frame_id}> wasn't paused")
+            current_stream["swag"].update(frame_data_in)
 
-        current_stream["swag"].update(frame_data_in)
         return graph, stream_id
 
 # TODO: Refactor metrics into "utilities/metrics.py:class Metrics"
@@ -1070,6 +1094,10 @@ class PipelineRemoteAbsent(PipelineElement):
     def destroy_stream(self, stream_id):
         self.log_error("destroy_stream")
 
+    @classmethod
+    def is_local(cls):
+        return False
+
     def log_error(self, function_name):
         self.logger.error(f"PipelineElement.{function_name}(): "
                           f"{self.definition.name}: invoked when "
@@ -1089,6 +1117,10 @@ class PipelineRemoteFound(PipelineElement):
 
     def destroy_stream(self, stream_id):
         pass
+
+    @classmethod
+    def is_local(cls):
+        return False
 
 # --------------------------------------------------------------------------- #
 
@@ -1223,7 +1255,7 @@ def main():
 @click.argument("definition_pathname", nargs=1, type=str)
 @click.option("--name", "-n", type=str, default=None, required=False,
     help="Pipeline Actor name")
-@click.option("--stream_id", "-s", type=int, default=None, required=False,
+@click.option("--stream_id", "-s", type=str, default=None, required=False,
   help="Create Stream with identifier")
 @click.option("--stream_parameters", "-sp", type=click.Tuple((str, str)),
   default=None, multiple=True, required=False, help="Define Stream parameters")

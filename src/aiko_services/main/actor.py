@@ -97,6 +97,8 @@
 
 from abc import abstractmethod
 import os
+import queue
+import time
 import traceback
 
 from aiko_services.main import *
@@ -192,12 +194,13 @@ class ActorImpl(Actor):
         self.ec_producer = ECProducer(self, self.share)
         self.ec_producer.add_handler(self.ec_producer_change_handler)
 
+        self.delayed_message_queue = queue.Queue()
         # First mailbox added has priority handling for all posted messages
         for topic in [ActorTopic.CONTROL, ActorTopic.IN]:
             mailbox_name = self._actor_mailbox_name(topic)
             event.add_mailbox_handler(self._mailbox_handler, mailbox_name)
-        self.add_message_handler(self._topic_in_handler, self.topic_in)
         # TODO: Optionally, binary=True ?
+        self.add_message_handler(self._topic_in_handler, self.topic_in)
 
     def _actor_mailbox_name(self, topic):
         return f"{self.name}/{self.service_id}/{topic}"
@@ -213,11 +216,31 @@ class ActorImpl(Actor):
     #       )
         self._post_message(ActorTopic.IN, command, parameters)
 
-    def _post_message(self, topic, command, args, target_function=None):
+    def _post_message(
+        self, topic, command, args, delay=None, target_function=None):
+
         target_object = self
         message = Message(
             target_object, command, args, target_function=target_function)
-        event.mailbox_put(self._actor_mailbox_name(topic), message)
+
+        if not delay:
+            event.mailbox_put(self._actor_mailbox_name(topic), message)
+        else:
+            delay_time = time.time() + delay
+            delayed_message = (delay_time, topic, message)
+            self.delayed_message_queue.put(delayed_message, block=False)
+            if self.delayed_message_queue.qsize() == 1:
+                event.add_timer_handler(
+                    self._post_delayed_message_handler, delay)
+
+    def _post_delayed_message_handler(self):
+        while self.delayed_message_queue.qsize() > 0:
+            delayed_message = self.delayed_message_queue.get()
+            delayed_time = delayed_message[0]
+            topic = delayed_message[1]
+            message = delayed_message[2]
+            event.mailbox_put(self._actor_mailbox_name(topic), message)
+        event.remove_timer_handler(self._post_delayed_message_handler)
 
     def __repr__(self):
         return f"[{self.__module__}.{type(self).__name__} " \
