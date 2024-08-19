@@ -131,6 +131,8 @@ class Message:
                 pass
 
         diagnostic = None
+        stack_traceback = None
+
         if target_function is None:
             diagnostic = f"{self}: Function not found in: {self.target_object}"
         else:
@@ -141,12 +143,16 @@ class Message:
                 try:
                     target_function(*self.arguments)
                 except TypeError as type_error:
-                    diagnostic = f"{self}: {type_error}"
+                    diagnostic = f"Message.invoke: {self.command} {self.arguments}"
+                    stack_traceback = traceback.format_exc()
             else:
                 diagnostic = f"{self}: isn't callable"
         if diagnostic:
-        #   raise RuntimeError(diagnostic)  # TODO: Enable traceback option
-            _LOGGER.error(diagnostic)  # Was ... raise RuntimeError(diagnostic)
+            if stack_traceback:
+                _LOGGER.error(stack_traceback)
+                raise SystemExit(f"SystemExit: actor.py: {diagnostic}")
+            else:
+                _LOGGER.error(diagnostic)
 
 class ActorTopic:
     # Application topics
