@@ -61,7 +61,8 @@ class PE_Metrics(aiko.PipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream) -> Tuple[aiko.StreamEvent, dict]:
-        metrics = stream["metrics"]
+        frame = stream.frames[stream.frame_id]
+        metrics = frame.metrics
         metrics_elements = metrics["pipeline_elements"]
         for metrics_name, metrics_value in metrics_elements.items():
             metrics_value *= 1000
@@ -73,7 +74,7 @@ class PE_Metrics(aiko.PipelineElement):
         outputs = {}
         for output_definition in self.definition.output:
             output_name = output_definition["name"]
-            outputs[output_name] = stream["swag"][output_name]
+            outputs[output_name] = frame.swag[output_name]
 
         return aiko.StreamEvent.OKAY, outputs
 
@@ -91,9 +92,9 @@ class PE_RandomIntegers(aiko.PipelineElement):
         self.create_frames(stream, self.frame_generator, rate=float(rate))
         return aiko.StreamEvent.OKAY, None
 
-    def frame_generator(self, stream):
+    def frame_generator(self, stream, frame_id):
         limit, _ = self.get_parameter("limit")
-        if int(stream["frame_id"]) < int(limit):
+        if frame_id < int(limit):
             return aiko.StreamEvent.OKAY, {"random": random.randint(0, 9)}
         else:
             return aiko.StreamEvent.STOP, "Frame limit reached"

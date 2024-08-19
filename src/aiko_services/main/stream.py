@@ -11,6 +11,8 @@
 #
 # To Do
 # ~~~~~
+# - Implement "Class Metrics" to replace "metrics" dictionary
+#
 # - Refactor from "pipeline.py", extract Stream concepts including Parameters
 #   - Review "../archive/main/stream_2020.py"
 
@@ -22,7 +24,7 @@ __all__ = [
     "StreamEvent", "StreamEventName", "StreamState", "StreamStateName"
 ]
 
-DEFAULT_STREAM_ID = "*"  # string (or bytes ?)
+DEFAULT_STREAM_ID = "*"  # string
 FIRST_FRAME_ID = 0       # integer
 
 class StreamEvent:
@@ -53,18 +55,29 @@ StreamStateName = {
 
 @dataclass
 class Frame:  # effectively a continuation :)
-    frame_id: int = FIRST_FRAME_ID
-    parameters: Dict[str, Any] = field(default_factory=dict)
+    metrics: Dict[str, Any] = field(default_factory=dict)  # TODO: Dataclass
     paused_pe_name: str = None
-    metrics: Dict[str, Any] = field(default_factory=dict)
     swag: Dict[str, Any] = field(default_factory=dict)
     variables: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
 class Stream:
     stream_id: str = DEFAULT_STREAM_ID
-    frame_id: int = FIRST_FRAME_ID  # main thread only
+    frame_id: int = FIRST_FRAME_ID  # only updated by main thread
     frames: Dict[int, Frame] = field(default_factory=dict)
-    parameters: Dict[str, Any] = field(default_factory=dict)  # initial
+    parameters: Dict[str, Any] = field(default_factory=dict)
     state: StreamState = StreamState.RUN
-#   topic_response
+    topic_response: str = None
+
+# https://docs.python.org/3/library/dataclasses.html#dataclasses.asdict
+    def as_dict(self):
+    #   return {key: str(value) for key, value in asdict(self).items()}
+        return {"stream_id": self.stream_id, "frame_id": self.frame_id}
+
+# https://docs.python.org/3/library/dataclasses.html#dataclasses.replace
+    def update(self, stream_dict):
+    #   self = replace(self, **stream_dict)
+        self.stream_id = stream_dict.get("stream_id", self.stream_id)
+        self.frame_id = int(stream_dict.get("frame_id", self.frame_id))
+        self.parameters = stream_dict.get("parameters", {})
+        self.state = stream_dict.get("state", StreamState.RUN)
