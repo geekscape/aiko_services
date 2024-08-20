@@ -367,14 +367,10 @@ class PipelineElementImpl(PipelineElement):
             while stream.state == StreamState.RUN:
             # TODO: Handle Exceptions
                 stream_event, frame_data = frame_generator(stream, frame_id)
+                stream.state = self.pipeline._process_stream_event(
+                    self.name, frame_data, stream_event)
 
-            # TODO: Refactor into common function "_handle_stream_event()"
-            # TODO: For StreamEvent.STOP and StreamEvent.ERROR log "frame_data"
-                if stream_event == StreamEvent.STOP:
-                    stream.state = StreamState.STOP
-                elif stream_event == StreamEvent.ERROR:
-                    stream.state = StreamState.ERROR
-                else:            # StreamEvent.OKAY:
+                if stream.state == StreamState.RUN:
                 # TODO: Check "isinstance(frame_data, dict)"
                     self.create_frame(stream, frame_data, frame_id)
                     if rate:
@@ -383,8 +379,6 @@ class PipelineElementImpl(PipelineElement):
                     self.pipeline.thread_local.frame_id = frame_id
         finally:
             self.pipeline._disable_thread_local("_create_frames_generator")
-            self.pipeline._post_message(
-                ActorTopic.IN, "destroy_stream", [stream.stream_id])
 
     def get_parameter(self, name, default=None, use_pipeline=True):
     # TODO: During process_frame(), stream parameters should be updated
@@ -503,7 +497,7 @@ class PipelineImpl(Pipeline):
     def _update_lifecycle_state(self):
         pe_lifecycles = []
         for node in self.pipeline_graph:
-            element, name, local, lifecycle = PipelineGraph.get_element(node)
+            _, _, _, lifecycle = PipelineGraph.get_element(node)
             pe_lifecycles.append(lifecycle == "ready")
         lifecycle = "ready" if all(pe_lifecycles) else "waiting"
         self.ec_producer.update("lifecycle", lifecycle)
@@ -687,32 +681,14 @@ class PipelineImpl(Pipeline):
 
         # FIX: Handle Exceptions: Same as StreamEvent.ERROR, but with stacktrace
             for node in self.pipeline_graph:
-                element, element_name, is_local, _ =  \
+                element, element_name, local, _ =  \
                     PipelineGraph.get_element(node)
-                if is_local:  ## Local element ##
-                    stream_event, event_diagnostic = element.start_stream(
+                if local:  ## Local element ##
+                # TODO: Handle Exceptions
+                    stream_event, diagnostic = element.start_stream(
                         stream, stream_id)
-
-                    if stream_event == StreamEvent.STOP:
-                #       Post STOP function_call onto the mailbox
-                        print("CREATE_STREAM STREAMEVENT.STOP")
-                        raise SystemExit("CREATE_STREAM STREAMEVENT.STOP")
-
-                    if stream_event == StreamEvent.ERROR:
-                        print("CREATE_STREAM STREAMEVENT.ERROR")
-                        raise SystemExit("CREATE_STREAM STREAMEVENT.ERROR")
-
-                        self.destroy_stream(stream_id)  # TODO: POST MESSAGE
-
-                        event_name = StreamEventName[stream_event]
-                        if event_diagnostic is None:
-                            event_diagnostic = "No diagnostic provided"
-
-                        PipelineImpl._exit(  # FIX: Maybe destroy Pipeline
-                            f"PipelineElement "
-                            f"{element_name}.start_stream(): "
-                            f"{event_name}: {event_diagnostic}",
-                             "Pipeline stopped")
+                    stream_state = self._process_stream_event(
+                        element_name, diagnostic, stream_event)
                 else:  ## Remote element ##
                 # TODO: Consider using "topic_response=self.topic_control"
                     element.create_stream(
@@ -732,19 +708,14 @@ class PipelineImpl(Pipeline):
 
         # FIX: Handle Exceptions: Same as StreamEvent.ERROR, but with stacktrace
             for node in self.pipeline_graph:
-                element, _, is_local, _ = PipelineGraph.get_element(node)
-                if is_local:  ## Local element ##
-                    stream_event, event_diagnostic = element.stop_stream(
+                element, element_name, local, _ =  \
+                    PipelineGraph.get_element(node)
+                if local:  ## Local element ##
+                # TODO: Handle Exceptions
+                    stream_event, diagnostic = element.stop_stream(
                         stream, stream_id)
-
-                    if stream_event == StreamEvent.STOP:
-                #       Post STOP function_call onto the mailbox
-                        print("CREATE_STREAM STREAMEVENT.STOP")
-                        raise SystemExit("CREATE_STREAM STREAMEVENT.STOP")
-
-                    if stream_event == StreamEvent.ERROR:
-                        print("CREATE_STREAM STREAMEVENT.ERROR")
-                        raise SystemExit("CREATE_STREAM STREAMEVENT.ERROR")
+                    stream_state = self._process_stream_event(element_name,
+                        diagnostic, stream_event, terminate_stream=False)
                 else:  ## Remote element ##
                     element.destroy_stream(stream_id)
         finally:
@@ -931,7 +902,7 @@ class PipelineImpl(Pipeline):
                 if stream.state == StreamState.ERROR:
                     break
                 # TODO: Is element_name is correct for all error diagnostics
-                element, element_name, is_local, _ =  \
+                element, element_name, local, _ =  \
                     PipelineGraph.get_element(node)
                 header = f'Error: Invoking Pipeline "{definition_pathname}": ' \
                          f'PipelineElement "{element_name}": process_frame()'
@@ -942,11 +913,12 @@ class PipelineImpl(Pipeline):
                 frame_data_out = {}
                 stream_event = StreamEvent.OKAY
                 try:
-                    if is_local:  ## Local element ##
+                    if local:  ## Local element ##
                         start_time = time.time()
+                    # TODO: Handle Exceptions
                         stream_event, frame_data_out = element.process_frame(
                             stream, **inputs)
-                        self._process_stream_event(
+                        stream.state = self._process_stream_event(
                             element_name, frame_data_out, stream_event)
                         self._process_map_out(element_name, frame_data_out)
                         self._process_metrics_capture(  # TODO: Move up ?
@@ -965,7 +937,7 @@ class PipelineImpl(Pipeline):
                     self._error_pipeline(header, traceback.format_exc())
 
             if element_name:
-                if is_local:  ## Local element ##
+                if local:  ## Local element ##
                     if stream.topic_response:
                         actor = get_actor_mqtt(stream.topic_response, Pipeline)
                         remote_stream = {
@@ -1073,23 +1045,56 @@ class PipelineImpl(Pipeline):
                 to_name = f"{out_element}.{to_name}"
                 frame_data_out[to_name] = frame_data_out.pop(from_name)
 
-# TODO: Consider refactoring Stream into "stream.py" ?
+# FIX: _create_frame_generator(): StreamEvent.ERROR -->
+#          self.destroy_stream(get_stream_id())  # immediately !
 
-    def _process_stream_event(self, element_name, frame_data_out, stream_event):
-        if stream_event == StreamEvent.ERROR:
-            print("!!! COMPLETE _PROCESS_STREAM_EVENT STREAMEVENT.ERROR")
-            raise SystemExit("COMPLETE _PROCESS_STREAM_EVENT STREAMEVENT.ERROR")
-            for stream_id in self.stream_leases.copy():
-                self.destroy_stream(stream_id)
+# TODO: Check local cases "stream_state.RUN | STOP | ERROR" ...
+# TODO: - _create_frame_generator()
+# TODO: - create_stream()
+# TODO: - _process_frame_common()
+# TODO: - destroy_stream()
 
+# TODO: Check remote cases "stream_state.RUN | STOP | ERROR" ...
+# TODO: - _create_frame_generator()
+# TODO: - create_stream()
+# TODO: - _process_frame_common()
+# TODO: - destroy_stream()
+
+    def _process_stream_event(self, element_name, diagnostic, stream_event,
+        terminate_stream=True):
+
+        def get_diagnostic(diagnostic):
             event_name = StreamEventName[stream_event]
-            event_diagnostic = "No diagnostic provided"
-            if "diagnostic" in frame_data_out:
-                event_diagnostic = frame_data_out["diagnostic"]
+            if isinstance(diagnostic, dict):  # is a "frame_data" dictionary ?
+                if "diagnostic" in diagnostic:
+                    diagnostic = diagnostic["diagnostic"]
+                else:
+                    diagnostic = "No diagnostic provided"
+            return f"{element_name}: {event_name} stream event "  \
+                   f"{self.my_id()}: {diagnostic}"
 
-            PipelineImpl._exit(  # FIX: Optionally destroy Pipeline
-                f"PipelineElement {element_name}.process_frame(): "
-                f"{event_name}: {event_diagnostic} Pipeline stopped")
+        def get_stream_id():
+            stream, _ = self.get_stream()
+            return stream.stream_id
+
+        stream_state = StreamState.RUN
+
+        if stream_event == StreamEvent.STOP:
+            stream_state = StreamState.STOP
+            self.logger.debug(get_diagnostic(diagnostic))
+            if terminate_stream:     # avoid destroy_stream() recursion
+                self._post_message(  # gracefully after frames processed
+                    ActorTopic.IN, "destroy_stream", [get_stream_id()])
+
+        elif stream_event == StreamEvent.ERROR:
+            stream_state = StreamState.ERROR
+            self.logger.error(get_diagnostic(diagnostic))
+            if terminate_stream:     # avoid destroy_stream() recursion
+        # FIX:  self.destroy_stream(get_stream_id())      # immediately
+                self._post_message(  # gracefully after frames processed
+                    ActorTopic.IN, "destroy_stream", [get_stream_id()])
+
+        return stream_state
 
     def set_parameter(self, stream_id, name, value):
         if stream_id in self.stream_leases:
