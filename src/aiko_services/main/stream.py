@@ -58,7 +58,6 @@ class Frame:  # effectively a continuation :)
     metrics: Dict[str, Any] = field(default_factory=dict)  # TODO: Dataclass
     paused_pe_name: str = None
     swag: Dict[str, Any] = field(default_factory=dict)
-    variables: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
 class Stream:
@@ -68,6 +67,7 @@ class Stream:
     parameters: Dict[str, Any] = field(default_factory=dict)
     state: StreamState = StreamState.RUN
     topic_response: str = None
+    variables: Dict[str, Any] = field(default_factory=dict)
 
 # https://docs.python.org/3/library/dataclasses.html#dataclasses.asdict
     def as_dict(self):

@@ -8,7 +8,8 @@
 # aiko_pipeline create  [--name $PIPELINE_NAME] $DEFINITION
 # aiko_pipeline destroy $PIPELINE_NAME
 #
-# AIKO_LOG_LEVEL=DEBUG AIKO_LOG_MQTT=false aiko_pipeline create $DEFINITION
+# AIKO_LOG_LEVEL=DEBUG AIKO_LOG_MQTT=false aiko_pipeline create $DEFINITION  \
+#   --stream_id 1 --frame_data "(argument_name: argument_value ...)"
 #
 # NAMESPACE=AIKO
 # HOST=localhost
@@ -549,8 +550,9 @@ class PipelineImpl(Pipeline):
         self.thread_local.stream = None
         self.thread_local.frame_id = None
 
-    def create_frame(self, stream, frame_data):
-        stream_dict = stream.as_dict()
+    def create_frame(self, stream_dict, frame_data):
+        if isinstance(stream_dict, Stream):
+            stream_dict = stream_dict.as_dict()
         self._post_message(
             ActorTopic.IN, "process_frame", [stream_dict, frame_data])
 
@@ -965,6 +967,11 @@ class PipelineImpl(Pipeline):
         graph = None
         stream = Stream()
         stream.update(stream_dict)
+
+        if not isinstance(frame_data_in, dict):
+            header = f"Process frame <{stream.stream_id}:{stream.frame_id}>"
+            self.logger.warning(f"{header}: frame data must be a dictionary")
+            return None, None
 
         stream_id = stream.stream_id
         if stream_id == DEFAULT_STREAM_ID:
