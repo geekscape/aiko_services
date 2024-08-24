@@ -1,20 +1,21 @@
 {
   "version": 0,
-  "name":    "p_image_io_0",
+  "name":    "p_video_io_0",
   "runtime": "python",
 
-  "graph": ["(ImageReadFile ImageResize ImageWriteFile)"],
+  "#":     ["(VideoReadFile)"],
+  "graph": ["(VideoReadFile VideoWriteFile)"],
+  "#":     ["(VideoReadFile ImageResize VideoWriteFile)"],
 
   "parameters": {"width": 640, "height": 480},
-  "#": { "transform": {"width": 640, "height": 480} },
 
   "elements": [
-    { "name":   "ImageReadFile",
-      "parameters": {"path": "data/in_00.jpeg"},
-      "input":  [{ "name": "path",  "type": "str" }],
+    { "name":   "VideoReadFile",
+      "parameters": {"path": "data/in_01.mp4"},
+      "input":  [{ "name": "image", "type": "image" }],
       "output": [{ "name": "image", "type": "image" }],
       "deploy": {
-        "local": {"module": "aiko_services.elements.media.image_io"}
+        "local": {"module": "aiko_services.elements.media.video_io"}
       }
     },
     { "name":   "ImageResize",
@@ -24,12 +25,12 @@
         "local": {"module": "aiko_services.elements.media.image_io"}
       }
     },
-    { "name":   "ImageWriteFile",
-      "parameters": {"path": "data/out_{:02d}.jpeg"},
+    { "name":   "VideoWriteFile",
+      "parameters": {"path": "data/out_01.mp4"},
       "input":  [{ "name": "image", "type": "image" }],
       "output": [],
       "deploy": {
-        "local": {"module": "aiko_services.elements.media.image_io"}
+        "local": {"module": "aiko_services.elements.media.video_io"}
       }
     }
   ]

@@ -1,12 +1,14 @@
 # Usage
 # ~~~~~
 # cd src/aiko_services/elements/media
-# aiko_pipeline create pipeline_image_io.json --stream_id 1  \
+# aiko_pipeline create pipeline_image_io_0.json --stream_id 1  \
 #   -sp ImageReadFile.path image.jpeg
 #   -sp ImageResize.width 320 -sp ImageResize.height 240
 #
 # To Do
 # ~~~~~
+# - Refactor optional module import into common function (see video_io.py)
+#
 # - Document "DataSource" and "DataTarget" ...
 #   - ImageReadFile: start_stream() --> create_frame() --> process_frame()
 #                    Therefore pass parameters as required
@@ -29,13 +31,23 @@ _NUMPY_IMPORTED = False
 try:
     import numpy as np
     _NUMPY_IMPORTED = True
-except:  # TODO: Optional warning flag to avoid being annoying !
+except ModuleNotFoundError:  # TODO: Optional warning flag
     diagnostic = "image_io.py: Couldn't import numpy module"
     print(f"WARNING: {diagnostic}")
     _LOGGER.warning(diagnostic)
 
-def containsAll(source: str, match: chr):
-    return 0 not in [character in source for character in match]
+__all__ = ["ImageOverlay", "ImageReadFile", "ImageResize", "ImageWriteFile"]
+
+def containsAll(source: str, match: chr):  # TODO: Refactor common code
+    return False not in [character in source for character in match]
+
+# --------------------------------------------------------------------------- #
+# ToDo: Display lines, mask, polygons, rectangles, text
+# ToDo: Display Metrics
+# ToDo: Display pose stick figures
+
+class ImageOverlay(aiko.PipelineElement):
+    pass
 
 # --------------------------------------------------------------------------- #
 # Check
@@ -108,7 +120,7 @@ class ImageReadFile(aiko.PipelineElement):
         self.create_frame(stream, {"path": path})
         return aiko.StreamEvent.OKAY, None
 
-    def process_frame(self, stream, path) -> Tuple[StreamEvent, dict]:
+    def process_frame(self, stream, path) -> Tuple[aiko.StreamEvent, dict]:
         self.logger.debug(f"{self.my_id()}: image path: {path}")
 
         if not Path(path).exists():
@@ -124,14 +136,6 @@ class ImageReadFile(aiko.PipelineElement):
         return aiko.StreamEvent.OKAY, {"image": image}
 
 # --------------------------------------------------------------------------- #
-# ToDo: Display lines, mask, polygons, rectangles, text
-# ToDo: Display Metrics
-# ToDo: Display pose stick figures
-
-class ImageOverlay(aiko.PipelineElement):
-    pass
-
-# --------------------------------------------------------------------------- #
 # ToDo: Add logic for using different backends (opencv,...) or
 #           different input types (np.ndarray, ...)
 # ToDo: cv2.resize(image, dimensions, interpolation=cv2.INTER_CUBIC) ?
@@ -140,9 +144,10 @@ class ImageResize(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, stream, image) -> Tuple[StreamEvent, dict]:
+    def process_frame(self, stream, image) -> Tuple[aiko.StreamEvent, dict]:
         width, _ = self.get_parameter("width")
         height, _ = self.get_parameter("height")
+        self.logger.debug(f"{self.my_id()}: width:height: {width}:{height}")
 
         image = image.resize((int(width), int(height)))
         return aiko.StreamEvent.OKAY, {"image": image}
@@ -167,15 +172,15 @@ class ImageWriteFile(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, stream, image) -> Tuple[StreamEvent, dict]:
+    def process_frame(self, stream, image) -> Tuple[aiko.StreamEvent, dict]:
         path, found = self.get_parameter("path")
         if not found:
             diagnostic = 'Must provide image write file "path" parameter'
             return aiko.StreamEvent.ERROR, diagnostic
 
         if containsAll(path, "{}"):
-            path = path.format(stream["frame_id"])
-        self.logger.debug(f"{self.my_id()}: image write file path: {path}")
+            path = path.format(stream.frame_id)
+        self.logger.debug(f"{self.my_id()}: image path: {path}")
 
         if not isinstance(image, Image.Image):
             if isinstance(image, np.ndarray):  # TODO: Check NUMPY_IMPORTED

@@ -3,29 +3,28 @@
   "name":    "p_text_io_0",
   "runtime": "python",
 
-  "graph": ["(TextReadFile TextFilter TextWriteFile)"],
+  "graph": ["(PE_TextReadFile PE_TextConvert PE_TextWriteFile)"],
 
-  "parameters": {"width": 640, "height": 480},
+  "parameters": {},
 
   "elements": [
-    { "name":   "TextReadFile",
-      "parameters": {"path": "z_in_00.txt"},
+    { "name":   "PE_TextReadFile",
+      "parameters": {"path": "data/in_00.txt"},
       "input":  [{ "name": "path", "type": "str" }],
       "output": [{ "name": "text", "type": "str" }],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.text_io"}
       }
     },
-    { "name":   "TextFilter",
+    { "name":   "PE_TextConvert",
       "input":  [{ "name": "text", "type": "str" }],
       "output": [{ "name": "text", "type": "str" }],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.text_io"}
       }
     },
-    { "name":   "TextWriteFile",
-      "parameters": {"path_template": "z_out_00.txt"},
-      "#":          {"path_template": "z_out_{}.txt"},
+    { "name":   "PE_TextWriteFile",
+      "parameters": {"path": "data/out_{:02}.txt"},
       "input":  [{ "name": "text", "type": "str" }],
       "output": [],
       "deploy": {
