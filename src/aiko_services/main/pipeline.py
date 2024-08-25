@@ -699,14 +699,15 @@ class PipelineImpl(Pipeline):
             self._disable_thread_local("create_stream")
         return True
 
-    def destroy_stream(self, stream_id):
+    def destroy_stream(self, stream_id, use_thread_local=True):
         if stream_id not in self.stream_leases:
             return False
 
         try:
-            self._enable_thread_local("destroy_stream", stream_id)
+            if use_thread_local:
+                self._enable_thread_local("destroy_stream", stream_id)
             stream, _ = self.get_stream()
-            self.logger.debug(f"Destroy stream: {self.my_id()}")
+            self.logger.debug(f"Destroy stream: {self.name}<{stream_id}>")
 
         # FIX: Handle Exceptions: Same as StreamEvent.ERROR, but with stacktrace
             for node in self.pipeline_graph:
@@ -717,11 +718,12 @@ class PipelineImpl(Pipeline):
                     stream_event, diagnostic = element.stop_stream(
                         stream, stream_id)
                     stream_state = self._process_stream_event(element_name,
-                        diagnostic, stream_event, terminate_stream=False)
+                        diagnostic, stream_event, in_destroy_stream=True)
                 else:  ## Remote element ##
                     element.destroy_stream(stream_id)
         finally:
-            self._disable_thread_local("destroy_stream")
+            if use_thread_local:
+                self._disable_thread_local("destroy_stream")
 
         stream_lease = self.stream_leases[stream_id]
         del self.stream_leases[stream_id]
@@ -1068,7 +1070,7 @@ class PipelineImpl(Pipeline):
 # TODO: - destroy_stream()
 
     def _process_stream_event(self, element_name, diagnostic, stream_event,
-        terminate_stream=True):
+        in_destroy_stream=False):
 
         def get_diagnostic(diagnostic):
             event_name = StreamEventName[stream_event]
@@ -1089,17 +1091,15 @@ class PipelineImpl(Pipeline):
         if stream_event == StreamEvent.STOP:
             stream_state = StreamState.STOP
             self.logger.debug(get_diagnostic(diagnostic))
-            if terminate_stream:     # avoid destroy_stream() recursion
-                self._post_message(  # gracefully after frames processed
+            if not in_destroy_stream:  # avoid destroy_stream() recursion
+                self._post_message(    # gracefully after frames processed
                     ActorTopic.IN, "destroy_stream", [get_stream_id()])
 
         elif stream_event == StreamEvent.ERROR:
             stream_state = StreamState.ERROR
             self.logger.error(get_diagnostic(diagnostic))
-            if terminate_stream:     # avoid destroy_stream() recursion
-        # FIX:  self.destroy_stream(get_stream_id())      # immediately
-                self._post_message(  # gracefully after frames processed
-                    ActorTopic.IN, "destroy_stream", [get_stream_id()])
+            if not in_destroy_stream:  # avoid destroy_stream() recursion
+                self.destroy_stream(get_stream_id(), use_thread_local=False)
 
         return stream_state
 
