@@ -3,8 +3,8 @@
 # cd aiko_services/elements
 # export AIKO_LOG_LEVEL=DEBUG; export AIKO_LOG_MQTT=false
 # aiko_pipeline create pipeline_text_io_0.json --stream_id 1   \
-#   --stream_parameters PE_TextReadFile.path  data/in_00.txt   \
-#   --stream_parameters PE_TextWriteFile.path data/out_00.txt
+#   --stream_parameters PE_TextReadFile.path  data_in/in_00.txt   \
+#   --stream_parameters PE_TextWriteFile.path data_out/out_00.txt
 #
 # To Do
 # ~~~~~

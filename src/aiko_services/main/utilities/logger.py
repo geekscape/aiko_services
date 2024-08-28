@@ -86,7 +86,7 @@ _LEVEL_NAMES = {
 
 _LOG_FORMAT = "%(asctime)s.%(msecs)03d %(levelname) 8s"
 _LOG_FORMAT_DEBUG = f"{_LOG_FORMAT}s %(module)s.%(funcName)s() %(message)s"
-_LOG_FORMAT_DEFAULT = f"{_LOG_FORMAT} %(name)s %(message)s"
+_LOG_FORMAT_DEFAULT = f"{_LOG_FORMAT} %(name)18s %(message)s"
 _LOG_FORMAT_DATETIME = "%Y-%m-%d_%H:%M:%S"
 
 def get_log_level_name(logger):

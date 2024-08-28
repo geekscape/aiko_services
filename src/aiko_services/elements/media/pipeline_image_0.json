@@ -5,28 +5,30 @@
 
   "graph": ["(ImageReadFile ImageResize ImageWriteFile)"],
 
-  "parameters": {"width": 640, "height": 480},
-  "#": { "transform": {"width": 640, "height": 480} },
+  "parameters": {"resolution": "320x240"},
 
   "elements": [
     { "name":   "ImageReadFile",
-      "parameters": {"path": "data/in_00.jpeg"},
-      "input":  [{ "name": "path",  "type": "str" }],
-      "output": [{ "name": "image", "type": "image" }],
+      "parameters": {
+         "data_sources": "(file://data_in/in_{}.jpeg)",
+         "data_batch_size": 1
+      },
+      "input":  [{"name": "paths",  "type": "[Path]"}],
+      "output": [{"name": "images", "type": "[image]"}],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.image_io"}
       }
     },
     { "name":   "ImageResize",
-      "input":  [{ "name": "image", "type": "image" }],
-      "output": [{ "name": "image", "type": "image" }],
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.image_io"}
       }
     },
     { "name":   "ImageWriteFile",
-      "parameters": {"path": "data/out_{:02d}.jpeg"},
-      "input":  [{ "name": "image", "type": "image" }],
+      "parameters": {"data_targets": "file://data_out/out_{:02d}.jpeg"},
+      "input":  [{"name": "images", "type": "[image]"}],
       "output": [],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.image_io"}

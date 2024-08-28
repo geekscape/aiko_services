@@ -11,7 +11,7 @@
 
   "elements": [
     { "name":   "VideoReadFile",
-      "parameters": {"path": "data/in_01.mp4"},
+      "parameters": {"path": "data_in/in_01.mp4"},
       "input":  [{ "name": "image", "type": "image" }],
       "output": [{ "name": "image", "type": "image" }],
       "deploy": {
@@ -26,7 +26,7 @@
       }
     },
     { "name":   "VideoWriteFile",
-      "parameters": {"path": "data/out_01.mp4"},
+      "parameters": {"path": "data_out/out_01.mp4"},
       "input":  [{ "name": "image", "type": "image" }],
       "output": [],
       "deploy": {

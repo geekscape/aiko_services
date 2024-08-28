@@ -11,7 +11,7 @@
 # )
 
 from .image_io import (
-    ImageReadFile
+    ImageOverlay, ImageReadFile, ImageResize, ImageWriteFile
 )
 
 # from .video_io import VideoReadFile, VideoShow, VideoWriteFile

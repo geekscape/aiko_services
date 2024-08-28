@@ -9,7 +9,7 @@
 
   "elements": [
     { "name":   "PE_TextReadFile",
-      "parameters": {"path": "data/in_00.txt"},
+      "parameters": {"path": "data_in/in_00.txt"},
       "input":  [{ "name": "path", "type": "str" }],
       "output": [{ "name": "text", "type": "str" }],
       "deploy": {
@@ -24,7 +24,7 @@
       }
     },
     { "name":   "PE_TextWriteFile",
-      "parameters": {"path": "data/out_{:02}.txt"},
+      "parameters": {"path": "data_out/out_{:02}.txt"},
       "input":  [{ "name": "text", "type": "str" }],
       "output": [],
       "deploy": {
