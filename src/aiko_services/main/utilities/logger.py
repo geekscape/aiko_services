@@ -126,7 +126,9 @@ def print_error(*args, **kwargs):
 from aiko_services.main.connection import ConnectionState
 
 class LoggingHandlerMQTT(logging.Handler):
-    def __init__(self, aiko, topic, ring_buffer_size=_RING_BUFFER_SIZE):
+    def __init__(
+        self, aiko, topic, option="both", ring_buffer_size=_RING_BUFFER_SIZE):
+
         super().__init__()
         self.aiko = aiko
         self.topic = topic
