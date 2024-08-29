@@ -126,6 +126,7 @@ class ImageOverlay(aiko.PipelineElement):
 # ImageReadFile is a DataSource which supports ...
 # - Individual image file
 # - Directory of image files with an optional filename filter
+# - TODO: Archive (tgz, zip) of image files with an optional filename filter
 #
 # Supports both Streams and direct process_frame() calls
 
@@ -163,14 +164,13 @@ class ImageReadFile(aiko.PipelineElement):
                 return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
             if path.is_file():
-                paths.append(path)
+                paths.append((path, None))
             elif path.is_dir():
                 paths_sorted = sorted(path.glob(file_glob))
                 file_ids = []
                 for path in paths_sorted:
-                    if file_glob == "*":
-                        file_id = None # ??
-                    else:
+                    file_id = None
+                    if file_glob != "*":
                         file_id = file_glob_difference(file_glob, path.name)
                     file_ids.append(file_id)
                 paths.extend(zip(paths_sorted, file_ids))
