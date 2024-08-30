@@ -17,6 +17,7 @@
 #   - Review "../archive/main/stream_2020.py"
 
 from dataclasses import dataclass, field
+import queue
 from typing import Any, Dict
 
 __all__ = [
@@ -65,6 +66,7 @@ class Stream:
     frame_id: int = FIRST_FRAME_ID  # only updated by main thread
     frames: Dict[int, Frame] = field(default_factory=dict)
     parameters: Dict[str, Any] = field(default_factory=dict)
+    queue_response: queue = None
     state: StreamState = StreamState.RUN
     topic_response: str = None
     variables: Dict[str, Any] = field(default_factory=dict)

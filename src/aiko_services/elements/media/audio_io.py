@@ -300,6 +300,7 @@ class PE_MicrophonePA(PipelineElement):
     def stop_stream(self, stream, stream_id):
         _LOGGER.debug(f"{self.my_id()}: stop_stream()")
         self.terminate = True
+        return aiko.StreamEvent.OKAY, {}
 
 # --------------------------------------------------------------------------- #
 
@@ -377,6 +378,7 @@ class PE_MicrophoneSD(PipelineElement):
     def stop_stream(self, stream, stream_id):
         _LOGGER.debug(f"{self.my_id()}: stop_stream()")
         self.terminate = True
+        return aiko.StreamEvent.OKAY, {}
 
 # --------------------------------------------------------------------------- #
 

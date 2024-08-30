@@ -60,24 +60,24 @@ class PE_TextReadFile(aiko.PipelineElement):
     def start_stream(self, stream, stream_id):
         path, found = self.get_parameter("path")
         if not found:
-            diagnostic = 'Must provide file "path" parameter'
-            return aiko.StreamEvent.ERROR, diagnostic
+            return aiko.StreamEvent.ERROR,  \
+                   {"diagnostic": 'Must provide file "path" parameter'}
 
         self.create_frame(stream, {"path": path})
-        return aiko.StreamEvent.OKAY, None
+        return aiko.StreamEvent.OKAY, {}
 
     def process_frame(self, stream, path) -> Tuple[aiko.StreamEvent, dict]:
         self.logger.debug(f"{self.my_id()}: path: {path}")
 
         if not Path(path).exists():
-            diagnostic = f'Text file "{path}" does not exist'
-            return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+            return aiko.StreamEvent.ERROR,  \
+                   {"diagnostic": f'Text file "{path}" does not exist'}
         try:
             with open(path, "r") as file:
                 text = file.read()
         except Exception as exception:
-            diagnostic = f"Error loading path: {exception}"
-            return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+            return aiko.StreamEvent.ERROR,  \
+                   {"diagnostic": f"Error loading path: {exception}"}
 
         self.logger.debug(f"Text: {text}")
         return aiko.StreamEvent.OKAY, {"text": text}
@@ -115,8 +115,8 @@ class PE_TextWriteFile(aiko.PipelineElement):
     def process_frame(self, stream, text) -> Tuple[aiko.StreamEvent, dict]:
         path, found = self.get_parameter("path")
         if not found:
-            diagnostic = 'Must provide file "path" parameter'
-            return aiko.StreamEvent.ERROR, diagnostic
+            return aiko.StreamEvent.ERROR,  \
+                   {"diagnostic": 'Must provide file "path" parameter'}
 
         if containsAll(path, "{}"):
             path = path.format(stream.frame_id)
@@ -126,8 +126,8 @@ class PE_TextWriteFile(aiko.PipelineElement):
             with open(path, "w") as file:
                 file.write(text)
         except Exception as exception:
-            diagnostic = f"Error saving path: {exception}"
-            return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+            return aiko.StreamEvent.ERROR,  \
+                   {"diagnostic": f"Error saving path: {exception}"}
 
         self.logger.debug(f"Text: {text}")
         return aiko.StreamEvent.OKAY, {}

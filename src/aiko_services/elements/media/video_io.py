@@ -64,18 +64,20 @@ class VideoReadFile(aiko.PipelineElement):
 
         path, found = self.get_parameter("path")
         if not found:
-            diagnostic = 'Must provide video "path" parameter'
-            return aiko.StreamEvent.ERROR, diagnostic
+            return aiko.StreamEvent.ERROR,  \
+                   {"diagnostic": 'Must provide video "path" parameter'}
         if not Path(path).exists():
-            return aiko.StreamEvent.ERROR, f"path: {path} does not exist"
+            return aiko.StreamEvent.ERROR,  \
+                   {"diagnostic": f"path: {path} does not exist"}
 
         video_capture = cv2.VideoCapture(path)
         if (video_capture.isOpened() == False):
-            return aiko.StreamEvent.ERROR, f"Couldn't open video file: {path}"
+            return aiko.StreamEvent.ERROR,  \
+                   {"diagnostic": f"Couldn't open video file: {path}"}
 
         self.stream.video_capture = video_capture
         self.create_frames(stream, self._create_frame_fn)
-        return aiko.StreamEvent.OKAY, None
+        return aiko.StreamEvent.OKAY, {}
 
     def _create_frame_fn(self, stream):
         self.logger.debug(f"{self.my_id()} _create_frame()")
@@ -94,8 +96,9 @@ class VideoReadFile(aiko.PipelineElement):
 
                 return aiko.StreamEvent.OKAY, {"image": image_rgb}
             else:
-                return aiko.StreamEvent.ERROR, f"Failed to read video capture at {frame_id}"
-        return aiko.StreamEvent.STOP, "Video capture closed"
+                return aiko.StreamEvent.ERROR,  \
+                       {"diagnostic": f"Read video capture at {frame_id}"}
+        return aiko.StreamEvent.STOP, {"diagnostic": "Video capture complete"}
 
     def process_frame(self, stream, image) -> Tuple[aiko.StreamEvent, dict]:
         self.logger.debug(f"{self.my_id()} <-- PROCESS_FRAME()")
@@ -108,7 +111,7 @@ class VideoReadFile(aiko.PipelineElement):
         if video_capture.isOpened():
             video_capture.release()
 
-        return aiko.StreamEvent.OKAY, None
+        return aiko.StreamEvent.OKAY, {}
 
 # --------------------------------------------------------------------------- #
 
@@ -143,14 +146,14 @@ class VideoWriteFile(aiko.PipelineElement):
 
     def start_stream(self, stream, stream_id):
         self.logger.debug(f"{self.my_id()} start_stream()")
-        return aiko.StreamEvent.OKAY, None
+        return aiko.StreamEvent.OKAY, {}
 
     def process_frame(self, stream, image) -> Tuple[aiko.StreamEvent, dict]:
         self.logger.debug(f"{self.my_id()} <-- PROCESS_FRAME()")
         return aiko.StreamEvent.OKAY, {}
 
     def stop_stream(self, stream, stream_id):
-        return aiko.StreamEvent.OKAY, None
+        return aiko.StreamEvent.OKAY, {}
 
 """
     def stream_start_handler(self, stream_id, frame_id, swag):

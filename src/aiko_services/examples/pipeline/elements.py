@@ -90,14 +90,14 @@ class PE_RandomIntegers(aiko.PipelineElement):
     def start_stream(self, stream, stream_id):
         rate, _ = self.get_parameter("rate", default=1.0)
         self.create_frames(stream, self.frame_generator, rate=float(rate))
-        return aiko.StreamEvent.OKAY, None
+        return aiko.StreamEvent.OKAY, {}
 
     def frame_generator(self, stream, frame_id):
         limit, _ = self.get_parameter("limit")
         if frame_id < int(limit):
             return aiko.StreamEvent.OKAY, {"random": random.randint(0, 9)}
         else:
-            return aiko.StreamEvent.STOP, "Frame limit reached"
+            return aiko.StreamEvent.STOP, {"diagnostic": "Frame limit reached"}
 
     def process_frame(self, stream, random) -> Tuple[aiko.StreamEvent, dict]:
         self.logger.info(f"{self.my_id()} random: {random}")

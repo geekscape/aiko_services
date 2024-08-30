@@ -1080,7 +1080,7 @@ class PipelineImpl(Pipeline):
                 diagnostic = diagnostic["diagnostic"]
             else:
                 diagnostic = "No diagnostic provided"
-            return f"{element_name}: {event_name} "  \
+            return f"{element_name.upper()}: {event_name} "  \
                    f"stream {self.my_id()} {diagnostic}"
 
         def get_stream_id():

@@ -106,8 +106,9 @@ class AikoLogger:
         name, log_level=None, logging_handler=None, topic=aiko.topic_log):
 
         if logging_handler is None:
-            if os.environ.get("AIKO_LOG_MQTT", "true") == "true":
-                logging_handler = LoggingHandlerMQTT(aiko, topic)
+            option = os.environ.get("AIKO_LOG_MQTT", "both")
+            if option in ("both", "true"):
+                logging_handler = LoggingHandlerMQTT(aiko, topic, option)
         return get_logger(name, log_level, logging_handler)
 
 aiko.logger = AikoLogger.logger

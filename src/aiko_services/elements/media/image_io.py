@@ -137,8 +137,8 @@ class ImageReadFile(aiko.PipelineElement):
     def start_stream(self, stream, stream_id):
         data_sources, found = self.get_parameter("data_sources")
         if not found:
-            diagnostic = 'Must provide "data_sources" parameter'
-            return aiko.StreamEvent.ERROR, diagnostic
+            return aiko.StreamEvent.ERROR,  \
+                   {"diagnostic": 'Must provide "data_sources" parameter'}
         data_source, data_sources = parse(data_sources)  # TODO: Improve parse()
         data_sources.insert(0, data_source)
 
@@ -149,8 +149,8 @@ class ImageReadFile(aiko.PipelineElement):
                 path = tokens[0]
             else:
                 if tokens[0] != "file":
-                    diagnostic = 'DataSource scheme must be "file://"'
-                    return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+                    return aiko.StreamEvent.ERROR,  \
+                           {"diagnostic": 'DataSource scheme must be "file://"'}
                 path = tokens[1]
 
             file_glob = "*"
@@ -160,8 +160,8 @@ class ImageReadFile(aiko.PipelineElement):
 
             path = Path(path)
             if not path.exists():
-                diagnostic = f'path "{path}" does not exist'
-                return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+                return aiko.StreamEvent.ERROR,  \
+                       {"diagnostic": f'path "{path}" does not exist'}
 
             if path.is_file():
                 paths.append((path, None))
@@ -175,8 +175,8 @@ class ImageReadFile(aiko.PipelineElement):
                     file_ids.append(file_id)
                 paths.extend(zip(paths_sorted, file_ids))
             else:
-                diagnostic = f'"{path}" must be a file or a directory'
-                return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+                return aiko.StreamEvent.ERROR,  \
+                       {"diagnostic": f'"{path}" must be a file or a directory'}
 
         if len(paths) == 1:
             self.create_frame(stream, {"paths": [path]})
@@ -186,7 +186,7 @@ class ImageReadFile(aiko.PipelineElement):
             rate = float(rate) if rate else None
             self.create_frames(stream, self.frame_generator, rate=rate)
 
-        return aiko.StreamEvent.OKAY, None
+        return aiko.StreamEvent.OKAY, {}
 
     def frame_generator(self, stream, frame_id):
         data_batch_size, _ = self.get_parameter("data_batch_size", default=1)
@@ -198,8 +198,8 @@ class ImageReadFile(aiko.PipelineElement):
                 path, file_id = next(stream.variables["source_paths_generator"])
                 path = Path(path)
                 if not path.is_file():
-                    diagnostic = f'path "{path}" must be a file'
-                    return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+                    return aiko.StreamEvent.ERROR,  \
+                           {"diagnostic": f'path "{path}" must be a file'}
                 paths.append(path)
         except StopIteration:
             pass
@@ -207,7 +207,7 @@ class ImageReadFile(aiko.PipelineElement):
         if len(paths):
             return aiko.StreamEvent.OKAY, {"paths": paths}
         else:
-            return aiko.StreamEvent.STOP, "All paths generated"
+            return aiko.StreamEvent.STOP, {"diagnostic": "All frames generated"}
 
     def process_frame(self, stream, paths) -> Tuple[aiko.StreamEvent, dict]:
         images = []
@@ -218,8 +218,8 @@ class ImageReadFile(aiko.PipelineElement):
                 self.logger.debug(
                     f"{self.my_id()}: path: {path} {image.size}")
             except Exception as exception:
-                diagnostic = f"Error loading image: {exception}"
-                return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+                return aiko.StreamEvent.ERROR,  \
+                       {"diagnostic": f"Error loading image: {exception}"}
 
         return aiko.StreamEvent.OKAY, {"images": images}
 
@@ -264,16 +264,16 @@ class ImageWriteFile(aiko.PipelineElement):
     def start_stream(self, stream, stream_id):
         data_targets, found = self.get_parameter("data_targets")
         if not found:
-            diagnostic = 'Must provide file "data_targets" parameter'
-            return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+            return aiko.StreamEvent.ERROR,  \
+                   {"diagnostic": 'Must provide file "data_targets" parameter'}
 
         tokens = data_targets.split("://")  # URL "file://path" or "path"
         if len(tokens) == 1:
             path = tokens[0]
         else:
             if tokens[0] != "file":
-                diagnostic = 'DataSource scheme must be "file://"'
-                return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+                return aiko.StreamEvent.ERROR,  \
+                       {"diagnostic": 'DataSource scheme must be "file://"'}
             path = tokens[1]
 
         stream.variables["file_id"] = 0
@@ -292,14 +292,14 @@ class ImageWriteFile(aiko.PipelineElement):
                 if isinstance(image, np.ndarray):  # TODO: Check NUMPY_IMPORTED
                     pass                           # TODO: numpy conversion
                 else:
-                    diagnostic = "UNKNOWN IMAGE TYPE"  # FIX ME !
-                    return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+                    return aiko.StreamEvent.ERROR,  \
+                           {"diagnostic": "UNKNOWN IMAGE TYPE"}  # FIX ME !
 
             try:
                 image.save(path)
             except Exception as exception:
-                diagnostic = f"Error saving image: {exception}"
-                return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+                return aiko.StreamEvent.ERROR,  \
+                       {"diagnostic": f"Error saving image: {exception}"}
 
         return aiko.StreamEvent.OKAY, {}
 
