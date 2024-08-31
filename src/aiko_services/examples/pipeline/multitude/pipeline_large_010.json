@@ -62,7 +62,7 @@
       "output": [{ "name": "i", "type": "int" }],
       "deploy": {
         "remote": {
-	        "module": "aiko_services.examples.pipeline.multitude.elements",
+          "module": "aiko_services.examples.pipeline.multitude.elements",
           "service_filter": {
             "topic_path": "*", "name": "p_large_020",
             "owner": "*", "protocol": "*", "transport": "*", "tags": "*"
@@ -122,7 +122,7 @@
     },
     { "name":   "PE_Metrics",
       "input":  [],
-			"output": [{ "name": "i", "type": "int" }],
+      "output": [{ "name": "i", "type": "int" }],
       "deploy": {
         "local": { "module": "aiko_services.examples.pipeline.elements" }
       }

@@ -68,7 +68,7 @@
     { "name":   "PE_Metrics",
       "#": "Provides Pipeline and PipelineElement timing information",
       "input":  [],
-      "output": [],
+      "output": [{ "name": "f", "type": "int" }],
       "deploy": {
         "local": { "module": "aiko_services.examples.pipeline.elements" }
       }

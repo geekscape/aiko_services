@@ -42,7 +42,7 @@
     },
     { "name":   "PE_Metrics",
       "input":  [],
-      "output": [],
+      "output": [{ "name": "i", "type": "int" }],
       "deploy": {
         "local": { "module": "aiko_services.examples.pipeline.elements" }
       }

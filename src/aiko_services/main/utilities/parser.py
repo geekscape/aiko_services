@@ -22,6 +22,7 @@
 # Parse canonical S-Expressions: binary symbols are prefixed with their length
 #   https://en.wikipedia.org/wiki/Canonical_S-expressions
 #
+# - parse("a 0: b")           --> ["a None b"]
 # - parse("3:a b")            --> ["a b"]
 # - parse("3:a b 3:c d")      --> ["a b", "c d"]
 #
@@ -99,6 +100,8 @@ def generate_s_expression(expression: List) -> str:
             element = generate_dict_to_list(element)
         if isinstance(element, list) or isinstance(element, tuple):
             element = generate_s_expression(element)
+        if element is None:
+            element = "0:"
         payload = f"{payload}{character}{element}"
         character = " "
     payload = f"{payload})"
@@ -115,7 +118,10 @@ def parse(payload: str, dictionaries_flag=True):
             match = CANONICAL_SYMBOL.match(payload[i:])
             if match:
                 token_length = match.group(1)
-                token = match.group(2)[:int(token_length)]
+                if int(token_length) == 0:
+                    token = None
+                else:
+                    token = match.group(2)[:int(token_length)]
                 result.append(token)
                 token = ""
                 i += len(token_length) + 1 + int(token_length)
@@ -205,6 +211,7 @@ def main():
     payloads = [
     #   "abc",                      # Fails: generate() returns list !
     #   "abc def",                  # Fails: parse() only handles lists
+        "(a 0: b)",                 # List containing None (encoded as 0:)
         "(a b ())",                 # List containing empty list
         "(a b (c d))",              # List containing list
         "(a b (c d) (e f (g h)))",  # List containing lists
