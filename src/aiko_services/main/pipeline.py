@@ -107,6 +107,7 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 import json
 import os
+import queue
 import threading
 from threading import Thread, current_thread
 import time
@@ -344,7 +345,8 @@ class PipelineElementImpl(PipelineElement):
     def create_frame(self, stream, frame_data, frame_id=None):
         frame_id = frame_id if frame_id else stream.frame_id
         stream_copy = Stream(stream.stream_id, frame_id,
-            stream.parameters, stream.state, stream.topic_response)
+            stream.parameters, stream.queue_response,
+            stream.state, stream.topic_response)
         self.pipeline.create_frame(stream_copy, frame_data)
 
 # Optional "frame_generator" starts during "create_stream() --> start_stream()"
@@ -440,8 +442,8 @@ class Pipeline(PipelineElement):
     Interface.default("Pipeline", "aiko_services.main.pipeline.PipelineImpl")
 
     @abstractmethod
-    def create_stream(self, stream_id,
-        parameters=None, grace_time=_GRACE_TIME, topic_response=None):
+    def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME,
+        queue_response=None, topic_response=None):
         pass
 
     @abstractmethod
@@ -559,7 +561,7 @@ class PipelineImpl(Pipeline):
     @classmethod
     def create_pipeline(cls, definition_pathname, pipeline_definition,
         name, stream_id, stream_parameters, frame_id, frame_data, grace_time,
-        mqtt_connection_required=False):
+        mqtt_connection_required=False, queue_response=None):
 
         name = name if name else pipeline_definition.name
 
@@ -575,8 +577,8 @@ class PipelineImpl(Pipeline):
         if stream_id is not None:
             stream_dict["stream_id"] = stream_id
             stream_parameters = dict(stream_parameters)
-            pipeline.create_stream(
-                stream_id, parameters=stream_parameters, grace_time=grace_time)
+            pipeline.create_stream(stream_id, parameters=stream_parameters,
+                grace_time=grace_time, queue_response=queue_response)
 
         if frame_data is not None:
             function_name, arguments = parse(f"(process_frame {frame_data})")
@@ -656,13 +658,21 @@ class PipelineImpl(Pipeline):
 
 # TODO: Consider refactoring Stream into "stream.py" ?
 
-    def create_stream(self, stream_id,
-        parameters=None, grace_time=_GRACE_TIME, topic_response=None):
+    def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME,
+        queue_response=None, topic_response=None):
+
+        if queue_response and topic_response:
+            self.logger.error(
+                f"Create stream: use either queue_response or topic_response")
+            return False
 
     # TODO: Implement limit on delayed post message
         if self.share["lifecycle"] != "ready":
-            self._post_message(ActorTopic.IN, "create_stream",
-                [stream_id, parameters, grace_time, topic_response], delay=1.0)
+            arguments = [
+                stream_id, parameters, grace_time,
+                queue_response, topic_response]
+            self._post_message(
+                ActorTopic.IN, "create_stream", arguments, delay=1.0)
             return False
 
         if stream_id in self.stream_leases:
@@ -675,6 +685,7 @@ class PipelineImpl(Pipeline):
         stream_lease.stream = Stream(
             stream_id=stream_id,
             parameters=parameters if parameters else {},
+            queue_response=queue_response,
             topic_response=topic_response)
         self.stream_leases[stream_id] = stream_lease
 
@@ -695,7 +706,7 @@ class PipelineImpl(Pipeline):
                 else:  ## Remote element ##
                 # TODO: Consider using "topic_response=self.topic_control"
                     element.create_stream(
-                        stream_id, parameters, grace_time, self.topic_in)
+                        stream_id, parameters, grace_time, None, self.topic_in)
         finally:
             self._disable_thread_local("create_stream")
         return True
@@ -889,7 +900,7 @@ class PipelineImpl(Pipeline):
 
         graph, stream =  \
             self._process_initialize(stream_dict, frame_data_in, new_frame)
-        if not graph:
+        if graph is None:
             return False
 
         try:
@@ -900,8 +911,8 @@ class PipelineImpl(Pipeline):
 
             definition_pathname = self.share["definition_pathname"]
             element_name = None
-            frame_data_out = {}
-            frame_delete = True
+            frame_complete = True
+            frame_data_out = {} if new_frame else frame_data_in
 
             for node in graph:
                 if stream.state == StreamState.ERROR:
@@ -915,7 +926,6 @@ class PipelineImpl(Pipeline):
                 inputs = self._process_map_in(
                     header, element, element_name, frame.swag)
 
-                frame_data_out = {}
                 stream_event = StreamEvent.OKAY
                 try:
                     if local:  ## Local element ##
@@ -931,7 +941,8 @@ class PipelineImpl(Pipeline):
                             metrics, element.name, start_time)
                         frame.swag.update(frame_data_out)
                     else:  ## Remote element ##
-                        frame_delete = False
+                        frame_complete = False
+                        frame_data_out = {}
                         frame.paused_pe_name = node.name
                         remote_stream = {
                             "stream_id": stream.stream_id,
@@ -942,28 +953,24 @@ class PipelineImpl(Pipeline):
                 except Exception as exception:
                     self._error_pipeline(header, traceback.format_exc())
 
-            if element_name:
-                if local:  ## Local element ##
-                    if stream.topic_response:
-                        actor = get_actor_mqtt(stream.topic_response, Pipeline)
-                        remote_stream = {
-                            "stream_id": stream.stream_id,
-                            "frame_id": stream.frame_id}
-                        actor.process_frame_response(
-                            remote_stream, frame_data_out)
-                else:  ## Remote element ##
-                    pass  # TODO: Handle ServiceRemoteProxy being tail element
-                          #       Still needs to invoke process_frame_response()
-            else:
-                pass  # TODO: Handle empty graph / "frame_data_out"
-                      #       Still needs to invoke process_frame_response()
+            if frame_complete:
+                stream_info = {
+                    "stream_id": stream.stream_id,
+                    "frame_id": stream.frame_id}
+                if stream.queue_response:
+                    stream.queue_response.put((stream_info, frame_data_out))
+                elif stream.topic_response:
+                    actor = get_actor_mqtt(stream.topic_response, Pipeline)
+                    actor.process_frame_response(stream_info, frame_data_out)
+                else:
+                    payload = generate(
+                        "process_frame", (stream_info, frame_data_out))
+                    aiko.message.publish(self.topic_out, payload)
 
         finally:
-            if frame_delete:
+            if frame_complete:
                 del stream.frames[stream.frame_id]
             self._disable_thread_local("process_frame")
-    # TODO: If last element is remote, then return StreamEvent.Pause
-    # TODO: If last element is local,  then return "frame_data_out"
         return True
 
     def _process_initialize(self, stream_dict, frame_data_in, new_frame):
@@ -997,11 +1004,9 @@ class PipelineImpl(Pipeline):
                 stream.frames[frame_id] = Frame()
                 frame = stream.frames[frame_id]
                 graph = self.pipeline_graph
-
             elif frame_id in stream.frames:
                 frame = stream.frames[frame_id]
                 graph = self.pipeline_graph.iterate_after(frame.paused_pe_name)
-
             else:
                 self.logger.warning(
                     f"Process frame <{stream_id}:{frame_id}> frame not paused")
@@ -1115,8 +1120,8 @@ class PipelineRemoteAbsent(PipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
         self.share["lifecycle"] = "absent"
 
-    def create_stream(self, stream_id,
-        parameters=None, grace_time=_GRACE_TIME, topic_response=None):
+    def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME,
+        queue_response=None, topic_response=None):
         self.log_error("create_stream")
         return False
 
@@ -1141,8 +1146,8 @@ class PipelineRemoteFound(PipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
         self.share["lifecycle"] = "ready"
 
-    def create_stream(self, stream_id,
-        parameters=None, grace_time=_GRACE_TIME, topic_response=None):
+    def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME,
+        queue_response=None, topic_response=None):
         pass
 
     def destroy_stream(self, stream_id):
@@ -1283,21 +1288,29 @@ def main():
 
 @main.command(help="Create Pipeline defined by PipelineDefinition pathname")
 @click.argument("definition_pathname", nargs=1, type=str)
-@click.option("--name", "-n", type=str, default=None, required=False,
+@click.option("--name", "-n", type=str,
+    default=None, required=False,
     help="Pipeline Actor name")
-@click.option("--stream_id", "-s", type=str, default=None, required=False,
-  help="Create Stream with identifier")
+@click.option("--stream_id", "-s", type=str,
+    default=None, required=False,
+    help="Create Stream with identifier")
 @click.option("--stream_parameters", "-sp", type=click.Tuple((str, str)),
-  default=None, multiple=True, required=False, help="Define Stream parameters")
-@click.option("--frame_id", "-fi", type=int, default=0, required=False,
-  help="Process Frame with identifier")
-@click.option("--frame_data", "-fd", type=str, default=None, required=False,
-  help="Process Frame with data")
-@click.option("--grace_time", "-gt", type=int, default=_GRACE_TIME, required=False,
-  help="Waiting for frame time-out")
+    default=None, multiple=True, required=False,
+    help="Define Stream parameters")
+@click.option("--frame_id", "-fi", type=int,
+    default=0, required=False,
+    help="Process Frame with identifier")
+@click.option("--frame_data", "-fd", type=str,
+    default=None, required=False,
+    help="Process Frame with data")
+@click.option("--grace_time", "-gt", type=int,
+    default=_GRACE_TIME, required=False,
+    help="Stream receive frame time-out duration")
+@click.option("--show_response", "-sr", is_flag=True,
+    help="Show pipeline output response (output)")
 
-def create(definition_pathname,
-    name, stream_id, stream_parameters, frame_id, frame_data, grace_time):
+def create(definition_pathname, name, stream_id, stream_parameters,
+    frame_id, frame_data, grace_time, show_response):
 
     if not os.path.exists(definition_pathname):
         raise SystemExit(
@@ -1306,8 +1319,23 @@ def create(definition_pathname,
     pipeline_definition = PipelineImpl.parse_pipeline_definition(
         definition_pathname)
 
+    def pipeline_response_handler(queue_pipeline_response):
+        while True:
+            response = queue_pipeline_response.get()
+            id = f'<{response[0]["stream_id"]}:{response[0]["frame_id"]}>'
+            frame_data = response[1]
+            _LOGGER.info(f"Output: {id} {frame_data}")
+
+    queue_pipeline_response = None
+    if show_response:
+        queue_pipeline_response = queue.Queue()
+        queue_thread = Thread(target=pipeline_response_handler,
+            args=(queue_pipeline_response,), daemon=True)
+        queue_thread.start()
+
     PipelineImpl.create_pipeline(definition_pathname, pipeline_definition,
-        name, stream_id, stream_parameters, frame_id, frame_data, grace_time)
+        name, stream_id, stream_parameters, frame_id, frame_data, grace_time,
+        queue_response=queue_pipeline_response)
 
 @main.command(help="Destroy Pipeline")
 @click.argument("name", nargs=1, type=str, required=True)

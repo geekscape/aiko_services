@@ -10,7 +10,7 @@
   "#": "Graph may consist of one or more sub-graphs",
   "#": "This graph demonstrates a simple linear Pipeline",
   "graph": [
-    "(PE_0 PE_1)"
+    "(PE_0 PE_1 PE_Metrics)"
   ],
 
   "#": "Optional parameters may be either null, boolean, integer or string",

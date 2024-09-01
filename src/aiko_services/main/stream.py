@@ -81,5 +81,5 @@ class Stream:
     #   self = replace(self, **stream_dict)
         self.stream_id = stream_dict.get("stream_id", self.stream_id)
         self.frame_id = int(stream_dict.get("frame_id", self.frame_id))
-        self.parameters = stream_dict.get("parameters", {})
+        self.parameters = stream_dict.get("parameters", self.parameters)
         self.state = stream_dict.get("state", StreamState.RUN)
