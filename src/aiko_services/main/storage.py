@@ -3,7 +3,6 @@
 # Usage
 # ~~~~~
 # export AIKO_LOG_LEVEL=DEBUG
-# export AIKO_LOG_MQTT=false
 # ./storage.py start
 #
 # ./storage.py test_command

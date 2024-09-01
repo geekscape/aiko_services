@@ -1,8 +1,8 @@
 # Usage
 # ~~~~~
-# T=0 AIKO_LOG_MQTT=false aiko_pipeline create pipeline_transcription.json
+# T=0 aiko_pipeline create pipeline_transcription.json
 #
-# W=0 AIKO_LOG_MQTT=true  aiko_pipeline create pipeline_whisperx.json
+# W=0 AIKO_LOG_MQTT=true aiko_pipeline create pipeline_whisperx.json
 #
 # To Do
 # ~~~~~

@@ -105,7 +105,9 @@ The `self.logger` instance is specific to each Actor, so that log records can be
 
 By default, the `_LOGGER` instance will use distributed logging (via MQTT) that makes it easier to diagnose background or remote Actors via the Aiko Dashboard.  Alternatively, the log records can be sent directly to the terminal console ...
 
-`AIKO_LOG_MQTT=false ./aloha_honua_0.py`
+`AIKO_LOG_MQTT=all   ./aloha_honua_0.py  # Default log to both MQTT and console`
+`AIKO_LOG_MQTT=true  ./aloha_honua_0.py  # Log only to MQTT`
+`AIKO_LOG_MQTT=false ./aloha_honua_0.py  # Log only to the terminal console`
 
 
 Actors can define functions that can be invoked directly by other Actors (via MQTT messages).

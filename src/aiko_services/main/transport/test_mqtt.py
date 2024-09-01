@@ -2,9 +2,9 @@
 #
 # Usage
 # ~~~~~
-# AIKO_LOG_LEVEL=DEBUG AIKO_LOG_MQTT=false ./transport/test_mqtt.py create
+# AIKO_LOG_LEVEL=DEBUG ./transport/test_mqtt.py create
 #
-# AIKO_LOG_LEVEL=DEBUG AIKO_LOG_MQTT=false ./transport/test_mqtt.py  \
+# AIKO_LOG_LEVEL=DEBUG ./transport/test_mqtt.py  \
 #                      send_message aiko/nomad.local/45812/1/in hello
 #
 # TODO: ./test_mqtt.py delete

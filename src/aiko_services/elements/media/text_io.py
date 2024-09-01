@@ -1,7 +1,7 @@
 # Usage
 # ~~~~~
 # cd aiko_services/elements
-# export AIKO_LOG_LEVEL=DEBUG; export AIKO_LOG_MQTT=false
+# export AIKO_LOG_LEVEL=DEBUG
 # aiko_pipeline create pipeline_text_io_0.json --stream_id 1   \
 #   --stream_parameters PE_TextReadFile.path  data_in/in_00.txt   \
 #   --stream_parameters PE_TextWriteFile.path data_out/out_00.txt
@@ -47,7 +47,7 @@ def containsAll(source: str, match: chr):  # TODO: Refactor common code
 #
 # Test
 # ~~~~
-# export AIKO_LOG_LEVEL=DEBUG; export AIKO_LOG_MQTT=false
+# export AIKO_LOG_LEVEL=DEBUG
 # aiko_pipeline create pipeline_text_io.json -fd "(path: in_01.txt)"
 # aiko_pipeline create pipeline_text_io.json -s 1
 # aiko_pipeline create pipeline_text_io.json -s 1  \
@@ -104,7 +104,7 @@ class PE_TextConvert(aiko.PipelineElement):
 #
 # Test
 # ~~~~
-# export AIKO_LOG_LEVEL=DEBUG; export AIKO_LOG_MQTT=false
+# export AIKO_LOG_LEVEL=DEBUG
 # aiko_pipeline create pipeline_text_io.json -s 1  \
 #                                      -sp PE_TextWriteFile.path out_01.txt
 

@@ -24,7 +24,7 @@
 # export AIKO_MQTT_HOST=localhost
 
 export AIKO_LOG_LEVEL=${1:-WARNING}
-export AIKO_LOG_MQTT=${2:-true}
+export AIKO_LOG_MQTT=${2:-all}
 FRAME_DELAY=${3:-1.0}                # 1.0 / frame_rate
 
 USE_PIPELINE=000  # or 010, 020, ... 090

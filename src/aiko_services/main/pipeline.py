@@ -8,7 +8,7 @@
 # aiko_pipeline create  [--name $PIPELINE_NAME] $DEFINITION
 # aiko_pipeline destroy $PIPELINE_NAME
 #
-# AIKO_LOG_LEVEL=DEBUG AIKO_LOG_MQTT=false aiko_pipeline create $DEFINITION  \
+# AIKO_LOG_LEVEL=DEBUG aiko_pipeline create $DEFINITION  \
 #   --stream_id 1 --frame_data "(argument_name: argument_value ...)"
 #
 # NAMESPACE=AIKO

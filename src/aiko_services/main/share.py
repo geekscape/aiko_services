@@ -3,10 +3,10 @@
 # Usage
 # ~~~~~
 # aiko_registrar
-# AIKO_LOG_MQTT=false ./share.py sc_test  # ServicesCache test
+# ./share.py sc_test  # ServicesCache test
 #
-# AIKO_LOG_MQTT=false ./share.py ec_test  # EventualConsistency test
-# AIKO_LOG_MQTT=false ./share.py ec_test PRODUCER_PID [EC_PRODUCER_SID]
+# ./share.py ec_test  # EventualConsistency test
+# ./share.py ec_test PRODUCER_PID [EC_PRODUCER_SID]
 #
 # NAMESPACE=aiko
 # HOST=localhost

@@ -1,6 +1,6 @@
 # Usage
 # ~~~~~
-# export AIKO_LOG_LEVEL=DEBUG; export AIKO_LOG_MQTT=false
+# export AIKO_LOG_LEVEL=DEBUG
 #
 # aiko_pipeline create pipeline_image_0.json --stream_id 1    \
 #   -sp ImageReadFile.data_batch_size 8  2>&1 | cut -c34-
@@ -252,7 +252,7 @@ class ImageResize(aiko.PipelineElement):
 #
 # Test
 # ~~~~
-# export AIKO_LOG_LEVEL=DEBUG; export AIKO_LOG_MQTT=false
+# export AIKO_LOG_LEVEL=DEBUG
 #
 # aiko_pipeline create pipeline_image_io_0.json -s 1  \
 #     -sp ImageWriteFile.path "file://data_out/out_{:02d}.jpeg"
