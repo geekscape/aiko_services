@@ -47,7 +47,6 @@
 #   so that an individual, a list or all loggers can be changed at once
 #
 # - Based on current log_level, select _LOG_FORMAT/_DEBUG on-the-fly
-# - AIKO_LOG_MQTT == "all" means log to both MQTT and the console
 # - Allow AIKO_LOG_MQTT value to be changed on-the-fly (via ECProducer)
 #
 # - Implement logging to a file (break into chunks by date/time or size)
@@ -127,10 +126,11 @@ from aiko_services.main.connection import ConnectionState
 
 class LoggingHandlerMQTT(logging.Handler):
     def __init__(
-        self, aiko, topic, option="both", ring_buffer_size=_RING_BUFFER_SIZE):
+        self, aiko, topic, option="all", ring_buffer_size=_RING_BUFFER_SIZE):
 
         super().__init__()
         self.aiko = aiko
+        self.console_flag = option == "all"
         self.topic = topic
 
         self.ready = False
@@ -157,6 +157,8 @@ class LoggingHandlerMQTT(logging.Handler):
     def emit(self, record):  # record: logging.LogRecord has lots of details
         try:
             payload_out = self.format(record)
+            if self.console_flag:
+                print(payload_out)
             if self.ready:
                 self.aiko.message.publish(self.topic, payload_out)
             else:
