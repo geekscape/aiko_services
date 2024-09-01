@@ -10,6 +10,7 @@
 # - parse("(c)")
 # - parse("(c p1 p2)")
 # - parse("(add topic protocol owner (a=b c=d))")
+# - parse("('aloha honua')") or parse('("aloha honua")')  # quoted strings
 #
 # Parse dictionaries with keyword / value pairs
 #
@@ -87,14 +88,14 @@ def generate_dict_to_list(expression: Dict) -> list:
         result.append(value)
     return result
 
-DELIMITERS = re.compile(r"^\d+:|[\s()]")
+RE_DELIMITERS = re.compile(r"^\d+:|[\s()]")
 
 def generate_s_expression(expression: List) -> str:
     character = ""
     payload = "("
     for element in expression:
         if isinstance(element, str):
-            if DELIMITERS.search(element):
+            if RE_DELIMITERS.search(element):
                 element = f"{len(element)}:{element}"
         if isinstance(element, dict):
             element = generate_dict_to_list(element)
@@ -107,7 +108,8 @@ def generate_s_expression(expression: List) -> str:
     payload = f"{payload})"
     return payload
 
-CANONICAL_SYMBOL = re.compile(r"^(\d+):(.+)")
+RE_CANONICAL_SYMBOL = re.compile(r"^(\d+):(.+)")  # token_length:token_content
+RE_STRING = re.compile(r"""(['"])(.*?)\1""")      # "string" or 'string'
 
 def parse(payload: str, dictionaries_flag=True):
     result = []
@@ -115,7 +117,7 @@ def parse(payload: str, dictionaries_flag=True):
     i = 0
     while i < len(payload):
         if not token:
-            match = CANONICAL_SYMBOL.match(payload[i:])
+            match = RE_CANONICAL_SYMBOL.match(payload[i:])
             if match:
                 token_length = match.group(1)
                 if int(token_length) == 0:
@@ -125,6 +127,12 @@ def parse(payload: str, dictionaries_flag=True):
                 result.append(token)
                 token = ""
                 i += len(token_length) + 1 + int(token_length)
+                continue
+
+            match = RE_STRING.match(payload[i:])
+            if match:
+                result.append(match.group(2))  # token
+                i += len(match.group(0))       # token_length
                 continue
 
         c = payload[i]
