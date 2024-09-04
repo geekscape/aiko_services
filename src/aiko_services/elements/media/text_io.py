@@ -1,22 +1,37 @@
 # Usage
 # ~~~~~
-# cd aiko_services/elements
-# export AIKO_LOG_LEVEL=DEBUG
-# aiko_pipeline create pipeline_text_io_0.json --stream_id 1   \
-#   --stream_parameters PE_TextReadFile.path  data_in/in_00.txt   \
-#   --stream_parameters PE_TextWriteFile.path data_out/out_00.txt
+# export AIKO_LOG_LEVEL=DEBUG  # provides more verbose output
+#
+# aiko_pipeline create pipeline_text_0.json -s 1 -sr
+#
+# aiko_pipeline create pipeline_text_0.json -s 1 -sp rate 1.0
+#
+# aiko_pipeline create pipeline_text_0.json -s 1  \
+#   -sp TextReadFile.data_batch_size 8
+#
+# aiko_pipeline create pipeline_text_0.json -s 1  \
+#   -sp TextReadFile.data_sources file://data_in/in_{}.txt
+#
+# aiko_pipeline create pipeline_text_0.json -s 1  \
+#     -sp TextWriteFile.path "file://data_out/out_{:02d}.txt"
+#
+# aiko_pipeline create pipeline_text_0.json -s 1            \
+#   -sp TextReadFile.data_sources file://data_in/in_00.txt  \
+#   -sp TextTransform.transform titlecase                   \
+#   -sp TextWriteFile.data_targets file://data_out/out_00.txt
 #
 # To Do
 # ~~~~~
-# - PE_TextReadFile(s): Single file or list of files or directory
+# - TextReadFile(s): Single file or list of files or directory
 #   - Option: Each line is a record (streaming)
 #   - Formatted as CR/LF records, JSON, XML, CSV
 #
-# - PE_TextWriteFile(s): Single file or list of files or directory
+# - TextWriteFile(s): Single file or list of files or directory
 #   - Option: Each line is a record (streaming)
 #   - Formatted as CR/LF records, JSON, XML, CSV
 #
-# - PE_TextFilters: strip(), lower(), upper(), line/word/character count, ...
+# - TextFilter: line/word/character count, ...
+# - TextTransform: strip(), ...
 #
 # - Pre-processing / Post-processing, e.g abbrevations, acronyms
 #   - Speech-To-Text: Words not easily recognised
@@ -30,106 +45,108 @@ from typing import Tuple
 from pathlib import Path
 
 import aiko_services as aiko
+from aiko_services.elements.media import *
 
-__all__ = ["PE_TextReadFile", "PE_TextConvert", "PE_TextWriteFile"]
-
-def containsAll(source: str, match: chr):  # TODO: Refactor common code
-    return False not in [character in source for character in match]
+__all__ = ["TextOutput", "TextReadFile", "TextTransform", "TextWriteFile"]
 
 # --------------------------------------------------------------------------- #
-# PE_TextReadFile is a DataSource with a text file "path" string parameter
-#
-# Supports both Streams and direct process_frame() calls ?
-#
-# To Do
-# ~~~~~
-# - Check: Supports both Streams and direct process_frame() calls
-#
-# Test
-# ~~~~
-# export AIKO_LOG_LEVEL=DEBUG
-# aiko_pipeline create pipeline_text_io.json -fd "(path: in_01.txt)"
-# aiko_pipeline create pipeline_text_io.json -s 1
-# aiko_pipeline create pipeline_text_io.json -s 1  \
-#                                      -sp PE_TextReadFile.path in_01.txt
+# Useful for Pipeline output that should be all of the text processed
 
-class PE_TextReadFile(aiko.PipelineElement):
+class TextOutput(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def start_stream(self, stream, stream_id):
-        path, found = self.get_parameter("path")
+    def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
+        return aiko.StreamEvent.OKAY, {"texts": texts}
+
+# --------------------------------------------------------------------------- #
+# TextReadFile is a DataSource which supports ...
+# - Individual text files
+# - Directory of text files with an optional filename filter
+# - TODO: Archive (tgz, zip) of text files with an optional filename filter
+#
+# parameter: "data_sources" is the read file path, format variable: "frame_id"
+#
+# Note: Only supports Streams with "data_sources" parameter
+
+class TextReadFile(DataSource):  # common_io.py PipelineElement
+    def __init__(self, context: aiko.ContextPipelineElement):
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, stream, paths) -> Tuple[aiko.StreamEvent, dict]:
+        texts = []
+        for path in paths:
+            try:
+                with path.open("r") as file:
+                    text = file.read()
+                texts.append(text)
+                self.logger.debug(f"{self.my_id()}: {path} ({len(text)})")
+            except Exception as exception:
+                return aiko.StreamEvent.ERROR,  \
+                        {"diagnostic": f"Error loading text: {exception}"}
+
+        return aiko.StreamEvent.OKAY, {"texts": texts}
+
+# --------------------------------------------------------------------------- #
+
+class TextTransform(aiko.PipelineElement):
+    def __init__(self, context: aiko.ContextPipelineElement):
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+        self.transforms = {
+            "lowercase": lambda text: text.lower(),  # looks like this !
+            "none":      lambda text: text,          # looks unchanged !
+            "titlecase": lambda text: text.title(),  # Looks Like This !
+            "uppercase": lambda text: text.upper()   # LOOKS LIKE THIS !
+        }
+
+    def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
+        transform_type, found = self.get_parameter("transform")
         if not found:
             return aiko.StreamEvent.ERROR,  \
-                   {"diagnostic": 'Must provide file "path" parameter'}
+                {"diagnostic": 'Must provide "transform" parameter'}
 
-        self.create_frame(stream, {"path": path})
-        return aiko.StreamEvent.OKAY, {}
-
-    def process_frame(self, stream, path) -> Tuple[aiko.StreamEvent, dict]:
-        self.logger.debug(f"{self.my_id()}: path: {path}")
-
-        if not Path(path).exists():
+        transform = self.transforms.get(transform_type, None)
+        if not transform:
             return aiko.StreamEvent.ERROR,  \
-                   {"diagnostic": f'Text file "{path}" does not exist'}
-        try:
-            with open(path, "r") as file:
-                text = file.read()
-        except Exception as exception:
-            return aiko.StreamEvent.ERROR,  \
-                   {"diagnostic": f"Error loading path: {exception}"}
+                {"diagnostic": f"Unknown text transform type: {transform_type}"}
 
-        self.logger.debug(f"Text: {text}")
-        return aiko.StreamEvent.OKAY, {"text": text}
+        texts_transformed = []
+        if transform_type == "none":
+            texts_transformed = texts  # optimization :)
+        else:
+            for text in texts:
+                transformed_text = transform(text)
+                texts_transformed.append(transformed_text)
+
+        return aiko.StreamEvent.OKAY, {"texts": texts_transformed}
 
 # --------------------------------------------------------------------------- #
+# TextWriteFile is a DataTarget with a text string parameter
+#
+# parameter: "data_targets" is the write file path, format variable: "frame_id"
+#
+# Note: Only supports Streams with "data_targets" parameter
 
-class PE_TextConvert(aiko.PipelineElement):
+class TextWriteFile(DataTarget):  # common_io.py PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, stream, text) -> Tuple[aiko.StreamEvent, dict]:
-    #   option, _ = self.get_parameter("option")
-        text = text.upper()
-        return aiko.StreamEvent.OKAY, {"text": text}
+    def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
+        for text in texts:
+            path = stream.variables["target_path"]
+            if contains_all(path, "{}"):
+                path = path.format(stream.variables["target_file_id"])
+                stream.variables["target_file_id"] += 1
+            self.logger.debug(f"{self.my_id()}: {path}")
 
-# --------------------------------------------------------------------------- #
-# PE_TextWriteFile is a DataTarget with a text string parameter
-#
-# To Do
-# ~~~~~
-# - Check: Supports both Streams and direct process_frame() calls
-#
-# - Consider what causes Stream to be closed, e.g single frame processed ?
-#
-# Test
-# ~~~~
-# export AIKO_LOG_LEVEL=DEBUG
-# aiko_pipeline create pipeline_text_io.json -s 1  \
-#                                      -sp PE_TextWriteFile.path out_01.txt
+            try:
+                with Path(path).open("w") as file:
+                    file.write(text)
+            except Exception as exception:
+                return aiko.StreamEvent.ERROR,  \
+                       {"diagnostic": f"Error saving text: {exception}"}
 
-class PE_TextWriteFile(aiko.PipelineElement):
-    def __init__(self, context: aiko.ContextPipelineElement):
-        context.get_implementation("PipelineElement").__init__(self, context)
-
-    def process_frame(self, stream, text) -> Tuple[aiko.StreamEvent, dict]:
-        path, found = self.get_parameter("path")
-        if not found:
-            return aiko.StreamEvent.ERROR,  \
-                   {"diagnostic": 'Must provide file "path" parameter'}
-
-        if containsAll(path, "{}"):
-            path = path.format(stream.frame_id)
-        self.logger.debug(f"{self.my_id()}: text write file path: {path}")
-
-        try:
-            with open(path, "w") as file:
-                file.write(text)
-        except Exception as exception:
-            return aiko.StreamEvent.ERROR,  \
-                   {"diagnostic": f"Error saving path: {exception}"}
-
-        self.logger.debug(f"Text: {text}")
         return aiko.StreamEvent.OKAY, {}
 
 # --------------------------------------------------------------------------- #

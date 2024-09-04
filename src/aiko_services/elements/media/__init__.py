@@ -10,8 +10,14 @@
 #     PE_MicrophonePA, PE_MicrophoneSD, PE_Speaker
 # )
 
-from .image_io import (
-    ImageOverlay, ImageReadFile, ImageResize, ImageWriteFile
+from .common_io import (
+    contains_all, file_glob_difference, DataSource, DataTarget
 )
+
+from .image_io import (
+    ImageOutput, ImageOverlay, ImageReadFile, ImageResize, ImageWriteFile
+)
+
+from .text_io import TextOutput, TextReadFile, TextTransform, TextWriteFile
 
 # from .video_io import VideoReadFile, VideoShow, VideoWriteFile

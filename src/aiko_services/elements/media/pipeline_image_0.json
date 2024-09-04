@@ -4,6 +4,7 @@
   "runtime": "python",
 
   "graph": ["(ImageReadFile ImageResize ImageWriteFile)"],
+  "#":     ["(ImageReadFile ImageResize ImageWriteFile ImageOutput)"],
 
   "parameters": {"resolution": "320x240"},
 
@@ -30,6 +31,13 @@
       "parameters": {"data_targets": "file://data_out/out_{:02d}.jpeg"},
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "ImageOutput",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.image_io"}
       }

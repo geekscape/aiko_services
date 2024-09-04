@@ -3,30 +3,41 @@
   "name":    "p_text_io_0",
   "runtime": "python",
 
-  "graph": ["(PE_TextReadFile PE_TextConvert PE_TextWriteFile)"],
-
-  "parameters": {},
+  "graph": ["(TextReadFile TextTransform TextWriteFile)"],
+  "#":     ["(TextReadFile TextTransform TextWriteFile TextOutput)"],
 
   "elements": [
-    { "name":   "PE_TextReadFile",
-      "parameters": {"path": "data_in/in_00.txt"},
-      "input":  [{ "name": "path", "type": "str" }],
-      "output": [{ "name": "text", "type": "str" }],
+    { "name":   "TextReadFile",
+      "parameters": {
+         "data_sources": "(file://data_in/in_{}.txt)",
+         "data_batch_size": 1
+      },
+      "input":  [{ "name": "paths", "type": "[Path]" }],
+      "output": [{ "name": "texts", "type": "[str]" }],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.text_io"}
       }
     },
-    { "name":   "PE_TextConvert",
-      "input":  [{ "name": "text", "type": "str" }],
-      "output": [{ "name": "text", "type": "str" }],
+    { "name":   "TextTransform",
+      "#": " transform options are lowercase, none, titlecase and uppercase",
+      "parameters": {"transform": "titlecase"},
+      "input":  [{ "name": "texts", "type": "[str]" }],
+      "output": [{ "name": "texts", "type": "[str]" }],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.text_io"}
       }
     },
-    { "name":   "PE_TextWriteFile",
-      "parameters": {"path": "data_out/out_{:02}.txt"},
-      "input":  [{ "name": "text", "type": "str" }],
+    { "name":   "TextWriteFile",
+      "parameters": {"data_targets": "file://data_out/out_{:02d}.txt"},
+      "input":  [{ "name": "texts", "type": "[str]" }],
       "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.text_io"}
+      }
+    },
+    { "name":   "TextOutput",
+      "input":  [{ "name": "texts", "type": "[str]" }],
+      "output": [{ "name": "texts", "type": "[str]" }],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.text_io"}
       }
