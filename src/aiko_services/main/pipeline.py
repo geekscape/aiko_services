@@ -307,7 +307,7 @@ class PipelineElement(Actor):
         return True
 
     @abstractmethod
-    def my_id(self):
+    def my_id(self, all=False):
         pass
 
 # PipelineElement developer must provide a process_frame() implementation
@@ -367,10 +367,17 @@ class PipelineElementImpl(PipelineElement):
             stream, frame_id = self.get_stream()
 
             while stream.state == StreamState.RUN:
-            # TODO: Handle Exceptions and no or incorrect return types
-                stream_event, frame_data = frame_generator(stream, frame_id)
+                try:
+                    stream_event, frame_data = frame_generator(stream, frame_id)
+                except Exception as exception:
+                    self.logger.error(
+                        "Exception in pipeline_element._create_frames() --> "  \
+                        "frame_generator()")
+                    stream_event = StreamEvent.ERROR
+                    frame_data = {"diagnostic": traceback.format_exc()}
+
                 stream.state = self.pipeline._process_stream_event(
-                    self.name, frame_data, stream_event)
+                    self.name, stream_event, frame_data)
 
                 if stream.state == StreamState.RUN:
                 # TODO: Check "isinstance(frame_data, dict)"
@@ -561,7 +568,7 @@ class PipelineImpl(Pipeline):
     @classmethod
     def create_pipeline(cls, definition_pathname, pipeline_definition,
         name, stream_id, stream_parameters, frame_id, frame_data, grace_time,
-        mqtt_connection_required=False, queue_response=None):
+        queue_response=None):
 
         name = name if name else pipeline_definition.name
 
@@ -588,7 +595,7 @@ class PipelineImpl(Pipeline):
                 raise SystemExit(
                     f"Error: Frame data must be provided")
 
-        pipeline.run(mqtt_connection_required=mqtt_connection_required)
+        return pipeline
 
     def _create_pipeline_graph(self, definition):
         header = f"Error: Creating Pipeline: {definition.name}"
@@ -693,16 +700,21 @@ class PipelineImpl(Pipeline):
             self._enable_thread_local("create_stream", stream_id)
             stream, _ = self.get_stream()
 
-        # FIX: Handle Exceptions: Same as StreamEvent.ERROR, but with stacktrace
             for node in self.pipeline_graph:
                 element, element_name, local, _ =  \
                     PipelineGraph.get_element(node)
                 if local:  ## Local element ##
-                # TODO: Handle Exceptions and no or incorrect return types
-                    stream_event, diagnostic = element.start_stream(
-                        stream, stream_id)
+                    try:
+                        stream_event, diagnostic = element.start_stream(
+                            stream, stream_id)
+                    except Exception as exception:
+                        self.logger.error("Exception in "  \
+                          "pipeline.create_stream() --> start_stream()")
+                        stream_event = StreamEvent.ERROR
+                        diagnostic = {"diagnostic": traceback.format_exc()}
+
                     stream_state = self._process_stream_event(
-                        element_name, diagnostic, stream_event)
+                        element_name, stream_event, diagnostic)
                 else:  ## Remote element ##
                 # TODO: Consider using "topic_response=self.topic_control"
                     element.create_stream(
@@ -721,16 +733,21 @@ class PipelineImpl(Pipeline):
             stream, _ = self.get_stream()
             self.logger.debug(f"Destroy stream: {self.name}<{stream_id}>")
 
-        # FIX: Handle Exceptions: Same as StreamEvent.ERROR, but with stacktrace
             for node in self.pipeline_graph:
                 element, element_name, local, _ =  \
                     PipelineGraph.get_element(node)
                 if local:  ## Local element ##
-                # TODO: Handle Exceptions and no or incorrect return types
-                    stream_event, diagnostic = element.stop_stream(
-                        stream, stream_id)
+                    try:
+                        stream_event, diagnostic = element.stop_stream(
+                            stream, stream_id)
+                    except Exception as exception:
+                        self.logger.error("Exception in "  \
+                          "pipeline.destroy_stream() --> stop_stream()")
+                        stream_event = StreamEvent.ERROR
+                        diagnostic = {"diagnostic": traceback.format_exc()}
+
                     stream_state = self._process_stream_event(element_name,
-                        diagnostic, stream_event, in_destroy_stream=True)
+                        stream_event, diagnostic, in_destroy_stream=True)
                 else:  ## Remote element ##
                     element.destroy_stream(stream_id)
         finally:
@@ -930,11 +947,20 @@ class PipelineImpl(Pipeline):
                 try:
                     if local:  ## Local element ##
                         start_time = time.time()
-                    # TODO: Handle Exceptions and no or incorrect return types
-                        stream_event, frame_data_out = element.process_frame(
-                            stream, **inputs)
+
+                        try:
+                            stream_event, frame_data_out =  \
+                                element.process_frame(stream, **inputs)
+                        except Exception as exception:
+                            self.logger.error(
+                                "Exception in pipeline.process_frame() --> "  \
+                                "frame_generator()")
+                            stream_event = StreamEvent.ERROR
+                            frame_data_out = {
+                                "diagnostic": traceback.format_exc()}
+
                         stream.state = self._process_stream_event(
-                            element_name, frame_data_out, stream_event)
+                            element_name, stream_event, frame_data_out)
                     #   TODO: Test "stream.state" before continuing
                         self._process_map_out(element_name, frame_data_out)
                         self._process_metrics_capture(  # TODO: Move up ?
@@ -1076,7 +1102,7 @@ class PipelineImpl(Pipeline):
 # TODO: - _process_frame_common()
 # TODO: - destroy_stream()
 
-    def _process_stream_event(self, element_name, diagnostic, stream_event,
+    def _process_stream_event(self, element_name, stream_event, diagnostic,
         in_destroy_stream=False):
 
         def get_diagnostic(diagnostic):
@@ -1333,9 +1359,12 @@ def create(definition_pathname, name, stream_id, stream_parameters,
             args=(queue_pipeline_response,), daemon=True)
         queue_thread.start()
 
-    PipelineImpl.create_pipeline(definition_pathname, pipeline_definition,
+    pipeline = PipelineImpl.create_pipeline(
+        definition_pathname, pipeline_definition,
         name, stream_id, stream_parameters, frame_id, frame_data, grace_time,
         queue_response=queue_pipeline_response)
+
+    pipeline.run()
 
 @main.command(help="Destroy Pipeline")
 @click.argument("name", nargs=1, type=str, required=True)
