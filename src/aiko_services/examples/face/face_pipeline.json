@@ -1,0 +1,53 @@
+{
+  "version": 0,
+  "name":    "p_face",
+  "runtime": "python",
+
+  "graph": [
+    "(VideoReadWebcam FaceDetector ImageOverlay VideoShow PE_Metrics)"
+   ],
+
+  "parameters": {},
+
+  "elements": [
+    { "name":   "VideoReadWebcam",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "parameters": {"path": "/dev/video0"},
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.webcam_io"}
+      }
+    },
+    { "name":   "FaceDetector",
+      "input":  [{"name": "images",  "type": "[image]"}],
+      "output": [{"name": "overlay", "type": "[overlay]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.examples.face.face_elements"}
+      }
+    },
+    { "name":   "ImageOverlay",
+      "input":  [{"name": "images",  "type": "[image]"},
+                 {"name": "overlay", "type": "[overlay]"}],
+      "output": [{"name": "images",  "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "VideoShow",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "parameters": {"position": "1280:0", "title": "Face detection"},
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    },
+    { "name":   "PE_Metrics",
+      "#": "Provides Pipeline and PipelineElement timing information",
+      "input":  [],
+      "output": [{"name": "overlay", "type": "[overlay]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.examples.pipeline.elements"}
+      }
+    }
+  ]
+}
