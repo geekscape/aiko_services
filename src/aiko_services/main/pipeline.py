@@ -355,7 +355,8 @@ class PipelineElementImpl(PipelineElement):
         self, stream, frame_generator, frame_id=FIRST_FRAME_ID, rate=None):
 
         thread_args = (stream, frame_generator, int(frame_id), rate)
-        Thread(target=self._create_frames_generator, args=thread_args).start()
+        Thread(target=self._create_frames_generator,
+            args=thread_args, daemon=True).start()
 
 # TODO: For "rate" measure time since last frame to be more accurate
 # FIX:  For "rate" check "rate=0" (fills mailbox) versus "rate=None" ?
@@ -381,7 +382,8 @@ class PipelineElementImpl(PipelineElement):
 
                 if stream.state == StreamState.RUN:
                 # TODO: Check "isinstance(frame_data, dict)"
-                    self.create_frame(stream, frame_data, frame_id)
+                    if frame_data:
+                        self.create_frame(stream, frame_data, frame_id)
                     if rate:
                         time.sleep(1.0 / rate)
                     frame_id += 1
@@ -1355,9 +1357,8 @@ def create(definition_pathname, name, stream_id, stream_parameters,
     queue_pipeline_response = None
     if show_response:
         queue_pipeline_response = queue.Queue()
-        queue_thread = Thread(target=pipeline_response_handler,
-            args=(queue_pipeline_response,), daemon=True)
-        queue_thread.start()
+        Thread(target=pipeline_response_handler,
+            args=(queue_pipeline_response,), daemon=True).start()
 
     pipeline = PipelineImpl.create_pipeline(
         definition_pathname, pipeline_definition,

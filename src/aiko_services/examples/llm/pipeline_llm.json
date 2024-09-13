@@ -3,29 +3,37 @@
   "name":    "p_llm",
   "runtime": "python",
 
-  "graph": ["(PE_LLM PE_COQUI_TTS)"],
+  "graph": ["(PE_LLM PE_Metrics)"],
+  "#":     ["(PE_LLM PE_COQUI_TTS PE_Metrics)"],
 
   "parameters": {},
 
   "elements": [
     { "name":   "PE_LLM",
-      "input":  [{ "name": "text", "type": "bytes" }],
-      "output": [{ "name": "text", "type": "bytes" }],
+      "input":  [{ "name": "text", "type": "str" }],
+      "output": [{ "name": "text", "type": "str" }],
       "deploy": {
-        "local": { "module": "llm_elements.py" }
+        "local": { "module": "elements_llm.py" }
       }
     },
     { "name":   "PE_COQUI_TTS",
-      "input":  [{ "name": "text", "type": "bytes" }],
+      "input":  [{ "name": "text",  "type": "str" }],
       "output": [{ "name": "audio", "type": "bytes" }],
       "deploy": {
         "remote": {
-          "module": "llm_elements.py",
+          "module": "elements_llm.py",
           "service_filter": {
             "topic_path": "*", "name": "p_llm_output",
             "owner": "*", "protocol": "*", "transport": "*", "tags": "*"
           }
         }
+      }
+    },
+    { "name":   "PE_Metrics",
+      "input":  [],
+      "output": [{ "name": "text", "type": "str" }],
+      "deploy": {
+        "local": { "module": "aiko_services.examples.pipeline.elements" }
       }
     }
   ]

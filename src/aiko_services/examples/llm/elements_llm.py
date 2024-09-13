@@ -1,7 +1,25 @@
 #!/usr/bin/env python3
 #
+# Usage
+# ~~~~~
+# ollama serve  # or systemctl start ollama
+#
+# export AIKO_LOG_LEVEL=DEBUG  # PE_Metrics
+# aiko_pipeline create pipeline_llm.json -s 1  \
+#   -fd "(text: 'Tell me about yourself')" -gt 900 -sr
+#
+# TOPIC_LLM=aiko/spike/3321189/1/in
+# mosquitto_pub -t $TOPIC_LLM  \
+#   -m "(process_frame (stream_id: 1) (text: 'What are your interests ?'))"
+#
+# mosquitto_pub -t aiko/detections -m "carrot"
+#
+# mosquitto_pub -t $TOPIC_LLM  \
+#   -m "(process_frame (stream_id: 1) (text: 'What can you see ?'))"
+#
+# -----------------------------------------
 # https://python.langchain.com/docs/get_started/quickstart#llm-chain -->
-#   OpenAI API ... or ... Ollama (llama3)
+#   OpenAI API ... or ... Ollama (llama3.1)
 #
 # -----------------------------------------
 # pip install langchain langchain-openai
@@ -13,18 +31,24 @@
 #
 # -----------------------------------------
 # ollama serve
-# ollama run llama3
+# ollama run llama3.1
 #
 # pip install langchain langchain_community
 # export LANGCHAIN_TRACING_V2="true"
 # export LANGCHAIN_API_KEY="..."
 #
 # ./llm_chain.py ollama
-
 #
 # To Do
 # ~~~~~
-# - None, yet !
+# - Attach a CLI UI
+# - Move system prompt to a file specified by a CLI argument
+#   - Improve system prompt
+#   - Move robot selection to CLI UI
+# - Example that uses "test.mosquitto.org"
+#   - Split CLI UI and LLM into separate Pipelines
+# - Test using OpenAI ChatGPT-4o
+# - Set LLM parameter "seed"
 
 import time
 from typing import Tuple
@@ -33,16 +57,15 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 import aiko_services as aiko
+from aiko_services.main.utilities import get_namespace
 
-LLM_MODEL_NAME = "llama3:latest"  # llava-llama3:8b-v1.1-fp16
+LLM_MODEL_NAME = "llama3.1:latest"  # llava-llama3:8b-v1.1-fp16
 LLM_TEMPERATURE = 0.0
 TOPIC_DETECTIONS = f"{get_namespace()}/detections"
 
-_LOGGER = aiko.logger(__name__)
-
 # --------------------------------------------------------------------------- #
 
-class PE_COQUI_TTS(PipelineElement):
+class PE_COQUI_TTS(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("text_to_speech:0")
         context.get_implementation("PipelineElement").__init__(self, context)
@@ -73,9 +96,6 @@ def llm_load(llm_type, model_name=LLM_MODEL_NAME):
 
 def llm_chain(llm_type, text, detections=""):
 #   text = "/Users/andyg/Desktop/astra_bunnings.jpeg describe image"
-
-    print(f"### LLM input: {text} ###")
-    time_llm_start = time.time()
 
     llm = llm_load(llm_type)
 
@@ -164,14 +184,11 @@ Your state information when relevant may be used in response messages
     chain = chat_prompt | llm | output_parser
     response = chain.invoke({"input": text})  # --> str
 
-    time_llm = time.time() - time_llm_start
-    print(f"### LLM time: {time_llm:0.1f} seconds ###")
-
     return response
 
 # --------------------------------------------------------------------------- #
 
-class PE_LLM(PipelineElement):
+class PE_LLM(aiko.PipelineElement):
     def __init__(self, context):
         context.get_implementation("PipelineElement").__init__(self, context)
         context.set_protocol("llm:0")
@@ -191,12 +208,12 @@ class PE_LLM(PipelineElement):
                 if time_now > time_detected + 1.0:
                     detections = ""
 
+            self.logger.info(f"Input: {text}")
             response = llm_chain("ollama", text, detections)
-            _LOGGER.info(f"PE_LLM: {text} --> {response}")
 
-            topic_out = f"{get_namespace()}/speech"
-            payload_out = response
-            aiko.message.publish(topic_out, payload_out)
+        #   topic_out = f"{get_namespace()}/speech"
+        #   payload_out = response
+        #   aiko.message.publish(topic_out, payload_out)
         else:
             response = text
 

@@ -6,12 +6,12 @@
 #
 # Notes
 # ~~~~~
-# - Watch out for "stream.py:Frame()" dataclass and
-#   "dashboard.py" use of "asciimatics.widgets.Frame()"
+# - Watch out for "stream.py:Frame" dataclass and
+#   "dashboard.py" use of "asciimatics.widgets.Frame()" class
 #
 # To Do
 # ~~~~~
-# - Implement "Class Metrics" to replace "metrics" dictionary
+# - Implement dataclass "Class Metrics" to replace "metrics" dictionary
 #
 # - Refactor from "pipeline.py", extract Stream concepts including Parameters
 #   - Review "../archive/main/stream_2020.py"
@@ -57,13 +57,13 @@ StreamStateName = {
 @dataclass
 class Frame:  # effectively a continuation :)
     metrics: Dict[str, Any] = field(default_factory=dict)  # TODO: Dataclass
-    paused_pe_name: str = None
-    swag: Dict[str, Any] = field(default_factory=dict)
+    paused_pe_name: str = None  # remote PipelineElement that has been called
+    swag: Dict[str, Any] = field(default_factory=dict)  # PipelineElement data
 
 @dataclass
 class Stream:
     stream_id: str = DEFAULT_STREAM_ID
-    frame_id: int = FIRST_FRAME_ID  # only updated by main thread
+    frame_id: int = FIRST_FRAME_ID  # only updated by Pipeline thread
     frames: Dict[int, Frame] = field(default_factory=dict)
     parameters: Dict[str, Any] = field(default_factory=dict)
     queue_response: queue = None
