@@ -20,9 +20,12 @@
 #   -sp ImageResize.resolution 320x240                        \
 #   -sp ImageWriteFile.data_targets file://data_out/out_00.jpeg
 #
+# aiko_pipeline create pipeline_image_1.json -s 1
+#
 # To Do
 # ~~~~~
 # - Refactor optional module import into common function (see video_io.py)
+# - Provide checks around "cv2" and "numpy" usage to be optional
 #
 # - Consider what causes Stream to be closed, e.g single frame processed ?
 #   - When all [data_sources] produced and not the default stream ?
@@ -44,9 +47,27 @@ from PIL import Image
 from typing import Tuple
 
 import aiko_services as aiko
-from aiko_services.elements.media import *
+from aiko_services.elements.media import contains_all, DataSource, DataTarget
+
+__all__ = [
+    "ImageOutput", "ImageOverlay", "ImageReadFile",
+    "ImageResize", "ImageWriteFile"
+]
 
 _LOGGER = aiko.get_logger(__name__)
+
+_CV2_IMPORTED = False
+try:
+    import cv2
+    _CV2_IMPORTED = True
+except ModuleNotFoundError:  # TODO: Optional warning flag
+    diagnostic = "image_io.py: Couldn't import numpy module"
+    print(f"WARNING: {diagnostic}")
+    _LOGGER.warning(diagnostic)
+    raise ModuleNotFoundError(
+        'opencv-python package not installed.  '
+        'Install aiko_services with --extras "opencv" '
+        'or install opencv-python manually to use the "image_io" module')
 
 _NUMPY_IMPORTED = False
 try:
@@ -56,11 +77,6 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
     diagnostic = "image_io.py: Couldn't import numpy module"
     print(f"WARNING: {diagnostic}")
     _LOGGER.warning(diagnostic)
-
-__all__ = [
-    "ImageOutput", "ImageOverlay", "ImageReadFile",
-    "ImageResize", "ImageWriteFile"
-]
 
 # --------------------------------------------------------------------------- #
 # Useful for Pipeline output that should be all of the images processed
@@ -73,12 +89,79 @@ class ImageOutput(aiko.PipelineElement):
         return aiko.StreamEvent.OKAY, {"images": images}
 
 # --------------------------------------------------------------------------- #
-# TODO: Display lines, mask, polygons, rectangles, text
+# TODO: Change color (text, boxes face / YOLO), font, line thickness
+# TODO: Display camera name/path, date/time, FPS
+# TODO: Display specified elipses, lines, mask, rectangles, polygons, text
 # TODO: Display metrics
 # TODO: Display pose stick figures
 
 class ImageOverlay(aiko.PipelineElement):
-    pass
+    def __init__(self, context):
+        context.set_protocol("video_show:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+        self.color = (0, 255, 255)
+        self.font = cv2.FONT_HERSHEY_SIMPLEX
+        self.font_scale = 0.75
+        self.thickness = 2
+        self.threshold = 0.0
+
+    def process_frame(self, stream, images, overlay)  \
+        -> Tuple[aiko.StreamEvent, dict]:
+
+        images_overlaid = []
+        for image in images:
+            image_width = image.shape[1]
+            grayscale = len(image.shape) == 2
+            if grayscale:
+                image_bgr = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+            else:
+                image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+            if "rectangles" in overlay:
+                rectangles = overlay["rectangles"]
+                if "objects" in overlay:
+                    objects = overlay["objects"]
+                else:
+                    objects = [{}] * len(rectangles)
+
+                items = zip(objects, rectangles)
+                for item in items:
+                    object, rectangle = item
+                    name = object.get("name", None)
+                    confidence = object.get("confidence", 1.0)
+                    if confidence > self.threshold:
+                        x = int(rectangle["x"])
+                        y = int(rectangle["y"])
+                        w = int(rectangle["w"])
+                        h = int(rectangle["h"])
+                        top_left = (x, y)
+                        bottom_right = (x + w, y + h)
+                        if name:
+                            text = f"{name}: {confidence:0.2f}"
+                            width_height, _ = cv2.getTextSize(text,
+                                self.font, self.font_scale, self.thickness)
+                            tw, th = width_height
+                            tx = x
+                            if y > th * 1.5:
+                                ty = int(y - th / 2 - 2)
+                            else:
+                                ty = y + h + th + 2
+                            if x + tw > image_width:
+                                tx = x - tw
+                                ty = y + th
+                            image_bgr = cv2.putText(image_bgr, text, (tx, ty),
+                                self.font, self.font_scale, self.color,
+                                self.thickness, cv2.LINE_AA)
+                        image_bgr = cv2.rectangle(image_bgr,
+                            top_left, bottom_right, self.color, self.thickness)
+
+            if grayscale:
+                image_overlaid = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+            else:
+                image_overlaid = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+            images_overlaid.append(image_overlaid)
+
+        return aiko.StreamEvent.OKAY, {"images": images_overlaid}
 
 # --------------------------------------------------------------------------- #
 # ImageReadFile is a DataSource which supports ...
@@ -112,6 +195,10 @@ class ImageReadFile(DataSource):  # common_io.py PipelineElement
 #           different input types (np.ndarray, ...)
 #
 # TODO: cv2.resize(image, dimensions, interpolation=cv2.INTER_CUBIC) ?
+#       Shrink: INTER_AREA, enlarge: INTER_CUBIC (slow) or INTER_LINEAR (fast)
+#       parameter: "speed": "fast" --> INTER_AREA or INTER_CUBIC
+#       parameter: "speed": "slow" --> INTER_LINEAR
+#       https://gist.github.com/georgeblck/e3e0274d725c858ba98b1c36c14e2835
 
 class ImageResize(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
@@ -124,7 +211,11 @@ class ImageResize(aiko.PipelineElement):
 
         images_resized = []
         for image in images:
-            images_resized.append(image.resize((int(width), int(height))))
+            if isinstance(image, np.ndarray):  # TODO: Check CV2_IMPORTED
+                image_resized = cv2.resize(image, (int(width), int(height)))
+            else:
+                image_resized = image.resize((int(width), int(height)))
+            images_resized.append(image_resized)
         return aiko.StreamEvent.OKAY, {"images": images_resized}
 
 # --------------------------------------------------------------------------- #
@@ -148,7 +239,7 @@ class ImageWriteFile(DataTarget):  # common_io.py PipelineElement
 
             if not isinstance(image, Image.Image):
                 if isinstance(image, np.ndarray):  # TODO: Check NUMPY_IMPORTED
-                    pass                           # TODO: numpy conversion
+                    image = Image.fromarray(image.astype("uint8"), "RGB")
                 else:
                     return aiko.StreamEvent.ERROR,  \
                            {"diagnostic": "UNKNOWN IMAGE TYPE"}  # FIX ME !

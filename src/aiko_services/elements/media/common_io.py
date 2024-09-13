@@ -1,5 +1,10 @@
 # To Do
 # ~~~~~
+# - Handle "data_source schemes" other than just "file://"
+#   - Implement "data_source scheme" parser that validates the scheme type
+#   - Update "DataSource.start_stream()" to hand more than just "file://"
+#   - Include "webcam://0" and "webcam://dev/video0"
+#
 # - Move DataSource and DataTarget into "aiko_services.main.data_source.py" ?
 #   - Define "data_sources" and "data_targets" as Python data classes
 #

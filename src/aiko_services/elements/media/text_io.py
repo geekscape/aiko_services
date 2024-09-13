@@ -45,7 +45,7 @@ from typing import Tuple
 from pathlib import Path
 
 import aiko_services as aiko
-from aiko_services.elements.media import *
+from aiko_services.elements.media import DataSource, DataTarget
 
 __all__ = ["TextOutput", "TextReadFile", "TextTransform", "TextWriteFile"]
 

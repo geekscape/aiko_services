@@ -7,6 +7,8 @@
 # aiko_pipeline create pipeline_webcam_0.json -s 1  \
 #   -sp VideoReadWebcam.path /dev/video2
 #
+# aiko_pipeline create pipeline_webcam_1.json -s 1
+#
 # Notes
 # ~~~~~
 # - See https://github.com/ultralytics/ultralytics/issues/3005

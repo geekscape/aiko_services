@@ -86,9 +86,9 @@ class PE_AudioFilter(PipelineElement):
 
 AR_BAND_COUNT = 8
 
-class PE_AudioResampler(PipelineElement):
+class PE_AudioResampler(PipelineElement):  # TODO: AudioTransform ?
     def __init__(self, context):
-        context.set_protocol("resample:0")
+        context.set_protocol("audio_resample:0")
         context.get_implementation("PipelineElement").__init__(self, context)
         self.counter = 0
 

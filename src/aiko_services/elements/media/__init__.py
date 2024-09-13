@@ -20,4 +20,6 @@ from .image_io import (
 
 from .text_io import TextOutput, TextReadFile, TextTransform, TextWriteFile
 
-# from .video_io import VideoReadFile, VideoShow, VideoWriteFile
+from .video_io import VideoOutput, VideoReadFile, VideoShow, VideoWriteFile
+
+from .webcam_io import VideoReadWebcam

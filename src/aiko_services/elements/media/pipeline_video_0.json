@@ -3,31 +3,43 @@
   "name":    "p_video_io_0",
   "runtime": "python",
 
-  "#":     ["(VideoReadFile)"],
-  "graph": ["(VideoReadFile VideoWriteFile)"],
-  "#":     ["(VideoReadFile ImageResize VideoWriteFile)"],
+  "graph": ["(VideoReadFile)"],
+  "#":     ["(VideoReadFile VideoShow)"],
+  "#":     ["(VideoReadFile VideoShow VideoWriteFile)"],
+  "#":     ["(VideoReadFile ImageResize VideoShow VideoWriteFile)"],
 
-  "parameters": {"width": 640, "height": 480},
+  "parameters": {"resolution": "320x240"},
 
   "elements": [
     { "name":   "VideoReadFile",
-      "parameters": {"path": "data_in/in_01.mp4"},
-      "input":  [{ "name": "image", "type": "image" }],
-      "output": [{ "name": "image", "type": "image" }],
+      "parameters": {
+         "data_sources": "(file://data_in/in_01.mp4)",
+         "data_sources_1": "(file://data_in/in_{}.jpeg)",
+         "data_batch_size": 1
+      },
+      "input":  [{"name": "paths",  "type": "[Path]"}],
+      "output": [{"name": "images", "type": "[image]"}],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.video_io"}
       }
     },
     { "name":   "ImageResize",
-      "input":  [{ "name": "image", "type": "image" }],
-      "output": [{ "name": "image", "type": "image" }],
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.image_io"}
       }
     },
+    { "name":   "VideoShow",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    },
     { "name":   "VideoWriteFile",
-      "parameters": {"path": "data_out/out_01.mp4"},
-      "input":  [{ "name": "image", "type": "image" }],
+      "parameters": {"data_targets": "file://data_out/out_{:02d}.mp4"},
+      "input":  [{"name": "images", "type": "[image]"}],
       "output": [],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.video_io"}
