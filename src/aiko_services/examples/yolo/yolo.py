@@ -28,6 +28,15 @@ __all__ = [ "YoloDetector" ]
 _YOLO_MODEL_PATHNAME = "yolov8n_robotdog.pt"
 
 # --------------------------------------------------------------------------- #
+# New classes trained for "yolov8n_robotdog.pt" ...
+# 20: tennis_ball, 21: kong_ball, 22: rubber_ball, 23: dog_biscuit
+# 26: blue_cup,    27: red_cup,   28: orange_cone
+# 30: stop_sign,   31: sign
+# 33: octopus,     34: red_ball,  35: green_ball,  61: building
+# 77: pine_tree,   78: oak_tree,  79: xgomini2
+
+_ROBOTDOG_CLASSES = [
+    20, 21, 22, 23, 26, 27, 28, 30, 31, 33, 34, 35, 61, 77, 78, 79 ]
 
 import torch
 from ultralytics import YOLO
@@ -55,19 +64,21 @@ class YoloDetector(aiko.PipelineElement):
             for detection in detections:
                 box_id = 0
                 for box in detection.boxes:
-                    name = detection.names[box.cls[0].item()]
-                    confidence = round(box.conf[0].item(), 2)
-                    x = int(box.xyxy[0][0].item())
-                    y = int(box.xyxy[0][1].item())
-                    w = int(box.xywh[0][2].item())
-                    h = int(box.xywh[0][3].item())
+                    class_id = int(box.cls[0].item())
+                    if class_id in _ROBOTDOG_CLASSES:
+                        name = detection.names[class_id]
+                        confidence = round(box.conf[0].item(), 2)
+                        x = int(box.xyxy[0][0].item())
+                        y = int(box.xyxy[0][1].item())
+                        w = int(box.xywh[0][2].item())
+                        h = int(box.xywh[0][3].item())
 
-                    objects.append({"name": name, "confidence": confidence})
-                    rectangles.append({"x": x, "y": y, "w": w, "h": h})
+                        objects.append({"name": name, "confidence": confidence})
+                        rectangles.append({"x": x, "y": y, "w": w, "h": h})
 
-                #   print(f"{name}: c: {confidence:0.2f}: "  \
-                #         f"i{image_id}: d{detection_id}: b{box_id}")
-                    box_id += 1
+                    #   print(f"{name}: c: {confidence:0.2f}: "  \
+                    #         f"i{image_id}: d{detection_id}: b{box_id}")
+                        box_id += 1
                 detection_id += 1
             image_id += 1
 

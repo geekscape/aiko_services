@@ -22,7 +22,7 @@
       "input":  [{"name": "images",  "type": "[image]"}],
       "output": [{"name": "overlay", "type": "[overlay]"}],
       "deploy": {
-        "local": {"module": "aiko_services.examples.face.face_elements"}
+        "local": {"module": "aiko_services.examples.face.face"}
       }
     },
     { "name":   "ImageOverlay",
