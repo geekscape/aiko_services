@@ -1,6 +1,6 @@
 {
   "version": 0,
-  "name":    "p_image_io_0",
+  "name":    "p_image_0",
   "runtime": "python",
 
   "graph": ["(ImageReadFile ImageResize ImageWriteFile)"],

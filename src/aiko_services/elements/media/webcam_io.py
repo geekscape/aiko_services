@@ -1,8 +1,6 @@
 # Usage
 # ~~~~~
-# export AIKO_LOG_LEVEL=DEBUG  # provides more verbose output
-#
-# aiko_pipeline create pipeline_webcam_0.json -s 1
+# aiko_pipeline create pipeline_webcam_0.json -s 1 -ll debug
 #
 # aiko_pipeline create pipeline_webcam_0.json -s 1  \
 #   -sp VideoReadWebcam.path /dev/video2

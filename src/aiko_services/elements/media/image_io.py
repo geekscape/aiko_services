@@ -1,8 +1,6 @@
 # Usage
 # ~~~~~
-# export AIKO_LOG_LEVEL=DEBUG  # provides more verbose output
-#
-# aiko_pipeline create pipeline_image_0.json -s 1 -sr
+# aiko_pipeline create pipeline_image_0.json -s 1 -sr -ll debug
 #
 # aiko_pipeline create pipeline_image_0.json -s 1 -sp rate 1.0
 #
@@ -83,6 +81,7 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
 
 class ImageOutput(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("image_output:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
@@ -97,7 +96,7 @@ class ImageOutput(aiko.PipelineElement):
 
 class ImageOverlay(aiko.PipelineElement):
     def __init__(self, context):
-        context.set_protocol("video_show:0")
+        context.set_protocol("image_overlay:0")
         context.get_implementation("PipelineElement").__init__(self, context)
         self.color = (0, 255, 255)
         self.font = cv2.FONT_HERSHEY_SIMPLEX
@@ -175,6 +174,7 @@ class ImageOverlay(aiko.PipelineElement):
 
 class ImageReadFile(DataSource):  # common_io.py PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("image_read_file:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream, paths) -> Tuple[aiko.StreamEvent, dict]:
@@ -202,6 +202,7 @@ class ImageReadFile(DataSource):  # common_io.py PipelineElement
 
 class ImageResize(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("image_resize:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
@@ -227,6 +228,7 @@ class ImageResize(aiko.PipelineElement):
 
 class ImageWriteFile(DataTarget):  # common_io.py PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("image_write_file:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:

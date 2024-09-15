@@ -1,12 +1,27 @@
 # Usage
 # ~~~~~
-# cd src/aiko_services/elements/media
-# aiko_pipeline create pipeline_video_io.json --stream_id 1  \
-#   -sp VideoReadFile.path video.mp4
-#   -sp ImageResize.width 320 -sp ImageResize.height 240
+# aiko_pipeline create pipeline_video_0.json -s 1 -sr -ll debug
+#
+# aiko_pipeline create pipeline_video_0.json -s 1 -sp rate 4.0
+#
+# aiko_pipeline create pipeline_video_0.json -s 1  \
+#   -sp VideoReadFile.data_batch_size 8
+#
+# aiko_pipeline create pipeline_video_0.json -s 1  \
+#   -sp VideoReadFile.data_sources file://data_in/in_{}.mp4
+#
+# aiko_pipeline create pipeline_video_0.json -s 1  \
+#     -sp VideoWriteFile.path "file://data_out/out_{:02d}.mp4"
+#
+# aiko_pipeline create pipeline_video_0.json -s 1            \
+#   -sp VideoReadFile.data_sources file://data_in/in_00.mp4  \
+#   -sp ImageResize.resolution 320x240                       \
+#   -sp VideoWriteFile.data_targets file://data_out/out_00.mp4
 #
 # To Do
 # ~~~~~
+# - Implement "VideoReadFile.data_batch_size"
+#
 # - Refactor optional module import into common function (see image_io.py)
 #
 # - Implement start_frame, stop_frame, sample_rate parameters
@@ -23,18 +38,27 @@
 # - VideoReadFile should accept a DataSource type ...
 #   - URL: "file://" and media_type: "mp4", etc
 #
-# - PE_Metrics: Determine what to measure ?
+# - PE_Metrics: Determine what to metrics to capture, e.g frame rates ?
 #
 # - Design video windowing, i.e collecting multiple frame for ML processing
 #   together, e.g gesture analysis
 #
 # - "Batching" images for CPU-GPU memory transfer efficiently for nVidia
 #   - For both images and video ... depending upon ML model
+#
+# - Consider VideoShow() GUI ...
+#   - Why aren't the cv2.imshow() graphical icons appearing about the image ?
+#   - cv2.createTrackbar() ?
+#   - Integrate with tkinter ?
 
 from typing import Tuple
 from pathlib import Path
 
 import aiko_services as aiko
+from aiko_services.elements.media import contains_all, DataSource, DataTarget
+
+__all__ = ["VideoOutput", "VideoReadFile", "VideoShow", "VideoWriteFile"]
+
 _LOGGER = aiko.get_logger(__name__)
 
 _CV2_IMPORTED = False
@@ -50,198 +74,214 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
         'Install aiko_services with --extras "opencv" '
         'or install opencv-python manually to use the "video_io" module')
 
-__all__ = ["VideoReadFile", "VideoShow", "VideoWriteFile"]
+_NUMPY_IMPORTED = False
+try:
+    import numpy as np
+    _NUMPY_IMPORTED = True
+except ModuleNotFoundError:  # TODO: Optional warning flag
+    diagnostic = "image_io.py: Couldn't import numpy module"
+    print(f"WARNING: {diagnostic}")
+    _LOGGER.warning(diagnostic)
 
 # --------------------------------------------------------------------------- #
+# Useful for Pipeline output that should be all of the images processed
 
-class VideoReadFile(aiko.PipelineElement):
+class VideoOutput(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("video_output:0")
         context.get_implementation("PipelineElement").__init__(self, context)
-        self.stream = {}
+
+    def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
+        return aiko.StreamEvent.OKAY, {"images": images}
+
+# --------------------------------------------------------------------------- #
+# VideoReadFile is a DataSource which supports ...
+# - Individual video files
+# - Directory of video files with an optional filename filter
+# - TODO: Archive (tgz, zip) of video files with an optional filename filter
+#
+# parameter: "data_sources" is the read file path, format variable: "video_id"
+#
+# Note: Only supports Streams with "data_sources" parameter
+
+class VideoReadFile(DataSource):  # common_io.py PipelineElement
+    def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("video_read_file:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
 
     def start_stream(self, stream, stream_id):
-        self.logger.debug(f"{self.my_id()} start_stream()")
+        stream.variables["video_capture"] = None
+        stream.variables["video_frame_generator"] = None
+        return super().start_stream(stream, stream_id, use_create_frame=False)
 
-        path, found = self.get_parameter("path")
-        if not found:
-            return aiko.StreamEvent.ERROR,  \
-                   {"diagnostic": 'Must provide video "path" parameter'}
-        if not Path(path).exists():
-            return aiko.StreamEvent.ERROR,  \
-                   {"diagnostic": f"path: {path} does not exist"}
+    def video_frame_iterator(self, video_capture):
+        while True:
+            status, image_bgr = video_capture.read()
+            if not status:
+                break
+            image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+            yield image_rgb
 
-        video_capture = cv2.VideoCapture(path)
-        if (video_capture.isOpened() == False):
-            return aiko.StreamEvent.ERROR,  \
-                   {"diagnostic": f"Couldn't open video file: {path}"}
+    def frame_generator(self, stream, frame_id):
+        video_frame_generator = stream.variables["video_frame_generator"]
+        while True:
+            if not video_frame_generator:
+                try:
+                    path, file_id = next(
+                        stream.variables["source_paths_generator"])
+                except StopIteration:
+                    stream.variables["source_paths_generator"] = None
+                    diagnostic = "End of video file(s)"
+                    return aiko.StreamEvent.STOP, {"diagnostic": diagnostic}
 
-        self.stream.video_capture = video_capture
-        self.create_frames(stream, self._create_frame_fn)
-        return aiko.StreamEvent.OKAY, {}
+                if not path.is_file():
+                    diagnostic = f'path "{path}" must be a file'
+                    return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
-    def _create_frame_fn(self, stream):
-        self.logger.debug(f"{self.my_id()} _create_frame()")
+            # TODO: handle integer video "path" ... maybe ?
+            #   if isinstance(path, str) and path.isdigit():
+            #       path = int(str(path))
 
-        stream_id = stream.stream_id
-        frame_id = stream.frame_id
-        video_capture = self.stream.video_capture
+                video_capture = cv2.VideoCapture(str(path))
+                if not video_capture.isOpened():
+                    diagnostic = f"Couldn't open video file: {path}"
+                    return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+                stream.variables["video_capture"] = video_capture
+                video_frame_generator = self.video_frame_iterator(video_capture)
+                stream.variables["video_frame_generator"] =  \
+                    video_frame_generator
 
-        if video_capture.isOpened():
-            success, image_bgr = video_capture.read()
-            if success == True:
-                self.logger.debug(f"{self.my_id()} frame_generator()")
-                image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-                if frame_id % 10 == 0:
-                    print(f"Frame Id: {frame_id}", end="\r")
+            try:
+                image_rgb = next(video_frame_generator)
+                return aiko.StreamEvent.OKAY, {"images": [image_rgb]}
+            except StopIteration:
+                video_frame_generator = None
+                stream.variables["video_frame_generator"] = None
 
-                return aiko.StreamEvent.OKAY, {"image": image_rgb}
-            else:
-                return aiko.StreamEvent.ERROR,  \
-                       {"diagnostic": f"Read video capture at {frame_id}"}
-        return aiko.StreamEvent.STOP, {"diagnostic": "Video capture complete"}
-
-    def process_frame(self, stream, image) -> Tuple[aiko.StreamEvent, dict]:
-        self.logger.debug(f"{self.my_id()} <-- PROCESS_FRAME()")
-        return aiko.StreamEvent.OKAY, {"image": image}
+    def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
+        self.logger.debug(f"{self.my_id()}")
+        return aiko.StreamEvent.OKAY, {"images": images}
 
     def stop_stream(self, stream, stream_id):
-        self.logger.debug(f"{self.my_id()} stop_stream()")
-
-        video_capture = self.stream.video_capture
+        video_capture = stream.variables["video_capture"]
         if video_capture.isOpened():
             video_capture.release()
-
+            stream.variables["video_capture"] = None
         return aiko.StreamEvent.OKAY, {}
 
 # --------------------------------------------------------------------------- #
+# TODO: Change color, title and resolution
 
 class VideoShow(aiko.PipelineElement):
-    def stream_frame_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"{self.my_id()} stream_frame_handler()")
-        title = self.parameters["window_title"]
-        image_rgb = swag[self.predecessor]["image"]
-        image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2RGB)
-        cv2.imshow(title, image_bgr)
-        if frame_id == 0:
-            window_x = self.parameters["window_location"][0]
-            window_y = self.parameters["window_location"][1]
-            cv2.moveWindow(title, window_x, window_y)
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            return False, None
-        return True, {"image": image_rgb}
-
-    def stream_stop_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"{self.my_id()} stream_stop_handler()")
-        cv2.destroyAllWindows()
-        return True, None
-
-# --------------------------------------------------------------------------- #
-
-# video_capture = self.stream[stream_id]
-
-class VideoWriteFile(aiko.PipelineElement):
-    def __init__(self, context: aiko.ContextPipelineElement):
+    def __init__(self, context):
+        context.set_protocol("video_show:0")
         context.get_implementation("PipelineElement").__init__(self, context)
-        self.stream = {}
 
-    def start_stream(self, stream, stream_id):
-        self.logger.debug(f"{self.my_id()} start_stream()")
+    def slider_handler(self, value):
+        print(f"slider: {value}")
+        cv2.imshow(title, image_bgr)
+
+    def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
+        for image in images:
+            if not isinstance(image, np.ndarray):
+                image = np.array(image)  # RGB
+
+            grayscale = len(image.shape) == 2
+            if grayscale:
+                image_bgr = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+            else:
+                image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+            title, _ = self.get_parameter("title", "Video")
+            cv2.namedWindow(title)
+        #   cv2.createTrackbar("Slider", title, 0, 9, self.slider_handler)
+            cv2.imshow(title, image_bgr)
+            if stream.frame_id == 0:
+                position, _ = self.get_parameter("position", "1280:0")
+                position_x, position_y = position.split(":")
+                cv2.moveWindow(title, int(position_x), int(position_y))
+            if cv2.waitKey(1) & 0xFF == ord("x"):
+                system_exit, _ = self.get_parameter("system_exit", False)
+                diagnostic = "VideoShow exit"
+                if system_exit:
+                    raise SystemExit(diagnostic)
+                else:
+                    return aiko.StreamEvent.STOP, {"diagnostic": diagnostic}
         return aiko.StreamEvent.OKAY, {}
 
-    def process_frame(self, stream, image) -> Tuple[aiko.StreamEvent, dict]:
-        self.logger.debug(f"{self.my_id()} <-- PROCESS_FRAME()")
+    def stream_stop_handler(self, stream, stream_id):
+        cv2.destroyAllWindows()  # TODO: when all Streams stopped
+        return aiko.StreamEvent.OKAY, {}
+
+# --------------------------------------------------------------------------- #
+# VideoWriteFile is a DataTarget that writes images to a video file
+#
+# parameter: "data_targets" is the write file path, format variable: "frame_id"
+#
+# Note: Only supports Streams with "data_targets" parameters
+
+class VideoWriteFile(DataTarget):  # common_io.py PipelineElement
+    def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("video_write_file:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def start_stream(self, stream, stream_id):
+        stream_event, diagnostic = super().start_stream(stream, stream_id)
+
+        if stream_event == aiko.StreamEvent.OKAY:
+            path = stream.variables["target_path"]
+            if contains_all(path, "{}"):
+                path = path.format(stream.variables["target_file_id"])
+            self.logger.debug(f"{self.my_id()}: {path}")
+            stream.variables["video_path"] = path
+            stream.variables["video_writer"] = None
+            stream_event = aiko.StreamEvent.OKAY
+            diagnostic = {}
+        return stream_event, diagnostic
+
+# Show codec list by invoking cv2.VideoWriter(..., fourcc=-1)
+# video_output.avi: format: XVID
+# video_output.mp4: format: MP4V, DIVX, H264, X264
+# Linux:   DIVX, XVID, MJPG, X264, WMV1, WMV2
+# WIndows: DIVX
+
+    def _create_video_writer(
+        self, path, resolution, format="MP4V", frame_rate=30.0):
+
+        format, _ = self.get_parameter("format", format)
+        format = cv2.VideoWriter_fourcc(*format)
+        frame_rate, _ = self.get_parameter("frame_rate", frame_rate)
+        resolution, _ = self.get_parameter("resolution", resolution)
+        if isinstance(resolution, str):
+            width, height = resolution.split("x")
+            resolution = (int(width), int(height))
+        parent_path = Path(path).parent
+        parent_path.mkdir(exist_ok=True, parents=True)
+        path = str(path)
+        video_writer = cv2.VideoWriter(path, format, frame_rate, resolution)
+        return video_writer
+
+    def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
+        self.logger.debug(f"{self.my_id()}")
+
+        if stream.variables["video_writer"]:
+            video_writer = stream.variables["video_writer"]
+        else:
+            path = stream.variables["video_path"]
+            resolution = (images[0].shape[1], images[0].shape[0])
+            video_writer = self._create_video_writer(path, resolution)
+            stream.variables["video_writer"] = video_writer
+
+        for image in images:
+            image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            video_writer.write(image_bgr)
+
         return aiko.StreamEvent.OKAY, {}
 
     def stop_stream(self, stream, stream_id):
+        if stream.variables["video_writer"]:
+            stream.variables["video_writer"].release()
+            stream.variables["video_writer"] = None
         return aiko.StreamEvent.OKAY, {}
-
-"""
-    def stream_start_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"{self.my_id()} stream_start_handler()")
-        self.image_shape = None
-        self.video_format = self.parameters.get("video_format", "AVC1")
-        self.video_frame_rate = self.parameters["video_frame_rate"]
-        self.video_pathname = self.parameters["video_pathname"]
-        self.video_writer = None
-        return True, None
-
-    def _init_video_writer(self, video_pathname, video_format, frame_rate, image_shape):
-        video_directory = Path(video_pathname).parent
-        video_directory.mkdir(exist_ok=True, parents=True)
-        return cv2.VideoWriter(
-                video_pathname,
-                cv2.VideoWriter_fourcc(*video_format),
-                frame_rate,
-                image_shape)
-
-    def stream_frame_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"{self.my_id()} stream_frame_handler()")
-        image_rgb = swag[self.predecessor]["image"]
-        image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2RGB)
-
-        if self.video_writer is None:
-            if self.image_shape is None:
-                self.image_shape = (image_rgb.shape[1], image_rgb.shape[0])
-            self.video_writer = self._init_video_writer(
-                    self.video_pathname,
-                    self.video_format,
-                    self.video_frame_rate,
-                    self.image_shape)
-
-        self.video_writer.write(image_bgr)
-        return True, {"image": image_rgb}
-
-    def stream_stop_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"{self.my_id()} stream_stop_handler()")
-        if self.video_writer:
-            self.video_writer.release()
-            self.video_writer = None
-        return True, None
-"""
-
-# --------------------------------------------------------------------------- #
-
-class VideoWriteFileOld(aiko.PipelineElement):
-    def stream_start_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"{self.my_id()} stream_start_handler()")
-        self.image_shape = None
-        self.video_format = self.parameters.get("video_format", "AVC1")
-        self.video_frame_rate = self.parameters["video_frame_rate"]
-        self.video_pathname = self.parameters["video_pathname"]
-        self.video_writer = None
-        return True, None
-
-    def _init_video_writer(self, video_pathname, video_format, frame_rate, image_shape):
-        video_directory = Path(video_pathname).parent
-        video_directory.mkdir(exist_ok=True, parents=True)
-        return cv2.VideoWriter(
-                video_pathname,
-                cv2.VideoWriter_fourcc(*video_format),
-                frame_rate,
-                image_shape)
-
-    def stream_frame_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"{self.my_id()} stream_frame_handler()")
-        image_rgb = swag[self.predecessor]["image"]
-        image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2RGB)
-
-        if self.video_writer is None:
-            if self.image_shape is None:
-                self.image_shape = (image_rgb.shape[1], image_rgb.shape[0])
-            self.video_writer = self._init_video_writer(
-                    self.video_pathname,
-                    self.video_format,
-                    self.video_frame_rate,
-                    self.image_shape)
-
-        self.video_writer.write(image_bgr)
-        return True, {"image": image_rgb}
-
-    def stream_stop_handler(self, stream_id, frame_id, swag):
-        self.logger.debug(f"{self.my_id()} stream_stop_handler()")
-        if self.video_writer:
-            self.video_writer.release()
-            self.video_writer = None
-        return True, None
 
 # --------------------------------------------------------------------------- #

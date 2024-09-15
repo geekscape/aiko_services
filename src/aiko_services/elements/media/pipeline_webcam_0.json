@@ -1,6 +1,6 @@
 {
   "version": 0,
-  "name":    "p_webcam_io",
+  "name":    "p_webcam_0",
   "runtime": "python",
 
   "graph": ["(VideoReadWebcam ImageResize VideoShow)"],

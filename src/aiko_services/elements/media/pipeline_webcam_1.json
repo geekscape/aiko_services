@@ -1,9 +1,9 @@
 {
   "version": 0,
-  "name":    "p_webcam_io",
+  "name":    "p_webcam_1",
   "runtime": "python",
 
-  "graph": ["(VideoReadWebcam ImageWriteFile)"],
+  "graph": ["(VideoReadWebcam VideoShow VideoWriteFile)"],
 
   "elements": [
     { "name":   "VideoReadWebcam",
@@ -14,12 +14,19 @@
         "local": {"module": "aiko_services.elements.media.webcam_io"}
       }
     },
-    { "name":   "ImageWriteFile",
-      "parameters": {"data_targets": "file://data_out/out_{:06d}.jpeg"},
+    { "name":   "VideoShow",
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [],
       "deploy": {
-        "local": {"module": "aiko_services.elements.media.image_io"}
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    },
+    { "name":   "VideoWriteFile",
+      "parameters": {"data_targets": "file://data_out/out_{:02d}.mp4"},
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
       }
     }
   ]

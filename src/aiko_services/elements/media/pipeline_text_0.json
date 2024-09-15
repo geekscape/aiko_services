@@ -1,6 +1,6 @@
 {
   "version": 0,
-  "name":    "p_text_io_0",
+  "name":    "p_text_0",
   "runtime": "python",
 
   "graph": ["(TextReadFile TextTransform TextWriteFile)"],

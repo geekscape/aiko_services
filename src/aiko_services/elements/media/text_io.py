@@ -1,8 +1,6 @@
 # Usage
 # ~~~~~
-# export AIKO_LOG_LEVEL=DEBUG  # provides more verbose output
-#
-# aiko_pipeline create pipeline_text_0.json -s 1 -sr
+# aiko_pipeline create pipeline_text_0.json -s 1 -sr -ll debug
 #
 # aiko_pipeline create pipeline_text_0.json -s 1 -sp rate 1.0
 #
@@ -54,6 +52,7 @@ __all__ = ["TextOutput", "TextReadFile", "TextTransform", "TextWriteFile"]
 
 class TextOutput(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("text_output:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
@@ -71,6 +70,7 @@ class TextOutput(aiko.PipelineElement):
 
 class TextReadFile(DataSource):  # common_io.py PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("text_read_file:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream, paths) -> Tuple[aiko.StreamEvent, dict]:
@@ -91,6 +91,7 @@ class TextReadFile(DataSource):  # common_io.py PipelineElement
 
 class TextTransform(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("text_transform:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
         self.transforms = {
@@ -130,6 +131,7 @@ class TextTransform(aiko.PipelineElement):
 
 class TextWriteFile(DataTarget):  # common_io.py PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("text_write_file:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:

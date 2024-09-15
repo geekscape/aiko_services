@@ -8,7 +8,7 @@
 # aiko_pipeline create  [--name $PIPELINE_NAME] $DEFINITION
 # aiko_pipeline destroy $PIPELINE_NAME
 #
-# AIKO_LOG_LEVEL=DEBUG aiko_pipeline create $DEFINITION  \
+# aiko_pipeline create $DEFINITION --log_level debug  \
 #   --stream_id 1 --frame_data "(argument_name: argument_value ...)"
 #
 # NAMESPACE=AIKO
@@ -1336,9 +1336,18 @@ def main():
     help="Stream receive frame time-out duration")
 @click.option("--show_response", "-sr", is_flag=True,
     help="Show pipeline output response (output)")
+@click.option("--log_level", "-ll", type=str,
+    default="INFO", required=False,
+    help="error, warning, info, debug")
+@click.option("--log_mqtt", "-lm", type=str,
+    default="all", required=False,
+    help="all, false (console), true (mqtt)")
 
 def create(definition_pathname, name, stream_id, stream_parameters,
-    frame_id, frame_data, grace_time, show_response):
+    frame_id, frame_data, grace_time, show_response, log_level, log_mqtt):
+
+    os.environ["AIKO_LOG_LEVEL"] = log_level.upper()
+    os.environ["AIKO_LOG_MQTT"] = log_mqtt
 
     if not os.path.exists(definition_pathname):
         raise SystemExit(
