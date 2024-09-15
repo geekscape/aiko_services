@@ -48,7 +48,8 @@ dependencies = [
 ]
 
 # [project.optional-dependencies]
-# opencv-python = ["opencv-python~=4.4.0"]
+# opencv-python = ["opencv-python~=4.10.0.84"]
+# opencv-contrib-python = ["opencv-contrib-python~=4.10.0.84"]
 # linux = ["PyAudio~=0.2.13"]
 # macosx = ["PyAudio~=0.2.13"]
 

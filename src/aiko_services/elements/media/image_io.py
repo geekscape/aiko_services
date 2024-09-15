@@ -1,24 +1,24 @@
 # Usage
 # ~~~~~
-# aiko_pipeline create pipeline_image_0.json -s 1 -sr -ll debug
+# aiko_pipeline create image_pipeline_0.json -s 1 -sr -ll debug
 #
-# aiko_pipeline create pipeline_image_0.json -s 1 -sp rate 1.0
+# aiko_pipeline create image_pipeline_0.json -s 1 -sp rate 1.0
 #
-# aiko_pipeline create pipeline_image_0.json -s 1  \
+# aiko_pipeline create image_pipeline_0.json -s 1  \
 #   -sp ImageReadFile.data_batch_size 8
 #
-# aiko_pipeline create pipeline_image_0.json -s 1  \
+# aiko_pipeline create image_pipeline_0.json -s 1  \
 #   -sp ImageReadFile.data_sources file://data_in/in_{}.jpeg
 #
-# aiko_pipeline create pipeline_image_0.json -s 1  \
+# aiko_pipeline create image_pipeline_0.json -s 1  \
 #     -sp ImageWriteFile.path "file://data_out/out_{:02d}.jpeg"
 #
-# aiko_pipeline create pipeline_image_0.json -s 1             \
+# aiko_pipeline create image_pipeline_0.json -s 1             \
 #   -sp ImageReadFile.data_sources file://data_in/in_00.jpeg  \
 #   -sp ImageResize.resolution 320x240                        \
 #   -sp ImageWriteFile.data_targets file://data_out/out_00.jpeg
 #
-# aiko_pipeline create pipeline_image_1.json -s 1
+# aiko_pipeline create image_pipeline_1.json -s 1
 #
 # To Do
 # ~~~~~
