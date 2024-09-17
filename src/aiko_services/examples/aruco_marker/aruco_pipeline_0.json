@@ -1,0 +1,48 @@
+{
+  "version": 0,
+  "name":    "p_aruco_0",
+  "runtime": "python",
+
+  "graph": ["(VideoReadWebcam ArucoMarkerDetector ArucoMarkerOverlay VideoShow VideoWriteFile)"],
+
+  "elements": [
+    { "name":   "VideoReadWebcam",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "parameters": {"path": "/dev/video0"},
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.webcam_io"}
+      }
+    },
+    { "name":   "ArucoMarkerDetector",
+      "input":  [{"name": "images",   "type": "[image]"}],
+      "output": [{"name": "overlays", "type": "[overlay]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.examples.aruco_marker.aruco"}
+      }
+    },
+    { "name":   "ArucoMarkerOverlay",
+      "input":  [{"name": "images",   "type": "[image]"},
+                 {"name": "overlays", "type": "[overlay]"}],
+      "output": [{"name": "images",   "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.examples.aruco_marker.aruco"}
+      }
+    },
+    { "name":   "VideoShow",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    },
+    { "name":   "VideoWriteFile",
+      "parameters": {"data_targets": "file://data_out/out_{:02d}.mp4"},
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    }
+  ]
+}

@@ -20,14 +20,14 @@
     },
     { "name":   "FaceDetector",
       "input":  [{"name": "images",  "type": "[image]"}],
-      "output": [{"name": "overlay", "type": "[overlay]"}],
+      "output": [{"name": "overlay", "type": "{rectangles]"}],
       "deploy": {
         "local": {"module": "aiko_services.examples.face.face"}
       }
     },
     { "name":   "ImageOverlay",
       "input":  [{"name": "images",  "type": "[image]"},
-                 {"name": "overlay", "type": "[overlay]"}],
+                 {"name": "overlay", "type": "{rectangles]"}],
       "output": [{"name": "images",  "type": "[image]"}],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.image_io"}
@@ -44,7 +44,7 @@
     { "name":   "PE_Metrics",
       "#": "Provides Pipeline and PipelineElement timing information",
       "input":  [],
-      "output": [{"name": "overlay", "type": "[overlay]"}],
+      "output": [{"name": "overlay", "type": "{rectangles}"}],
       "deploy": {
         "local": {"module": "aiko_services.examples.pipeline.elements"}
       }

@@ -3,11 +3,11 @@
 # RT_PATH=$HOME/venvs/venv_3.10.7/lib/python3.10/site-packages/tensorrt_libs
 # export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$RT_PATH
 #
-# aiko_pipeline create yolo_pipeline.json -s 1  # aiko_dashboard --> logging
+# aiko_pipeline create yolo_pipeline_0.json -s 1  # aiko_dashboard --> logging
 #
-# AIKO_LOG_LEVEL=DEBUG aiko_pipeline create yolo_pipeline.json -s 1
+# AIKO_LOG_LEVEL=DEBUG aiko_pipeline create yolo_pipeline_0.json -s 1
 #
-# aiko_pipeline create yolo_pipeline.json -s 1  \
+# aiko_pipeline create yolo_pipeline_0.json -s 1  \
 #   -sp VideoReadWebcam.path /dev/video2
 #
 # To Do

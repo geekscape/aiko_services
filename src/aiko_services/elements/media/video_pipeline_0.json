@@ -35,11 +35,11 @@
     },
     { "name":   "VideoWriteFile",
       "parameters": {
-							    "data_targets": "file://data_out/out_{:02d}.mp4",
-									"format": "MP4V",
-									"frame_rate": 4.0,
-									"resolution": "320x240"
-			},
+                  "data_targets": "file://data_out/out_{:02d}.mp4",
+                  "format": "MP4V",
+                  "frame_rate": 4.0,
+                  "resolution": "320x240"
+      },
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [],
       "deploy": {

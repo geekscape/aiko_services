@@ -12,16 +12,31 @@
 #
 # To Do
 # ~~~~~
+# - Image should already be RGB ... is BGR --> RGB even required here ?
+#   - Move OpenCV RGB-->BGR image conversion into "elements/media/common_io.py"
+#
 # - Detector:    Inference rate (ignore frames ?)
 # - Performance: Using GPU efficiently ?
 
-import cv2
 # import os
 from typing import Tuple
 
 import aiko_services as aiko
 
 __all__ = [ "FaceDetector" ]
+
+_CV2_IMPORTED = False
+try:
+    import cv2
+    _CV2_IMPORTED = True
+except ModuleNotFoundError:  # TODO: Optional warning flag
+    diagnostic = "aruco.py: Couldn't import numpy module"
+    print(f"WARNING: {diagnostic}")
+    _LOGGER.warning(diagnostic)
+    raise ModuleNotFoundError(
+        'opencv-python package not installed.  '
+        'Install aiko_services with --extras "opencv" '
+        'or install opencv-python manually to use the "aruco" module')
 
 # --------------------------------------------------------------------------- #
 
