@@ -1374,7 +1374,7 @@ def create(definition_pathname, name, stream_id, stream_parameters,
         name, stream_id, stream_parameters, frame_id, frame_data, grace_time,
         queue_response=queue_pipeline_response)
 
-    pipeline.run()
+    pipeline.run(mqtt_connection_required=False)
 
 @main.command(help="Destroy Pipeline")
 @click.argument("name", nargs=1, type=str, required=True)

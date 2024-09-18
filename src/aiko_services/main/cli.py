@@ -254,7 +254,7 @@ def main(**kwargs):
             })
         print(yaml.dump(d))
     else:
-        pipeline.run()
+        pipeline.run(mqtt_connection_required=False)
 
 if __name__ == "__main__":
     main()

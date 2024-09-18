@@ -1,6 +1,6 @@
 {
   "version": 0,
-  "name":    "p_aruco_1",
+  "name":    "p_aruco_yolo_2",
   "runtime": "python",
 
   "graph": ["(VideoReadWebcam ArucoMarkerDetector YoloDetector ArucoMarkerOverlay ImageOverlay VideoShow)"],
