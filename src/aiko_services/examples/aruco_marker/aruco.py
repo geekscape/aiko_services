@@ -7,9 +7,11 @@
 #
 # To Do
 # ~~~~~
-# - Integrate ArucoMarkerOverlay with ImageOverlay ?
+# - Implement "distance (tvec)" and overlay next to "marker id"
 #
 # - Determine image type, e.g PIL and/or numpy.ndarray ?
+#
+# - Integrate ArucoMarkerOverlay with ImageOverlay ?
 #
 # - Integrated camera calibration tool (CLI, desktop GUI) ...
 #   - Capture webcam video for camera calibration

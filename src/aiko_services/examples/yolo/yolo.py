@@ -12,6 +12,8 @@
 #
 # To Do
 # ~~~~~
+# - Provide more flexible search for "_YOLO_MODEL_PATHNAME" ?
+#
 # - Detector:    Inference rate (ignore frames ?)
 # - Performance: Using GPU efficiently ?
 # - YoloDetector
