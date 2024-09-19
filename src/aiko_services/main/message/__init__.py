@@ -6,4 +6,6 @@
 
 from .message import Message
 
+from .castaway import Castaway
+
 from .mqtt import MQTT

@@ -3,7 +3,9 @@
   "name":    "p_aruco_yolo_2",
   "runtime": "python",
 
-  "graph": ["(VideoReadWebcam ArucoMarkerDetector YoloDetector ArucoMarkerOverlay ImageOverlay VideoShow)"],
+  "graph": ["(VideoReadWebcam ArucoMarkerDetector YoloDetector ArucoMarkerOverlay ImageOverlay ImageResize VideoShow)"],
+
+  "parameters": {"resolution": "1024x768"},
 
   "elements": [
     { "name":   "VideoReadWebcam",
@@ -40,6 +42,13 @@
       "input":  [{"name": "images",  "type": "[image]"},
                  {"name": "overlay", "type": "[overlay]"}],
       "output": [{"name": "images",  "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "ImageResize",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.image_io"}
       }

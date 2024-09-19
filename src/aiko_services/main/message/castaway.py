@@ -1,20 +1,18 @@
-# To Do
-# ~~~~~
-# - Implement disconnect() and support for "with" statement ?
-# - Implement statistics measurements, e.g performance
+# Used when there is no connected transport layer, e.g no MQTT !
 
-import abc
 from typing import Any
 
-__all__ = ["Message"]
+from aiko_services.main.message import *
 
-class Message(abc.ABC):
+__all__ = ["Castaway"]
+
+class Castaway(Message):
     def __init__(
         self: Any,
         message_handler: Any = None,
         topics_subscribe: Any = None,
         topic_lwt: str = None,
-        payload_lwt: str = None,
+        payload_lwt:str = None,
         retain_lwt: bool = False
         ) -> None:
 
@@ -28,7 +26,7 @@ class Message(abc.ABC):
         wait: bool = False
         ) -> None:
 
-        raise NotImplementedError("Message.publish()")
+        pass
 
     def set_last_will_and_testament(
         self: Any,
@@ -37,10 +35,12 @@ class Message(abc.ABC):
         retain_lwt: bool = False
         ) -> None:
 
-        raise NotImplementedError("Message.set_last_will_and_testament()")
+        pass
 
     def subscribe(self: Any, topics: Any) -> None:
-        raise NotImplementedError("Message.subscribe()")
+        pass
 
     def unsubscribe(self: Any, topics: Any, remove=True) -> None:
-        raise NotImplementedError("Message.unsubscribe()")
+        pass
+
+# Wilson !

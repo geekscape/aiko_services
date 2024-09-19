@@ -146,6 +146,7 @@ class ProcessImplementation(ProcessData):
             self.add_message_handler(
                 self.on_registrar, aiko.TOPIC_REGISTRAR_BOOT)
 
+            aiko.message = Castaway()  # standalone and isolated :(
             mqtt_connected = False
             try:
                 aiko.message = MQTT(
