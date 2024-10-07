@@ -263,7 +263,7 @@ class PipelineGraph(Graph):
                     if strict and input["found"] != 1:
                         diagnostic += "immediate predecessor PipelineElement"
                         try_map_in_out = True
-                        print(f"{diagnostic}")
+                    #   print(f"{diagnostic}")  # TODO: Ensure this is right
                     elif input["found"] == 0:
                         diagnostic += "previous PipelineElements"
                         try_map_in_out = True
@@ -272,7 +272,7 @@ class PipelineGraph(Graph):
                         map_in_nodes = pipeline_definition.map_in_nodes
                         if not self.validate_mapping(
                             map_in_nodes, element_name, input):
-                            print(f"{diagnostic}")
+                        #   print(f"{diagnostic}")  # TODO: Ensure this is right
 
             for successor_name in node.successors:
                 successor = self.get_node(successor_name)
