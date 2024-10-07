@@ -767,8 +767,7 @@ class PipelineImpl(Pipeline):
     def _exit(cls, header, diagnostic):
         complete_diagnostic = f"{header}\n{diagnostic}"
         _LOGGER.error(complete_diagnostic)
-        print(complete_diagnostic)
-        raise SystemExit(complete_diagnostic)
+        raise SystemExit(-1)
 
     def get_stream(self):   # See _enable_thread_local()
         stream = self.thread_local.stream
@@ -779,6 +778,7 @@ class PipelineImpl(Pipeline):
         module_descriptor, element_name, header):
 
         diagnostic = None
+        stack_traceback = ""
         try:
             module = load_module(module_descriptor)
             element_class = getattr(module, element_name)
@@ -786,10 +786,12 @@ class PipelineImpl(Pipeline):
             diagnostic = "found"
         except Exception:
             diagnostic = "loaded"
+            stack_traceback = "\n" + str(traceback.format_exc())
         if diagnostic:
             self._error_pipeline(header,
                 f"PipelineDefinition: PipelineElement {element_name}: "
-                f"Module {module_descriptor} could not be {diagnostic}")
+                f"Module {module_descriptor} could not be {diagnostic}"
+                f"{stack_traceback}")
         return element_class
 
     @classmethod
