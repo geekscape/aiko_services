@@ -272,6 +272,7 @@ class PipelineGraph(Graph):
                         map_in_nodes = pipeline_definition.map_in_nodes
                         if not self.validate_mapping(
                             map_in_nodes, element_name, input):
+                            pass
                         #   print(f"{diagnostic}")  # TODO: Ensure this is right
 
             for successor_name in node.successors:
