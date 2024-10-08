@@ -79,12 +79,12 @@ class PE_Inspect(aiko.PipelineElement):
         enable, _ = self.get_parameter("enable", True)
         if enable:
             names, found = self.get_parameter("inspect")
-            if not found:
-                return aiko.StreamEvent.ERROR,  \
-                       {"diagnostic": "'inspect' parameter not found"}
-            name, names = parse(names)
-            names.insert(0, name)
-            if "*" in names:
+            if found:
+                name, names = parse(names)
+                names.insert(0, name)
+                if "*" in names:
+                    names = frame.swag.keys()
+            else:
                 names = frame.swag.keys()
 
             target, _ = self.get_parameter("target", "log")
@@ -110,7 +110,7 @@ class PE_Inspect(aiko.PipelineElement):
 
         return aiko.StreamEvent.OKAY, _all_outputs(self, stream)
 
-    def start_stream(self, stream, stream_id):
+    def stop_stream(self, stream, stream_id):
         inspect_file = stream.variables.get("inspect_file", None)
         if inspect_file:
             inspect_file.close()

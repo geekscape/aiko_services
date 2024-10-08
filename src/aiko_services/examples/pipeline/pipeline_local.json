@@ -70,7 +70,7 @@
       "parameters": {
         "enable":  true,                  "#": "true or false",
         "inspect": "(*)",                 "#": "inputs / outputs names",
-        "target":  "file:z_inspect.txt",  "#": "file, log or print"},
+        "target":  "file:z_inspect.txt",  "#": "file:, log or print"},
       "input":  [],
       "output": [],
       "deploy": {
