@@ -158,7 +158,11 @@ class LoggingHandlerMQTT(logging.Handler):
         try:
             payload_out = self.format(record)
             if self.console_flag:
-                print(payload_out)
+                try:
+                    print(payload_out)  # TODO: For shell pipes ... flush=True
+                except BrokenPipeError:
+                    pass
+
             if self.ready:
                 self.aiko.message.publish(self.topic, payload_out)
             else:
