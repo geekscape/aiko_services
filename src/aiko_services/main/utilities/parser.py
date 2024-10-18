@@ -108,8 +108,8 @@ def generate_s_expression(expression: List) -> str:
     payload = f"{payload})"
     return payload
 
-RE_CANONICAL_SYMBOL = re.compile(r"^(\d+):(.+)")  # token_length:token_content
-RE_STRING = re.compile(r"""(['"])(.*?)\1""")      # "string" or 'string'
+RE_CANONICAL_SYMBOL = re.compile(r"^(\d+):(.+)", re.DOTALL)  # length:data
+RE_STRING = re.compile(r"""(['"])(.*?)\1""")                 # "text" or 'text'
 
 def parse(payload: str, dictionaries_flag=True):
     result = []

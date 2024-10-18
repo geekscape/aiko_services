@@ -109,7 +109,7 @@ import json
 import os
 import queue
 import threading
-from threading import Thread, current_thread
+from threading import Thread
 import time
 import traceback
 from typing import Any, Dict, List, Tuple
