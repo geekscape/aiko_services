@@ -18,6 +18,8 @@
 #   -sp ImageResize.resolution 320x240                       \
 #   -sp VideoWriteFile.data_targets file://data_out/out_00.mp4
 #
+# Drop frame test
+# ~~~~~~~~~~~~~~~
 # aiko_pipeline create video_pipeline_1.json -s 1 -ll debug
 #
 # To Do

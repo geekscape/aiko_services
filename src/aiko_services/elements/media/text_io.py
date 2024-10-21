@@ -18,7 +18,12 @@
 #   -sp TextTransform.transform titlecase                   \
 #   -sp TextWriteFile.data_targets file://data_out/out_00.txt
 #
+# Drop frame tests (local and remote)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # aiko_pipeline create text_pipeline_1.json -s 1 -ll debug
+#
+# aiko_pipeline create text_pipeline_2.json -s 1 -ll debug  # local
+# aiko_pipeline create text_pipeline_3.json      -ll debug  # remote
 #
 # To Do
 # ~~~~~
