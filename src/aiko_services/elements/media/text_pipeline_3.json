@@ -1,0 +1,18 @@
+{
+  "version": 0,
+  "name":    "p_text_3",
+  "runtime": "python",
+
+  "graph": ["(TextSample)"],
+
+  "elements": [
+    { "name":   "TextSample",
+      "parameters": {"sample_rate": 2},  "#": "Drop every second frame",
+      "input":  [{ "name": "texts", "type": "[str]" }],
+      "output": [{ "name": "texts", "type": "[str]" }],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.text_io"}
+      }
+    }
+  ]
+}

@@ -18,6 +18,8 @@
 #   -sp TextTransform.transform titlecase                   \
 #   -sp TextWriteFile.data_targets file://data_out/out_00.txt
 #
+# aiko_pipeline create text_pipeline_1.json -s 1 -ll debug
+#
 # To Do
 # ~~~~~
 # - TextReadFile(s): Single file or list of files or directory
@@ -30,6 +32,8 @@
 #
 # - TextFilter: line/word/character count, ...
 # - TextTransform: strip(), ...
+#
+# - Rather than TextSample by frame ... sample by text count in [texts] input
 #
 # - Pre-processing / Post-processing, e.g abbrevations, acronyms
 #   - Speech-To-Text: Words not easily recognised
@@ -45,7 +49,9 @@ from pathlib import Path
 import aiko_services as aiko
 from aiko_services.elements.media import contains_all, DataSource, DataTarget
 
-__all__ = ["TextOutput", "TextReadFile", "TextTransform", "TextWriteFile"]
+__all__ = [\
+    "TextOutput", "TextReadFile", "TextSample", "TextTransform", "TextWriteFile"
+]
 
 # --------------------------------------------------------------------------- #
 # Useful for Pipeline output that should be all of the text processed
@@ -86,6 +92,22 @@ class TextReadFile(DataSource):  # common_io.py PipelineElement
                         {"diagnostic": f"Error loading text: {exception}"}
 
         return aiko.StreamEvent.OKAY, {"texts": texts}
+
+# --------------------------------------------------------------------------- #
+
+class TextSample(aiko.PipelineElement):
+    def __init__(self, context):
+        context.set_protocol("text_sample:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
+        sample_rate, _ = self.get_parameter("sample_rate", 1)
+        if stream.frame_id % sample_rate:
+            self.logger.debug(f"{self.my_id()}: frame dropped")
+            return aiko.StreamEvent.DROP_FRAME, {}
+        else:
+            self.logger.debug(f"{self.my_id()}: frame not dropped")
+            return aiko.StreamEvent.OKAY, {"texts": texts}
 
 # --------------------------------------------------------------------------- #
 

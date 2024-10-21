@@ -18,14 +18,17 @@
 #   -sp ImageResize.resolution 320x240                       \
 #   -sp VideoWriteFile.data_targets file://data_out/out_00.mp4
 #
+# aiko_pipeline create video_pipeline_1.json -s 1 -ll debug
+#
 # To Do
 # ~~~~~
 # - Implement "VideoReadFile.data_batch_size"
 #
 # - Refactor optional module import into common function (see image_io.py)
 #
-# - Implement start_frame, stop_frame, sample_rate parameters
-# - Implement PipelineElement VideoSample()
+# - Implement start_frame (first) and stop_frame (last) parameters
+# - Improve PipelineElement VideoSample()
+#   - Rather than sample by frame ... sample by image count in [images] input
 #   - Provide video_sample() for use by VideoFileRead and VideoSample
 #
 # - Implement ...
@@ -57,7 +60,9 @@ from pathlib import Path
 import aiko_services as aiko
 from aiko_services.elements.media import contains_all, DataSource, DataTarget
 
-__all__ = ["VideoOutput", "VideoReadFile", "VideoShow", "VideoWriteFile"]
+__all__ = [
+    "VideoOutput", "VideoReadFile", "VideoSample", "VideoShow", "VideoWriteFile"
+]
 
 _LOGGER = aiko.get_logger(__name__)
 
@@ -168,6 +173,22 @@ class VideoReadFile(DataSource):  # common_io.py PipelineElement
             video_capture.release()
             stream.variables["video_capture"] = None
         return aiko.StreamEvent.OKAY, {}
+
+# --------------------------------------------------------------------------- #
+
+class VideoSample(aiko.PipelineElement):
+    def __init__(self, context):
+        context.set_protocol("video_sample:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
+        sample_rate, _ = self.get_parameter("sample_rate", 1)
+        if stream.frame_id % sample_rate:
+            self.logger.debug(f"{self.my_id()}: frame dropped")
+            return aiko.StreamEvent.DROP_FRAME, {}
+        else:
+            self.logger.debug(f"{self.my_id()}: frame not dropped")
+            return aiko.StreamEvent.OKAY, {"images": images}
 
 # --------------------------------------------------------------------------- #
 # TODO: Change color, title and resolution

@@ -29,29 +29,33 @@ DEFAULT_STREAM_ID = "*"  # string
 FIRST_FRAME_ID = 0       # integer
 
 class StreamEvent:
-    ERROR =   -2  # Move to StreamState.ERROR
-    STOP  =   -1  # Move to StreamState.STOP
-    OKAY  =    0  # Stay calm and keep on running
-    USER  = 1000  # User defined custom StreamEvents start from here
+    ERROR      =   -2  # Move to StreamState.ERROR
+    STOP       =   -1  # Move to StreamState.STOP
+    OKAY       =    0  # Stay calm and keep on running
+    DROP_FRAME =    1  # No longer process this frame and keep on running
+    USER       = 1024  # User defined custom StreamEvents start from here
 
 StreamEventName = {
-    StreamEvent.ERROR: "Error",
-    StreamEvent.OKAY:  "Okay",
-    StreamEvent.STOP:  "Stop",
-    StreamEvent.USER:  "User"
+    StreamEvent.DROP_FRAME: "DropFrame",
+    StreamEvent.ERROR:      "Error",
+    StreamEvent.OKAY:       "Okay",
+    StreamEvent.STOP:       "Stop",
+    StreamEvent.USER:       "User"
 }
 
 class StreamState:
-    ERROR =   -2  # Don't generate new frames and ignore queued frames
-    STOP  =   -1  # Don't generate new frames and process queued frames
-    RUN   =    0  # Generate new frames and process queued frames
-    USER  = 1000  # User defined custom StreamStates start from here
+    ERROR       =   -2  # Don't generate new frames and ignore queued frames
+    STOP        =   -1  # Don't generate new frames and process queued frames
+    RUN         =    0  # Generate new frames and process queued frames
+    DROP_FRAME  =    1  # Stop processing current frame, then back to RUN state
+    USER        = 1024  # User defined custom StreamStates start from here
 
 StreamStateName = {
-    StreamState.ERROR: "Error",
-    StreamState.STOP:  "Stop",
-    StreamState.RUN:   "Run",
-    StreamState.USER:  "User"
+    StreamState.DROP_FRAME: "DropFrame",
+    StreamState.ERROR:      "Error",
+    StreamState.STOP:       "Stop",
+    StreamState.RUN:        "Run",
+    StreamState.USER:       "User"
 }
 
 @dataclass
@@ -82,4 +86,4 @@ class Stream:
         self.stream_id = stream_dict.get("stream_id", self.stream_id)
         self.frame_id = int(stream_dict.get("frame_id", self.frame_id))
         self.parameters = stream_dict.get("parameters", self.parameters)
-        self.state = stream_dict.get("state", StreamState.RUN)
+        self.state = int(stream_dict.get("state", StreamState.RUN))

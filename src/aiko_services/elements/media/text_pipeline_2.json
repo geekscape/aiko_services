@@ -1,0 +1,42 @@
+{
+  "version": 0,
+  "name":    "p_text_2",
+  "runtime": "python",
+
+  "graph": ["(TextReadFile TextSample TextWriteFile)"],
+
+  "elements": [
+    { "name":   "TextReadFile",
+      "parameters": {
+         "data_sources": "(file://data_in/in_{}.txt)",
+         "data_batch_size": 1
+      },
+      "input":  [{ "name": "paths", "type": "[Path]" }],
+      "output": [{ "name": "texts", "type": "[str]" }],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.text_io"}
+      }
+    },
+    { "name":   "TextSample",
+      "input":  [{ "name": "texts", "type": "[str]" }],
+      "output": [{ "name": "texts", "type": "[str]" }],
+      "deploy": {
+        "remote": {
+          "module": "aiko_services.elements.media.text_io",
+          "service_filter": {
+            "topic_path": "*", "name": "p_text_3",
+            "owner": "*", "protocol": "*", "transport": "*", "tags": "*"
+          }
+        }
+      }
+     },
+    { "name":   "TextWriteFile",
+      "parameters": {"data_targets": "file://data_out/out_{:02d}.txt"},
+      "input":  [{ "name": "texts", "type": "[str]" }],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.text_io"}
+      }
+    }
+  ]
+}

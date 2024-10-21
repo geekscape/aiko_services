@@ -381,10 +381,11 @@ class PipelineElementImpl(PipelineElement):
                 stream.state = self.pipeline._process_stream_event(
                     self.name, stream_event, frame_data)
 
-                if stream.state == StreamState.RUN:
+                if stream.state == StreamState.RUN and frame_data:
                 # TODO: Check "isinstance(frame_data, dict)"
-                    if frame_data:
-                        self.create_frame(stream, frame_data, frame_id)
+                    self.create_frame(stream, frame_data, frame_id)
+                if stream.state in [StreamState.DROP_FRAME, StreamState.RUN]:
+                    stream.state = StreamState.RUN
                     if rate:
                         time.sleep(1.0 / rate)
                     frame_id += 1
@@ -457,7 +458,7 @@ class Pipeline(PipelineElement):
         pass
 
     @abstractmethod
-    def destroy_stream(self, stream_id):
+    def destroy_stream(self, stream_id, graceful=False):
         pass
 
     @abstractmethod
@@ -726,7 +727,7 @@ class PipelineImpl(Pipeline):
             self._disable_thread_local("create_stream")
         return True
 
-    def destroy_stream(self, stream_id, use_thread_local=True):
+    def destroy_stream(self, stream_id, graceful=False, use_thread_local=True):
         if stream_id not in self.stream_leases:
             return False
 
@@ -734,6 +735,13 @@ class PipelineImpl(Pipeline):
             if use_thread_local:
                 self._enable_thread_local("destroy_stream", stream_id)
             stream, _ = self.get_stream()
+
+            if graceful and len(stream.frames):
+                arguments = [stream_id, graceful, use_thread_local]
+                self._post_message(
+                    ActorTopic.IN, "destroy_stream", arguments, delay=3.0)
+                return False
+
             self.logger.debug(f"Destroy stream: {self.name}<{stream_id}>")
 
             for node in self.pipeline_graph:
@@ -752,7 +760,7 @@ class PipelineImpl(Pipeline):
                     stream_state = self._process_stream_event(element_name,
                         stream_event, diagnostic, in_destroy_stream=True)
                 else:  ## Remote element ##
-                    element.destroy_stream(stream_id)
+                    element.destroy_stream(stream_id, True)
         finally:
             if use_thread_local:
                 self._disable_thread_local("destroy_stream")
@@ -937,7 +945,7 @@ class PipelineImpl(Pipeline):
             frame_data_out = {} if new_frame else frame_data_in
 
             for node in graph:
-                if stream.state == StreamState.ERROR:
+                if stream.state in [StreamState.DROP_FRAME, StreamState.ERROR]:
                     break
                 # TODO: Is element_name is correct for all error diagnostics
                 element, element_name, local, _ =  \
@@ -987,7 +995,8 @@ class PipelineImpl(Pipeline):
             if frame_complete:
                 stream_info = {
                     "stream_id": stream.stream_id,
-                    "frame_id": stream.frame_id}
+                    "frame_id": stream.frame_id,
+                    "state": stream.state}
                 if stream.queue_response:
                     stream.queue_response.put((stream_info, frame_data_out))
                 elif stream.topic_response:
@@ -1010,6 +1019,8 @@ class PipelineImpl(Pipeline):
         stream = Stream()
         stream.update(stream_dict)
 
+        if frame_data_in == []:
+            frame_data_in = {}
         if not isinstance(frame_data_in, dict):
             header = f"Process frame <{stream.stream_id}:{stream.frame_id}>"
             self.logger.warning(f"{header}: frame data must be a dictionary")
@@ -1028,7 +1039,8 @@ class PipelineImpl(Pipeline):
         else:
             stream_lease = self.stream_leases[stream_id]
             stream_lease.extend()
-            stream_lease.stream.update({"frame_id": frame_id})
+            stream_lease.stream.update(
+                {"frame_id": frame_id, "state": stream.state})
             stream = stream_lease.stream
 
             if new_frame:
@@ -1093,7 +1105,7 @@ class PipelineImpl(Pipeline):
                 frame_data_out[to_name] = frame_data_out.pop(from_name)
 
 # FIX: _create_frame_generator(): StreamEvent.ERROR -->
-#          self.destroy_stream(get_stream_id())  # immediately !
+#          self.destroy_stream(get_stream_id(), graceful=False)  # immediately !
 
 # TODO: Check local cases "stream_state.RUN | STOP | ERROR" ...
 # TODO: - _create_frame_generator()
@@ -1125,12 +1137,15 @@ class PipelineImpl(Pipeline):
 
         stream_state = StreamState.RUN
 
+        if stream_event == StreamEvent.DROP_FRAME:
+            stream_state = StreamState.DROP_FRAME
+
         if stream_event == StreamEvent.STOP:
             stream_state = StreamState.STOP
             self.logger.debug(get_diagnostic(diagnostic))
             if not in_destroy_stream:  # avoid destroy_stream() recursion
                 self._post_message(    # gracefully after frames processed
-                    ActorTopic.IN, "destroy_stream", [get_stream_id()])
+                    ActorTopic.IN, "destroy_stream", [get_stream_id(), True])
 
         elif stream_event == StreamEvent.ERROR:
             stream_state = StreamState.ERROR
@@ -1156,7 +1171,7 @@ class PipelineRemoteAbsent(PipelineElement):
         self.log_error("create_stream")
         return False
 
-    def destroy_stream(self, stream_id):
+    def destroy_stream(self, stream_id, graceful=False):
         self.log_error("destroy_stream")
 
     @classmethod
@@ -1181,7 +1196,7 @@ class PipelineRemoteFound(PipelineElement):
         queue_response=None, topic_response=None):
         pass
 
-    def destroy_stream(self, stream_id):
+    def destroy_stream(self, stream_id, graceful=False):
         pass
 
     @classmethod
