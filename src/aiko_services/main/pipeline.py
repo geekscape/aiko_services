@@ -431,9 +431,12 @@ class PipelineElementImpl(PipelineElement):
 
     def _get_stream_parameters(self):
         parameters = {}
-        stream, _ = self.get_stream()
-        if stream:
-            parameters = stream.parameters
+        try:
+            stream, _ = self.get_stream()
+            if stream:
+                parameters = stream.parameters
+        except AttributeError:
+            pass
         return parameters
 
     def my_id(self, all=False):
@@ -472,6 +475,10 @@ class Pipeline(PipelineElement):
 
     @abstractmethod
     def set_parameter(self, stream_id, name, value):
+        pass
+
+    @abstractmethod
+    def set_parameters(self, stream_id, parameters):
         pass
 
 class PipelineImpl(Pipeline):
@@ -571,7 +578,7 @@ class PipelineImpl(Pipeline):
 
     @classmethod
     def create_pipeline(cls, definition_pathname, pipeline_definition,
-        name, stream_id, stream_parameters, frame_id, frame_data, grace_time,
+        name, stream_id, parameters, frame_id, frame_data, grace_time,
         queue_response=None):
 
         name = name if name else pipeline_definition.name
@@ -587,9 +594,10 @@ class PipelineImpl(Pipeline):
 
         if stream_id is not None:
             stream_dict["stream_id"] = stream_id
-            stream_parameters = dict(stream_parameters)
-            pipeline.create_stream(stream_id, parameters=stream_parameters,
+            pipeline.create_stream(stream_id, parameters=dict(parameters),
                 grace_time=grace_time, queue_response=queue_response)
+        else:
+            pipeline.set_parameters(None, parameters)
 
         if frame_data is not None:
             function_name, arguments = parse(f"(process_frame {frame_data})")
@@ -1156,10 +1164,24 @@ class PipelineImpl(Pipeline):
         return stream_state
 
     def set_parameter(self, stream_id, name, value):
-        if stream_id in self.stream_leases:
+        if stream_id is None:
+            names = name.split(".")  # PipelineElementName.ParameterName
+            if len(names) == 1:      # Pipeline parameter
+                self.share[names[0]] = value
+            else:                    # PipelineElement parameter
+                try:
+                    node = self.pipeline_graph.get_node(names[0])
+                    node.element.share[names[1]] = value
+                except KeyError:
+                    pass
+        elif stream_id in self.stream_leases:
             stream_lease = self.stream_leases[stream_id]
             parameters = stream_lease.stream.parameters
             parameters[name] = value
+
+    def set_parameters(self, stream_id, parameters):
+        for parameter in parameters:
+            self.set_parameter(stream_id, parameter[0], parameter[1])
 
 class PipelineRemoteAbsent(PipelineElement):
     def __init__(self, context):
@@ -1337,6 +1359,9 @@ def main():
 @click.option("--name", "-n", type=str,
     default=None, required=False,
     help="Pipeline Actor name")
+@click.option("--parameters", "-p", type=click.Tuple((str, str)),
+    default=None, multiple=True, required=False,
+    help="Define Stream parameters")
 @click.option("--stream_id", "-s", type=str,
     default=None, required=False,
     help="Create Stream with identifier")
@@ -1361,8 +1386,13 @@ def main():
     default="all", required=False,
     help="all, false (console), true (mqtt)")
 
-def create(definition_pathname, name, stream_id, stream_parameters,
+def create(definition_pathname, name, parameters, stream_id,
+    stream_parameters,  # DEPRECATED
     frame_id, frame_data, grace_time, show_response, log_level, log_mqtt):
+
+    if stream_parameters:
+        _LOGGER.warning('"--stream_parameters" replaced by "--parameters"')
+        parameters = stream_parameters
 
     os.environ["AIKO_LOG_LEVEL"] = log_level.upper()
     os.environ["AIKO_LOG_MQTT"] = log_mqtt
@@ -1389,7 +1419,7 @@ def create(definition_pathname, name, stream_id, stream_parameters,
 
     pipeline = PipelineImpl.create_pipeline(
         definition_pathname, pipeline_definition,
-        name, stream_id, stream_parameters, frame_id, frame_data, grace_time,
+        name, stream_id, parameters, frame_id, frame_data, grace_time,
         queue_response=queue_pipeline_response)
 
     pipeline.run(mqtt_connection_required=False)
