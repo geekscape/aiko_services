@@ -2,7 +2,11 @@
 #
 # Usage
 # ~~~~~
-# ./parser.py  # parse() --> generate() tests for a range of examples
+# ./parser.py  # parse() <--> generate() tests for a range of examples
+#
+# For all operations, the parser() and generate() are each other's inverse
+# - parse(generate(atom, list))     --> atom, list
+# - generate(parse("s_expression")) --> "s_expression"
 #
 # Parse lists of symbols recursively
 #
@@ -14,6 +18,7 @@
 #
 # Parse dictionaries with keyword / value pairs
 #
+# - parse("(a (b: ''))")      --> ("a", [{'b': ""}])
 # - parse("(a: 1 b: 2)")      --> {"a": 1, "b": 2}
 # - parse("(a: (b c))")       --> {"a": ["b" "c"]}
 # - parse("(a: (b: 1 c: 2))") --> {"a": {"b": "1", "c": "2"}}
@@ -32,6 +37,10 @@
 #
 # To Do
 # ~~~~~
+# - Consolidate generate(atom, list) into generate(list)
+# - Consolidate parser result "(atom list)" into "list"
+#   - Ensure that any S-Expression can be generated and parsed, not only "list"
+#
 # - Provide proper unit tests !
 #
 # - Change parse() to simply return the complete tree and ...
@@ -101,6 +110,8 @@ def generate_s_expression(expression: List) -> str:
             element = generate_dict_to_list(element)
         if isinstance(element, list) or isinstance(element, tuple):
             element = generate_s_expression(element)
+        if element == "":
+            character = ' ""'
         if element is None:
             element = "0:"
         payload = f"{payload}{character}{element}"
