@@ -2,21 +2,21 @@
 # ~~~~~
 # aiko_pipeline create video_pipeline_0.json -s 1 -sr -ll debug
 #
-# aiko_pipeline create video_pipeline_0.json -s 1 -sp rate 4.0
+# aiko_pipeline create video_pipeline_0.json -s 1 -p rate 4.0
 #
 # aiko_pipeline create video_pipeline_0.json -s 1  \
-#   -sp VideoReadFile.data_batch_size 8
+#   -p VideoReadFile.data_batch_size 8
 #
 # aiko_pipeline create video_pipeline_0.json -s 1  \
-#   -sp VideoReadFile.data_sources file://data_in/in_{}.mp4
+#   -p VideoReadFile.data_sources file://data_in/in_{}.mp4
 #
 # aiko_pipeline create video_pipeline_0.json -s 1  \
-#     -sp VideoWriteFile.path "file://data_out/out_{:02d}.mp4"
+#     -p VideoWriteFile.path "file://data_out/out_{:02d}.mp4"
 #
-# aiko_pipeline create video_pipeline_0.json -s 1            \
-#   -sp VideoReadFile.data_sources file://data_in/in_00.mp4  \
-#   -sp ImageResize.resolution 320x240                       \
-#   -sp VideoWriteFile.data_targets file://data_out/out_00.mp4
+# aiko_pipeline create video_pipeline_0.json -s 1           \
+#   -p VideoReadFile.data_sources file://data_in/in_00.mp4  \
+#   -p ImageResize.resolution 320x240                       \
+#   -p VideoWriteFile.data_targets file://data_out/out_00.mp4
 #
 # Drop frame test
 # ~~~~~~~~~~~~~~~

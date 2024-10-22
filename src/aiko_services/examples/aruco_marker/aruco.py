@@ -3,7 +3,7 @@
 # aiko_pipeline create aruco_pipeline_0.json -s 1 -ll debug
 #
 # aiko_pipeline create aruco_pipeline_0.json -s 1  \
-#   -sp VideoReadWebcam.path /dev/video2
+#   -p VideoReadWebcam.path /dev/video2
 #
 # To Do
 # ~~~~~

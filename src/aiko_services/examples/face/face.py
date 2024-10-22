@@ -8,7 +8,7 @@
 # AIKO_LOG_LEVEL=DEBUG aiko_pipeline create face_pipeline.json -s 1
 #
 # aiko_pipeline create face_pipeline.json -s 1  \
-#   -sp VideoReadWebcam.path /dev/video2
+#   -p VideoReadWebcam.path /dev/video2
 #
 # To Do
 # ~~~~~

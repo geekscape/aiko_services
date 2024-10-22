@@ -2,21 +2,21 @@
 # ~~~~~
 # aiko_pipeline create text_pipeline_0.json -s 1 -sr -ll debug
 #
-# aiko_pipeline create text_pipeline_0.json -s 1 -sp rate 1.0
+# aiko_pipeline create text_pipeline_0.json -s 1 -p rate 1.0
 #
 # aiko_pipeline create text_pipeline_0.json -s 1  \
-#   -sp TextReadFile.data_batch_size 8
+#   -p TextReadFile.data_batch_size 8
 #
 # aiko_pipeline create text_pipeline_0.json -s 1  \
-#   -sp TextReadFile.data_sources file://data_in/in_{}.txt
+#   -p TextReadFile.data_sources file://data_in/in_{}.txt
 #
 # aiko_pipeline create text_pipeline_0.json -s 1  \
-#     -sp TextWriteFile.path "file://data_out/out_{:02d}.txt"
+#     -p TextWriteFile.path "file://data_out/out_{:02d}.txt"
 #
-# aiko_pipeline create text_pipeline_0.json -s 1            \
-#   -sp TextReadFile.data_sources file://data_in/in_00.txt  \
-#   -sp TextTransform.transform titlecase                   \
-#   -sp TextWriteFile.data_targets file://data_out/out_00.txt
+# aiko_pipeline create text_pipeline_0.json -s 1           \
+#   -p TextReadFile.data_sources file://data_in/in_00.txt  \
+#   -p TextTransform.transform titlecase                   \
+#   -p TextWriteFile.data_targets file://data_out/out_00.txt
 #
 # Drop frame tests (local and remote)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
