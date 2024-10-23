@@ -309,8 +309,9 @@ class ProcessImplementation(ProcessData):
                 for service in self._services.values():
                     service.registrar_handler_call(action, aiko.registrar)
                 self._services_lock.release()
-        except Exception:
-            pass
+        except Exception as exception:
+            _LOGGER.warning(
+                f"Exception raised when adding to Registrar: {exception}")
 
     def set_last_will_and_testament(self,
         topic_lwt, payload_lwt="(absent)", retain_lwt=False):
