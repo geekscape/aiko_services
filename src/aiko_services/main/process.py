@@ -203,7 +203,12 @@ class ProcessImplementation(ProcessData):
 
     def _add_service_to_registrar(self, service):
         if service.protocol:
-            owner = get_username()
+            try:
+                owner = get_username()
+            except:
+                owner = "????????"
+                _LOGGER.warning(
+                    "Unable to acquire username to identify the Service owner")
             tags = service.get_tags_string()
             # TODO: For payload_out, use parser.generate() ?
             payload_out = f"(add {service.topic_path} {service.name} "  \
