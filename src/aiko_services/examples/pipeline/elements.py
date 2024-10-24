@@ -5,6 +5,9 @@
 # aiko_pipeline create pipeline_remote.json
 # aiko_pipeline create pipeline_test.json
 #
+# aiko_pipeline create pipeline_example.json -s 1 -p limit 1000 -p rate 1
+# aiko_dashboard  # select "pe_randomintegers" and watch "random" update
+#
 # TOPIC=$NAMESPACE/$HOST/$PID/$SID/in
 # mosquitto_pub -h $HOST -t $TOPIC -m "(create_stream 1)"
 # mosquitto_pub -h $HOST -t $TOPIC -m "(process_frame (stream_id: 1) (a: 0))"
@@ -150,6 +153,7 @@ class PE_RandomIntegers(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("random_integers:0")  # data_source:0
         context.get_implementation("PipelineElement").__init__(self, context)
+        self.share["random"] = "?"
 
     def start_stream(self, stream, stream_id):
         rate, _ = self.get_parameter("rate", default=1.0)
@@ -165,6 +169,7 @@ class PE_RandomIntegers(aiko.PipelineElement):
 
     def process_frame(self, stream, random) -> Tuple[aiko.StreamEvent, dict]:
         self.logger.info(f"{self.my_id()} random: {random}")
+        self.ec_producer.update("random", random)
         return aiko.StreamEvent.OKAY, {"random": random}
 
 # --------------------------------------------------------------------------- #
