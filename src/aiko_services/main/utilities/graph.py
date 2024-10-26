@@ -45,20 +45,7 @@ class Graph:
         self._head_nodes = head_nodes if head_nodes else OrderedDict()
 
     def __iter__(self):
-        ordered_nodes = OrderedDict()
-
-        def execution_order(node):
-            if node in ordered_nodes:
-                del ordered_nodes[node]
-            ordered_nodes[node] = None
-            for successor in node.successors:
-                execution_order(self._graph[successor])
-
-        if self._head_nodes:
-            node = self._graph[next(iter(self._head_nodes))]  # first head nodes
-            execution_order(node)
-
-        return iter(ordered_nodes)
+        return self.get_path()
 
     def __repr__(self):
         return str(self.nodes(as_strings=True))
@@ -71,9 +58,28 @@ class Graph:
     def get_node(self, node_name):
         return self._graph[node_name]
 
-    def iterate_after(self, node_name):
+    def get_path(self, head_node_name=None):
+        ordered_nodes = OrderedDict()
+
+        def execution_order(node):
+            if node in ordered_nodes:
+                del ordered_nodes[node]
+            ordered_nodes[node] = None
+            for successor in node.successors:
+                execution_order(self._graph[successor])
+
+        if self._head_nodes:
+            if not head_node_name:
+                head_node_name = next(iter(self._head_nodes))
+            if head_node_name in self._head_nodes:
+                head_node = self._graph[head_node_name]
+                execution_order(head_node)
+
+        return iter(ordered_nodes)
+
+    def iterate_after(self, node_name, head_node_name=None):
+        ordered_nodes = list(self.get_path(head_node_name))
         node = self.get_node(node_name)
-        ordered_nodes = list(self)
         try:
             index = ordered_nodes.index(node)
             return ordered_nodes[index+1:]
