@@ -246,7 +246,7 @@ class PipelineGraph(Graph):
         return valid_mappings
 
     def validate(self, pipeline_definition, head_node_name, strict=False):
-        for node in self.get_path(head_node_name)
+        for node in self.get_path(head_node_name):
             element, element_name, _, _ = PipelineGraph.get_element(node)
             element_inputs = element.definition.input
             element_inputs = [{**item, "found": 0} for item in element_inputs]
