@@ -245,8 +245,8 @@ class PipelineGraph(Graph):
                     valid_mappings.append((predecessor_name, mapping))
         return valid_mappings
 
-    def validate(self, pipeline_definition, strict=False):
-        for node in self:
+    def validate(self, pipeline_definition, head_node_name, strict=False):
+        for node in self.get_path(head_node_name)
             element, element_name, _, _ = PipelineGraph.get_element(node)
             element_inputs = element.definition.input
             element_inputs = [{**item, "found": 0} for item in element_inputs]
@@ -456,7 +456,8 @@ class Pipeline(PipelineElement):
     Interface.default("Pipeline", "aiko_services.main.pipeline.PipelineImpl")
 
     @abstractmethod
-    def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME,
+    def create_stream(self, stream_id, graph_path=None,
+        parameters=None, grace_time=_GRACE_TIME,
         queue_response=None, topic_response=None):
         pass
 
@@ -495,6 +496,7 @@ class PipelineImpl(Pipeline):
 
         self.share["definition_pathname"] = context.definition_pathname
         self.share["lifecycle"] = "waiting"
+        self.share["graph_path"] = context.graph_path
         self.remote_pipelines = {}  # Service name --> PipelineElement name
         self.services_cache = None
 
@@ -509,15 +511,17 @@ class PipelineImpl(Pipeline):
 
     # TODO: Better visualization of the Pipeline / PipelineElements details
         if False:
-            print(f"Pipeline: {self.pipeline_graph.nodes()}")
-            for node in self.pipeline_graph:
-                print(f"PipelineElement: {node.name}")
+            print(f"Pipeline graph path ...")
+            graph_path = self.pipeline_graph.get_path(self.share["graph_path"])
+            for node in graph_path:
+                print(f"    PipelineElement: {node.name}")
 
-        event.add_timer_handler(self._status_update_timer, 1.0)
+        event.add_timer_handler(self._status_update_timer, 3.0)
 
     def _update_lifecycle_state(self):
         pe_lifecycles = []
-        for node in self.pipeline_graph:
+        graph_path = self.pipeline_graph.get_path(self.share["graph_path"])
+        for node in graph_path:
             _, _, _, lifecycle = PipelineGraph.get_element(node)
             pe_lifecycles.append(lifecycle == "ready")
         lifecycle = "ready" if all(pe_lifecycles) else "waiting"
@@ -578,15 +582,16 @@ class PipelineImpl(Pipeline):
 
     @classmethod
     def create_pipeline(cls, definition_pathname, pipeline_definition,
-        name, stream_id, parameters, frame_id, frame_data, grace_time,
-        queue_response=None):
+        name, graph_path, stream_id, parameters, frame_id, frame_data,
+        grace_time, queue_response=None):
 
         name = name if name else pipeline_definition.name
 
         init_args = pipeline_args(name,
             protocol=PROTOCOL_PIPELINE,
             definition=pipeline_definition,
-            definition_pathname=definition_pathname
+            definition_pathname=definition_pathname,
+            graph_path=graph_path
         )
         pipeline = compose_instance(PipelineImpl, init_args)
 
@@ -594,8 +599,9 @@ class PipelineImpl(Pipeline):
 
         if stream_id is not None:
             stream_dict["stream_id"] = stream_id
-            pipeline.create_stream(stream_id, parameters=dict(parameters),
-                grace_time=grace_time, queue_response=queue_response)
+            pipeline.create_stream(stream_id, graph_path=None,
+                parameters=dict(parameters), grace_time=grace_time,
+                queue_response=queue_response, topic_response=None)
         else:
             pipeline.set_parameters(None, parameters)
 
@@ -672,12 +678,13 @@ class PipelineImpl(Pipeline):
                 element_name, element_instance, node_successors[element_name])
             pipeline_graph.add_element(element)
 
-        pipeline_graph.validate(definition)
+        pipeline_graph.validate(definition, self.share["graph_path"])
         return pipeline_graph
 
 # TODO: Consider refactoring Stream into "stream.py" ?
 
-    def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME,
+    def create_stream(self, stream_id, graph_path=None,
+        parameters=None, grace_time=_GRACE_TIME,
         queue_response=None, topic_response=None):
 
         if queue_response and topic_response:
@@ -687,9 +694,8 @@ class PipelineImpl(Pipeline):
 
     # TODO: Implement limit on delayed post message
         if self.share["lifecycle"] != "ready":
-            arguments = [
-                stream_id, parameters, grace_time,
-                queue_response, topic_response]
+            arguments = [stream_id, graph_path,
+                parameters, grace_time, queue_response, topic_response]
             self._post_message(
                 ActorTopic.IN, "create_stream", arguments, delay=1.0)
             return False
@@ -698,11 +704,19 @@ class PipelineImpl(Pipeline):
             self.logger.error(f"Create stream: {stream_id} already exists")
             return False
 
+        graph_path = graph_path if graph_path else self.share["graph_path"]
+        if graph_path:
+            if graph_path not in self.pipeline_graph._head_nodes:
+                self.logger.error(
+                    f"Create stream: Unknown Pipeline Graph Path: {graph_path}")
+                return False
+
         self.logger.debug(f"Create stream: {self.name}<{stream_id}>")
         stream_lease = Lease(int(grace_time), stream_id,
             lease_expired_handler=self.destroy_stream)
         stream_lease.stream = Stream(
             stream_id=stream_id,
+            graph_path=graph_path,
             parameters=parameters if parameters else {},
             queue_response=queue_response,
             topic_response=topic_response)
@@ -712,7 +726,8 @@ class PipelineImpl(Pipeline):
             self._enable_thread_local("create_stream", stream_id)
             stream, _ = self.get_stream()
 
-            for node in self.pipeline_graph:
+            graph_path = self.pipeline_graph.get_path(self.share["graph_path"])
+            for node in graph_path:
                 element, element_name, local, _ =  \
                     PipelineGraph.get_element(node)
                 if local:  ## Local element ##
@@ -730,7 +745,8 @@ class PipelineImpl(Pipeline):
                 else:  ## Remote element ##
                 # TODO: Consider using "topic_response=self.topic_control"
                     element.create_stream(
-                        stream_id, parameters, grace_time, None, self.topic_in)
+                        stream_id, stream.remote_graph_path(),
+                        parameters, grace_time, None, self.topic_in)
         finally:
             self._disable_thread_local("create_stream")
         return True
@@ -752,7 +768,8 @@ class PipelineImpl(Pipeline):
 
             self.logger.debug(f"Destroy stream: {self.name}<{stream_id}>")
 
-            for node in self.pipeline_graph:
+            graph_path = self.pipeline_graph.get_path(self.share["graph_path"])
+            for node in graph_path:
                 element, element_name, local, _ =  \
                     PipelineGraph.get_element(node)
                 if local:  ## Local element ##
@@ -1025,12 +1042,14 @@ class PipelineImpl(Pipeline):
         frame = None
         graph = None
         stream = Stream()
-        stream.update(stream_dict)
+        header = f"Process frame <{stream.stream_id}:{stream.frame_id}>"
+        if not stream.update(stream_dict):
+            self.logger.warning(f"{header}: stream_dict must be a dictionary")
+            return None, None
 
         if frame_data_in == []:
             frame_data_in = {}
         if not isinstance(frame_data_in, dict):
-            header = f"Process frame <{stream.stream_id}:{stream.frame_id}>"
             self.logger.warning(f"{header}: frame data must be a dictionary")
             return None, None
 
@@ -1038,7 +1057,8 @@ class PipelineImpl(Pipeline):
         if stream_id == DEFAULT_STREAM_ID:
             if DEFAULT_STREAM_ID not in self.stream_leases:
                 self.create_stream(
-                    DEFAULT_STREAM_ID, parameters=stream.parameters)
+                    DEFAULT_STREAM_ID, graph_path=stream.graph_path,
+                    parameters=stream.parameters)
 
         frame_id = stream.frame_id
         if stream_id not in self.stream_leases:
@@ -1054,10 +1074,11 @@ class PipelineImpl(Pipeline):
             if new_frame:
                 stream.frames[frame_id] = Frame()
                 frame = stream.frames[frame_id]
-                graph = self.pipeline_graph
+                graph = self.pipeline_graph.get_path(stream.graph_path)
             elif frame_id in stream.frames:
                 frame = stream.frames[frame_id]
-                graph = self.pipeline_graph.iterate_after(frame.paused_pe_name)
+                graph = self.pipeline_graph.iterate_after(
+                    frame.paused_pe_name, stream.graph_path)
             else:
                 self.logger.warning(
                     f"Process frame <{stream_id}:{frame_id}> frame not paused")
@@ -1188,8 +1209,10 @@ class PipelineRemoteAbsent(PipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
         self.share["lifecycle"] = "absent"
 
-    def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME,
+    def create_stream(self, stream_id, graph_path=None,
+        parameters=None, grace_time=_GRACE_TIME,
         queue_response=None, topic_response=None):
+
         self.log_error("create_stream")
         return False
 
@@ -1214,7 +1237,8 @@ class PipelineRemoteFound(PipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
         self.share["lifecycle"] = "ready"
 
-    def create_stream(self, stream_id, parameters=None, grace_time=_GRACE_TIME,
+    def create_stream(self, stream_id, graph_path=None,
+        parameters=None, grace_time=_GRACE_TIME,
         queue_response=None, topic_response=None):
         pass
 
@@ -1359,6 +1383,9 @@ def main():
 @click.option("--name", "-n", type=str,
     default=None, required=False,
     help="Pipeline Actor name")
+@click.option("--graph_path", "-gp", type=str,
+    default=None, required=False,
+    help="Pipeline Graph Path, use Head_PipelineElement_name")
 @click.option("--parameters", "-p", type=click.Tuple((str, str)),
     default=None, multiple=True, required=False,
     help="Define Stream parameters")
@@ -1386,7 +1413,7 @@ def main():
     default="all", required=False,
     help="all, false (console), true (mqtt)")
 
-def create(definition_pathname, name, parameters, stream_id,
+def create(definition_pathname, graph_path, name, parameters, stream_id,
     stream_parameters,  # DEPRECATED
     frame_id, frame_data, grace_time, show_response, log_level, log_mqtt):
 
@@ -1419,8 +1446,8 @@ def create(definition_pathname, name, parameters, stream_id,
 
     pipeline = PipelineImpl.create_pipeline(
         definition_pathname, pipeline_definition,
-        name, stream_id, parameters, frame_id, frame_data, grace_time,
-        queue_response=queue_pipeline_response)
+        name, graph_path, stream_id, parameters, frame_id, frame_data,
+        grace_time, queue_response=queue_pipeline_response)
 
     pipeline.run(mqtt_connection_required=False)
 

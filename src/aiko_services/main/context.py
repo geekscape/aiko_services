@@ -144,6 +144,7 @@ class ContextPipelineElement(ContextService):
 @dataclass
 class ContextPipeline(ContextPipelineElement):
     definition_pathname: str = DEFAULT_DEFINITION_PATHNAME
+    graph_path: str = None
 
     def __post_init__(self):
         super().__post_init__()
@@ -152,6 +153,9 @@ class ContextPipeline(ContextPipelineElement):
 
     def get_definition_pathname(self) -> str:
         return self.definition_pathname
+
+    def get_graph_path(self) -> str:
+        return self.graph_path
 
 def service_args(name, implementations=None,
     parameters=None, protocol=None, tags=None, transport=None):
@@ -177,9 +181,10 @@ def pipeline_element_args(name, implementations=None,
 
 def pipeline_args(name, implementations=None,
     parameters=None, protocol=None, tags=None, transport=None,
-    definition=None, pipeline=None, definition_pathname=None):
+    definition=None, pipeline=None, definition_pathname=None,
+    graph_path=None):
 
     return {"context":
         ContextPipeline(name, implementations,
             parameters, protocol, tags, transport,
-            definition, pipeline, definition_pathname)}
+            definition, pipeline, definition_pathname, graph_path)}

@@ -1,0 +1,84 @@
+{
+  "#": "Pipeline Graph demonstrating multiple Paths",
+  "version": 0,
+  "name":    "p_paths",
+  "runtime": "python",
+
+  "#": "Graph may consist of one or more paths",
+  "graph": [
+    "(PE_IN_0 PE_TEXT PE_OUT_0)",
+    "(PE_IN_1 PE_TEXT PE_OUT_1)",
+    "(PE_IN_2 PE_OUT_1)",
+    "(PE_IN_3 PE_OUT_0)"
+  ],
+
+  "elements": [
+    { "name":   "PE_IN_0",
+      "input":  [{ "name": "in_a",   "type": "string" }],
+      "output": [{ "name": "text_b", "type": "string" }],
+      "deploy": {
+        "local": {
+          "class_name": "PE_IN",
+          "module": "aiko_services.examples.pipeline.elements"
+         }
+      }
+    },
+    { "name":   "PE_IN_1",
+      "input":  [{ "name": "in_a",   "type": "string" }],
+      "output": [{ "name": "text_b", "type": "string" }],
+      "deploy": {
+        "local": {
+          "class_name": "PE_IN",
+          "module": "aiko_services.examples.pipeline.elements"
+         }
+      }
+    },
+    { "name":   "PE_IN_2",
+      "input":  [{ "name": "in_a",   "type": "string" }],
+      "output": [{ "name": "text_b", "type": "string" }],
+      "deploy": {
+        "local": {
+          "class_name": "PE_IN",
+          "module": "aiko_services.examples.pipeline.elements"
+         }
+      }
+    },
+    { "name":   "PE_IN_3",
+      "input":  [{ "name": "in_a",   "type": "string" }],
+      "output": [{ "name": "text_b", "type": "string" }],
+      "deploy": {
+        "local": {
+          "class_name": "PE_IN",
+          "module": "aiko_services.examples.pipeline.elements"
+         }
+      }
+    },
+    { "name":   "PE_TEXT",
+      "input":  [{ "name": "text_b", "type": "string" }],
+      "output": [{ "name": "text_b", "type": "string" }],
+      "deploy": {
+        "local": { "module": "aiko_services.examples.pipeline.elements" }
+      }
+    },
+    { "name":   "PE_OUT_0",
+      "input":  [{ "name": "text_b", "type": "string" }],
+      "output": [{ "name": "out_c",  "type": "string" }],
+      "deploy": {
+        "local": {
+          "class_name": "PE_OUT",
+          "module": "aiko_services.examples.pipeline.elements"
+         }
+      }
+    },
+    { "name":   "PE_OUT_1",
+      "input":  [{ "name": "text_b", "type": "string" }],
+      "output": [{ "name": "out_c",  "type": "string" }],
+      "deploy": {
+        "local": {
+          "class_name": "PE_OUT",
+          "module": "aiko_services.examples.pipeline.elements"
+         }
+      }
+    }
+  ]
+}

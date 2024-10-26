@@ -105,8 +105,9 @@ class PE_Inspect(aiko.PipelineElement):
                 elif target == "print":
                     print(name_value)
                 else:
-                    return aiko.StreamEvent.ERROR,  \
-                        {"diagnostic": "'target' parameter must be 'file', 'log' or 'print'"}
+                    diagnostic =  \
+                        "'target' parameter must be 'file', 'log' or 'print'"
+                    return aiko.StreamEvent.ERROR, {"diagnostic": dianostic}
 
             if target.startswith("file:"):
                 inspect_file.flush()
@@ -236,6 +237,43 @@ class PE_4(aiko.PipelineElement):
         f = int(d) + int(e)
         self.logger.info(f"{self.my_id()} in d: {d}, e: {e}, out: d + e = f: {f}")
         return aiko.StreamEvent.OKAY, {"f": f}
+
+# --------------------------------------------------------------------------- #
+# mosquitto_pub -t $TOPIC_PATH/in -m "(process_frame (stream_id: *) (in_a: x))"
+
+class PE_IN(aiko.PipelineElement):
+    def __init__(self, context):
+        context.set_protocol("in:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, stream, in_a) -> Tuple[aiko.StreamEvent, dict]:
+        text_b = f"{in_a}:in"
+        self.logger.info(f"{self.my_id()} out: {text_b} <-- in: {in_a}")
+        return aiko.StreamEvent.OKAY, {"text_b": text_b}
+
+# --------------------------------------------------------------------------- #
+
+class PE_TEXT(aiko.PipelineElement):
+    def __init__(self, context):
+        context.set_protocol("text_to_text:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, stream, text_b) -> Tuple[aiko.StreamEvent, dict]:
+        text_b = f"{text_b}:text"
+        self.logger.info(f"{self.my_id()} out: {text_b}")
+        return aiko.StreamEvent.OKAY, {"text_b": text_b}
+
+# --------------------------------------------------------------------------- #
+
+class PE_OUT(aiko.PipelineElement):
+    def __init__(self, context):
+        context.set_protocol("out:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, stream, text_b) -> Tuple[aiko.StreamEvent, dict]:
+        out_c = f"{text_b}:out"
+        self.logger.info(f"{self.my_id()} out: {out_c}")
+        return aiko.StreamEvent.OKAY, {"out_c": out_c}
 
 # --------------------------------------------------------------------------- #
 

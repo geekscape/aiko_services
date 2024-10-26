@@ -9,6 +9,8 @@
 # - Watch out for "stream.py:Frame" dataclass and
 #   "dashboard.py" use of "asciimatics.widgets.Frame()" class
 #
+# - If required, Stream.remote_graph_path() used to determine remote Graph Path
+#
 # To Do
 # ~~~~~
 # - Implement dataclass "Class Metrics" to replace "metrics" dictionary
@@ -68,6 +70,7 @@ class Frame:  # effectively a continuation :)
 class Stream:
     stream_id: str = DEFAULT_STREAM_ID
     frame_id: int = FIRST_FRAME_ID  # only updated by Pipeline thread
+    graph_path: str = None  # Graph path (head_node_name), default: first path
     frames: Dict[int, Frame] = field(default_factory=dict)
     parameters: Dict[str, Any] = field(default_factory=dict)
     queue_response: queue = None
@@ -80,10 +83,21 @@ class Stream:
     #   return {key: str(value) for key, value in asdict(self).items()}
         return {"stream_id": self.stream_id, "frame_id": self.frame_id}
 
+    def remote_graph_path(self):  # from "local.remote" into "remote"
+        graph_path = self.graph_path
+        if isinstance(graph_path, str):
+            _, _, graph_path = graph_path.partition(".")
+            graph_path = graph_path if graph_path else None
+        return graph_path
+
 # https://docs.python.org/3/library/dataclasses.html#dataclasses.replace
     def update(self, stream_dict):
+        if not isinstance(stream_dict, dict):
+            return False
     #   self = replace(self, **stream_dict)
         self.stream_id = stream_dict.get("stream_id", self.stream_id)
         self.frame_id = int(stream_dict.get("frame_id", self.frame_id))
+        self.graph_path = stream_dict.get("graph_path", self.graph_path)
         self.parameters = stream_dict.get("parameters", self.parameters)
         self.state = int(stream_dict.get("state", StreamState.RUN))
+        return True
