@@ -239,7 +239,16 @@ class PE_4(aiko.PipelineElement):
         return aiko.StreamEvent.OKAY, {"f": f}
 
 # --------------------------------------------------------------------------- #
-# mosquitto_pub -t $TOPIC_PATH/in -m "(process_frame (stream_id: *) (in_a: x))"
+# Choose Pipeline Graph Path (see pipeline_paths.json)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~
+# For the Pipeline or override for a specific Stream
+#
+# aiko_pipeline create pipeline_paths.json -gp PR_IN_0 -fd "(in_a: x)"
+# aiko_pipeline create pipeline_paths.json -gp PR_IN_1 -fd "(in_a: x)"
+#
+# mosquitto_pub -t $TOPIC_PATH/in -m "(create_stream 1 PE_IN_1)"
+# mosquitto_pub -t $TOPIC_PATH/in -m "(process_frame (stream_id: 1) (in_a: x))"
+# mosquitto_pub -t $TOPIC_PATH/in -m "(destroy_stream 1)"
 
 class PE_IN(aiko.PipelineElement):
     def __init__(self, context):
