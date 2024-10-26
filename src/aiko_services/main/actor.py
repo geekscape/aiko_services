@@ -134,7 +134,11 @@ class Message:
         stack_traceback = None
 
         if target_function is None:
-            diagnostic = f"{self}: Function not found in: {self.target_object}"
+            try:
+                target_object_name = self.target_object.__class__.__name__
+            except Exception:
+                target_object_name = str(self.target_object)
+            diagnostic = f"{self}: Function not found in: {target_object_name}"
         else:
             if callable(target_function):
             # TODO: Catching all TypeError hides problems in "target_function"
