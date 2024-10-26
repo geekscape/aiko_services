@@ -8,6 +8,8 @@
 # aiko_pipeline create pipeline_example.json -s 1 -p limit 1000 -p rate 1
 # aiko_dashboard  # select "pe_randomintegers" and watch "random" update
 #
+# aiko_pipeline create pipeline_paths.json -gp PE_IN_0 -fd "(in_a: x)"
+#
 # TOPIC=$NAMESPACE/$HOST/$PID/$SID/in
 # mosquitto_pub -h $HOST -t $TOPIC -m "(create_stream 1)"
 # mosquitto_pub -h $HOST -t $TOPIC -m "(process_frame (stream_id: 1) (a: 0))"
@@ -243,8 +245,8 @@ class PE_4(aiko.PipelineElement):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~
 # For the Pipeline or override for a specific Stream
 #
-# aiko_pipeline create pipeline_paths.json -gp PR_IN_0 -fd "(in_a: x)"
-# aiko_pipeline create pipeline_paths.json -gp PR_IN_1 -fd "(in_a: x)"
+# aiko_pipeline create pipeline_paths.json -gp PE_IN_0 -fd "(in_a: x)"
+# aiko_pipeline create pipeline_paths.json -gp PE_IN_1 -fd "(in_a: x)"
 #
 # mosquitto_pub -t $TOPIC_PATH/in -m "(create_stream 1 PE_IN_1)"
 # mosquitto_pub -t $TOPIC_PATH/in -m "(process_frame (stream_id: 1) (in_a: x))"

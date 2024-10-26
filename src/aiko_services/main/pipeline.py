@@ -745,7 +745,7 @@ class PipelineImpl(Pipeline):
                 else:  ## Remote element ##
                 # TODO: Consider using "topic_response=self.topic_control"
                     element.create_stream(
-                        stream_id, stream.remote_graph_path(),
+                        stream_id, Graph.path_remote(stream.graph_path),
                         parameters, grace_time, None, self.topic_in)
         finally:
             self._disable_thread_local("create_stream")

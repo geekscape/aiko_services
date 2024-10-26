@@ -83,13 +83,6 @@ class Stream:
     #   return {key: str(value) for key, value in asdict(self).items()}
         return {"stream_id": self.stream_id, "frame_id": self.frame_id}
 
-    def remote_graph_path(self):  # from "local.remote" into "remote"
-        graph_path = self.graph_path
-        if isinstance(graph_path, str):
-            _, _, graph_path = graph_path.partition(".")
-            graph_path = graph_path if graph_path else None
-        return graph_path
-
 # https://docs.python.org/3/library/dataclasses.html#dataclasses.replace
     def update(self, stream_dict):
         if not isinstance(stream_dict, dict):

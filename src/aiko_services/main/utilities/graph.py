@@ -77,6 +77,22 @@ class Graph:
 
         return iter(ordered_nodes)
 
+    # convert from "local:remote" into "local"
+    @classmethod
+    def path_local(cls, graph_path):
+        if isinstance(graph_path, str):
+            graph_path, _, _ = graph_path.partition(":")
+            graph_path = graph_path if graph_path else None
+        return graph_path
+
+    # convert from "local:remote" into "remote"
+    @classmethod
+    def path_remote(cls, graph_path):
+        if isinstance(graph_path, str):
+            _, _, graph_path = graph_path.partition(":")
+            graph_path = graph_path if graph_path else None
+        return graph_path
+
     def iterate_after(self, node_name, head_node_name=None):
         ordered_nodes = list(self.get_path(head_node_name))
         node = self.get_node(node_name)
