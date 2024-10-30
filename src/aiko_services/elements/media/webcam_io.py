@@ -43,13 +43,13 @@ try:
     import cv2
     _CV2_IMPORTED = True
 except ModuleNotFoundError:  # TODO: Optional warning flag
-    diagnostic = "webcam_io.py: Couldn't import numpy module"
+    diagnostic = "webcam_io.py: Couldn't import cv2 module"
     print(f"WARNING: {diagnostic}")
     _LOGGER.warning(diagnostic)
-    raise ModuleNotFoundError(
-        'opencv-python package not installed.  '
-        'Install aiko_services with --extras "opencv" '
-        'or install opencv-python manually to use the "webcam_io" module')
+#   raise ModuleNotFoundError(
+#       'opencv-python package not installed.  '
+#       'Install aiko_services with --extras "opencv" '
+#       'or install opencv-python manually to use the "webcam_io" module')
 
 # --------------------------------------------------------------------------- #
 # VideoReadWebcam is a DataSource which supports web cameras 

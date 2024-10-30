@@ -5,9 +5,23 @@
 #
 # Usage
 # ~~~~~
-# aiko_pipeline create ../../examples/pipeline/pipeline_mic_fft_graph.json
+# aiko_pipeline create audio_pipeline_0.json -s 1 -sr -ll debug
 #
-# On "Spectrum" window, press "x" to exit
+# aiko_pipeline create audio_pipeline_0.json -s 1 -p rate ?????
+#
+# aiko_pipeline create audio_pipeline_0.json -s 1  \
+#   -p AudioReadFile.data_batch_size 8
+#
+# aiko_pipeline create audio_pipeline_0.json -s 1  \
+#   -p AudioReadFile.data_sources file://data_in/in_{}.mp3
+#
+# aiko_pipeline create audio_pipeline_0.json -s 1  \
+#   -p AudioWriteFile.path "file://data_out/out_{:02d}.mp3"
+#
+# aiko_pipeline create audio_pipeline_0.json -s 1           \
+#   sp AudioReadFile.data_sources file://data_in/in_00.mp3  \
+#   sp AudioResample.rate ?????                             \
+#   sp AudioWriteFile.data_targets file://data_out/out_00.mp3
 #
 # Resources
 # ~~~~~~~~~
@@ -17,8 +31,144 @@
 #
 # To Do
 # ~~~~~
-# - Ensure that Registar interaction occurs prior to flooding the Pipeline !
+# - Support .mp3, .ogg and .wav ?
+# - Refactor Speech-To-Text and Text-To-Speech PipelineElements
+
+from typing import Tuple
+from pathlib import Path
+
+import aiko_services as aiko
+from aiko_services.elements.media import contains_all, DataSource, DataTarget
+
+__all__ = ["AudioOutput", "AudioReadFile", "AudioWriteFile"]
+
+_LOGGER = aiko.get_logger(__name__)
+
+_XXX_IMPORTED = False
+try:
+#   import xxx
+    _XXX_IMPORTED = True
+except ModuleNotFoundError:  # TODO: Optional warning flag
+    diagnostic = "audio_io.py: Couldn't import xxx module"
+    print(f"WARNING: {diagnostic}")
+    _LOGGER.warning(diagnostic)
+    raise ModuleNotFoundError(
+        'xxx package not installed.  '
+        'Install aiko_services with --extras "xxx" '
+        'or install xxx manually to use the "audio_io" module')
+
+_CV2_IMPORTED = False
+try:
+    import cv2
+    _CV2_IMPORTED = True
+except ModuleNotFoundError:  # TODO: Optional warning flag
+    diagnostic = "audio_io.py: Couldn't import cv2 module"
+    print(f"WARNING: {diagnostic}")
+    _LOGGER.warning(diagnostic)
+#   raise ModuleNotFoundError(
+#       'opencv-python package not installed.  '
+#       'Install aiko_services with --extras "opencv" '
+#       'or install opencv-python manually to use the "audio_io" module')
+
+# --------------------------------------------------------------------------- #
+# Useful for Pipeline output that should be all of the audios processed
+
+class AudioOutput(aiko.PipelineElement):
+    def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("audio_output:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, stream, audio_samples)  \
+        -> Tuple[aiko.StreamEvent, dict]:
+
+        return aiko.StreamEvent.OKAY, {"audio_samples": bytes}
+
+# --------------------------------------------------------------------------- #
+# AudioReadFile is a DataSource which supports ...
+# - Individual audio files
+# - Directory of audio files with an optional filename filter
+# - TODO: Archive (tgz, zip) of audio files with an optional filename filter
 #
+# parameter: "data_sources" is the read file path, format variable: "audio_id"
+#
+# Note: Only supports Streams with "data_sources" parameter
+
+class AudioReadFile(DataSource):  # common_io.py PipelineElement
+    def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("audio_read_file:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def start_stream(self, stream, stream_id):
+    #   stream.variables["audio_capture"] = None
+        stream.variables["audio_frame_generator"] = None
+        return super().start_stream(stream, stream_id, use_create_frame=False)
+
+    def audio_frame_iterator(self, audio_capture):
+        while True:
+    #       status, image_bgr = audio_capture.read()
+    #       if not status:
+    #           break
+    #       image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+            yield # audio_sample
+
+    def frame_generator(self, stream, frame_id):
+        audio_frame_generator = stream.variables["audio_frame_generator"]
+        while True:
+            if not audio_frame_generator:
+                try:
+                    path, file_id = next(
+                        stream.variables["source_paths_generator"])
+                except StopIteration:
+                    stream.variables["source_paths_generator"] = None
+                    diagnostic = "End of audio file(s)"
+                    return aiko.StreamEvent.STOP, {"diagnostic": diagnostic}
+
+                if not path.is_file():
+                    diagnostic = f'path "{path}" must be a file'
+                    return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+
+            # TODO: handle integer audio "path" ... maybe ?
+            #   if isinstance(path, str) and path.isdigit():
+            #       path = int(str(path))
+
+                audio_capture = cv2.VideoCapture(str(path))
+                if not audio_capture.isOpened():
+                    diagnostic = f"Couldn't open audio file: {path}"
+                    return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+                stream.variables["audio_capture"] = audio_capture
+                audio_frame_generator = self.audio_frame_iterator(audio_capture)
+                stream.variables["audio_frame_generator"] =  \
+                    audio_frame_generator
+
+            try:
+                image_rgb = next(audio_frame_generator)
+                return aiko.StreamEvent.OKAY, {"images": [image_rgb]}
+            except StopIteration:
+                audio_frame_generator = None
+                stream.variables["audio_frame_generator"] = None
+
+    def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
+        self.logger.debug(f"{self.my_id()}")
+        return aiko.StreamEvent.OKAY, {"images": images}
+
+    def stop_stream(self, stream, stream_id):
+        audio_capture = stream.variables["audio_capture"]
+        if audio_capture.isOpened():
+            audio_capture.release()
+            stream.variables["audio_capture"] = None
+        return aiko.StreamEvent.OKAY, {}
+
+# --------------------------------------------------------------------------- #
+"""
+# Usage
+# ~~~~~
+# aiko_pipeline create ../../examples/pipeline/pipeline_mic_fft_graph.json
+#
+# On "Spectrum" window, press "x" to exit
+#
+# To Do
+# ~~~~~
+# - Ensure that Registar interaction occurs prior to flooding the Pipeline !
 # - Implement Microphone PipelineElement start_stream(), move __init__() code
 
 from hashlib import md5
@@ -489,5 +639,5 @@ class PE_Speaker(PipelineElement):
             aiko.message.publish(topic_path, payload_out)
             time.sleep(duration)
         return aiko.StreamEvent.OKAY, {"audio": audio}
-
+"""
 # --------------------------------------------------------------------------- #

@@ -4,14 +4,15 @@
 # ~~~~~
 # - None, yet !
 
-# from .audio_io import (
+from .common_io import (
+    contains_all, file_glob_difference, DataSource, DataTarget
+)
+
+from .audio_io import (
+      AudioOutput
 #     PE_AudioFilter, PE_AudioResampler,
 #     PE_FFT, PE_GraphXY,
 #     PE_MicrophonePA, PE_MicrophoneSD, PE_Speaker
-# )
-
-from .common_io import (
-    contains_all, file_glob_difference, DataSource, DataTarget
 )
 
 from .image_io import (
