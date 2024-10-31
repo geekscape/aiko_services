@@ -10,7 +10,8 @@
 
 import os
 
-from aiko_services.gstreamer import *
+# from aiko_services.gstreamer import *
+from aiko_services.src.aiko_services.elements.gstreamer import *
 
 __all__ = ["VideoFileReader"]
 
