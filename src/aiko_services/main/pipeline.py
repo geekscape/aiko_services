@@ -194,14 +194,15 @@ class PipelineGraph(Graph):
     @classmethod
     def get_element(cls, node):
         element = node.element
+
         if element.__class__.__name__ != "ServiceRemoteProxy":
-            name = element.__class__.__name__
+            lifecycle = element.share["lifecycle"]  # element.get_lifecycle() ?
             local = element.is_local()
-            lifecycle = element.share["lifecycle"]
+            name = element.__class__.__name__
         else:
+            lifecycle = "ready"                     # element.get_lifecycle() ?
+            local = False                           # element.is_local() ?
             name = node.name
-            local = False
-            lifecycle = "ready"
         return element, name, local, lifecycle
 
 # TODO: Work-in-progress
@@ -497,7 +498,7 @@ class PipelineImpl(Pipeline):
         self.share["definition_pathname"] = context.definition_pathname
         self.share["lifecycle"] = "waiting"
         self.share["graph_path"] = context.graph_path
-        self.remote_pipelines = {}  # Service name --> PipelineElement name
+        self.remote_pipelines = {}  # Service name --> PipelineRemote instance
         self.services_cache = None
 
         self.stream_leases = {}
@@ -645,12 +646,24 @@ class PipelineImpl(Pipeline):
                     deploy_definition.module, class_name, header)
 
             # TODO: Is element_name is correct for remote case
-
             if deploy_type_name == PipelineImpl.DEPLOY_TYPE_REMOTE_NAME:
-                element_class = PipelineRemoteAbsent
+                element_class = PipelineRemote
+
+            if not element_class:
+                self._error_pipeline(header,
+                    f"PipelineDefinition: PipelineElement type unknown: "
+                    f"{deploy_type_name}")
+
+            init_args = pipeline_element_args(element_name,
+                definition=pipeline_element_definition, pipeline=self)
+            element_instance = compose_instance(element_class, init_args)
+            element_instance.parameters = pipeline_element_definition.parameters
+
+            if element_class == PipelineRemote:
                 service_name = deploy_definition.service_filter["name"]
                 if service_name not in self.remote_pipelines:
-                    self.remote_pipelines[service_name] = element_name
+                    element_details = (element_name, element_instance)
+                    self.remote_pipelines[service_name] = element_details
                 else:
                     self._error_pipeline(header,
                         f"PipelineDefinition: PipelineElement {element_name}: "
@@ -661,18 +674,6 @@ class PipelineImpl(Pipeline):
                     **deploy_definition.service_filter)
                 self.services_cache.add_handler(
                     self._pipeline_element_change_handler, service_filter)
-
-            if not element_class:
-                self._error_pipeline(header,
-                    f"PipelineDefinition: PipelineElement type unknown: "
-                    f"{deploy_type_name}")
-
-            init_args = pipeline_element_args(element_name,
-                definition=pipeline_element_definition,
-                pipeline=self
-            )
-            element_instance = compose_instance(element_class, init_args)
-            element_instance.parameters = pipeline_element_definition.parameters
 
             element = Node(
                 element_name, element_instance, node_successors[element_name])
@@ -909,36 +910,26 @@ class PipelineImpl(Pipeline):
 
     def _pipeline_element_change_handler(self, command, service_details):
         if command in ["add", "remove"]:
-            print(f"Pipeline change: ({command}: {service_details[0:2]} ...)")
+            self.logger.debug(
+                f"Pipeline change: ({command}: {service_details[0:2]} ...)")
+
             topic_path = f"{service_details[0]}/in"
             service_name = service_details[1]
-            element_name = self.remote_pipelines[service_name]
+            element_name, element_instance = self.remote_pipelines[service_name]
             node = self.pipeline_graph.get_node(element_name)
             element_definition = node.element.definition
 
-            if command == "add":
-                header = f"Error: Updating Pipeline: {element_definition.name}"
-            # TODO: Don't create another PipelineElement Service !
-            # TODO: Shouldn't need to load "element_definition.deploy.module"
-                element_class = self._load_element_class(
-                    element_definition.deploy.module, element_name, header)
-
-            if command == "remove":
-                element_class = PipelineRemoteAbsent
-
-            init_args = pipeline_element_args(element_name,
-                definition=element_definition,
-                pipeline=self
-            )
-            element_instance = compose_instance(element_class, init_args)
-            if command == "add":
-                element_instance = get_actor_mqtt(
-                    topic_path, PipelineRemoteFound)
+            if command == "add":     # use discovered remote proxy
+                element_instance.set_lifecycle(True)
+                element_instance = get_actor_mqtt(topic_path, PipelineRemote)
                 element_instance.definition = element_definition
-            node._element = element_instance
 
+            if command == "remove":  # use original PipelineRemote instance
+                element_instance.set_lifecycle(False)
+
+            node._element = element_instance
             self._update_lifecycle_state()
-            print(f"Pipeline update: --> {element_name} proxy")
+            self.logger.debug(f"Pipeline update: --> {element_name} proxy")
 
     def process_frame(
         self, stream_dict, frame_data) -> Tuple[StreamEvent, dict]:
@@ -1204,20 +1195,23 @@ class PipelineImpl(Pipeline):
         for parameter in parameters:
             self.set_parameter(stream_id, parameter[0], parameter[1])
 
-class PipelineRemoteAbsent(PipelineElement):
+class PipelineRemote(PipelineElement):
     def __init__(self, context):
         context.get_implementation("PipelineElement").__init__(self, context)
-        self.share["lifecycle"] = "absent"
+        self.set_lifecycle(False)  # absent
 
     def create_stream(self, stream_id, graph_path=None,
         parameters=None, grace_time=_GRACE_TIME,
         queue_response=None, topic_response=None):
 
-        self.log_error("create_stream")
-        return False
+        if self.absent:
+            self.log_error("create_stream")
+        return not self.absent
 
     def destroy_stream(self, stream_id, graceful=False):
-        self.log_error("destroy_stream")
+        if self.absent:
+            self.log_error("destroy_stream")
+        return not self.absent
 
     @classmethod
     def is_local(cls):
@@ -1229,25 +1223,13 @@ class PipelineRemoteAbsent(PipelineElement):
                            "remote Pipeline Actor hasn't been discovered")
 
     def process_frame(self, stream, **kwargs) -> Tuple[StreamEvent, dict]:
-        self.log_error("process_frame")
-        return False
+        if self.absent:
+            self.log_error("process_frame")
+        return not self.absent
 
-class PipelineRemoteFound(PipelineElement):
-    def __init__(self, context):
-        context.get_implementation("PipelineElement").__init__(self, context)
-        self.share["lifecycle"] = "ready"
-
-    def create_stream(self, stream_id, graph_path=None,
-        parameters=None, grace_time=_GRACE_TIME,
-        queue_response=None, topic_response=None):
-        pass
-
-    def destroy_stream(self, stream_id, graceful=False):
-        pass
-
-    @classmethod
-    def is_local(cls):
-        return False
+    def set_lifecycle(self, absent):
+        self.absent = absent
+        self.share["lifecycle"] = "absent" if self.absent else "ready"
 
 # --------------------------------------------------------------------------- #
 

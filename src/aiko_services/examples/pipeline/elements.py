@@ -67,7 +67,7 @@ class PE_Add(aiko.PipelineElement):
 
 class PE_Inspect(aiko.PipelineElement):
     def __init__(self, context):
-        context.set_protocol("metrics:0")
+        context.set_protocol("inspect:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def _get_inspect_file(self, stream, target):
