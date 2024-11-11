@@ -22,7 +22,7 @@
 #   OpenAI API ... or ... Ollama (llama3.1)
 #
 # -----------------------------------------
-# pip install langchain langchain-openai
+# pip install langchain langchain-openai langchain_community
 # export LANGCHAIN_TRACING_V2="true"
 # export LANGCHAIN_API_KEY="..."
 # export OPENAI_API_KEY="..."

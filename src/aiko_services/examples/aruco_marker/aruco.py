@@ -21,6 +21,7 @@
 #   * Generate Aruco Markers: Calibration board, page of six markers or just one
 
 from typing import Tuple
+from packaging import version  # part of "setuptools" package
 import pickle
 
 import aiko_services as aiko
@@ -34,7 +35,7 @@ try:
     import cv2
     _CV2_IMPORTED = True
 except ModuleNotFoundError:  # TODO: Optional warning flag
-    diagnostic = "aruco.py: Couldn't import numpy module"
+    diagnostic = "aruco.py: Couldn't import cv2 module"
     print(f"WARNING: {diagnostic}")
     _LOGGER.warning(diagnostic)
     raise ModuleNotFoundError(
@@ -84,6 +85,9 @@ class ArucoMarkerDetector(aiko.PipelineElement):
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(
             _ARUCO_TAGS_TABLE[_DEFAULT_ARUCO_TAGS])
         self.aruco_param = cv2.aruco.DetectorParameters()
+        if version.parse(cv2.__version__) >= version.parse("4.7.0"):
+            self.aruco_detector = cv2.aruco.ArucoDetector(
+                self.aruco_dict, self.aruco_param)
 
 #       file = open("CameraCalibration.pckl", "rb")
 #       (self.camera_matrix, self.dist_coeffs, _, _) = pickle.load(file)
@@ -94,9 +98,13 @@ class ArucoMarkerDetector(aiko.PipelineElement):
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         overlays = []
         for image in images:
-            (corners, ids, rejected) =  \
-                cv2.aruco.detectMarkers(
-                    image, self.aruco_dict, parameters=self.aruco_param)
+            if version.parse(cv2.__version__) >= version.parse("4.7.0"):
+                (corners, ids, rejected) =  \
+                    self.aruco_detector.detectMarkers(image)
+            else:
+                (corners, ids, rejected) =  \
+                    cv2.aruco.ArucoDetector.detectMarkers(
+                        image, self.aruco_dict, parameters=self.aruco_param)
             overlay = {"corners": corners, "ids": ids}
             overlays.append(overlay)
 

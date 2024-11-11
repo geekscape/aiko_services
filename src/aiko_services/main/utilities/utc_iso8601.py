@@ -6,6 +6,8 @@
 #     datetime.datetime(1970, 1, 1, 0, 0)
 # >>> utc_iso8601.datetime_epoch()[1]
 #     '1970-01-01T00:00:00.000000'
+# >>> utc_iso8601.datetime_now_utc_iso()
+#     '2024-10-29T11:31:22.000000'
 # >>> utc_iso8601.epoch_to_utc_iso(1.0)
 #     '1970-01-01T00:00:01'
 # >>> utc_iso8601.local_iso_now()
