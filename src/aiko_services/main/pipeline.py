@@ -701,6 +701,7 @@ class PipelineImpl(Pipeline):
                 ActorTopic.IN, "create_stream", arguments, delay=1.0)
             return False
 
+        stream_id = str(stream_id)
         if stream_id in self.stream_leases:
             self.logger.error(f"Create stream: {stream_id} already exists")
             return False
@@ -753,6 +754,7 @@ class PipelineImpl(Pipeline):
         return True
 
     def destroy_stream(self, stream_id, graceful=False, use_thread_local=True):
+        stream_id = str(stream_id)
         if stream_id not in self.stream_leases:
             return False
 

@@ -64,6 +64,8 @@ StreamStateName = {
 class Frame:  # effectively a continuation :)
     metrics: Dict[str, Any] = field(default_factory=dict)  # TODO: Dataclass
     paused_pe_name: str = None  # remote PipelineElement that has been called
+### self.pipeline_graph.iterate_after(frame.paused_pe_name, frame.graph_path)
+### graph_path: str = None  # Graph path (head_node_name)
     swag: Dict[str, Any] = field(default_factory=dict)  # PipelineElement data
 
 @dataclass
@@ -88,7 +90,7 @@ class Stream:
         if not isinstance(stream_dict, dict):
             return False
     #   self = replace(self, **stream_dict)
-        self.stream_id = stream_dict.get("stream_id", self.stream_id)
+        self.stream_id = str(stream_dict.get("stream_id", self.stream_id))
         self.frame_id = int(stream_dict.get("frame_id", self.frame_id))
         self.graph_path = stream_dict.get("graph_path", self.graph_path)
         self.parameters = stream_dict.get("parameters", self.parameters)
