@@ -946,6 +946,7 @@ class PipelineImpl(Pipeline):
     def _process_frame_common(self, stream_dict, frame_data_in, new_frame)  \
         -> Tuple[StreamEvent, dict]:
 
+        frame_complete = True
         graph, stream =  \
             self._process_initialize(stream_dict, frame_data_in, new_frame)
         if graph is None:
@@ -954,12 +955,11 @@ class PipelineImpl(Pipeline):
         try:
             self._enable_thread_local("process_frame", stream.stream_id)
             stream, _ = self.get_stream()
-            frame = stream.frames[stream.frame_id]
+            frame = stream.frames[stream.frame_id]  # frame_id will exist by now
             metrics = self._process_metrics_initialize(frame)
 
             definition_pathname = self.share["definition_pathname"]
             element_name = None
-            frame_complete = True
             frame_data_out = {} if new_frame else frame_data_in
 
             for node in graph:
@@ -1026,7 +1026,7 @@ class PipelineImpl(Pipeline):
                     aiko.message.publish(self.topic_out, payload)
 
         finally:
-            if frame_complete:
+            if frame_complete and stream.frame_id in stream.frames:
                 del stream.frames[stream.frame_id]
             self._disable_thread_local("process_frame")
         return True
@@ -1035,15 +1035,15 @@ class PipelineImpl(Pipeline):
         frame = None
         graph = None
         stream = Stream()
-        header = f"Process frame <{stream.stream_id}:{stream.frame_id}>"
+        header = f"Process frame <{stream.stream_id}:{stream.frame_id}>:"
         if not stream.update(stream_dict):
-            self.logger.warning(f"{header}: stream_dict must be a dictionary")
+            self.logger.warning(f"{header} stream_dict must be a dictionary")
             return None, None
 
         if frame_data_in == []:
             frame_data_in = {}
         if not isinstance(frame_data_in, dict):
-            self.logger.warning(f"{header}: frame data must be a dictionary")
+            self.logger.warning(f"{header} frame data must be a dictionary")
             return None, None
 
         stream_id = stream.stream_id
@@ -1054,9 +1054,9 @@ class PipelineImpl(Pipeline):
                     parameters=stream.parameters)
 
         frame_id = stream.frame_id
+        header = f"Process frame <{stream_id}:{frame_id}>:"
         if stream_id not in self.stream_leases:
-            self.logger.warning(
-                f"Process frame <{stream_id}:{frame_id}>: stream not found")
+            self.logger.warning(f"{header} stream not found")
         else:
             stream_lease = self.stream_leases[stream_id]
             stream_lease.extend()
@@ -1065,16 +1065,18 @@ class PipelineImpl(Pipeline):
             stream = stream_lease.stream
 
             if new_frame:
-                stream.frames[frame_id] = Frame()
-                frame = stream.frames[frame_id]
-                graph = self.pipeline_graph.get_path(stream.graph_path)
+                if frame_id in stream.frames:
+                    self.logger.warning(f"{header} new frame id already exists")
+                else:
+                    stream.frames[frame_id] = Frame()
+                    frame = stream.frames[frame_id]
+                    graph = self.pipeline_graph.get_path(stream.graph_path)
             elif frame_id in stream.frames:
                 frame = stream.frames[frame_id]
                 graph = self.pipeline_graph.iterate_after(
                     frame.paused_pe_name, stream.graph_path)
             else:
-                self.logger.warning(
-                    f"Process frame <{stream_id}:{frame_id}> frame not paused")
+                self.logger.warning(f"{header} paused frame id doesn't exist")
 
         if frame:
             frame.swag.update(frame_data_in)  # SWAG: Stuff We All Get 😅
