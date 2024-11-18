@@ -195,14 +195,19 @@ class PipelineGraph(Graph):
     def get_element(cls, node):
         element = node.element
 
-        if element.__class__.__name__ != "ServiceRemoteProxy":
+        if element.__class__.__name__ == "ServiceRemoteProxy":
+            lifecycle = "ready"  # element.get_lifecycle() ?
+            local = False        # element.is_local() ?
+            name = node.name
+        else:
             lifecycle = element.share["lifecycle"]  # element.get_lifecycle() ?
             local = element.is_local()
-            name = element.__class__.__name__
-        else:
-            lifecycle = "ready"                     # element.get_lifecycle() ?
-            local = False                           # element.is_local() ?
-            name = node.name
+
+            if element.__class__.__name__ == "PipelineRemote":
+                name = node.name
+            else:
+                name = element.__class__.__name__
+
         return element, name, local, lifecycle
 
 # TODO: Work-in-progress
@@ -922,12 +927,12 @@ class PipelineImpl(Pipeline):
             element_definition = node.element.definition
 
             if command == "add":     # use discovered remote proxy
-                element_instance.set_lifecycle(True)
+                element_instance.set_remote_absent(False)
                 element_instance = get_actor_mqtt(topic_path, PipelineRemote)
                 element_instance.definition = element_definition
 
             if command == "remove":  # use original PipelineRemote instance
-                element_instance.set_lifecycle(False)
+                element_instance.set_remote_absent(True)
 
             node._element = element_instance
             self._update_lifecycle_state()
@@ -1202,7 +1207,7 @@ class PipelineImpl(Pipeline):
 class PipelineRemote(PipelineElement):
     def __init__(self, context):
         context.get_implementation("PipelineElement").__init__(self, context)
-        self.set_lifecycle(False)  # absent
+        self.set_remote_absent(True)
 
     def create_stream(self, stream_id, graph_path=None,
         parameters=None, grace_time=_GRACE_TIME,
@@ -1231,7 +1236,7 @@ class PipelineRemote(PipelineElement):
             self.log_error("process_frame")
         return not self.absent
 
-    def set_lifecycle(self, absent):
+    def set_remote_absent(self, absent):
         self.absent = absent
         self.share["lifecycle"] = "absent" if self.absent else "ready"
 
