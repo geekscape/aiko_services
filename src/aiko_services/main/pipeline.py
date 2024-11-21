@@ -1016,15 +1016,24 @@ class PipelineImpl(Pipeline):
                             metrics, element.name, start_time)
                         frame.swag.update(frame_data_out)
                     else:  ## Remote element ##
-                        frame_complete = False
-                        frame_data_out = {}
-                        frame.paused_pe_name = node.name
-                        remote_stream = {
-                            "stream_id": stream.stream_id,
-                            "frame_id": stream.frame_id
-                        }
-                        element.process_frame(remote_stream, **inputs)
-                        break  # process_frame_response() --> continue graph
+                        if self.share["lifecycle"] != "ready":
+                            diagnostic = {
+                                "diagnostic": "process_frame() invoked when "
+                                     "remote Pipeline hasn't been discovered"
+                            }
+                            stream.state = self._process_stream_event(
+                                element_name, StreamEvent.ERROR, diagnostic)
+                        else:
+                            frame_complete = False
+                            frame_data_out = {}
+                            frame.paused_pe_name = node.name
+                            remote_stream = {
+                                "stream_id": stream.stream_id,
+                                "frame_id": stream.frame_id
+                            }
+                            element.process_frame(remote_stream, **inputs)
+                            # process_frame_response() --> continue graph
+                        break
                 except Exception as exception:
                     self._error_pipeline(header, traceback.format_exc())
 
