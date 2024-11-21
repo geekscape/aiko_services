@@ -667,8 +667,9 @@ class PipelineImpl(Pipeline):
             if element_class == PipelineRemote:
                 service_name = deploy_definition.service_filter["name"]
                 if service_name not in self.remote_pipelines:
-                    element_details = (element_name, element_instance)
-                    self.remote_pipelines[service_name] = element_details
+                    topic_path = None  # uniquely identifies remote Pipeline
+                    self.remote_pipelines[service_name] = (
+                        element_name, element_instance, topic_path)
                 else:
                     self._error_pipeline(header,
                         f"PipelineDefinition: PipelineElement {element_name}: "
@@ -700,10 +701,12 @@ class PipelineImpl(Pipeline):
 
     # TODO: Implement limit on delayed post message
         if self.share["lifecycle"] != "ready":
-            arguments = [stream_id, graph_path,
-                parameters, grace_time, queue_response, topic_response]
-            self._post_message(
-                ActorTopic.IN, "create_stream", arguments, delay=1.0)
+        #   arguments = [stream_id, graph_path,
+        #       parameters, grace_time, queue_response, topic_response]
+        #   self._post_message(
+        #       ActorTopic.IN, "create_stream", arguments, delay=1.0)
+            self.logger.error(f"Create stream: {stream_id}: invoked when "
+                               "remote Pipeline hasn't been discovered")
             return False
 
         stream_id = str(stream_id)
@@ -917,26 +920,36 @@ class PipelineImpl(Pipeline):
 
     def _pipeline_element_change_handler(self, command, service_details):
         if command in ["add", "remove"]:
-            self.logger.debug(
-                f"Pipeline change: ({command}: {service_details[0:2]} ...)")
-
             topic_path = f"{service_details[0]}/in"
             service_name = service_details[1]
-            element_name, element_instance = self.remote_pipelines[service_name]
+            element_name, element_instance, element_topic_path =  \
+                self.remote_pipelines[service_name]
             node = self.pipeline_graph.get_node(element_name)
             element_definition = node.element.definition
+            topic_path_match = False
 
             if command == "add":     # use discovered remote proxy
+                topic_path_match = True
                 element_instance.set_remote_absent(False)
-                element_instance = get_actor_mqtt(topic_path, PipelineRemote)
-                element_instance.definition = element_definition
+                new_element_instance = get_actor_mqtt(
+                    topic_path, PipelineRemote)
+                new_element_instance.definition = element_definition
 
             if command == "remove":  # use original PipelineRemote instance
-                element_instance.set_remote_absent(True)
+                if topic_path == element_topic_path:
+                    topic_path_match = True
+                    topic_path = None
+                    element_instance.set_remote_absent(True)
+                    new_element_instance = element_instance
 
-            node._element = element_instance
-            self._update_lifecycle_state()
-            self.logger.debug(f"Pipeline update: --> {element_name} proxy")
+            if topic_path_match:
+                self.logger.debug(f"PipelineElement remote {element_name}: "
+                                  f"{command}: {service_details[0:2]}")
+
+                self.remote_pipelines[service_name] = (
+                    element_name, element_instance, topic_path)
+                node._element = new_element_instance
+                self._update_lifecycle_state()
 
     def process_frame(
         self, stream_dict, frame_data) -> Tuple[StreamEvent, dict]:
@@ -1054,9 +1067,11 @@ class PipelineImpl(Pipeline):
         stream_id = stream.stream_id
         if stream_id == DEFAULT_STREAM_ID:
             if DEFAULT_STREAM_ID not in self.stream_leases:
-                self.create_stream(
+                status = self.create_stream(
                     DEFAULT_STREAM_ID, graph_path=stream.graph_path,
                     parameters=stream.parameters)
+                if status == False:
+                    return None, None
 
         frame_id = stream.frame_id
         header = f"Process frame <{stream_id}:{frame_id}>:"
@@ -1229,7 +1244,7 @@ class PipelineRemote(PipelineElement):
     def log_error(self, function_name):
         self.logger.error(f"PipelineElement.{function_name}(): "
                           f"{self.definition.name}: invoked when "
-                           "remote Pipeline Actor hasn't been discovered")
+                           "remote Pipeline hasn't been discovered")
 
     def process_frame(self, stream, **kwargs) -> Tuple[StreamEvent, dict]:
         if self.absent:
@@ -1373,7 +1388,7 @@ def main():
 @click.argument("definition_pathname", nargs=1, type=str)
 @click.option("--name", "-n", type=str,
     default=None, required=False,
-    help="Pipeline Actor name")
+    help="Pipeline name")
 @click.option("--graph_path", "-gp", type=str,
     default=None, required=False,
     help="Pipeline Graph Path, use Head_PipelineElement_name")
