@@ -388,13 +388,23 @@ class PipelineElementImpl(PipelineElement):
                     self.name, stream_event, frame_data)
 
                 if stream.state == StreamState.RUN and frame_data:
-                # TODO: Check "isinstance(frame_data, dict)"
-                    self.create_frame(stream, frame_data, frame_id)
+                    if isinstance(frame_data, dict):
+                        frame_data = [frame_data]
+                    if isinstance(frame_data, list):
+                        for a_frame_data in frame_data:
+                            self.create_frame(stream, a_frame_data, frame_id)
+                            frame_id += 1
+                    else:
+                        self.logger.warning(
+                            "Frame generator must return either "
+                            "{frame_data} or [{frame_data}]")
+                else:
+                    frame_id += 1
+
                 if stream.state in [StreamState.DROP_FRAME, StreamState.RUN]:
                     stream.state = StreamState.RUN
                     if rate:
                         time.sleep(1.0 / rate)
-                    frame_id += 1
                     self.pipeline.thread_local.frame_id = frame_id
         finally:
             self.pipeline._disable_thread_local("_create_frames_generator")

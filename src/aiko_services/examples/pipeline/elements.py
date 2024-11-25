@@ -166,7 +166,14 @@ class PE_RandomIntegers(aiko.PipelineElement):
     def frame_generator(self, stream, frame_id):
         limit, _ = self.get_parameter("limit")
         if frame_id < int(limit):
-            return aiko.StreamEvent.OKAY, {"random": random.randint(0, 9)}
+            frame_data = {"random": random.randint(0, 9)}
+
+        # Create several frames at once
+        #   frame_data = []
+        #   for _ in range(3):
+        #       frame_data.append({"random": random.randint(0, 9)})
+
+            return aiko.StreamEvent.OKAY, frame_data
         else:
             return aiko.StreamEvent.STOP, {"diagnostic": "Frame limit reached"}
 
