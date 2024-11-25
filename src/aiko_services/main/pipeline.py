@@ -709,14 +709,16 @@ class PipelineImpl(Pipeline):
                 f"Create stream: use either queue_response or topic_response")
             return False
 
+    # TODO: Proper solution for overall handling of remote Pipeline proxy
     # TODO: Implement limit on delayed post message
         if self.share["lifecycle"] != "ready":
-        #   arguments = [stream_id, graph_path,
-        #       parameters, grace_time, queue_response, topic_response]
-        #   self._post_message(
-        #       ActorTopic.IN, "create_stream", arguments, delay=1.0)
-            self.logger.error(f"Create stream: {stream_id}: invoked when "
-                               "remote Pipeline hasn't been discovered")
+            arguments = [stream_id, graph_path,
+                parameters, grace_time, queue_response, topic_response]
+            self._post_message(
+                ActorTopic.IN, "create_stream", arguments, delay=1.0)
+            self.logger.warning(f"Create stream: {stream_id}: invoked when "
+                                 "remote Pipeline hasn't been discovered"
+                                 "... will retry")
             return False
 
         stream_id = str(stream_id)
