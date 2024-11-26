@@ -1437,7 +1437,7 @@ def main():
     help="Define Stream parameters")
 @click.option("--stream_id", "-s", type=str,
     default=None, required=False,
-    help="Create Stream with identifier")
+    help='Create Stream with identifier with optional process_id "name_{}"')
 @click.option("--stream_parameters", "-sp", type=click.Tuple((str, str)),
     default=None, multiple=True, required=False,
     help="Define Stream parameters")
@@ -1462,6 +1462,8 @@ def main():
 def create(definition_pathname, graph_path, name, parameters, stream_id,
     stream_parameters,  # DEPRECATED
     frame_id, frame_data, grace_time, show_response, log_level, log_mqtt):
+
+    stream_id = stream_id.replace("{}", get_pid())  # sort-of unique stream_id
 
     if stream_parameters:
         _LOGGER.warning('"--stream_parameters" replaced by "--parameters"')
