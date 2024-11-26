@@ -171,7 +171,7 @@ class VideoReadFile(DataSource):  # common_io.py PipelineElement
 
     def stop_stream(self, stream, stream_id):
         video_capture = stream.variables["video_capture"]
-        if video_capture.isOpened():
+        if video_capture and video_capture.isOpened():
             video_capture.release()
             stream.variables["video_capture"] = None
         return aiko.StreamEvent.OKAY, {}

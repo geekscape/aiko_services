@@ -96,7 +96,7 @@ class VideoReadWebcam(DataSource):  # common_io.py PipelineElement
             if self.video_capture:
                 self._close_camera()
             self.video_capture = cv2.VideoCapture(path)
-            if self.video_capture.isOpened():
+            if self.video_capture and self.video_capture.isOpened():
                 self.logger.info(f"Open camera: {path}")
                 self.path_current = path
                 self.share["path"] = path
