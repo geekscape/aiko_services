@@ -644,7 +644,7 @@ class Pipeline(PipelineElement):
         pass
 
     @abstractmethod
-    def destroy_stream(self, stream_id, graceful=False):
+    def destroy_stream(self, stream_id, graceful=False, use_thread_local=True, diagnostic={}):
         pass
 
     @abstractmethod
@@ -1017,7 +1017,10 @@ class PipelineImpl(Pipeline):
             self._disable_thread_local("create_stream()")
         return True
 
-    def destroy_stream(self, stream_id, graceful=False, use_thread_local=True):
+    def destroy_stream(self, stream_id,
+                       graceful=False,
+                       use_thread_local=True,
+                       diagnostic={}):
         stream_id = str(stream_id)
 
     # TODO: Proper solution for handling of remote Pipeline proxy
@@ -1052,7 +1055,7 @@ class PipelineImpl(Pipeline):
             stream.lock.acquire("destroy_stream()")
 
             if graceful and len(stream.frames):
-                arguments = [stream_id, graceful, use_thread_local]
+                arguments = [stream_id, graceful, use_thread_local, diagnostic]
                 self._post_message(
                     ActorTopic.IN, "destroy_stream", arguments, delay=3.0)
                 return False
@@ -1062,14 +1065,18 @@ class PipelineImpl(Pipeline):
             if stream_id in self.DEBUG:                     # DEBUG: 2024-12-02
                 del self.DEBUG[stream_id]
 
+            destroy_stream_state = stream.state
+
             graph_path = self.pipeline_graph.get_path(self.share["graph_path"])
             for node in graph_path:
                 element, element_name, local, _ =  \
                     PipelineGraph.get_element(node)
                 if local:  ## Local element ##
                     try:
-                        stream_event, diagnostic = element.stop_stream(
+                        stream_event, stop_stream_data = element.stop_stream(
                             stream, stream_id)
+                        if stream_event == StreamEvent.ERROR:
+                            diagnostic = stop_stream_data
                     except Exception as exception:
                         self.logger.error("Exception in "  \
                           "pipeline.destroy_stream() --> stop_stream()")
@@ -1080,7 +1087,23 @@ class PipelineImpl(Pipeline):
                         element_name, stream, stream_event, diagnostic,
                         in_destroy_stream=True))
                     if stream.state == StreamState.ERROR:
-                        break
+                        destroy_stream_state = StreamState.ERROR
+                    elif destroy_stream_state == StreamState.ERROR:
+                        stream.state = StreamState.ERROR
+
+            # Notify listeners that the stream has stopped
+            stop_state = stream.state
+            if stop_state >= StreamState.RUN:
+                stop_state = StreamState.STOP
+            stream_info = {
+                "stream_id": stream.stream_id,
+                "frame_id": stream.frame_id,
+                "state": stop_state}
+            if stream.queue_response:
+                stream.queue_response.put((stream_info, diagnostic))
+            if stream.topic_response:
+                actor = get_actor_mqtt(stream.topic_response, Pipeline)
+                actor.process_frame_response(stream_info, diagnostic)
         finally:
             if use_thread_local:
                 stream.lock.release()
@@ -1413,13 +1436,8 @@ class PipelineImpl(Pipeline):
         new_stream_id = DEFAULT_STREAM_ID if _WINDOWS else stream_id
         if stream_id == new_stream_id:
             if new_stream_id not in self.stream_leases:
-                status = self.create_stream(
-                    new_stream_id, graph_path=stream.graph_path,
-                    parameters=stream.parameters,
-                    queue_response=stream.queue_response,
-                    topic_response=stream.topic_response)
-                if status == False:
-                    return None, None
+                self.logger.warning(f"_process_initialize called for non-existent stream {stream_id}")
+                return None, None
 
         frame_id = stream.frame_id
         header = f"Process frame <{stream_id}:{frame_id}>:"
@@ -1600,7 +1618,8 @@ class PipelineImpl(Pipeline):
             if not in_destroy_stream:  # avoid destroy_stream() recursion
                 if stream.lock._in_use:
                     stream.lock.release()
-                self.destroy_stream(get_stream_id(), use_thread_local=False)
+                stream.state = StreamState.ERROR
+                self.destroy_stream(get_stream_id(), use_thread_local=False, diagnostic=diagnostic)
 
         return stream_state
 
