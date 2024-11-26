@@ -15,6 +15,7 @@
 
   "#": "Optional parameters may be either null, boolean, integer or string",
   "parameters": {
+    "log_level": "DEBUG",  "#": "Overrides CLI option --log_level value",
     "p_0": null,
     "p_1": true,
     "p_2": 0,
@@ -32,6 +33,7 @@
       }
     },
     { "name":   "PE_2",
+      "parameters": { "log_level": "DEBUG" },  "#": "Overrides CLI -ll value",
       "input":  [{ "name": "c", "type": "int" }],
       "output": [{ "name": "d", "type": "int" }],
       "deploy": {

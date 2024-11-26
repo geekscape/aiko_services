@@ -344,6 +344,12 @@ class PipelineElementImpl(PipelineElement):
                 PROTOCOL_PIPELINE if self.is_pipeline else PROTOCOL_ELEMENT)
         context.get_implementation("Actor").__init__(self, context)
 
+    #  "log_level" parameter overrides "AIKO_LOG_LEVEL" environment variable
+        log_level, found = self.get_parameter(
+            "log_level", self_share_priority=False)
+        if found:
+            self.logger.setLevel(str(log_level).upper())
+
         self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"
         self.share.update(self.definition.parameters)
     # TODO: Fix Aiko Dashboard / EC_Producer incorrectly updates this approach
@@ -409,10 +415,12 @@ class PipelineElementImpl(PipelineElement):
         finally:
             self.pipeline._disable_thread_local("_create_frames_generator")
 
-    def get_parameter(self, name, default=None, use_pipeline=True):
     # TODO: During process_frame(), stream parameters should be updated
-    #       in self.share, just like PipelineDefinition parameters.
+    #       in self.share[], just like PipelineDefinition parameters.
     #       Note: Consider the performance implications when doing this !
+
+    def get_parameter(self,
+        name, default=None, use_pipeline=True, self_share_priority=True):
 
         value = None
         found = False
@@ -424,9 +432,11 @@ class PipelineElementImpl(PipelineElement):
             value = stream_parameters[element_parameter_name]
             found = True
         elif name in self.definition.parameters:
-            if name in self.share:
+            if self_share_priority and name in self.share:
                 value = self.share[name]
-                found = True
+            else:
+                value = self.definition.parameters[name]
+            found = True
 
     # TODO: Should also allow Pipeline parameters to be updated
 
@@ -435,9 +445,12 @@ class PipelineElementImpl(PipelineElement):
                 value = stream_parameters[name]
                 found = True
             elif name in self.pipeline.definition.parameters:
-                if name in self.pipeline.share:
+                if self_share_priority and name in self.pipeline.share:
                     value = self.pipeline.share[name]
-                    found = True
+                else:
+                    value = self.pipeline.definition.parameters[name]
+                found = True
+
         if not found and default is not None:
             value = default  # Note: "found" is deliberately left as False
         return value, found
@@ -518,6 +531,12 @@ class PipelineImpl(Pipeline):
 
         self.stream_leases = {}
         self.thread_local = threading.local()  # See _enable_thread_local()
+
+    #  "log_level" parameter overrides "AIKO_LOG_LEVEL" environment variable
+        log_level, found = self.get_parameter(
+            "log_level", self_share_priority=False)
+        if found:
+            self.logger.setLevel(str(log_level).upper())
 
         self.pipeline_graph = self._create_pipeline_graph(context.definition)
         self.share["element_count"] = self.pipeline_graph.element_count
