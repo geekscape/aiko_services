@@ -252,7 +252,16 @@ class PipelineGraph(Graph):
         return valid_mappings
 
     def validate(self, pipeline_definition, head_node_name, strict=False):
-        for node in self.get_path(head_node_name):
+        node_unknown = None
+        try:
+            nodes = self.get_path(head_node_name)
+        except KeyError as key_error:
+            node_unknown = key_error
+        if node_unknown:
+            raise SystemExit(
+                f"PipelineDefinition PipelineElement unknown: {node_unknown}")
+
+        for node in nodes:
             element, element_name, _, _ = PipelineGraph.get_element(node)
             element_inputs = element.definition.input
             element_inputs = [{**item, "found": 0} for item in element_inputs]

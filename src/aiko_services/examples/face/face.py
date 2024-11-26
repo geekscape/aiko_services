@@ -10,6 +10,12 @@
 # aiko_pipeline create face_pipeline.json -s 1  \
 #   -p VideoReadWebcam.path /dev/video2
 #
+# Resources
+# ~~~~~~~~~
+# - https://github.com/serengil/deepface
+# - https://developer.apple.com/metal/tensorflow-plugin
+#   python -m pip install tensorflow-metal  # Python 3.9 or 3.10 required ?
+#
 # To Do
 # ~~~~~
 # - Image should already be RGB ... is BGR --> RGB even required here ?

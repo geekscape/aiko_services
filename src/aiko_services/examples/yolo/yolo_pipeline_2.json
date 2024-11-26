@@ -3,9 +3,9 @@
   "name":    "p_aruco_yolo_2",
   "runtime": "python",
 
-  "graph": ["(VideoReadWebcam ArucoMarkerDetector YoloDetector ArucoMarkerOverlay ImageOverlay ImageResize VideoShow)"],
+  "graph": ["(VideoReadWebcam VideoSample ImageResize ArucoMarkerDetector YoloDetector ArucoMarkerOverlay ImageOverlay VideoShow PE_Metrics)"],
 
-  "parameters": {"resolution": "1024x768"},
+  "parameters": {"resolution": "640x480", "resolution_mac": "640x360"},
 
   "elements": [
     { "name":   "VideoReadWebcam",
@@ -14,6 +14,21 @@
       "parameters": {"path": "/dev/video0"},
       "deploy": {
         "local": {"module": "aiko_services.elements.media.webcam_io"}
+      }
+    },
+    { "name":   "VideoSample",
+      "parameters": {"sample_rate": 2},  "#": "Drop every second frame",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    },
+    { "name":   "ImageResize",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
       }
     },
     { "name":   "ArucoMarkerDetector",
@@ -46,13 +61,6 @@
         "local": {"module": "aiko_services.elements.media.image_io"}
       }
     },
-    { "name":   "ImageResize",
-      "input":  [{"name": "images", "type": "[image]"}],
-      "output": [{"name": "images", "type": "[image]"}],
-      "deploy": {
-        "local": {"module": "aiko_services.elements.media.image_io"}
-      }
-    },
     { "name":   "VideoShow",
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [],
@@ -66,6 +74,14 @@
       "output": [],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    },
+    { "name":   "PE_Metrics",
+      "#": "Provides Pipeline and PipelineElement timing information",
+      "input":  [],
+      "output": [{"name": "overlay", "type": "[overlay]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.examples.pipeline.elements"}
       }
     }
   ]

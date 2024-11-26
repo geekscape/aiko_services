@@ -4,10 +4,10 @@
   "runtime": "python",
 
   "graph": [
-    "(VideoReadWebcam FaceDetector ImageOverlay VideoShow PE_Metrics)"
+    "(VideoReadWebcam ImageResize FaceDetector ImageOverlay VideoShow PE_Metrics)"
    ],
 
-  "parameters": {},
+	 "parameters": {"resolution": "640x480", "resolution_mac": "640x360"},
 
   "elements": [
     { "name":   "VideoReadWebcam",
@@ -16,6 +16,13 @@
       "parameters": {"path": "/dev/video0"},
       "deploy": {
         "local": {"module": "aiko_services.elements.media.webcam_io"}
+      }
+    },
+    { "name":   "ImageResize",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
       }
     },
     { "name":   "FaceDetector",

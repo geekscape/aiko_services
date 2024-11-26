@@ -97,7 +97,8 @@ class RobotControlImpl(RobotControl):
         self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"
         self.share["topic_video"] = TOPIC_VIDEO
 
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = "mps" if torch.backends.mps.is_available() else "cpu"
+        self.device = "cuda" if torch.cuda.is_available() else self.device
         self.model = YOLO("../yolo/yolov8n_robotdog.pt", "v8")
         self.selected = False
 

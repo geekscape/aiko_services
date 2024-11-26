@@ -49,7 +49,8 @@ class YoloDetector(aiko.PipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def start_stream(self, stream, stream_id):
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = "mps" if torch.backends.mps.is_available() else "cpu"
+        self.device = "cuda" if torch.cuda.is_available() else self.device
         self.yolo_model = YOLO(_YOLO_MODEL_PATHNAME)
         return aiko.StreamEvent.OKAY, {}
 

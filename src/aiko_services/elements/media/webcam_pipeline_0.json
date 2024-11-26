@@ -5,7 +5,7 @@
 
   "graph": ["(VideoReadWebcam ImageResize VideoShow)"],
 
-  "parameters": {"resolution": "320x240"},
+  "parameters": {"resolution": "640x480", "resolution_mac": "640x360"},
 
   "elements": [
     { "name":   "VideoReadWebcam",
