@@ -618,7 +618,7 @@ class PipelineImpl(Pipeline):
     @classmethod
     def create_pipeline(cls, definition_pathname, pipeline_definition,
         name, graph_path, stream_id, parameters, frame_id, frame_data,
-        grace_time, queue_response=None):
+        grace_time, queue_response=None, stream_reset=False):
 
         name = name if name else pipeline_definition.name
 
@@ -634,6 +634,9 @@ class PipelineImpl(Pipeline):
 
         if stream_id is not None:
             stream_dict["stream_id"] = stream_id
+            if stream_reset:
+                pipeline.destroy_stream(stream_id)
+
             pipeline.create_stream(stream_id, graph_path=None,
                 parameters=dict(parameters), grace_time=grace_time,
                 queue_response=queue_response, topic_response=None)
@@ -735,9 +738,9 @@ class PipelineImpl(Pipeline):
                 parameters, grace_time, queue_response, topic_response]
             self._post_message(
                 ActorTopic.IN, "create_stream", arguments, delay=1.0)
-            self.logger.warning(f"Create stream: {stream_id}: invoked when "
-                                 "remote Pipeline hasn't been discovered"
-                                 "... will retry")
+            self.logger.warning(
+                f"Create stream: {stream_id}: invoked when remote "
+                 "Pipeline hasn't been discovered ... will retry")
             return False
 
         stream_id = str(stream_id)
@@ -794,6 +797,28 @@ class PipelineImpl(Pipeline):
 
     def destroy_stream(self, stream_id, graceful=False, use_thread_local=True):
         stream_id = str(stream_id)
+
+    # TODO: Proper solution for handling of remote Pipeline proxy
+    # TODO: Implement limit on delayed post message
+
+    ## Remote elements ##
+        if self.share["lifecycle"] == "ready":
+            graph_path = self.pipeline_graph.get_path(self.share["graph_path"])
+            for node in graph_path:
+                element, _, local, _ = PipelineGraph.get_element(node)
+                if not local:
+                    element.destroy_stream(stream_id, True)
+
+        else:
+            arguments = [stream_id, graceful, use_thread_local]
+            self._post_message(
+                ActorTopic.IN, "destroy_stream", arguments, delay=1.0)
+            self.logger.warning(
+                f"Destroy stream: {stream_id}: invoked when remote "
+                 "Pipeline hasn't been discovered ... will retry")
+            return False
+
+    ## Local elements ##
         if stream_id not in self.stream_leases:
             return False
 
@@ -805,7 +830,7 @@ class PipelineImpl(Pipeline):
             if graceful and len(stream.frames):
                 arguments = [stream_id, graceful, use_thread_local]
                 self._post_message(
-                    ActorTopic.IN, "destroy_stream", arguments, delay=3.0)
+                    ActorTopic.IN, "destroy_stream", arguments, delay=1.0)
                 return False
 
             self.logger.debug(f"Destroy stream: {self.name}<{stream_id}>")
@@ -826,8 +851,6 @@ class PipelineImpl(Pipeline):
 
                     stream_state = self._process_stream_event(element_name,
                         stream_event, diagnostic, in_destroy_stream=True)
-                else:  ## Remote element ##
-                    element.destroy_stream(stream_id, True)
         finally:
             if use_thread_local:
                 self._disable_thread_local("destroy_stream")
@@ -1435,23 +1458,25 @@ def main():
 @click.option("--parameters", "-p", type=click.Tuple((str, str)),
     default=None, multiple=True, required=False,
     help="Define Stream parameters")
+@click.option("--stream_reset", "--reset", "-r", is_flag=True,
+    help="Reset the remote Stream by invoking destroy_stream() first")
 @click.option("--stream_id", "-s", type=str,
     default=None, required=False,
     help='Create Stream with identifier with optional process_id "name_{}"')
 @click.option("--stream_parameters", "-sp", type=click.Tuple((str, str)),
     default=None, multiple=True, required=False,
     help="Define Stream parameters")
+@click.option("--grace_time", "-gt", type=int,
+    default=_GRACE_TIME, required=False,
+    help="Stream receive frame time-out duration")
+@click.option("--show_response", "-sr", is_flag=True,
+    help="Show pipeline output response (output)")
 @click.option("--frame_id", "-fi", type=int,
     default=0, required=False,
     help="Process Frame with identifier")
 @click.option("--frame_data", "-fd", type=str,
     default=None, required=False,
     help="Process Frame with data")
-@click.option("--grace_time", "-gt", type=int,
-    default=_GRACE_TIME, required=False,
-    help="Stream receive frame time-out duration")
-@click.option("--show_response", "-sr", is_flag=True,
-    help="Show pipeline output response (output)")
 @click.option("--log_level", "-ll", type=str,
     default="INFO", required=False,
     help="error, warning, info, debug")
@@ -1461,9 +1486,11 @@ def main():
 
 def create(definition_pathname, graph_path, name, parameters, stream_id,
     stream_parameters,  # DEPRECATED
-    frame_id, frame_data, grace_time, show_response, log_level, log_mqtt):
+    frame_id, frame_data, grace_time, show_response,
+    log_level, log_mqtt, stream_reset):
 
-    stream_id = stream_id.replace("{}", get_pid())  # sort-of unique stream_id
+    if stream_id:
+        stream_id = stream_id.replace("{}", get_pid())  # sort-of unique id
 
     if stream_parameters:
         _LOGGER.warning('"--stream_parameters" replaced by "--parameters"')
@@ -1495,7 +1522,8 @@ def create(definition_pathname, graph_path, name, parameters, stream_id,
     pipeline = PipelineImpl.create_pipeline(
         definition_pathname, pipeline_definition,
         name, graph_path, stream_id, parameters, frame_id, frame_data,
-        grace_time, queue_response=queue_pipeline_response)
+        grace_time, queue_response=queue_pipeline_response,
+        stream_reset=stream_reset)
 
     pipeline.run(mqtt_connection_required=False)
 
