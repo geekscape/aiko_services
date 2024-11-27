@@ -531,6 +531,7 @@ class PipelineImpl(Pipeline):
     DEPLOY_TYPE_REMOTE_NAME = PipelineElementDeployRemote.__name__
 
     def __init__(self, context):
+        self.actor = context.get_implementation("Actor")  # _WINDOWS
         context.get_implementation("PipelineElement").__init__(self, context)
         print(f"MQTT topic: {self.topic_in}")
 
@@ -553,6 +554,7 @@ class PipelineImpl(Pipeline):
         self.share["element_count"] = self.pipeline_graph.element_count
         self.share["streams"] = 0
         self.share["streams_frames"] = 0
+        self.share["sliding_windows"] = _WINDOWS
         self._update_lifecycle_state()
 
     # TODO: Better visualization of the Pipeline / PipelineElements details
@@ -563,6 +565,17 @@ class PipelineImpl(Pipeline):
                 print(f"    PipelineElement: {node.name}")
 
         event.add_timer_handler(self._status_update_timer, 3.0)
+
+    # Exists only for_WINDOWS option
+    def ec_producer_change_handler(self, command, item_name, item_value):
+        global _WINDOWS
+        self.actor.ec_producer_change_handler(
+            self, command, item_name, item_value)
+        if item_name == "sliding_windows":
+            try:
+                _WINDOWS = item_value.lower() == "true"
+            except ValueError:
+                pass
 
     def _update_lifecycle_state(self):
         pe_lifecycles = []
@@ -1480,7 +1493,7 @@ def main():
 @click.option("--parameters", "-p", type=click.Tuple((str, str)),
     default=None, multiple=True, required=False,
     help="Define Stream parameters")
-@click.option("--stream_reset", "--reset", "-r", is_flag=True,
+@click.option("--stream_reset", "-r", is_flag=True,
     help="Reset the remote Stream by invoking destroy_stream() first")
 @click.option("--stream_id", "-s", type=str,
     default=None, required=False,
@@ -1505,18 +1518,24 @@ def main():
 @click.option("--log_mqtt", "-lm", type=str,
     default="all", required=False,
     help="all, false (console), true (mqtt)")
+@click.option("--windows", "-w", is_flag=True,
+    help="Enable experimental distributed Streams sliding window protocol")
 
 def create(definition_pathname, graph_path, name, parameters, stream_id,
     stream_parameters,  # DEPRECATED
     frame_id, frame_data, grace_time, show_response,
-    log_level, log_mqtt, stream_reset):
+    log_level, log_mqtt, stream_reset, windows):
+
+    global _WINDOWS
+    if windows:
+        _WINDOWS = True
 
     if stream_id:
         stream_id = stream_id.replace("{}", get_pid())  # sort-of unique id
 
     if stream_parameters:
-        _LOGGER.warning('"--stream_parameters" replaced by "--parameters"')
         parameters = stream_parameters
+        _LOGGER.warning('"--stream_parameters" replaced by "--parameters"')
 
     os.environ["AIKO_LOG_LEVEL"] = log_level.upper()
     os.environ["AIKO_LOG_MQTT"] = log_mqtt
