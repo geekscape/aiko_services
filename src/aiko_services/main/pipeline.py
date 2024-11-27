@@ -133,6 +133,8 @@ PROTOCOL_ELEMENT =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_ELEMENT}:{_VERSION}"
 _GRACE_TIME = 60  # seconds
 _LOGGER = aiko.logger(__name__)
 
+_WINDOWS = False  # Stream windowing protocol for distributed function calls
+
 # --------------------------------------------------------------------------- #
 
 class DeployType(Enum):
@@ -742,7 +744,7 @@ class PipelineImpl(Pipeline):
 
     # TODO: Proper solution for overall handling of remote Pipeline proxy
     # TODO: Implement limit on delayed post message
-        if self.share["lifecycle"] != "ready":
+        if _WINDOWS and self.share["lifecycle"] != "ready":
             arguments = [stream_id, graph_path,
                 parameters, grace_time, queue_response, topic_response]
             self._post_message(
@@ -796,10 +798,11 @@ class PipelineImpl(Pipeline):
                     stream_state = self._process_stream_event(
                         element_name, stream_event, diagnostic)
                 else:  ## Remote element ##
-                # TODO: Consider using "topic_response=self.topic_control"
-                    element.create_stream(
-                        stream_id, Graph.path_remote(stream.graph_path),
-                        parameters, grace_time, None, self.topic_in)
+                    # TODO: Consider using "topic_response=self.topic_control"
+                    if _WINDOWS:
+                        element.create_stream(
+                            stream_id, Graph.path_remote(stream.graph_path),
+                            parameters, grace_time, None, self.topic_in)
         finally:
             self._disable_thread_local("create_stream")
         return True
@@ -819,13 +822,14 @@ class PipelineImpl(Pipeline):
                     element.destroy_stream(stream_id, True)
 
         else:
-            arguments = [stream_id, graceful, use_thread_local]
-            self._post_message(
-                ActorTopic.IN, "destroy_stream", arguments, delay=1.0)
-            self.logger.warning(
-                f"Destroy stream: {stream_id}: invoked when remote "
-                 "Pipeline hasn't been discovered ... will retry")
-            return False
+            if _WINDOWS:
+                arguments = [stream_id, graceful, use_thread_local]
+                self._post_message(
+                    ActorTopic.IN, "destroy_stream", arguments, delay=1.0)
+                self.logger.warning(
+                    f"Destroy stream: {stream_id}: invoked when remote "
+                     "Pipeline hasn't been discovered ... will retry")
+                return False
 
     ## Local elements ##
         if stream_id not in self.stream_leases:
@@ -1116,6 +1120,9 @@ class PipelineImpl(Pipeline):
                     aiko.message.publish(self.topic_out, payload)
 
         finally:
+        # If not _WINDOWS, then always remove the cached Stream Frame
+            if not _WINDOWS:
+                del stream.frames[stream.frame_id]
             if frame_complete and stream.frame_id in stream.frames:
                 del stream.frames[stream.frame_id]
             self._disable_thread_local("process_frame")
@@ -1136,11 +1143,13 @@ class PipelineImpl(Pipeline):
             self.logger.warning(f"{header} frame data must be a dictionary")
             return None, None
 
+    # If not _WINDOWS, then always automatically create a new Stream
         stream_id = stream.stream_id
-        if stream_id == DEFAULT_STREAM_ID:
-            if DEFAULT_STREAM_ID not in self.stream_leases:
+        new_stream_id = DEFAULT_STREAM_ID if _WINDOWS else stream_id
+        if stream_id == new_stream_id:
+            if new_stream_id not in self.stream_leases:
                 status = self.create_stream(
-                    DEFAULT_STREAM_ID, graph_path=stream.graph_path,
+                    new_stream_id, graph_path=stream.graph_path,
                     parameters=stream.parameters)
                 if status == False:
                     return None, None
@@ -1156,13 +1165,17 @@ class PipelineImpl(Pipeline):
                 {"frame_id": frame_id, "state": stream.state})
             stream = stream_lease.stream
 
+    # If not _WINDOWS, then always automatically create a new Frame
             if new_frame:
-                if frame_id in stream.frames:
+                if _WINDOWS and frame_id in stream.frames:
                     self.logger.warning(f"{header} new frame id already exists")
                 else:
                     stream.frames[frame_id] = Frame()
                     frame = stream.frames[frame_id]
                     graph = self.pipeline_graph.get_path(stream.graph_path)
+    # If not _WINDOWS, then don't support "process_frame_response()"
+            elif not _WINDOWS:
+                return None, None
             elif frame_id in stream.frames:
                 frame = stream.frames[frame_id]
                 graph = self.pipeline_graph.iterate_after(
