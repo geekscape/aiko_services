@@ -44,8 +44,8 @@ try:
     _CV2_IMPORTED = True
 except ModuleNotFoundError:  # TODO: Optional warning flag
     diagnostic = "webcam_io.py: Couldn't import cv2 module"
-    print(f"WARNING: {diagnostic}")
-    _LOGGER.warning(diagnostic)
+#   print(f"WARNING: {diagnostic}")
+#   _LOGGER.warning(diagnostic)
 #   raise ModuleNotFoundError(
 #       'opencv-python package not installed.  '
 #       'Install aiko_services with --extras "opencv" '

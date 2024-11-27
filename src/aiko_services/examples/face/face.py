@@ -36,13 +36,13 @@ try:
     import cv2
     _CV2_IMPORTED = True
 except ModuleNotFoundError:  # TODO: Optional warning flag
-    diagnostic = "aruco.py: Couldn't import numpy module"
+    diagnostic = "face.py: Couldn't import cv2 module"
     print(f"WARNING: {diagnostic}")
     _LOGGER.warning(diagnostic)
     raise ModuleNotFoundError(
         'opencv-python package not installed.  '
         'Install aiko_services with --extras "opencv" '
-        'or install opencv-python manually to use the "aruco" module')
+        'or install opencv-python manually to use the "face" module')
 
 # --------------------------------------------------------------------------- #
 

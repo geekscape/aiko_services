@@ -48,7 +48,7 @@ try:
     import numpy as np
     _NUMPY_IMPORTED = True
 except ModuleNotFoundError:  # TODO: Optional warning flag
-    diagnostic = "image_io.py: Couldn't import numpy module"
+    diagnostic = "aruco.py: Couldn't import numpy module"
     print(f"WARNING: {diagnostic}")
     _LOGGER.warning(diagnostic)
 
