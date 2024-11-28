@@ -757,11 +757,11 @@ class PipelineImpl(Pipeline):
 
     # TODO: Proper solution for overall handling of remote Pipeline proxy
     # TODO: Implement limit on delayed post message
-        if _WINDOWS and self.share["lifecycle"] != "ready":
+        if self.share["lifecycle"] != "ready":
             arguments = [stream_id, graph_path,
                 parameters, grace_time, queue_response, topic_response]
             self._post_message(
-                ActorTopic.IN, "create_stream", arguments, delay=1.0)
+                ActorTopic.IN, "create_stream", arguments, delay=3.0)
             self.logger.warning(
                 f"Create stream: {stream_id}: invoked when remote "
                  "Pipeline hasn't been discovered ... will retry")
@@ -838,7 +838,7 @@ class PipelineImpl(Pipeline):
             if _WINDOWS:
                 arguments = [stream_id, graceful, use_thread_local]
                 self._post_message(
-                    ActorTopic.IN, "destroy_stream", arguments, delay=1.0)
+                    ActorTopic.IN, "destroy_stream", arguments, delay=3.0)
                 self.logger.warning(
                     f"Destroy stream: {stream_id}: invoked when remote "
                      "Pipeline hasn't been discovered ... will retry")
@@ -856,7 +856,7 @@ class PipelineImpl(Pipeline):
             if graceful and len(stream.frames):
                 arguments = [stream_id, graceful, use_thread_local]
                 self._post_message(
-                    ActorTopic.IN, "destroy_stream", arguments, delay=1.0)
+                    ActorTopic.IN, "destroy_stream", arguments, delay=3.0)
                 return False
 
             self.logger.debug(f"Destroy stream: {self.name}<{stream_id}>")
@@ -1034,6 +1034,16 @@ class PipelineImpl(Pipeline):
     def process_frame(
         self, stream_dict, frame_data) -> Tuple[StreamEvent, dict]:
 
+        if self.share["lifecycle"] != "ready":
+            arguments = [stream_dict, frame_data]
+            self._post_message(
+                ActorTopic.IN, "process_frame", arguments, delay=3.0)
+            stream_id = stream_dict.get("stream_id", "*")
+            self.logger.warning(
+                f"Process frame: {stream_id}: invoked when remote "
+                 "Pipeline hasn't been discovered ... will retry")
+            return False
+
         return self._process_frame_common(stream_dict, frame_data, True)
 
     def process_frame_response(
@@ -1134,7 +1144,7 @@ class PipelineImpl(Pipeline):
 
         finally:
         # If not _WINDOWS, then always remove the cached Stream Frame
-            if not _WINDOWS:
+            if not _WINDOWS and stream.frame_id in stream.frames:
                 del stream.frames[stream.frame_id]
             if frame_complete and stream.frame_id in stream.frames:
                 del stream.frames[stream.frame_id]
