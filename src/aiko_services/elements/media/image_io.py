@@ -22,6 +22,9 @@
 #
 # To Do
 # ~~~~~
+# - Consolidate multiple "media_pipeline_?.json" files into Graph Path(s) !
+# - ImageResize: {"scale": "1/3"} or {"scale": 2} or {"resolution": 640}
+#
 # - Refactor optional module import into common function (see video_io.py)
 # - Provide checks around "cv2" and "numpy" usage to be optional
 #

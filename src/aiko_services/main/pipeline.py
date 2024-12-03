@@ -367,6 +367,11 @@ class PipelineElementImpl(PipelineElement):
     #   self.share["parameters"] = self.definition.parameters  # TODO
 
     def create_frame(self, stream, frame_data, frame_id=None):
+        if stream.stream_id not in self.pipeline.DEBUG:     # DEBUG: 2024-12-02
+            self.pipeline.DEBUG[stream.stream_id] = {}
+        self.pipeline.DEBUG[stream.stream_id]["create_frame"] = {
+            "time": local_iso_now(), "latest_frame_id": frame_id}
+
         frame_id = frame_id if frame_id else stream.frame_id
         stream_copy = Stream(stream.stream_id, frame_id,
             stream.parameters, stream.queue_response,
@@ -531,6 +536,8 @@ class PipelineImpl(Pipeline):
     DEPLOY_TYPE_REMOTE_NAME = PipelineElementDeployRemote.__name__
 
     def __init__(self, context):
+        self.DEBUG = {}                                     # DEBUG: 2024-12-02
+
         self.actor = context.get_implementation("Actor")  # _WINDOWS
         context.get_implementation("PipelineElement").__init__(self, context)
         print(f"MQTT topic: {self.topic_in}")
@@ -779,6 +786,11 @@ class PipelineImpl(Pipeline):
                     f"Create stream: Unknown Pipeline Graph Path: {graph_path}")
                 return False
 
+        if stream_id not in self.DEBUG:                     # DEBUG: 2024-12-02
+            self.DEBUG[stream_id] = {}
+        self.DEBUG[stream_id]["create_stream"] = {
+            "time": local_iso_now(), "stream_id": stream_id}
+
         self.logger.debug(f"Create stream: {self.name}<{stream_id}>")
         stream_lease = Lease(int(grace_time), stream_id,
             lease_expired_handler=self.destroy_stream)
@@ -860,6 +872,9 @@ class PipelineImpl(Pipeline):
                 return False
 
             self.logger.debug(f"Destroy stream: {self.name}<{stream_id}>")
+
+            if stream_id in self.DEBUG:                     # DEBUG: 2024-12-02
+                del self.DEBUG[stream_id]
 
             graph_path = self.pipeline_graph.get_path(self.share["graph_path"])
             for node in graph_path:
@@ -1063,7 +1078,22 @@ class PipelineImpl(Pipeline):
         try:
             self._enable_thread_local("process_frame", stream.stream_id)
             stream, _ = self.get_stream()
-            frame = stream.frames[stream.frame_id]  # frame_id will exist by now
+            try:                                            # DEBUG: 2024-12-02
+                frame = stream.frames[stream.frame_id]
+            except KeyError:                                # DEBUG: 2024-12-02
+                self.logger.error(
+                    f"## Stream <{stream.stream_id}>: Frame id not found: {stream.frame_id}")
+                details = self.DEBUG[stream.stream_id]["create_stream"]
+                self.logger.error(f'##     {details["time"]}: create_stream(): stream_id: {details["stream_id"]}')
+
+                details = self.DEBUG[stream.stream_id]["frames_lru"]
+                self.logger.error(f'##     Recent process frame_id(s): {details.get_list()}')
+
+                self.logger.error(f"##     Cached frame_id(s): {list(stream.frames.keys())}")
+
+                details = self.DEBUG[stream.stream_id]["create_frame"]
+                self.logger.error(f'##     {details["time"]}: create_frame(): Last generated frame_id: {details["latest_frame_id"]}')
+                return False
             metrics = self._process_metrics_initialize(frame)
 
             definition_pathname = self.share["definition_pathname"]
@@ -1193,6 +1223,14 @@ class PipelineImpl(Pipeline):
                 if _WINDOWS and frame_id in stream.frames:
                     self.logger.warning(f"{header} new frame id already exists")
                 else:
+                    if stream_id not in self.DEBUG:         # DEBUG: 2024-12-02
+                        self.DEBUG[stream_id] = {}
+                    if "frames_lru" not in self.DEBUG[stream_id]:
+                        self.DEBUG[stream_id]["frames_lru"] = LRUCache(size=8)
+                    self.DEBUG[stream_id]["frames_lru"].put(frame_id,
+                        {"time": local_iso_now(), "frame_id": frame_id}
+                    )
+
                     stream.frames[frame_id] = Frame()
                     frame = stream.frames[frame_id]
                     graph = self.pipeline_graph.get_path(stream.graph_path)
@@ -1530,11 +1568,13 @@ def main():
     help="all, false (console), true (mqtt)")
 @click.option("--windows", "-w", is_flag=True,
     help="Enable experimental distributed Streams sliding window protocol")
+@click.option("--exit_message", is_flag=True,
+    help="Display exit warning message")
 
 def create(definition_pathname, graph_path, name, parameters, stream_id,
     stream_parameters,  # DEPRECATED
     frame_id, frame_data, grace_time, show_response,
-    log_level, log_mqtt, stream_reset, windows):
+    log_level, log_mqtt, stream_reset, windows, exit_message):
 
     global _WINDOWS
     if windows:
@@ -1577,6 +1617,8 @@ def create(definition_pathname, graph_path, name, parameters, stream_id,
         stream_reset=stream_reset)
 
     pipeline.run(mqtt_connection_required=False)
+    if exit_message:
+        _LOGGER.warning("Pipeline process exit")
 
 @main.command(help="Destroy Pipeline")
 @click.argument("name", nargs=1, type=str, required=True)
