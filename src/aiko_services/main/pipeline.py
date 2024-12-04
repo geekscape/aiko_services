@@ -1079,7 +1079,7 @@ class PipelineImpl(Pipeline):
             self._enable_thread_local("process_frame", stream.stream_id)
             stream, _ = self.get_stream()
             try:                                            # DEBUG: 2024-12-02
-                frame = stream.frames[stream.frame_id + 1]
+                frame = stream.frames[stream.frame_id]
             except KeyError:                                # DEBUG: 2024-12-02
                 self.logger.error(
                     f"Stream <{stream.stream_id}>: "
