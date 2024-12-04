@@ -1079,20 +1079,26 @@ class PipelineImpl(Pipeline):
             self._enable_thread_local("process_frame", stream.stream_id)
             stream, _ = self.get_stream()
             try:                                            # DEBUG: 2024-12-02
-                frame = stream.frames[stream.frame_id]
+                frame = stream.frames[stream.frame_id + 1]
             except KeyError:                                # DEBUG: 2024-12-02
                 self.logger.error(
-                    f"## Stream <{stream.stream_id}>: Frame id not found: {stream.frame_id}")
+                    f"Stream <{stream.stream_id}>: "
+                    f"Frame id: <{stream.frame_id}> not found\n"
+                     "### Is a background thread in a PipelineElement "
+                     'changing "stream.frame_id" ?\n'
+                    f"### Purging Stream <{stream.stream_id}> in-flight frames")
                 details = self.DEBUG[stream.stream_id]["create_stream"]
-                self.logger.error(f'##     {details["time"]}: create_stream(): stream_id: {details["stream_id"]}')
+                self.logger.warning(f'##     {details["time"]}: create_stream(): stream_id: {details["stream_id"]}')
 
                 details = self.DEBUG[stream.stream_id]["frames_lru"]
-                self.logger.error(f'##     Recent process frame_id(s): {details.get_list()}')
+                self.logger.warning(f'##     Recent process frame_id(s): {details.get_list()}')
 
-                self.logger.error(f"##     Cached frame_id(s): {list(stream.frames.keys())}")
+                self.logger.warning(f"##     Cached frame_id(s): {list(stream.frames.keys())}")
 
                 details = self.DEBUG[stream.stream_id]["create_frame"]
-                self.logger.error(f'##     {details["time"]}: create_frame(): Last generated frame_id: {details["latest_frame_id"]}')
+                self.logger.warning(f'##     {details["time"]}: create_frame(): Last generated frame_id: {details["latest_frame_id"]}')
+
+                stream.frames.clear()  # radically prevent memory leaks
                 return False
             metrics = self._process_metrics_initialize(frame)
 

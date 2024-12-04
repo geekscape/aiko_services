@@ -54,7 +54,7 @@ pipeline_id=0
 while [ $pipeline_id -le $PIPELINE_LIMIT ]; do
   pipeline_name=0${pipeline_id}0
   pipeline_file=pipeline_large_${pipeline_name}
-  aiko_pipeline create ${pipeline_file}.json &
+  aiko_pipeline create ${pipeline_file}.json --log_level $AIKO_LOG_LEVEL --windows &
 # aiko_pipeline create ${pipeline_file}.json 2>${pipeline_file}.log &
   process_id=$!
   process_ids="$process_ids $process_id"

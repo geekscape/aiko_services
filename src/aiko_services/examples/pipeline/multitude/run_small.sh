@@ -51,7 +51,7 @@ function ctrl_c_1() {
 process_ids=""
 for pipeline_id in a b c; do
   pipeline_name=pipeline_small_${pipeline_id}
-  aiko_pipeline create ${pipeline_name}.json &
+  aiko_pipeline create ${pipeline_name}.json --log_level $AIKO_LOG_LEVEL --windows &
   # aiko_pipeline create ${pipeline_name}.json 2>${pipeline_name}.log &
   process_id=$!
   process_ids="$process_ids $process_id"
