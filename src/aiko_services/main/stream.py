@@ -22,6 +22,8 @@ from dataclasses import dataclass, field
 import queue
 from typing import Any, Dict
 
+from aiko_services.main.utilities import *
+
 __all__ = [
     "DEFAULT_STREAM_ID", "FIRST_FRAME_ID", "Frame", "Stream",
     "StreamEvent", "StreamEventName", "StreamState", "StreamStateName"
@@ -72,13 +74,22 @@ class Frame:  # effectively a continuation :)
 class Stream:
     stream_id: str = DEFAULT_STREAM_ID
     frame_id: int = FIRST_FRAME_ID  # only updated by Pipeline thread
-    graph_path: str = None  # Graph path (head_node_name), default: first path
     frames: Dict[int, Frame] = field(default_factory=dict)
+    graph_path: str = None  # Graph path (head_node_name), default: first path
+    lock: Lock = Lock(f"{__name__}_{stream_id}")
     parameters: Dict[str, Any] = field(default_factory=dict)
     queue_response: queue = None
     state: StreamState = StreamState.RUN
     topic_response: str = None
     variables: Dict[str, Any] = field(default_factory=dict)
+
+    def set_state(self, state):
+        if state == StreamState.ERROR and self.state > StreamState.ERROR:
+            self.state = state
+        if state == StreamState.STOP and self.state > StreamState.STOP:
+            self.state = state
+        else:
+            self.state = state
 
 # https://docs.python.org/3/library/dataclasses.html#dataclasses.asdict
     def as_dict(self):
