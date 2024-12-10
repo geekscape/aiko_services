@@ -10,9 +10,15 @@
 #
 # Notes
 # ~~~~~
-# - Uncommenting the "print()" statements is a very useful diagnotic in general
+# - Generally useful debugging aid: export AIKO_LOG_LEVEL_LOCK=DEBUG
 
+import os
 from threading import Lock as ThreadingLock
+
+from .logger import DEBUG, get_logger
+
+_AIKO_LOG_LEVEL_LOCK = os.environ.get("AIKO_LOG_LEVEL_LOCK", "INFO")
+_LOGGER = get_logger(__name__, log_level=_AIKO_LOG_LEVEL_LOCK)
 
 __all__ = ["Lock"]
 
@@ -24,18 +30,19 @@ class Lock:
         self._in_use = None
 
     def acquire(self, location):
-        if self._in_use:
-            diagnostic = f'Lock "{self._name}" '  \
-                         f'at "{location}" in use by "{self._in_use}"'
-            if self._logger:
-                self._logger.warn(diagnostic)
-            else:
-                print(diagnostic)
+        if self._in_use and _LOGGER.isEnabledFor(DEBUG):
+            _LOGGER.debug(
+                f'"{self._name}" at "{location}" in use by "{self._in_use}"')
+
         self._lock.acquire()
         self._in_use = location
-    #   print(f'Lock "{self._name}" acquired by {location}')
+
+        if _LOGGER.isEnabledFor(DEBUG):
+            _LOGGER.debug(f'"{self._name}" acquired by {location}')
 
     def release(self):
-    #   print(f'Lock "{self._name}" released by {self._in_use}')
+        if _LOGGER.isEnabledFor(DEBUG):
+            _LOGGER.debug(f'"{self._name}" released by {self._in_use}')
+
         self._in_use = None
         self._lock.release()
