@@ -2,9 +2,15 @@
 # ~~~~~
 # from aiko_services.main.utilities import *
 # lock_test = Lock(f"{__name__}.test", aiko.logger(__name__))
-# lock_test.acquire("add_service()")
-### Critial code
-# lock_test.release()
+# try:
+#     lock_test.acquire("add_service()")
+#     ## Critial code ##
+# finally:
+#     lock_test.release()
+#
+# Notes
+# ~~~~~
+# - Uncommenting the "print()" statements is a very useful diagnotic in general
 
 from threading import Lock as ThreadingLock
 
@@ -27,7 +33,9 @@ class Lock:
                 print(diagnostic)
         self._lock.acquire()
         self._in_use = location
+    #   print(f'Lock "{self._name}" acquired by {location}')
 
     def release(self):
+    #   print(f'Lock "{self._name}" released by {self._in_use}')
         self._in_use = None
         self._lock.release()

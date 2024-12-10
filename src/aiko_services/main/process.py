@@ -224,22 +224,28 @@ class ProcessImplementation(ProcessData):
             aiko.message.publish(registrar_topic_in, payload_out)
 
     def add_service(self, service):
-        self._services_lock.acquire("add_service()")
-        self.service_count += 1
-        service.service_id = self.service_count
-        service.topic_path = aiko.get_topic_path(service.service_id)
-        self._services[service.service_id] = service
-        self._services_lock.release()
+        try:
+            self._services_lock.acquire("add_service()")
+            self.service_count += 1
+            service.service_id = self.service_count
+            service.topic_path = aiko.get_topic_path(service.service_id)
+            self._services[service.service_id] = service
+        finally:
+            self._services_lock.release()
+
         if self.connection.is_connected(ConnectionState.REGISTRAR):
             self._add_service_to_registrar(service)
         return self.service_count
 
     def remove_service(self, service_id):
-        self._services_lock.acquire("remove_service")
-        if service_id in self._services:
-            del self._services[service_id]
-            self.service_count -= 1
-        self._services_lock.release()
+        try:
+            self._services_lock.acquire("remove_service")
+            if service_id in self._services:
+                del self._services[service_id]
+                self.service_count -= 1
+        finally:
+            self._services_lock.release()
+
         if self.connection.is_connected(ConnectionState.REGISTRAR):
             self._remove_service_from_registrar(service)
         return self.service_count
@@ -294,10 +300,12 @@ class ProcessImplementation(ProcessData):
                     aiko.registrar = registrar
                     aiko.connection.update_state(ConnectionState.REGISTRAR)
 
-                    self._services_lock.acquire("on_registrar() #1")
-                    for service in self._services.values():
-                        self._add_service_to_registrar(service)
-                    self._services_lock.release()
+                    try:
+                        self._services_lock.acquire("on_registrar() #1")
+                        for service in self._services.values():
+                            self._add_service_to_registrar(service)
+                    finally:
+                        self._services_lock.release()
 
                 if action == "absent":
                     aiko.registrar = None
@@ -305,10 +313,12 @@ class ProcessImplementation(ProcessData):
                     if self._registrar_absent_terminate:
                         self.terminate(1)
 
-                self._services_lock.acquire("on_registrar() #2")
-                for service in self._services.values():
-                    service.registrar_handler_call(action, aiko.registrar)
-                self._services_lock.release()
+                try:
+                    self._services_lock.acquire("on_registrar() #2")
+                    for service in self._services.values():
+                        service.registrar_handler_call(action, aiko.registrar)
+                finally:
+                    self._services_lock.release()
         except Exception as exception:
             _LOGGER.warning(
                 f"Exception raised when adding to Registrar: {exception}")

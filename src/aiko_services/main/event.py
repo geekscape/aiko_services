@@ -261,12 +261,13 @@ def remove_timer_handler(handler):
 def loop(loop_when_no_handlers=False):
     global event_enabled, event_loop_running, _timer_counter
 
-    event_loop_lock.acquire("loop() #1")
-    if event_loop_running:
+    try:
+        event_loop_lock.acquire("loop() #1")
+        if event_loop_running:
+            return
+        event_loop_running = True
+    finally:
         event_loop_lock.release()
-        return
-    event_loop_running = True
-    event_loop_lock.release()
 
     event_list.reset()
 
@@ -314,9 +315,11 @@ def loop(loop_when_no_handlers=False):
     except KeyboardInterrupt:
         raise SystemExit("KeyboardInterrupt: abort !")
     finally:
-        event_loop_lock.acquire("loop() #2")
-        event_loop_running = False
-        event_loop_lock.release()
+        try:
+            event_loop_lock.acquire("loop() #2")
+            event_loop_running = False
+        finally:
+            event_loop_lock.release()
 
 def terminate():
     global event_enabled
