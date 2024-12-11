@@ -396,7 +396,16 @@ class PipelineElementImpl(PipelineElement):
                 "_create_frames_generator()", stream.stream_id, frame_id)
             stream, frame_id = self.get_stream()
 
+        # TODO: 2024-12-11: Throttle "frame_generator" when "rate" is None
+            mailbox_name = f"{self.pipeline.name}/1/in"
+            mailbox_queue = event.mailboxes[mailbox_name].queue
+
             while stream.state == StreamState.RUN:
+            # TODO: 2024-12-11: Throttle "frame_generator" when "rate" is None
+                if (not rate or rate == 0) and mailbox_queue.qsize() >= 32:
+                    time.sleep(0.02)  # 50 Hz check
+                    continue
+
                 stream.lock.acquire("_create_frames_generator()")
                 try:
                     stream_event, frame_data = frame_generator(stream, frame_id)
