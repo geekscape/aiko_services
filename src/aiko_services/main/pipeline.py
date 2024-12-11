@@ -950,7 +950,7 @@ class PipelineImpl(Pipeline):
         try:
             pipeline_definition_dict = json.load(
                 open(pipeline_definition_pathname, "r"))
-            PIPELINE_DEFINITION_SCHEMA.validate(pipeline_definition_dict)
+            PipelineDefinitionSchema.validate(pipeline_definition_dict)
         except ValueError as value_error:
             PipelineImpl._exit(header, value_error)
 
@@ -964,7 +964,7 @@ class PipelineImpl(Pipeline):
         except TypeError as type_error:
             PipelineImpl._exit(header, type_error)
 
-        if pipeline_definition.version != PIPELINE_DEFINITION_VERSION:
+        if pipeline_definition.version != PipelineDefinitionSchema.version:
             PipelineImpl._exit(header,
                 f"PipelineDefinition: Version must be 0, "
                 f"but is {pipeline_definition.version}")
@@ -1417,10 +1417,9 @@ class PipelineRemote(PipelineElement):
         self.share["lifecycle"] = "absent" if self.absent else "ready"
 
 # --------------------------------------------------------------------------- #
+# Deliberately define schema in-line, rather than in a separate file
 
-try:
-    PIPELINE_DEFINITION_VERSION = 0
-    PIPELINE_DEFINITION_SCHEMA = avro.schema.parse("""
+PIPELINE_DEFINITION_SCHEMA = """
 {
   "namespace": "aiko_services",
   "name":      "pipeline_definition",
@@ -1531,11 +1530,25 @@ try:
     }
   ]
 }
-    """)
-except avro.errors.SchemaParseException as schema_parse_exception:
-    PipelineImpl._exit(
-        "Error: Parsing aiko_services/pipeline.py: PIPELINE_DEFINITION_SCHEMA",
-        schema_parse_exception)
+"""
+
+class PipelineDefinitionSchema:
+    avro_schema = None
+    version = 0
+
+    def validate(pipeline_definition_dict):
+        if not PipelineDefinitionSchema.avro_schema:
+            try:
+                PipelineDefinitionSchema.avro_schema = avro.schema.parse(
+                    PIPELINE_DEFINITION_SCHEMA)
+            except avro.errors.SchemaParseException as schema_parse_exception:
+                PipelineImpl._exit(
+                    "Error: Parsing aiko_services/pipeline.py: "
+                    "PipelineDefinitionSchema",
+                    schema_parse_exception)
+
+        return PipelineDefinitionSchema.avro_schema.validate(
+                    pipeline_definition_dict)
 
 # --------------------------------------------------------------------------- #
 
