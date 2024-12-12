@@ -47,6 +47,7 @@
       }
     },
     { "name":   "PE_Metrics",
+      "parameters": {"enable": false, "rate": 10},
       "input":  [],
       "output": [],
       "deploy": {

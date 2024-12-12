@@ -136,6 +136,11 @@ class PE_Metrics(aiko.PipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream) -> Tuple[aiko.StreamEvent, dict]:
+        enable, _ = self.get_parameter("enable", True)
+        rate, _ = self.get_parameter("rate", default=1)
+        if not enable or stream.frame_id % rate != 0:
+            return aiko.StreamEvent.OKAY, _all_outputs(self, stream)
+
         frame = stream.frames[stream.frame_id]
         metrics = frame.metrics
         metrics_elements = metrics["elements"]

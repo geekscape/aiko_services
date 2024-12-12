@@ -70,7 +70,7 @@
     { "name":   "PE_Inspect",
       "#": "Provides PipelineElement inputs / outputs value inspection",
       "parameters": {
-        "enable":  true,                  "#": "true or false",
+        "enable":  false,                 "#": "true or false",
         "inspect": "(*)",                 "#": "inputs / outputs names",
         "target":  "file:z_inspect.txt",  "#": "file:, log or print"},
       "input":  [],
@@ -81,6 +81,7 @@
     },
     { "name":   "PE_Metrics",
       "#": "Provides Pipeline and PipelineElement timing information",
+			"parameters": {"enable": false, "rate": 1},
       "input":  [],
       "output": [{ "name": "f", "type": "int" }],
       "deploy": {
