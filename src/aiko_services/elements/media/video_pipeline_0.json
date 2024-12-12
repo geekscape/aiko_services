@@ -3,7 +3,7 @@
   "name":    "p_video_0",
   "runtime": "python",
 
-  "graph": ["(VideoReadFile ImageResize VideoShow VideoWriteFile)"],
+  "graph": ["(VideoReadFile ImageResize VideoShow VideoWriteFile PE_Metrics)"],
 
   "parameters": {"resolution": "320x240"},
 
@@ -44,6 +44,13 @@
       "output": [],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    },
+    { "name":   "PE_Metrics",
+      "input":  [],
+      "output": [],
+      "deploy": {
+        "local": { "module": "aiko_services.examples.pipeline.elements" }
       }
     }
   ]

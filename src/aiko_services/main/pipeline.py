@@ -107,6 +107,7 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 import json
 import os
+import psutil
 import queue
 import threading
 from threading import Thread
@@ -132,6 +133,7 @@ PROTOCOL_ELEMENT =  f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_ELEMENT}:{_VERSION}"
 
 _GRACE_TIME = 60  # seconds
 _LOGGER = aiko.logger(__name__)
+_METRICS_MEMORY_ENABLE = False
 
 _WINDOWS = False  # Stream windowing protocol for distributed function calls
 
@@ -1138,8 +1140,7 @@ class PipelineImpl(Pipeline):
                 stream_event = StreamEvent.OKAY
                 try:
                     if local:  ## Local element ##
-                        start_time = time.time()
-
+                        self._process_metrics_start(metrics)
                         try:
                             stream_event, frame_data_out =  \
                                 element.process_frame(stream, **inputs)
@@ -1156,7 +1157,7 @@ class PipelineImpl(Pipeline):
                     #   TODO: Test "stream.state" before continuing
                         self._process_map_out(element_name, frame_data_out)
                         self._process_metrics_capture(  # TODO: Move up ?
-                            metrics, element.name, start_time)
+                            metrics, element.name)
                         frame.swag.update(frame_data_out)
                     else:  ## Remote element ##
                         if self.share["lifecycle"] != "ready":
@@ -1274,19 +1275,38 @@ class PipelineImpl(Pipeline):
 
 # TODO: Refactor metrics into "utilities/metrics.py:class Metrics" ?
 
+# For each frame
     def _process_metrics_initialize(self, frame):
         metrics = frame.metrics
         if metrics == {}:
-            metrics["pipeline_elements"] = {}
-            metrics["time_pipeline_start"] = time.time()
+            metrics["frame"] = {}  # frame start metrics
+            metrics["elements"] = {}
+            metrics["pipeline_start_time"] = time.time()
+            if _METRICS_MEMORY_ENABLE:
+                memory_rss = psutil.Process().memory_info().rss
+                metrics["pipeline_start_memory"] = memory_rss
         return metrics
 
-    def _process_metrics_capture(self, metrics, element_name, start_time):
-        time_element = time.time() - start_time
-        metrics["pipeline_elements"][f"time_{element_name}"] = time_element
+# For each PipelineElement
+    def _process_metrics_start(self, metrics):
+        metrics["start"] = {}  # PipelineElement start metrics
+        metrics["start"]["time"] = time.time()
+        if _METRICS_MEMORY_ENABLE:
+            memory_rss = psutil.Process().memory_info().rss
+            metrics["start"]["memory"] = memory_rss
 
-        time_pipeline = time.time() - metrics["time_pipeline_start"]
-        metrics["time_pipeline"] = time_pipeline  # Total time, so far !
+# For each PipelineElement
+    def _process_metrics_capture(self, metrics, element_name):
+        time_element = time.time() - metrics["start"]["time"]
+        metrics["elements"][f"{element_name}_time"] = time_element
+        pipeline_time = time.time() - metrics["pipeline_start_time"]
+        metrics["pipeline_time"] = pipeline_time  # Total so far !
+        if _METRICS_MEMORY_ENABLE:
+            memory_rss = psutil.Process().memory_info().rss
+            memory_element =  memory_rss - metrics["start"]["memory"]
+            metrics["elements"][f"{element_name}_memory"] = memory_element
+            pipeline_memory = memory_rss - metrics["pipeline_start_memory"]
+            metrics["pipeline_memory"] = pipeline_memory  # Total so far !
 
     def _process_map_in(self, header, element, element_name, swag):
         map_in_names = {}

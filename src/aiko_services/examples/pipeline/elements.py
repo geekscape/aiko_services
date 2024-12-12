@@ -138,13 +138,31 @@ class PE_Metrics(aiko.PipelineElement):
     def process_frame(self, stream) -> Tuple[aiko.StreamEvent, dict]:
         frame = stream.frames[stream.frame_id]
         metrics = frame.metrics
-        metrics_elements = metrics["pipeline_elements"]
-        for metrics_name, metrics_value in metrics_elements.items():
-            metrics_value *= 1000
-            self.logger.debug(f"{metrics_name}: {metrics_value:.3f} ms")
+        metrics_elements = metrics["elements"]
+        for name, value in metrics_elements.items():
+            if name.endswith("_memory"):
+                value /= 1000000
+                self.logger.debug(f"{self.my_id()} "
+                    f"{name:22s}: {value:.3f} Mb+")
+            if name.endswith("_time"):
+                value *= 1000
+                self.logger.debug(f"{self.my_id()} "
+                    f"{name:22s}: {value:.3f} ms")
 
-        time_pipeline = metrics["time_pipeline"] * 1000
-        self.logger.debug(f"Pipeline total: {time_pipeline:.3f} ms")
+        if "pipeline_time" in metrics:
+            pipeline_time = metrics["pipeline_time"] * 1000
+            self.logger.debug(f"{self.my_id()} "
+                f"{"Pipeline time":22s}: {pipeline_time:.3f} ms")
+
+        if "pipeline_memory" in metrics:
+            pipeline_memory = metrics["pipeline_memory"] / 1000000
+            self.logger.debug(f"{self.my_id()} "
+                f"{"Pipeline memory":22s}: {pipeline_memory:.3f} Mb+")
+
+        if "pipeline_start_memory" in metrics:
+            process_memory = metrics["pipeline_start_memory"] / 1000000
+            self.logger.debug(f"{self.my_id()} "
+                f"{"Process  memory":22s}: {process_memory:.3f} Mb")
 
         return aiko.StreamEvent.OKAY, _all_outputs(self, stream)
 
