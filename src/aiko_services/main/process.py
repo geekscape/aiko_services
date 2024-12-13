@@ -320,8 +320,12 @@ class ProcessImplementation(ProcessData):
                 finally:
                     self._services_lock.release()
         except Exception as exception:
-            _LOGGER.warning(
-                f"Exception raised when adding to Registrar: {exception}")
+            _LOGGER.warning(f"Exception raised when adding to Registrar")
+            #   f"Exception raised when adding to Registrar: {exception}\n"
+            #   f"{exception.__traceback__.tb_frame} "
+            #   f"raised via line {exception.__traceback__.tb_lineno}")
+            traceback.print_exception(
+                type(exception), exception, exception.__traceback__)
 
     def set_last_will_and_testament(self,
         topic_lwt, payload_lwt="(absent)", retain_lwt=False):

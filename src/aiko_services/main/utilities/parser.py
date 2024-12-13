@@ -10,6 +10,7 @@
 #
 # Parse lists of symbols recursively
 #
+# - parse("")
 # - parse("()")
 # - parse("(c)")
 # - parse("(c p1 p2)")
@@ -168,14 +169,15 @@ def parse(payload: str, dictionaries_flag=True):
 
     car = ""
     cdr = []
-    if isinstance(result[0], str):
-        car = result[0]
-    else:
-        try:
-            car = result[0][0]
-            cdr = result[0][1:]
-        except IndexError:
-            pass
+    if result:
+        if isinstance(result[0], str):
+            car = result[0]
+        else:
+            try:
+                car = result[0][0]
+                cdr = result[0][1:]
+            except IndexError:
+                pass
 
     if dictionaries_flag:
         cdr = parse_list_to_dict(cdr)
