@@ -28,7 +28,7 @@ from aiko_services.main.utilities import *
 _VERSION = 0
 
 ACTOR_TYPE = "storage"
-PROTOCOL = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE}:{_VERSION}"
+PROTOCOL = f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE}:{_VERSION}"
 
 _LOGGER = aiko.logger(__name__)
 _TOPIC_RESPONSE = f"{aiko.topic_out}/storage_response"

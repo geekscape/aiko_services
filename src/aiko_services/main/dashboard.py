@@ -144,10 +144,12 @@ from asciimatics.widgets import (
 from asciimatics.widgets.utilities import THEMES
 
 import aiko_services as aiko  # designed to be external to the main framework
+from aiko_services.main.connection import ConnectionState
 from aiko_services.main.utilities import get_mqtt_configuration, load_module
 
 __all__ = ["LogUI", "ServiceFrame"]
 
+_FRAME_UPDATE_RATE = 20 / 4  # 5 Hz (assuming update rate is roughly 20 Hz)
 _HISTORY_LIMIT = 32
 _LOG_RING_BUFFER_SIZE = 128
 _PLUGINS = {}  # updated by set_plugins()
@@ -176,6 +178,10 @@ class FrameCommon:
         self.mqtt_port = mqtt_configuration[2]
         if not server_up:
             self.mqtt_host = "MQTT SERVER UNAVAILABLE"
+
+        self.connection_popup = None
+        self.connection_state_last = None
+    #   aiko.process.connection.add_handler(self._connection_state_handler)
 
     def _add_service_bar(self):
         layout = Layout([1])
@@ -221,13 +227,38 @@ class FrameCommon:
     def _color_text(self, color, text):
         return f"\x1b[3{color}m{text}"
 
+    def _connection_state_handler(self, connection, connection_state):
+        def _on_close(button_index):
+            self.connection_popup = False
+
+        if self.scene:
+            self.connection_state_last = connection_state
+            if connection.is_connected(ConnectionState.REGISTRAR):
+                if self.connection_popup:
+                      self.scene.remove_effect(self.connection_popup)
+                      self.connection_popup = False
+                raise NextScene("Dashboard")
+            elif not self.connection_popup:
+                self.connection_popup = PopUpDialog(self._screen,
+                    "MQTT server and/or Aiko Registar not found",
+                    ["OK"], on_close=_on_close, theme="nice")
+                self.scene.add_effect(self.connection_popup)
+
     @property
     def frame_update_count(self):
-        return 5  # assuming 20 FPS, then refresh screen at 4 Hz
+        return _FRAME_UPDATE_RATE
 
     def _short_name(self, path):
         after_slash = path.rfind("/") + 1
         return path[after_slash:]
+
+    def _update(self, frame_no):
+        super(FrameCommon, self)._update(frame_no)
+        if frame_no > 5 and frame_no % _FRAME_UPDATE_RATE:  # roughly 1 Hz
+            connection = aiko.process.connection
+            connection_state = connection.connection_state
+            if self.connection_state_last != connection_state:
+                self._connection_state_handler(connection, connection_state)
 
     def _update_ecproducer_variable(self, topic_path, name, value):
         topic_path_control = topic_path + "/control"
@@ -428,7 +459,8 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
         if self.adjust_palette_required:
             self._adjust_palette()
 
-        services = self.services_cache.get_services().copy()
+        services_count = self.services_cache.get_services().count   # correct
+        services = self.services_cache.get_services().copy()  # count is zero
         services_formatted = []
         for service in services:
             topic_path = aiko.ServiceTopicPath.parse(service[0])

@@ -41,9 +41,7 @@
 #
 # To Do
 # ~~~~~
-# * BUG: "Service count" sometimes is either being incremented when there is
-#        some problem or isn't being decremented consistently.
-#   CAUSE: Happens when MQTT connection fails, need to set services_count = 0
+# * Define public API (available function calls) in the Registrar Interface
 #
 # * BUG: When ECProducer updates "service_count", need to int(services_count) !
 #
@@ -118,11 +116,6 @@ import time
 from aiko_services.main import *
 from aiko_services.main.utilities import *
 
-_VERSION = 2
-
-SERVICE_TYPE = "registrar"
-REGISTRAR_PROTOCOL = f"{ServiceProtocol.AIKO}/{SERVICE_TYPE}:{_VERSION}"
-
 _LOGGER = aiko.logger(__name__)
 
 _HISTORY_LIMIT_DEFAULT = 16
@@ -179,13 +172,18 @@ class StateMachineModel():
         # Clear LWT, so this registrar doesn't receive another LWT on reconnect
         aiko.message.publish(aiko.TOPIC_REGISTRAR_BOOT, "", retain=True)
         payload_lwt = "(primary absent)"
-        aiko.process.set_last_will_and_testament(
-            aiko.TOPIC_REGISTRAR_BOOT, payload_lwt, True)
-        topic_path = self.service.topic_path
-        time_started = self.service.time_started
-        payload_out =  f"(primary found {topic_path} {_VERSION} {time_started})"
-        aiko.message.publish(
-            aiko.TOPIC_REGISTRAR_BOOT, payload_out, retain=True)
+        try:
+            aiko.process.set_last_will_and_testament(  # May raise SystemError
+                aiko.TOPIC_REGISTRAR_BOOT, payload_lwt, True)
+            topic_path = self.service.topic_path
+            time_started = self.service.time_started
+            version = REGISTRAR_VERSION
+            payload_out =  \
+                f"(primary found {topic_path} {version} {time_started})"
+            aiko.message.publish(
+                aiko.TOPIC_REGISTRAR_BOOT, payload_out, retain=True)
+        except SystemError as system_error:  # Probably MQTT server not running
+            self.service.state_machine.transition("primary_failed", None)
 
 # --------------------------------------------------------------------------- #
 
@@ -205,7 +203,7 @@ class RegistrarImpl(Registrar):
         self.share = {
             "lifecycle": "start",
             "log_level": get_log_level_name(_LOGGER),
-            "source_file": f"v{_VERSION}⇒ {__file__}",
+            "source_file": f"v{REGISTRAR_VERSION}⇒ {__file__}",
             "service_count": 0
         }
         self.ec_producer = ECProducer(self, self.share)
@@ -326,8 +324,7 @@ class RegistrarImpl(Registrar):
             }
 
             self.services.add_service(topic_path, service_details)
-            service_count = self.share["service_count"] + 1
-            self.ec_producer.update("service_count", service_count)
+            self.ec_producer.update("service_count", self.services.count)
 
             aiko.message.publish(self.topic_out, payload_out)
 
@@ -350,8 +347,8 @@ class RegistrarImpl(Registrar):
                     self.history.appendleft(service_details)
 
                     self.services.remove_service(topic_path)
-                    service_count = self.share["service_count"] - 1
-                    self.ec_producer.update("service_count", service_count)
+                    self.ec_producer.update(
+                        "service_count", self.services.count)
 
                     payload_out = f"(remove {topic_path})"
                     aiko.message.publish(self.topic_out, payload_out)
@@ -363,7 +360,7 @@ class RegistrarImpl(Registrar):
 def main():
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
     init_args = service_args(
-        SERVICE_TYPE, None, None, REGISTRAR_PROTOCOL, tags)
+        REGISTRAR_SERVICE_TYPE, None, None, REGISTRAR_PROTOCOL, tags)
     registrar = compose_instance(RegistrarImpl, init_args)
     aiko.process.run(True)
 

@@ -31,7 +31,7 @@ from aiko_services.main.utilities import *
 _VERSION = 0
 
 SERVICE_TYPE = "recorder"
-PROTOCOL = f"{ServiceProtocol.AIKO}/{SERVICE_TYPE}:{_VERSION}"
+PROTOCOL = f"{SERVICE_PROTOCOL_AIKO}/{SERVICE_TYPE}:{_VERSION}"
 
 _LOGGER = aiko.logger(__name__)
 

@@ -62,7 +62,7 @@
 # - Since handlers take time, need to adjust time.sleep() period
 # - New event types: GStreamer appsink, appsrc, serial
 
-from collections import OrderedDict
+from collections import OrderedDict  # All OrderedDict operations are O(1)
 import queue
 import time
 from typing import Any, Tuple

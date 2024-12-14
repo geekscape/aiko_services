@@ -157,17 +157,17 @@ class PE_Metrics(aiko.PipelineElement):
         if "pipeline_time" in metrics:
             pipeline_time = metrics["pipeline_time"] * 1000
             self.logger.debug(f"{self.my_id()} "
-                f"{"Pipeline time":22s}: {pipeline_time:.3f} ms")
+                f"{'Pipeline time':22s}: {pipeline_time:.3f} ms")
 
         if "pipeline_memory" in metrics:
             pipeline_memory = metrics["pipeline_memory"] / 1000000
             self.logger.debug(f"{self.my_id()} "
-                f"{"Pipeline memory":22s}: {pipeline_memory:.3f} Mb+")
+                f"{'Pipeline memory':22s}: {pipeline_memory:.3f} Mb+")
 
         if "pipeline_start_memory" in metrics:
             process_memory = metrics["pipeline_start_memory"] / 1000000
             self.logger.debug(f"{self.my_id()} "
-                f"{"Process  memory":22s}: {process_memory:.3f} Mb")
+                f"{'Process  memory':22s}: {process_memory:.3f} Mb")
 
         return aiko.StreamEvent.OKAY, _all_outputs(self, stream)
 

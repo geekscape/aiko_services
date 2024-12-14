@@ -77,11 +77,11 @@ _VERSION = 0
 
 SERVICE_TYPE_EC_CONSUMER = "ec_consumer_test"
 PROTOCOL_EC_CONSUMER =  \
-    f"{ServiceProtocol.AIKO}/{SERVICE_TYPE_EC_CONSUMER}:{_VERSION}"
+    f"{SERVICE_PROTOCOL_AIKO}/{SERVICE_TYPE_EC_CONSUMER}:{_VERSION}"
 
 SERVICE_TYPE_EC_PRODUCER = "ec_producer_test"
 PROTOCOL_EC_PRODUCER =  \
-    f"{ServiceProtocol.AIKO}/{SERVICE_TYPE_EC_PRODUCER}:{_VERSION}"
+    f"{SERVICE_PROTOCOL_AIKO}/{SERVICE_TYPE_EC_PRODUCER}:{_VERSION}"
 
 _LEASE_TIME = 300  # seconds
 
@@ -573,6 +573,10 @@ class ServicesCache():
         if command == "item_count" and len(parameters) == 1:
             self._item_count = int(parameters[0])
         elif command == "add" and len(parameters) >= 6:
+            if self._item_count is None:
+                _LOGGER.error("Service cache: registrar_share_handler(): "
+                    "(item_count N) was incorrect")
+                return
             self._item_count -= 1
             service_details = parameters
             if self._state == "history":

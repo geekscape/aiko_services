@@ -124,7 +124,7 @@ class MQTT(Message):
         try:
             self.mqtt_client.connect(
                 host=self.mqtt_host, port=self.mqtt_port, keepalive=60)
-            self.mqtt_client.loop_start()
+            self.mqtt_client.loop_start()  # Handles MQTT reconnections
         except socket.gaierror:
             raise SystemError(diagnostic)
         except ConnectionRefusedError:
@@ -136,8 +136,8 @@ class MQTT(Message):
         _LOGGER.debug(f"disconnect from {self.mqtt_info}")
         self.wait_published()
         self.mqtt_client.loop_stop()
-        self.mqtt_client.disconnect() # Note: Does not cause the LWT to be sent
-#       self.mqtt_client.loop_forever()
+        self.mqtt_client.disconnect()    # Note: Does not cause LWT to be sent
+#       self.mqtt_client.loop_forever()  # Handles MQTT reconnections
         self.mqtt_client = None
 
     # pylint: disable=unused-argument

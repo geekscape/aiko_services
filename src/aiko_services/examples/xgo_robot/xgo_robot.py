@@ -79,7 +79,7 @@ import aiko_services as aiko
 _VERSION = 0
 
 ACTOR_TYPE = "xgo_robot"
-PROTOCOL = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE}:{_VERSION}"
+PROTOCOL = f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE}:{_VERSION}"
 
 _LOGGER = aiko.logger(__name__)
 

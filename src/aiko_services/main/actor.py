@@ -22,7 +22,7 @@
 #     def test(self):
 #         print("ActorTestImpl.test() invoked")
 #
-# protocol = f"{ServiceProtocol.AIKO}/actor_test:0"
+# protocol = f"{SERVICE_PROTOCOL_AIKO}/actor_test:0"
 # init_args = actor_args("actor_test", protocol=protocol)
 # actor_test = compose_instance(ActorTestImpl, init_args)
 # actor_test.test()

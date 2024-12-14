@@ -69,9 +69,10 @@ import aiko_services as aiko
 _VERSION = 0
 
 ACTOR_TYPE_UI = "robot_control"
-PROTOCOL_UI = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_UI}:{_VERSION}"
+PROTOCOL_UI = f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE_UI}:{_VERSION}"
 ACTOR_TYPE_VIDEO_TEST = "video_test"
-PROTOCOL_VIDEO_TEST = f"{ServiceProtocol.AIKO}/{ACTOR_TYPE_VIDEO_TEST}:{_VERSION}"
+PROTOCOL_VIDEO_TEST =  \
+    f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE_VIDEO_TEST}:{_VERSION}"
 ROBOT_NAME = "ROBOT_NAME"
 TOPIC_DETECTIONS = f"{get_namespace()}/detections"
 TOPIC_SPEECH = f"{get_namespace()}/speech"

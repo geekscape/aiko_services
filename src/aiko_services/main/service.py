@@ -22,7 +22,7 @@
 #     def test(self):
 #         print("ServiceTestImpl.test() invoked")
 #
-# protocol = f"{ServiceProtocol.AIKO}/service_test:0"
+# protocol = f"{SERVICE_PROTOCOL_AIKO}/service_test:0"
 # init_args = service_args("service_test", protocol)
 # service_test = compose_instance(ServiceTestImpl, init_args)
 # service_test.test()
@@ -39,7 +39,7 @@
 # service_fields = ServiceFields(
 #     "topic_path",
 #     "name",
-#     ServiceProtocol(ServiceProtocol.AIKO, "test", "0"),
+#     ServiceProtocol(SERVICE_PROTOCOL_AIKO, "test", "0"),
 #     "transport",
 #     "owner",
 #     "tags")
@@ -92,6 +92,7 @@
 #   - Validation for each setter
 
 from abc import abstractmethod
+from collections import OrderedDict  # All OrderedDict operations are O(1)
 import time
 
 from aiko_services.main import *
@@ -103,8 +104,6 @@ __all__ = [
 ]
 
 class ServiceProtocol:
-    AIKO = "github.com/geekscape/aiko_services/protocol"
-
     def __init__(self, url_prefix, name, version):
         self._url_prefix = url_prefix
         self._name = name
@@ -354,7 +353,7 @@ class ServicesIterator:
 class Services:
     def __init__(self):
         self._count = 0
-        self._services = {}
+        self._services = OrderedDict()
 
     def __iter__(self):
         return ServicesIterator(self._services) if self._services else iter([])
@@ -367,7 +366,10 @@ class Services:
             ServiceTopicPath.topic_paths(topic_path)
         if process_topic_path:
             if not process_topic_path in self._services:
-                self._services[process_topic_path] = {}
+                index = "protocol" if isinstance(service_details, dict) else 2
+                order = service_details[index] != REGISTRAR_PROTOCOL
+                self._services.update({process_topic_path: {}})
+                self._services.move_to_end(process_topic_path, last=order)
             process_services = self._services[process_topic_path]
             if not service_topic_path in process_services:
                 process_services[service_topic_path] = service_details
@@ -380,7 +382,7 @@ class Services:
 
     @property
     def count(self):
-        return self._count
+        return self._count  # TODO: Why is "len(self._services)" incorrect ?
 
     def filter_services(self, filter):
         results = self.filter_by_topic_paths(filter.topic_paths)

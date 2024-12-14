@@ -6,6 +6,13 @@
 
 __version__ = "0"
 
+SERVICE_PROTOCOL_AIKO = "github.com/geekscape/aiko_services/protocol"
+
+REGISTRAR_SERVICE_TYPE = "registrar"
+REGISTRAR_VERSION = 2
+REGISTRAR_PROTOCOL =  \
+    f"{SERVICE_PROTOCOL_AIKO}/{REGISTRAR_SERVICE_TYPE}:{REGISTRAR_VERSION}"
+
 from .context import (
     Context, Interface, ServiceProtocolInterface, ContextService,
     ContextPipelineElement, ContextPipeline,
