@@ -909,6 +909,18 @@ class PipelineImpl(Pipeline):
 
                     stream.set_state(self._process_stream_event(element_name,
                         stream_event, diagnostic, in_destroy_stream=True))
+
+            if stream.state == StreamState.RUN:
+                stream.state = StreamState.STOP
+            stream_info = {
+                "stream_id": stream.stream_id,
+                "frame_id": stream.frame_id,
+                "state": stream.state}
+            if stream.queue_response:
+                stream.queue_response.put((stream_info, {}))
+            if stream.topic_response:
+                actor = get_actor_mqtt(stream.topic_response, Pipeline)
+                actor.process_frame_response(stream_info, {})
         finally:
             if use_thread_local:
                 stream.lock.release()
