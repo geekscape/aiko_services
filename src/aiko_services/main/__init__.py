@@ -4,8 +4,6 @@
 # ~~~~~
 # - None, yet !
 
-__version__ = "0"
-
 SERVICE_PROTOCOL_AIKO = "github.com/geekscape/aiko_services/protocol"
 
 REGISTRAR_SERVICE_TYPE = "registrar"

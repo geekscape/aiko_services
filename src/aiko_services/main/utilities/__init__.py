@@ -24,7 +24,7 @@ from .logger import (
 
 from .lru_cache import LRUCache
 
-from .network import get_network_ports_listen
+from .network import get_network_port_free, get_network_ports_used
 
 from .parser import generate, parse, parse_float, parse_int, parse_number
 
