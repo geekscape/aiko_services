@@ -1,7 +1,9 @@
 # Aiko Services
 
 Distributed system framework supporting
-[AIoT](https://en.wikipedia.org/wiki/Artificial_intelligence_of_things), [Machine Learning](https://en.wikipedia.org/wiki/Machine_learning), [Media streaming](https://en.wikipedia.org/wiki/Streaming_media) and [Robotics](https://en.wikipedia.org/wiki/Robotics)
+[**AIoT**](https://en.wikipedia.org/wiki/Artificial_intelligence_of_things), [**Machine Learning**](https://en.wikipedia.org/wiki/Machine_learning), [**Media streaming**](https://en.wikipedia.org/wiki/Streaming_media) and [**Robotics**](https://en.wikipedia.org/wiki/Robotics)
+
+See [**Wiki**](https://github.com/geekscape/aiko_services/wiki) for [Glossary (concepts)](https://github.com/geekscape/aiko_services/wiki/Glossary), [Roadmap for v1.0](https://github.com/geekscape/aiko_services/wiki#roadmap-for-v10), [Work In Progress (WIP)](https://github.com/geekscape/aiko_services/wiki#work-in-progress) and [Reference pages](https://github.com/geekscape/aiko_services/wiki#reference-pages)
 
 ## Features
 
@@ -24,7 +26,7 @@ Distributed system framework supporting
 
 ## Installing from PyPI (Python Package Index)
 
-Recommended when simply trying Aiko Services by using existing examples and tools.  
+Recommended when simply trying Aiko Services by using existing examples and tools.
 Installs the [Aiko Services package from PyPI](https://pypi.org/project/aiko_services)
 ```
 pip install aiko_services
@@ -44,7 +46,7 @@ pip install -e .          # Install Aiko Services for development
 
 ## Installing for package maintainers
 
-Recommended when making an [Aiko Services release to PyPI](https://pypi.org/project/aiko_services)  
+Recommended when making an [Aiko Services release to PyPI](https://pypi.org/project/aiko_services)
 After **installing from GitHub** *(above)*, perform these additional commands
 ```
 pip install -U hatch  # Install latest Hatch build and package manager
@@ -57,7 +59,7 @@ hatch build           # Publish Aiko Services package to PyPI
 
 After **installing from GitHub** *(above)*, choose whether to use a public MQTT server ... or to install and run your own MQTT server
 
-It is easier to start by using a public remotely hosted MQTT server to tryout a few examples.  
+It is easier to start by using a public remotely hosted MQTT server to tryout a few examples.
 For the longer term, it is better and more secure to install and run your own MQTT server.
 
 ## Running your own mosquitto (MQTT) server

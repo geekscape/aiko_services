@@ -4,9 +4,9 @@
 # ~~~~~
 # - None, yet !
 
-from .common_io import (
-    contains_all, file_glob_difference, DataSource, DataTarget
-)
+from .common_io import contains_all, DataScheme, DataSource, DataTarget
+
+from .common_io_file import DataSchemeFile
 
 from .audio_io import (
       AudioOutput

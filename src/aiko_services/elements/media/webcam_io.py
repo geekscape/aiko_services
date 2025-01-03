@@ -32,7 +32,7 @@ from typing import Tuple
 import aiko_services as aiko
 from aiko_services.elements.media import DataSource
 
-__all__ = [ "VideoReadWebcam" ]
+__all__ = ["VideoReadWebcam"]
 
 _DEFAULT_CAMERA_PATHNAME = 0  # Linux: "/dev/video0"
 

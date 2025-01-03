@@ -119,7 +119,8 @@ class VideoReadFile(DataSource):  # common_io.py PipelineElement
     def start_stream(self, stream, stream_id):
         stream.variables["video_capture"] = None
         stream.variables["video_frame_generator"] = None
-        return super().start_stream(stream, stream_id, use_create_frame=False)
+        return super().start_stream(stream, stream_id,
+            frame_generator=self.frame_generator, use_create_frame=False)
 
     def video_frame_iterator(self, video_capture):
         while True:
