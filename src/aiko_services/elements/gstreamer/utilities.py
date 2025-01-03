@@ -1,3 +1,8 @@
+# Requires either ...
+# - pip install PyGObject
+# ... or ...
+# - apt-get install python3-gi
+
 from sys import platform
 
 __all__ = [

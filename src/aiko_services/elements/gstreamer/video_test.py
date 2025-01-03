@@ -31,7 +31,7 @@
 import argparse
 import sys
 
-from aiko_services.gstreamer import *
+from aiko_services.elements.gstreamer import *
 
 # --------------------------------------------------------------------------- #
 

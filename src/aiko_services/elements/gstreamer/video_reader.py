@@ -16,7 +16,7 @@ if sys.version_info >= (3,0):
 else:
   from Queue import Queue, Empty
 
-from aiko_services.gstreamer import *
+from aiko_services.elements.gstreamer import *
 
 __all__ = ["VideoReader"]
 

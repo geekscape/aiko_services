@@ -9,13 +9,13 @@ from .utilities import (
     GStreamerError, gst_initialise, enable_opencv, process_video
 )
 
+from .video_reader import VideoReader
+
 from .video_camera_reader import VideoCameraReader
 
 from .video_file_reader import VideoFileReader
 
 from .video_file_writer import VideoFileWriter
-
-from .video_reader import VideoReader
 
 from .video_stream_reader import VideoStreamReader
 

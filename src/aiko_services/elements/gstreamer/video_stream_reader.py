@@ -6,10 +6,11 @@
 # - Optimization: Option to request image in BGR format to avoid having to
 #   convert from RGB to BGR for subsequent OpenCV manipulation.
 
-from aiko_services.gstreamer import *
+from aiko_services.elements.gstreamer import *
 
 # Security network camera ...
 url_template = "rtsp://USERNAME:PASSWORD@%s:%s"
+url_template = "rtsp://admin:silverpond!@%s:%s"
 
 # Periscope HD iOS application (Quality: normal = 640x480 @ 30 FPS)
 # url_template = "rtsp://admin:admin@%s:%s/live.sdp"
