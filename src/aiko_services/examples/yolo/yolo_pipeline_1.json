@@ -61,7 +61,7 @@
       }
     },
     { "name":   "VideoWriteFile",
-      "parameters": {"data_targets": "file://data_out/out_{:02d}.mp4"},
+      "parameters": {"data_targets": "(file://data_out/out_{:02d}.mp4)"},
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [],
       "deploy": {

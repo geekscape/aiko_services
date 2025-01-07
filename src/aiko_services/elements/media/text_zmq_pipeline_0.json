@@ -1,34 +1,33 @@
 {
   "version": 0,
-  "name":    "p_text_1",
+  "name":    "p_text_zmq_0",
   "runtime": "python",
 
-  "graph": ["(TextReadFile TextSample TextWriteFile)"],
+  "graph": ["(TextReadZMQ TextWriteFile TextOutput)"],
 
   "elements": [
-    { "name":   "TextReadFile",
+    { "name":   "TextReadZMQ",
       "parameters": {
-         "data_sources": "(file://data_in/in_{}.txt)",
+         "data_sources": "(zmq://*:5000-5009)",
          "data_batch_size": 1
       },
-      "input":  [{ "name": "paths", "type": "[Path]" }],
-      "output": [{ "name": "texts", "type": "[str]" }],
-      "deploy": {
-        "local": {"module": "aiko_services.elements.media.text_io"}
-      }
-    },
-    { "name":   "TextSample",
-      "parameters": {"sample_rate": 2},  "#": "Drop every second frame",
-      "input":  [{ "name": "texts", "type": "[str]" }],
+      "input":  [{ "name": "texts", "type": "[bytes]" }],
       "output": [{ "name": "texts", "type": "[str]" }],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.text_io"}
       }
     },
     { "name":   "TextWriteFile",
-      "parameters": {"data_targets": "(file://data_out/out_{:02d}.txt)"},
+      "parameters": {"data_targets": "(file://data_out/out_00.txt)"},
       "input":  [{ "name": "texts", "type": "[str]" }],
       "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.text_io"}
+      }
+    },
+    { "name":   "TextOutput",
+      "input":  [{ "name": "texts", "type": "[str]" }],
+      "output": [{ "name": "texts", "type": "[str]" }],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.text_io"}
       }

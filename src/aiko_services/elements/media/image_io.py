@@ -48,7 +48,7 @@ from PIL import Image
 from typing import Tuple
 
 import aiko_services as aiko
-from aiko_services.elements.media import contains_all, DataSource, DataTarget
+from aiko_services.elements.media import DataSource, DataTarget
 
 __all__ = [
     "ImageOutput", "ImageOverlay", "ImageReadFile",
@@ -237,7 +237,7 @@ class ImageWriteFile(DataTarget):  # common_io.py PipelineElement
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         for image in images:
             path = stream.variables["target_path"]
-            if contains_all(path, "{}"):
+            if stream.variables["target_path_template"]:
                 path = path.format(stream.variables["target_file_id"])
                 stream.variables["target_file_id"] += 1
             self.logger.debug(f"{self.my_id()}: {path}")

@@ -134,6 +134,9 @@ PROTOCOL_ELEMENT =  f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE_ELEMENT}:{_VERSION}"
 _GRACE_TIME = 60  # seconds
 _LOGGER = aiko.logger(__name__)
 _METRICS_MEMORY_ENABLE = False
+_STREAM_STATE_WORKING = [
+    StreamState.DROP_FRAME, StreamState.NO_FRAME, StreamState.RUN
+]
 
 _WINDOWS = False  # Stream windowing protocol for distributed function calls
 
@@ -428,20 +431,20 @@ class PipelineElementImpl(PipelineElement):
                         for a_frame_data in frame_data:
                             self.create_frame(stream, a_frame_data, frame_id)
                             frame_id += 1
+                            self.pipeline.thread_local.frame_id = frame_id
                     else:
                         self.logger.warning(
                             "Frame generator must return either "
                             "{frame_data} or [{frame_data}]")
-                else:
-                    frame_id += 1
-                self.pipeline.thread_local.frame_id = frame_id
 
-                if stream.state in [StreamState.DROP_FRAME, StreamState.RUN]:
+                if stream.state in _STREAM_STATE_WORKING:
                     stream.set_state(StreamState.RUN)
                 stream.lock.release()
 
                 if rate and stream.state == StreamState.RUN:
                     time.sleep(1.0 / rate)
+                elif stream_event == StreamEvent.NO_FRAME:
+                    time.sleep(0.02)  # Avoid frame_generator() busy CPU loop
         finally:
             self.pipeline._disable_thread_local("_create_frames_generator()")
 
@@ -1373,6 +1376,9 @@ class PipelineImpl(Pipeline):
 
         if stream_event == StreamEvent.DROP_FRAME:
             stream_state = StreamState.DROP_FRAME
+
+        if stream_event == StreamEvent.NO_FRAME:
+            stream_state = StreamState.NO_FRAME
 
         if stream_event == StreamEvent.STOP:
             stream_state = StreamState.STOP

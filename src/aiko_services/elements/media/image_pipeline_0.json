@@ -28,7 +28,7 @@
       }
     },
     { "name":   "ImageWriteFile",
-      "parameters": {"data_targets": "file://data_out/out_{:02d}.jpeg"},
+      "parameters": {"data_targets": "(file://data_out/out_{:02d}.jpeg)"},
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [],
       "deploy": {

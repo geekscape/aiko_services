@@ -6,33 +6,25 @@ import os
 from pathlib import Path
 
 import aiko_services as aiko
-from aiko_services.elements.media import contains_all, DataScheme, DataSource
+from aiko_services.elements.media import contains_all, DataScheme
 
 __all__ = ["DataSchemeFile"]
 
 # --------------------------------------------------------------------------- #
-
-class DataSchemeFile(DataScheme):
 # parameter: "data_sources" provides the file pathname(s)
 # - "(file://pathname_0 file://pathname_1)"
 # - "(file://data_in/in_{}.txt)"
 
-    def create_data_source(
-        self, stream, stream_id, data_sources, pipeline_element,
-        frame_generator=None, use_create_frame=True):
+class DataSchemeFile(DataScheme):
+    def create_sources(self,
+        stream, data_sources, frame_generator=None, use_create_frame=True):
 
         if not frame_generator:
             frame_generator = self.frame_generator
 
-        self.pipeline_element = pipeline_element
-
         paths = []
         for data_source in data_sources:
-            try:
-                path = self._parse_data_source(data_source)
-            except RuntimeError as runtime_error:
-                return aiko.StreamEvent.ERROR, {"diagnostic": runtime_error}
-
+            path = DataScheme.parse_data_url_path(data_source)
             file_glob = "*"
             if contains_all(path, "{}"):
                 file_glob = os.path.basename(path).replace("{}", "*")
@@ -59,6 +51,7 @@ class DataSchemeFile(DataScheme):
                 diagnostic = f'"{path}" must be a file or a directory'
                 return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
+        pipeline_element = self.pipeline_element
         if use_create_frame and len(paths) == 1:
             pipeline_element.create_frame(stream, {"paths": [path]})
         else:
@@ -68,10 +61,27 @@ class DataSchemeFile(DataScheme):
             pipeline_element.create_frames(stream, frame_generator, rate=rate)
         return aiko.StreamEvent.OKAY, {}
 
+    def create_targets(self, stream, data_targets):
+        path = DataScheme.parse_data_url_path(data_targets[0])
+        stream.variables["target_file_id"] = 0
+        stream.variables["target_path"] = path
+        stream.variables["target_path_template"] = contains_all(path, "{}")
+        return aiko.StreamEvent.OKAY, {}
+
+    def _file_glob_difference(self, file_glob, filename):
+        difference = None
+        tokens = file_glob.split("*")
+        token_start = tokens[0]
+        token_end = tokens[1] if len(tokens) > 1 else ""
+        if filename.startswith(token_start) and filename.endswith(token_end):
+            difference = filename[len(token_start):len(filename)-len(token_end)]
+        return difference
+
     def frame_generator(self, stream, frame_id):
         data_batch_size, _ = self.pipeline_element.get_parameter(
             "data_batch_size", default=1)
         data_batch_size = int(data_batch_size)
+
         paths = []
         try:
             while (data_batch_size > 0):
@@ -90,20 +100,6 @@ class DataSchemeFile(DataScheme):
         else:
             return aiko.StreamEvent.STOP, {"diagnostic": "All frames generated"}
 
-    def _file_glob_difference(self, file_glob, filename):
-        difference = None
-        tokens = file_glob.split("*")
-        token_start = tokens[0]
-        token_end = tokens[1] if len(tokens) > 1 else ""
-        if filename.startswith(token_start) and filename.endswith(token_end):
-            difference = filename[len(token_start):len(filename)-len(token_end)]
-        return difference
-
-    def _parse_data_source(self, data_source):
-        tokens = data_source.split("://")  # URL "scheme://path" or "path"
-        path = tokens[0] if len(tokens) == 1 else tokens[1]
-        return path
-
-DataSource.add_data_scheme("file", DataSchemeFile)
+DataScheme.add_data_scheme("file", DataSchemeFile)
 
 # --------------------------------------------------------------------------- #

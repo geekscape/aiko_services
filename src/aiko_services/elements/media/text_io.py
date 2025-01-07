@@ -25,8 +25,25 @@
 # aiko_pipeline create text_pipeline_2.json -s 1 -ll debug  # local
 # aiko_pipeline create text_pipeline_3.json      -ll debug  # remote
 #
+# ZMQ
+# ~~~
+# aiko_pipeline create text_zmq_pipeline_0.json -s 1 -sr -ll debug -gt 10
+# aiko_pipeline create text_zmq_pipeline_1.json -s 1 -sr -ll debug
+#
+# Resources
+# ~~~~~~~~~
+# - https://learning-0mq-with-pyzmq.readthedocs.io/en/latest/pyzmq/patterns/patterns.html
+#
 # To Do
 # ~~~~~
+# * ZMQ remote PipeElement that sends "content" out-of-band via ZMQ
+#   * Compared to the default remote PipelineElement that uses in-band via MQTT
+#   * Effectively ZMQ as another transport implementation :)
+#
+# - Support for "media type" encoding details for "text"
+#   - Consider additional encoding information in out-of-band text records ?
+#     - "frame_id" and/or "text:length:content" or "text/zip:length:content" ?
+#
 # - TextReadFile(s): Single file or list of files or directory
 #   - Option: Each line is a record (streaming)
 #   - Formatted as CR/LF records, JSON, XML, CSV
@@ -52,10 +69,12 @@ from typing import Tuple
 from pathlib import Path
 
 import aiko_services as aiko
-from aiko_services.elements.media import contains_all, DataSource, DataTarget
+from aiko_services.elements.media import DataSource, DataTarget
 
 __all__ = [
-    "TextOutput", "TextReadFile", "TextSample", "TextTransform", "TextWriteFile"
+    "TextOutput", "TextReadFile", "TextReadZMQ",
+    "TextSample", "TextTransform",
+    "TextWriteFile", "TextWriteZMQ"
 ]
 
 # --------------------------------------------------------------------------- #
@@ -97,6 +116,29 @@ class TextReadFile(DataSource):  # common_io.py PipelineElement
                         {"diagnostic": f"Error loading text: {exception}"}
 
         return aiko.StreamEvent.OKAY, {"texts": texts}
+
+# --------------------------------------------------------------------------- #
+# TextReadZMQ is a DataSource which supports ...
+# - TextWriteZMQ(DataTarget) ZMQ client --> TextReadZMQ(DataSource) ZMQ server
+#   - Individual text records produced by ZMQ client and consumed by ZMQ server
+#
+# parameter: "data_sources" is the ZMQ server bind details (common_io_zmq.py)
+#
+# Note: Only supports Streams with "data_sources" parameter
+
+class TextReadZMQ(DataSource):  # common_io.py PipelineElement
+    def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("text_read_zmq:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
+        texts_out = []
+        for text in texts:
+    #       if text.startswith("text:"):  # TODO: "text:length:content" ?
+    #           tokens = text.split(":")
+    #           text = tokens[2:][0]      # just the "content"
+            texts_out.append(text.decode())
+        return aiko.StreamEvent.OKAY, {"texts": texts_out}
 
 # --------------------------------------------------------------------------- #
 
@@ -154,6 +196,10 @@ class TextTransform(aiko.PipelineElement):
 #
 # parameter: "data_targets" is the write file path, format variable: "frame_id"
 #
+# stream.variables["target_path_template"] indicates whether ...
+# - False: All text records should be written to the same "target_path"
+# - True:  Each text record is written to a different "target_path_template"
+#
 # Note: Only supports Streams with "data_targets" parameter
 
 class TextWriteFile(DataTarget):  # common_io.py PipelineElement
@@ -161,20 +207,71 @@ class TextWriteFile(DataTarget):  # common_io.py PipelineElement
         context.set_protocol("text_write_file:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
-        for text in texts:
-            path = stream.variables["target_path"]
-            if contains_all(path, "{}"):
-                path = path.format(stream.variables["target_file_id"])
-                stream.variables["target_file_id"] += 1
-            self.logger.debug(f"{self.my_id()}: {path}")
+    def start_stream(self, stream, stream_id):
+        stream_event, diagnostic = super().start_stream(stream, stream_id)
+        if stream_event != aiko.StreamEvent.OKAY:
+            return stream_event, diagnostic
 
+        if not stream.variables["target_path_template"]:
+            path = stream.variables["target_path"]
+            self.logger.debug(f"{self.my_id()}: {path}")
             try:
-                with Path(path).open("w") as file:
-                    file.write(text)
+                stream.variables["target_file"] = Path(path).open("w")
             except Exception as exception:
                 return aiko.StreamEvent.ERROR,  \
                        {"diagnostic": f"Error saving text: {exception}"}
+
+        return aiko.StreamEvent.OKAY, {}
+
+    def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
+        for text in texts:
+            if stream.variables["target_path_template"]:
+                path = stream.variables["target_path"]
+                path = path.format(stream.variables["target_file_id"])
+                stream.variables["target_file_id"] += 1
+
+                self.logger.debug(f"{self.my_id()}: {path}")
+                try:
+                    with Path(path).open("w") as file:
+                        file.write(text)
+                except Exception as exception:
+                    return aiko.StreamEvent.ERROR,  \
+                           {"diagnostic": f"Error saving text: {exception}"}
+            else:
+                try:
+                    stream.variables["target_file"].write(f"{text}")
+                except Exception as exception:
+                    return aiko.StreamEvent.ERROR,  \
+                           {"diagnostic": f"Error saving text: {exception}"}
+
+        return aiko.StreamEvent.OKAY, {}
+
+    def stop_stream(self, stream, stream_id):
+        stream_event, diagnostic = super().stop_stream(stream, stream_id)
+        if "target_file" in stream.variables:
+            stream.variables["target_file"].close()
+            del stream.variables["target_file"]
+        return stream_event, diagnostic
+
+# --------------------------------------------------------------------------- #
+# TextWriteZMQ is a DataTarget which supports ...
+# - TextWriteZMQ(DataTarget) ZMQ client --> TextReadZMQ(DataSource) ZMQ server
+#   - Individual text records produced by ZMQ client and consumed by ZMQ server
+#
+# parameter: "data_targets" is the ZMQ connect details (common_io_zmq.oy)
+#
+# Note: Only supports Streams with "data_targets" parameter
+
+class TextWriteZMQ(DataTarget):  # common_io.py PipelineElement
+    def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("text_write_zmq:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
+        media_type = "text"                            # TODO: "text/zip" ?
+        for text in texts:
+     #      text = f"{media_type}:{len(text)}:{text}"  # "text:length:content" ?
+            stream.variables["target_zmq_socket"].send(text.encode())
 
         return aiko.StreamEvent.OKAY, {}
 

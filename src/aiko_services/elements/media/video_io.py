@@ -24,7 +24,7 @@
 #
 # To Do
 # ~~~~~
-# - Implement "VideoReadFile.data_batch_size"
+# - Implement "VideoReadFile.data_batch_size" in "frame_generator()"
 #
 # - Refactor optional module import into common function (see image_io.py)
 #
@@ -60,7 +60,7 @@ from typing import Tuple
 from pathlib import Path
 
 import aiko_services as aiko
-from aiko_services.elements.media import contains_all, DataSource, DataTarget
+from aiko_services.elements.media import DataSource, DataTarget
 
 __all__ = [
     "VideoOutput", "VideoReadFile", "VideoSample", "VideoShow", "VideoWriteFile"
@@ -254,7 +254,7 @@ class VideoWriteFile(DataTarget):  # common_io.py PipelineElement
 
         if stream_event == aiko.StreamEvent.OKAY:
             path = stream.variables["target_path"]
-            if contains_all(path, "{}"):
+            if stream.variables["target_path_template"]:
                 path = path.format(stream.variables["target_file_id"])
             self.logger.debug(f"{self.my_id()}: {path}")
             stream.variables["video_path"] = path

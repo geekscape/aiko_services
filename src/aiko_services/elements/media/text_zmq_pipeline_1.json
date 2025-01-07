@@ -1,10 +1,9 @@
 {
   "version": 0,
-  "name":    "p_text_0",
+  "name":    "p_text_zmq_1",
   "runtime": "python",
 
-  "graph": ["(TextReadFile TextTransform TextWriteFile)"],
-  "#":     ["(TextReadFile TextTransform TextWriteFile TextOutput)"],
+  "graph": ["(TextReadFile TextWriteZMQ TextOutput)"],
 
   "elements": [
     { "name":   "TextReadFile",
@@ -18,17 +17,8 @@
         "local": {"module": "aiko_services.elements.media.text_io"}
       }
     },
-    { "name":   "TextTransform",
-      "#": " transform options are lowercase, none, titlecase and uppercase",
-      "parameters": {"transform": "titlecase"},
-      "input":  [{ "name": "texts", "type": "[str]" }],
-      "output": [{ "name": "texts", "type": "[str]" }],
-      "deploy": {
-        "local": {"module": "aiko_services.elements.media.text_io"}
-      }
-    },
-    { "name":   "TextWriteFile",
-      "parameters": {"data_targets": "(file://data_out/out_{:02d}.txt)"},
+    { "name":   "TextWriteZMQ",
+      "parameters": {"data_targets": "(zmq://localhost:5000)"},
       "input":  [{ "name": "texts", "type": "[str]" }],
       "output": [],
       "deploy": {

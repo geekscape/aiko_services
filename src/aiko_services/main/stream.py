@@ -36,12 +36,14 @@ class StreamEvent:
     ERROR      =   -2  # Move to StreamState.ERROR
     STOP       =   -1  # Move to StreamState.STOP
     OKAY       =    0  # Stay calm and keep on running
-    DROP_FRAME =    1  # No longer process this frame and keep on running
+    NO_FRAME   =    1  # No frame to process and keep on running
+    DROP_FRAME =    2  # No longer process this frame and keep on running
     USER       = 1024  # User defined custom StreamEvents start from here
 
 StreamEventName = {
     StreamEvent.DROP_FRAME: "DropFrame",
     StreamEvent.ERROR:      "Error",
+    StreamEvent.NO_FRAME:   "NoFrame",
     StreamEvent.OKAY:       "Okay",
     StreamEvent.STOP:       "Stop",
     StreamEvent.USER:       "User"
@@ -51,12 +53,14 @@ class StreamState:
     ERROR       =   -2  # Don't generate new frames and ignore queued frames
     STOP        =   -1  # Don't generate new frames and process queued frames
     RUN         =    0  # Generate new frames and process queued frames
-    DROP_FRAME  =    1  # Stop processing current frame, then back to RUN state
+    NO_FRAME    =    1  # No frame to process, then back to RUN state
+    DROP_FRAME  =    2  # Stop processing current frame, then back to RUN state
     USER        = 1024  # User defined custom StreamStates start from here
 
 StreamStateName = {
     StreamState.DROP_FRAME: "DropFrame",
     StreamState.ERROR:      "Error",
+    StreamState.NO_FRAME:   "NoFrame",
     StreamState.STOP:       "Stop",
     StreamState.RUN:        "Run",
     StreamState.USER:       "User"

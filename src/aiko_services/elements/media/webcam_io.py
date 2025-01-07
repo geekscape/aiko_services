@@ -15,6 +15,8 @@
 #
 # To Do
 # ~~~~~
+# - Implement "VideoReadWebcam.data_batch_size" in "frame_generator()"
+#
 # - Implement "data_source scheme", e.g "webcam://0" or "webcam://dev/video0"
 #
 # - Move "import cv2" into a "common_io.py" function

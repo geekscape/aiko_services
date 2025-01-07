@@ -3,15 +3,15 @@ name = "aiko_services"
 version = "0.6"
 readme = "ReadMe.md"
 description = "Distributed embedded service framework for A.I and robotics"
-requires-python = ">=3.9.0,<=3.13.0"
+requires-python = ">=3.9.0,<=3.13.1"
 
 authors = [
     {name = "Andy Gelme", email = "geekscape@gmail.com"}
 ]
 
 keywords = [
-    "ai", "distributed", "embedded", "framework", "internet of things",
-    "machine learning", "media", "robotics"
+    "agents", "ai", "distributed", "embedded", "framework",
+    "internet of things", "machine learning", "media", "robotics"
 ]
 
 licence-files = { paths = ["LICENCE"]}
@@ -43,6 +43,7 @@ dependencies = [
     "Pillow~=10.4.0",
     "psutil~=6.0.0",
     "pyperclip~=1.9.0",
+    "pyzmq~=26.2.0",
     "requests~=2.32.3",
     "transitions~=0.9.2",
     "wrapt~=1.16.0"
