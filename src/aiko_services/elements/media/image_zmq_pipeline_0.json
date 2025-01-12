@@ -3,7 +3,10 @@
   "name":    "p_image_zmq_0",
   "runtime": "python",
 
-  "graph": ["(ImageReadZMQ VideoShow ImageWriteFile ImageOutput)"],
+  "graph": ["(ImageReadZMQ ImageResize VideoShow ImageWriteFile ImageOutput)"],
+
+  "parameters": {"resolution": "640x480", "resolution_mac": "640x360"},
+  "parameters": {"resolution": "640x480"},
 
   "elements": [
     { "name":   "ImageReadZMQ",
@@ -12,6 +15,13 @@
          "data_batch_size": 1
       },
       "input":  [{"name": "records", "type": "[bytes]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "ImageResize",
+      "input":  [{"name": "images", "type": "[image]"}],
       "output": [{"name": "images", "type": "[image]"}],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.image_io"}

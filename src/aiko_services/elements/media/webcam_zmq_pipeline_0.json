@@ -5,7 +5,7 @@
 
   "graph": ["(VideoReadWebcam ImageResize ImageWriteZMQ)"],
 
-  "parameters": {"resolution": "640x480", "resolution_mac": "640x360"},
+  "parameters": {"resolution": "320x240", "resolution_mac": "320x180"},
 
   "elements": [
 	   { "name":   "VideoReadWebcam",
