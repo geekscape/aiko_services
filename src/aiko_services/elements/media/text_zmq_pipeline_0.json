@@ -11,7 +11,7 @@
          "data_sources": "(zmq://*:5000-5009)",
          "data_batch_size": 1
       },
-      "input":  [{ "name": "texts", "type": "[bytes]" }],
+      "input":  [{ "name": "records", "type": "[bytes]" }],
       "output": [{ "name": "texts", "type": "[str]" }],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.text_io"}

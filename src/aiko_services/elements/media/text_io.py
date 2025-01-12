@@ -18,15 +18,15 @@
 #   -p TextTransform.transform titlecase                   \
 #   -p TextWriteFile.data_targets file://data_out/out_00.txt
 #
-# Drop frame tests (local and remote)
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Usage: Drop frame tests (local and remote)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # aiko_pipeline create text_pipeline_1.json -s 1 -ll debug
 #
 # aiko_pipeline create text_pipeline_2.json -s 1 -ll debug  # local
 # aiko_pipeline create text_pipeline_3.json      -ll debug  # remote
 #
-# ZMQ
-# ~~~
+# Usage: ZMQ
+# ~~~~~~~~~~
 # aiko_pipeline create text_zmq_pipeline_0.json -s 1 -sr -ll debug -gt 10
 # aiko_pipeline create text_zmq_pipeline_1.json -s 1 -sr -ll debug
 #
@@ -73,8 +73,7 @@ from aiko_services.elements.media import DataSource, DataTarget
 
 __all__ = [
     "TextOutput", "TextReadFile", "TextReadZMQ",
-    "TextSample", "TextTransform",
-    "TextWriteFile", "TextWriteZMQ"
+    "TextSample", "TextTransform", "TextWriteFile", "TextWriteZMQ"
 ]
 
 # --------------------------------------------------------------------------- #
@@ -131,14 +130,15 @@ class TextReadZMQ(DataSource):  # common_io.py PipelineElement
         context.set_protocol("text_read_zmq:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
-        texts_out = []
-        for text in texts:
+    def process_frame(self, stream, records) -> Tuple[aiko.StreamEvent, dict]:
+        texts = []
+        for record in records:
+            text = record.decode()
     #       if text.startswith("text:"):  # TODO: "text:length:content" ?
     #           tokens = text.split(":")
     #           text = tokens[2:][0]      # just the "content"
-            texts_out.append(text.decode())
-        return aiko.StreamEvent.OKAY, {"texts": texts_out}
+            texts.append(text)
+        return aiko.StreamEvent.OKAY, {"texts": texts}
 
 # --------------------------------------------------------------------------- #
 

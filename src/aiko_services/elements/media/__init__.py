@@ -18,10 +18,14 @@ from .audio_io import (
 )
 
 from .image_io import (
-    ImageOutput, ImageOverlay, ImageReadFile, ImageResize, ImageWriteFile
+    ImageOutput, ImageOverlay, ImageReadFile, ImageReadZMQ,
+    ImageResize, ImageWriteFile, ImageWriteZMQ
 )
 
-from .text_io import TextOutput, TextReadFile, TextTransform, TextWriteFile
+from .text_io import (
+    TextOutput, TextReadFile, TextReadZMQ,
+    TextSample, TextTransform, TextWriteFile, TextWriteZMQ
+)
 
 from .video_io import VideoOutput, VideoReadFile, VideoShow, VideoWriteFile
 

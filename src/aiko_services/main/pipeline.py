@@ -1195,9 +1195,14 @@ class PipelineImpl(Pipeline):
                     actor = get_actor_mqtt(stream.topic_response, Pipeline)
                     actor.process_frame_response(stream_info, frame_data_out)
                 else:
-                    payload = generate(
-                        "process_frame", (stream_info, frame_data_out))
-                    aiko.message.publish(self.topic_out, payload)
+                    try:
+                        payload = generate(
+                            "process_frame", (stream_info, frame_data_out))
+                        aiko.message.publish(self.topic_out, payload)
+                    except Exception as exception:
+                        diagnostic = "Couldn't generate() \"frame_data\" output"
+                        self._error_pipeline(
+                            header, f"{diagnostic}\n{traceback.format_exc()}")
 
         finally:
         # If not _WINDOWS, then always remove the cached Stream Frame

@@ -20,8 +20,17 @@
 #
 # aiko_pipeline create image_pipeline_1.json -s 1
 #
+# Usage: ZMQ
+# ~~~~~~~~~~
+# aiko_pipeline create image_zmq_pipeline_0.json -s 1 -sr -ll debug -gt 10
+# aiko_pipeline create image_zmq_pipeline_1.json -s 1 -sr -ll debug
+#
 # To Do
 # ~~~~~
+# - Support for "media type" encoding details for "image"
+#   - Consider additional encoding information in out-of-band image records ?
+#     - "frame_id" and/or "image:length:content", "image/jpeg:length:content" ?
+#
 # - Consolidate multiple "media_pipeline_?.json" files into Graph Path(s) !
 # - ImageResize: {"scale": "1/3"} or {"scale": 2} or {"resolution": 640}
 #
@@ -45,14 +54,15 @@
 # - PE_Metrics: Determine what to metrics to capture, e.g frame rates ?
 
 from PIL import Image
+import io
 from typing import Tuple
 
 import aiko_services as aiko
 from aiko_services.elements.media import DataSource, DataTarget
 
 __all__ = [
-    "ImageOutput", "ImageOverlay", "ImageReadFile",
-    "ImageResize", "ImageWriteFile"
+    "ImageOutput", "ImageOverlay", "ImageReadFile", "ImageReadZMQ",
+    "ImageResize", "ImageWriteFile", "ImageWriteZMQ"
 ]
 
 _LOGGER = aiko.get_logger(__name__)
@@ -78,6 +88,33 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
     diagnostic = "image_io.py: Couldn't import numpy module"
 #   print(f"WARNING: {diagnostic}")
 #   _LOGGER.warning(diagnostic)
+
+# --------------------------------------------------------------------------- #
+# str: "JPEG" or "PNG"
+
+def image_to_bytes(image: Image.Image, format: str="JPEG") -> bytes:
+    with io.BytesIO() as image_bytes_io:
+        image = convert_to_pil_image(image)
+        if not image:
+            raise ValueError(
+                f"image_to_bytes(): Unknown image type: {type(image)}")
+        image.save(image_bytes_io, format=format)
+        return image_bytes_io.getvalue()
+
+def bytes_to_image(image_bytes: bytes) -> Image.Image:
+    image_bytes_io = io.BytesIO(image_bytes)
+    image = Image.open(image_bytes_io)
+    image.load()
+    image_bytes_io.close()
+    return image
+
+def convert_to_pil_image(image):
+    if not isinstance(image, Image.Image):
+        if isinstance(image, np.ndarray):  # TODO: Check NUMPY_IMPORTED
+            image = Image.fromarray(image.astype("uint8"), "RGB")
+        else:
+            image = None
+    return image
 
 # --------------------------------------------------------------------------- #
 # Useful for Pipeline output that should be all of the images processed
@@ -194,6 +231,31 @@ class ImageReadFile(DataSource):  # common_io.py PipelineElement
         return aiko.StreamEvent.OKAY, {"images": images}
 
 # --------------------------------------------------------------------------- #
+# ImageReadZMQ is a DataSource which supports ...
+# - ImageWriteZMQ(DataTarget) ZMQ client --> ImageReadZMQ(DataSource) ZMQ server
+#   - Individual image records produced by ZMQ client and consumed by ZMQ server
+#
+# parameter: "data_sources" is the ZMQ server bind details (common_io_zmq.py)
+#
+# Note: Only supports Streams with "data_sources" parameter
+
+class ImageReadZMQ(DataSource):  # common_io.py PipelineElement
+    def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("image_read_zmq:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, stream, records) -> Tuple[aiko.StreamEvent, dict]:
+        images = []
+        for record in records:
+            image = bytes_to_image(record)
+            self.logger.debug(f"{self.my_id()}: {len(record)} --> {image.size}")
+    #       if image.startswith("image:"):  # TODO: "image:length:content" ?
+    #           tokens = image.split(":")
+    #           image = tokens[2:][0]      # just the "content"
+            images.append(image)
+        return aiko.StreamEvent.OKAY, {"images": images}
+
+# --------------------------------------------------------------------------- #
 # TODO: Add logic for using different backends (opencv,...) or
 #           different input types (np.ndarray, ...)
 #
@@ -242,18 +304,39 @@ class ImageWriteFile(DataTarget):  # common_io.py PipelineElement
                 stream.variables["target_file_id"] += 1
             self.logger.debug(f"{self.my_id()}: {path}")
 
-            if not isinstance(image, Image.Image):
-                if isinstance(image, np.ndarray):  # TODO: Check NUMPY_IMPORTED
-                    image = Image.fromarray(image.astype("uint8"), "RGB")
-                else:
-                    return aiko.StreamEvent.ERROR,  \
-                           {"diagnostic": "UNKNOWN IMAGE TYPE"}  # FIX ME !
-
+            image = convert_to_pil_image(image)
+            if not image:
+                return aiko.StreamEvent.ERROR,  \
+                       {"diagnostic": "UNKNOWN IMAGE TYPE"}  # TODO: FIX ME !
             try:
                 image.save(path)
             except Exception as exception:
                 return aiko.StreamEvent.ERROR,  \
                        {"diagnostic": f"Error saving image: {exception}"}
+
+        return aiko.StreamEvent.OKAY, {}
+
+# --------------------------------------------------------------------------- #
+# ImageWriteZMQ is a DataTarget which supports ...
+# - ImageWriteZMQ(DataTarget) ZMQ client --> ImageReadZMQ(DataSource) ZMQ server
+#   - Individual image records produced by ZMQ client and consumed by ZMQ server
+#
+# parameter: "data_targets" is the ZMQ connect details (common_io_zmq.oy)
+#
+# Note: Only supports Streams with "data_targets" parameter
+
+class ImageWriteZMQ(DataTarget):  # common_io.py PipelineElement
+    def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("image_write_zmq:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
+        media_type = "image"                            # TODO: "image/zip" ?
+        for image in images:
+     #      image = f"{media_type}:{len(image)}:{image}"  # "image:length:content" ?
+            record = image_to_bytes(image)
+            self.logger.debug(f"{self.my_id()}: {image.size} --> {len(record)}")
+            stream.variables["target_zmq_socket"].send(record)
 
         return aiko.StreamEvent.OKAY, {}
 

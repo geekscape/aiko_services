@@ -1,0 +1,43 @@
+{
+  "version": 0,
+  "name":    "p_image_zmq_0",
+  "runtime": "python",
+
+  "graph": ["(ImageReadZMQ VideoShow ImageWriteFile ImageOutput)"],
+
+  "elements": [
+    { "name":   "ImageReadZMQ",
+      "parameters": {
+         "data_sources": "(zmq://*:5000-5009)",
+         "data_batch_size": 1
+      },
+      "input":  [{"name": "records", "type": "[bytes]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "VideoShow",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    },
+    { "name":   "ImageWriteFile",
+      "parameters": {"data_targets": "(file://data_out/out_{:02d}.jpeg)"},
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "ImageOutput",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    }
+  ]
+}

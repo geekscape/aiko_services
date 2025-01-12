@@ -75,16 +75,16 @@ class DataSchemeZMQ(DataScheme):
             "data_batch_size", default=1)
         data_batch_size = int(data_batch_size)
 
-        texts = []
+        records = []
         while (data_batch_size > 0):
             data_batch_size -= 1
             if not self.queue.qsize():
                 break
-            text = self.queue.get()
-            texts.append(text)
+            record = self.queue.get()
+            records.append(record)
 
-        if texts:
-            return aiko.StreamEvent.OKAY, {"texts": texts}
+        if records:
+            return aiko.StreamEvent.OKAY, {"records": records}
         else:
             return aiko.StreamEvent.NO_FRAME, {}
 

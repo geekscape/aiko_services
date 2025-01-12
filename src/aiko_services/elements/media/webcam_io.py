@@ -7,6 +7,11 @@
 #
 # aiko_pipeline create webcam_pipeline_1.json -s 1
 #
+# Usage: ZMQ
+# ~~~~~~~~~~
+# aiko_pipeline create image_zmq_pipeline_0.json  -s 1 -sr -gt 10
+# aiko_pipeline create webcam_zmq_pipeline_0.json -s 1 -sr
+#
 # Notes
 # ~~~~~
 # - See https://github.com/ultralytics/ultralytics/issues/3005
