@@ -8,11 +8,12 @@
   "elements": [
     { "name":   "TextReadZMQ",
       "parameters": {
-         "data_sources": "(zmq://*:5000-5009)",
-         "data_batch_size": 1
+        "#":            "(zmq://*:5000-5009)",       "#": "from localhost",
+        "data_sources": "(zmq://0.0.0.0:5000-5009)", "#": "from any host",
+        "data_batch_size": 1
       },
       "input":  [{ "name": "records", "type": "[bytes]" }],
-      "output": [{ "name": "texts", "type": "[str]" }],
+      "output": [{ "name": "texts",   "type": "[str]" }],
       "deploy": {
         "local": {"module": "aiko_services.elements.media.text_io"}
       }

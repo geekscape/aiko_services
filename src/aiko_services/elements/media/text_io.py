@@ -138,6 +138,7 @@ class TextReadZMQ(DataSource):  # common_io.py PipelineElement
     #           tokens = text.split(":")
     #           text = tokens[2:][0]      # just the "content"
             texts.append(text)
+            self.logger.debug(f"{self.my_id()}: {text} ({len(text)})")
         return aiko.StreamEvent.OKAY, {"texts": texts}
 
 # --------------------------------------------------------------------------- #

@@ -10,7 +10,10 @@
 # Usage: ZMQ
 # ~~~~~~~~~~
 # aiko_pipeline create image_zmq_pipeline_0.json  -s 1 -sr -gt 10
-# aiko_pipeline create webcam_zmq_pipeline_0.json -s 1 -sr
+# aiko_pipeline create image_zmq_pipeline_0.json  -s 1 -sr
+#
+# aiko_pipeline create webcam_zmq_pipeline_0.json -s 1 -sr \
+#                                                 -p VideoReadWebcam.rate 2.0
 #
 # Notes
 # ~~~~~
@@ -42,6 +45,7 @@ from aiko_services.elements.media import DataSource
 __all__ = ["VideoReadWebcam"]
 
 _DEFAULT_CAMERA_PATHNAME = 0  # Linux: "/dev/video0"
+_DEFAULT_FRAME_RATE = 10.0    # 10 Hz frames per second
 
 _LOGGER = aiko.get_logger(__name__)
 
@@ -115,7 +119,8 @@ class VideoReadWebcam(DataSource):  # common_io.py PipelineElement
         self.stream_started += 1
         path, _ = self.get_parameter("path", _DEFAULT_CAMERA_PATHNAME)
         self._open_camera(path)
-        self.create_frames(stream, self.frame_generator, rate=None)
+        rate, _ = self.get_parameter("rate", _DEFAULT_FRAME_RATE)
+        self.create_frames(stream, self.frame_generator, rate=float(rate))
         return aiko.StreamEvent.OKAY, {}
 
     def frame_generator(self, stream, frame_id):

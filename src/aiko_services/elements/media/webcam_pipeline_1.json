@@ -9,9 +9,9 @@
 
   "elements": [
     { "name":   "VideoReadWebcam",
+      "parameters": {"path": "/dev/video0", "rate": 10.0}, "#": "10 Hz",
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [{"name": "images", "type": "[image]"}],
-      "parameters": {"path": "/dev/video0"},
       "deploy": {
         "local": {"module": "aiko_services.elements.media.webcam_io"}
       }

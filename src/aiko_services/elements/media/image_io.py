@@ -23,7 +23,10 @@
 # Usage: ZMQ
 # ~~~~~~~~~~
 # aiko_pipeline create image_zmq_pipeline_0.json -s 1 -sr -ll debug -gt 10
-# aiko_pipeline create image_zmq_pipeline_1.json -s 1 -sr -ll debug
+# aiko_pipeline create image_zmq_pipeline_0.json  -s 1 -sr
+#
+# aiko_pipeline create image_zmq_pipeline_1.json -s 1 -sr -ll debug \
+#                                                 -p ImageReadFile.rate 2.0
 #
 # To Do
 # ~~~~~
