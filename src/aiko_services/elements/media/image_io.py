@@ -24,7 +24,7 @@
 # ~~~~~~~~~~
 # aiko_pipeline create image_zmq_pipeline_0.json -s 1 -sr -ll debug -gt 10
 # aiko_pipeline create image_zmq_pipeline_0.json -s 1 -sr  \
-#            -p ImageReadZMQ.data_sources zmq://192.168.0.1:6502
+#            -p ImageReadZMQ.data_sources zmq://0.0.0.0:6502
 #
 # aiko_pipeline create image_zmq_pipeline_1.json -s 1 -sr -ll debug  \
 #            -p ImageReadFile.rate 2.0                               \
@@ -66,6 +66,7 @@ import aiko_services as aiko
 from aiko_services.elements.media import DataSource, DataTarget
 
 __all__ = [
+    "convert_image_to_numpy", "convert_image_to_pil",
     "ImageOutput", "ImageOverlay", "ImageReadFile", "ImageReadZMQ",
     "ImageResize", "ImageWriteFile", "ImageWriteZMQ"
 ]
@@ -99,7 +100,7 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
 
 def image_to_bytes(image: Image.Image, format: str="JPEG") -> bytes:
     with io.BytesIO() as image_bytes_io:
-        image = convert_to_pil_image(image)
+        image = convert_image_to_pil(image)
         if not image:
             raise ValueError(
                 f"image_to_bytes(): Unknown image type: {type(image)}")
@@ -113,13 +114,31 @@ def bytes_to_image(image_bytes: bytes) -> Image.Image:
     image_bytes_io.close()
     return image
 
-def convert_to_pil_image(image):
+def convert_image_to_numpy(image):
+    if not isinstance(image, np.ndarray):
+        if isinstance(image, Image.Image):
+            image = np.array(image)  # RGB
+        else:
+            image = None
+    return image
+
+def convert_image_to_pil(image):
     if not isinstance(image, Image.Image):
         if isinstance(image, np.ndarray):  # TODO: Check NUMPY_IMPORTED
             image = Image.fromarray(image.astype("uint8"), "RGB")
         else:
             image = None
     return image
+
+convert_image_handlers = {
+    "numpy": convert_image_to_numpy,
+    "pil": convert_image_to_pil
+}
+
+def convert_image(image, type):
+    if type not in convert_image_handlers:
+        raise ValueError(f"image_io:convert_image(): Unknown type: {type}")
+    return convert_image_handlers[type](image)
 
 # --------------------------------------------------------------------------- #
 # Useful for Pipeline output that should be all of the images processed
@@ -241,6 +260,7 @@ class ImageReadFile(DataSource):  # common_io.py PipelineElement
 #   - Individual image records produced by ZMQ client and consumed by ZMQ server
 #
 # parameter: "data_sources" is the ZMQ server bind details (common_io_zmq.py)
+#            "media_type" is either "numpy" or "pil"
 #
 # Note: Only supports Streams with "data_sources" parameter
 
@@ -251,12 +271,19 @@ class ImageReadZMQ(DataSource):  # common_io.py PipelineElement
 
     def process_frame(self, stream, records) -> Tuple[aiko.StreamEvent, dict]:
         images = []
+        media_type, _ = self.get_parameter("media_type", None)
+        if media_type:
+            tokens = media_type.split("/")
+            media_type = tokens[0] if len(tokens) == 1 else tokens[1]
+
         for record in records:
             image = bytes_to_image(record)
             self.logger.debug(f"{self.my_id()}: {len(record)} --> {image.size}")
     #       if image.startswith("image:"):  # TODO: "image:length:content" ?
     #           tokens = image.split(":")
     #           image = tokens[2:][0]      # just the "content"
+            if media_type:
+                image = convert_image(image, media_type)
             images.append(image)
         return aiko.StreamEvent.OKAY, {"images": images}
 
@@ -312,7 +339,7 @@ class ImageWriteFile(DataTarget):  # common_io.py PipelineElement
                 stream.variables["target_file_id"] += 1
             self.logger.debug(f"{self.my_id()}: {path}")
 
-            image = convert_to_pil_image(image)
+            image = convert_image_to_pil(image)
             if not image:
                 return aiko.StreamEvent.ERROR,  \
                        {"diagnostic": "UNKNOWN IMAGE TYPE"}  # TODO: FIX ME !

@@ -17,7 +17,10 @@ from .audio_io import (
 #     PE_MicrophonePA, PE_MicrophoneSD, PE_Speaker
 )
 
+from .elements import Mock, NoOp
+
 from .image_io import (
+    convert_image_to_numpy, convert_image_to_pil,
     ImageOutput, ImageOverlay, ImageReadFile, ImageReadZMQ,
     ImageResize, ImageWriteFile, ImageWriteZMQ
 )

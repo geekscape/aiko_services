@@ -11,8 +11,8 @@
   "elements": [
     { "name":   "ImageReadFile",
       "parameters": {
-         "data_sources": "(file://data_in/in_{}.jpeg)",
-         "data_batch_size": 1
+        "data_sources": "(file://data_in/in_{}.jpeg)",
+        "data_batch_size": 1
       },
       "input":  [{"name": "paths",  "type": "[Path]"}],
       "output": [{"name": "images", "type": "[image]"}],

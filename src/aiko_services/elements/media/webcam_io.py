@@ -11,7 +11,7 @@
 # ~~~~~~~~~~
 # aiko_pipeline create image_zmq_pipeline_0.json  -s 1 -sr -gt 10
 # aiko_pipeline create image_zmq_pipeline_0.json  -s 1 -sr  \
-#            -p ImageWriteZMQ.data_targets zmq://192.168.0.1:6502
+#            -p ImageReadZMQ.data_sources zmq://0.0.0.0:6502
 #
 # aiko_pipeline create webcam_zmq_pipeline_0.json -s 1 -sr \
 #            -p VideoReadWebcam.rate 2.0

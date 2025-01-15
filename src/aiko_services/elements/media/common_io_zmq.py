@@ -20,13 +20,23 @@ __all__ = ["DataSchemeZMQ"]
 _LOGGER = aiko.get_logger(__name__)
 
 # --------------------------------------------------------------------------- #
-# parameter: "data_sources" provides the ZMQ server bind details
+# parameter: "data_sources" provides the ZMQ server bind details (incoming)
 # - "data_sources" list should only contain a single entry
-# - "(zmq://hostname:port_range)" ...
-#   - "(zmq://*:*)"             any available TCP port
-#   - "(zmq://*:6502)"          a given TCP port
-#   - "(zmq://*:6502-6510)"     any TCP port in the specified range
-#   - "(zmq://localhost:6502)"  given hostname and TCP port
+# - "(zmq://hostname:port_range)"  port_range may be a single port or a range
+#   - "(zmq://*:*)"                any available TCP port      (only localhost)
+#   - "(zmq://*:6502)"             a given TCP port            (only localhost)
+#   - "(zmq://*:6502-6510)"        any TCP port in the specified range
+#   - "(zmq://localhost:6502)"     given hostname and TCP port
+#   - "(zmq://0.0.0.0:*)"          any available TCP port      (from any host)
+#   - "(zmq://0.0.0.0:6502)"       a given TCP port            (from any host)
+#   - "(zmq://0.0.0.0:6502-6510)"  any TCP port in the specified range
+#
+# parameter: "data_targets" provides the ZMQ client connect details (outgoing)
+# - "data_sources" list should only contain a single entry
+# - "(zmq://hostname:port)" ...
+#   - "(zmq://*:6502)"             localhost and TCP port
+#   - "(zmq://localhost:6502)"     localhost and TCP port
+#   - "(zmq://0.0.0.0:6502)"       given hostname and TCP port
 
 class DataSchemeZMQ(DataScheme):
     def create_sources(self,

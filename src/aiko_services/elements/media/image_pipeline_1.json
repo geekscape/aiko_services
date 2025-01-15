@@ -10,8 +10,8 @@
   "elements": [
     { "name":   "ImageReadFile",
       "parameters": {
-         "data_sources": "(file://data_in/in_{}.jpeg)",
-         "data_batch_size": 1
+        "data_sources": "(file://data_in/in_{}.jpeg)",
+        "data_batch_size": 1
       },
       "input":  [{"name": "paths",  "type": "[Path]"}],
       "output": [{"name": "images", "type": "[image]"}],
@@ -22,9 +22,10 @@
     { "name":   "VideoShow",
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [],
-      "parameters": { "position":    "1280:0",
-                      "system_exit": true,
-                      "title":       "Aiko Services Video"
+      "parameters": {
+        "position":    "1280:0",
+        "system_exit": true,
+        "title":       "Aiko Services Video"
       },
       "deploy": {
         "local": {"module": "aiko_services.elements.media.video_io"}
