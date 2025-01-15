@@ -13,7 +13,8 @@
       "parameters": {
         "#":            "(zmq://*:6502-6510)",       "#": "from localhost",
         "data_sources": "(zmq://0.0.0.0:6502-6510)", "#": "from any host",
-        "data_batch_size": 1
+        "data_batch_size": 1,
+        "media_type": "image/pil",                   "#": "numpy | pil"
       },
       "input":  [{"name": "records", "type": "[bytes]"}],
       "output": [{"name": "images",  "type": "[image]"}],
