@@ -23,10 +23,12 @@
 # Usage: ZMQ
 # ~~~~~~~~~~
 # aiko_pipeline create image_zmq_pipeline_0.json -s 1 -sr -ll debug -gt 10
-# aiko_pipeline create image_zmq_pipeline_0.json  -s 1 -sr
+# aiko_pipeline create image_zmq_pipeline_0.json -s 1 -sr  \
+#            -p ImageReadZMQ.data_sources zmq://192.168.0.1:6502
 #
-# aiko_pipeline create image_zmq_pipeline_1.json -s 1 -sr -ll debug \
-#                                                 -p ImageReadFile.rate 2.0
+# aiko_pipeline create image_zmq_pipeline_1.json -s 1 -sr -ll debug  \
+#            -p ImageReadFile.rate 2.0                               \
+#            -p ImageWriteZMQ.data_targets zmq://192.168.0.1:6502
 #
 # To Do
 # ~~~~~
@@ -274,7 +276,10 @@ class ImageResize(aiko.PipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
-        resolution, _ = self.get_parameter("resolution")
+        resolution, found = self.get_parameter("resolution")
+        if not found:
+            return aiko.StreamEvent.OKAY, {"images": images}
+
         width, height = resolution.split("x")
         self.logger.debug(f"{self.my_id()}: resolution: {width}x{height}")
 

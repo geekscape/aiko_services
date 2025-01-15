@@ -25,8 +25,8 @@
     },
     { "name":   "ImageWriteZMQ",
       "parameters": {
-        "data_targets": "(zmq://localhost:5000)",   "#": "to localhost",
-        "#":            "(zmq://192.168.0.1:5000)", "#": "to some host"
+        "data_targets": "(zmq://localhost:6502)",   "#": "to localhost",
+        "#":            "(zmq://192.168.0.1:6502)", "#": "to some host"
       },
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [],

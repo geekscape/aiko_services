@@ -83,9 +83,7 @@ class DataScheme:
 
 class DataSource(aiko.PipelineElementImpl):
     def _get_data_sources(self):
-        data_sources, found = self.get_parameter("data_sources")
-        if not found:
-            raise KeyError('Must provide "data_sources" parameter')
+        data_sources, found = self.get_parameter("data_sources", required=True)
         data_source, data_sources = parse(data_sources)
         data_sources.insert(0, data_source)
         scheme = DataScheme.parse_data_url_scheme(data_sources[0])
@@ -129,9 +127,7 @@ class DataSource(aiko.PipelineElementImpl):
 
 class DataTarget(aiko.PipelineElementImpl):
     def _get_data_targets(self):
-        data_targets, found = self.get_parameter("data_targets")
-        if not found:
-            raise KeyError('Must provide "data_targets" parameter')
+        data_targets, found = self.get_parameter("data_targets", required=True)
         data_target, data_targets = parse(data_targets)
         data_targets.insert(0, data_target)
         scheme = DataScheme.parse_data_url_scheme(data_targets[0])

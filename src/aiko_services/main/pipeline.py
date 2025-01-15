@@ -318,7 +318,8 @@ class PipelineElement(Actor):
         pass
 
     @abstractmethod
-    def get_parameter(self, name, default=None, use_pipeline=True):
+    def get_parameter(self, name,
+        default=None, required=False, use_pipeline=True):
         pass
 
     @abstractmethod
@@ -452,8 +453,9 @@ class PipelineElementImpl(PipelineElement):
     #       in self.share[], just like PipelineDefinition parameters.
     #       Note: Consider the performance implications when doing this !
 
-    def get_parameter(self,
-        name, default=None, use_pipeline=True, self_share_priority=True):
+    def get_parameter(self, name,
+        default=None, required=False, use_pipeline=True,
+        self_share_priority=True):
 
         value = None
         found = False
@@ -486,6 +488,9 @@ class PipelineElementImpl(PipelineElement):
 
         if not found and default is not None:
             value = default  # Note: "found" is deliberately left as False
+
+        if required and not found:
+            raise KeyError(f'Must provide "{name}" parameter')
         return value, found
 
     def get_stream(self):
@@ -568,6 +573,7 @@ class PipelineImpl(Pipeline):
         self.stream_leases = {}
         self.thread_local = threading.local()  # See _enable_thread_local()
 
+    # TODO: Duplicated in PipelineElementImpl.__init__() remove ?
     #  "log_level" parameter overrides "AIKO_LOG_LEVEL" environment variable
         log_level, found = self.get_parameter(
             "log_level", self_share_priority=False)

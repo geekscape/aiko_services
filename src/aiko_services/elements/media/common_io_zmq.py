@@ -17,14 +17,16 @@ from aiko_services.main.utilities import get_network_port_free
 
 __all__ = ["DataSchemeZMQ"]
 
+_LOGGER = aiko.get_logger(__name__)
+
 # --------------------------------------------------------------------------- #
 # parameter: "data_sources" provides the ZMQ server bind details
 # - "data_sources" list should only contain a single entry
 # - "(zmq://hostname:port_range)" ...
 #   - "(zmq://*:*)"             any available TCP port
-#   - "(zmq://*:5000)"          a given TCP port
-#   - "(zmq://*:5000-5009)"     any TCP port in the specified range
-#   - "(zmq://localhost:5000)"  given hostname and TCP port
+#   - "(zmq://*:6502)"          a given TCP port
+#   - "(zmq://*:6502-6510)"     any TCP port in the specified range
+#   - "(zmq://localhost:6502)"  given hostname and TCP port
 
 class DataSchemeZMQ(DataScheme):
     def create_sources(self,
@@ -38,6 +40,7 @@ class DataSchemeZMQ(DataScheme):
         except ValueError as value_error:
             return aiko.StreamEvent.ERROR, {"diagnostic": value_error}
         self.share["zmq_url"] = zmq_url
+        _LOGGER.debug(f"create_sources(): zmq_url: {zmq_url}")
 
         self.zmq_context = zmq.Context()
         self.zmq_socket = self.zmq_context.socket(zmq.PULL)
@@ -56,6 +59,7 @@ class DataSchemeZMQ(DataScheme):
         except ValueError as value_error:
             return aiko.StreamEvent.ERROR, {"diagnostic": value_error}
         self.share["zmq_url"] = zmq_url
+        _LOGGER.debug(f"create_sources(): zmq_url: {zmq_url}")
 
         self.zmq_context = zmq.Context()
         self.zmq_socket = self.zmq_context.socket(zmq.PUSH)
@@ -91,7 +95,7 @@ class DataSchemeZMQ(DataScheme):
     def _parse_zmq_url(self, data_urls, find_free_port=False):
         data_url = data_urls[0]
         path = DataScheme.parse_data_url_path(data_url)
-        tokens = path.split(":")  # "hostname:port_range", e.g "*:5000-5009"
+        tokens = path.split(":")  # "hostname:port_range", e.g "*:6502-6510"
         diagnostic =  \
             f'ZMQ Data URL "{data_url}" must be "zmq://host:port_range"'
         if len(tokens) != 2:
@@ -106,7 +110,7 @@ class DataSchemeZMQ(DataScheme):
             if not port_number.isdigit():
                 raise ValueError(diagnostic)
             port_range[index] = int(port_number)
-        if find_free_port:
+        if find_free_port and port_range[0] != port_range[1]:
             port = get_network_port_free(port_range)
         else:
             port = port_range[0]

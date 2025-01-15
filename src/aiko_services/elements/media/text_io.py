@@ -28,7 +28,12 @@
 # Usage: ZMQ
 # ~~~~~~~~~~
 # aiko_pipeline create text_zmq_pipeline_0.json -s 1 -sr -ll debug -gt 10
-# aiko_pipeline create text_zmq_pipeline_1.json -s 1 -sr -ll debug
+# aiko_pipeline create text_zmq_pipeline_0.json -s 1 -sr  \
+#            -p TextReadZMQ.data_sources zmq://192.168.0.1:6502
+#
+# aiko_pipeline create text_zmq_pipeline_1.json -s 1 -sr -ll debug  \
+#            -p TextReadFile.rate 2.0                               \
+#            -p TextWriteZMQ.data_targets zmq://192.168.0.1:6502
 #
 # Resources
 # ~~~~~~~~~
