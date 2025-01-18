@@ -1,0 +1,238 @@
+{
+  "version": 0,
+  "name":    "p_robot",
+  "runtime": "python",
+
+  "graph": [
+    "(RobotOODA AudioReadMicrophone ImageReadZMQ TextReadTTY)",
+    "(RobotAgents RAG LLM RobotActions)",
+    "(ImageReadZMQ ImageDetection SceneDesciption RobotAgents ImageWrite)",
+    "(ImageDetection ArucoDetector ArucoOverlay YoloDetector ImageOverlay)",
+    "(ImageWrite VideoShow ImageWriteZMQ)",
+    "(TextReadTTY RobotAgents TextWriteTTY)",
+    "(AudioReadMicrophone SpeechToText RobotAgents TextToSpeech AudioWriteSpeaker)"
+  ],
+
+  "#": ["++ DONE ++", "### WIP! ##", "-- TODO --", "noop"],
+
+  "elements": [
+    { "name":   "RobotOODA",           "#": "   noop   ",
+      "parameters": {"label": "#### RobotOODA ####"},
+      "input":  [], "output": [],
+      "deploy": {
+        "local": {
+          "class_name": "Mock",
+          "module": "aiko_services.elements.media.elements"
+        }
+      }
+    },
+    { "name":   "RobotAgents",         "#": "   noop   ",
+      "parameters": {"label": ""},
+      "input":  [], "output": [],
+      "deploy": {
+        "local": {
+          "class_name": "Mock",
+          "module": "aiko_services.elements.media.elements"
+        }
+      }
+    },
+    { "name":   "RAG",                 "#": "-- TODO --",
+      "parameters": {"label": ""},
+      "input":  [], "output": [],
+      "deploy": {
+        "local": {
+          "class_name": "Mock",
+          "module": "aiko_services.elements.media.elements"
+        }
+      }
+    },
+    { "name":   "LLM",                 "#": "-- TODO --",
+      "parameters": {"label": ""},
+      "input":  [], "output": [],
+      "deploy": {
+        "local": {
+          "class_name": "Mock",
+          "module": "aiko_services.elements.media.elements"
+        }
+      }
+    },
+    { "name":   "RobotActions",        "#": "-- TODO --",
+      "parameters": {"label": ""},
+      "input":  [], "output": [],
+      "deploy": {
+        "local": {
+          "class_name": "Mock",
+          "module": "aiko_services.elements.media.elements"
+        }
+      }
+    },
+    { "name":   "ImageReadZMQ",        "#": "++ DONE ++",
+      "parameters": {
+         "_graph_path_": "ImageReadZMQ",
+         "data_sources": "(zmq://0.0.0.0:6502)",
+         "data_batch_size": 1,
+         "media_type": "image/numpy",
+         "rate": 20
+      },
+      "input":  [{"name": "records", "type": "[bytes]"}],
+      "output": [{"name": "images",  "type": "[image]"}],
+      "deploy": {
+        "local": {
+          "class_name": "ImageReadZMQ",
+          "module": "aiko_services.elements.media.image_io"
+        }
+      }
+    },
+    { "name":   "ImageDetection",      "#": "   noop   ",
+      "parameters": {"label": ""},
+      "input":  [], "output": [],
+      "deploy": {
+        "local": {
+          "class_name": "Mock",
+          "module": "aiko_services.elements.media.elements"
+        }
+      }
+    },
+    { "name":   "SceneDesciption",     "#": "-- TODO --",
+      "parameters": {"label": ""},
+      "input":  [], "output": [],
+      "deploy": {
+        "local": {
+          "class_name": "Mock",
+          "module": "aiko_services.elements.media.elements"
+        }
+      }
+    },
+    { "name":   "ImageWrite",          "#": "   noop   ",
+      "parameters": {"label": ""},
+      "input":  [], "output": [],
+      "deploy": {
+        "local": {
+          "class_name": "Mock",
+          "module": "aiko_services.elements.media.elements"
+        }
+      }
+    },
+    { "name":   "ArucoDetector",       "#": "++ DONE ++",
+      "input":  [{"name": "images",   "type": "[image]"}],
+      "output": [{"name": "overlays", "type": "[overlay]"}],
+      "deploy": {
+        "local": {
+          "class_name": "ArucoMarkerDetector",
+          "module": "aiko_services.examples.aruco_marker.aruco"
+        }
+      }
+    },
+    { "name":   "ArucoOverlay",        "#": "++ DONE ++",
+      "input":  [{"name": "images",   "type": "[image]"},
+                 {"name": "overlays", "type": "[overlay]"}],
+      "output": [{"name": "images",   "type": "[image]"}],
+      "deploy": {
+        "local": {
+          "class_name": "ArucoMarkerOverlay",
+          "module": "aiko_services.examples.aruco_marker.aruco"
+        }
+      }
+    },
+    { "name":   "YoloDetector",        "#": "++ DONE ++",
+      "input":  [{"name": "images",  "type": "[image]"}],
+      "output": [{"name": "overlay", "type": "[overlay]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.examples.yolo.yolo"}
+      }
+    },
+    { "name":   "ImageOverlay",        "#": "++ DONE ++",
+      "input":  [{"name": "images",  "type": "[image]"},
+                 {"name": "overlay", "type": "[overlay]"}],
+      "output": [{"name": "images",  "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "VideoShow",           "#": "++ DONE ++",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "parameters": {
+        "position":    "1280:0",
+        "system_exit": true,
+        "title":       "Cyberdyne Systems Model 101 Series 800"
+      },
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    },
+    { "name":   "ImageWriteZMQ",       "#": "-- TODO --",
+      "parameters": {
+        "data_targets": "(zmq://localhost:6503)",   "#": "to localhost",
+        "#":            "(zmq://192.168.0.1:6503)", "#": "to some host"
+      },
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "TextReadTTY",         "#": "++ DONE ++",
+      "parameters": {
+         "_graph_path_": "TextReadTTY",
+         "data_sources": "(tty://)",
+         "rate":         20,
+				 "tty_history":   3,
+         "tty_prompt":   "# "
+      },
+      "input":  [{"name": "records", "type": "[bytes]"}],
+      "output": [{"name": "texts",   "type": "[text]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.text_io"}
+      }
+    },
+    { "name":   "TextWriteTTY",        "#": "++ DONE ++",
+      "parameters": { "data_targets": "(tty://)", "tty_prompt": "# " },
+      "input":  [{"name": "texts", "type": "[text]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.text_io"}
+      }
+    },
+    { "name":   "AudioReadMicrophone", "#": "-- TODO --",
+      "parameters": {"label": ""},
+      "input":  [], "output": [],
+      "deploy": {
+        "local": {
+          "class_name": "Mock",
+          "module": "aiko_services.elements.media.elements"
+        }
+      }
+    },
+    { "name":   "SpeechToText",        "#": "-- TODO --",
+      "parameters": {"label": ""},
+      "input":  [], "output": [],
+      "deploy": {
+        "local": {
+          "class_name": "Mock",
+          "module": "aiko_services.elements.media.elements"
+        }
+      }
+    },
+    { "name":   "TextToSpeech",        "#": "-- TODO --",
+      "parameters": {"label": ""},
+      "input":  [], "output": [],
+      "deploy": {
+        "local": {
+          "class_name": "Mock",
+          "module": "aiko_services.elements.media.elements"
+        }
+      }
+    },
+    { "name":   "AudioWriteSpeaker",   "#": "-- TODO --",
+      "parameters": {"label": ""},
+      "input":  [], "output": [],
+      "deploy": {
+        "local": {
+          "class_name": "Mock",
+          "module": "aiko_services.elements.media.elements"
+        }
+      }
+    }
+  ]
+}

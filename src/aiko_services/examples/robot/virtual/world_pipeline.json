@@ -1,0 +1,131 @@
+{
+  "version": 0,
+  "name":    "p_world",
+  "runtime": "python",
+
+  "graph": [
+    "(World      PE_Metrics)",
+    "(World_OODA OODA PE_Metrics)",
+    "(World_ZMQ  ImageWriteZMQ)",
+    "(ZMQ_OODA   ImageReadZMQ OODA)",
+    "(OODA       ImageResize YoloDetector ImageOverlay VideoShow)"
+  ],
+
+  "parameters": {"resolution": "640x480"},
+
+  "elements": [
+    { "name":   "World",
+      "input":  [],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {
+          "module": "aiko_services.examples.robot.virtual.world"
+         }
+      }
+    },
+    { "name":   "World_OODA",
+      "input":  [],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {
+          "class_name": "World",
+          "module": "aiko_services.examples.robot.virtual.world"
+         }
+      }
+    },
+    { "name":   "World_ZMQ",
+      "input":  [],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {
+          "class_name": "World",
+          "module": "aiko_services.examples.robot.virtual.world"
+         }
+      }
+    },
+    { "name":   "OODA",
+      "input" : [],
+      "output": [],
+      "deploy": {
+        "local": {
+          "class_name": "NoOp",
+          "module": "aiko_services.elements.media.elements"
+         }
+      }
+    },
+    { "name":   "ZMQ_OODA",
+      "input" : [],
+      "output": [],
+      "deploy": {
+        "local": {
+          "class_name": "NoOp",
+          "module": "aiko_services.elements.media.elements"
+         }
+      }
+    },
+    { "name":   "ImageReadZMQ",
+      "parameters": {
+         "data_sources":    "(zmq://0.0.0.0:6502)",
+         "data_batch_size": 1,
+				 "media_type": "image/numpy"
+      },
+      "input":  [{"name": "records", "type": "[bytes]"}],
+      "output": [{"name": "images",  "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "ImageWriteZMQ",
+      "parameters": {
+        "data_targets": "(zmq://localhost:6502)",
+        "#":            "(zmq://192.168.0.1:6502)"
+      },
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "ImageResize",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "YoloDetector",
+      "input":  [{"name": "images",  "type": "[image]"}],
+      "output": [{"name": "overlay", "type": "[overlay]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.examples.yolo.yolo"}
+      }
+    },
+    { "name":   "ImageOverlay",
+      "input":  [{"name": "images",  "type": "[image]"},
+                 {"name": "overlay", "type": "[overlay]"}],
+      "output": [{"name": "images",  "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "VideoShow",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "parameters": { "position":    "1280:0",
+        "system_exit": true,
+        "title":       "Aiko Services Video"
+      },
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    },
+    { "name":   "PE_Metrics",
+      "#": "Provides Pipeline and PipelineElement timing information",
+      "input":  [],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.examples.pipeline.elements"}
+      }
+    }
+  ]
+}
