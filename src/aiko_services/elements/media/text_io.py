@@ -1,5 +1,5 @@
-# Usage
-# ~~~~~
+# Usage: File
+# ~~~~~~~~~~~
 # aiko_pipeline create text_pipeline_0.json -s 1 -sr -ll debug
 #
 # aiko_pipeline create text_pipeline_0.json -s 1 -p rate 1.0
@@ -120,6 +120,73 @@ class TextReadFile(DataSource):  # common_io.py PipelineElement
                         {"diagnostic": f"Error loading text: {exception}"}
 
         return aiko.StreamEvent.OKAY, {"texts": texts}
+
+# --------------------------------------------------------------------------- #
+
+class TextReadTTY(DataSource):  # elements/media/common_io.py PipelineElement
+    def __init__(self, context):
+        context.set_protocol("text_read_tty:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def start_stream(self, stream, stream_id):
+        print('# Type "/?" for help and "/x" to exit')
+        self.commands = {
+            "/?":   (self._command_help,    "Help"),
+            "//":   (None,                  "Escape sequence for '/'"),
+            "/h":   (self._command_history, "List command line history"),
+            "/h N": (self._command_history, "Execute command line 'N'"),
+            "/x":   (self._command_exit,    "Exit")
+        }
+        stream.variables["tty_command_lines"] = []
+        return super().start_stream(stream, stream_id)
+
+    def _command_exit(self, stream, tokens):
+        raise SystemExit("Process terminated")
+
+    def _command_help(self, stream, tokens):
+        for command, command_details in self.commands.items():
+            print(f"{command:4s}: {command_details[1]}")
+        return None
+
+    def _command_history(self, stream, tokens):
+        command_line = None
+        tty_command_lines = stream.variables["tty_command_lines"]
+        if len(tokens):
+            if tokens[0].isdigit():
+                index = int(tokens[0])
+                if index < len(tty_command_lines):
+                    command_line = tty_command_lines[index]
+        else:
+            for index, tty_command_line in enumerate(tty_command_lines):
+                print(f"{index:03d}: {tty_command_line}")
+        return command_line
+
+    def _parse_command_line(self, stream, text):
+        tokens = text.split()
+        command = tokens[0] if len(tokens) else ""
+        command_line = None
+        if command in self.commands:
+            command_function = self.commands[command][0]
+            if command_function:
+                command_line = command_function(stream, tokens[1:])
+            else:
+                command_line = text[3:]
+        return command_line
+
+    def process_frame(self, stream, records) -> Tuple[aiko.StreamEvent, dict]:
+        texts = []
+        for text in records:
+            command_line = text
+            save = True
+            if command_line.startswith("/"):
+                command_line = self._parse_command_line(stream, command_line)
+                save = False
+            if command_line:
+                if save:
+                    stream.variables["tty_command_lines"].append(command_line)
+                texts.append(command_line)
+        return aiko.StreamEvent.OKAY, {"texts": texts}
+    #   return aiko.StreamEvent.DROP_FRAME, {}  # TODO: If command_line is None
 
 # --------------------------------------------------------------------------- #
 # TextReadZMQ is a DataSource which supports ...
@@ -258,6 +325,22 @@ class TextWriteFile(DataTarget):  # common_io.py PipelineElement
             stream.variables["target_file"].close()
             del stream.variables["target_file"]
         return stream_event, diagnostic
+
+# --------------------------------------------------------------------------- #
+
+class TextWriteTTY(DataTarget):  # elements/media/common_io.py PipelineElement
+    def __init__(self, context):
+        context.set_protocol("text_write_tty:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
+        for text in texts:
+            print(text)
+        command_lines_length = len(stream.variables["tty_command_lines"])
+        tty_prompt, _ = self.get_parameter("tty_prompt", default="> ")
+        tty_prompt = f"{command_lines_length:03d}:{tty_prompt}"
+        print(f"{tty_prompt}", flush=True, end="")
+        return aiko.StreamEvent.OKAY, {}
 
 # --------------------------------------------------------------------------- #
 # TextWriteZMQ is a DataTarget which supports ...

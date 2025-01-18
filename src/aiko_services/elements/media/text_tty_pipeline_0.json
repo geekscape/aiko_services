@@ -1,0 +1,47 @@
+{
+  "version": 0,
+  "name":    "p_text_tty_0",
+  "runtime": "python",
+
+  "graph": ["(TextReadTTY TextTransform TextWriteTTY TextOutput)"],
+
+  "elements": [
+    { "name":   "TextReadTTY",
+      "parameters": {
+        "data_sources":    "(tty://)",
+        "data_batch_size":  1,
+         "tty_history":    16,
+         "tty_prompt":     "# "
+      },
+      "input":  [{ "name": "records", "type": "[Path]" }],
+      "output": [{ "name": "texts",   "type": "[str]" }],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.text_io"}
+      }
+    },
+    { "name":   "TextTransform",
+      "#": " transform options are lowercase, none, titlecase and uppercase",
+      "parameters": {"transform": "titlecase"},
+      "input":  [{ "name": "texts", "type": "[str]" }],
+      "output": [{ "name": "texts", "type": "[str]" }],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.text_io"}
+      }
+    },
+    { "name":   "TextWriteTTY",
+      "parameters": {"data_targets": "(tty://)", "tty_prompt": "# "},
+      "input":  [{ "name": "texts", "type": "[str]" }],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.text_io"}
+      }
+    },
+    { "name":   "TextOutput",
+      "input":  [{ "name": "texts", "type": "[str]" }],
+      "output": [{ "name": "texts", "type": "[str]" }],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.text_io"}
+      }
+    }
+  ]
+}

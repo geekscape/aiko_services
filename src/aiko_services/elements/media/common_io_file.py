@@ -12,8 +12,16 @@ __all__ = ["DataSchemeFile"]
 
 # --------------------------------------------------------------------------- #
 # parameter: "data_sources" provides the file pathname(s)
-# - "(file://pathname_0 file://pathname_1)"
+# - "(file://pathname_0 file://pathname_1 ...)"
 # - "(file://data_in/in_{}.txt)"
+# - "(file://data_in/in_{}.jpeg)"
+# - "(file://data_in/in_{}.mp4)"
+#
+# parameter: "data_targets" provides the file pathname(s)
+# - "(file://pathname_0 file://pathname_1 ...)"
+# - "(file://data_out/out{}.txt)"
+# - "(file://data_out/out_{}.jpeg)"
+# - "(file://data_out/out_{}.mp4)"
 
 class DataSchemeFile(DataScheme):
     def create_sources(self,

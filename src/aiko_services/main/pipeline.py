@@ -309,7 +309,7 @@ class PipelineElement(Actor):
         "aiko_services.main.pipeline.PipelineElementImpl")
 
     @abstractmethod
-    def create_frame(self, stream, frame_data):
+    def create_frame(self, stream, frame_data, frame_id=None, graph_path=None):
         pass
 
     @abstractmethod
@@ -372,16 +372,22 @@ class PipelineElementImpl(PipelineElement):
     # TODO: Fix Aiko Dashboard / EC_Producer incorrectly updates this approach
     #   self.share["parameters"] = self.definition.parameters  # TODO
 
-    def create_frame(self, stream, frame_data, frame_id=None):
+    def create_frame(self, stream, frame_data, frame_id=None, graph_path=None):
         if stream.stream_id not in self.pipeline.DEBUG:     # DEBUG: 2024-12-02
             self.pipeline.DEBUG[stream.stream_id] = {}
         self.pipeline.DEBUG[stream.stream_id]["create_frame"] = {
             "time": local_iso_now(), "latest_frame_id": frame_id}
 
         frame_id = frame_id if frame_id else stream.frame_id
-        stream_copy = Stream(stream.stream_id, frame_id,
-            stream.parameters, stream.queue_response,
-            stream.state, stream.topic_response)
+        graph_path = graph_path if graph_path else stream.graph_path
+        stream_copy = Stream(
+            stream_id=stream.stream_id,
+            frame_id=frame_id,
+            graph_path=graph_path,
+            parameters=stream.parameters,
+            queue_response=stream.queue_response,
+            state=stream.state,
+            topic_response=stream.topic_response)
         self.pipeline.create_frame(stream_copy, frame_data)
 
 # Optional "frame_generator" starts during "create_stream() --> start_stream()"
@@ -426,11 +432,13 @@ class PipelineElementImpl(PipelineElement):
                     self.name, stream_event, frame_data))
 
                 if stream.state == StreamState.RUN and frame_data:
+                    graph_path, _ = self.get_parameter("_graph_path_", None)
                     if isinstance(frame_data, dict):
                         frame_data = [frame_data]
                     if isinstance(frame_data, list):
                         for a_frame_data in frame_data:
-                            self.create_frame(stream, a_frame_data, frame_id)
+                            self.create_frame(
+                                stream, a_frame_data, frame_id, graph_path)
                             frame_id += 1
                             self.pipeline.thread_local.frame_id = frame_id
                     else:
@@ -663,11 +671,11 @@ class PipelineImpl(Pipeline):
         self.thread_local.stream = None
         self.thread_local.frame_id = None
 
-    def create_frame(self, stream_dict, frame_data):
-        if isinstance(stream_dict, Stream):
-            stream_dict = stream_dict.as_dict()
+    def create_frame(self, stream, frame_data, frame_id=None, graph_path=None):
+        if isinstance(stream, Stream):
+            stream = stream.as_dict()
         self._post_message(
-            ActorTopic.IN, "process_frame", [stream_dict, frame_data])
+            ActorTopic.IN, "process_frame", [stream, frame_data])
 
     @classmethod
     def create_pipeline(cls, definition_pathname, pipeline_definition,
@@ -1272,7 +1280,10 @@ class PipelineImpl(Pipeline):
 
                     stream.frames[frame_id] = Frame()
                     frame = stream.frames[frame_id]
-                    graph = self.pipeline_graph.get_path(stream.graph_path)
+                    graph_path = stream.graph_path
+                    if "graph_path" in stream_dict:  # create_frame() overrides
+                        graph_path = stream_dict["graph_path"]
+                    graph = self.pipeline_graph.get_path(graph_path)
     # If not _WINDOWS, then don't support "process_frame_response()"
             elif not _WINDOWS:
                 return None, None

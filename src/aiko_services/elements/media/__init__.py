@@ -8,6 +8,8 @@ from .common_io import contains_all, DataScheme, DataSource, DataTarget
 
 from .common_io_file import DataSchemeFile
 
+from .common_io_tty import DataSchemeTTY
+
 from .common_io_zmq import DataSchemeZMQ
 
 from .audio_io import (

@@ -32,7 +32,7 @@ _LOGGER = aiko.get_logger(__name__)
 #   - "(zmq://0.0.0.0:6502-6510)"  any TCP port in the specified range
 #
 # parameter: "data_targets" provides the ZMQ client connect details (outgoing)
-# - "data_sources" list should only contain a single entry
+# - "data_targets" list should only contain a single entry
 # - "(zmq://hostname:port)" ...
 #   - "(zmq://*:6502)"             localhost and TCP port
 #   - "(zmq://localhost:6502)"     localhost and TCP port
@@ -59,7 +59,7 @@ class DataSchemeZMQ(DataScheme):
 
         self.queue = queue.Queue()
         self.terminate = False
-        Thread(target=self._run).start()
+        Thread(target=self._run, daemon=True).start()
         self.pipeline_element.create_frames(stream, frame_generator)
         return aiko.StreamEvent.OKAY, {}
 
@@ -69,7 +69,7 @@ class DataSchemeZMQ(DataScheme):
         except ValueError as value_error:
             return aiko.StreamEvent.ERROR, {"diagnostic": value_error}
         self.share["zmq_url"] = zmq_url
-        _LOGGER.debug(f"create_sources(): zmq_url: {zmq_url}")
+        _LOGGER.debug(f"create_targets(): zmq_url: {zmq_url}")
 
         self.zmq_context = zmq.Context()
         self.zmq_socket = self.zmq_context.socket(zmq.PUSH)

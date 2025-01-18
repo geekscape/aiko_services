@@ -42,10 +42,10 @@ class DataScheme:
     @abstractmethod
     def create_sources(self, stream, data_sources,
         frame_generator=None, use_create_frame=True):
-        pass
+        return aiko.StreamEvent.OKAY, {}
 
     def create_targets(self, stream, data_targets):
-        pass
+        return aiko.StreamEvent.OKAY, {}
 
     def destroy_sources(self, stream):
         pass

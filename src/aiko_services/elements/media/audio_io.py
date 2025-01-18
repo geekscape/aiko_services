@@ -427,7 +427,7 @@ class PE_MicrophonePA(PipelineElement):
             input=True,
             rate=PA_AUDIO_SAMPLE_RATE)
         self.pipeline.create_stream(0)
-        self.thread = Thread(target=self._audio_run).start()
+        self.thread = Thread(target=self._audio_run, daemon=True).start()
 
     def _audio_run(self):
         self.terminate = False
@@ -474,7 +474,7 @@ class PE_MicrophoneSD(PipelineElement):
         self.share["frame_id"] = -1
         self.pipeline.create_stream(0)
         self._time_mute = 0
-        self._thread = Thread(target=self._audio_run).start()
+        self._thread = Thread(target=self._audio_run, daemon=True).start()
 
     def _audio_run(self):
         self.terminate = False

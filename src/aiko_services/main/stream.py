@@ -98,7 +98,11 @@ class Stream:
 # https://docs.python.org/3/library/dataclasses.html#dataclasses.asdict
     def as_dict(self):
     #   return {key: str(value) for key, value in asdict(self).items()}
-        return {"stream_id": self.stream_id, "frame_id": self.frame_id}
+        return {
+            "stream_id": self.stream_id,
+            "frame_id": self.frame_id,
+            "graph_path": self.graph_path
+        }
 
 # https://docs.python.org/3/library/dataclasses.html#dataclasses.replace
     def update(self, stream_dict):
