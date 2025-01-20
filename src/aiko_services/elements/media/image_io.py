@@ -61,6 +61,7 @@
 from PIL import Image
 import io
 from typing import Tuple
+import zlib
 
 import aiko_services as aiko
 from aiko_services.elements.media import DataSource, DataTarget
@@ -249,8 +250,8 @@ class ImageReadFile(DataSource):  # common_io.py PipelineElement
                 images.append(image)
                 self.logger.debug(f"{self.my_id()}: {path} {image.size}")
             except Exception as exception:
-                return aiko.StreamEvent.ERROR,  \
-                       {"diagnostic": f"Error loading image: {exception}"}
+                diagnostic = f"Error loading image: {exception}"
+                return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
         return aiko.StreamEvent.OKAY, {"images": images}
 
@@ -261,6 +262,7 @@ class ImageReadFile(DataSource):  # common_io.py PipelineElement
 #
 # parameter: "data_sources" is the ZMQ server bind details (common_io_zmq.py)
 #            "media_type" is either "numpy" or "pil"
+#            "compressed" (boolean) indicated whether to decompress the payload
 #
 # Note: Only supports Streams with "data_sources" parameter
 
@@ -276,7 +278,10 @@ class ImageReadZMQ(DataSource):  # common_io.py PipelineElement
             tokens = media_type.split("/")
             media_type = tokens[0] if len(tokens) == 1 else tokens[1]
 
+        compressed, _ = self.get_parameter("compressed", False)
+
         for record in records:
+            record = zlib.decompress(record) if compressed else record
             image = bytes_to_image(record)
             self.logger.debug(f"{self.my_id()}: {len(record)} --> {image.size}")
     #       if image.startswith("image:"):  # TODO: "image:length:content" ?
@@ -341,13 +346,13 @@ class ImageWriteFile(DataTarget):  # common_io.py PipelineElement
 
             image = convert_image_to_pil(image)
             if not image:
-                return aiko.StreamEvent.ERROR,  \
-                       {"diagnostic": "UNKNOWN IMAGE TYPE"}  # TODO: FIX ME !
+                diagnostic = "UNKNOWN IMAGE TYPE"  # TODO: FIX ME !
+                return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
             try:
                 image.save(path)
             except Exception as exception:
-                return aiko.StreamEvent.ERROR,  \
-                       {"diagnostic": f"Error saving image: {exception}"}
+                diagnostic = f"Error saving image: {exception}"
+                return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
         return aiko.StreamEvent.OKAY, {}
 
@@ -357,6 +362,7 @@ class ImageWriteFile(DataTarget):  # common_io.py PipelineElement
 #   - Individual image records produced by ZMQ client and consumed by ZMQ server
 #
 # parameter: "data_targets" is the ZMQ connect details (common_io_zmq.oy)
+#            "compressed" (boolean) indicated whether to compress the payload
 #
 # Note: Only supports Streams with "data_targets" parameter
 
@@ -367,9 +373,12 @@ class ImageWriteZMQ(DataTarget):  # common_io.py PipelineElement
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         media_type = "image"                            # TODO: "image/zip" ?
+        compressed, _ = self.get_parameter("compressed", False)
+
         for image in images:
      #      image = f"{media_type}:{len(image)}:{image}"  # "image:length:content" ?
             record = image_to_bytes(image)
+            record = zlib.compress(record) if compressed else record
             self.logger.debug(f"{self.my_id()}: {image.size} --> {len(record)}")
             stream.variables["target_zmq_socket"].send(record)
 

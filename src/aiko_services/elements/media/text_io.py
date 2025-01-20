@@ -116,8 +116,8 @@ class TextReadFile(DataSource):  # common_io.py PipelineElement
                 texts.append(text)
                 self.logger.debug(f"{self.my_id()}: {path} ({len(text)})")
             except Exception as exception:
-                return aiko.StreamEvent.ERROR,  \
-                        {"diagnostic": f"Error loading text: {exception}"}
+                diagnostic = f"Error loading text: {exception}"
+                return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
         return aiko.StreamEvent.OKAY, {"texts": texts}
 
@@ -246,13 +246,13 @@ class TextTransform(aiko.PipelineElement):
     def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
         transform_type, found = self.get_parameter("transform")
         if not found:
-            return aiko.StreamEvent.ERROR,  \
-                {"diagnostic": 'Must provide "transform" parameter'}
+            diagnostic = 'Must provide "transform" parameter'
+            return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
         transform = self.transforms.get(transform_type, None)
         if not transform:
-            return aiko.StreamEvent.ERROR,  \
-                {"diagnostic": f"Unknown text transform type: {transform_type}"}
+            diagnostic = f"Unknown text transform type: {transform_type}"
+            return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
         texts_transformed = []
         if transform_type == "none":
@@ -291,8 +291,8 @@ class TextWriteFile(DataTarget):  # common_io.py PipelineElement
             try:
                 stream.variables["target_file"] = Path(path).open("w")
             except Exception as exception:
-                return aiko.StreamEvent.ERROR,  \
-                       {"diagnostic": f"Error saving text: {exception}"}
+                diagnostic = f"Error saving text: {exception}"
+                return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
         return aiko.StreamEvent.OKAY, {}
 
@@ -308,14 +308,14 @@ class TextWriteFile(DataTarget):  # common_io.py PipelineElement
                     with Path(path).open("w") as file:
                         file.write(text)
                 except Exception as exception:
-                    return aiko.StreamEvent.ERROR,  \
-                           {"diagnostic": f"Error saving text: {exception}"}
+                    diagnostic = f"Error saving text: {exception}"
+                    return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
             else:
                 try:
                     stream.variables["target_file"].write(f"{text}")
                 except Exception as exception:
-                    return aiko.StreamEvent.ERROR,  \
-                           {"diagnostic": f"Error saving text: {exception}"}
+                    diagnostic = f"Error saving text: {exception}"
+                    return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
         return aiko.StreamEvent.OKAY, {}
 

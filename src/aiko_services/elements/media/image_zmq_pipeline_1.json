@@ -11,8 +11,9 @@
     { "name":   "ImageReadFile",
       "parameters": {
         "data_sources": "(file://data_in/in_{}.jpeg)",
-        "data_batch_size": 1
+        "data_batch_size": 1,
         "media_type": "image/pil",
+        "compressed": false
       },
       "input":  [{"name": "paths",  "type": "[Path]"}],
       "output": [{"name": "images", "type": "[image]"}],
