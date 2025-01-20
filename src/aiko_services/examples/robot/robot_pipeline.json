@@ -6,7 +6,7 @@
   "graph": [
     "(RobotOODA AudioReadMicrophone ImageReadZMQ TextReadTTY)",
     "(RobotAgents RAG LLM RobotActions)",
-    "(ImageReadZMQ ImageDetection SceneDesciption RobotAgents ImageWrite)",
+    "(ImageReadZMQ ImageDetection SceneDescription RobotAgents ImageWrite)",
     "(ImageDetection ArucoDetector ArucoOverlay YoloDetector ImageOverlay)",
     "(ImageWrite ImageResize VideoShow ImageWriteZMQ)",
     "(TextReadTTY RobotAgents TextWriteTTY)",
@@ -90,7 +90,7 @@
         }
       }
     },
-    { "name":   "SceneDesciption",     "#": "-- TODO --",
+    { "name":   "SceneDescription",     "#": "-- TODO --",
       "parameters": {"label": ""},
       "input":  [], "output": [],
       "deploy": {
