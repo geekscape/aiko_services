@@ -148,6 +148,8 @@ class RobotActions(aiko.PipelineElement):
         if texts:
             robot = self._get_robot(stream)
             for text in texts:
+                if not text:
+                    continue
                 try:
                     success = "❌"
                     if robot:

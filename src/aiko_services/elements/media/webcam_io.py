@@ -108,6 +108,8 @@ class VideoReadWebcam(DataSource):  # common_io.py PipelineElement
         if self.stream_started > 0:
             if self.video_capture:
                 self._close_camera()
+            if isinstance(path, str) and path.isdigit():
+                path = int(path)
             self.video_capture = cv2.VideoCapture(path)
             if self.video_capture and self.video_capture.isOpened():
                 self.logger.info(f"Open camera: {path}")
