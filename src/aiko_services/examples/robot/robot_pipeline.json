@@ -5,9 +5,9 @@
 
   "graph": [
     "(RobotOODA AudioReadMicrophone ImageReadZMQ TextReadTTY)",
-    "(RobotAgents RAG LLM RobotActions)",
+    "(RobotAgents PromptMediaFusion LLM RobotActions)",
     "(ImageReadZMQ ImageDetection SceneDescription RobotAgents ImageWrite)",
-    "(ImageDetection ArucoDetector ArucoOverlay YoloDetector ImageOverlay)",
+    "(ImageDetection ArucoDetector ArucoOverlay YoloDetector ImageOverlayFilter ImageOverlay)",
     "(ImageWrite ImageResize VideoShow ImageWriteZMQ)",
     "(TextReadTTY RobotAgents TextWriteTTY)",
     "(AudioReadMicrophone SpeechToText RobotAgents TextToSpeech AudioWriteSpeaker)"
@@ -35,24 +35,18 @@
         "local": {"module": "aiko_services.examples.robot.ooda.elements"}
       }
     },
-    { "name":   "RAG",                 "#": "-- TODO --",
-      "parameters": {"label": ""},
-      "input":  [], "output": [],
+    { "name":   "PromptMediaFusion",   "#": "-- TODO --",
+      "input":  [{"name": "texts", "type": "[text]"}],
+      "output": [{"name": "texts", "type": "[text]"}],
       "deploy": {
-        "local": {
-          "class_name": "Mock",
-          "module": "aiko_services.elements.media.elements"
-        }
+        "local": {"module": "aiko_services.examples.robot.ooda.elements"}
       }
     },
-    { "name":   "LLM",                 "#": "-- TODO --",
-      "parameters": {"label": ""},
-      "input":  [], "output": [],
+    { "name":   "LLM",                 "#": "++ DONE ++",
+      "input":  [{"name": "texts", "type": "[text]"}],
+      "output": [{"name": "texts", "type": "[text]"}],
       "deploy": {
-        "local": {
-          "class_name": "Mock",
-          "module": "aiko_services.elements.media.elements"
-        }
+        "local": { "module": "aiko_services.examples.llm.elements" }
       }
     },
     { "name":   "RobotActions",        "#": "++ DONE ++",
@@ -90,7 +84,7 @@
         }
       }
     },
-    { "name":   "SceneDescription",     "#": "-- TODO --",
+    { "name":   "SceneDescription",    "#": "-- TODO --",
       "parameters": {"label": ""},
       "input":  [], "output": [],
       "deploy": {
@@ -110,7 +104,7 @@
         }
       }
     },
-    { "name":   "ImageResize",
+    { "name":   "ImageResize",         "#": "++ DONE ++",
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [{"name": "images", "type": "[image]"}],
       "deploy": {
@@ -143,6 +137,17 @@
       "output": [{"name": "overlay", "type": "[overlay]"}],
       "deploy": {
         "local": {"module": "aiko_services.examples.yolo.yolo"}
+      }
+    },
+    { "name":   "ImageOverlayFilter",  "#": "++ DONE ++",
+      "parameters": {
+        "deny":     ["rubber_ball", "xgomini2"],
+        "threshold": 0.5
+      },
+      "input":  [{"name": "overlay", "type": "[overlay]"}],
+      "output": [{"name": "overlay", "type": "[overlay]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
       }
     },
     { "name":   "ImageOverlay",        "#": "++ DONE ++",

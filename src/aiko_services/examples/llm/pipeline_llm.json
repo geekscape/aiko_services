@@ -3,17 +3,17 @@
   "name":    "p_llm",
   "runtime": "python",
 
-  "graph": ["(PE_LLM PE_Metrics)"],
-  "#":     ["(PE_LLM PE_COQUI_TTS PE_Metrics)"],
+  "graph": ["(LLM PE_Metrics)"],
+  "#":     ["(LLM PE_COQUI_TTS PE_Metrics)"],
 
   "parameters": {},
 
   "elements": [
-    { "name":   "PE_LLM",
+    { "name":   "LLM",
       "input":  [{ "name": "text", "type": "string" }],
       "output": [{ "name": "text", "type": "string" }],
       "deploy": {
-        "local": { "module": "elements_llm.py" }
+        "local": { "module": "elements.py" }
       }
     },
     { "name":   "PE_COQUI_TTS",
@@ -21,7 +21,7 @@
       "output": [{ "name": "audio", "type": "bytes" }],
       "deploy": {
         "remote": {
-          "module": "elements_llm.py",
+          "module": "elements.py",
           "service_filter": {
             "topic_path": "*", "name": "p_llm_output",
             "owner": "*", "protocol": "*", "transport": "*", "tags": "*"

@@ -29,20 +29,16 @@ from aiko_services.main import ServiceFilter
 from aiko_services.main.transport import ActorDiscovery, get_actor_mqtt
 from aiko_services.main.utilities import parse
 
-__all__ = []
+__all__ = ["PromptMediaFusion", "RobotActions", "RobotAgents"]
 
 # --------------------------------------------------------------------------- #
 
-class RobotAgents(aiko.PipelineElement):
+class PromptMediaFusion(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("robot_actions:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, stream) -> Tuple[aiko.StreamEvent, dict]:
-        frame = stream.frames[stream.frame_id]
-        texts = []
-        if "texts" in frame.swag:
-            texts = frame.swag["texts"]  # TODO: General convenience function
+    def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
         return aiko.StreamEvent.OKAY, {"texts": texts}
 
 # --------------------------------------------------------------------------- #
@@ -173,5 +169,19 @@ class RobotActions(aiko.PipelineElement):
         details = stream.variables["robot_actions_discovery_details"]
         details[0].remove_handler(details[1], details[2])
         return aiko.StreamEvent.OKAY, {}
+
+# --------------------------------------------------------------------------- #
+
+class RobotAgents(aiko.PipelineElement):
+    def __init__(self, context):
+        context.set_protocol("robot_actions:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, stream) -> Tuple[aiko.StreamEvent, dict]:
+        frame = stream.frames[stream.frame_id]
+        texts = []
+        if "texts" in frame.swag:
+            texts = frame.swag["texts"]  # TODO: General convenience function
+        return aiko.StreamEvent.OKAY, {"texts": texts}
 
 # --------------------------------------------------------------------------- #

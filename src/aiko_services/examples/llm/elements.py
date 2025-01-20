@@ -19,7 +19,7 @@
 #
 # -----------------------------------------
 # https://python.langchain.com/docs/get_started/quickstart#llm-chain -->
-#   OpenAI API ... or ... Ollama (llama3.1)
+#   OpenAI API ... or ... Ollama (llama3.2)
 #
 # -----------------------------------------
 # pip install langchain langchain-openai langchain_community
@@ -31,9 +31,9 @@
 #
 # -----------------------------------------
 # ollama serve
-# ollama run llama3.1
+# ollama run llama3.2
 #
-# pip install langchain langchain_community
+# pip install langchain langchain_community langchain-ollama
 # export LANGCHAIN_TRACING_V2="true"
 # export LANGCHAIN_API_KEY="..."
 #
@@ -59,7 +59,7 @@ from langchain_core.prompts import ChatPromptTemplate
 import aiko_services as aiko
 from aiko_services.main.utilities import get_namespace
 
-LLM_MODEL_NAME = "llama3.1:latest"  # llava-llama3:8b-v1.1-fp16
+LLM_MODEL_NAME = "llama3.2:latest"  # llava-llama3:8b-v1.1-fp16
 LLM_TEMPERATURE = 0.0
 TOPIC_DETECTIONS = f"{get_namespace()}/detections"
 
@@ -84,8 +84,8 @@ def llm_load(llm_type, model_name=LLM_MODEL_NAME):
         llm = ChatOpenAI()  # parameter: openai_api_key=OPENAI_API_KEY
 
     if llm_type == "ollama":
-        from langchain_community.llms import Ollama
-        llm = Ollama(model=model_name, temperature=LLM_TEMPERATURE)
+        from langchain_ollama import OllamaLLM
+        llm = OllamaLLM(model=model_name, temperature=LLM_TEMPERATURE)
 
     if not llm:
         raise SystemExit(f"Unknown llm_type: {llm_type}")
@@ -108,17 +108,19 @@ def llm_chain(llm_type, text, detections=""):
 """
 You only output valid S-Expressions provided below.
 Never provide explanations or examples.
-Think carefully about the input and use the most valid S-Expressions.
-If command or action is given then valid S-Expressions are
+Think carefully about the input and use correctly formatted S-Expressions.
+If the user input is in the form of a command then valid S-Expressions are
 - (action forwards 10)   ;; initiate forwards movement
 - (action backwards 10)  ;; initiate backwards movement
+- (action select all)    ;; select ALL robots
+- (action select bruce)
 - (action select laika)
 - (action select oscar)
 - (action select none)
-- (action select voice)
+- (action select voice)  ;; ?
 - (action sit)
 - (action stop)          ;; stop all movement
-For a query then valid S-Expressions are
+If the user input is in the form of a query then valid S-Expressions are
 - (get_temperature location)  ;; location = Melbourne
 Other conversation can be replied with this valid S-Expression
 - (response response_message) ;; maximum response_message is 16 words
@@ -136,40 +138,37 @@ Your state information should include all values in a response message
 
     SYSTEM_PROMPT =  \
 """
-You only output valid S-Expressions.
+You only output correctly formatted S-Expressions.
 Never provide explanations or examples.
-Think carefully about the input and choose appropriate valid S-Expressions.
-For commands, then valid S-Expressions are
-- (action select all)    ;; select ALL robots
-- (action select bruce)
-- (action select oscar)
-- (action select none)
-- (action arm lower)
-- (action arm raise)
+Think carefully about the input and choose an appropriate valid S-Expression
+from the following lists ...
+If the user input is in the form of a command, then valid S-Expressions are
+- (action arm lower)     ;; when finished playing
+- (action arm raise)     ;; when getting ready to catch a ball
 - (action backwards)
-- (action crawl)
+- (action crawl)         ;; when herding a sheep
 - (action forwards)
 - (action hand close)
 - (action hand open)
-- (action pee)
-- (action pitch down)    ;; lower head downwards
-- (action pitch up)      ;; raise head upwards
+- (action pee)           ;; when your bladder is full
+- (action pitch down)    ;; lower head downwards when things make you sad
+- (action pitch up)      ;; raise head upwards when happy or excited
 - (action reset)
 - (action sit)           ;; sit down
-- (action sniff)
+- (action sniff)         ;; when food is mentioned or detected
 - (action stop)          ;; stop moving
-- (action stretch)
+- (action stretch)       ;; stretch your muscles when you wake up
 - (action turn left)
 - (action turn right)
-- (action wag)
-For queries, then valid S-Expressions are
+- (action wag)           ;; shows when you are happy
+If the user input query closely matches these S-Expressions function names
 - (get_temperature location)  ;; location = Melbourne
-For all other conversation, then valid S-Expressions are
-- (response message) ;; maximum message length is 12 words
+For all other user input, then valid S-Expressions are
+- (response YOUR REPLY) ;; YOUR REPLY maximum length is 12 words
 If you don't know what to do then reply using this valid S-Expression
 - (error diagnostic_message)
-Don't say "xgomini2", instead say "robot dog".
-Your state information when relevant may be used in response messages
+Never say the word"xgomini2", instead say "robot dog".
+Your state information when relevant may be used in your response messages
 - name: Oscar
 - type: xgomini2
 - goals: being happy
@@ -188,35 +187,36 @@ Your state information when relevant may be used in response messages
 
 # --------------------------------------------------------------------------- #
 
-class PE_LLM(aiko.PipelineElement):
+class LLM(aiko.PipelineElement):
     def __init__(self, context):
         context.get_implementation("PipelineElement").__init__(self, context)
         context.set_protocol("llm:0")
 
         self.detections = None
-        self.add_message_handler(self.detection_handler, TOPIC_DETECTIONS)
+        self.add_message_handler(self._detection_handler, TOPIC_DETECTIONS)
 
-    def detection_handler(self, aiko, topic, payload_in):
+    def _detection_handler(self, aiko, topic, payload_in):
         self.detections = (time.time(), payload_in.split()[1:])
 
-    def process_frame(self, stream, text) -> Tuple[aiko.StreamEvent, dict]:
-        if text != "<silence>":
-            detections = ""
-            if self.detections:
-                time_detected, detections = self.detections
-                time_now = time.time()
-                if time_now > time_detected + 1.0:
-                    detections = ""
+    def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
+        response = ""
 
-            self.logger.info(f"Input: {text}")
-            response = llm_chain("ollama", text, detections)
+        if texts:
+            text = texts[0]
 
-        #   topic_out = f"{get_namespace()}/speech"
-        #   payload_out = response
-        #   aiko.message.publish(topic_out, payload_out)
-        else:
-            response = text
+            if text != "<silence>":
+                detections = ""
+                if self.detections:
+                    time_detected, detections = self.detections
+                    time_now = time.time()
+                    if time_now > time_detected + 1.0:
+                        detections = ""
 
-        return aiko.StreamEvent.OKAY, {"text": response}
+                self.logger.info(f"Input: {text}")
+                response = llm_chain("ollama", text, detections)
+            else:
+                response = text
+
+        return aiko.StreamEvent.OKAY, {"texts": [response]}
 
 # --------------------------------------------------------------------------- #
