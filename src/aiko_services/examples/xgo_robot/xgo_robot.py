@@ -75,6 +75,7 @@ if is_robot():
 # --------------------------------------------------------------------------- #
 
 import aiko_services as aiko
+from aiko_services.main import *
 
 _VERSION = 0
 

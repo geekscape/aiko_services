@@ -65,6 +65,7 @@ import torch
 from ultralytics import YOLO
 
 import aiko_services as aiko
+from aiko_services import *
 
 _VERSION = 0
 
