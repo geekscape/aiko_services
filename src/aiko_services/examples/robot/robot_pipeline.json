@@ -8,10 +8,12 @@
     "(RobotAgents RAG LLM RobotActions)",
     "(ImageReadZMQ ImageDetection SceneDesciption RobotAgents ImageWrite)",
     "(ImageDetection ArucoDetector ArucoOverlay YoloDetector ImageOverlay)",
-    "(ImageWrite VideoShow ImageWriteZMQ)",
+    "(ImageWrite ImageResize VideoShow ImageWriteZMQ)",
     "(TextReadTTY RobotAgents TextWriteTTY)",
     "(AudioReadMicrophone SpeechToText RobotAgents TextToSpeech AudioWriteSpeaker)"
   ],
+
+  "parameters": {"resolution": "640x480"},
 
   "#": ["++ DONE ++", "### WIP! ##", "-- TODO --", "noop"],
 
@@ -26,14 +28,11 @@
         }
       }
     },
-    { "name":   "RobotAgents",         "#": "   noop   ",
-      "parameters": {"label": ""},
-      "input":  [], "output": [],
+    { "name":   "RobotAgents",         "#": "++ DONE ++",
+      "input":  [],
+      "output": [{"name": "texts", "type": "[text]"}],
       "deploy": {
-        "local": {
-          "class_name": "Mock",
-          "module": "aiko_services.elements.media.elements"
-        }
+        "local": {"module": "aiko_services.examples.robot.ooda.elements"}
       }
     },
     { "name":   "RAG",                 "#": "-- TODO --",
@@ -56,14 +55,12 @@
         }
       }
     },
-    { "name":   "RobotActions",        "#": "-- TODO --",
-      "parameters": {"label": ""},
-      "input":  [], "output": [],
+    { "name":   "RobotActions",        "#": "++ DONE ++",
+      "parameters": {"service_name": "oscar"},
+      "input":  [{"name": "texts", "type": "[text]"}],
+      "output": [],
       "deploy": {
-        "local": {
-          "class_name": "Mock",
-          "module": "aiko_services.elements.media.elements"
-        }
+        "local": {"module": "aiko_services.examples.robot.ooda.elements"}
       }
     },
     { "name":   "ImageReadZMQ",        "#": "++ DONE ++",
@@ -111,6 +108,13 @@
           "class_name": "Mock",
           "module": "aiko_services.elements.media.elements"
         }
+      }
+    },
+    { "name":   "ImageResize",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
       }
     },
     { "name":   "ArucoDetector",       "#": "++ DONE ++",
@@ -161,7 +165,7 @@
         "local": {"module": "aiko_services.elements.media.video_io"}
       }
     },
-    { "name":   "ImageWriteZMQ",       "#": "-- TODO --",
+    { "name":   "ImageWriteZMQ",       "#": "   ????   ",
       "parameters": {
         "data_targets": "(zmq://localhost:6503)",   "#": "to localhost",
         "#":            "(zmq://192.168.0.1:6503)", "#": "to some host"
@@ -177,7 +181,7 @@
          "_graph_path_": "TextReadTTY",
          "data_sources": "(tty://)",
          "rate":         20,
-				 "tty_history":   3,
+         "tty_history":   3,
          "tty_prompt":   "# "
       },
       "input":  [{"name": "records", "type": "[bytes]"}],
