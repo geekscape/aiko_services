@@ -23,8 +23,9 @@ from .elements import Mock, NoOp
 
 from .image_io import (
     convert_image_to_numpy, convert_image_to_pil,
-    ImageOutput, ImageOverlay, ImageReadFile, ImageReadZMQ,
-    ImageResize, ImageWriteFile, ImageWriteZMQ
+    ImageOutput, ImageOverlay, ImageOverlayFilter,
+    ImageReadFile, ImageReadZMQ, ImageResize,
+    ImageWriteFile, ImageWriteZMQ
 )
 
 from .text_io import (

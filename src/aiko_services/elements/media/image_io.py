@@ -68,8 +68,9 @@ from aiko_services.elements.media import DataSource, DataTarget
 
 __all__ = [
     "convert_image_to_numpy", "convert_image_to_pil",
-    "ImageOutput", "ImageOverlay", "ImageReadFile", "ImageReadZMQ",
-    "ImageResize", "ImageWriteFile", "ImageWriteZMQ"
+    "ImageOutput", "ImageOverlay", "ImageOverlayFilter",
+    "ImageReadFile", "ImageReadZMQ", "ImageResize",
+    "ImageWriteFile", "ImageWriteZMQ"
 ]
 
 _LOGGER = aiko.get_logger(__name__)
@@ -193,7 +194,7 @@ class ImageOverlay(aiko.PipelineElement):
                     object, rectangle = item
                     name = object.get("name", None)
                     confidence = object.get("confidence", 1.0)
-                    if confidence > self.threshold:
+                    if confidence >= self.threshold:
                         x = int(rectangle["x"])
                         y = int(rectangle["y"])
                         w = int(rectangle["w"])
@@ -226,6 +227,42 @@ class ImageOverlay(aiko.PipelineElement):
             images_overlaid.append(image_overlaid)
 
         return aiko.StreamEvent.OKAY, {"images": images_overlaid}
+
+# --------------------------------------------------------------------------- #
+
+class ImageOverlayFilter(aiko.PipelineElement):
+    def __init__(self, context):
+        context.set_protocol("image_overlay_filter:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, stream, overlay)  \
+        -> Tuple[aiko.StreamEvent, dict]:
+
+        deny, _ = self.get_parameter("deny", [])
+        threshold, _ = self.get_parameter("threshold", 0.0)
+
+        overlay_filtered = {"objects": [], "rectangles": []}
+        objects_filtered = overlay_filtered["objects"]
+        rectangles_filtered = overlay_filtered["rectangles"]
+
+        if "rectangles" in overlay:
+            rectangles = overlay["rectangles"]
+            if "objects" in overlay:
+                objects = overlay["objects"]
+            else:
+                objects = [{}] * len(rectangles)
+
+            items = zip(objects, rectangles)
+            for item in items:
+                object, rectangle = item
+                name = object.get("name", None)
+                confidence = object.get("confidence", 1.0)
+
+                if name not in deny and confidence >= threshold:
+                    objects_filtered.append(object)
+                    rectangles_filtered.append(rectangle)
+
+        return aiko.StreamEvent.OKAY, {"overlay": overlay_filtered}
 
 # --------------------------------------------------------------------------- #
 # ImageReadFile is a DataSource which supports ...
