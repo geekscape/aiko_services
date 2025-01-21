@@ -735,6 +735,8 @@ class PipelineImpl(Pipeline):
             definition.map_out_nodes[predecessor_name] = {}
         definition.map_out_nodes[predecessor_name][node_name] = properties
 
+        definition.edge_definitions[node_name] = properties
+
 # Pipeline current "stream" and "frame_id" are thread-local variables
 # Valid for create_stream(), process_frame() and destroy_stream() on main thread
 # Valid for PipelineElement._create_frames_generator() thread
@@ -803,6 +805,7 @@ class PipelineImpl(Pipeline):
 
         definition.map_in_nodes = {}
         definition.map_out_nodes = {}
+        definition.edge_definitions = {}
         node_heads, node_successors = Graph.traverse(
             definition.graph, self._add_node_properties)
         pipeline_graph = PipelineGraph(node_heads)
@@ -1274,7 +1277,7 @@ class PipelineImpl(Pipeline):
                         if stream.state == StreamState.ERROR:
                             break
                     #   TODO: Test "stream.state" before continuing
-                        self._process_map_out(element_name, frame_data_out)
+                        self._process_map_out(element, element_name, frame_data_out)
                         self._process_metrics_capture(  # TODO: Move up ?
                             metrics, element.name)
                         frame.swag.update(frame_data_out)
@@ -1439,34 +1442,51 @@ class PipelineImpl(Pipeline):
             metrics["pipeline_memory"] = pipeline_memory  # Total so far !
 
     def _process_map_in(self, header, element, element_name, swag):
-        map_in_names = {}
-        if element_name in self.definition.map_in_nodes:
-            map_in_elements = self.definition.map_in_nodes[element_name]
-            for in_element, in_map in map_in_elements.items():
-                from_name, to_name = next(iter(in_map.items()))
-                map_in_names[to_name] = f"{element_name}.{to_name}"
+        #map_in_names = {}
+        #if element_name in self.definition.map_in_nodes:
+        #    map_in_elements = self.definition.map_in_nodes[element_name]
+        #    for in_element, in_map in map_in_elements.items():
+        #        from_name, to_name = next(iter(in_map.items()))
+        #        map_in_names[to_name] = f"{element_name}.{to_name}"
+        #print(f"map_in_names: {map_in_names}")
+
+        #inputs = {}
+        #input_names = [input["name"] for input in element.definition.input]
+
+        #for input_name in input_names:
+        #    try:
+        #        if input_name in map_in_names:
+        #            inputs[input_name] = swag[map_in_names[input_name]]
+        #        else:
+        #            inputs[input_name] = swag[input_name]
+        #    except KeyError as key_error:
+        #        self._error_pipeline(header,
+        #            f'Function parameter "{input_name}" not found')
 
         inputs = {}
-        input_names = [input["name"] for input in element.definition.input]
+        for input in element.definition.input:
+            if input["name"] in swag:
+                inputs[input["name"]] = swag[input["name"]]
 
-        for input_name in input_names:
-            try:
-                if input_name in map_in_names:
-                    inputs[input_name] = swag[map_in_names[input_name]]
-                else:
-                    inputs[input_name] = swag[input_name]
-            except KeyError as key_error:
-                self._error_pipeline(header,
-                    f'Function parameter "{input_name}" not found')
+        edge_definitions = self.definition.edge_definitions.get(element_name, {})
+        for predecessor_output, input_name in edge_definitions.items():
+            if predecessor_output in swag:
+                inputs[input_name] = swag[predecessor_output]
+
         return inputs
 
-    def _process_map_out(self, element_name, frame_data_out):
-        if element_name in self.definition.map_out_nodes:
-            map_out_node = self.definition.map_out_nodes[element_name]
-            for out_element, out_map in map_out_node.items():
-                from_name, to_name = next(iter(out_map.items()))
-                to_name = f"{out_element}.{to_name}"
-                frame_data_out[to_name] = frame_data_out.pop(from_name)
+    def _process_map_out(self, element, element_name, frame_data_out):
+        for output in element.definition.output:
+            output_name = output["name"]
+            qualified_output_name = f"{element_name}.{output_name}"
+            if output_name in frame_data_out:
+                frame_data_out[qualified_output_name] = frame_data_out[output_name]
+        #if element_name in self.definition.map_out_nodes:
+        #    map_out_node = self.definition.map_out_nodes[element_name]
+        #    for out_element, out_map in map_out_node.items():
+        #        from_name, to_name = next(iter(out_map.items()))
+        #        to_name = f"{out_element}.{to_name}"
+        #        frame_data_out[to_name] = frame_data_out.pop(from_name)
 
 # FIX: _create_frame_generator(): StreamEvent.ERROR -->
 #          self.destroy_stream(get_stream_id(), graceful=False)  # immediately !
