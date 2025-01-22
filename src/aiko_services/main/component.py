@@ -102,9 +102,13 @@ def compose_instance(impl_seed_class, init_args, impl_overrides=None):
     # It's alive ... https://www.youtube.com/watch?v=1qNeGSJaQ9Q&t=2m24s !!
     # Of course, Frankstein was the doctor's name and not his creation :)
 
-    context = init_args["context"]
-    context.set_implementations(implementations)
-    return frankenstein_class(**init_args)
+    if "context" in init_args:
+        context = init_args["context"]
+        context.set_implementations(implementations)
+        del init_args["context"]
+        return frankenstein_class(context, **init_args)
+    else:
+        return frankenstein_class(**init_args)
 
 def _add_methods(base_class, implementations):
     """
