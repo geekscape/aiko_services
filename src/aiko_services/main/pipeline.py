@@ -412,6 +412,8 @@ class PipelineElementImpl(PipelineElement):
             mailbox_name = f"{self.pipeline.name}/1/in"
             mailbox_queue = event.mailboxes[mailbox_name].queue
 
+            start_time = time.monotonic()
+            count = 1
             while stream.state == StreamState.RUN:
             # TODO: 2024-12-11: Throttle "frame_generator" when "rate" is None
                 if (not rate or rate == 0) and mailbox_queue.qsize() >= 32:
@@ -451,7 +453,10 @@ class PipelineElementImpl(PipelineElement):
                 stream.lock.release()
 
                 if rate and stream.state == StreamState.RUN:
-                    time.sleep(1.0 / rate)
+                    duration = (start_time + (count * (1.0 / rate))) - time.monotonic()
+                    if duration > 0:
+                        time.sleep(duration)
+                    count += 1
                 elif stream_event == StreamEvent.NO_FRAME:
                     time.sleep(0.02)  # Avoid frame_generator() busy CPU loop
         finally:
