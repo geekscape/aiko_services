@@ -577,7 +577,7 @@ class PipelineImpl(Pipeline):
 
         self.actor = context.get_implementation("Actor")  # _WINDOWS
         context.get_implementation("PipelineElement").__init__(self, context)
-        print(f"MQTT topic: {self.topic_in}")
+        self.logger.info(f"MQTT topic: {self.topic_in}")
 
         self.share["definition_pathname"] = context.definition_pathname
         self.share["lifecycle"] = "waiting"
