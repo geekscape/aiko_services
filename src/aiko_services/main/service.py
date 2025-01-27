@@ -538,7 +538,7 @@ class ServiceImpl(Service):
     def __init__(self, context):
 
     # TODO: Move name, protocol, tags, topic_path, transport into ServiceFields
-        self.time_started = time.time()
+        self.time_started = time.monotonic()
         self.name = context.name
         self.protocol = context.protocol
         self._tags = context.tags

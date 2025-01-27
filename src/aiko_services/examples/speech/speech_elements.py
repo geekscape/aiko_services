@@ -66,7 +66,7 @@ class PE_AudioFraming(PipelineElement):
         _LOGGER.info(f"PE_AudioFraming: Sliding windows: {AUDIO_CACHE_SIZE}")
 
     def process_frame(self, stream, audio) -> Tuple[StreamEvent, dict]:
-        time_start = time.time()
+        time_start = time.monotonic()
         audio_input_file = audio
         audio_waveform = whisperx.load_audio(audio_input_file)
         os.remove(audio_input_file)
@@ -74,7 +74,7 @@ class PE_AudioFraming(PipelineElement):
         self._lru_cache.put(stream["frame_id"], audio_waveform)
         audio_waveform = np.concatenate(self._lru_cache.get_list())
 
-        time_used = time.time() - time_start
+        time_used = time.monotonic() - time_start
         if time_used > 0.5:
             frame_id = stream["frame_id"]
             lru_cache_size = len(self._lru_cache.lru_cache)
@@ -229,9 +229,9 @@ if WHISPERX_LOADED:
         def process_frame(self, stream, audio) -> Tuple[StreamEvent, dict]:
             audio = np.squeeze(audio)
             frame_id = stream["frame_id"]
-            time_start = time.time()
+            time_start = time.monotonic()
             prediction = self._ml_model.transcribe(audio=audio, language="en")
-            time_used = time.time() - time_start
+            time_used = time.monotonic() - time_start
             if time_used > 0.5:
                 _LOGGER.debug(f"PE_WhisperX[{frame_id}] Time: {time_used:0.3f}")
 

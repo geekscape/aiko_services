@@ -498,7 +498,7 @@ class PE_MicrophoneSD(PipelineElement):
             _LOGGER.error(f"SoundDevice error: {status}")
         else:
         #   _LOGGER.debug(f"SoundDevice callback: {len(indata)} bytes")
-            if self._time_mute == 0 or time.time() > self._time_mute:
+            if self._time_mute == 0 or time.monotonic() > self._time_mute:
                 if self._time_mute:
                     self._time_mute = 0
                     self.ec_producer.update("mute", 0)
@@ -514,7 +514,7 @@ class PE_MicrophoneSD(PipelineElement):
 
     def mute(self, duration):
         duration = parse_number(duration)
-        time_mute = time.time() + duration
+        time_mute = time.monotonic() + duration
         if duration == 0 or time_mute >= self._time_mute:
             self._audio_sample = np.empty((0, 1), dtype=np.float32)
             self._time_mute = time_mute

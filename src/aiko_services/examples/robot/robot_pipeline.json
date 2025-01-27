@@ -4,7 +4,7 @@
   "runtime": "python",
 
   "graph": [
-    "(RobotOODA AudioReadMicrophone ImageReadZMQ TextReadTTY)",
+    "(Robot_OODA AudioReadMicrophone ImageReadZMQ TextReadTTY)",
     "(RobotAgents PromptMediaFusion LLM RobotActions)",
     "(ImageReadZMQ ImageDetection SceneDescription RobotAgents ImageWrite)",
     "(ImageDetection ArucoDetector ArucoOverlay YoloDetector ImageOverlayFilter ImageOverlay)",
@@ -18,8 +18,8 @@
   "#": ["++ DONE ++", "### WIP! ##", "-- TODO --", "noop"],
 
   "elements": [
-    { "name":   "RobotOODA",           "#": "   noop   ",
-      "parameters": {"label": "#### RobotOODA ####"},
+    { "name":   "Robot_OODA",           "#": "   noop   ",
+      "parameters": {"label": "#### Robot_OODA ####"},
       "input":  [], "output": [],
       "deploy": {
         "local": {

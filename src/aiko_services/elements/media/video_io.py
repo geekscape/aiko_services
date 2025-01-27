@@ -282,7 +282,8 @@ class VideoWriteFile(DataTarget):  # common_io.py PipelineElement
         parent_path = Path(path).parent
         parent_path.mkdir(exist_ok=True, parents=True)
         path = str(path)
-        video_writer = cv2.VideoWriter(path, format, frame_rate, resolution)
+        video_writer = cv2.VideoWriter(
+            path, format, float(frame_rate), resolution)
         return video_writer
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:

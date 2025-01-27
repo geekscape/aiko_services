@@ -194,11 +194,11 @@ class RobotCore:
     def _run(self):
         fps = 0
         while not self._terminated:
-            time_loop = time.time()
+            time_loop = time.monotonic()
             status, image = self._camera.read()
             image = cv2.flip(image, 1)
             image = self._image_to_rgb(image)
-            time_process = (time.time() - time_loop) * 1000
+            time_process = (time.monotonic() - time_loop) * 1000
 
             if self._screen:
                 self._screen_overlay(image, fps, time_process)  # TODO: Always
@@ -214,7 +214,7 @@ class RobotCore:
                 self.terminate()
 
         self._sleep()
-        fps = int(1 / (time.time() - time_loop))
+        fps = int(1 / (time.monotonic() - time_loop))
 
 # --------------------------------------------------------------------------- #
 

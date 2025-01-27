@@ -53,14 +53,27 @@
 import time
 from typing import Tuple
 
+from httpx import ConnectError
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 import aiko_services as aiko
 from aiko_services.main.utilities import get_namespace
 
-LLM_MODEL_NAME = "llama3.2:latest"  # llava-llama3:8b-v1.1-fp16
+# LLM_MODEL_NAME = "deepseek-r1:latest"          # 7b   - show/hide "thinking"
+# LLM_MODEL_NAME = "deepseek-r1:1.5b"            # 1.5b - show/hide "thinking"
+
+# LLM_MODEL_NAME = "llama3.1:latest"             # 8b
+LLM_MODEL_NAME = "llama3.2:latest"               # 3b
+
+# LLM_MODEL_NAME = "llama3.2-vision:latest"      # 11b
+# LLM_MODEL_NAME = "llama3.3:70b-instruct-q8_0"  # 70b: latest ?
+# LLM_MODEL_NAME = "llava-llama3:8b-v1.1-fp16"   # latest ?
+
+# LLM_MODEL_NAME = "rashakol/sky-t1-32B-preview-cline:latest"
+
 LLM_TEMPERATURE = 0.0
+
 TOPIC_DETECTIONS = f"{get_namespace()}/detections"
 
 # --------------------------------------------------------------------------- #
@@ -196,7 +209,7 @@ class LLM(aiko.PipelineElement):
         self.add_message_handler(self._detection_handler, TOPIC_DETECTIONS)
 
     def _detection_handler(self, aiko, topic, payload_in):
-        self.detections = (time.time(), payload_in.split()[1:])
+        self.detections = (time.monotonic(), payload_in.split()[1:])
 
     def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
         response = ""
@@ -208,12 +221,15 @@ class LLM(aiko.PipelineElement):
                 detections = ""
                 if self.detections:
                     time_detected, detections = self.detections
-                    time_now = time.time()
+                    time_now = time.monotonic()
                     if time_now > time_detected + 1.0:
                         detections = ""
 
                 self.logger.info(f"Input: {text}")
-                response = llm_chain("ollama", text, detections)
+                try:
+                    response = llm_chain("ollama", text, detections)
+                except ConnectError as connect_error:
+                    response = "#### Error: Can't connect to Ollama server ####"
             else:
                 response = text
 

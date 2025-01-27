@@ -167,7 +167,7 @@ class RobotActions(aiko.PipelineElement):
         return aiko.StreamEvent.OKAY, {}
 
     def stop_stream(self, stream, stream_id):
-        self._set_actor(stream, None)
+        self._set_robot(stream, None)
         details = stream.variables["robot_actions_discovery_details"]
         details[0].remove_handler(details[1], details[2])
         return aiko.StreamEvent.OKAY, {}

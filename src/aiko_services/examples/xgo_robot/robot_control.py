@@ -337,17 +337,17 @@ class VideoTestImpl(VideoTest):
     def _run(self):
         fps = 0
         while True:
-            time_loop = time.time()
+            time_loop = time.monotonic()
             status, image = self._camera.read()
             image = self._image_to_rgb(image)
-            time_process = (time.time() - time_loop) * 1000
+            time_process = (time.monotonic() - time_loop) * 1000
 
             status = f"{time_process:.01f} ms  {fps} FPS"
             cv2.putText(image, status, STATUS_XY, 0, 0.7, (255, 255, 255), 2)
             self._publish_image(image)
 
             self._sleep()
-            fps = int(1 / (time.time() - time_loop))
+            fps = int(1 / (time.monotonic() - time_loop))
 
     def _sleep(self, period=None):
         if not period:

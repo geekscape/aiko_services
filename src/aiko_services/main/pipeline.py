@@ -413,7 +413,7 @@ class PipelineElementImpl(PipelineElement):
             mailbox_queue = event.mailboxes[mailbox_name].queue
 
             start_time = time.monotonic()
-            count = 1
+            period_counter = 0
             while stream.state == StreamState.RUN:
             # TODO: 2024-12-11: Throttle "frame_generator" when "rate" is None
                 if (not rate or rate == 0) and mailbox_queue.qsize() >= 32:
@@ -453,10 +453,12 @@ class PipelineElementImpl(PipelineElement):
                 stream.lock.release()
 
                 if rate and stream.state == StreamState.RUN:
-                    duration = (start_time + (count * (1.0 / rate))) - time.monotonic()
+                # TODO: When "rate" parameter updates, then fix "period_time"
+                    period_counter += 1
+                    period_time = period_counter * (1.0 / rate)
+                    duration = period_time + start_time - time.monotonic()
                     if duration > 0:
                         time.sleep(duration)
-                    count += 1
                 elif stream_event == StreamEvent.NO_FRAME:
                     time.sleep(0.02)  # Avoid frame_generator() busy CPU loop
         finally:
@@ -1311,7 +1313,7 @@ class PipelineImpl(Pipeline):
         if metrics == {}:
             metrics["frame"] = {}  # frame start metrics
             metrics["elements"] = {}
-            metrics["pipeline_start_time"] = time.time()
+            metrics["pipeline_start_time"] = time.monotonic()
             if _METRICS_MEMORY_ENABLE:
                 memory_rss = psutil.Process().memory_info().rss
                 metrics["pipeline_start_memory"] = memory_rss
@@ -1320,16 +1322,16 @@ class PipelineImpl(Pipeline):
 # For each PipelineElement
     def _process_metrics_start(self, metrics):
         metrics["start"] = {}  # PipelineElement start metrics
-        metrics["start"]["time"] = time.time()
+        metrics["start"]["time"] = time.monotonic()
         if _METRICS_MEMORY_ENABLE:
             memory_rss = psutil.Process().memory_info().rss
             metrics["start"]["memory"] = memory_rss
 
 # For each PipelineElement
     def _process_metrics_capture(self, metrics, element_name):
-        time_element = time.time() - metrics["start"]["time"]
+        time_element = time.monotonic() - metrics["start"]["time"]
         metrics["elements"][f"{element_name}_time"] = time_element
-        pipeline_time = time.time() - metrics["pipeline_start_time"]
+        pipeline_time = time.monotonic() - metrics["pipeline_start_time"]
         metrics["pipeline_time"] = pipeline_time  # Total so far !
         if _METRICS_MEMORY_ENABLE:
             memory_rss = psutil.Process().memory_info().rss

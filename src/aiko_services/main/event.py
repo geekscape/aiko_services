@@ -13,7 +13,7 @@
 #
 # def timer_test():
 #     global counter
-#     print(f"timer_test(): {time.time()}: {counter}")
+#     print(f"timer_test(): {time.monotonic()}: {counter}")
 #
 # event.add_flatout_handler(flatout_test)
 # event.add_timer_handler(timer_test, 1.0)
@@ -86,12 +86,12 @@ _timer_counter = 0
 def update_timer_counter():
     global _timer_counter
     if event_list.head:
-        _timer_counter = event_list.head.time_next - time.time()
+        _timer_counter = event_list.head.time_next - time.monotonic()
 
 class Event:
     def __init__(self, handler, time_period, immediate=False):
         self.handler = handler
-        self.time_next = time.time()
+        self.time_next = time.monotonic()
         if not immediate:
             self.time_next += time_period
         self.time_period = time_period
@@ -137,7 +137,7 @@ class EventList:
 
     def reset(self):
         current = self.head
-        current_time = time.time()
+        current_time = time.monotonic()
         while current:
             current.time_next = current_time + current.time_period
             current = current.next
@@ -221,7 +221,7 @@ def remove_mailbox_handler(mailbox_handler, mailbox_name):
 
 def mailbox_put(mailbox_name, item):
     if mailbox_name in mailboxes:
-        item = (item, time.time())
+        item = (item, time.monotonic())
         mailboxes[mailbox_name].put(item)
     else:
         raise RuntimeError(f"Mailbox {mailbox_name}: Not found")
@@ -276,7 +276,7 @@ def loop(loop_when_no_handlers=False):
         while event_enabled and (loop_when_no_handlers or _handler_count):
             event = event_list.head
             if event and _timer_counter <= 0:
-                if time.time() >= event.time_next:
+                if time.monotonic() >= event.time_next:
                     event.handler()
                     event_list.update()
             sleep_time = 0.01
@@ -304,10 +304,10 @@ def loop(loop_when_no_handlers=False):
                     handle_mailboxes = False
 
             if len(flatout_handlers):
-                time_start = time.time()
+                time_start = time.monotonic()
                 for flatout_handler in flatout_handlers:
                     flatout_handler()
-                sleep_time = sleep_time - (time.time() - time_start)
+                sleep_time = sleep_time - (time.monotonic() - time_start)
 # TODO:         _timer_counter -= sleep_time  # and don't sleep !
             if sleep_time > 0:
                 time.sleep(sleep_time)

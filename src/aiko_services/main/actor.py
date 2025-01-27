@@ -236,7 +236,7 @@ class ActorImpl(Actor):
         if not delay:
             event.mailbox_put(self._actor_mailbox_name(topic), message)
         else:
-            delay_time = time.time() + delay
+            delay_time = time.monotonic() + delay
             delayed_message = (delay_time, topic, message)
             self.delayed_message_queue.put(delayed_message, block=False)
             if self.delayed_message_queue.qsize() == 1:

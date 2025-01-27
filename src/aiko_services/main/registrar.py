@@ -122,7 +122,7 @@ _HISTORY_LIMIT_DEFAULT = 16
 _HISTORY_RING_BUFFER_SIZE = 4096
 _PRIMARY_SEARCH_TIMEOUT = 2.0  # seconds
 _SERVICE_STATE_TOPIC = f"{get_namespace()}/+/+/+/state"
-_TIME_STARTED = time.time()
+_TIME_STARTED = time.monotonic()
 
 # --------------------------------------------------------------------------- #
 
@@ -319,7 +319,7 @@ class RegistrarImpl(Registrar):
                 "transport": transport,
                 "owner": owner,
                 "tags": tags,
-                "time_add": time.time(),
+                "time_add": time.monotonic(),
                 "time_remove": 0
             }
 
@@ -343,7 +343,7 @@ class RegistrarImpl(Registrar):
                 if service_details:
                     _LOGGER.debug(f"Service remove: {topic_path}")
 
-                    service_details["time_remove"] = time.time()
+                    service_details["time_remove"] = time.monotonic()
                     self.history.appendleft(service_details)
 
                     self.services.remove_service(topic_path)
