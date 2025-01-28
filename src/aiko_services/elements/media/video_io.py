@@ -61,6 +61,7 @@ from pathlib import Path
 
 import aiko_services as aiko
 from aiko_services.elements.media import DataSource, DataTarget
+from datetime import datetime, timedelta
 
 __all__ = [
     "VideoOutput", "VideoReadFile", "VideoSample", "VideoShow", "VideoWriteFile"
@@ -123,12 +124,14 @@ class VideoReadFile(DataSource):  # common_io.py PipelineElement
             frame_generator=self.frame_generator, use_create_frame=False)
 
     def video_frame_iterator(self, video_capture):
+        start_time = datetime.now()
         while True:
             status, image_bgr = video_capture.read()
             if not status:
                 break
             image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-            yield image_rgb
+            timestamp = video_capture.get(cv2.CAP_PROP_POS_MSEC)
+            yield (image_rgb, start_time + timedelta(milliseconds=timestamp))
 
     def frame_generator(self, stream, frame_id):
         video_frame_generator = stream.variables["video_frame_generator"]
