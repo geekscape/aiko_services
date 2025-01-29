@@ -7,7 +7,7 @@
     "(Robot_OODA AudioReadMicrophone ImageReadZMQ TextReadTTY)",
     "(RobotAgents PromptMediaFusion LLM RobotActions)",
     "(ImageReadZMQ ImageDetection SceneDescription RobotAgents ImageWrite)",
-    "(ImageDetection ArucoDetector ArucoOverlay YoloDetector ImageOverlayFilter ImageOverlay)",
+    "(ImageDetection ArucoDetector YoloDetector ArucoOverlay ImageOverlayFilter ImageOverlay)",
     "(ImageWrite ImageResize VideoShow ImageWriteZMQ)",
     "(TextReadTTY RobotAgents TextWriteTTY)",
     "(AudioReadMicrophone SpeechToText RobotAgents TextToSpeech AudioWriteSpeaker)"
@@ -30,20 +30,24 @@
     },
     { "name":   "RobotAgents",         "#": "++ DONE ++",
       "input":  [],
-      "output": [{"name": "texts", "type": "[text]"}],
+      "output": [{"name": "detections", "type": "[detection]"},
+                 {"name": "texts",      "type": "[text]"}],
       "deploy": {
         "local": {"module": "aiko_services.examples.robot.ooda.elements"}
       }
     },
     { "name":   "PromptMediaFusion",   "#": "-- TODO --",
-      "input":  [{"name": "texts", "type": "[text]"}],
-      "output": [{"name": "texts", "type": "[text]"}],
+      "input":  [{"name": "detections", "type": "[detection]"},
+                 {"name": "texts",      "type": "[text]"}],
+      "output": [{"name": "detections", "type": "[detection]"},
+                 {"name": "texts",      "type": "[text]"}],
       "deploy": {
         "local": {"module": "aiko_services.examples.robot.ooda.elements"}
       }
     },
     { "name":   "LLM",                 "#": "++ DONE ++",
-      "input":  [{"name": "texts", "type": "[text]"}],
+      "input":  [{"name": "detections", "type": "[detection]"},
+                 {"name": "texts",      "type": "[text]"}],
       "output": [{"name": "texts", "type": "[text]"}],
       "deploy": {
         "local": { "module": "aiko_services.examples.llm.elements" }

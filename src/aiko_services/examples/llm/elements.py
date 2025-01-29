@@ -211,19 +211,21 @@ class LLM(aiko.PipelineElement):
     def _detection_handler(self, aiko, topic, payload_in):
         self.detections = (time.monotonic(), payload_in.split()[1:])
 
-    def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
+    def process_frame(self, stream, detections, texts)  \
+        -> Tuple[aiko.StreamEvent, dict]:
+
         response = ""
 
         if texts:
             text = texts[0]
 
             if text != "<silence>":
-                detections = ""
-                if self.detections:
-                    time_detected, detections = self.detections
-                    time_now = time.monotonic()
-                    if time_now > time_detected + 1.0:
-                        detections = ""
+            #   detections = ""
+            #   if self.detections:
+            #       time_detected, detections = self.detections
+            #       time_now = time.monotonic()
+            #       if time_now > time_detected + 1.0:
+            #           detections = ""
 
                 self.logger.info(f"Input: {text}")
                 try:

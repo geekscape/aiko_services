@@ -32,14 +32,27 @@ from aiko_services.main.utilities import parse
 __all__ = ["PromptMediaFusion", "RobotActions", "RobotAgents"]
 
 # --------------------------------------------------------------------------- #
+# TODO: Merge with RobotAgents ?
 
 class PromptMediaFusion(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("robot_actions:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
-        return aiko.StreamEvent.OKAY, {"texts": texts}
+    def start_stream(self, stream, stream_id):
+        stream.variables["ml_memory_detections"] = []
+        return aiko.StreamEvent.OKAY, {}
+
+    def process_frame(self, stream, detections, texts)  \
+        -> Tuple[aiko.StreamEvent, dict]:
+
+    # "ml_memory_detections": Remove old detections
+    # "ml_memory_detections": Add new detections
+
+        detections = ["octopus", "oak_tree"]
+
+        return aiko.StreamEvent.OKAY, {
+            "detections": detections, "texts": texts}
 
 # --------------------------------------------------------------------------- #
 
@@ -96,6 +109,7 @@ class RobotActions(aiko.PipelineElement):
                 stream.variables["robot_selected"] = selected
 
             if not stream.variables["robot_selected"]:
+                self.logger.warning("A robot has not been selected")
                 return False
 
             if command == "arm":
@@ -152,11 +166,11 @@ class RobotActions(aiko.PipelineElement):
                     continue
                 try:
                     success = "❌"
-                    if robot:
+                    if robot:  # TODO: Check only when a robot command occurs
                         success = "❓"
                         text = text if text != "r" else "action reset"
                         text = text if text != "s" else "action stop"
-                        command, parameters = parse(f"({text})")
+                        command, parameters = parse(text)
                         if self.process_command(
                             stream, robot, command, parameters):
                             success = "✅"
@@ -173,6 +187,11 @@ class RobotActions(aiko.PipelineElement):
         return aiko.StreamEvent.OKAY, {}
 
 # --------------------------------------------------------------------------- #
+# TODO: Merge with PromptMediaFusion ?
+
+def create_initial_value(stream, name):  # TODO: Move to "main/stream.py"
+    frame = stream.frames[stream.frame_id]
+    return frame.swag[name] if name in frame.swag else []
 
 class RobotAgents(aiko.PipelineElement):
     def __init__(self, context):
@@ -180,10 +199,8 @@ class RobotAgents(aiko.PipelineElement):
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream) -> Tuple[aiko.StreamEvent, dict]:
-        frame = stream.frames[stream.frame_id]
-        texts = []
-        if "texts" in frame.swag:
-            texts = frame.swag["texts"]  # TODO: General convenience function
-        return aiko.StreamEvent.OKAY, {"texts": texts}
+        return aiko.StreamEvent.OKAY, {
+            "detections": create_initial_value(stream, "detections"),
+            "texts":      create_initial_value(stream, "texts")}
 
 # --------------------------------------------------------------------------- #
