@@ -904,6 +904,7 @@ class PipelineImpl(Pipeline):
             if use_thread_local:
                 self._enable_thread_local("destroy_stream()", stream_id)
             stream, _ = self.get_stream()
+
             stream.lock.acquire("destroy_stream()")
 
             if graceful and len(stream.frames):
@@ -1175,6 +1176,9 @@ class PipelineImpl(Pipeline):
                             stream_event = StreamEvent.ERROR
                             frame_data_out = {
                                 "diagnostic": traceback.format_exc()}
+
+                        if stream_event == StreamEvent.ERROR:
+                            stream.lock.release()
 
                         stream.set_state(self._process_stream_event(
                             element_name, stream_event, frame_data_out))
