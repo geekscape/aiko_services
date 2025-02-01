@@ -60,7 +60,6 @@ from typing import Tuple
 from pathlib import Path
 
 import aiko_services as aiko
-from aiko_services.elements.media import DataSource, DataTarget
 
 __all__ = [
     "VideoOutput", "VideoReadFile", "VideoSample", "VideoShow", "VideoWriteFile"
@@ -111,7 +110,7 @@ class VideoOutput(aiko.PipelineElement):
 #
 # Note: Only supports Streams with "data_sources" parameter
 
-class VideoReadFile(DataSource):  # common_io.py PipelineElement
+class VideoReadFile(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("video_read_file:0")
         context.get_implementation("PipelineElement").__init__(self, context)
@@ -244,7 +243,7 @@ class VideoShow(aiko.PipelineElement):
 #
 # Note: Only supports Streams with "data_targets" parameters
 
-class VideoWriteFile(DataTarget):  # common_io.py PipelineElement
+class VideoWriteFile(aiko.DataTarget):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("video_write_file:0")
         context.get_implementation("PipelineElement").__init__(self, context)

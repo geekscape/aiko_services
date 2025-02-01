@@ -68,6 +68,10 @@ from .pipeline import (
     PROTOCOL_PIPELINE
 )
 
+from .scheme import DataScheme
+
+from .source_target import DataSource, DataTarget
+
 from .registrar import *
 
 # from .cli import *

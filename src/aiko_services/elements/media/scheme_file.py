@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 
 import aiko_services as aiko
-from aiko_services.elements.media import contains_all, DataScheme
 
 __all__ = ["DataSchemeFile"]
 
@@ -23,7 +22,7 @@ __all__ = ["DataSchemeFile"]
 # - "(file://data_out/out_{}.jpeg)"
 # - "(file://data_out/out_{}.mp4)"
 
-class DataSchemeFile(DataScheme):
+class DataSchemeFile(aiko.DataScheme):
     def create_sources(self,
         stream, data_sources, frame_generator=None, use_create_frame=True):
 
@@ -32,9 +31,9 @@ class DataSchemeFile(DataScheme):
 
         paths = []
         for data_source in data_sources:
-            path = DataScheme.parse_data_url_path(data_source)
+            path = aiko.DataScheme.parse_data_url_path(data_source)
             file_glob = "*"
-            if contains_all(path, "{}"):
+            if aiko.DataScheme.contains_all(path, "{}"):
                 file_glob = os.path.basename(path).replace("{}", "*")
                 path = os.path.dirname(path)
 
@@ -70,10 +69,12 @@ class DataSchemeFile(DataScheme):
         return aiko.StreamEvent.OKAY, {}
 
     def create_targets(self, stream, data_targets):
-        path = DataScheme.parse_data_url_path(data_targets[0])
+        path = aiko.DataScheme.parse_data_url_path(data_targets[0])
+        target_path_template = aiko.DataScheme.contains_all(path, "{}")
+
         stream.variables["target_file_id"] = 0
         stream.variables["target_path"] = path
-        stream.variables["target_path_template"] = contains_all(path, "{}")
+        stream.variables["target_path_template"] = target_path_template
         return aiko.StreamEvent.OKAY, {}
 
     def _file_glob_difference(self, file_glob, filename):
@@ -108,6 +109,6 @@ class DataSchemeFile(DataScheme):
         else:
             return aiko.StreamEvent.STOP, {"diagnostic": "All frames generated"}
 
-DataScheme.add_data_scheme("file", DataSchemeFile)
+aiko.DataScheme.add_data_scheme("file", DataSchemeFile)
 
 # --------------------------------------------------------------------------- #

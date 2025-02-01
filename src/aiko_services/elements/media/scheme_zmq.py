@@ -12,7 +12,6 @@ from threading import Thread
 import zmq
 
 import aiko_services as aiko
-from aiko_services.elements.media import DataScheme
 from aiko_services.main.utilities import get_network_port_free
 
 __all__ = ["DataSchemeZMQ"]
@@ -38,7 +37,7 @@ _LOGGER = aiko.get_logger(__name__)
 #   - "(zmq://localhost:6502)"     localhost and TCP port
 #   - "(zmq://0.0.0.0:6502)"       given hostname and TCP port
 
-class DataSchemeZMQ(DataScheme):
+class DataSchemeZMQ(aiko.DataScheme):
     def create_sources(self,
         stream, data_sources, frame_generator=None, use_create_frame=False):
 
@@ -104,7 +103,7 @@ class DataSchemeZMQ(DataScheme):
 
     def _parse_zmq_url(self, data_urls, find_free_port=False):
         data_url = data_urls[0]
-        path = DataScheme.parse_data_url_path(data_url)
+        path = aiko.DataScheme.parse_data_url_path(data_url)
         tokens = path.split(":")  # "hostname:port_range", e.g "*:6502-6510"
         diagnostic =  \
             f'ZMQ Data URL "{data_url}" must be "zmq://host:port_range"'
@@ -146,6 +145,6 @@ class DataSchemeZMQ(DataScheme):
             self.zmq_context.term()
             self.zmq_context = None
 
-DataScheme.add_data_scheme("zmq", DataSchemeZMQ)
+aiko.DataScheme.add_data_scheme("zmq", DataSchemeZMQ)
 
 # --------------------------------------------------------------------------- #

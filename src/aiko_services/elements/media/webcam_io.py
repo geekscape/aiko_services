@@ -29,7 +29,7 @@
 #
 # - Implement "data_source scheme", e.g "webcam://0" or "webcam://dev/video0"
 #
-# - Move "import cv2" into a "common_io.py" function
+# - Move "import cv2" into a "source_target.py" function ?
 #
 # - Use "rate" (?) to control FPS (frames per seconds)
 #
@@ -42,7 +42,6 @@ import os
 from typing import Tuple
 
 import aiko_services as aiko
-from aiko_services.elements.media import DataSource
 
 __all__ = ["VideoReadWebcam"]
 
@@ -71,7 +70,7 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
 #
 # Note: Only supports Streams with "data_sources" parameter
 
-class VideoReadWebcam(DataSource):  # common_io.py PipelineElement
+class VideoReadWebcam(aiko.DataSource):  # PipelineElement
     def __init__(self, context):
         context.set_protocol("webcam:0")
         context.get_implementation("PipelineElement").__init__(self, context)

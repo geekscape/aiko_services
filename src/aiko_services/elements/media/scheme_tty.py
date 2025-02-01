@@ -11,7 +11,6 @@ import queue
 from threading import Thread
 
 import aiko_services as aiko
-from aiko_services.elements.media import DataScheme, DataSource, DataTarget
 
 __all__ = ["DataSchemeTTY"]
 
@@ -24,7 +23,7 @@ __all__ = ["DataSchemeTTY"]
 # - "data_targets" list should only contain a single entry
 #   - "(tty://)"
 
-class DataSchemeTTY(DataScheme):
+class DataSchemeTTY(aiko.DataScheme):
     def create_sources(self,
         stream, data_sources, frame_generator, use_create_frame):
 
@@ -63,7 +62,7 @@ class DataSchemeTTY(DataScheme):
             except EOFError:
                 self.queue.put(None)
 
-DataScheme.add_data_scheme("tty", DataSchemeTTY)
+aiko.DataScheme.add_data_scheme("tty", DataSchemeTTY)
 
 # --------------------------------------------------------------------------- #
 """

@@ -74,7 +74,6 @@ from typing import Tuple
 from pathlib import Path
 
 import aiko_services as aiko
-from aiko_services.elements.media import DataSource, DataTarget
 
 __all__ = [
     "TextOutput", "TextReadFile", "TextReadZMQ",
@@ -102,7 +101,7 @@ class TextOutput(aiko.PipelineElement):
 #
 # Note: Only supports Streams with "data_sources" parameter
 
-class TextReadFile(DataSource):  # common_io.py PipelineElement
+class TextReadFile(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("text_read_file:0")
         context.get_implementation("PipelineElement").__init__(self, context)
@@ -123,7 +122,7 @@ class TextReadFile(DataSource):  # common_io.py PipelineElement
 
 # --------------------------------------------------------------------------- #
 
-class TextReadTTY(DataSource):  # elements/media/common_io.py PipelineElement
+class TextReadTTY(aiko.DataSource):  # PipelineElement
     def __init__(self, context):
         context.set_protocol("text_read_tty:0")
         context.get_implementation("PipelineElement").__init__(self, context)
@@ -193,11 +192,11 @@ class TextReadTTY(DataSource):  # elements/media/common_io.py PipelineElement
 # - TextWriteZMQ(DataTarget) ZMQ client --> TextReadZMQ(DataSource) ZMQ server
 #   - Individual text records produced by ZMQ client and consumed by ZMQ server
 #
-# parameter: "data_sources" is the ZMQ server bind details (common_io_zmq.py)
+# parameter: "data_sources" is the ZMQ server bind details (scheme_zmq.py)
 #
 # Note: Only supports Streams with "data_sources" parameter
 
-class TextReadZMQ(DataSource):  # common_io.py PipelineElement
+class TextReadZMQ(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("text_read_zmq:0")
         context.get_implementation("PipelineElement").__init__(self, context)
@@ -275,7 +274,7 @@ class TextTransform(aiko.PipelineElement):
 #
 # Note: Only supports Streams with "data_targets" parameter
 
-class TextWriteFile(DataTarget):  # common_io.py PipelineElement
+class TextWriteFile(aiko.DataTarget):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("text_write_file:0")
         context.get_implementation("PipelineElement").__init__(self, context)
@@ -328,7 +327,7 @@ class TextWriteFile(DataTarget):  # common_io.py PipelineElement
 
 # --------------------------------------------------------------------------- #
 
-class TextWriteTTY(DataTarget):  # elements/media/common_io.py PipelineElement
+class TextWriteTTY(aiko.DataTarget):  # PipelineElement
     def __init__(self, context):
         context.set_protocol("text_write_tty:0")
         context.get_implementation("PipelineElement").__init__(self, context)
@@ -347,11 +346,11 @@ class TextWriteTTY(DataTarget):  # elements/media/common_io.py PipelineElement
 # - TextWriteZMQ(DataTarget) ZMQ client --> TextReadZMQ(DataSource) ZMQ server
 #   - Individual text records produced by ZMQ client and consumed by ZMQ server
 #
-# parameter: "data_targets" is the ZMQ connect details (common_io_zmq.oy)
+# parameter: "data_targets" is the ZMQ connect details (scheme_zmq.py)
 #
 # Note: Only supports Streams with "data_targets" parameter
 
-class TextWriteZMQ(DataTarget):  # common_io.py PipelineElement
+class TextWriteZMQ(aiko.DataTarget):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("text_write_zmq:0")
         context.get_implementation("PipelineElement").__init__(self, context)

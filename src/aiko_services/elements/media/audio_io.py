@@ -38,7 +38,6 @@ from typing import Tuple
 from pathlib import Path
 
 import aiko_services as aiko
-from aiko_services.elements.media import DataSource, DataTarget
 
 __all__ = ["AudioOutput", "AudioReadFile", "AudioWriteFile"]
 
@@ -93,7 +92,7 @@ class AudioOutput(aiko.PipelineElement):
 #
 # Note: Only supports Streams with "data_sources" parameter
 
-class AudioReadFile(DataSource):  # common_io.py PipelineElement
+class AudioReadFile(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("audio_read_file:0")
         context.get_implementation("PipelineElement").__init__(self, context)
