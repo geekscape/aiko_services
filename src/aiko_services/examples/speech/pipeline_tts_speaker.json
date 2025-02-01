@@ -3,18 +3,11 @@
   "name":    "p_tts_speaker",
   "runtime": "python",
 
-  "graph": ["(PE_RemoteReceive2 PE_COQUI_TTS PE_Speaker)"],
+  "graph": ["(PE_COQUI_TTS PE_Speaker)"],
 
   "parameters": {},
 
   "elements": [
-    { "name":   "PE_RemoteReceive2",
-      "input":  [{ "name": "text", "type": "bytes" }],
-      "output": [{ "name": "text", "type": "bytes" }],
-      "deploy": {
-        "local": { "module": "aiko_services.elements.media.audio_io" }
-      }
-    },
     { "name":   "PE_COQUI_TTS",
       "input":  [{ "name": "text",  "type": "bytes" }],
       "output": [{ "name": "audio", "type": "bytes" }],

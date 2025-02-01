@@ -3,7 +3,7 @@
   "name":    "p_microphone",
   "runtime": "python",
 
-  "graph": ["(PE_MicrophoneSD PE_RemoteSend0)"],
+  "graph": ["(PE_MicrophoneSD)"],
 
   "parameters": {},
 
@@ -14,13 +14,6 @@
       "parameters": {
         "audio_channels": 1
       },
-      "deploy": {
-        "local": { "module": "aiko_services.elements.media.audio_io" }
-      }
-    },
-    { "name":   "PE_RemoteSend0",
-      "input":  [{ "name": "audio", "type": "bytes" }],
-      "output": [],
       "deploy": {
         "local": { "module": "aiko_services.elements.media.audio_io" }
       }
