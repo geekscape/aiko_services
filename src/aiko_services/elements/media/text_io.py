@@ -1,37 +1,40 @@
 # Usage: File
 # ~~~~~~~~~~~
-# aiko_pipeline create text_pipeline_0.json -s 1 -sr -ll debug
+# aiko_pipeline create pipelines/text_pipeline_0.json -s 1 -sr -ll debug
 #
-# aiko_pipeline create text_pipeline_0.json -s 1 -p rate 1.0
+# aiko_pipeline create pipelines/text_pipeline_0.json -s 1 -p rate 1.0
 #
-# aiko_pipeline create text_pipeline_0.json -s 1  \
+# aiko_pipeline create pipelines/text_pipeline_0.json -s 1  \
 #   -p TextReadFile.data_batch_size 8
 #
-# aiko_pipeline create text_pipeline_0.json -s 1  \
+# aiko_pipeline create pipelines/text_pipeline_0.json -s 1  \
 #   -p TextReadFile.data_sources file://data_in/in_{}.txt
 #
-# aiko_pipeline create text_pipeline_0.json -s 1  \
+# aiko_pipeline create pipelines/text_pipeline_0.json -s 1  \
 #     -p TextWriteFile.path "file://data_out/out_{:02d}.txt"
 #
-# aiko_pipeline create text_pipeline_0.json -s 1           \
+# aiko_pipeline create pipelines/text_pipeline_0.json -s 1           \
 #   -p TextReadFile.data_sources file://data_in/in_00.txt  \
 #   -p TextTransform.transform titlecase                   \
 #   -p TextWriteFile.data_targets file://data_out/out_00.txt
 #
 # Usage: Drop frame tests (local and remote)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# aiko_pipeline create text_pipeline_1.json -s 1 -ll debug
+# aiko_pipeline create pipelines/text_pipeline_1.json -s 1 -ll debug
 #
-# aiko_pipeline create text_pipeline_2.json -s 1 -ll debug  # local
-# aiko_pipeline create text_pipeline_3.json      -ll debug  # remote
+# aiko_pipeline create pipelines/text_pipeline_2.json -s 1 -ll debug  # local
+# aiko_pipeline create pipelines/text_pipeline_3.json      -ll debug  # remote
 #
 # Usage: ZMQ
 # ~~~~~~~~~~
-# aiko_pipeline create text_zmq_pipeline_0.json -s 1 -sr -ll debug -gt 10
-# aiko_pipeline create text_zmq_pipeline_0.json -s 1 -sr  \
+# aiko_pipeline create pipelines/text_zmq_pipeline_0.json -s 1 -sr  \
+#            -ll debug -gt 10
+#
+# aiko_pipeline create pipelines/text_zmq_pipeline_0.json -s 1 -sr  \
 #            -p TextReadZMQ.data_sources zmq://0.0.0.0:6502
 #
-# aiko_pipeline create text_zmq_pipeline_1.json -s 1 -sr -ll debug  \
+# aiko_pipeline create pipelines/text_zmq_pipeline_1.json -s 1 -sr  \
+#            -ll debug                                              \
 #            -p TextReadFile.rate 2.0                               \
 #            -p TextWriteZMQ.data_targets zmq://192.168.0.1:6502
 #

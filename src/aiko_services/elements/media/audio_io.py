@@ -5,22 +5,22 @@
 #
 # Usage
 # ~~~~~
-# aiko_pipeline create audio_pipeline_0.json -s 1 -sr -ll debug
+# aiko_pipeline create pipelines/audio_pipeline_0.json -s 1 -sr -ll debug
 #
-# aiko_pipeline create audio_pipeline_0.json -s 1 -p rate ?????
+# aiko_pipeline create pipelines/audio_pipeline_0.json -s 1 -p rate ?????
 #
-# aiko_pipeline create audio_pipeline_0.json -s 1  \
+# aiko_pipeline create pipelines/audio_pipeline_0.json -s 1  \
 #   -p AudioReadFile.data_batch_size 8
 #
-# aiko_pipeline create audio_pipeline_0.json -s 1  \
+# aiko_pipeline create pipelines/audio_pipeline_0.json -s 1  \
 #   -p AudioReadFile.data_sources file://data_in/in_{}.mp3
 #
-# aiko_pipeline create audio_pipeline_0.json -s 1  \
+# aiko_pipeline create pipelines/audio_pipeline_0.json -s 1  \
 #   -p AudioWriteFile.path "file://data_out/out_{:02d}.mp3"
 #
-# aiko_pipeline create audio_pipeline_0.json -s 1           \
-#   sp AudioReadFile.data_sources file://data_in/in_00.mp3  \
-#   sp AudioResample.rate ?????                             \
+# aiko_pipeline create pipelines/audio_pipeline_0.json -s 1  \
+#   sp AudioReadFile.data_sources file://data_in/in_00.mp3   \
+#   sp AudioResample.rate ?????                              \
 #   sp AudioWriteFile.data_targets file://data_out/out_00.mp3
 #
 # Resources

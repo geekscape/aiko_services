@@ -1,19 +1,19 @@
 # Usage: File
 # ~~~~~~~~~~~
-# aiko_pipeline create webcam_pipeline_0.json -s 1 -ll debug
+# aiko_pipeline create pipelines/webcam_pipeline_0.json -s 1 -ll debug
 #
-# aiko_pipeline create webcam_pipeline_0.json -s 1  \
+# aiko_pipeline create pipelines/webcam_pipeline_0.json -s 1  \
 #   -p VideoReadWebcam.path /dev/video2
 #
-# aiko_pipeline create webcam_pipeline_1.json -s 1
+# aiko_pipeline create pipelines/webcam_pipeline_1.json -s 1
 #
 # Usage: ZMQ
 # ~~~~~~~~~~
-# aiko_pipeline create image_zmq_pipeline_0.json  -s 1 -sr -gt 10
-# aiko_pipeline create image_zmq_pipeline_0.json  -s 1 -sr  \
+# aiko_pipeline create pipelines/image_zmq_pipeline_0.json  -s 1 -sr -gt 10
+# aiko_pipeline create pipelines/image_zmq_pipeline_0.json  -s 1 -sr  \
 #            -p ImageReadZMQ.data_sources zmq://0.0.0.0:6502
 #
-# aiko_pipeline create webcam_zmq_pipeline_0.json -s 1 -sr \
+# aiko_pipeline create pipelines/webcam_zmq_pipeline_0.json -s 1 -sr \
 #            -p VideoReadWebcam.rate 2.0
 #            -p ImageWriteZMQ.data_targets zmq://192.168.0.1:6502
 #

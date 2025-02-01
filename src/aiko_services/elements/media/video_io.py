@@ -1,26 +1,26 @@
 # Usage: File
 # ~~~~~~~~~~~
-# aiko_pipeline create video_pipeline_0.json -s 1 -sr -ll debug
+# aiko_pipeline create pipelines/video_pipeline_0.json -s 1 -sr -ll debug
 #
-# aiko_pipeline create video_pipeline_0.json -s 1 -p rate 4.0
+# aiko_pipeline create pipelines/video_pipeline_0.json -s 1 -p rate 4.0
 #
-# aiko_pipeline create video_pipeline_0.json -s 1  \
+# aiko_pipeline create pipelines/video_pipeline_0.json -s 1  \
 #   -p VideoReadFile.data_batch_size 8
 #
-# aiko_pipeline create video_pipeline_0.json -s 1  \
+# aiko_pipeline create pipelines/video_pipeline_0.json -s 1  \
 #   -p VideoReadFile.data_sources file://data_in/in_{}.mp4
 #
-# aiko_pipeline create video_pipeline_0.json -s 1  \
-#     -p VideoWriteFile.path "file://data_out/out_{:02d}.mp4"
+# aiko_pipeline create pipelines/video_pipeline_0.json -s 1  \
+#   -p VideoWriteFile.path "file://data_out/out_{:02d}.mp4"
 #
-# aiko_pipeline create video_pipeline_0.json -s 1           \
-#   -p VideoReadFile.data_sources file://data_in/in_00.mp4  \
-#   -p ImageResize.resolution 320x240                       \
+# aiko_pipeline create pipelines/video_pipeline_0.json -s 1  \
+#   -p VideoReadFile.data_sources file://data_in/in_00.mp4   \
+#   -p ImageResize.resolution 320x240                        \
 #   -p VideoWriteFile.data_targets file://data_out/out_00.mp4
 #
 # Drop frame test
 # ~~~~~~~~~~~~~~~
-# aiko_pipeline create video_pipeline_1.json -s 1 -ll debug
+# aiko_pipeline create pipelines/video_pipeline_1.json -s 1 -ll debug
 #
 # To Do
 # ~~~~~
