@@ -28,7 +28,7 @@
 #            -p ImageReadZMQ.data_sources zmq://0.0.0.0:6502
 #
 # aiko_pipeline create pipelines/image_zmq_pipeline_1.json -s 1 -sr  \
-             -ll debug                                               \
+#            -ll debug                                               \
 #            -p ImageReadFile.rate 2.0                               \
 #            -p ImageWriteZMQ.data_targets zmq://192.168.0.1:6502
 #

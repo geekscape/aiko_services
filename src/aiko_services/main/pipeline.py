@@ -285,7 +285,7 @@ class PipelineGraph(Graph):
                     if strict and input["found"] != 1:
                         diagnostic += "immediate predecessor PipelineElement"
                         try_map_in_out = True
-                    #   print(f"{diagnostic}")  # TODO: Ensure this is right
+                    #   self.logger.debug(f"{diagnostic}")  # TODO: Verify
                     elif input["found"] == 0:
                         diagnostic += "previous PipelineElements"
                         try_map_in_out = True
@@ -295,8 +295,7 @@ class PipelineGraph(Graph):
                         if not self.validate_mapping(
                             map_in_nodes, element_name, input):
                             pass
-                        #   print(f"{diagnostic}")  # TODO: Ensure this is right
-
+                        #   self.logger.debug(f"{diagnostic}")  # TODO: Verify
             for successor_name in node.successors:
                 successor = self.get_node(successor_name)
                 successor.predecessors[element_name] = node
@@ -577,7 +576,7 @@ class PipelineImpl(Pipeline):
 
         self.actor = context.get_implementation("Actor")  # _WINDOWS
         context.get_implementation("PipelineElement").__init__(self, context)
-        print(f"MQTT topic: {self.topic_in}")
+        self.logger.info(f"MQTT topic: {self.topic_in}")
 
         self.share["definition_pathname"] = context.definition_pathname
         self.share["lifecycle"] = "waiting"
@@ -604,10 +603,10 @@ class PipelineImpl(Pipeline):
 
     # TODO: Better visualization of the Pipeline / PipelineElements details
         if False:
-            print(f"Pipeline graph path ...")
+            self.logger.info(f"Pipeline graph path ...")
             graph_path = self.pipeline_graph.get_path(self.share["graph_path"])
             for node in graph_path:
-                print(f"    PipelineElement: {node.name}")
+                self.logger.info(f"    PipelineElement: {node.name}")
 
         event.add_timer_handler(self._status_update_timer, 3.0)
 
@@ -740,8 +739,8 @@ class PipelineImpl(Pipeline):
             element_instance = None
             element_name = pipeline_element_definition.name
             if element_name not in node_successors:
-                print(f'Warning: Skipping PipelineElement {element_name}: '
-                      f'Not used within the "graph" definition')
+                self.logger.warning(f'Skipping PipelineElement {element_name}: '
+                                    f'Not used within the "graph" definition')
                 continue
             deploy_definition = pipeline_element_definition.deploy
             deploy_type_name = type(deploy_definition).__name__
@@ -1723,12 +1722,12 @@ def destroy(name):
             topic_path = f"{service_details[0]}/in"
             actor = get_actor_mqtt(topic_path, Pipeline)
             actor.stop()
-            print(f'Destroyed Pipeline "{name}"')
+            _LOGGER.info(f'Destroyed Pipeline "{name}"')
             aiko.process.terminate()
 
     def waiting_timer():
         event.remove_timer_handler(waiting_timer)
-        print(f'Waiting to discover Pipeline "{name}"')
+        _LOGGER.info(f'Waiting to discover Pipeline "{name}"')
 
     actor_discovery = ActorDiscovery(aiko.process)
     service_filter = ServiceFilter("*", name, "*", "*", "*", "*")
