@@ -407,17 +407,22 @@ class PipelineElementImpl(PipelineElement):
                 "_create_frames_generator()", stream.stream_id, frame_id)
             stream, frame_id = self.get_stream()
 
-        # TODO: 2024-12-11: Throttle "frame_generator" when "rate" is None
             mailbox_name = f"{self.pipeline.name}/1/in"
-            mailbox_queue = event.mailboxes[mailbox_name].queue
-
-            start_time = time.monotonic()
+            mailbox_queue = None
             period_counter = 0
+            start_time = time.monotonic()
+
             while stream.state == StreamState.RUN:
             # TODO: 2024-12-11: Throttle "frame_generator" when "rate" is None
-                if (not rate or rate == 0) and mailbox_queue.qsize() >= 32:
-                    time.sleep(0.02)  # 50 Hz check
-                    continue
+            # TODO: Create "event.py:get_mailbox_queue()", "size" and "throttle"
+                if not rate or rate == 0:
+                    if mailbox_queue:
+                        if mailbox_queue.qsize() >= 32:
+                            time.sleep(0.02)  # 50 Hz check
+                            continue
+            # TODO: Find cases when Pipeline "in" mailbox doesn't exist yet
+                    elif mailbox_name in event.mailboxes:
+                        mailbox_queue = event.mailboxes[mailbox_name].queue
 
                 stream.lock.acquire("_create_frames_generator()")
                 try:
@@ -460,6 +465,9 @@ class PipelineElementImpl(PipelineElement):
                         time.sleep(duration)
                 elif stream_event == StreamEvent.NO_FRAME:
                     time.sleep(0.02)  # Avoid frame_generator() busy CPU loop
+        except Exception as exception:
+            self.logger.error("PipelineImpl._create_frames_generator(): "  \
+                             f"{traceback.format_exc()}")
         finally:
             self.pipeline._disable_thread_local("_create_frames_generator()")
 
