@@ -582,7 +582,7 @@ class PipelineImpl(Pipeline):
     def __init__(self, context):
         self.DEBUG = {}                                     # DEBUG: 2024-12-02
 
-        self.actor = context.get_implementation("Actor")  # _WINDOWS
+        self.actor = context.get_implementation("Actor")    # _WINDOWS
         context.get_implementation("PipelineElement").__init__(self, context)
         self.logger.info(f"MQTT topic: {self.topic_in}")
 
@@ -606,10 +606,11 @@ class PipelineImpl(Pipeline):
         self.share["element_count"] = self.pipeline_graph.element_count
         self.share["streams"] = 0
         self.share["streams_frames"] = 0
-        sliding_windows = _WINDOWS  # Command line argument has priority
-        if not sliding_windows:     # Otherwise use PipelineDefinition
-            sliding_windows, _ = self.get_parameter("sliding_windows", _WINDOWS)
-        self.share["sliding_windows"] = sliding_windows
+
+        global _WINDOWS
+        _WINDOWS, _ = self.get_parameter("sliding_windows", _WINDOWS)
+        self.share["sliding_windows"] = _WINDOWS
+
         self._update_lifecycle_state()
 
     # TODO: Better visualization of the Pipeline / PipelineElements details
