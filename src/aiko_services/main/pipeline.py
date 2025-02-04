@@ -606,7 +606,10 @@ class PipelineImpl(Pipeline):
         self.share["element_count"] = self.pipeline_graph.element_count
         self.share["streams"] = 0
         self.share["streams_frames"] = 0
-        self.share["sliding_windows"] = _WINDOWS
+        sliding_windows = _WINDOWS  # Command line argument has priority
+        if not sliding_windows:     # Otherwise use PipelineDefinition
+            sliding_windows, _ = self.get_parameter("sliding_windows", _WINDOWS)
+        self.share["sliding_windows"] = sliding_windows
         self._update_lifecycle_state()
 
     # TODO: Better visualization of the Pipeline / PipelineElements details
@@ -694,7 +697,10 @@ class PipelineImpl(Pipeline):
     @classmethod
     def create_pipeline(cls, definition_pathname, pipeline_definition,
         name, graph_path, stream_id, parameters, frame_id, frame_data,
-        grace_time, queue_response=None, stream_reset=False):
+        grace_time, queue_response=None, stream_reset=False, windows=False):
+
+        global _WINDOWS
+        _WINDOWS = windows
 
         name = name if name else pipeline_definition.name
 
@@ -1675,10 +1681,6 @@ def create(definition_pathname, graph_path, name, parameters, stream_id,
     frame_id, frame_data, grace_time, show_response,
     log_level, log_mqtt, stream_reset, windows, exit_message):
 
-    global _WINDOWS
-    if windows:
-        _WINDOWS = True
-
     if stream_id:
         stream_id = stream_id.replace("{}", get_pid())  # sort-of unique id
 
@@ -1713,7 +1715,7 @@ def create(definition_pathname, graph_path, name, parameters, stream_id,
         definition_pathname, pipeline_definition,
         name, graph_path, stream_id, parameters, frame_id, frame_data,
         grace_time, queue_response=queue_pipeline_response,
-        stream_reset=stream_reset)
+        stream_reset=stream_reset, windows=windows)
 
     pipeline.run(mqtt_connection_required=False)
     if exit_message:

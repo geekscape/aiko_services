@@ -19,7 +19,8 @@
     "p_0": null,
     "p_1": true,
     "p_2": 0,
-    "p_3": "test"
+    "p_3": "test",
+    "sliding_windows": false
   },
 
   "elements": [
@@ -81,7 +82,7 @@
     },
     { "name":   "PE_Metrics",
       "#": "Provides Pipeline and PipelineElement timing information",
-			"parameters": {"enable": false, "rate": 1},
+      "parameters": {"enable": false, "rate": 1},
       "input":  [],
       "output": [{ "name": "f", "type": "int" }],
       "deploy": {
