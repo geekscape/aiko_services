@@ -435,7 +435,9 @@ class PipelineElementImpl(PipelineElement):
                     frame_data = {"diagnostic": traceback.format_exc()}
 
                 stream.set_state(self.pipeline._process_stream_event(
-                    self.name, stream_event, frame_data))
+                    self.name, stream, stream_event, frame_data))
+                if stream.state == StreamState.ERROR:
+                    break
 
                 if stream.state == StreamState.RUN and frame_data:
                     graph_path, _ = self.get_parameter("_graph_path_", None)
@@ -874,7 +876,9 @@ class PipelineImpl(Pipeline):
                         diagnostic = {"diagnostic": traceback.format_exc()}
 
                     stream.set_state(self._process_stream_event(
-                        element_name, stream_event, diagnostic))
+                        element_name, stream, stream_event, diagnostic))
+                    if stream.state == StreamState.ERROR:
+                        break
                 else:  ## Remote element ##
                     # TODO: Consider using "topic_response=self.topic_control"
                     if _WINDOWS:
@@ -945,8 +949,11 @@ class PipelineImpl(Pipeline):
                         stream_event = StreamEvent.ERROR
                         diagnostic = {"diagnostic": traceback.format_exc()}
 
-                    stream.set_state(self._process_stream_event(element_name,
-                        stream_event, diagnostic, in_destroy_stream=True))
+                    stream.set_state(self._process_stream_event(
+                        element_name, stream, stream_event, diagnostic,
+                        in_destroy_stream=True))
+                    if stream.state == StreamState.ERROR:
+                        break
         finally:
             if use_thread_local:
                 stream.lock.release()
@@ -1191,7 +1198,10 @@ class PipelineImpl(Pipeline):
                                 "diagnostic": traceback.format_exc()}
 
                         stream.set_state(self._process_stream_event(
-                            element_name, stream_event, frame_data_out))
+                            element_name, stream, stream_event,
+                            frame_data_out))
+                        if stream.state == StreamState.ERROR:
+                            break
                     #   TODO: Test "stream.state" before continuing
                         self._process_map_out(element_name, frame_data_out)
                         self._process_metrics_capture(  # TODO: Move up ?
@@ -1204,7 +1214,8 @@ class PipelineImpl(Pipeline):
                                      "remote Pipeline hasn't been discovered"
                             }
                             stream.set_state(self._process_stream_event(
-                                element_name, StreamEvent.ERROR, diagnostic))
+                                element_name, stream, StreamEvent.ERROR,
+                                diagnostic))
                         else:
                             frame_complete = False
                             frame_data_out = {}
@@ -1399,7 +1410,8 @@ class PipelineImpl(Pipeline):
 # TODO: - _process_frame_common()
 # TODO: - destroy_stream()
 
-    def _process_stream_event(self, element_name, stream_event, diagnostic,
+    def _process_stream_event(self,
+        element_name, stream, stream_event, diagnostic,
         in_destroy_stream=False):
 
         def get_diagnostic(diagnostic):
@@ -1434,6 +1446,8 @@ class PipelineImpl(Pipeline):
             stream_state = StreamState.ERROR
             self.logger.error(get_diagnostic(diagnostic))
             if not in_destroy_stream:  # avoid destroy_stream() recursion
+                if stream.lock._in_use:
+                    stream.lock.release()
                 self.destroy_stream(get_stream_id(), use_thread_local=False)
 
         return stream_state
