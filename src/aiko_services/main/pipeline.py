@@ -1020,7 +1020,7 @@ class PipelineImpl(Pipeline):
             pipeline_definition_dict = json.load(
                 open(pipeline_definition_pathname, "r"))
             if force_deploy_to_local:
-                pipeline_definition_dict = cls.replace_remote_with_local(pipeline_definition_dict)
+                pipeline_definition_dict = cls._replace_remote_with_local(pipeline_definition_dict)
             PipelineDefinitionSchema.validate(pipeline_definition_dict)
         except ValueError as value_error:
             PipelineImpl._exit(header, value_error)
