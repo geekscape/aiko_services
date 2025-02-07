@@ -1,7 +1,12 @@
 # Usage
 # ~~~~~
 # pytest [-s] unit/test_stream_event.py
-# pytest [-s] unit/test_stream_event.py::test_actor_args
+# pytest [-s] unit/test_stream_event.py::test_stream_error
+#
+# test_stream_error()
+# - PipelineElement.process_frame() returning StreamEvent.ERROR
+#   causes Pipeline to "hang, due to Stream.lock contention.
+#   See https://github.com/geekscape/aiko_services/pull/32
 #
 # To Do
 # ~~~~~
@@ -9,14 +14,10 @@
 # - Test StreamEvent.OKAY, StreamEvent.STOP, StreamEvent.ERROR for ...
 #   - create_stream, _create_frame_generator, process_frame, destroy_stream
 
-import tempfile
 from typing import Tuple
 
 import aiko_services as aiko
-
-FRAME_DATA = "()"
-GRACE_TIME = 60
-PARAMETERS = {}
+from aiko_services.tests.unit import do_create_pipeline
 
 PIPELINE_DEFINITION = """{
   "version": 0, "name": "p_test", "runtime": "python",
@@ -42,22 +43,5 @@ class StreamError(aiko.PipelineElement):
         diagnostic = "Testing StreamEvent.ERROR"
         return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
-def run_pipeline(pipeline_definition_json):
-    file = None
-    with tempfile.NamedTemporaryFile(delete=True, mode='w') as file:
-        file.write(pipeline_definition_json)
-        file.flush()
-
-        pipeline_definition =  \
-            aiko.PipelineImpl.parse_pipeline_definition(file.name)
-
-        pipeline = aiko.PipelineImpl.create_pipeline(
-            file.name, pipeline_definition, name=None, graph_path=None,
-            stream_id=None, parameters=PARAMETERS,
-            frame_id=0, frame_data=FRAME_DATA,
-            grace_time=GRACE_TIME, queue_response=None)
-
-        pipeline.run(mqtt_connection_required=False)
-
-def test_stream_event():
-    run_pipeline(PIPELINE_DEFINITION)
+def test_stream_error():
+    do_create_pipeline(PIPELINE_DEFINITION)

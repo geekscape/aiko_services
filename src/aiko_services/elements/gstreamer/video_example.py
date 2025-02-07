@@ -2,19 +2,19 @@
 #
 # Usage
 # ~~~~~
-# ./video_test.py -if input_filename      -of output_filename  \
+# ./video_example.py -if input_filename      -of output_filename  \
 #   -r width height -f framerate [-cv]
 #
-# ./video_test.py -is input_hostname:port -os output_hostname:port  \
+# ./video_example.py -is input_hostname:port -os output_hostname:port  \
 #   -r width height -f framerate -cv  [--RTP]
 #
-# ./video_test.py -if input_filename      -os output_hostname:port  \
+# ./video_example.py -if input_filename      -os output_hostname:port  \
 #   -r width height -f framerate -cv
 #
-# ./video_test.py -is input_hostname:port -of output_filename  \
+# ./video_example.py -is input_hostname:port -of output_filename  \
 #   -r width height -f framerate -cv  [--RTP]
 #
-# ./video_test.py -if ../data/football_test_0.mp4 -os 192.168.1.65:5000  \
+# ./video_example.py -if ../data/football_test_0.mp4 -os 192.168.1.65:5000  \
 #   -r 1280 720 -f 30/1 -cv
 #
 # CAMERA_IP=192.168.1.89:554
@@ -22,7 +22,7 @@
 # TARGET_IP=192.168.1.155:5000
 #
 # Default is RTSP protocol, use "--RTP" option to use RTP protocol
-# ./video_test.py -is $CAMERA_IP -os $TARGET_IP -r 640 480 -f 25/1 -cv
+# ./video_example.py -is $CAMERA_IP -os $TARGET_IP -r 640 480 -f 25/1 -cv
 #
 # To Do
 # ~~~~~

@@ -3,9 +3,13 @@
 # pytest [-s] unit/test_context.py
 # pytest [-s] unit/test_context.py::test_actor_args
 #
+# test_actor_args()
+# - Create initial "actor_args" for creating Actors via composition
+#
 # To Do
 # ~~~~~
-# - None, yet !
+# - Check all "context.py" init_args convenience functions
+# - Check using all "init_args" for creating Instances via composition
 
 import aiko_services as aiko
 

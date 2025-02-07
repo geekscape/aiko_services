@@ -6,7 +6,7 @@
 # ~~~~~
 # gst-launch-1.0 filesrc location=../football_test_1.mp4 ! qtdemux ! avdec_h264 ! videoconvert ! osxvideosink
 #
-# CUDA_VISIBLE_DEVICES=3 /mnt/code/aiko_services_internal/aiko_services_internal/video/gstreamer/video_test.py -if /app/resources/sample.mp4 -os 192.168.1.154:5000 -r 1280 1280 -f 6/1
+# CUDA_VISIBLE_DEVICES=3 /mnt/code/aiko_services_internal/aiko_services_internal/video/gstreamer/video_example.py -if /app/resources/sample.mp4 -os 192.168.1.154:5000 -r 1280 1280 -f 6/1
 
 import os
 
