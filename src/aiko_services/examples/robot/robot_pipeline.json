@@ -48,7 +48,7 @@
     { "name":   "LLM",                 "#": "++ DONE ++",
       "input":  [{"name": "detections", "type": "[detection]"},
                  {"name": "texts",      "type": "[text]"}],
-      "output": [{"name": "texts", "type": "[text]"}],
+      "output": [{"name": "texts",      "type": "[text]"}],
       "deploy": {
         "local": { "module": "aiko_services.examples.llm.elements" }
       }

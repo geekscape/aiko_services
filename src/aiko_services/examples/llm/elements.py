@@ -5,17 +5,17 @@
 # ollama serve  # or systemctl start ollama
 #
 # export AIKO_LOG_LEVEL=DEBUG  # PE_Metrics
-# aiko_pipeline create pipeline_llm.json -s 1  \
-#   -fd "(text: 'Tell me about yourself')" -gt 900 -sr
+# aiko_pipeline create llm_pipeline.json -s 1  \
+#   -fd "(texts: ('Tell me about yourself') detections: ())" -gt 900 -sr
 #
 # TOPIC_LLM=aiko/spike/3321189/1/in
 # mosquitto_pub -t $TOPIC_LLM  \
-#   -m "(process_frame (stream_id: 1) (text: 'What are your interests ?'))"
+#   -m "(process_frame (stream_id: 1) (texts: ('What are your interests ?') detections: ()))"
 #
 # mosquitto_pub -t aiko/detections -m "carrot"
 #
 # mosquitto_pub -t $TOPIC_LLM  \
-#   -m "(process_frame (stream_id: 1) (text: 'What can you see ?'))"
+#   -m "(process_frame (stream_id: 1) (texts: ('What can you see ?') detections: ()))"
 #
 # -----------------------------------------
 # https://python.langchain.com/docs/get_started/quickstart#llm-chain -->

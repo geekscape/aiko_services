@@ -10,14 +10,15 @@
 
   "elements": [
     { "name":   "LLM",
-      "input":  [{ "name": "text", "type": "string" }],
-      "output": [{ "name": "text", "type": "string" }],
+      "input":  [{"name": "detections", "type": "[detection]"},
+                 {"name": "texts",      "type": "[text]"}],
+      "output": [{"name": "texts",      "type": "[text]"}],
       "deploy": {
-        "local": { "module": "elements.py" }
+        "local": { "module": "aiko_services.examples.llm.elements" }
       }
     },
     { "name":   "PE_COQUI_TTS",
-      "input":  [{ "name": "text",  "type": "string" }],
+      "input":  [{ "name": "texts", "type": "[text]" }],
       "output": [{ "name": "audio", "type": "bytes" }],
       "deploy": {
         "remote": {
@@ -31,7 +32,7 @@
     },
     { "name":   "PE_Metrics",
       "input":  [],
-      "output": [{ "name": "text", "type": "string" }],
+      "output": [{ "name": "texts", "type": "[text]" }],
       "deploy": {
         "local": { "module": "aiko_services.examples.pipeline.elements" }
       }
