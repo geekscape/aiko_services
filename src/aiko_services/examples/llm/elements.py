@@ -4,9 +4,11 @@
 # ~~~~~
 # ollama serve  # or systemctl start ollama
 #
+# aiko_pipeline create llm_pipeline_1.json -s 1 -sr -gt 900
+#
 # export AIKO_LOG_LEVEL=DEBUG  # PE_Metrics
-# aiko_pipeline create llm_pipeline.json -s 1  \
-#   -fd "(texts: ('Tell me about yourself') detections: ())" -gt 900 -sr
+# aiko_pipeline create llm_pipeline_0.json -s 1  \
+#   -fd "(texts: ('Tell me about yourself') detections: ())" -sr -gt 900
 #
 # TOPIC_LLM=aiko/spike/3321189/1/in
 #
@@ -198,6 +200,14 @@ Your state information when relevant may be used in your response messages
     return response
 
 # --------------------------------------------------------------------------- #
+
+class Detection(aiko.PipelineElement):
+    def __init__(self, context):
+        context.get_implementation("PipelineElement").__init__(self, context)
+        context.set_protocol("detections:0")
+
+    def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
+        return aiko.StreamEvent.OKAY, {"detections": ["carrot, octopus"]}
 
 class LLM(aiko.PipelineElement):
     def __init__(self, context):

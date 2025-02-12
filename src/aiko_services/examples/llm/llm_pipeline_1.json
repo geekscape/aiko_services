@@ -1,0 +1,49 @@
+{
+  "version": 0,
+  "name":    "p_llm",
+  "runtime": "python",
+
+  "graph": ["(TextReadTTY Detection LLM TextWriteTTY)"],
+
+  "parameters": {},
+
+  "elements": [
+    { "name":   "Detection",
+      "input":  [{"name": "texts", "type": "[text]"}],
+      "output": [{"name": "detections", "type": "[detection]"}],
+      "deploy": {
+        "local": { "module": "aiko_services.examples.llm.elements" }
+      }
+    },
+    { "name":   "LLM",
+      "input":  [{"name": "detections", "type": "[detection]"},
+                 {"name": "texts",      "type": "[text]"}],
+      "output": [{"name": "texts",      "type": "[text]"}],
+      "deploy": {
+        "local": { "module": "aiko_services.examples.llm.elements" }
+      }
+    },
+    { "name":   "TextReadTTY",
+      "parameters": {
+         "_graph_path_": "TextReadTTY",
+         "data_sources": "(tty://)",
+         "rate":         20,
+         "tty_history":   3,
+         "tty_prompt":   "# "
+      },
+      "input":  [{"name": "records", "type": "[bytes]"}],
+      "output": [{"name": "texts",   "type": "[text]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.text_io"}
+      }
+    },
+    { "name":   "TextWriteTTY",
+      "parameters": { "data_targets": "(tty://)", "tty_prompt": "# " },
+      "input":  [{"name": "texts", "type": "[text]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.text_io"}
+      }
+    }
+  ]
+}
