@@ -88,8 +88,8 @@ pipeline_definition = [
 def timer_test():
     aiko.logger(__name__).info("Timer test")
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 #   event.add_timer_handler(timer_test, 0.1)
-    state_machine = StateMachine(StateMachineModel())
-    Pipeline_2020(
-        pipeline_definition, FRAME_RATE, state_machine=state_machine).run()
+#   state_machine = StateMachine(StateMachineModel())
+#   Pipeline_2020(
+#       pipeline_definition, FRAME_RATE, state_machine=state_machine).run()

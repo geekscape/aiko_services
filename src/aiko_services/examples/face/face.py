@@ -38,6 +38,7 @@ try:
 except ModuleNotFoundError:  # TODO: Optional warning flag
     diagnostic = "face.py: Couldn't import cv2 module"
     print(f"WARNING: {diagnostic}")
+    _LOGGER = aiko.logger(__name__)
     _LOGGER.warning(diagnostic)
     raise ModuleNotFoundError(
         'opencv-python package not installed.  '

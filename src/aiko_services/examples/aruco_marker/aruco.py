@@ -148,7 +148,7 @@ class ArucoMarkerOverlay(aiko.PipelineElement):
             ids = overlay["ids"]
             if len(corners):
                 if not isinstance(image_rgb, np.ndarray):
-                    image_rgb = np.array(image)  # RGB
+                    image_rgb = np.array(image_rgb)  # RGB
     
                 grayscale = len(image_rgb.shape) == 2
                 if grayscale:

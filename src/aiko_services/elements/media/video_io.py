@@ -200,9 +200,9 @@ class VideoShow(aiko.PipelineElement):
         context.set_protocol("video_show:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def slider_handler(self, value):
-        print(f"slider: {value}")
-        cv2.imshow(title, image_bgr)
+#   def slider_handler(self, value):
+#       print(f"slider: {value}")
+#       cv2.imshow(title, image_bgr)  # TODO: "title" ?!?
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         for image in images:

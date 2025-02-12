@@ -117,8 +117,8 @@ class PhysicsEngine(ShowBase):
     def __init__(self, collision_mask=_COLLISION_MASK, frame_rate=_FRAME_RATE):
         ShowBase.__init__(self)
 
-        globalClock.setMode(ClockObject.MLimited)
-        globalClock.setFrameRate(frame_rate)
+        globalClock.setMode(ClockObject.MLimited)  # noqa: F821
+        globalClock.setFrameRate(frame_rate)       # noqa: F821
 
         self.collision_mask = collision_mask
         self.environment = self.create_environment()
@@ -142,14 +142,14 @@ class PhysicsEngine(ShowBase):
 
         self.create_collision_handlers()  # TODO: refactor into "create_robot()"
 
-        taskMgr.add(self.update_camera, "task_update_camera")
-        taskMgr.add(self.update_items,  "task_update_items")
-        taskMgr.add(self.update_robot,  "task_update_robot")
+        taskMgr.add(self.update_camera, "task_update_camera")  # noqa: F821
+        taskMgr.add(self.update_items,  "task_update_items")   # noqa: F821
+        taskMgr.add(self.update_robot,  "task_update_robot")   # noqa: F821
 
     def add_instruction(self, position, message):
         return OnscreenText(
             text=message, style=1, fg=(1, 1, 1, 1), scale=.05,
-            shadow=(0, 0, 0, 1), parent=base.a2dTopLeft,
+            shadow=(0, 0, 0, 1), parent=base.a2dTopLeft,         # noqa: F821
             pos=(0.08, -position - 0.04), align=TextNode.ALeft)
 
     def add_instructions(self):
@@ -165,7 +165,7 @@ class PhysicsEngine(ShowBase):
 
     def add_title(self, text):
         return OnscreenText(
-            parent=base.a2dBottomRight, align=TextNode.ARight,
+            parent=base.a2dBottomRight, align=TextNode.ARight,  # noqa: F821
             text=text, style=1,
             fg=(1.0, 1.0, 1.0, 1.0), bg=(0.3, 0.3, 0.3, 0.8),
             scale=0.05, pos=(-0.1, 0.09), shadow=(0.0, 0.0, 0.0, 1.0))
@@ -258,7 +258,7 @@ class PhysicsEngine(ShowBase):
     # Don't have a skybox ... use sky blue background color instead
         self.set_background_color(0.53, 0.80, 0.92, 1)
 
-        environment = loader.loadModel("models/world")
+        environment = loader.loadModel("models/world")  # noqa: F821
         environment.reparentTo(self.render)
         return environment
 
@@ -447,7 +447,7 @@ class PhysicsEngine(ShowBase):
 
     def update_camera(self, task):
         camera = self.camera
-        dt = base.clock.dt
+        dt = base.clock.dt  # noqa: F821
 
         if self.key_map["camera-left"]:
             camera.set_x(camera, -20 * dt)
@@ -466,11 +466,13 @@ class PhysicsEngine(ShowBase):
 
     # Keep camera above the terrian and above the robot
         entries = list(self.camGroundHandler.entries)
-        entries.sort(key=lambda x: x.getSurfacePoint(render).get_z())
+        entries.sort(
+            key=lambda x: x.getSurfacePoint(render).get_z())  # noqa: F821
 
         for entry in entries:
             if entry.get_into_node().name == "terrain":
-                camera.set_z(entry.getSurfacePoint(render).get_z() + 1.5)
+                camera.set_z(
+                    entry.getSurfacePoint(render).get_z() + 1.5)  # noqa: F821
         if camera.get_z() < self.robot.get_z() + 2.0:
             camera.set_z(self.robot.get_z() + 2.0)
 
@@ -485,7 +487,7 @@ class PhysicsEngine(ShowBase):
         return task.cont
 
     def update_robot(self, task):
-        dt = base.clock.dt
+        dt = base.clock.dt  # noqa: F821
         robot = self.robot
 
         if self.key_map["left"]:
@@ -526,11 +528,13 @@ class PhysicsEngine(ShowBase):
     # Adjust robot's Z coordinate.  If robot's ray hit terrain, update robot Z
 
         entries = list(self.robot_collision_handler_queue.entries)
-        entries.sort(key=lambda x: x.get_surface_point(render).get_z())
+        entries.sort(
+            key=lambda x: x.get_surface_point(render).get_z())  # noqa: F821
 
         for entry in entries:
             if entry.get_into_node().name == "terrain":
-                robot.set_z(entry.get_surface_point(render).get_z())
+                robot.set_z(
+                    entry.get_surface_point(render).get_z())  # noqa: F821
 
     # Convert rendered frame to an image for the World
 

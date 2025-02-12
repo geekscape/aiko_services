@@ -40,12 +40,12 @@ AUDIO_CHANNELS = 1  # 1 or 2 channels
 
 # --------------------------------------------------------------------------- #
 
-class PE_LLM(PipelineElement):
+class PE_LLM(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("llm:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, stream, text) -> Tuple[StreamEvent, dict]:
+    def process_frame(self, stream, text) -> Tuple[aiko.StreamEvent, dict]:
         return aiko.StreamEvent.OKAY, {"text": text}
 
 # --------------------------------------------------------------------------- #
@@ -57,7 +57,7 @@ AUDIO_SAMPLE_RATE = 16000    # or 44100 Hz
 
 AUDIO_CACHE_SIZE = int(AUDIO_SAMPLE_DURATION / AUDIO_CHUNK_DURATION)
 
-class PE_AudioFraming(PipelineElement):
+class PE_AudioFraming(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("audio_framing:0")
         context.get_implementation("PipelineElement").__init__(self, context)
@@ -65,7 +65,7 @@ class PE_AudioFraming(PipelineElement):
         self._lru_cache = LRUCache(AUDIO_CACHE_SIZE)
         _LOGGER.info(f"PE_AudioFraming: Sliding windows: {AUDIO_CACHE_SIZE}")
 
-    def process_frame(self, stream, audio) -> Tuple[StreamEvent, dict]:
+    def process_frame(self, stream, audio) -> Tuple[aiko.StreamEvent, dict]:
         time_start = time.monotonic()
         audio_input_file = audio
         audio_waveform = whisperx.load_audio(audio_input_file)
@@ -86,19 +86,19 @@ class PE_AudioFraming(PipelineElement):
 
 AUDIO_PATH_TEMPLATE = "y_audio_{frame_id:06}.wav"
 
-class PE_AudioWriteFile(PipelineElement):
+class PE_AudioWriteFile(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("audio_write_file:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, stream, audio) -> Tuple[StreamEvent, dict]:
+    def process_frame(self, stream, audio) -> Tuple[aiko.StreamEvent, dict]:
         frame_id = stream["frame_id"]
         audio_pathname = AUDIO_PATH_TEMPLATE.format(frame_id=frame_id)
         audio_channels = self.get_parameter("audio_channels", AUDIO_CHANNELS)
-        audio_writer = sf.SoundFile(audio_pathname, mode="w",
-            samplerate=AUDIO_SAMPLE_RATE, channels=audio_channels)
-        audio_writer.write(indata.copy())
-        audio_writer.close()
+    #   audio_writer = sf.SoundFile(audio_pathname, mode="w",
+    #       samplerate=AUDIO_SAMPLE_RATE, channels=audio_channels)
+    #   audio_writer.write(indata.copy())
+    #   audio_writer.close()
         return aiko.StreamEvent.OKAY, {"audio", audio_pathname}
 
 # --------------------------------------------------------------------------- #
@@ -120,7 +120,7 @@ except Exception as exception:
     _LOGGER.warning(diagnostic)
 
 if COQUI_TTS_LOADED:
-    class PE_COQUI_TTS(PipelineElement):
+    class PE_COQUI_TTS(aiko.PipelineElement):
         def __init__(self, context):
             context.set_protocol("text_to_speech:0")
             implementation = context.get_implementation("PipelineElement")
@@ -132,7 +132,7 @@ if COQUI_TTS_LOADED:
             self.ec_producer.update("speech", "<silence>")
             self.ec_producer.update("frame_id", -1)
 
-        def process_frame(self, stream, text) -> Tuple[StreamEvent, dict]:
+        def process_frame(self, stream, text) -> Tuple[aiko.StreamEvent, dict]:
             frame_id = self.share["frame_id"] + 1
             self.ec_producer.update("frame_id", frame_id)
             if text != "<silence>":
@@ -147,12 +147,12 @@ if COQUI_TTS_LOADED:
 
 # --------------------------------------------------------------------------- #
 
-class PE_SpeechFraming(PipelineElement):
+class PE_SpeechFraming(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("speech_framing:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-    def process_frame(self, stream, text) -> Tuple[StreamEvent, dict]:
+    def process_frame(self, stream, text) -> Tuple[aiko.StreamEvent, dict]:
         return aiko.StreamEvent.OKAY, {"text": text}
 
 # --------------------------------------------------------------------------- #
@@ -201,7 +201,7 @@ except Exception as exception:
     _LOGGER.warning(diagnostic)
 
 if WHISPERX_LOADED:
-    class PE_WhisperX(PipelineElement):
+    class PE_WhisperX(aiko.PipelineElement):
         def __init__(self, context):
             context.set_protocol("speech_to_text:0")
             implementation = context.get_implementation("PipelineElement")
@@ -226,7 +226,7 @@ if WHISPERX_LOADED:
             _LOGGER.info(f"PE_WhisperX: ML model loaded: {WHISPERX_MODEL_SIZE}")
             self._welcome = True
 
-        def process_frame(self, stream, audio) -> Tuple[StreamEvent, dict]:
+        def process_frame(self, stream, audio) -> Tuple[aiko.StreamEvent, dict]:
             audio = np.squeeze(audio)
             frame_id = stream["frame_id"]
             time_start = time.monotonic()

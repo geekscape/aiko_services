@@ -39,7 +39,7 @@ from pathlib import Path
 
 import aiko_services as aiko
 
-__all__ = ["AudioOutput", "AudioReadFile", "AudioWriteFile"]
+__all__ = ["AudioOutput", "AudioReadFile"]  # "AudioWriteFile"
 
 _LOGGER = aiko.get_logger(__name__)
 

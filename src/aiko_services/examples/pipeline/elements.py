@@ -109,7 +109,7 @@ class PE_Inspect(aiko.PipelineElement):
                 else:
                     diagnostic =  \
                         "'target' parameter must be 'file', 'log' or 'print'"
-                    return aiko.StreamEvent.ERROR, {"diagnostic": dianostic}
+                    return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
             if target.startswith("file:"):
                 inspect_file.flush()

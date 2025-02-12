@@ -100,13 +100,13 @@ class RobotActions(aiko.PipelineElement):
         if command == "action" and len(parameters) > 0:
             command = parameters[0]
 
-            if command == "select":
-                if parameters[1] == "all":
-                    parameters[1] = ROBOT_NAME
-                if parameters[1] == "bruce":
-                    parameters[1] = "laika"
-                selected = parameters[1] == ROBOT_NAME
-                stream.variables["robot_selected"] = selected
+        #   if command == "select":
+        #       if parameters[1] == "all":
+        #           parameters[1] = ROBOT_NAME  # TODO: Get ROBOT_NAME
+        #       if parameters[1] == "bruce":
+        #           parameters[1] = "laika"
+        #       selected = parameters[1] == ROBOT_NAME  # TODO: Get ROBOT_NAME
+        #       stream.variables["robot_selected"] = selected
 
             if not stream.variables["robot_selected"]:
                 self.logger.warning("A robot has not been selected")

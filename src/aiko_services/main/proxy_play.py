@@ -145,6 +145,6 @@ class Proxy(object):
 
 class ProxyExample(Proxy):
     def intercepted(name, *args, **kwargs):
-        print(f"Intercepted: name: {name}, args: {args}, kwargs: {kw}")
+        print(f"Intercepted: name: {name}, args: {args}, kwargs: {kwargs}")
 
     intercept = intercepted

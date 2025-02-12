@@ -171,7 +171,7 @@ def bootstrap_thread():
     try:
         _socket.bind(("0.0.0.0", _AIKO_BOOTSTRAP_UDP_PORT))
         while True:
-            message, address = s.recvfrom(256)
+            message, address = _socket.recvfrom(256)
             message = message.decode("utf-8")
             tokens = message.split()
             if len(tokens) == 3  and tokens[0] == "boot?":
