@@ -9,13 +9,12 @@
 #   -fd "(texts: ('Tell me about yourself') detections: ())" -gt 900 -sr
 #
 # TOPIC_LLM=aiko/spike/3321189/1/in
-# mosquitto_pub -t $TOPIC_LLM  \
-#   -m "(process_frame (stream_id: 1) (texts: ('What are your interests ?') detections: ()))"
 #
-# mosquitto_pub -t aiko/detections -m "carrot"
+# MESSAGE="(process_frame (stream_id: 1) (texts: ('What are your interests ?') detections: ()))"
+# mosquitto_pub -t $TOPIC -m "$MESSAGE"
 #
-# mosquitto_pub -t $TOPIC_LLM  \
-#   -m "(process_frame (stream_id: 1) (texts: ('What can you see ?') detections: ()))"
+# MESSAGE="(process_frame (stream_id: 1) (texts: ('What can you see ?') detections: (carrot octopus)))"
+# mosquitto_pub -t $TOPIC -m "$MESSAGE"
 #
 # -----------------------------------------
 # https://python.langchain.com/docs/get_started/quickstart#llm-chain -->
