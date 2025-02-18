@@ -80,7 +80,7 @@ class Stream:
     frame_id: int = FIRST_FRAME_ID  # only updated by Pipeline thread
     frames: Dict[int, Frame] = field(default_factory=dict)
     graph_path: str = None  # Graph path (head_node_name), default: first path
-    lock: Lock = Lock(f"{__name__}_{stream_id}")
+    lock: Lock = field(default_factory=lambda: Lock.create("Stream"))
     parameters: Dict[str, Any] = field(default_factory=dict)
     queue_response: queue = None
     state: StreamState = StreamState.RUN
