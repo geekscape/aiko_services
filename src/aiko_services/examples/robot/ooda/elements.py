@@ -7,7 +7,7 @@
 # aiko_pipeline create ../../../elements/media/webcam_zmq_pipeline_0.json  \
 #       -s 1 -p resolution 640x480
 #
-# aiko_pipeline create ../robot_pipeline.json -s 1 gt 3600 -ll warning
+# aiko_pipeline create ../robot_pipeline.json -s 1 -gt 3600 -ll warning
 #
 # To Do
 # ~~~~~

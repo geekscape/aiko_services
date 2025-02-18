@@ -52,6 +52,7 @@ class DataSchemeTTY(aiko.DataScheme):
                 return aiko.StreamEvent.STOP, {"diagnostic": diagnostic}
         else:
             return aiko.StreamEvent.NO_FRAME, {}
+
     def _run(self):
         tty_prompt, _ = self.pipeline_element.get_parameter(
                             "tty_prompt", default="> ")
