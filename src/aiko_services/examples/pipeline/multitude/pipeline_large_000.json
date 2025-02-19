@@ -3,7 +3,7 @@
   "name":    "p_large_000",
   "runtime": "python",
 
-  "graph": ["(PE_000 PE_001 PE_002 PE_003 PE_004 PE_010 PE_005 PE_006 PE_007 PE_008 PE_009 PE_Metrics)"],
+  "graph": ["(PE_000 PE_001 PE_002 PE_003 PE_004 PE_010 PE_005 PE_006 PE_007 PE_008 PE_009 Metrics)"],
   "parameters": { "constant": 1, "delay": 0 },
 
   "elements": [
@@ -120,11 +120,11 @@
          }
       }
     },
-    { "name":   "PE_Metrics",
+    { "name":   "Metrics",
       "input":  [],
       "output": [{ "name": "i", "type": "int" }],
       "deploy": {
-        "local": { "module": "aiko_services.examples.pipeline.elements" }
+        "local": { "module": "aiko_services.elements.observe.elements" }
       }
     }
   ]

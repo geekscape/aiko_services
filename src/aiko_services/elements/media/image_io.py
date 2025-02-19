@@ -58,7 +58,7 @@
 # - ImageReadFile should accept a list of DataSources type ...
 #   - URL: "file://" and media_type: "jpeg", "png", etc
 #
-# - PE_Metrics: Determine what to metrics to capture, e.g frame rates ?
+# - Metrics: Determine what to metrics to capture, e.g frame rates ?
 
 from PIL import Image
 import io

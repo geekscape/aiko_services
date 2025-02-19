@@ -43,7 +43,7 @@
 # - VideoReadFile should accept a DataSource type ...
 #   - URL: "file://" and media_type: "mp4", etc
 #
-# - PE_Metrics: Determine what to metrics to capture, e.g frame rates ?
+# - Metrics: Determine what to metrics to capture, e.g frame rates ?
 #
 # - Design video windowing, i.e collecting multiple frame for ML processing
 #   together, e.g gesture analysis

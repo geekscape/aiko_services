@@ -6,7 +6,7 @@
 #
 # aiko_pipeline create llm_pipeline_1.json -s 1 -sr -gt 900
 #
-# export AIKO_LOG_LEVEL=DEBUG  # PE_Metrics
+# export AIKO_LOG_LEVEL=DEBUG  # Metrics
 # aiko_pipeline create llm_pipeline_0.json -s 1  \
 #   -fd "(texts: ('Tell me about yourself') detections: ())" -sr -gt 900
 #

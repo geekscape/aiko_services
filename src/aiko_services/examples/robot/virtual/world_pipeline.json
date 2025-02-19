@@ -4,8 +4,8 @@
   "runtime": "python",
 
   "graph": [
-    "(World      PE_Metrics)",
-    "(World_OODA OODA PE_Metrics)",
+    "(World      Metrics)",
+    "(World_OODA OODA Metrics)",
     "(World_ZMQ  ImageWriteZMQ)",
     "(ZMQ_OODA   ImageReadZMQ OODA)",
     "(OODA       ImageResize YoloDetector ImageOverlay VideoShow)"
@@ -119,12 +119,12 @@
         "local": {"module": "aiko_services.elements.media.video_io"}
       }
     },
-    { "name":   "PE_Metrics",
+    { "name":   "Metrics",
       "#": "Provides Pipeline and PipelineElement timing information",
       "input":  [],
       "output": [],
       "deploy": {
-        "local": {"module": "aiko_services.examples.pipeline.elements"}
+        "local": {"module": "aiko_services.elements.observe.elements"}
       }
     }
   ]

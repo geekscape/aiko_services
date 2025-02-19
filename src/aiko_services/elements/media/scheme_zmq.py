@@ -1,6 +1,6 @@
 # To Do
 # ~~~~~
-# - Provide Aiko Dashboard metrics and support PE_Metrics
+# - Provide Aiko Dashboard metrics and support Metrics
 #
 # - Support media types "text" and "text/zip" ?
 #

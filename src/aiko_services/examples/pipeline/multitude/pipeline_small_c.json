@@ -3,7 +3,7 @@
   "name":    "p_small_c",
   "runtime": "python",
 
-  "graph": ["(PE_C0 PE_C1 PE_Metrics)"],
+  "graph": ["(PE_C0 PE_C1 Metrics)"],
   "parameters": { "constant": 1, "delay": 0 },
 
   "elements": [
@@ -27,11 +27,11 @@
          }
       }
     },
-    { "name":   "PE_Metrics",
+    { "name":   "Metrics",
       "input":  [],
       "output": [{ "name": "i", "type": "int" }],
       "deploy": {
-        "local": { "module": "aiko_services.examples.pipeline.elements" }
+        "local": { "module": "aiko_services.elements.observe.elements" }
       }
     }
   ]

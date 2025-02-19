@@ -15,9 +15,11 @@ from typing import Tuple
 import aiko_services as aiko
 from aiko_services.main.utilities import *
 
+__all__ = ["all_outputs", "evaluate", "FunctionArguments"]
+
 # --------------------------------------------------------------------------- #
 
-def _all_outputs(pipeline_element, stream):
+def all_outputs(pipeline_element, stream):
     frame = stream.frames[stream.frame_id]
     outputs = {}
     for output_definition in pipeline_element.definition.output:
@@ -114,6 +116,6 @@ class FunctionArguments(aiko.PipelineElement):
                         self.logger.debug(f"Rename: {action}")
                         if len(action) == 2 and action[0] in swag:
                             swag[action[1]] = swag.pop(action[0])
-        return aiko.StreamEvent.OKAY, _all_outputs(self, stream)
+        return aiko.StreamEvent.OKAY, all_outputs(self, stream)
 
 # --------------------------------------------------------------------------- #

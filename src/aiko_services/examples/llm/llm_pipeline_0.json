@@ -3,8 +3,8 @@
   "name":    "p_llm",
   "runtime": "python",
 
-  "graph": ["(LLM PE_Metrics)"],
-  "#":     ["(LLM PE_COQUI_TTS PE_Metrics)"],
+  "graph": ["(LLM Metrics)"],
+  "#":     ["(LLM PE_COQUI_TTS Metrics)"],
 
   "parameters": {},
 
@@ -30,11 +30,11 @@
         }
       }
     },
-    { "name":   "PE_Metrics",
+    { "name":   "Metrics",
       "input":  [],
       "output": [{ "name": "texts", "type": "[text]" }],
       "deploy": {
-        "local": { "module": "aiko_services.examples.pipeline.elements" }
+        "local": { "module": "aiko_services.elements.observe.elements" }
       }
     }
   ]

@@ -8,7 +8,7 @@
 #
 # - WARNING: Default: No log messages
 # - INFO:    Shows application log messages
-# - DEBUG:   Shows PE_Metrics log measurements
+# - DEBUG:   Shows Metrics log measurements
 #
 # - true:    Default: MQTT logging
 # - false:   Console logging

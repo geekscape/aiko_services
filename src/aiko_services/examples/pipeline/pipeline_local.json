@@ -10,7 +10,7 @@
   "#": "Graph may consist of one or more sub-graphs",
   "#": "This graph demonstrates fan-out and fan-in (diamond network)",
   "graph": [
-    "(PE_1 (PE_2 PE_4) (PE_3 PE_4) PE_Inspect PE_Metrics)"
+    "(PE_1 (PE_2 PE_4) (PE_3 PE_4) Inspect Metrics)"
   ],
 
   "#": "Optional parameters may be either null, boolean, integer or string",
@@ -68,7 +68,7 @@
          }
       }
     },
-    { "name":   "PE_Inspect",
+    { "name":   "Inspect",
       "#": "Provides PipelineElement inputs / outputs value inspection",
       "parameters": {
         "enable":  false,                 "#": "true or false",
@@ -77,16 +77,16 @@
       "input":  [],
       "output": [],
       "deploy": {
-        "local": { "module": "aiko_services.examples.pipeline.elements" }
+        "local": { "module": "aiko_services.elements.observe.elements" }
       }
     },
-    { "name":   "PE_Metrics",
+    { "name":   "Metrics",
       "#": "Provides Pipeline and PipelineElement timing information",
       "parameters": {"enable": false, "rate": 1},
       "input":  [],
       "output": [{ "name": "f", "type": "int" }],
       "deploy": {
-        "local": { "module": "aiko_services.examples.pipeline.elements" }
+        "local": { "module": "aiko_services.elements.observe.elements" }
       }
     }
   ]
