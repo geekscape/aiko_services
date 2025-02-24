@@ -104,6 +104,7 @@ import click
 import copy
 from collections import OrderedDict  # All OrderedDict operations are O(1)
 from dataclasses import dataclass, asdict
+import datetime
 from enum import Enum
 import json
 import os
@@ -1648,7 +1649,7 @@ class PipelineDefinitionSchema:
 @click.group()
 
 def main():
-    """Create and destroy Pipelines"""
+    """Create, list, update and destroy Pipelines"""
     pass
 
 @main.command(help="Create Pipeline defined by PipelineDefinition pathname")
@@ -1736,6 +1737,37 @@ def create(definition_pathname, graph_path, name, parameters, stream_id,
     pipeline.run(mqtt_connection_required=False)
     if exit_message:
         _LOGGER.warning("Pipeline process exit")
+
+@main.command(name="list", help="List Pipelines")
+@click.option("--follow", "-f", is_flag=True,
+    help="Show on-going Pipeline create and destroy actions")
+
+def list_command(follow):  # Don't overwrite the Python "list" class
+    service_filter = ServiceFilter("*", "*", PROTOCOL_PIPELINE, "*", "*", "*")
+
+    def show_service(command, service_details):
+        topic_path = service_details[0]
+        name = service_details[1]
+    #   protocol = service_details[2][service_details[2].rfind("/") + 1:]
+    #   transport = service_details[3]
+        owner = service_details[4]
+    #   tags = service_details[5]
+        now = datetime.datetime.now().strftime("%H:%M:%S")
+        print(f"{now} {command:6s} {topic_path} {name} {owner}")
+
+    def service_discovery_handler(command, service_details):
+        if not follow and command == "sync":
+            services = services_cache.get_services()
+            services = services.filter_services(service_filter)
+            for service_details in services:
+                show_service("add", service_details)
+            aiko.process.terminate()
+
+        if follow and command != "sync":
+            show_service(command, service_details)
+
+    services_cache = services_cache_create_singleton(aiko.process, True, 0)
+    services_cache.add_handler(service_discovery_handler, service_filter)
 
 @main.command(help="Destroy Pipeline")
 @click.argument("name", nargs=1, type=str, required=True)
