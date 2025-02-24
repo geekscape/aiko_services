@@ -152,7 +152,6 @@ class LifeCycleManagerImpl(LifeCycleManager, LifeCycleManagerPrivate):
 
         self.lcm_lifecycle_client_change_handler =  \
             lifecycle_client_change_handler
-        self.lcm_actor_discovery = None
         self.lcm_client_count = 0
         self.lcm_ec_producer = ec_producer
         self.lcm_client_state_consumer_filter = client_state_consumer_filter
@@ -200,12 +199,13 @@ class LifeCycleManagerImpl(LifeCycleManager, LifeCycleManagerPrivate):
                 del self.lcm_handshakes[client_id]
                 _LOGGER.debug(f"LifeCycleClient {client_id} responded")
 
-                topic_paths = [lifecycle_client_topic_path]
-                self.lcm_filter = ServiceFilter(
-                    topic_paths, "*", "*", "*", "*", "*")
-                self.lcm_actor_discovery = ActorDiscovery(self) # TODO: Use ServiceDiscovery
-                self.lcm_actor_discovery.add_handler(
-                    self._lcm_service_change_handler, self.lcm_filter)
+                class NullClass():
+                    def null(self): pass
+
+                do_discovery(NullClass,
+                    ServiceFilter([lifecycle_client_topic_path],
+                        "*", "*", "*", "*", "*"),
+                    None, self._lcm_service_remove_handler)
 
                 ec_consumer = ECConsumer(
                     self,
@@ -226,35 +226,34 @@ class LifeCycleManagerImpl(LifeCycleManager, LifeCycleManagerPrivate):
                         f"lifecycle_manager.{client_id}",
                         lifecycle_client_topic_path)
 
-    def _lcm_service_change_handler(self, command, service_details):
-        if command == "remove":
-            lifecycle_client_topic_path = service_details[0]
-            lifecycle_clients = list(self.lcm_lifecycle_clients.values())
-            for lifecycle_client in lifecycle_clients:
-                if lifecycle_client.topic_path == lifecycle_client_topic_path:
-                    if lifecycle_client.ec_consumer:
-                        lifecycle_client.ec_consumer.terminate()
-                        lifecycle_client.ec_consumer = None
-                    client_id = lifecycle_client.client_id
+    def _lcm_service_remove_handler(self, service_details):
+        lifecycle_client_topic_path = service_details[0]
+        lifecycle_clients = list(self.lcm_lifecycle_clients.values())
+        for lifecycle_client in lifecycle_clients:
+            if lifecycle_client.topic_path == lifecycle_client_topic_path:
+                if lifecycle_client.ec_consumer:
+                    lifecycle_client.ec_consumer.terminate()
+                    lifecycle_client.ec_consumer = None
+                client_id = lifecycle_client.client_id
 
-                    if client_id in self.lcm_deletion_leases:
-                        self.lcm_deletion_leases[client_id].terminate()
-                        del self.lcm_deletion_leases[client_id]
-                        _LOGGER.debug(f"LifeCycleClient {client_id} removed")
+                if client_id in self.lcm_deletion_leases:
+                    self.lcm_deletion_leases[client_id].terminate()
+                    del self.lcm_deletion_leases[client_id]
+                    _LOGGER.debug(f"LifeCycleClient {client_id} removed")
 
-                    del self.lcm_lifecycle_clients[client_id]
-                    if self.lcm_ec_producer is not None:
-                        self.lcm_ec_producer.update(
-                            "lifecycle_manager_clients_active",
-                            len(self.lcm_lifecycle_clients))
-                        self.lcm_ec_producer.remove(
-                            f"lifecycle_manager.{client_id}")
+                del self.lcm_lifecycle_clients[client_id]
+                if self.lcm_ec_producer is not None:
+                    self.lcm_ec_producer.update(
+                        "lifecycle_manager_clients_active",
+                        len(self.lcm_lifecycle_clients))
+                    self.lcm_ec_producer.remove(
+                        f"lifecycle_manager.{client_id}")
 
-                # When Service is removed from the Registrar, notify LCM Impl
-                    if self.lcm_lifecycle_client_change_handler:
-                        self.lcm_lifecycle_client_change_handler(
-                            client_id, "update", "lifecycle", "absent"
-                        )
+            # When Service is removed from the Registrar, notify LCM Impl
+                if self.lcm_lifecycle_client_change_handler:
+                    self.lcm_lifecycle_client_change_handler(
+                        client_id, "update", "lifecycle", "absent"
+                    )
 
     def _lcm_deletion_lease_expired_handler(self, client_id):
         _LOGGER.debug(f"LifeCycleClient {client_id} deletion lease expired, force-deleting client")
@@ -349,7 +348,7 @@ class LifeCycleClientPrivate(Interface):
         pass
 
     @abstractmethod
-    def _lcc_lifecycle_manager_change_handler(self, command, service_details):
+    def _lcc_lifecycle_manager_change_handler(self, service_details):
         pass
 
 class LifeCycleClientImpl(LifeCycleClient, LifeCycleClientPrivate):
@@ -369,8 +368,8 @@ class LifeCycleClientImpl(LifeCycleClient, LifeCycleClientPrivate):
     def _lcc_connection_handler(self, connection, connection_state):
         if connection.is_connected(ConnectionState.REGISTRAR):
             if not self.lcc_added_to_lcm:
-                lifecycle_manager_topic = self._lcc_get_lifecycle_manager_topic()
-                topic = f"{lifecycle_manager_topic}/control"
+                lcm_topic_path = self._lcc_get_lifecycle_manager_topic()
+                topic = f"{lcm_topic_path}/control"
                 payload_out = "(add_client "                \
                               f"{self.topic_path} "  \
                               f"{self.lcc_client_id})"
@@ -378,13 +377,11 @@ class LifeCycleClientImpl(LifeCycleClient, LifeCycleClientPrivate):
                 self.lcc_added_to_lcm = True
 
                 # Add handler for LifeCycleManager removal from registrar
-                topic_paths = [lifecycle_manager_topic]
-                filter = ServiceFilter(topic_paths, "*", "*", "*", "*", "*")
-                self.lcc_actor_discovery = ActorDiscovery(self) # TODO: Use ServiceDiscovery
-                self.lcc_actor_discovery.add_handler(
-                    self._lcc_lifecycle_manager_change_handler, filter)
+                do_discovery(LifeCycleManagerImpl,
+                    ServiceFilter([lcm_topic_path], "*", "*", "*", "*", "*"),
+                    None, self._lcc_lifecycle_manager_change_handler)
 
-    def _lcc_lifecycle_manager_change_handler(self, command, service_details):
+    def _lcc_lifecycle_manager_change_handler(self, service_details):
         pass
 
 # --------------------------------------------------------------------------- #

@@ -116,7 +116,6 @@ import traceback
 from typing import Any, Dict, List, Tuple
 
 from aiko_services.main import *
-from aiko_services.main.transport import *
 from aiko_services.main.utilities import *
 
 __all__ = [
@@ -592,7 +591,6 @@ class PipelineImpl(Pipeline):
         self.share["lifecycle"] = "waiting"
         self.share["graph_path"] = context.graph_path
         self.remote_pipelines = {}  # Service name --> PipelineRemote instance
-        self.services_cache = None
 
         self.stream_leases = {}
         self.thread_local = threading.local()  # See _enable_thread_local()
@@ -791,12 +789,17 @@ class PipelineImpl(Pipeline):
                     self._error_pipeline(header,
                         f"PipelineDefinition: PipelineElement {element_name}: "
                         f"re-uses remote service_filter name: {service_name}")
-                if not self.services_cache:
-                    self.services_cache = services_cache_create_singleton(self)
+
                 service_filter = ServiceFilter.with_topic_path(
                     **deploy_definition.service_filter)
-                self.services_cache.add_handler(
-                    self._pipeline_element_change_handler, service_filter)
+
+                do_discovery(PipelineElement, service_filter,
+                    lambda service_details, service:
+                        self._change_remote_element_handler(
+                            True, service_details),
+                    lambda service_details:
+                        self._change_remote_element_handler(
+                            False, service_details))
 
             element = Node(
                 element_name, element_instance, node_successors[element_name])
@@ -804,6 +807,37 @@ class PipelineImpl(Pipeline):
 
         pipeline_graph.validate(definition, self.share["graph_path"])
         return pipeline_graph
+
+    def _change_remote_element_handler(self, discovered, service_details):
+        topic_path = f"{service_details[0]}/in"
+        service_name = service_details[1]
+        element_name, element_instance, element_topic_path =  \
+            self.remote_pipelines[service_name]
+        node = self.pipeline_graph.get_node(element_name)
+        element_definition = node.element.definition
+        topic_path_match = False
+
+        if discovered:  # use discovered remote proxy
+            topic_path_match = True
+            element_instance.set_remote_absent(False)
+            new_element_instance = get_service_proxy(
+                topic_path, PipelineRemote)
+            new_element_instance.definition = element_definition
+
+        else:           # use original PipelineRemote instance
+            if topic_path == element_topic_path:
+                topic_path_match = True
+                topic_path = None
+                element_instance.set_remote_absent(True)
+                new_element_instance = element_instance
+
+        if topic_path_match:
+            self.logger.debug(f"PipelineElement remote {element_name}: "
+                f"{'add' if discovered else 'remove'}: {service_details[0:2]}")
+            self.remote_pipelines[service_name] = (
+                element_name, element_instance, topic_path)
+            node._element = new_element_instance
+            self._update_lifecycle_state()
 
 # TODO: Consider refactoring Stream into "stream.py" ?
 
@@ -1076,39 +1110,6 @@ class PipelineImpl(Pipeline):
             f"PipelineDefinition parsed: {pipeline_definition_pathname}")
         return(pipeline_definition)
 
-    def _pipeline_element_change_handler(self, command, service_details):
-        if command in ["add", "remove"]:
-            topic_path = f"{service_details[0]}/in"
-            service_name = service_details[1]
-            element_name, element_instance, element_topic_path =  \
-                self.remote_pipelines[service_name]
-            node = self.pipeline_graph.get_node(element_name)
-            element_definition = node.element.definition
-            topic_path_match = False
-
-            if command == "add":     # use discovered remote proxy
-                topic_path_match = True
-                element_instance.set_remote_absent(False)
-                new_element_instance = get_actor_mqtt(
-                    topic_path, PipelineRemote)
-                new_element_instance.definition = element_definition
-
-            if command == "remove":  # use original PipelineRemote instance
-                if topic_path == element_topic_path:
-                    topic_path_match = True
-                    topic_path = None
-                    element_instance.set_remote_absent(True)
-                    new_element_instance = element_instance
-
-            if topic_path_match:
-                self.logger.debug(f"PipelineElement remote {element_name}: "
-                                  f"{command}: {service_details[0:2]}")
-
-                self.remote_pipelines[service_name] = (
-                    element_name, element_instance, topic_path)
-                node._element = new_element_instance
-                self._update_lifecycle_state()
-
     def process_frame(
         self, stream_dict, frame_data) -> Tuple[StreamEvent, dict]:
 
@@ -1238,7 +1239,7 @@ class PipelineImpl(Pipeline):
                 if stream.queue_response:
                     stream.queue_response.put((stream_info, frame_data_out))
                 elif stream.topic_response:
-                    actor = get_actor_mqtt(stream.topic_response, Pipeline)
+                    actor = get_service_proxy(stream.topic_response, Pipeline)
                     actor.process_frame_response(stream_info, frame_data_out)
                 else:
                     try:
@@ -1740,25 +1741,10 @@ def create(definition_pathname, graph_path, name, parameters, stream_id,
 @click.argument("name", nargs=1, type=str, required=True)
 
 def destroy(name):
-# TODO: D.R.Y: Refactor based on "storage.py" and put this in the right place !
-    def actor_discovery_handler(command, service_details):
-        if command == "add":
-            event.remove_timer_handler(waiting_timer)
-            topic_path = f"{service_details[0]}/in"
-            actor = get_actor_mqtt(topic_path, Pipeline)
-            actor.stop()
-            _LOGGER.info(f'Destroyed Pipeline "{name}"')
-            aiko.process.terminate()
-
-    def waiting_timer():
-        event.remove_timer_handler(waiting_timer)
-        _LOGGER.info(f'Waiting to discover Pipeline "{name}"')
-
-    actor_discovery = ActorDiscovery(aiko.process)
-    service_filter = ServiceFilter("*", name, "*", "*", "*", "*")
-    actor_discovery.add_handler(actor_discovery_handler, service_filter)
-    event.add_timer_handler(waiting_timer, 0.5)
+    do_command(Pipeline, ServiceFilter("*", name, "*", "*", "*", "*"),
+        lambda pipeline: pipeline.stop(), terminate=True)
     aiko.process.run()
+    _LOGGER.info(f'Destroyed Pipeline "{name}"')
 
 if __name__ == "__main__":
     main()

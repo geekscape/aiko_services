@@ -4,11 +4,10 @@
 # ~~~~~
 # AIKO_LOG_LEVEL=DEBUG ./transport/test_mqtt.py create
 #
-# AIKO_LOG_LEVEL=DEBUG ./transport/test_mqtt.py  \
-#                      send_message aiko/nomad.local/45812/1/in hello
+# AIKO_LOG_LEVEL=DEBUG ./transport/test_mqtt.py test hello
 #
-# TODO: ./test_mqtt.py delete
-# TODO: ./test_mqtt.py list [filter]
+# TODO: ./transport/test_mqtt.py delete
+# TODO: ./transport/test_mqtt.py list [filter]
 #
 # To Do
 # ~~~~~
@@ -22,7 +21,6 @@ from abc import abstractmethod
 import click
 
 from aiko_services.main import *
-from aiko_services.main.transport import *
 
 _VERSION = 0
 
@@ -33,7 +31,7 @@ _LOGGER = aiko.logger(__name__)
 
 # --------------------------------------------------------------------------- #
 
-class MQTTTest(TransportMQTT):
+class MQTTTest(Actor):
     Interface.default("MQTTTest",
         "aiko_services.main.transport.test_mqtt.MQTTTestImpl")
 
@@ -43,7 +41,7 @@ class MQTTTest(TransportMQTT):
 
 class MQTTTestImpl(MQTTTest):
     def __init__(self, context):
-        context.get_implementation("TransportMQTT").__init__(self, context)
+        context.get_implementation("Actor").__init__(self, context)
 
         self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"
         self.share["message"] = None
@@ -57,7 +55,6 @@ class MQTTTestImpl(MQTTTest):
         if command == "sync":
             _LOGGER.debug("sync")
         #   actors = self.actor_discovery.share_actor_mqtt(self.filter)
-
         #   name = "aiko/zeus/3704321.AlohaHonua"
         #   actor = self.actor_discovery.get_actor_mqtt(name)
         #   actor_topic = ".".join(name.split(".")[:-1])
@@ -82,21 +79,15 @@ def main():
 def create():
     init_args = actor_args(ACTOR_TYPE, protocol=PROTOCOL)
     mqtt_test = compose_instance(MQTTTestImpl, init_args)
-    aiko.process.run()
+    mqtt_test.run()
 
-@main.command(name="send_message",
-    help="Make function call (send message) to Transport MQTT Actor")
-@click.argument("topic", default=None, required=True)
+@main.command(name="test", help="Invoke function call on Transport MQTT Actor")
 @click.argument("message", default=None, required=True)
 
-def send_message(topic, message):
-    actor_remote_proxy = get_actor_mqtt(topic, MQTTTest)
-    aiko.process.initialize()
-    if actor_remote_proxy:
-        actor_remote_proxy.test(message)
-        aiko.message.wait_published()
-    else:
-        print(f"Actor {topic} not found")
+def test(message):
+    do_command(MQTTTest, ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
+        lambda mqtt_test: mqtt_test.test(message), terminate=True)
+    aiko.process.run()
 
 if __name__ == "__main__":
     main()

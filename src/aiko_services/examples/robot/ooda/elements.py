@@ -25,8 +25,7 @@
 from typing import Tuple
 
 import aiko_services as aiko
-from aiko_services.main import ServiceFilter
-from aiko_services.main.transport import ActorDiscovery, get_actor_mqtt
+from aiko_services.main import do_discovery, ServiceFilter
 from aiko_services.main.utilities import parse
 
 __all__ = ["PromptMediaFusion", "RobotActions", "RobotAgents"]
@@ -70,30 +69,30 @@ class RobotActions(aiko.PipelineElement):
     def start_stream(self, stream, stream_id):
         self._set_robot(stream, None)
 
+        from aiko_services.examples.xgo_robot.xgo_robot import XGORobot
         service_name, found = self.get_parameter("service_name", None)
         if not found:
             diagnostic = 'Must provide "service_name" parameter'
             return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
-        def _actor_discovery_handler(command, service_details):
-            if command == "add":
-                self.logger.warning(f'Discovered robot "{service_name}"')
-                topic_path = f"{service_details[0]}/in"
-                from aiko_services.examples.xgo_robot.xgo_robot import XGORobot
-                robot = get_actor_mqtt(topic_path, XGORobot)
-                self._set_robot(stream, robot)
-            elif command == "remove":
-                self.logger.warning(f'Lost robot "{service_name}"')
-                self._set_robot(stream, None)
+        def discovery_add_handler(service_details, service):
+            self.logger.warning(f"Discovered robot: {service_name}")
+            self._set_robot(stream, service)
+
+        def discovery_remove_handler(service_details):
+            self.logger.warning(f"Lost robot: {service_name}")
+            self._set_robot(stream, None)
 
         self.logger.warning(f'Waiting to discover robot "{service_name}"')
-        actor_discovery = ActorDiscovery(aiko.process)
         service_filter = ServiceFilter("*", service_name, "*", "*", "*", "*")
-        actor_discovery.add_handler(_actor_discovery_handler, service_filter)
+        service_discovery, service_discovery_handler =  \
+            do_discovery(
+                XGORobot, service_filter,
+                discovery_add_handler, discovery_remove_handler)
 
         stream.variables["robot_selected"] = True
         stream.variables["robot_actions_discovery_details"] = (
-            actor_discovery, _actor_discovery_handler, service_filter)
+            service_discovery, service_discovery_handler, service_filter)
         return aiko.StreamEvent.OKAY, {}
 
     def process_command(self, stream, robot, command, parameters):
@@ -182,8 +181,10 @@ class RobotActions(aiko.PipelineElement):
 
     def stop_stream(self, stream, stream_id):
         self._set_robot(stream, None)
-        details = stream.variables["robot_actions_discovery_details"]
-        details[0].remove_handler(details[1], details[2])
+        service_discovery, service_discovery_handler, service_filter =  \
+            stream.variables["robot_actions_discovery_details"]
+        service_discovery.remove_handler(
+            service_discovery_handler, service_filter)
         return aiko.StreamEvent.OKAY, {}
 
 # --------------------------------------------------------------------------- #

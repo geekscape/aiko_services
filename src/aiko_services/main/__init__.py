@@ -54,6 +54,12 @@ from .actor import (
     Actor, ActorImpl, ActorTest, ActorTestImpl, ActorTopic
 )
 
+from .discovery import (
+    ServiceDiscovery, ActorDiscovery,
+    PipelineElementDiscovery, PipelineDiscovery,
+    do_command, do_discovery, do_request, get_service_proxy
+)
+
 from .process_manager import ProcessManager
 
 from .lifecycle import LifeCycleClient, LifeCycleManager

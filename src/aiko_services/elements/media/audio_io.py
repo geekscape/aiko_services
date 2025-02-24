@@ -177,7 +177,6 @@ from typing import Tuple
 import zlib
 
 import aiko_services as aiko
-from aiko_services.main.transport import ActorDiscovery
 from aiko_services.main.utilities import get_namespace, parse_number
 
 __all__ = [
@@ -543,28 +542,22 @@ class PE_Speaker(PipelineElement):
         context.set_protocol("speaker:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
-        self._microphone_topic_path = None
-        service_filter = ServiceFilter("*", "*", "microphone:0", "*", "*", "*")
-        actor_discovery = ActorDiscovery(self)
-        actor_discovery.add_handler(
-            self.actor_discovery_handler, service_filter)
+        self._microphone_service = None
+        do_discovery(
+            PE_MicrophoneSD,
+            ServiceFilter("*", "*", "microphone:0", "*", "*", "*"),
+                lambda _, service: self._discovery_handler(service),
+                lambda _:          self._discovery_handler(None))
 
-    def actor_discovery_handler(self, command, service_details):
-        if command == "add":
-            self._microphone_topic_path = service_details[0]
-            _LOGGER.debug(f"Discover microphone: {self._microphone_topic_path}")
-        if command == "remove":
-            if service_details[0] == self._microphone_topic_path:
-                _LOGGER.debug(f"Lost microphone: {self._microphone_topic_path}")
-                self._microphone_topic_path = None
+    def _discovery_handler(self, service):
+        self._microphone_service = service
 
     def process_frame(self, stream, audio) -> Tuple[aiko.StreamEvent, dict]:
         if audio is not None:
             sd.play(audio, SP_AUDIO_SAMPLE_RATE)
             duration = len(audio) / SD_AUDIO_SAMPLE_RATE * SP_SPEED_UP
-            topic_path = f"{self._microphone_topic_path}/in"
-            payload_out = f"(mute {duration})"
-            aiko.message.publish(topic_path, payload_out)
+            if self._microphone_topic_path:
+                self._microphone_topic_path.mute(duration)
             time.sleep(duration)
         return aiko.StreamEvent.OKAY, {"audio": audio}
 """
