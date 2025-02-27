@@ -44,7 +44,7 @@
 # 
 # Notes
 # ~~~~~
-# Stop using utcnow and utcfromtimestamp
+# No longer using utcnow and utcfromtimestamp
 # - https://blog.ganssle.io/articles/2019/11/utcnow.html
 
 from datetime import date, datetime, timezone
@@ -62,10 +62,11 @@ def datetime_epoch():
     return datetime(1970, 1, 1), epoch
 
 def datetime_now_utc_iso():
-    return datetime.utcnow().isoformat()
+    return datetime.now(tz=timezone.utc).isoformat()
 
 def epoch_to_utc_iso(seconds_since_epoch):
-    return datetime.utcfromtimestamp(seconds_since_epoch).isoformat()
+    utc = datetime.fromtimestamp(seconds_since_epoch, tz=timezone.utc)
+    return utc.isoformat()
 
 def local_iso_now():
   return utc_iso_to_local(datetime_now_utc_iso())
