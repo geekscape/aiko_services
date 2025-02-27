@@ -77,10 +77,10 @@ def utc_iso_since_epoch(datetime_utc_iso):
 
 def utc_iso_to_datetime(datetime_utc_iso):
 #   datetime_utc = date.fromisoformat(datetime_utc_iso)  # should work :(
-    if len(datetime_utc_iso) == 19:
-        strp_isoformat = "%Y-%m-%dT%H:%M:%S"
+    if len(datetime_utc_iso) == 25:
+        strp_isoformat = "%Y-%m-%dT%H:%M:%S%z"
     else:
-        strp_isoformat = "%Y-%m-%dT%H:%M:%S.%f"
+        strp_isoformat = "%Y-%m-%dT%H:%M:%S.%f%z"
     datetime_utc = datetime.strptime(datetime_utc_iso, strp_isoformat)
     return datetime_utc
 
