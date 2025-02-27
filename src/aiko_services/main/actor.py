@@ -104,10 +104,18 @@ import traceback
 from aiko_services.main import *
 from aiko_services.main.utilities import *
 
-__all__ = ["Actor", "ActorImpl", "ActorTest", "ActorTestImpl", "ActorTopic"]
+__all__ = [
+    "Actor", "ActorImpl", "ActorTest", "ActorTestImpl", "ActorTopic",
+    "ACTOR_HOOK_MESSAGE_CALL", "ACTOR_HOOK_MESSAGE_IN"
+]
 
 _AIKO_LOG_LEVEL_ACTOR = os.environ.get("AIKO_LOG_LEVEL_ACTOR", "INFO")
 _LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_ACTOR)
+
+ACTOR_HOOK_MESSAGE_CALL = "actor.message_call:"
+_ACTOR_HOOK_MESSAGE_CALL = ACTOR_HOOK_MESSAGE_CALL+"0"
+ACTOR_HOOK_MESSAGE_IN = "actor.message_in:"
+_ACTOR_HOOK_MESSAGE_IN = ACTOR_HOOK_MESSAGE_IN+"0"
 
 class Message:
     def __init__(self, target_object, command, arguments, target_function=None):
@@ -196,6 +204,9 @@ class ActorImpl(Actor):
         if not hasattr(self, "logger"):
             self.logger = aiko.logger(context.name)
 
+        self.add_hook(_ACTOR_HOOK_MESSAGE_CALL)
+        self.add_hook(_ACTOR_HOOK_MESSAGE_IN)
+
         self.share = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(self.logger),
@@ -216,6 +227,9 @@ class ActorImpl(Actor):
         return f"{self.name}/{self.service_id}/{topic}"
 
     def _mailbox_handler(self, topic, message, time_posted):
+        self.run_hook(_ACTOR_HOOK_MESSAGE_CALL, lambda: {
+            "topic": topic, "message": message, "time_posted": time_posted})
+
         message.invoke()
 
     def _topic_in_handler(self, _aiko, topic, payload_in):
@@ -228,6 +242,10 @@ class ActorImpl(Actor):
 
     def _post_message(
         self, topic, command, args, delay=None, target_function=None):
+
+        self.run_hook(_ACTOR_HOOK_MESSAGE_IN, lambda: {
+            "topic": topic, "command": command, "args": args,
+            "delay": delay, "target_function": target_function})
 
         target_object = self
         message = Message(
@@ -299,7 +317,7 @@ class ActorTest(Actor):  # TODO: Move into "../examples/"
     def test(self, value):
         pass
 
-class ActorTestImpl(ActorTest):  # TODO: Move into "../examples/"
+class ActorTestImpl(ActorTest):  # TODO: Move into "../examples/" showing hooks
     def __init__(self, context):
         context.get_implementation("Actor").__init__(self, context)
         self.test_count = None

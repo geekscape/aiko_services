@@ -19,6 +19,8 @@ from .context import (
 
 from .component import compose_class, compose_instance
 
+from .hook import Hook, Hooks
+
 from .connection import ConnectionState, Connection
 
 from .event import (
@@ -51,7 +53,8 @@ from .share import (
 )
 
 from .actor import (
-    Actor, ActorImpl, ActorTest, ActorTestImpl, ActorTopic
+    Actor, ActorImpl, ActorTest, ActorTestImpl, ActorTopic,
+    ACTOR_HOOK_MESSAGE_CALL, ACTOR_HOOK_MESSAGE_IN
 )
 
 from .discovery import (
@@ -71,7 +74,8 @@ from .stream import (
 
 from .pipeline import (
     Pipeline, PipelineElement, PipelineElementImpl, PipelineImpl,
-    PROTOCOL_PIPELINE
+    PIPELINE_HOOK_PROCESS_ELEMENT, PIPELINE_HOOK_PROCESS_ELEMENT_POST,
+    PIPELINE_HOOK_PROCESS_FRAME, PROTOCOL_PIPELINE
 )
 
 from .scheme import DataScheme

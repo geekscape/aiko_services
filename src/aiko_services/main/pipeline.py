@@ -21,6 +21,9 @@
 # mosquitto_pub -h $HOST -t $TOPIC -m "(process_frame (stream_id: 1) (a: 0))"
 # mosquitto_pub -h $HOST -t $TOPIC -m "(destroy_stream 1)"
 #
+# aiko_pipeline create ../examples/pipeline/pipeline_local.json
+#   --hooks all -fd "(b: 0)"
+#
 # Definition
 # ~~~~~~~~~~
 # "graph": [
@@ -121,7 +124,8 @@ from aiko_services.main.utilities import *
 
 __all__ = [
     "Pipeline", "PipelineElement", "PipelineElementImpl", "PipelineImpl",
-    "PROTOCOL_PIPELINE"
+    "PIPELINE_HOOK_PROCESS_ELEMENT", "PIPELINE_HOOK_PROCESS_ELEMENT_POST",
+    "PIPELINE_HOOK_PROCESS_FRAME", "PROTOCOL_PIPELINE"
 ]
 
 _VERSION = 0
@@ -130,6 +134,13 @@ ACTOR_TYPE_PIPELINE = "pipeline"
 ACTOR_TYPE_ELEMENT = "pipeline_element"
 PROTOCOL_PIPELINE =  f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE_PIPELINE}:{_VERSION}"
 PROTOCOL_ELEMENT =  f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE_ELEMENT}:{_VERSION}"
+
+PIPELINE_HOOK_PROCESS_ELEMENT = "pipeline.process_element:"
+_PIPELINE_HOOK_PROCESS_ELEMENT = PIPELINE_HOOK_PROCESS_ELEMENT+"0"
+PIPELINE_HOOK_PROCESS_ELEMENT_POST = "pipeline.process_element_post:"
+_PIPELINE_HOOK_PROCESS_ELEMENT_POST = PIPELINE_HOOK_PROCESS_ELEMENT_POST+"0"
+PIPELINE_HOOK_PROCESS_FRAME = "pipeline.process_frame:"
+_PIPELINE_HOOK_PROCESS_FRAME = PIPELINE_HOOK_PROCESS_FRAME+"0"
 
 _GRACE_TIME = 60  # seconds
 _LOGGER = aiko.logger(__name__)
@@ -602,6 +613,10 @@ class PipelineImpl(Pipeline):
             "log_level", self_share_priority=False)
         if found:
             self.logger.setLevel(str(log_level).upper())
+
+        self.add_hook(_PIPELINE_HOOK_PROCESS_ELEMENT)
+        self.add_hook(_PIPELINE_HOOK_PROCESS_ELEMENT_POST)
+        self.add_hook(_PIPELINE_HOOK_PROCESS_FRAME)
 
         self.pipeline_graph = self._create_pipeline_graph(context.definition)
         self.share["element_count"] = self.pipeline_graph.element_count
@@ -1137,6 +1152,9 @@ class PipelineImpl(Pipeline):
         frame_complete = True
         graph, stream =  \
             self._process_initialize(stream_dict, frame_data_in, new_frame)
+        self.run_hook(_PIPELINE_HOOK_PROCESS_FRAME, lambda: {
+            "graph": graph, "stream": stream,
+            "frame_data_in": frame_data_in, "new_frame": new_frame})
         if graph is None:
             return False
 
@@ -1188,6 +1206,10 @@ class PipelineImpl(Pipeline):
                 try:
                     if local:  ## Local element ##
                         self._process_metrics_start(metrics)
+                        self.run_hook(_PIPELINE_HOOK_PROCESS_ELEMENT, lambda: {
+                            "element_name": element_name,
+                            "stream": stream,
+                            "inputs": inputs})
                         try:
                             stream_event, frame_data_out =  \
                                 element.process_frame(stream, **inputs)
@@ -1199,6 +1221,11 @@ class PipelineImpl(Pipeline):
                             frame_data_out = {
                                 "diagnostic": traceback.format_exc()}
 
+                        self.run_hook(_PIPELINE_HOOK_PROCESS_ELEMENT_POST,
+                            lambda: {
+                                "element_name": element_name,
+                                "stream": stream, "stream_event": stream_event,
+                                "frame_data_out": frame_data_out})
                         stream.set_state(self._process_stream_event(
                             element_name, stream, stream_event,
                             frame_data_out))
@@ -1646,6 +1673,21 @@ class PipelineDefinitionSchema:
 
 # --------------------------------------------------------------------------- #
 
+def pipeline_hook_process_element(hook_name, component, logger, variables):
+    hook_name = "process_element"
+    if "frame_data_out" in variables:
+        hook_name += "_post"
+    logger.info(f"Hook {hook_name}: {variables}")
+
+def pipeline_hook_process_frame(hook_name, component, logger, variables):
+    variables = {
+        "new_frame": variables["new_frame"],
+        "stream": variables["stream"],
+        "frame_data_in": variables["frame_data_in"]}
+    logger.info(f"Hook process_frame: {variables}")
+
+# --------------------------------------------------------------------------- #
+
 @click.group()
 
 def main():
@@ -1688,6 +1730,9 @@ def main():
 @click.option("--log_mqtt", "-lm", type=str,
     default="all", required=False,
     help="all, false (console), true (mqtt)")
+@click.option("--hooks", "-h", type=str,
+    default="none", required=False,
+    help="hook name or all")
 @click.option("--windows", "-w", is_flag=True,
     help="Enable experimental distributed Streams sliding window protocol")
 @click.option("--exit_message", is_flag=True,
@@ -1696,7 +1741,7 @@ def main():
 def create(definition_pathname, graph_path, name, parameters, stream_id,
     stream_parameters,  # DEPRECATED
     frame_id, frame_data, grace_time, show_response,
-    log_level, log_mqtt, stream_reset, windows, exit_message):
+    log_level, log_mqtt, stream_reset, hooks, windows, exit_message):
 
     if stream_id:
         stream_id = stream_id.replace("{}", get_pid())  # sort-of unique id
@@ -1734,11 +1779,28 @@ def create(definition_pathname, graph_path, name, parameters, stream_id,
         grace_time, queue_response=queue_pipeline_response,
         stream_reset=stream_reset, windows=windows)
 
+    if hooks != "none":
+        pipeline.add_hook_handler(
+            _PIPELINE_HOOK_PROCESS_ELEMENT, pipeline_hook_process_element)
+        pipeline.add_hook_handler(
+            _PIPELINE_HOOK_PROCESS_ELEMENT_POST, pipeline_hook_process_element)
+        pipeline.add_hook_handler(
+            _PIPELINE_HOOK_PROCESS_FRAME, pipeline_hook_process_frame)
+
     pipeline.run(mqtt_connection_required=False)
     if exit_message:
         _LOGGER.warning("Pipeline process exit")
 
-@main.command(name="list", help="List Pipelines")
+@main.command(help="Destroy running Pipeline")
+@click.argument("name", nargs=1, type=str, required=True)
+
+def destroy(name):
+    do_command(Pipeline, ServiceFilter("*", name, "*", "*", "*", "*"),
+        lambda pipeline: pipeline.stop(), terminate=True)
+    aiko.process.run()
+    _LOGGER.info(f'Destroyed Pipeline "{name}"')
+
+@main.command(name="list", help="List running Pipelines")
 @click.option("--follow", "-f", is_flag=True,
     help="Show on-going Pipeline create and destroy actions")
 
@@ -1769,14 +1831,15 @@ def list_command(follow):  # Don't overwrite the Python "list" class
     services_cache = services_cache_create_singleton(aiko.process, True, 0)
     services_cache.add_handler(service_discovery_handler, service_filter)
 
-@main.command(help="Destroy Pipeline")
+"""
+@main.command(help="Update Pipeline: Manage Streams and create Frames")
 @click.argument("name", nargs=1, type=str, required=True)
 
-def destroy(name):
+def update(name):
     do_command(Pipeline, ServiceFilter("*", name, "*", "*", "*", "*"),
-        lambda pipeline: pipeline.stop(), terminate=True)
+        lambda pipeline: pipeline.????(), terminate=True)
     aiko.process.run()
-    _LOGGER.info(f'Destroyed Pipeline "{name}"')
+"""
 
 if __name__ == "__main__":
     main()

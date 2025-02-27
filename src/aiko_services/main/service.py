@@ -50,6 +50,8 @@
 # ~~~~~
 # - BUG: Provide filtered Services to "service_change_handler"
 #
+# - Service Hooks should be optional, whilst Actor Hooks are baked in
+#
 # - Consider using @dataclass, as per "pipeline.py"
 #
 # - If a Service is created after the Process has found the Registrar,
@@ -502,7 +504,7 @@ class Services:
 
 # --------------------------------------------------------------------------- #
 
-class Service(ServiceProtocolInterface):
+class Service(ServiceProtocolInterface, Hooks):  # TODO: Make Hooks be optional
     Interface.default("Service", "aiko_services.main.service.ServiceImpl")
 
     @abstractmethod
