@@ -62,4 +62,4 @@ def test_hook():                                                 # by developer
     init_args = aiko.actor_args("test_hook")
     hook_test = aiko.compose_instance(HookTest, init_args)
     aiko.event.add_timer_handler(hook_test.hook_check, 0.0)
-    aiko.process.run()
+    aiko.process.run(mqtt_connection_required=False)
