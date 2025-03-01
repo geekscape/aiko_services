@@ -14,7 +14,7 @@ import aiko_services as aiko
 from aiko_services.elements.utilities import all_outputs
 from aiko_services.main.utilities import parse
 
-__all__ = ["Inspect", "Observe"]
+__all__ = ["Inspect", "Metrics"]
 
 # --------------------------------------------------------------------------- #
 
