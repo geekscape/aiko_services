@@ -1,0 +1,48 @@
+{
+  "#": "Inspect and Metrics PipelineElements provide observability features",
+
+  "version": 0,
+  "name":    "p_inspect_metrics",
+  "runtime": "python",
+
+  "graph": ["(PE_1 PE_2 Inspect Metrics)"],
+
+  "elements": [
+    { "name":   "PE_1",
+      "input":  [{ "name": "b", "type": "int" }],
+      "output": [{ "name": "c", "type": "int" }],
+      "deploy": {
+        "local": { "module": "aiko_services.examples.pipeline.elements" }
+      }
+    },
+    { "name":   "PE_2",
+      "input":  [{ "name": "c", "type": "int" }],
+      "output": [{ "name": "d", "type": "int" }],
+      "deploy": {
+        "local": { "module": "aiko_services.examples.pipeline.elements" }
+      }
+    },
+    { "name":   "Inspect",
+      "#": "Provides PipelineElement inputs / outputs value inspection",
+      "parameters": {
+        "enable":  true,   "#": "true or false",
+        "inspect": "(*)",  "#": "inputs / outputs names",
+        "target":  "log",  "#": "file:, log or print"
+			},
+      "input":  [],
+      "output": [],
+      "deploy": {
+        "local": { "module": "aiko_services.elements.observe.elements" }
+      }
+    },
+    { "name":   "Metrics",
+      "#": "Provides Pipeline and PipelineElement timing information",
+      "parameters": {"enable": true, "rate": 1},
+      "input":  [],
+      "output": [{ "name": "d", "type": "int" }],
+      "deploy": {
+        "local": { "module": "aiko_services.elements.observe.elements" }
+      }
+    }
+  ]
+}

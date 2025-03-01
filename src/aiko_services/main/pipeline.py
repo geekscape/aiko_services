@@ -1673,6 +1673,9 @@ class PipelineDefinitionSchema:
 
 # --------------------------------------------------------------------------- #
 
+def actor_hook_message_in(hook_name, component, logger, variables):
+    logger.info(f"Hook {hook_name}: {variables}")
+
 def pipeline_hook_process_element(hook_name, component, logger, variables):
     hook_name = "process_element"
     if "frame_data_out" in variables:
@@ -1732,7 +1735,7 @@ def main():
     help="all, false (console), true (mqtt)")
 @click.option("--hooks", "-h", type=str,
     default="none", required=False,
-    help="hook name or all")
+    help="Some combination of am,pe,pep,pf,all,none")
 @click.option("--windows", "-w", is_flag=True,
     help="Enable experimental distributed Streams sliding window protocol")
 @click.option("--exit_message", is_flag=True,
@@ -1779,11 +1782,17 @@ def create(definition_pathname, graph_path, name, parameters, stream_id,
         grace_time, queue_response=queue_pipeline_response,
         stream_reset=stream_reset, windows=windows)
 
-    if hooks != "none":
+    hooks = hooks.split(",")
+    if any(hook in ["all", "am"] for hook in hooks):
+        pipeline.add_hook_handler(
+            ACTOR_HOOK_MESSAGE_IN+"0", actor_hook_message_in)
+    if any(hook in ["all", "pe"] for hook in hooks):
         pipeline.add_hook_handler(
             _PIPELINE_HOOK_PROCESS_ELEMENT, pipeline_hook_process_element)
+    if any(hook in ["all", "pep"] for hook in hooks):
         pipeline.add_hook_handler(
             _PIPELINE_HOOK_PROCESS_ELEMENT_POST, pipeline_hook_process_element)
+    if any(hook in ["all", "pf"] for hook in hooks):
         pipeline.add_hook_handler(
             _PIPELINE_HOOK_PROCESS_FRAME, pipeline_hook_process_frame)
 
