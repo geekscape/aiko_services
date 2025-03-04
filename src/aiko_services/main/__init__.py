@@ -19,7 +19,7 @@ from .context import (
 
 from .component import compose_class, compose_instance
 
-from .hook import Hook, Hooks
+from .hook import DEFAULT_HOOK, Hook, Hooks
 
 from .connection import ConnectionState, Connection
 

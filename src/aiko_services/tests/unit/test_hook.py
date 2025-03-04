@@ -51,12 +51,13 @@ class HookTest(aiko.Actor):  # primarily acts as a Framework component
 
         aiko.process.terminate()  # TODO: Improve Aiko Services Process exit
 
-    def hook_handler(self, name, component, logger, variables):  # by developer
-        assert name == HOOK_NAME
+    def hook_handler(self, name, component, logger, variables, options):
+        assert name == HOOK_NAME                                 # by developer
         assert component == self
         assert logger is not None
         assert variables["variable_0"] == component.variable_0
         assert variables["variable_1"] == component.variable_1
+        assert options == {}
 
 def test_hook():                                                 # by developer
     init_args = aiko.actor_args("test_hook")

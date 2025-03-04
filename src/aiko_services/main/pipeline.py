@@ -1673,24 +1673,6 @@ class PipelineDefinitionSchema:
 
 # --------------------------------------------------------------------------- #
 
-def actor_hook_message_in(hook_name, component, logger, variables):
-    logger.info(f"Hook {hook_name}: {variables}")
-
-def pipeline_hook_process_element(hook_name, component, logger, variables):
-    hook_name = "process_element"
-    if "frame_data_out" in variables:
-        hook_name += "_post"
-    logger.info(f"Hook {hook_name}: {variables}")
-
-def pipeline_hook_process_frame(hook_name, component, logger, variables):
-    variables = {
-        "new_frame": variables["new_frame"],
-        "stream": variables["stream"],
-        "frame_data_in": variables["frame_data_in"]}
-    logger.info(f"Hook process_frame: {variables}")
-
-# --------------------------------------------------------------------------- #
-
 @click.group()
 
 def main():
@@ -1784,17 +1766,17 @@ def create(definition_pathname, graph_path, name, parameters, stream_id,
 
     hooks = hooks.split(",")
     if any(hook in ["all", "am"] for hook in hooks):
-        pipeline.add_hook_handler(
-            ACTOR_HOOK_MESSAGE_IN+"0", actor_hook_message_in)
+        pipeline.add_hook_handler(ACTOR_HOOK_MESSAGE_IN+"0",
+            DEFAULT_HOOK, {"show": ["topic", "message"]})
     if any(hook in ["all", "pe"] for hook in hooks):
-        pipeline.add_hook_handler(
-            _PIPELINE_HOOK_PROCESS_ELEMENT, pipeline_hook_process_element)
+        pipeline.add_hook_handler(_PIPELINE_HOOK_PROCESS_ELEMENT,
+            DEFAULT_HOOK, {"show": ["element_name"]})
     if any(hook in ["all", "pep"] for hook in hooks):
-        pipeline.add_hook_handler(
-            _PIPELINE_HOOK_PROCESS_ELEMENT_POST, pipeline_hook_process_element)
+        pipeline.add_hook_handler(_PIPELINE_HOOK_PROCESS_ELEMENT_POST,
+            DEFAULT_HOOK, {"show": ["element_name"]})
     if any(hook in ["all", "pf"] for hook in hooks):
-        pipeline.add_hook_handler(
-            _PIPELINE_HOOK_PROCESS_FRAME, pipeline_hook_process_frame)
+        pipeline.add_hook_handler(_PIPELINE_HOOK_PROCESS_FRAME,
+            DEFAULT_HOOK, {"show": ["stream.stream_id", "frame_data_in"]})
 
     pipeline.run(mqtt_connection_required=False)
     if exit_message:
@@ -1846,7 +1828,7 @@ def list_command(follow):  # Don't overwrite the Python "list" class
 
 def update(name):
     do_command(Pipeline, ServiceFilter("*", name, "*", "*", "*", "*"),
-        lambda pipeline: pipeline.????(), terminate=True)
+        lambda pipeline: pipeline.destroy_stream("1"), terminate=True)
     aiko.process.run()
 """
 
