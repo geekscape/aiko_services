@@ -195,7 +195,7 @@ class RegistrarImpl(Registrar):
         context.get_implementation("Service").__init__(self, context)
 
         state_machine_model = StateMachineModel(self)
-        self.state_machine = StateMachine(state_machine_model)
+        self.state_machine = StateMachineOld(state_machine_model)
 
         self.history = deque(maxlen=_HISTORY_RING_BUFFER_SIZE)
         self.services = Services()

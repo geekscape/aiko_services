@@ -42,7 +42,7 @@ from .service import (
     Service, ServiceImpl
 )
 
-from .state import StateMachine
+from .state import StateMachineOld
 
 from .proxy import ProxyAllMethods, is_callable, proxy_trace
 

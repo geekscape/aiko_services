@@ -13,12 +13,12 @@ from transitions.core import MachineError
 from aiko_services.main import *
 from aiko_services.main.utilities import *
 
-__all__ = ["StateMachine"]
+__all__ = ["StateMachineOld"]
 
 _AIKO_LOG_LEVEL_STATE = os.environ.get("AIKO_LOG_LEVEL_STATE", "INFO")
 _LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_STATE)
 
-class StateMachine(object):
+class StateMachineOld(object):
     def __init__(self, model):
         self.model = model
         self.state_machine = Machine(
@@ -58,4 +58,4 @@ class StateMachine(object):
             _LOGGER.critical(f"failure during transition: Exception: {traceback.format_exc()}")
 
         if failure:
-            raise SystemExit(f"Fatal error: StateMachine: state={self.get_state()}, action={action}")
+            raise SystemExit(f"Fatal error: StateMachineOld: state={self.get_state()}, action={action}")
