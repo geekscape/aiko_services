@@ -13,6 +13,8 @@
 #
 # To Do
 # ~~~~~
+# - Implement multiple simultaneous YOLO model checkpoints, referenced by name
+#
 # - Provide more flexible search for "_YOLO_MODEL_PATHNAME" ?
 #
 # - Detector:    Inference rate (ignore frames ?)

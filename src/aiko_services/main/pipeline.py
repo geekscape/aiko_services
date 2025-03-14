@@ -2,8 +2,8 @@
 #
 # Manage Pipelines consisting of PipelineElements (Actors or Services)
 #
-# Usage
-# ~~~~~
+# Usage: aiko_pipeline create
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # DEFINITION=pipeline_definition.json
 # aiko_pipeline create  [--name $PIPELINE_NAME] $DEFINITION
 # aiko_pipeline destroy $PIPELINE_NAME
@@ -24,8 +24,49 @@
 # aiko_pipeline create ../examples/pipeline/pipeline_local.json
 #   --hooks all -fd "(b: 0)"
 #
-# Definition
-# ~~~~~~~~~~
+# Usage: aiko_pipeline destroy $PIPELINE_NAME
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+# Usage: aiko_pipeline list [--follow]
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+# Usage: aiko_pipeline update $PIPELINE_NAME ...
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Update is applied to an existing Pipeline with the specified Pipeline name
+# Stream Response best with "-sr -s N -r"  # Else can't change topic_response
+#                              ---
+# Create Stream and/or Frame
+# --------------------------
+# aiko_pipeline create ../examples/pipeline/pipeline_local.json -ll debug
+#
+# aiko_pipeline update p_local -fd "(b: 0)"           # Create Frame
+# aiko_pipeline update p_local -fd "(b: 0)" -sr       # Create Frame, Response
+# aiko_pipeline update p_local -p PE_1.pe_1_inc 2 -fd "(b: 0)"  # Set parameter
+# aiko_pipeline update p_local -s 1                   # Create Stream
+# aiko_pipeline update p_local -s 2 -gt 3             # Create Stream grace time
+# aiko_pipeline update p_local -s 3 -fd "(b: 0)"      # Create Stream and Frame
+# aiko_pipeline update p_local -s 3 -fd "(b: 0)" -r   # Create Stream reset
+# aiko_pipeline update p_local -s 4 -fd "(b: 0)" -sr  # Stream, Frame, Response
+#
+# Update DataSource value
+# -----------------------
+# cd ../elements/media
+# aiko_pipeline create pipelines/text_pipeline_0.json -ll debug
+#
+# aiko_pipeline update p_text_0 -s 1  \
+#            -p TextReadFile.data_sources "(file://data_in/in_00.txt)"
+# aiko_pipeline update p_text_0 -s 2  \
+#            -p TextReadFile.data_sources "(file://data_in/in_01.txt)"
+#
+# Use specific Graph Path
+# -----------------------
+# aiko_pipeline create ../examples/pipeline/pipeline_paths.json -ll debug
+#
+# aiko_pipeline update p_paths -fd "(in_a: hello)"
+# aiko_pipeline update p_paths -s 1 -fd "(in_a: hello)" -gp PE_IN_1
+#
+# PipelineDefinition
+# ~~~~~~~~~~~~~~~~~~
 # "graph": [
 #   "(PE_0 PE_1)",
 #   "(PE_0 PE_1 (PE_2 PE_1))",
@@ -65,6 +106,11 @@
 #
 # To Do
 # ~~~~~
+# * BUG: "PipelineImpl.create_frame(..., graph_path=None)" doesn't use the
+#     "graph_path" parameter at all !
+#
+# * Fix: Define Pipeline outputs explicitly, not just implicitly via PE outputs
+#
 # * CLI: pipeline.py show <service_filter>
 # * CLI: pipeline.py get <service_filter> <parameter_name>  # or wildcard "*"
 # * CLI: pipeline.py set <service_filter> <parameter_name> <parameter_value>
@@ -729,26 +775,9 @@ class PipelineImpl(Pipeline):
         )
         pipeline = compose_instance(PipelineImpl, init_args)
 
-        stream_dict = {"frame_id": int(frame_id), "parameters": {}}
-
-        if stream_id is not None:
-            stream_dict["stream_id"] = stream_id
-            if stream_reset:
-                pipeline.destroy_stream(stream_id)
-
-            pipeline.create_stream(stream_id, graph_path=None,
-                parameters=dict(parameters), grace_time=grace_time,
-                queue_response=queue_response, topic_response=None)
-        else:
-            pipeline.set_parameters(None, parameters)
-
-        if frame_data is not None:
-            function_name, arguments = parse(f"(process_frame {frame_data})")
-            if len(arguments):
-                pipeline.create_frame(stream_dict, arguments[0])
-            else:
-                raise SystemExit(
-                    f"Error: Frame data must be provided")
+        PipelineImpl.update_pipeline(pipeline, graph_path, stream_id,
+            parameters, frame_id, frame_data, grace_time,
+            queue_response, None, stream_reset)
 
         return pipeline
 
@@ -863,7 +892,7 @@ class PipelineImpl(Pipeline):
 
         if queue_response and topic_response:
             self.logger.error(
-                f"Create stream: use either queue_response or topic_response")
+                "Create stream: use either queue_response or topic_response")
             return False
 
     # TODO: Proper solution for overall handling of remote Pipeline proxy
@@ -1311,7 +1340,9 @@ class PipelineImpl(Pipeline):
             if new_stream_id not in self.stream_leases:
                 status = self.create_stream(
                     new_stream_id, graph_path=stream.graph_path,
-                    parameters=stream.parameters)
+                    parameters=stream.parameters,
+                    queue_response=stream.queue_response,
+                    topic_response=stream.topic_response)
                 if status == False:
                     return None, None
 
@@ -1501,6 +1532,35 @@ class PipelineImpl(Pipeline):
         for parameter in parameters:
             self.set_parameter(stream_id, parameter[0], parameter[1])
 
+    @classmethod
+    def update_pipeline(cls, pipeline, graph_path, stream_id,
+        parameters, frame_id, frame_data, grace_time,
+        queue_response=None, topic_response=None, stream_reset=False):
+
+        stream_dict = {"frame_id": int(frame_id), "parameters": {}}
+
+        if stream_id is not None:
+            stream_dict["stream_id"] = stream_id
+            if stream_reset:
+                pipeline.destroy_stream(stream_id)
+
+            pipeline.create_stream(stream_id, graph_path,
+                dict(parameters), grace_time, queue_response, topic_response)
+        else:
+            pipeline.set_parameters(None, parameters)
+
+        if frame_data is not None:
+            function_name, arguments = parse(f"(process_frame {frame_data})")
+            if len(arguments):
+                if queue_response:
+                    stream_dict["queue_response"] = queue_response
+                if topic_response:
+                    stream_dict["topic_response"] = topic_response
+                pipeline.create_frame(stream_dict, arguments[0])
+            else:
+                raise SystemExit(
+                    f"Error: Frame data must be provided")
+
 class PipelineRemote(PipelineElement):
     def __init__(self, context):
         context.get_implementation("PipelineElement").__init__(self, context)
@@ -1679,6 +1739,33 @@ def main():
     """Create, list, update and destroy Pipelines"""
     pass
 
+def do_show_response(topic_response=None):  # default is to use a queue_response
+    queue_response = None
+
+    def show_response(stream_dict, frame_data):
+        id = f'<{stream_dict["stream_id"]}:{stream_dict["frame_id"]}>'
+        _LOGGER.info(f"Output: {id} {frame_data}")
+
+    def queue_response_handler(queue_response):
+        while True:
+            response = queue_response.get()
+            show_response(response[0], response[1])
+
+    def topic_response_handler(_aiko, topic, payload_in):
+        command, parameters = parse(payload_in)
+        if command == "process_frame_response":
+            show_response(parameters[0], parameters[1])
+            aiko.process.terminate()
+
+    if topic_response:
+        aiko.process.add_message_handler(topic_response_handler, topic_response)
+    else:
+        queue_response = queue.Queue()
+        Thread(target=queue_response_handler,
+                 args=(queue_response,), daemon=True).start()
+
+    return queue_response
+
 @main.command(help="Create Pipeline defined by PipelineDefinition pathname")
 @click.argument("definition_pathname", nargs=1, type=str)
 @click.option("--name", "-n", type=str,
@@ -1689,7 +1776,7 @@ def main():
     help="Pipeline Graph Path, use Head_PipelineElement_name")
 @click.option("--parameters", "-p", type=click.Tuple((str, str)),
     default=None, multiple=True, required=False,
-    help="Define Stream parameters")
+    help="Define parameters")
 @click.option("--stream_reset", "-r", is_flag=True,
     help="Reset the remote Stream by invoking destroy_stream() first")
 @click.option("--stream_id", "-s", type=str,
@@ -1745,18 +1832,7 @@ def create(definition_pathname, graph_path, name, parameters, stream_id,
     pipeline_definition = PipelineImpl.parse_pipeline_definition(
         definition_pathname)
 
-    def pipeline_response_handler(queue_pipeline_response):
-        while True:
-            response = queue_pipeline_response.get()
-            id = f'<{response[0]["stream_id"]}:{response[0]["frame_id"]}>'
-            frame_data = response[1]
-            _LOGGER.info(f"Output: {id} {frame_data}")
-
-    queue_pipeline_response = None
-    if show_response:
-        queue_pipeline_response = queue.Queue()
-        Thread(target=pipeline_response_handler,
-            args=(queue_pipeline_response,), daemon=True).start()
+    queue_pipeline_response = do_show_response() if show_response else None
 
     pipeline = PipelineImpl.create_pipeline(
         definition_pathname, pipeline_definition,
@@ -1766,7 +1842,7 @@ def create(definition_pathname, graph_path, name, parameters, stream_id,
 
     hooks = hooks.split(",")
     if any(hook in ["all", "am"] for hook in hooks):
-        pipeline.add_hook_handler(ACTOR_HOOK_MESSAGE_IN+"0",
+        pipeline.add_hook_handler(ACTOR_HOOK_MESSAGE_CALL+"0",
             DEFAULT_HOOK, {"show": ["topic", "message"]})
     if any(hook in ["all", "pe"] for hook in hooks):
         pipeline.add_hook_handler(_PIPELINE_HOOK_PROCESS_ELEMENT,
@@ -1822,15 +1898,48 @@ def list_command(follow):  # Don't overwrite the Python "list" class
     services_cache = services_cache_create_singleton(aiko.process, True, 0)
     services_cache.add_handler(service_discovery_handler, service_filter)
 
-"""
 @main.command(help="Update Pipeline: Manage Streams and create Frames")
 @click.argument("name", nargs=1, type=str, required=True)
+@click.option("--graph_path", "-gp", type=str,
+    default=None, required=False,
+    help="Pipeline Graph Path, use Head_PipelineElement_name")
+@click.option("--parameters", "-p", type=click.Tuple((str, str)),
+    default=None, multiple=True, required=False,
+    help="Update parameters")
+@click.option("--stream_reset", "-r", is_flag=True,
+    help="Reset the remote Stream by invoking destroy_stream() first")
+@click.option("--stream_id", "-s", type=str,
+    default=None, required=False,
+    help="Update Stream with identifier")
+@click.option("--grace_time", "-gt", type=int,
+    default=_GRACE_TIME, required=False,
+    help="Stream receive frame time-out duration")
+@click.option("--show_response", "-sr", is_flag=True,
+    help="Show pipeline output response (output)")
+@click.option("--frame_id", "-fi", type=int,
+    default=0, required=False,
+    help="Process Frame with identifier")
+@click.option("--frame_data", "-fd", type=str,
+    default=None, required=False,
+    help="Process Frame with data")
 
-def update(name):
-    do_command(Pipeline, ServiceFilter("*", name, "*", "*", "*", "*"),
-        lambda pipeline: pipeline.destroy_stream("1"), terminate=True)
+def update(name, graph_path, parameters, stream_id,
+    frame_id, frame_data, grace_time, show_response, stream_reset):
+
+    topic_response = None
+    if show_response:        # TODO: Replace "do_command()" with "do_request()"
+        topic_response = aiko.topic_in
+        do_show_response(topic_response)  # support remote Pipeline response
+
+    def update_command(pipeline):
+        PipelineImpl.update_pipeline(pipeline, graph_path, stream_id,
+            parameters, frame_id, frame_data, grace_time,
+            None, topic_response, stream_reset)
+
+    do_command(Pipeline,
+        ServiceFilter("*", name, PROTOCOL_PIPELINE, "*", "*", "*"),
+        lambda pipeline: update_command(pipeline), terminate=not show_response)
     aiko.process.run()
-"""
 
 if __name__ == "__main__":
     main()

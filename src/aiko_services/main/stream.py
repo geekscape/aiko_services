@@ -116,5 +116,9 @@ class Stream:
         self.frame_id = int(stream_dict.get("frame_id", self.frame_id))
         self.graph_path = stream_dict.get("graph_path", self.graph_path)
         self.parameters = stream_dict.get("parameters", self.parameters)
+        self.queue_response = stream_dict.get(
+            "queue_response", self.queue_response)
         self.state = int(stream_dict.get("state", StreamState.RUN))
+        self.topic_response = stream_dict.get(
+            "topic_response", self.topic_response)
         return True
