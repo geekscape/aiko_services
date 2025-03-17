@@ -127,6 +127,9 @@
 #
 # - Collect "local" and "remote" into "deployment" configuration structure
 #
+# - Support remote "aiko_pipeline update PIPELINE_NAME --hooks HOOKS_TYPE"
+#   - Including "pipeline.remove_hook_handler()", i.e hooks="none"
+#
 # - Validate function inputs and outputs against Pipeline Definition
 #
 # - Pipeline CLI option to be the LifeCycleManager and recursively create both
@@ -421,7 +424,7 @@ class PipelineElementImpl(PipelineElement):
         log_level, found = self.get_parameter(
             "log_level", self_share_priority=False)
         if found:
-            self.logger.setLevel(log_level_real(item_value))
+            self.logger.setLevel(log_level_real(log_level))
 
         self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"
         self.share.update(self.definition.parameters)
@@ -659,7 +662,7 @@ class PipelineImpl(Pipeline):
         log_level, found = self.get_parameter(
             "log_level", self_share_priority=False)
         if found:
-            self.logger.setLevel(log_level_real(item_value))
+            self.logger.setLevel(log_level_real(log_level))
 
         self.add_hook(_PIPELINE_HOOK_PROCESS_ELEMENT)
         self.add_hook(_PIPELINE_HOOK_PROCESS_ELEMENT_POST)
@@ -769,7 +772,8 @@ class PipelineImpl(Pipeline):
     @classmethod
     def create_pipeline(cls, definition_pathname, pipeline_definition,
         name, graph_path, stream_id, parameters, frame_id, frame_data,
-        grace_time, queue_response=None, stream_reset=False, windows=False):
+        grace_time, queue_response=None,
+        log_level=None, stream_reset=False, hooks="none", windows=False):
 
         global _WINDOWS
         _WINDOWS = windows
@@ -786,7 +790,7 @@ class PipelineImpl(Pipeline):
 
         PipelineImpl.update_pipeline(pipeline, graph_path, stream_id,
             parameters, frame_id, frame_data, grace_time,
-            queue_response, None, stream_reset, None)
+            queue_response, None, log_level, stream_reset, hooks)
 
         return pipeline
 
@@ -1544,8 +1548,24 @@ class PipelineImpl(Pipeline):
     @classmethod
     def update_pipeline(cls, pipeline, graph_path, stream_id,
         parameters, frame_id, frame_data, grace_time,
-        queue_response=None, topic_response=None, stream_reset=False,
-        log_level=None):
+        queue_response=None, topic_response=None,
+        log_level=None, stream_reset=False, hooks="none"):
+
+    # TODO: Support update of remote "pipeline", issue with named arguments ?
+    # TODO: Support "pipeline.remove_hook_handler()", i.e hooks="none"
+        hooks = hooks.split(",")
+        if any(hook in ["all", "am"] for hook in hooks):
+            pipeline.add_hook_handler(ACTOR_HOOK_MESSAGE_CALL+"0",
+                DEFAULT_HOOK, {"show": ["topic", "message"]})
+        if any(hook in ["all", "pe"] for hook in hooks):
+            pipeline.add_hook_handler(_PIPELINE_HOOK_PROCESS_ELEMENT,
+                DEFAULT_HOOK, {"show": ["element_name"]})
+        if any(hook in ["all", "pep"] for hook in hooks):
+            pipeline.add_hook_handler(_PIPELINE_HOOK_PROCESS_ELEMENT_POST,
+                DEFAULT_HOOK, {"show": ["element_name"]})
+        if any(hook in ["all", "pf"] for hook in hooks):
+            pipeline.add_hook_handler(_PIPELINE_HOOK_PROCESS_FRAME,
+                DEFAULT_HOOK, {"show": ["stream.stream_id", "frame_data_in"]})
 
         if log_level:
             pipeline.set_log_level(log_level)
@@ -1810,8 +1830,8 @@ def do_show_response(topic_response=None):  # default is to use a queue_response
     default=None, required=False,
     help="Process Frame with data")
 @click.option("--log_level", "-ll", type=str,
-    default="INFO", required=False,
-    help="error, warning, info, debug")
+    default=None, required=False,
+    help='error, warning, info, debug plus "_all"')
 @click.option("--log_mqtt", "-lm", type=str,
     default="all", required=False,
     help="all, false (console), true (mqtt)")
@@ -1835,7 +1855,6 @@ def create(definition_pathname, graph_path, name, parameters, stream_id,
         parameters = stream_parameters
         _LOGGER.warning('"--stream_parameters" replaced by "--parameters"')
 
-    os.environ["AIKO_LOG_LEVEL"] = log_level.upper()
     os.environ["AIKO_LOG_MQTT"] = log_mqtt
 
     if not os.path.exists(definition_pathname):
@@ -1851,21 +1870,8 @@ def create(definition_pathname, graph_path, name, parameters, stream_id,
         definition_pathname, pipeline_definition,
         name, graph_path, stream_id, parameters, frame_id, frame_data,
         grace_time, queue_response=queue_pipeline_response,
-        stream_reset=stream_reset, windows=windows)
-
-    hooks = hooks.split(",")
-    if any(hook in ["all", "am"] for hook in hooks):
-        pipeline.add_hook_handler(ACTOR_HOOK_MESSAGE_CALL+"0",
-            DEFAULT_HOOK, {"show": ["topic", "message"]})
-    if any(hook in ["all", "pe"] for hook in hooks):
-        pipeline.add_hook_handler(_PIPELINE_HOOK_PROCESS_ELEMENT,
-            DEFAULT_HOOK, {"show": ["element_name"]})
-    if any(hook in ["all", "pep"] for hook in hooks):
-        pipeline.add_hook_handler(_PIPELINE_HOOK_PROCESS_ELEMENT_POST,
-            DEFAULT_HOOK, {"show": ["element_name"]})
-    if any(hook in ["all", "pf"] for hook in hooks):
-        pipeline.add_hook_handler(_PIPELINE_HOOK_PROCESS_FRAME,
-            DEFAULT_HOOK, {"show": ["stream.stream_id", "frame_data_in"]})
+        log_level=log_level, stream_reset=stream_reset, hooks=hooks,
+        windows=windows)
 
     pipeline.run(mqtt_connection_required=False)
     if exit_message:
@@ -1936,11 +1942,15 @@ def list_command(follow):  # Don't overwrite the Python "list" class
     default=None, required=False,
     help="Process Frame with data")
 @click.option("--log_level", "-ll", type=str,
-    default="INFO", required=False,
+    default=None, required=False,
     help='error, warning, info, debug plus "_all"')
+# TODO: Add "hooks"
+# @click.option("--hooks", "-h", type=str,
+#   default="none", required=False,
+#   help="Some combination of am,pe,pep,pf,all,none")
 
-def update(name, graph_path, parameters, stream_id,
-    frame_id, frame_data, grace_time, show_response, stream_reset, log_level):
+def update(name, graph_path, parameters, stream_id, frame_id, frame_data,
+    grace_time, show_response, log_level, stream_reset):  # TODO: Add "hooks"
 
     topic_response = None
     if show_response:        # TODO: Replace "do_command()" with "do_request()"
@@ -1950,7 +1960,7 @@ def update(name, graph_path, parameters, stream_id,
     def update_command(pipeline):
         PipelineImpl.update_pipeline(pipeline, graph_path, stream_id,
             parameters, frame_id, frame_data, grace_time,
-            None, topic_response, stream_reset, log_level)
+            None, topic_response, log_level, stream_reset, "none")
 
     do_command(Pipeline,
         ServiceFilter("*", name, PROTOCOL_PIPELINE, "*", "*", "*"),
