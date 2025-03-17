@@ -33,7 +33,7 @@
 #
 # def ec_producer_change_handler(command, item_name, item_value):
 #     if item_name == "log_level":
-#         _LOGGER.setLevel(str(item_value).upper())
+#         _LOGGER.setLevel(log_level_real(item_value))
 #
 # state = {"log_level": get_log_level_name(_LOGGER)}
 # ec_producer = ECProducer(service, state)
@@ -67,7 +67,8 @@ from typing import Any
 from aiko_services.main.utilities import *
 
 __all__ = [
-    "DEBUG", "get_level_name", "get_logger", "LoggingHandlerMQTT", "print_error"
+    "DEBUG", "get_level_name", "get_logger", "LoggingHandlerMQTT",
+    "log_level_all", "log_level_real", "print_error"
 ]
 
 DEBUG = logging.DEBUG
@@ -116,6 +117,14 @@ def get_logger(name: str, log_level=None, logging_handler=None) -> Any:
     logger.addHandler(logging_handler)
     logger.setLevel(log_level)
     return logger
+
+def log_level_all(log_level):
+    return log_level.upper().endswith("_ALL")
+
+def log_level_real(log_level):  # Make uppercase and strip "_ALL" suffix
+    log_level = log_level.upper()
+    log_level = log_level[:-4] if log_level_all(log_level) else log_level
+    return log_level
 
 def print_error(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)

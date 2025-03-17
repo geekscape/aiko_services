@@ -707,11 +707,15 @@ class LogLevelPopupMenu(PopupMenu):
         self._service_selected = service_selected
 
         menu_items = [
-            ("Cancel", self._parent_widget.focus),
-            ("Debug", self._button_handler),
-            ("Error", self._button_handler),
-            ("Info", self._button_handler),
-            ("Warning", self._button_handler)]
+            ("   Cancel",      self._parent_widget.focus),
+            ("d: Debug",       self._button_handler),
+            ("e: Error",       self._button_handler),
+            ("i: Info",        self._button_handler),
+            ("w: Warning",     self._button_handler),
+            ("D: Debug   all", self._button_handler),
+            ("E: Error   all", self._button_handler),
+            ("I: Info    all", self._button_handler),
+            ("W: Warning all", self._button_handler)]
         x = screen.width // 2 - 4
         y = screen.height // 3
 
@@ -731,7 +735,11 @@ class LogLevelPopupMenu(PopupMenu):
         ord("d"): "DEBUG",
         ord("e"): "ERROR",
         ord("i"): "INFO",
-        ord("w"): "WARNING"
+        ord("w"): "WARNING",
+        ord("D"): "DEBUG_ALL",
+        ord("E"): "ERROR_ALL",
+        ord("I"): "INFO_ALL",
+        ord("W"): "WARNING_ALL"
     }
 
     def process_event(self, event):

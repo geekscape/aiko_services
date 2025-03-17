@@ -19,7 +19,8 @@ from .importer import load_module, load_modules
 from .lock import Lock
 
 from .logger import (
-    DEBUG, get_log_level_name, get_logger, LoggingHandlerMQTT, print_error
+    DEBUG, get_log_level_name, get_logger, LoggingHandlerMQTT,
+    log_level_all, log_level_real, print_error
 )
 
 from .lru_cache import LRUCache

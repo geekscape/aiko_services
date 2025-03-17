@@ -187,6 +187,10 @@ class Actor(Service):
     def run(self, mqtt_connection_required=True):
         pass
 
+    @abstractmethod
+    def set_log_level(self, level):
+        pass
+
 class ActorImpl(Actor):
     @classmethod
     def proxy_post_message(
@@ -279,7 +283,7 @@ class ActorImpl(Actor):
     #       _LOGGER.debug(f"ECProducer: {command} {item_name} {item_value}")
         if item_name == "log_level":
             try:
-                self.logger.setLevel(str(item_value).upper())
+                self.logger.setLevel(log_level_real(item_value))
             except ValueError:
                 pass
 
@@ -297,8 +301,8 @@ class ActorImpl(Actor):
             raise exception
         self.share["running"] = False
 
-    def set_log_level(self, level):  # Override to set subclass _LOGGER level
-        pass
+    def set_log_level(self, level):
+        self.ec_producer.update("log_level", level.upper())
 
 class ActorTest(Actor):  # TODO: Move into "../examples/"
     Interface.default("ActorTest", "aiko_services.main.actor.ActorTestImpl")

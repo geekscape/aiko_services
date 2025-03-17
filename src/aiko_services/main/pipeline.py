@@ -421,7 +421,7 @@ class PipelineElementImpl(PipelineElement):
         log_level, found = self.get_parameter(
             "log_level", self_share_priority=False)
         if found:
-            self.logger.setLevel(str(log_level).upper())
+            self.logger.setLevel(log_level_real(item_value))
 
         self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"
         self.share.update(self.definition.parameters)
@@ -641,6 +641,7 @@ class PipelineImpl(Pipeline):
     def __init__(self, context):
         self.DEBUG = {}                                     # DEBUG: 2024-12-02
 
+        self.pipeline_graph = None
         self.actor = context.get_implementation("Actor")    # _WINDOWS
         context.get_implementation("PipelineElement").__init__(self, context)
         self.logger.info(f"MQTT topic: {self.topic_in}")
@@ -658,7 +659,7 @@ class PipelineImpl(Pipeline):
         log_level, found = self.get_parameter(
             "log_level", self_share_priority=False)
         if found:
-            self.logger.setLevel(str(log_level).upper())
+            self.logger.setLevel(log_level_real(item_value))
 
         self.add_hook(_PIPELINE_HOOK_PROCESS_ELEMENT)
         self.add_hook(_PIPELINE_HOOK_PROCESS_ELEMENT_POST)
@@ -684,13 +685,21 @@ class PipelineImpl(Pipeline):
 
         event.add_timer_handler(self._status_update_timer, 3.0)
 
-    # Exists only for_WINDOWS option
     def ec_producer_change_handler(self, command, item_name, item_value):
-        global _WINDOWS
+        if item_name == "log_level":
+            if log_level_all(item_value):               # update all elements ?
+                log_level = log_level_real(item_value)  # clean-up log_level :)
+                if self.pipeline_graph:
+                    for node in self.pipeline_graph:
+                        element, _, _, _ = PipelineGraph.get_element(node)
+                        element.ec_producer.update(item_name, log_level)
+
         self.actor.ec_producer_change_handler(
             self, command, item_name, item_value)
+
         if item_name == "sliding_windows":
             try:
+                global _WINDOWS
                 _WINDOWS = item_value.lower() == "true"
             except ValueError:
                 pass
@@ -777,7 +786,7 @@ class PipelineImpl(Pipeline):
 
         PipelineImpl.update_pipeline(pipeline, graph_path, stream_id,
             parameters, frame_id, frame_data, grace_time,
-            queue_response, None, stream_reset)
+            queue_response, None, stream_reset, None)
 
         return pipeline
 
@@ -1535,7 +1544,11 @@ class PipelineImpl(Pipeline):
     @classmethod
     def update_pipeline(cls, pipeline, graph_path, stream_id,
         parameters, frame_id, frame_data, grace_time,
-        queue_response=None, topic_response=None, stream_reset=False):
+        queue_response=None, topic_response=None, stream_reset=False,
+        log_level=None):
+
+        if log_level:
+            pipeline.set_log_level(log_level)
 
         stream_dict = {"frame_id": int(frame_id), "parameters": {}}
 
@@ -1922,9 +1935,12 @@ def list_command(follow):  # Don't overwrite the Python "list" class
 @click.option("--frame_data", "-fd", type=str,
     default=None, required=False,
     help="Process Frame with data")
+@click.option("--log_level", "-ll", type=str,
+    default="INFO", required=False,
+    help='error, warning, info, debug plus "_all"')
 
 def update(name, graph_path, parameters, stream_id,
-    frame_id, frame_data, grace_time, show_response, stream_reset):
+    frame_id, frame_data, grace_time, show_response, stream_reset, log_level):
 
     topic_response = None
     if show_response:        # TODO: Replace "do_command()" with "do_request()"
@@ -1934,7 +1950,7 @@ def update(name, graph_path, parameters, stream_id,
     def update_command(pipeline):
         PipelineImpl.update_pipeline(pipeline, graph_path, stream_id,
             parameters, frame_id, frame_data, grace_time,
-            None, topic_response, stream_reset)
+            None, topic_response, stream_reset, log_level)
 
     do_command(Pipeline,
         ServiceFilter("*", name, PROTOCOL_PIPELINE, "*", "*", "*"),
