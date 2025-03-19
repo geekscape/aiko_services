@@ -5,19 +5,23 @@
 # AIKO_LOG_LEVEL=DEBUG ./discovery.py start &
 #
 # AIKO_LOG_LEVEL=DEBUG ./discovery.py test_discovery
-#   DiscoveryTest add:    name: topic_path
-#   DiscoveryTest remove: name: topic_path
+#   Add:    name: topic_path
+#   Remove: name: topic_path
 #
-# AIKO_LOG_LEVEL=DEBUG ./discovery.py test_command [argument_0]
-#   DiscoveryTest command: test_command(argument_0)
+# AIKO_LOG_LEVEL=DEBUG ./discovery.py test_command [argument]
+#   Command: argument
 #
-# AIKO_LOG_LEVEL=DEBUG ./discovery.py test_request [request_0]
-#   DiscoveryTest response: [("request_0", [])]
+# AIKO_LOG_LEVEL=DEBUG ./discovery.py test_request [request]
+#   Response: [("request", [])]
 #
 # To Do
 # ~~~~~
-# * Improve DiscoveryImpl.test_request() by implementing DiscoveryRequest
-# * Improve DiscoveryImpl.test_request() to handle multiple response items
+# * Implement timeouts ...
+#   * do_command(), do_request(): Timeout waiting for discovery for request
+#   * do_request(): Timeout waiting for response
+#
+# * Improve ExampleImpl.request() by implementing DiscoveryResponse
+# * Improve ExampleImpl.request() to handle multiple response items
 #
 # - Consolidate "proxy.py" (used by "actor.py") and "get_service_proxy()"
 #   - See "_proxy_post_message()" below
@@ -149,8 +153,8 @@ def _make_service_proxy(target_topic_in, public_method_names):
 
     def _proxy_send_message(method_name):
         def closure(*args, **kwargs):
-            parameters = args if not kwargs else [args[0], kwargs]
-            payload = generate(method_name, parameters)
+            arguments = args if not kwargs else [args[0], kwargs]
+            payload = generate(method_name, arguments)
             aiko.message.publish(target_topic_in, payload)
         return closure
 
@@ -210,19 +214,19 @@ def do_request(
     items_received = 0
     response = []
 
-# TODO: The "response_handler" should implement the DiscoveryRequest interface
+# TODO: The "response_handler" should implement the DiscoveryResponse interface
 #       Use remote function calls, rather than message payload parsing !
 
     def response_handler_internal(_aiko, topic, payload_in):
         nonlocal item_count, items_received, response
 
-        command, parameters = parse(payload_in)
-        if command == "item_count" and len(parameters) == 1:
-            item_count = int(parameters[0])
+        command, arguments = parse(payload_in)
+        if command == "item_count" and len(arguments) == 1:
+            item_count = int(arguments[0])
             items_received = 0
             response = []
         elif command == "response" and items_received < item_count:
-            response.append(parameters)
+            response.append(arguments)
             items_received += 1
             if items_received == item_count:
                 response_handler(response)
@@ -235,8 +239,8 @@ def do_request(
 
 # --------------------------------------------------------------------------- #
 
-class DiscoveryRequest(Actor):
-    Interface.default("DiscoveryRequest", None)
+class DiscoveryResponse(Actor):  # TODO: Improve and make part of the API ?
+    Interface.default("DiscoveryResponse", None)
 
     @abstractmethod
     def item_count(self, count):
@@ -246,28 +250,27 @@ class DiscoveryRequest(Actor):
     def response(self, payload):
         pass
 
-class DiscoveryTest(Actor):
-    Interface.default(
-        "DiscoveryTest", "aiko_services.main.discovery.DiscoveryTestImpl")
+class Example(Actor):
+    Interface.default("Example", "aiko_services.main.discovery.ExampleImpl")
 
     @abstractmethod
-    def test_command(self, parameter):
+    def command(self, argument):
         pass
 
     @abstractmethod
-    def test_request(self, topic_path_response, request):
+    def request(self, topic_path_response, request):
         pass
 
-class DiscoveryTestImpl(DiscoveryTest):
+class ExampleImpl(Example):
     def __init__(self, context):
         context.get_implementation("Actor").__init__(self, context)
         self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"
 
-    def test_command(self, parameter):
-        print(f"DiscoveryTest command: test_command({parameter})")
+    def command(self, argument):
+        print(f"Command: {argument}")
 
-    def test_request(self, topic_path_response, request):
-        service = get_service_proxy(topic_path_response, DiscoveryRequest)
+    def request(self, topic_path_response, request):
+        service = get_service_proxy(topic_path_response, DiscoveryResponse)
         service.item_count(1)
         service.response(request)
 
@@ -278,50 +281,50 @@ class DiscoveryTestImpl(DiscoveryTest):
 def main():
     pass
 
-@main.command(help="DiscoveryTest start")
+@main.command(help="Example start")
 
 def start():
     tags = ["ec=true"]
     init_args = actor_args(ACTOR_TYPE, protocol=PROTOCOL, tags=tags)
-    discovery = compose_instance(DiscoveryTestImpl, init_args)
+    discovery = compose_instance(ExampleImpl, init_args)
     discovery.run()
 
-@main.command(name="test_discovery", help="DiscoveryTest add / remove Service")
+@main.command(name="test_discovery", help="Example do_discovery()")
 
 def test_discovery():
     def discovery_add_handler(service_details, service):
         print(
-            f"DiscoveryTest add:    {service_details[1]}: {service_details[0]}")
+            f"Add:    {service_details[1]}: {service_details[0]}")
 
     def discovery_remove_handler(service_details):
         print(
-            f"DiscoveryTest remove: {service_details[1]}: {service_details[0]}")
+            f"Remove: {service_details[1]}: {service_details[0]}")
 
     service_discovery, service_discovery_handler =  \
         do_discovery(
-            DiscoveryTest, ServiceFilter("*", "*", "*", "*", "*", "*"),
+            Example, ServiceFilter("*", "*", "*", "*", "*", "*"),
             discovery_add_handler, discovery_remove_handler)
     aiko.process.run()
 
-@main.command(name="test_command", help="DiscoveryTest invoke command")
-@click.argument("argument", default="argument_0", required=False)
+@main.command(name="test_command", help="Example do_command()")
+@click.argument("argument", default="argument", required=False)
 
 def test_command(argument):
-    do_command(DiscoveryTest, ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
-        lambda discovery: discovery.test_command(argument), terminate=True)
-    aiko.process.run()
+    do_command(Example, ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
+        lambda discovery: discovery.command(argument), terminate=True)
+    aiko.process.run(loop_when_no_handlers=True)  # Keep event loop running
 
-@main.command(name="test_request", help="DiscoveryTest invoke request")
-@click.argument("request", default="request_0", required=False)
+@main.command(name="test_request", help="Example do_request()")
+@click.argument("request", default="request", required=False)
 
 def test_request(request):
     def response_handler(response):
-        print(f"DiscoveryTest response: {response}")
+        print(f"Response: {response}")
 
-    do_request(DiscoveryTest, ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
-        lambda discovery: discovery.test_request(_RESPONSE_TOPIC, request),
+    do_request(Example, ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
+        lambda discovery: discovery.request(_RESPONSE_TOPIC, request),
         response_handler, _RESPONSE_TOPIC, terminate=True)
-    aiko.process.run()
+    aiko.process.run(loop_when_no_handlers=True)  # Keep event loop running
 
 if __name__ == "__main__":
     main()
