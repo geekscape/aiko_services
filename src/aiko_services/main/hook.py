@@ -13,6 +13,8 @@
 # - Provides "hook_function(hook_name, component, logger, variables)"
 # - Add the hook function via "self.add_hook_handler(hook_name, hook_function)
 #
+# Hooks are only supported within the "component (Service)" infrastructure.
+#
 # Resource costs
 # ~~~~~~~~~~~~~~
 # CPU time used by run_hook() ...
@@ -44,13 +46,12 @@
 #
 # To Do
 # ~~~~~
-# - Provide Hook for PipelineDefinition
 # - Refactor Metrics to use Hooks for capturing CPU time and beyond !
 
 from abc import abstractmethod
-from collections import OrderedDict
+from collections import OrderedDict as OrderedDictCollections
 from dataclasses import dataclass, field, is_dataclass
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, OrderedDict as OrderedDictTyping
 
 from aiko_services.main import *
 
@@ -72,7 +73,8 @@ class HookHandler:
 class Hook:
     name: str  # "component_name.hook_name:version"
     enabled: bool = ENABLED_DEFAULT
-    handlers: OrderedDict[str, HookHandler] = field(default_factory=OrderedDict)
+    handlers: OrderedDictTyping[str, HookHandler] =  \
+                  field(default_factory=OrderedDictCollections)
     invoked: int = 0
 
 class Hooks:
