@@ -1,6 +1,6 @@
 # Usage
 # ~~~~~
-# - aiko_pipeline create pipelines/pipeline_arguments.json -fd "()" -ll debug
+# - aiko_pipeline create pipelines/pipeline_expression.json -fd "()" -ll debug
 #
 # To Do
 # ~~~~~
@@ -15,7 +15,7 @@ from typing import Tuple
 import aiko_services as aiko
 from aiko_services.main.utilities import *
 
-__all__ = ["all_outputs", "evaluate", "FunctionArguments"]
+__all__ = ["all_outputs", "evaluate", "Expression"]
 
 # --------------------------------------------------------------------------- #
 
@@ -28,9 +28,9 @@ def all_outputs(pipeline_element, stream):
     return outputs
 
 # --------------------------------------------------------------------------- #
-# FunctionArguments PipelineElement enables modifying process_frame()
+# Expression PipelineElement enables modifying process_frame()
 # input and output arguments, via "define", "delete" and "rename"
-# commands, which are specified as FunctionArguments parameters ...
+# commands, which are specified as Expression parameters ...
 #
 # - define: "(argument_0 expression_0) (argument_1 expression_1) ..."
 # - delete: "(argument_0 argument_1 ...)"
@@ -87,9 +87,9 @@ def evaluate(expression, arguments={}):
 
     raise ValueError(f"Invalid expression: {expression}")
 
-class FunctionArguments(aiko.PipelineElement):
+class Expression(aiko.PipelineElement):
     def __init__(self, context):
-        context.set_protocol("function_arguments:0")
+        context.set_protocol("expression:0")
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream) -> Tuple[aiko.StreamEvent, dict]:

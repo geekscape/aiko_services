@@ -1,16 +1,16 @@
 {
-  "#": "FunctionArguments PipelineElement enables modifying process_frame()",
+  "#": "Expression PipelineElement enables modifying process_frame()",
   "#": "input and output arguments, via 'define', 'delete' and 'rename'",
-  "#": "commands, which are specified as FunctionArguments parameters",
+  "#": "commands, which are specified as Expression parameters",
 
   "version": 0,
-  "name":    "p_arguments",
+  "name":    "p_expression",
   "runtime": "python",
 
-  "graph": ["(FunctionArguments_0 Inspect_0 FunctionArguments_1 Inspect_1)"],
+  "graph": ["(Expression_0 Inspect_0 Expression_1 Inspect_1)"],
 
   "elements": [
-    { "name":   "FunctionArguments_0",
+    { "name":   "Expression_0",
       "parameters": {"define": "((a 0) (b 1.0) (s 'hello'))"},
       "input":  [],
       "output": [{ "name": "a", "type": "int" },
@@ -18,7 +18,7 @@
                  { "name": "s", "type": "str" }],
       "deploy": {
         "local": {
-          "class_name": "FunctionArguments",
+          "class_name": "Expression",
           "module": "aiko_services.elements.utilities.elements"
         }
       }
@@ -38,7 +38,7 @@
         }
       }
     },
-    { "name":   "FunctionArguments_1",
+    { "name":   "Expression_1",
       "parameters": {
         "define": "((a a+1) (b b+1.0) (d (x: 0)) (l (0 1)))",
         "delete": "(s)",
@@ -51,7 +51,7 @@
                  { "name": "l", "type": "[int]" }],
       "deploy": {
         "local": {
-          "class_name": "FunctionArguments",
+          "class_name": "Expression",
           "module": "aiko_services.elements.utilities.elements"
         }
       }

@@ -11,18 +11,8 @@
 # aiko_pipeline create $DEFINITION --log_level debug  \
 #   --stream_id 1 --frame_data "(argument_name: argument_value ...)"
 #
-# NAMESPACE=AIKO
-# HOST=localhost
-# PID=`ps ax | grep aiko_pipeline | grep -v grep | tr -s " " | cut -d" " -f1-2`
-# SID=1
-# TOPIC=$NAMESPACE/$HOST/$PID/$SID/in
-#
-# mosquitto_pub -h $HOST -t $TOPIC -m "(create_stream 1)"
-# mosquitto_pub -h $HOST -t $TOPIC -m "(process_frame (stream_id: 1) (a: 0))"
-# mosquitto_pub -h $HOST -t $TOPIC -m "(destroy_stream 1)"
-#
 # aiko_pipeline create ../examples/pipeline/pipeline_local.json
-#   --hooks all -fd "(b: 0)"
+#   --hooks all -fd "(b: 0)"                   # Create Frame, enable all Hooks
 #
 # Usage: aiko_pipeline destroy $PIPELINE_NAME
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -30,13 +20,13 @@
 # Usage: aiko_pipeline list [--follow]
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
-# Usage: aiko_pipeline update $PIPELINE_NAME ...
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Usage: aiko_pipeline update $PIPELINE_NAME
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Update is applied to an existing Pipeline with the specified Pipeline name
 # Stream Response best with "-sr -s N -r"  # Else can't change topic_response
 #                              ---
-# Create Stream and/or Frame
-# --------------------------
+#   Update and create Stream and/or Frame
+#   -------------------------------------
 # aiko_pipeline create ../examples/pipeline/pipeline_local.json -ll debug
 #
 # aiko_pipeline update p_local -fd "(b: 0)"           # Create Frame
@@ -48,8 +38,11 @@
 # aiko_pipeline update p_local -s 3 -fd "(b: 0)" -r   # Create Stream reset
 # aiko_pipeline update p_local -s 4 -fd "(b: 0)" -sr  # Stream, Frame, Response
 #
-# Update DataSource value
-# -----------------------
+# aiko_pipeline update p_local -ll debug              # Pipeline log level
+# aiko_pipeline update p_local -ll debug_all          # Also PipelineElements
+#
+#   Update DataSource value
+#   -----------------------
 # cd ../elements/media
 # aiko_pipeline create pipelines/text_pipeline_0.json -ll debug
 #
@@ -58,8 +51,8 @@
 # aiko_pipeline update p_text_0 -s 2  \
 #            -p TextReadFile.data_sources "(file://data_in/in_01.txt)"
 #
-# Use specific Graph Path
-# -----------------------
+#   Update and use specific Graph Path
+#   ----------------------------------
 # aiko_pipeline create ../examples/pipeline/pipeline_paths.json -ll debug
 #
 # aiko_pipeline update p_paths -fd "(in_a: hello)"
@@ -80,6 +73,21 @@
 # "graph": [
 #   "(PE_0 (PE_1 PE_3 (a: x)) (PE_2 PE_3 (b: y)))"
 # ]
+#
+# Low-level use of MQTT messages as remote function calls
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# aiko_pipeline create $DEFINITION --log_level debug  \
+#   --stream_id 1 --frame_data "(argument_name: argument_value ...)"
+#
+# NAMESPACE=AIKO
+# HOST=localhost
+# PID=`ps ax | grep aiko_pipeline | grep -v grep | tr -s " " | cut -d" " -f1-2`
+# SID=1
+# TOPIC=$NAMESPACE/$HOST/$PID/$SID/in
+#
+# mosquitto_pub -h $HOST -t $TOPIC -m "(create_stream 1)"
+# mosquitto_pub -h $HOST -t $TOPIC -m "(process_frame (stream_id: 1) (a: 0))"
+# mosquitto_pub -h $HOST -t $TOPIC -m "(destroy_stream 1)"
 #
 # Important
 # ---------
