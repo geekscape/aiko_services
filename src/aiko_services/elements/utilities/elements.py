@@ -15,7 +15,10 @@ from typing import Tuple
 import aiko_services as aiko
 from aiko_services.main.utilities import *
 
-__all__ = ["all_outputs", "evaluate", "Expression"]
+__all__ = [
+    "all_outputs", "evaluate", "evaluate_conition", "evaluate_define",
+    "Expression"
+]
 
 # --------------------------------------------------------------------------- #
 
@@ -87,6 +90,26 @@ def evaluate(expression, arguments={}):
 
     raise ValueError(f"Invalid expression: {expression}")
 
+def evaluate_condition(expressions, swag, logger=None):
+    results = []
+    if isinstance(expressions, list):
+        for expression in expressions:
+            if logger:
+                logger.debug(f"Expression: {expression}")
+            if isinstance(expression[0], str):
+                expression[0] = evaluate(expression[0], swag)
+            results.append(True if expression[0] else False)
+    return all(results)
+
+def evaluate_define(expressions, swag, logger=None, name="Define"):
+    if isinstance(expressions, list):
+        for expression in expressions:
+            if logger:
+                logger.debug(f"{name}: {expression}")
+            if isinstance(expression[1], str):
+                expression[1] = evaluate(expression[1], swag)
+            swag[expression[0]] = expression[1]
+
 class Expression(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("expression:0")
@@ -98,24 +121,19 @@ class Expression(aiko.PipelineElement):
         for command_name in ["define", "delete", "rename"]:
             command, found = self.get_parameter(command_name)
             if found:
-                action, actions = parse(command)
-                actions.insert(0, action)
-                if command_name == "define" and isinstance(actions, list):
-                    for action in actions:
-                        self.logger.debug(f"Define: {action}")
-                        if isinstance(action[1], str):
-                            action[1] = evaluate(action[1], swag)
-                        swag[action[0]] = action[1]
-                if command_name == "delete" and isinstance(actions, list):
-                    for action in actions:
-                        self.logger.debug(f"Delete: {action}")
-                        if action in swag:
-                            del swag[action]
-                if command_name == "rename" and isinstance(actions, list):
-                    for action in actions:
-                        self.logger.debug(f"Rename: {action}")
-                        if len(action) == 2 and action[0] in swag:
-                            swag[action[1]] = swag.pop(action[0])
+                expressions = parse(command, car_cdr=False)
+                if command_name == "define":
+                    evaluate_define(expressions, swag, self.logger)
+                if command_name == "delete" and isinstance(expressions, list):
+                    for name in expressions:
+                        self.logger.debug(f"Delete: {name}")
+                        if name in swag:
+                            del swag[name]
+                if command_name == "rename" and isinstance(expressions, list):
+                    for name in expressions:
+                        self.logger.debug(f"Rename: {name}")
+                        if len(name) == 2 and name[0] in swag:
+                            swag[name[1]] = swag.pop(name[0])
         return aiko.StreamEvent.OKAY, all_outputs(self, stream)
 
 # --------------------------------------------------------------------------- #

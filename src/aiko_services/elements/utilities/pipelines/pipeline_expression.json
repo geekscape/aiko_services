@@ -10,7 +10,7 @@
   "graph": ["(Expression_0 Inspect_0 Expression_1 Inspect_1)"],
 
   "elements": [
-    { "name":   "Expression_0",
+    { "name": "Expression_0",
       "parameters": {"define": "((a 0) (b 1.0) (s 'hello'))"},
       "input":  [],
       "output": [{ "name": "a", "type": "int" },
@@ -23,14 +23,12 @@
         }
       }
     },
-    { "name":   "Inspect_0",
+    { "name": "Inspect_0", "input": [], "output": [],
       "parameters": {
         "enable":  true,   "#": "true or false",
         "inspect": "(*)",  "#": "inputs / outputs names",
         "target":  "log",  "#": "file:, log or print"
       },
-      "input":  [],
-      "output": [],
       "deploy": {
         "local": {
           "class_name": "Inspect",
@@ -38,7 +36,7 @@
         }
       }
     },
-    { "name":   "Expression_1",
+    { "name": "Expression_1",
       "parameters": {
         "define": "((a a+1) (b b+1.0) (d (x: 0)) (l (0 1)))",
         "delete": "(s)",
@@ -56,14 +54,12 @@
         }
       }
     },
-    { "name":   "Inspect_1",
+    { "name": "Inspect_1", "input":  [], "output": [],
       "parameters": {
         "enable":  true,   "#": "true or false",
         "inspect": "(*)",  "#": "inputs / outputs names",
         "target":  "log",  "#": "file:, log or print"
       },
-      "input":  [],
-      "output": [],
       "deploy": {
         "local": {
           "class_name": "Inspect",

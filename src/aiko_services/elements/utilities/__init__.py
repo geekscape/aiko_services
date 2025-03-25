@@ -4,4 +4,6 @@
 # ~~~~~
 # - None, yet !
 
-from .elements import all_outputs, evaluate, Expression
+from .elements import (
+    all_outputs, evaluate, evaluate_condition, evaluate_define, Expression
+)
