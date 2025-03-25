@@ -123,7 +123,7 @@ def generate_s_expression(expression: List) -> str:
 RE_CANONICAL_SYMBOL = re.compile(r"^(\d+):(.+)", re.DOTALL)  # length:data
 RE_STRING = re.compile(r"""(['"])(.*?)\1""")                 # "text" or 'text'
 
-def parse(payload: str, dictionaries_flag=True):
+def parse(payload: str, car_cdr=True, dictionaries_flag=True):
     result = []
     token = ""
     i = 0
@@ -181,7 +181,12 @@ def parse(payload: str, dictionaries_flag=True):
 
     if dictionaries_flag:
         cdr = parse_list_to_dict(cdr)
-    return car, cdr
+
+    if car_cdr:
+        return car, cdr
+    else:
+        cdr.insert(0, car)
+        return cdr
 
 def parse_float(payload: str, default: float=0.0) -> float:
     try:
