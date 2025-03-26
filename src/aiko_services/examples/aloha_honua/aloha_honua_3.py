@@ -13,12 +13,12 @@
 #
 #   Terminal session 2
 #   ~~~~~~~~~~~~~~~~~~
-#   ./aloha_honua_3.py start         # Start AlohaHonua Actor
+#   ./aloha_honua_3.py hoomaka       # Start AlohaHonua Actor
 #
 #   Terminal session 3
 #   ~~~~~~~~~~~~~~~~~~
 #   ./aloha_honua_3.py aloha [Pele]  # Remote function call to say "hello"
-#   ./aloha_honua_3.py hoomaka       # Remote function call to stop AlohaHonua
+#   ./aloha_honua_3.py ku            # Remote function call to stop AlohaHonua
 #
 #   Terminal session 1 (when finished)
 #   ~~~~~~~~~~~~~~~~~~
@@ -45,7 +45,7 @@ class AlohaHonua(aiko.Actor):
     def aloha(self, name):
         self.logger.info(f"Aloha {name} !")
 
-    def hoomaka(self):
+    def ku(self):  # stop
         self.logger.info(f"Aloha 👋")
         raise SystemExit()
 
@@ -73,7 +73,7 @@ def main():
 
 @main.command(help="Start AlohaHonua Actor")
 
-def start():
+def hoomaka():  # start
     init_args = aiko.actor_args("aloha_honua")
     aloha_honua = aiko.compose_instance(AlohaHonua, init_args)
     aiko.process.run()
@@ -95,11 +95,11 @@ def aloha(name):
 
 @main.command(help="Remote call AlohaHonua to stop the Actor")
 
-def hoomaka():
+def ku():  # stop
     aiko.do_command(
         AlohaHonua,
         aiko.ServiceFilter("*", "aloha_honua", "*", "*", "*", "*"),
-        lambda aloha_honua: aloha_honua.hoomaka(),
+        lambda aloha_honua: aloha_honua.ku(),  # stop
         terminate=True)
     aiko.process.run()
 

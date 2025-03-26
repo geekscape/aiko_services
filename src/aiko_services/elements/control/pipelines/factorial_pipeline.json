@@ -1,0 +1,40 @@
+{
+  "version": 0,
+  "name":    "p_factorial",
+  "runtime": "python",
+
+  "graph": ["(Factorial Tool_A Inspect)"],
+
+  "elements": [
+    { "name": "Factorial", "input": [], "output": [],
+      "parameters": { "boundary":   "Tool_A:Inspect",
+                      "define":     "((n 3) (factorial 1))",
+                      "condition":  "((n))",
+                      "expression": "((factorial factorial*n) (n n-1))"},
+      "deploy": {
+        "local": {
+          "class_name": "Loop",
+          "module": "aiko_services.elements.control.elements"
+        }
+      }
+    },
+    { "name":   "Tool_A", "input": [], "output": [],
+      "deploy": {
+        "local": {
+          "class_name": "Mock",
+          "module": "aiko_services.elements.media.elements"
+        }
+      }
+    },
+    { "name": "Inspect", "input": [], "output": [],
+      "parameters": {
+        "enable":  true,           "#": "true or false",
+        "inspect": "(factorial)",  "#": "inputs / outputs names",
+        "target":  "log",          "#": "file:, log or print"
+      },
+      "deploy": {
+        "local": { "module": "aiko_services.elements.observe.elements" }
+      }
+    }
+  ]
+}
