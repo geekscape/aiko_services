@@ -38,8 +38,7 @@ class Inspect(aiko.PipelineElement):
         if enable:
             names, found = self.get_parameter("inspect")
             if found:
-                name, names = parse(names)
-                names.insert(0, name)
+                names = parse(names, car_cdr=False)
                 if "*" in names:
                     names = frame.swag.keys()
             else:

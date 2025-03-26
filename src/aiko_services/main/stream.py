@@ -38,11 +38,13 @@ class StreamEvent:
     OKAY       =    0  # Stay calm and keep on running
     NO_FRAME   =    1  # No frame to process and keep on running
     DROP_FRAME =    2  # No longer process this frame and keep on running
+    LOOP_END   =    3  # Complete ControlFlowLoop and keep on running
     USER       = 1024  # User defined custom StreamEvents start from here
 
 StreamEventName = {
     StreamEvent.DROP_FRAME: "DropFrame",
     StreamEvent.ERROR:      "Error",
+    StreamEvent.LOOP_END:   "LoopEnd",
     StreamEvent.NO_FRAME:   "NoFrame",
     StreamEvent.OKAY:       "Okay",
     StreamEvent.STOP:       "Stop",

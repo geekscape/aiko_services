@@ -180,7 +180,9 @@ from aiko_services.main import *
 from aiko_services.main.utilities import *
 
 __all__ = [
-    "Pipeline", "PipelineElement", "PipelineElementImpl", "PipelineImpl",
+    "Pipeline", "PipelineElement", "PipelineElementImpl",
+    "PipelineElementLoop",
+    "PipelineImpl",
     "PIPELINE_HOOK_PROCESS_ELEMENT", "PIPELINE_HOOK_PROCESS_ELEMENT_POST",
     "PIPELINE_HOOK_PROCESS_FRAME", "PROTOCOL_PIPELINE"
 ]
@@ -611,6 +613,12 @@ class PipelineElementImpl(PipelineElement):
 
 # --------------------------------------------------------------------------- #
 
+class PipelineElementLoop(PipelineElement):
+    Interface.default("PipelineElementLoop",
+        "aiko_services.main.pipeline.PipelineElementImpl")
+
+# --------------------------------------------------------------------------- #
+
 class Pipeline(PipelineElement):
     Interface.default("Pipeline", "aiko_services.main.pipeline.PipelineImpl")
 
@@ -945,7 +953,7 @@ class PipelineImpl(Pipeline):
         self.DEBUG[stream_id]["create_stream"] = {
             "time": local_iso_now(), "stream_id": stream_id}
 
-        self.logger.debug(f"Create stream: {self.name}<{stream_id}>")
+        self.logger.debug(f"Create stream: <{stream_id}>")
         stream_lease = Lease(int(grace_time), stream_id,
             lease_expired_handler=self.destroy_stream)
         stream_lease.stream = Stream(
@@ -1030,7 +1038,7 @@ class PipelineImpl(Pipeline):
                     ActorTopic.IN, "destroy_stream", arguments, delay=3.0)
                 return False
 
-            self.logger.debug(f"Destroy stream: {self.name}<{stream_id}>")
+            self.logger.debug(f"Destroy stream: <{stream_id}>")
 
             if stream_id in self.DEBUG:                     # DEBUG: 2024-12-02
                 del self.DEBUG[stream_id]
@@ -1240,7 +1248,10 @@ class PipelineImpl(Pipeline):
             element_name = None
             frame_data_out = {} if new_frame else frame_data_in
 
-            for node in graph:
+            graph_node_list = list(graph)
+            while len(graph_node_list):
+                node = graph_node_list.pop(0)
+
                 if stream.state in [StreamState.DROP_FRAME, StreamState.ERROR]:
                     break
                 # TODO: Is element_name is correct for all error diagnostics
@@ -1263,6 +1274,18 @@ class PipelineImpl(Pipeline):
                         try:
                             stream_event, frame_data_out =  \
                                 element.process_frame(stream, **inputs)
+
+                            if isinstance(element, PipelineElementLoop):
+                                if stream_event is not StreamEvent.LOOP_END:
+                                    stream.variables["loop_node"] = node
+                                    stream.variables["loop_graph"] =  \
+                                        graph_node_list.copy()
+                                else:
+                                    loop_boundary = stream.variables.get("loop_boundary", None)
+                                    if loop_boundary:
+                                        loop_end_name = loop_boundary.split(":")[0]
+                                        graph_node_list = list(
+                                            self.pipeline_graph.iterate_after(loop_end_name, stream.graph_path))
                         except Exception as exception:
                             self.logger.error(
                                 "Exception in pipeline.process_frame() --> "  \
@@ -1308,6 +1331,16 @@ class PipelineImpl(Pipeline):
                         break
                 except Exception as exception:
                     self._error_pipeline(header, traceback.format_exc())
+
+                loop_node = stream.variables.get("loop_node", None)
+                if loop_node:
+                    loop_boundary = stream.variables.get("loop_boundary", None)
+                    if loop_boundary:
+                        loop_end_name = loop_boundary.split(":")[0].lower()
+                        if element.name == loop_end_name:
+                            loop_graph = stream.variables.get("loop_graph")
+                            loop_graph.insert(0, loop_node)
+                            graph_node_list = loop_graph
 
             if frame_complete:
                 stream_info = {
@@ -1933,6 +1966,9 @@ def list_command(follow):  # Don't overwrite the Python "list" class
 @click.option("--parameters", "-p", type=click.Tuple((str, str)),
     default=None, multiple=True, required=False,
     help="Update parameters")
+@click.option("--protocol", "-pr", type=str,
+    default=PROTOCOL_PIPELINE, required=False,
+    help="Discovery protocol, default: pipeline:0")
 @click.option("--stream_reset", "-r", is_flag=True,
     help="Reset the remote Stream by invoking destroy_stream() first")
 @click.option("--stream_id", "-s", type=str,
@@ -1957,8 +1993,11 @@ def list_command(follow):  # Don't overwrite the Python "list" class
 #   default="none", required=False,
 #   help="Some combination of am,pe,pep,pf,all,none")
 
-def update(name, graph_path, parameters, stream_id, frame_id, frame_data,
-    grace_time, show_response, log_level, stream_reset):  # TODO: Add "hooks"
+def update(name, graph_path, parameters, protocol, stream_id,  # TODO: Add hooks
+    frame_id, frame_data, grace_time, show_response, log_level, stream_reset):
+
+    if "/" not in protocol:
+        protocol = f"{SERVICE_PROTOCOL_AIKO}/{protocol}"
 
     topic_response = None
     if show_response:        # TODO: Replace "do_command()" with "do_request()"
@@ -1971,7 +2010,7 @@ def update(name, graph_path, parameters, stream_id, frame_id, frame_data,
             None, topic_response, log_level, stream_reset, "none")
 
     do_command(Pipeline,
-        ServiceFilter("*", name, PROTOCOL_PIPELINE, "*", "*", "*"),
+        ServiceFilter("*", name, protocol, "*", "*", "*"),
         lambda pipeline: update_command(pipeline), terminate=not show_response)
     aiko.process.run()
 

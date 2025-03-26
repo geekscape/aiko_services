@@ -33,8 +33,7 @@ __all__ = ["DataSource", "DataTarget"]
 class DataSource(PipelineElementImpl):
     def _get_data_sources(self):
         data_sources, found = self.get_parameter("data_sources", required=True)
-        data_source, data_sources = parse(data_sources)
-        data_sources.insert(0, data_source)
+        data_sources = parse(data_sources, car_cdr=False)
         scheme = DataScheme.parse_data_url_scheme(data_sources[0])
         return data_sources, scheme
 
@@ -77,8 +76,7 @@ class DataSource(PipelineElementImpl):
 class DataTarget(PipelineElementImpl):
     def _get_data_targets(self):
         data_targets, found = self.get_parameter("data_targets", required=True)
-        data_target, data_targets = parse(data_targets)
-        data_targets.insert(0, data_target)
+        data_targets = parse(data_targets, car_cdr=False)
         scheme = DataScheme.parse_data_url_scheme(data_targets[0])
         return data_targets, scheme
 

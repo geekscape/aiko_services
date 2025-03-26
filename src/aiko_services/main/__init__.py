@@ -73,7 +73,9 @@ from .stream import (
 )
 
 from .pipeline import (
-    Pipeline, PipelineElement, PipelineElementImpl, PipelineImpl,
+    Pipeline, PipelineElement, PipelineElementImpl,
+    PipelineElementLoop,
+    PipelineImpl,
     PIPELINE_HOOK_PROCESS_ELEMENT, PIPELINE_HOOK_PROCESS_ELEMENT_POST,
     PIPELINE_HOOK_PROCESS_FRAME, PROTOCOL_PIPELINE
 )
