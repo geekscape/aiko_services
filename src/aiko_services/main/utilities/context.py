@@ -47,5 +47,5 @@ class ContextManager:
 
 def get_context() -> Any:
     # pylint: disable=global-statement
-    global _CONTEXT
+#   global _CONTEXT  # TODO: flake8: F824 `global _CONTEXT` is unused
     return _CONTEXT

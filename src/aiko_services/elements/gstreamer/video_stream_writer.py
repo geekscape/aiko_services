@@ -64,7 +64,7 @@ class VideoStreamWriter:
     self._t1.start()
 
     def _run_constant_framerate():
-      global data
+    # global data  # TODO: flake8: F824 `global data` is unused
 
       while True:
         time.sleep(0.04)
