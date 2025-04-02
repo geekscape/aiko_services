@@ -226,10 +226,10 @@ def parse_list_to_dict(tree: Any) -> Union[list, dict]:
 def parse_number(payload: str, default: int=0):
     try:
         result = int(payload)
-    except ValueError:
+    except (TypeError, ValueError):
         try:
             result = float(payload)
-        except ValueError:
+        except (TypeError, ValueError):
             result = default
     return result
 
