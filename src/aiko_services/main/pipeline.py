@@ -17,8 +17,8 @@
 # Usage: aiko_pipeline destroy $PIPELINE_NAME
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
-# Usage: aiko_pipeline list [--follow]
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Usage: aiko_pipeline list [--watch]
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 # Usage: aiko_pipeline update $PIPELINE_NAME
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -395,6 +395,10 @@ class PipelineElement(Actor):
     def get_stream(self):
         pass
 
+    @abstractmethod
+    def get_variables(self):
+        pass
+
     @classmethod
     def is_local(cls):
         return True
@@ -599,6 +603,14 @@ class PipelineElementImpl(PipelineElement):
         except AttributeError:
             pass
         return parameters
+
+    def get_variables(self, stream):
+        return self.pipeline.definition.parameters |  \
+               self.pipeline.share                 |  \
+               self.definition.parameters          |  \
+               self.share                          |  \
+               self._get_stream_parameters()       |  \
+               stream.frames[stream.frame_id].swag
 
     def my_id(self, all=False):
         name = self.name if all else ""
@@ -954,7 +966,8 @@ class PipelineImpl(Pipeline):
             "time": local_iso_now(), "stream_id": stream_id}
 
         self.logger.debug(f"Create stream: <{stream_id}>")
-        stream_lease = Lease(int(grace_time), stream_id,
+        grace_time = parse_number(grace_time, _GRACE_TIME)
+        stream_lease = Lease(grace_time, stream_id,
             lease_expired_handler=self.destroy_stream)
         stream_lease.stream = Stream(
             stream_id=stream_id,
@@ -1928,10 +1941,10 @@ def destroy(name):
     _LOGGER.info(f'Destroyed Pipeline "{name}"')
 
 @main.command(name="list", help="List running Pipelines")
-@click.option("--follow", "-f", is_flag=True,
+@click.option("--watch", "-w", is_flag=True,
     help="Show on-going Pipeline create and destroy actions")
 
-def list_command(follow):  # Don't overwrite the Python "list" class
+def list_command(watch):  # Don't overwrite the Python "list" class
     service_filter = ServiceFilter("*", "*", PROTOCOL_PIPELINE, "*", "*", "*")
 
     def show_service(command, service_details):
@@ -1945,14 +1958,14 @@ def list_command(follow):  # Don't overwrite the Python "list" class
         print(f"{now} {command:6s} {topic_path} {name} {owner}")
 
     def service_discovery_handler(command, service_details):
-        if not follow and command == "sync":
+        if not watch and command == "sync":
             services = services_cache.get_services()
             services = services.filter_services(service_filter)
             for service_details in services:
                 show_service("add", service_details)
             aiko.process.terminate()
 
-        if follow and command != "sync":
+        if watch and command != "sync":
             show_service(command, service_details)
 
     services_cache = services_cache_create_singleton(aiko.process, True, 0)
