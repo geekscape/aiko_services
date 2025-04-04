@@ -130,12 +130,14 @@ def get_mqtt_host():
 
     server_up = False
     for host, port in mqtt_hosts:
+        time_start = time.time()
         if _host_server_up(host, port):
             server_up = True
             mqtt_host = host
             mqtt_port = port
             break
-
+        delay = time.time() - time_start
+        _LOGGER.warning(f"MQTT host {host} timeout after {delay:.02f} seconds")
     return server_up, mqtt_host, mqtt_port
 
 def get_mqtt_port():
@@ -175,10 +177,10 @@ def bootstrap_thread():
             message = message.decode("utf-8")
             tokens = message.split()
             if len(tokens) == 3  and tokens[0] == "boot?":
-                print(f"Bootstrap request: {tokens[1]}:{tokens[2]}")
+                _LOGGER.info(f"Bootstrap request: {tokens[1]}:{tokens[2]}")
                 _socket.sendto(RESPONSE.encode(), (tokens[1], int(tokens[2])))
     except Exception as exception:
-        print(f"Bootstrap thread stopped: {exception}")
+        _LOGGER.warning(f"Bootstrap thread stopped: {exception}")
 
 def bootstrap_start():
     thread = Thread(target=bootstrap_thread, args=())
