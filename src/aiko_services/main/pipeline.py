@@ -1056,6 +1056,8 @@ class PipelineImpl(Pipeline):
             if stream_id in self.DEBUG:                     # DEBUG: 2024-12-02
                 del self.DEBUG[stream_id]
 
+            destroy_stream_state = stream.state
+
             graph_path = self.pipeline_graph.get_path(self.share["graph_path"])
             for node in graph_path:
                 element, element_name, local, _ =  \
@@ -1074,7 +1076,20 @@ class PipelineImpl(Pipeline):
                         element_name, stream, stream_event, diagnostic,
                         in_destroy_stream=True))
                     if stream.state == StreamState.ERROR:
+                        destroy_stream_state = stream.state
                         break
+
+            # If the stream ended without error, notify listeners that the stream has stopped.
+            if destroy_stream_state != StreamState.ERROR:
+                stream_info = {
+                    "stream_id": stream.stream_id,
+                    "frame_id": stream.frame_id,
+                    "state": StreamState.STOP}
+                if stream.queue_response:
+                    stream.queue_response.put((stream_info, {}))
+                if stream.topic_response:
+                    actor = get_actor_mqtt(stream.topic_response, Pipeline)
+                    actor.process_frame_response(stream_info, {})
         finally:
             if use_thread_local:
                 stream.lock.release()
@@ -1575,6 +1590,7 @@ class PipelineImpl(Pipeline):
             if not in_destroy_stream:  # avoid destroy_stream() recursion
                 if stream.lock._in_use:
                     stream.lock.release()
+                stream.state = StreamState.ERROR
                 self.destroy_stream(get_stream_id(), use_thread_local=False)
 
         return stream_state
