@@ -20,3 +20,7 @@ from .video_file_writer import VideoFileWriter
 from .video_stream_reader import VideoStreamReader
 
 from .video_stream_writer import VideoStreamWriter
+
+from .rtsp_io import VideoReadRTSP
+
+from .scheme_rtsp import DataSchemeRTSP

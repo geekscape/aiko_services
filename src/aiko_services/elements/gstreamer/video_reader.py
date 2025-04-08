@@ -10,6 +10,7 @@
 import numpy as np
 import sys
 from threading import Thread
+import time
 
 if sys.version_info >= (3,0):
   from queue import Queue, Empty
@@ -26,11 +27,13 @@ Gst = gst_initialise()
 
 class VideoReader:
   def __init__(self, pipeline, sink):
-    self.pipeline = pipeline
-    self.bus      = pipeline.get_bus()
-    self.queue    = Queue(maxsize=30)
-    self.frame_id = 1
-    self.image    = None
+    self.pipeline  = pipeline
+    self.bus       = pipeline.get_bus()
+    self.queue     = Queue(maxsize=30)
+    self.frame_id  = 1
+    self.image     = None
+    self.terminate = False
+    self.timestamp = 0
 
 #   sink = pipeline.get_by_name("sink")
 #   sink.set_property("max-buffers", 2)
@@ -43,15 +46,21 @@ class VideoReader:
       raise GStreamerError("Unable to set the pipeline to the playing state")
 
     def _run():
-      while True:
+      while not self.terminate:
         timeout = 1000 * 1000  # nanoseconds
         message = self.bus.timed_pop_filtered(timeout, Gst.MessageType.ANY)
 
         if self.image is not None:
 #         print("NBVR frame: ", self.frame_id, self.queue.qsize())
 #         self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
-          frame = { "type": "image", "id": self.frame_id, "image": self.image }
+          frame = {
+            "type": "image",
+            "id": self.frame_id,
+            "image": self.image,
+            "timestamp": self.timestamp
+          }
           self.image = None
+          self.timestamp = None
           self.queue.put(frame)
           self.frame_id += 1
 
@@ -100,7 +109,13 @@ class VideoReader:
 
   def sample_image(self, sink, data):
     sample = sink.emit("pull-sample")
+    self.timestamp = time.time()
+  # https://gstreamer.freedesktop.org/documentation/gstreamer/gstbuffer.html#members
     buffer = sample.get_buffer()
-#   timestamp = buffer.pts
+  # self.decode_timestamp = buffer.dts
+  # self.presentation_timestamp = buffer.pts
     self.image = self.gst_to_opencv(sample)
     return Gst.FlowReturn.OK
+
+  def stop(self):
+    self.terminate = True

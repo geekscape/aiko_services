@@ -1,0 +1,31 @@
+{
+  "version": 0,
+  "name":    "p_rtsp_video",
+  "runtime": "python",
+
+  "graph": ["(VideoReadRTSP VideoShow)"],
+
+  "elements": [
+    { "name":   "VideoReadRTSP",
+      "parameters": {
+        "data_sources": "(rtsp://admin:PASSWORD@192.168.0.230:554/cam/realmonitor?channel=1&subtype=1)",
+        "data_batch_size": 1,
+        "resolution": "640x480",  "#": "1280x720 (main channel)",
+        "format": "RGB",
+        "frame_rate": "4/1",      "#": "frames / second"
+      },
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.gstreamer.rtsp_io"}
+      }
+    },
+    { "name":   "VideoShow",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    }
+  ]
+}
