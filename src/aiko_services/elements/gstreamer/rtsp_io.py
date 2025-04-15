@@ -12,6 +12,7 @@
 #   - Provide static configuration for any device type, e.g ESP32, Host, Robot
 #   - Dynamically create Actors for each device (filter2) --> Service Registrar
 #   - Start with network cameras (Dahua, HikVision)
+#   - Maybe https://pypi.org/project/zeroconf ?
 #
 # - Design and implement RTSP DataScheme
 #   - Consider whether "VideoRTSPStore" is-a DataSource, creating video files ?
@@ -36,7 +37,7 @@ class VideoReadRTSP(aiko.DataSource):  # PipelineElement
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
-        timestamp = stream.variables["timestamps"][0]
+        timestamp = stream.variables["timestamps"][0]  # Unix time
         self.logger.debug(f"{self.my_id()}: process_frame(): {timestamp:.02f}")
         return aiko.StreamEvent.OKAY, {"images": images}
 
