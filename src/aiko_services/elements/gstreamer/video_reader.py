@@ -1,11 +1,13 @@
 # To Do
 # ~~~~~
-# - When pipeline can't be set to "playing state", find out more about the
-#   GStreamer problem and report as part of the diagnostic message.
-#   - Improve command line utilities to catch and report the problem.
-#
-# - Currently, will drop "images" if get_image() isn't called often enough
+# - In "sample_image()" replace "self.image" with an "image_queue"
+#   Currently, will drop "images" if get_image() isn't called often enough
+#   - Limit the queue length (ring buffer) to prevent excessive memory use
 #   - Optionally, offer an "image queue", so that no images are lost
+#
+# - When pipeline can't be set to "playing state", find out more about the
+#   GStreamer problem and report as part of the diagnostic message
+#   - Improve command line utilities to catch and report the problem
 
 import numpy as np
 import sys
@@ -86,19 +88,14 @@ class VideoReader:
     self._t.daemon = True
     self._t.start()
 
-  def gst_to_opencv(self, sample):
-    buffer = sample.get_buffer()
-    caps   = sample.get_caps()
-#   format = caps.get_structure(0).get_value('format')
-    width  = caps.get_structure(0).get_value('width')
-    height = caps.get_structure(0).get_value('height')
-    buffer_size = buffer.get_size()
+  def gst_to_opencv(self, buffer_data, caps):
+#   format = caps.get_structure(0).get_value("format")
+    width  = caps.get_structure(0).get_value("width")
+    height = caps.get_structure(0).get_value("height")
+    image = np.ndarray((height, width, 3), buffer=buffer_data, dtype=np.uint8)
+    return image
 
-    opencv_array = np.ndarray((height, width, 3),
-      buffer=buffer.extract_dup(0, buffer_size), dtype=np.uint8)
-    return opencv_array
-
-  def read_frame(self, timeout = None):
+  def read_frame(self, timeout=None):
     try:
       return self.queue.get(block = timeout is not None, timeout = timeout)
     except Empty:
@@ -110,11 +107,24 @@ class VideoReader:
   def sample_image(self, sink, data):
     sample = sink.emit("pull-sample")
     self.timestamp = time.time()
-  # https://gstreamer.freedesktop.org/documentation/gstreamer/gstbuffer.html#members
     buffer = sample.get_buffer()
-  # self.decode_timestamp = buffer.dts
-  # self.presentation_timestamp = buffer.pts
-    self.image = self.gst_to_opencv(sample)
+
+  # Avoid memory leak that is common in many on-line Python examples 😱
+  # Use "buffer.map" instead of "buffer.extract_dup(0, buffer_size)" 🤔
+    success, buffer_map = buffer.map(Gst.MapFlags.READ)
+
+    if success:
+      try:
+        caps = sample.get_caps()
+        self.image = self.gst_to_opencv(buffer_map.data, caps)
+
+      # https://gstreamer.freedesktop.org/documentation/gstreamer/...
+      #     gstbuffer.html#members
+      # self.decode_timestamp = buffer.dts
+      # self.presentation_timestamp = buffer.pts
+
+      finally:
+        buffer.unmap(buffer_map)
     return Gst.FlowReturn.OK
 
   def stop(self):
