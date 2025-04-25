@@ -35,7 +35,7 @@ class VideoReader:
     self.frame_id  = 1
     self.image     = None
     self.terminate = False
-    self.timestamp = 0
+    self.timestamp = 0  # Unix time
 
 #   sink = pipeline.get_by_name("sink")
 #   sink.set_property("max-buffers", 2)
@@ -59,7 +59,7 @@ class VideoReader:
             "type": "image",
             "id": self.frame_id,
             "image": self.image,
-            "timestamp": self.timestamp
+            "timestamp": self.timestamp  # Unix time
           }
           self.image = None
           self.timestamp = None
@@ -106,7 +106,7 @@ class VideoReader:
 
   def sample_image(self, sink, data):
     sample = sink.emit("pull-sample")
-    self.timestamp = time.time()
+    self.timestamp = time.time()  # Unix time
     buffer = sample.get_buffer()
 
   # Avoid memory leak that is common in many on-line Python examples 😱
