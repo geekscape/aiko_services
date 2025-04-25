@@ -9,6 +9,13 @@
 # https://docs.python.org/3/library/logging.html#formatter-objects
 # https://docs.python.org/3/library/stdtypes.html#printf-style-string-formatting
 #
+# Environment variables
+# ~~~~~~~~~~~~~~~~~~~~~
+# AIKO_LOG_LEVEL:         ERROR, WARNING, INFO, DEBUG
+# AIKO_LOG_MQTT:          false: Console, true: MQTT, all: Both Console / MQTT
+# AIKO_LOG_REPEAT_PERIOD: Period for repeated log messages, default 6 seconds
+# AIKO_LOG_REPEAT_DEPTH:  To be implemented
+#
 # Typical usage: Aiko and LoggingHandlerMQTT
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # AIKO_LOG_LEVEL=INFO python                      # MQTT logging (default)
@@ -55,13 +62,16 @@
 #
 # To Do: LoggingHandlerMQTT
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
-# - Add support for ConnectionState.TRANSPORT (MQTT) connection updates
+# * Add support for AIKO_LOG_REPEAT_DEPTH to handle multiple repeated messages
+#
+# * Add support for ConnectionState.TRANSPORT (MQTT) connection updates
 
 from collections import deque
 import logging
 from logging.config import dictConfig
 import os
 import sys
+import time
 from typing import Any
 
 from aiko_services.main.utilities import *
@@ -72,6 +82,7 @@ __all__ = [
 ]
 
 DEBUG = logging.DEBUG
+DEFAULT_LOG_REPEAT_PERIOD = "6"  # seconds for "AIKO_LOG_REPEAT_PERIOD"
 
 _RING_BUFFER_SIZE = 128  # Maximum log messages to store before MQTT available
 
@@ -142,16 +153,26 @@ class LoggingHandlerMQTT(logging.Handler):
         self.console_flag = option == "all"
         self.topic = topic
 
+        self.repeated_period = os.environ.get(
+            "AIKO_LOG_REPEAT_PERIOD", DEFAULT_LOG_REPEAT_PERIOD)
+        if self.repeated_period.isnumeric():
+            self.repeated_period = int(self.repeated_period)
+        else:
+            self.repeated_period = 0
+
         self.ready = False
+        self.record_previous = None
+        self.record_repeat_count = 0
+        self.record_time = 0
         self.ring_buffer = deque(maxlen=ring_buffer_size)
         aiko.connection.add_handler(self._connection_state_handler)
 
     def _connection_state_handler(self, connection, connection_state):
         if connection.is_connected(ConnectionState.TRANSPORT):
             self.ready = True
-            while len(self.ring_buffer):
-                payload_out = self.ring_buffer.popleft()
-                self.aiko.message.publish(self.topic, payload_out)
+            self._publish_ring_buffer()
+        else:
+            self.ready = False
 
     def __del__(self):
         try:
@@ -165,6 +186,13 @@ class LoggingHandlerMQTT(logging.Handler):
 
     def emit(self, record):  # record: logging.LogRecord has lots of details
         try:
+            repeated, repeated_message = self._repeated_record(record)
+            if repeated:
+                if repeated_message:
+                    record.msg = repeated_message
+                else:
+                    return
+
             payload_out = self.format(record)
             if self.console_flag:
                 try:
@@ -173,11 +201,37 @@ class LoggingHandlerMQTT(logging.Handler):
                     pass
 
             if self.ready:
+                self._publish_ring_buffer()
                 self.aiko.message.publish(self.topic, payload_out)
             else:
                 self.ring_buffer.append(payload_out)
             self.flush()
-        except Exception:
+    # TODO: Catch specific Exceptions, don't hide other problems !
+        except Exception as exception:  # TODO: When does this occur ?
             self.handleError(record)  # TODO: Start buffering log records
+
+    def _publish_ring_buffer(self):
+        while len(self.ring_buffer):
+            payload_out = self.ring_buffer.popleft()
+            self.aiko.message.publish(self.topic, payload_out)
+
+    def _repeated_record(self, record):
+        message = None
+        repeated = self.record_previous and  \
+                   self.record_previous.msg == record.msg and  \
+                   self.record_previous.name == record.name and  \
+                   self.record_previous.levelname == record.levelname
+        if self.repeated_period > 0 and repeated:
+            self.record_repeat_count += 1
+            if time.time() > self.record_time + self.repeated_period:
+                message = f"Repeated message count: {self.record_repeat_count}"
+                self.record_repeat_count = 0
+                self.record_time = time.time()
+        else:
+            repeated = False
+            self.record_previous = record
+            self.record_repeat_count = 0
+            self.record_time = time.time()
+        return repeated, message
 
 # -----------------------------------------------------------------------------
