@@ -11,6 +11,12 @@
 # Notes
 # ~~~~~
 # - Generally useful debugging aid: export AIKO_LOG_LEVEL_LOCK=DEBUG
+#
+# To Do
+# ~~~~~
+# - Replace all Locks (not time critical), by ensuring all updates occur via
+#   "events" (handlers, messages and timers) managed by the event loop and
+#   executed solely by the event loop thread
 
 import os
 from threading import Lock as ThreadingLock
@@ -39,6 +45,9 @@ class Lock:
 
         if _LOGGER.isEnabledFor(DEBUG):
             _LOGGER.debug(f'"{self._name}" acquired by {location}')
+
+    def in_use(self):
+        return self._in_use
 
     def release(self):
         if _LOGGER.isEnabledFor(DEBUG):

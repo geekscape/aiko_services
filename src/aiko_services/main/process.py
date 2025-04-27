@@ -3,6 +3,15 @@
 # Provides the AikoServices framework for an application process.
 # Supports none, one or many Services within a single Process.
 #
+# Environment variables
+# ~~~~~~~~~~~~~~~~~~~~~
+# Fine-grained logging control ...
+# - Show low-level incoming MQTT messages
+#   - AIKO_LOG_LEVEL_MESSAGE: ERROR, WARNING, INFO, DEBUG
+#
+# - Show Connection locking, MQTT issues, Registrar issues, Services locking
+#   - AIKO_LOG_LEVEL_PROCESS: ERROR, WARNING, INFO, DEBUG
+#
 # Usage
 # ~~~~~
 # def time_handler():
@@ -15,7 +24,11 @@
 #
 # To Do
 # ~~~~~
+# * Automatically attempt reconnection with MQTT server after disconnection
+#
 # * BUG: AikoLogger.logger()" uses a Service Id of 0, not actual Service Id
+#
+# * Implement multiple message server connections for Federation, etc
 #
 # - A Process with ...
 #   - Single Service:    Typically isn't a LifeCycleManager
@@ -34,10 +47,6 @@
 #
 # - Improve AikoLogger (console and MQTT) to accurately provide Service id
 #   - Use ContextManager ?
-#
-# - Automatically attempt reconnection with MQTT server after disconnection
-#
-# - Implement multiple message server connections
 #
 # - Review "event.py" message and mailbox queues for latency and bandwidth
 #   - Minimal latency from MQTT on_message() handler --> application handler
@@ -76,7 +85,7 @@ _AIKO_LOG_LEVEL_PROCESS = "AIKO_LOG_LEVEL_PROCESS"
 class ProcessData:
     TOPIC_REGISTRAR_BOOT = f"{get_namespace()}/service/registrar"
 
-    connection = Connection()
+    connection = Connection("process")
 #   event = aiko_services.event  # TODO: Replace with Handler() instance
     logger = None
     message = None
@@ -118,8 +127,9 @@ _LOGGER_MESSAGE = aiko.logger(
     log_level=os.environ.get(_AIKO_LOG_LEVEL_MESSAGE, "INFO")
 )
 
-_LOGGER = aiko.logger(
-    __name__, log_level=os.environ.get(_AIKO_LOG_LEVEL_PROCESS, "INFO")
+_LOGGER_PROCESS = aiko.logger(
+    f"{__name__}.process",
+    log_level=os.environ.get(_AIKO_LOG_LEVEL_PROCESS, "INFO")
 )
 
 # --------------------------------------------------------------------------- #
@@ -137,7 +147,7 @@ class ProcessImplementation(ProcessData):
         self._message_handlers_wildcard_topics = []
         self._registrar_absent_terminate = False
         self._services = {}
-        self._services_lock = Lock(f"{__name__}._services", _LOGGER)
+        self._services_lock = Lock(f"{__name__}._services", _LOGGER_PROCESS)
 
     def initialize(self, mqtt_connection_required=True):
         if not self.initialized:
@@ -151,14 +161,15 @@ class ProcessImplementation(ProcessData):
             try:
                 aiko.message = MQTT(
                     self.on_message, self._message_handlers,
-                    aiko.topic_lwt, aiko.payload_lwt, False
+                    aiko.topic_lwt, aiko.payload_lwt, False,
+                    self.on_mqtt_state_change
                 )
                 mqtt_connected = True
             except SystemError as system_error:
                 if mqtt_connection_required:
-                    _LOGGER.error(system_error)
+                    _LOGGER_PROCESS.error(system_error)
                 else:
-                    _LOGGER.warning(system_error)
+                    _LOGGER_PROCESS.warning(system_error)
             if mqtt_connection_required and not mqtt_connected:
                 raise SystemExit()
 
@@ -207,7 +218,7 @@ class ProcessImplementation(ProcessData):
                 owner = get_username()
             except:
                 owner = "????????"
-                _LOGGER.warning(
+                _LOGGER_PROCESS.warning(
                     "Unable to acquire username to identify the Service owner")
             tags = service.get_tags_string()
             # TODO: For payload_out, use parser.generate() ?
@@ -279,6 +290,16 @@ class ProcessImplementation(ProcessData):
                     print(payload_out)
                     aiko.message.publish(aiko.topic_log, payload_out)
 
+    def on_mqtt_state_change(self, mqtt_state):
+        try:
+            self.connection.lock_acquire("on_mqtt_state()")
+            connection_state = ConnectionState.NONE
+            if mqtt_state == MessageState.CONNECTED:
+                connection_state = ConnectionState.TRANSPORT
+            self.connection.update_state(connection_state, _LOGGER_PROCESS)
+        finally:
+            self.connection.lock_release()
+
     def on_registrar(self, _, topic, payload_in):
         action = None
         parse_okay = False
@@ -298,7 +319,15 @@ class ProcessImplementation(ProcessData):
             if parse_okay:
                 if action == "found":
                     aiko.registrar = registrar
-                    aiko.connection.update_state(ConnectionState.REGISTRAR)
+                    try:
+                        self.connection.lock_acquire("on_registrar(): found")
+                        if self.connection.get_state() != ConnectionState.TRANSPORT:
+                            _LOGGER_PROCESS.warning(
+                                "Registrar discovered when not in TRANSPORT state")
+                        self.connection.update_state(
+                            ConnectionState.REGISTRAR, _LOGGER_PROCESS)
+                    finally:
+                        self.connection.lock_release()
 
                     try:
                         self._services_lock.acquire("on_registrar() #1")
@@ -309,9 +338,18 @@ class ProcessImplementation(ProcessData):
 
                 if action == "absent":
                     aiko.registrar = None
-                    aiko.connection.update_state(ConnectionState.TRANSPORT)
-                    if self._registrar_absent_terminate:
-                        self.terminate(1)
+                    try:
+                        self.connection.lock_acquire("on_registrar(): absent")
+                        if self.connection.get_state() == ConnectionState.REGISTRAR:
+                            self.connection.update_state(
+                                ConnectionState.TRANSPORT, _LOGGER_PROCESS)
+                        else:
+                            _LOGGER_PROCESS.warning(
+                                "Registrar lost when not in REGISTRAR state")
+                        if self._registrar_absent_terminate:
+                            self.terminate(1)
+                    finally:
+                        self.connection.lock_release()
 
                 try:
                     self._services_lock.acquire("on_registrar() #2")
@@ -320,7 +358,8 @@ class ProcessImplementation(ProcessData):
                 finally:
                     self._services_lock.release()
         except Exception as exception:
-            _LOGGER.warning(f"Exception raised when adding to Registrar")
+            _LOGGER_PROCESS.warning(
+                f"Exception raised when adding to Registrar")
             #   f"Exception raised when adding to Registrar: {exception}\n"
             #   f"{exception.__traceback__.tb_frame} "
             #   f"raised via line {exception.__traceback__.tb_lineno}")

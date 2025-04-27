@@ -6,7 +6,11 @@
 import abc
 from typing import Any
 
-__all__ = ["Message"]
+__all__ = ["Message", "MessageState"]
+
+class MessageState:
+    DISCONNECTED = "DISCONNECTED"
+    CONNECTED = "CONNECTED"
 
 class Message(abc.ABC):
     def __init__(
@@ -15,7 +19,8 @@ class Message(abc.ABC):
         topics_subscribe: Any = None,
         topic_lwt: str = None,
         payload_lwt: str = None,
-        retain_lwt: bool = False
+        retain_lwt: bool = False,
+        mqtt_state_handler = None
         ) -> None:
 
         pass

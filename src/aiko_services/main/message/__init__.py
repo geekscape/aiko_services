@@ -4,7 +4,7 @@
 # ~~~~~
 # - None, yet !
 
-from .message import Message
+from .message import Message, MessageState
 
 from .castaway import Castaway
 

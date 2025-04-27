@@ -69,11 +69,15 @@ class MQTT(Message):
         topics_subscribe: Any = None,
         topic_lwt: str = None,
         payload_lwt:str = None,
-        retain_lwt: bool = False
+        retain_lwt: bool = False,
+        mqtt_state_handler = None
         ) -> None:
 
         self.message_handler = message_handler
-        self.connected = False
+        self.mqtt_state_handler = mqtt_state_handler
+        self.connected = MessageState.DISCONNECTED
+        if self.mqtt_state_handler:
+            self.mqtt_state_handler(self.connected)
         self.published = True
         self.topics_subscribe = []
         self.wildcard_topic = False
@@ -150,7 +154,9 @@ class MQTT(Message):
         ) -> None:
 
         _LOGGER.debug(f"connected to {self.mqtt_info}")
-        self.connected = True
+        self.connected = MessageState.CONNECTED
+        if self.mqtt_state_handler:
+            self.mqtt_state_handler(self.connected)
         self._subscribe_if_connected(self.topics_subscribe)
 
     def _on_disconnect(
@@ -161,7 +167,9 @@ class MQTT(Message):
         ) -> None:
 
         _LOGGER.debug(f"on_disconnect")
-        self.connected = False
+        self.connected = MessageState.DISCONNECTED
+        if self.mqtt_state_handler:
+            self.mqtt_state_handler(self.connected)
         if return_code != 0:
             _LOGGER.info(f"on_disconnect: will reconnect: {return_code}")
 
@@ -216,7 +224,7 @@ class MQTT(Message):
             self._subscribe_if_connected(topics)
 
     def _subscribe_if_connected(self, topics: Any):
-        if self.connected:
+        if self.connected == MessageState.CONNECTED:
             if self.wildcard_topic:
                 if not self.wildcard_subscribed:
                     self.mqtt_client.subscribe("#")
@@ -245,7 +253,7 @@ class MQTT(Message):
                 elif topic in self.topics_subscribe:
                     if remove:
                         self.topics_subscribe.remove(topic)
-                    if self.connected:
+                    if self.connected == MessageState.CONNECTED:
                         self.mqtt_client.unsubscribe(topic)
                         _LOGGER.debug(f"unsubscribed from {self.mqtt_info}: {topic}")
 
@@ -255,7 +263,8 @@ class MQTT(Message):
     def wait_disconnected(self: Any) -> None:
 #       _LOGGER.debug("wait disconnected")
         for counter in range(_MAXIMUM_WAIT_TIME + 1):
-            if not self.connected: break
+            if self.connected == MessageState.DISCONNECTED:
+                break
             time.sleep(0.001)
         if counter >= _MAXIMUM_WAIT_TIME:
             _LOGGER.error(f"wait disconnected timeout: {counter}")
@@ -268,7 +277,8 @@ class MQTT(Message):
     def wait_connected(self: Any) -> None:
 #       _LOGGER.debug("wait connected")
         for counter in range(_MAXIMUM_WAIT_TIME + 1):
-            if self.connected: break
+            if self.connected == MessageState.CONNECTED:
+                break
             time.sleep(0.001)
         if counter >= _MAXIMUM_WAIT_TIME:
             _LOGGER.error(f"wait connected timeout: {counter}")
