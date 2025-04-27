@@ -1,3 +1,9 @@
+# Environment variables
+# ~~~~~~~~~~~~~~~~~~~~~
+# Fine-grained logging control ...
+# - Show all low-level Lease operations
+#   - AIKO_LOG_LEVEL_LEASE: ERROR, WARNING, INFO, DEBUG
+#
 # Example
 # ~~~~~~~
 # from aiko_services.main import *

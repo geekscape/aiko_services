@@ -33,6 +33,12 @@
 # mosquitto_pub -t $TOPIC_PATH/control -m "(add services.test 0)"
 # mosquitto_pub -t $TOPIC_PATH/control -m "(remove services)"
 #
+# Environment variables
+# ~~~~~~~~~~~~~~~~~~~~~
+# Fine-grained logging control ...
+# - Show some low-level EventualConsistency and ServicesCache operations
+#   - AIKO_LOG_LEVEL_SHARE: ERROR, WARNING, INFO, DEBUG
+#
 # To Do
 # ~~~~~
 # - BUG?: ECProducer remote expired leases

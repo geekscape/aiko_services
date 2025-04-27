@@ -6,6 +6,12 @@
 #
 # ./lifecycle.py client client_id lifecycle_manager_topic
 #
+# Environment variables
+# ~~~~~~~~~~~~~~~~~~~~~
+# Fine-grained logging control ...
+# - Show some low-level LifeCycle operations
+#   - AIKO_LOG_LEVEL_LIFECYCLE: ERROR, WARNING, INFO, DEBUG
+#
 # To Do: LifeCycleManager
 # ~~~~~~~~~~~~~~~~~~~~~~~
 # - Implement "lifecycle_manager.delete(lifecycle_client_id)"

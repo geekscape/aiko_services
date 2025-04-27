@@ -133,6 +133,9 @@
 #         "(PE_0 streaming: (PE_1 PE_3) (PE_2 PE_3))"
 #       ]
 #
+# * Ensure all shared updates occur via "events" (handlers, messages and timers)
+#   managed by the event loop and executed solely by the event loop thread.
+#
 # - Collect "local" and "remote" into "deployment" configuration structure
 #
 # - Support remote "aiko_pipeline update PIPELINE_NAME --hooks HOOKS_TYPE"

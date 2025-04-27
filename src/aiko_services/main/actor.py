@@ -3,6 +3,15 @@
 # Distributed Service based on the Actor Nodel
 # - https://en.wikipedia.org/wiki/Actor_model
 #
+# Environment variables
+# ~~~~~~~~~~~~~~~~~~~~~
+# Fine-grained logging control ...
+# - Show low-level message invoke() and diagnostics ... and run() method
+#   - AIKO_LOG_LEVEL_ACTOR: ERROR, WARNING, INFO, DEBUG
+#
+# Note: Logging currently commented out for ...
+#       "ec_producer_change_handler" and "_topic_in_handler()"
+#
 # Example 1
 # ~~~~~~~~~
 # from abc import abstractmethod

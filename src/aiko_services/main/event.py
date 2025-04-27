@@ -21,14 +21,19 @@
 #
 # To Do
 # ~~~~~
+# * Remove queue handler ... and replace usage with mailboxes *
+#
+# * For shared data, e.g Locks and more ...
+#   - Ensure all updates occur via "events" (handlers, messages and timers)
+#     managed by the event loop and executed solely by the event loop thread
+#
 # * Replace 'event.queue_put(message, "message")' with the general ability to
 #   put any 'object' onto a queue to get "work" onto the "event loop" and
 #   have that work done by a specified handler
 #
-# * Rename "event.py" to "handler.py" along with function and variable names.
+# * Rename "event.py" to "handler.py" along with function and variable names ?
 #
 # * Make function names consistently verb_noun() or noun_verb(), but not both !
-# * Remove queue handler ... and replace usage with mailboxes
 #
 # * Improve event.loop() to check timer in-between every mailbox check
 #
