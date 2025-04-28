@@ -75,7 +75,7 @@ class Connection:
                 logger.error(f'Connection "{self.id}": {diagnostic}')
 
             state_change = f"{self.connection_state} --> {connection_state}"
-            logger.info(f"Connection state: {state_change}")
+            logger.debug(f"Connection state: {state_change}")
 
         self.connection_state = connection_state
 

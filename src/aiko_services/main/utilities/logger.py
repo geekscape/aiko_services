@@ -63,8 +63,6 @@
 # To Do: LoggingHandlerMQTT
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
 # * Add support for AIKO_LOG_REPEAT_DEPTH to handle multiple repeated messages
-#
-# * Add support for ConnectionState.TRANSPORT (MQTT) connection updates
 
 from collections import deque
 import logging
