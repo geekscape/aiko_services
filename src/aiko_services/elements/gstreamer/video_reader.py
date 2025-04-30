@@ -116,12 +116,14 @@ class VideoReader:
     if success:
       try:
         caps = sample.get_caps()
-        self.image = self.gst_to_opencv(buffer_map.data, caps)
+    # 120 microseconds: self.gst_to_opencv()
+    # 400 microseconds: .copy()
+        self.image = self.gst_to_opencv(buffer_map.data, caps).copy()
 
-      # https://gstreamer.freedesktop.org/documentation/gstreamer/...
-      #     gstbuffer.html#members
-      # self.decode_timestamp = buffer.dts
-      # self.presentation_timestamp = buffer.pts
+    # https://gstreamer.freedesktop.org/documentation/gstreamer/...
+    #         gstbuffer.html#members
+    #   self.decode_timestamp = buffer.dts
+    #   self.presentation_timestamp = buffer.pts
 
       finally:
         buffer.unmap(buffer_map)

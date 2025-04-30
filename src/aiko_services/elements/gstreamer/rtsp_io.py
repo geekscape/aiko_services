@@ -38,7 +38,7 @@ class VideoReadRTSP(aiko.DataSource):  # PipelineElement
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         timestamp = stream.variables["timestamps"][0]  # Unix time
-        self.logger.debug(f"{self.my_id()}: process_frame(): {timestamp:.02f}")
+        self.logger.debug(f"{self.my_id()}: process_frame(): {timestamp:.2f}")
         return aiko.StreamEvent.OKAY, {"images": images}
 
 # --------------------------------------------------------------------------- #
