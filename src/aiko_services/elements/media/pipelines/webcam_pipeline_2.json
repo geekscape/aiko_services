@@ -1,0 +1,35 @@
+{
+  "version": 0,
+  "name":    "p_webcam_2",
+  "runtime": "python",
+
+  "graph": ["(VideoReadWebcam ImageResize ImageWriteFile)"],
+
+  "parameters": {"resolution": "320x240", "resolution_mac": "320x180"},
+
+  "elements": [
+    { "name":   "VideoReadWebcam",
+      "parameters": {"path": "/dev/video0", "rate": 10.0}, "#": "10 Hz",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.webcam_io"}
+      }
+    },
+    { "name":   "ImageResize",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "ImageWriteFile",
+      "parameters": {"data_targets": "(file://data_out/out_{:02d}.jpeg)"},
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    }
+  ]
+}
