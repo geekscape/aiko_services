@@ -24,6 +24,8 @@
 #
 # To Do
 # ~~~~~
+# * Fix: Ensure "frame_rate" is configurable and correct for "timestamps"
+#
 # - Implement "VideoReadFile.data_batch_size" in "frame_generator()"
 #
 # - Refactor optional module import into common function (see image_io.py)
@@ -56,6 +58,7 @@
 #   - cv2.createTrackbar() ?
 #   - Integrate with tkinter ?
 
+from datetime import datetime
 from typing import Tuple
 from pathlib import Path
 
@@ -66,6 +69,13 @@ __all__ = [
 ]
 
 _LOGGER = aiko.get_logger(__name__)
+
+_CAMERA_NAME = "F4S19_ROOF_0"
+_RTSP_CAMERA_FRAMERATE = 4.0         # Frames Per Second
+_RTSP_CAMERA_RESOLUTION = (640, 480) # width x height
+_VIDEO_DIRECTORY = "{cam}/{y:04d}/{m:02d}/{d:02d}/{h:02d}"
+_VIDEO_PATHNAME = "{video_directory}/{m:02d}.mp4"
+_VIDEO_CAPTURE_FILE_DURATION = 1  # 2 minutes
 
 _CV2_IMPORTED = False
 try:
@@ -166,6 +176,7 @@ class VideoReadFile(aiko.DataSource):  # PipelineElement
                 stream.variables["video_frame_generator"] = None
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
+        stream.variables["timestamps"] = [stream.frame_id * (1 / 25)]
         self.logger.debug(f"{self.my_id()}")
         return aiko.StreamEvent.OKAY, {"images": images}
 
@@ -306,6 +317,55 @@ class VideoWriteFile(aiko.DataTarget):  # PipelineElement
         if stream.variables["video_writer"]:
             stream.variables["video_writer"].release()
             stream.variables["video_writer"] = None
+        return aiko.StreamEvent.OKAY, {}
+
+# --------------------------------------------------------------------------- #
+# VideoWriteFiles is a DataTarget that writes images to a video files
+#
+# parameter: "data_targets" is the write file path, format variable: "frame_id"
+#
+# Note: Only supports Streams with "data_targets" parameters
+
+# class VideoWriteFiles(VideoWriteFile):  # DataTarget(PipelineElement)
+
+class VideoWriteFiles(aiko.PipelineElement):
+    def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("video_write_files:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+        self.last_minute = 0
+        self.video_writer = None
+
+    def _create_video_writer(self):
+        now = datetime.now()
+        video_directory = _VIDEO_DIRECTORY.format(
+            cam=_CAMERA_NAME, y=now.year, m=now.month, d=now.day, h=now.hour)
+        Path(video_directory).mkdir(exist_ok=True, parents=True)
+        video_pathname = _VIDEO_PATHNAME.format(
+            video_directory=video_directory, m=now.minute)
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        video_writer = cv2.VideoWriter(video_pathname,
+            fourcc, _RTSP_CAMERA_FRAMERATE, _RTSP_CAMERA_RESOLUTION)
+        return video_writer, video_pathname
+
+    def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
+        self.logger.debug(f"{self.my_id()}")
+
+        now_minute = datetime.now().minute
+        if self.video_writer:
+            if self.last_minute != now_minute:
+                if now_minute % _VIDEO_CAPTURE_FILE_DURATION == 0:
+                    if self.video_writer:
+                        self.video_writer.release()
+                        self.video_writer = None
+        if not self.video_writer:
+            self.video_writer, video_pathname = self._create_video_writer()
+            self.ec_producer.update("video_pathname", video_pathname)
+        self.last_minute = now_minute
+
+        image = cv2.cvtColor(np.array(images[0]), cv2.COLOR_RGB2BGR)
+        self.video_writer.write(image)
+
         return aiko.StreamEvent.OKAY, {}
 
 # --------------------------------------------------------------------------- #

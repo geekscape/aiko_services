@@ -9,9 +9,11 @@ from threading import Thread
 
 import aiko_services as aiko
 from aiko_services.elements.gstreamer import (
-    get_format, gst_initialise, VideoReader)
+    get_format, get_h264_decoder, gst_initialise, VideoReader)
 
 __all__ = ["DataSchemeRTSP"]
+
+RTSP_LATENCY = 500  # milliseconds, default: 2,000 milliseconds
 
 # --------------------------------------------------------------------------- #
 # parameter: "data_sources" provides the RTSP server details (incoming)
@@ -43,11 +45,15 @@ class DataSchemeRTSP(aiko.DataScheme):
             width, height = resolution.split("x")
             resolution = (int(width), int(height))
 
-        gst_launch_command = f"rtspsrc location={rtsp_url} ! rtph264depay ! h264parse ! decodebin ! videoconvert ! videorate ! appsink name=sink"
+        gst_launch_command = f"rtspsrc location={rtsp_url} latency={RTSP_LATENCY} ! rtph264depay ! h264parse ! {get_h264_decoder()} ! videoconvert ! videorate ! appsink name=sink"
         gst_pipeline = gst.parse_launch(gst_launch_command)
         sink = gst_pipeline.get_by_name("sink")
         sink_caps = f"video/x-raw, format={format}, width={width}, height={height}, framerate={frame_rate}"
         sink.set_property("caps", gst.caps_from_string(sink_caps))
+    #   sink.set_property("drop", True)
+    #   sink.set_property("emit-signals", True)
+    #   sink.set_property("max-buffers", 1)
+    #   sink.set_property("sync", False)
         self.video_reader = VideoReader(gst_pipeline, sink)
 
         self.queue = queue.Queue()

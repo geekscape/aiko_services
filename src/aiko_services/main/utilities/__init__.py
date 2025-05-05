@@ -29,6 +29,12 @@ from .network import get_network_port_free, get_network_ports_used
 
 from .parser import generate, parse, parse_float, parse_int, parse_number
 
+from .system import (
+    get_memory_used, get_virtual_memory,
+    print_memory_used, print_virtual_memory,
+    get_uptime
+)
+
 from .utc_iso8601 import (
    datetime_epoch, datetime_now_utc_iso, epoch_to_utc_iso,
    local_iso_now, utc_iso_since_epoch, utc_iso_to_datetime,

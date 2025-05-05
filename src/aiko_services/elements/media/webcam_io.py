@@ -25,6 +25,8 @@
 #
 # To Do
 # ~~~~~
+# * Fix: Ensure "frame_rate" is configurable and correct for "timestamps"
+#
 # - Implement "VideoReadWebcam.data_batch_size" in "frame_generator()"
 #
 # - Implement "data_source scheme", e.g "webcam://0" or "webcam://dev/video0"
@@ -149,6 +151,7 @@ class VideoReadWebcam(aiko.DataSource):  # PipelineElement
     #   return aiko.StreamEvent.STOP, {"diagnostic": "Camera stopped"}
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
+        stream.variables["timestamps"] = [stream.frame_id * (1 / 25)]
         self.logger.debug(f"{self.my_id()}: read image")
         return aiko.StreamEvent.OKAY, {"images": images}
 
