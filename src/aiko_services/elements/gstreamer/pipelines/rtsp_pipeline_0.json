@@ -1,6 +1,6 @@
 {
   "version": 0,
-  "name":    "p_rtsp_video",
+  "name":    "p_rtsp_video_0",
   "runtime": "python",
 
   "graph": ["(VideoReadRTSP VideoShow)"],

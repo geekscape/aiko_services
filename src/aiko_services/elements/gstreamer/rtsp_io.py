@@ -38,8 +38,8 @@ class VideoReadRTSP(aiko.DataSource):  # PipelineElement
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
-    #   timestamp = stream.variables["timestamps"][0]  # Unix time
-    #   self.logger.debug(f"{self.my_id()}: process_frame(): {timestamp:.2f}")
+        timestamp = stream.variables["timestamps"][0]  # Unix time
+        self.logger.debug(f"{self.my_id()}: process_frame(): {timestamp:.2f}")
     #   print_memory_used("VideoReadRTSP.process_frame(): ")
         return aiko.StreamEvent.OKAY, {"images": images}
 

@@ -1,5 +1,7 @@
 # To Do
 # ~~~~~
+# - Enable GStreamer "appsink" properties to be set via "get_parameter()"
+#
 # - Create an RTSP DataTarget, which is an RTSP Server producing images
 #
 # - Support "data_batch_size" resulting in a frame containing multiple images
@@ -50,10 +52,10 @@ class DataSchemeRTSP(aiko.DataScheme):
         sink = gst_pipeline.get_by_name("sink")
         sink_caps = f"video/x-raw, format={format}, width={width}, height={height}, framerate={frame_rate}"
         sink.set_property("caps", gst.caps_from_string(sink_caps))
-    #   sink.set_property("drop", True)
-    #   sink.set_property("emit-signals", True)
-    #   sink.set_property("max-buffers", 1)
-    #   sink.set_property("sync", False)
+        sink.set_property("drop", True)          # drop buffers, if queue full
+        sink.set_property("emit-signals", True)  # enable "new-sample" signal
+        sink.set_property("max-buffers", 1)      # buffer queue size
+        sink.set_property("sync", False)         # playback fast as possible
         self.video_reader = VideoReader(gst_pipeline, sink)
 
         self.queue = queue.Queue()

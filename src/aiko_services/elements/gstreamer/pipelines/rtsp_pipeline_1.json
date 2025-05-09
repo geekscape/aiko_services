@@ -3,10 +3,7 @@
   "name":    "p_rtsp_video_1",
   "runtime": "python",
 
-  "graph": ["(VideoReadRTSP VideoWriteFiles Metrics)"],
-  "#":     ["(VideoReadRTSP VideoShow VideoWriteFiles Metrics)"],
-
-  "parameters": {"resolution": "640x480"},
+  "graph": ["(VideoReadRTSP VideoShow VideoWriteFiles Metrics)"],
 
   "elements": [
     { "name":   "VideoReadRTSP",
