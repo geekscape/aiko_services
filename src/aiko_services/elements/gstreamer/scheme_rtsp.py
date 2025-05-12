@@ -89,6 +89,11 @@ class DataSchemeRTSP(aiko.DataScheme):
         if frame:
             if "type" in frame and frame["type"] == "image":
                 images.append(frame["image"])
+                timestamp = -1.0
+                if "timestamp" in frame:
+                    timestamp = frame["timestamp"]
+                    if type(timestamp) is not float:
+                        timestamp = -2.0
                 stream.variables["timestamps"] = [frame["timestamp"]]
 
         if images:
