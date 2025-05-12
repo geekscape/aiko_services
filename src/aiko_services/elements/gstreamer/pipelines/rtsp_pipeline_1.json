@@ -33,6 +33,7 @@
     { "name":   "VideoWriteFiles",
       "parameters": {
         "DATA_TARGETS": "(file://data_out/out.mp4)",
+        "minute_range":        "*",         "#": "* or 00-01",
         "video_name":          "data_out",
         "directory":           "{video_name}/{y:04d}/{m:02d}/{d:02d}/{h:02d}",
         "pathname":            "{directory}/{m:02d}m_{s:02d}s.mp4",

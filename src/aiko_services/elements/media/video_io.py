@@ -65,12 +65,15 @@ from typing import Tuple
 from pathlib import Path
 
 import aiko_services as aiko
+from aiko_services.main.utilities import parse_int
 
 __all__ = [
     "VideoOutput", "VideoReadFile", "VideoSample", "VideoShow", "VideoWriteFile"
 ]
 
 _LOGGER = aiko.get_logger(__name__)
+
+_DEFAULT_MINUTE_RANGE = "*"   # "*" or specific minute range to capture "00-01"
 
 _DEFAULT_VIDEO_NAME = "data_out"
 _DEFAULT_VIDEO_DIRECTORY = "{video_name}/{y:04d}/{m:02d}/{d:02d}/{h:02d}"
@@ -374,9 +377,22 @@ class VideoWriteFiles(aiko.PipelineElement):
             stream.variables["video_writer"] = None
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
-        self.logger.debug(f"{self.my_id()}")
-
         now_minute = datetime.now().minute
+        minute_range, _ = self.get_parameter(
+            "minute_range", _DEFAULT_MINUTE_RANGE)
+        self.share["minute_range"] = minute_range
+        if minute_range != "*":
+            minute_start, minute_end =  \
+                (lambda x: (int(x[0]), int(x[-1])))(minute_range.split('-'))
+            minute_start = parse_int(minute_start)
+            minute_end = parse_int(minute_end)
+            if now_minute < minute_start or now_minute > minute_end:
+                self.logger.debug(f"{self.my_id()}: Disabled")
+                self._destroy_video_writer(stream)
+                return aiko.StreamEvent.OKAY, {}
+
+        self.logger.debug(f"{self.my_id()}: Enabled")
+
         if stream.variables["video_writer"]:
             if stream.variables["last_minute"] != now_minute:
                 if now_minute % stream.variables["video_file_duration"] == 0:
