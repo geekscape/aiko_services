@@ -52,7 +52,8 @@ def evaluate(expression, arguments={}):
     if re.fullmatch(r"\d+(\.\d+)?", expression):  # Is a number ?
         return float(expression) if "." in expression else int(expression)
 
-    if re.fullmatch(r"\".*\"|\'.*\'" , expression) or expression.isalpha():
+    if re.fullmatch(r"\".*\"|\'.*\'" , expression) or  \
+        re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", expression):
         return expression.strip("\"'")  # If present, remove quotes
 
     if re.fullmatch(r"\[.*\]", expression):
