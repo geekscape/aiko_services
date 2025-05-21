@@ -4,6 +4,12 @@
 #
 # To Do
 # ~~~~~
+# - Expression evaluation support ...
+#   - Dictionary or List access, e.g variable[1] or variable[index]
+#     - Requires parser improvement for list[index], e.g variable[index]
+#   - Extensible list of functions, e.g random(), stack push() / pop()
+#     - Requires parser improvement for function calls, e.g random()
+#
 # - Common system calls, e.g /proc, filesystem, network, etc
 # - Update Pipeline Stream Event --> State, implement StateMachine
 # - Alter Pipeline Graph control flow
@@ -41,7 +47,7 @@ def all_outputs(pipeline_element, stream):
 #
 # - expression: expression_0 operator expression_1 ...
 # - expression: integer, float, string, list, dictionary, argument_name
-# - operator:   +, -, *, /
+# - operator:   + - * / < <= > >=
 
 def evaluate(expression, arguments={}):
     expression = expression.strip()
@@ -59,7 +65,7 @@ def evaluate(expression, arguments={}):
     if re.fullmatch(r"\[.*\]", expression):
         return eval(expression)  # Convert "list" to a [list]
 
-    match = re.search(r"(\+|\-|\*|/)", expression)  # Binary operation ?
+    match = re.search(r"(\+|\-|\*|/|\<|\<=|/>|\>=)", expression)  # operators
     if match:
         operator = match.group()
         left_expression = expression[:match.start()].strip()
@@ -68,15 +74,10 @@ def evaluate(expression, arguments={}):
         left_value = evaluate(left_expression, arguments)
         right_value = evaluate(right_expression, arguments)
 
-        if isinstance(left_value, str) and  \
-            isinstance(right_value, str) and operator == "+":
-            return left_value + right_value
+        left_value = parse_number(left_value, left_value)     # coerce to number
+        right_value = parse_number(right_value, right_value)  # ditto
 
-        elif isinstance(left_value, list) and  \
-            isinstance(right_value, list) and op == "+":
-            return left_value + right_value
-
-        elif isinstance(left_value, (int, float)) and  \
+        if isinstance(left_value, (int, float)) and  \
              isinstance(right_value, (int, float)):
             if operator == "+":
                 return left_value + right_value
@@ -88,8 +89,26 @@ def evaluate(expression, arguments={}):
                 if right_value == 0:
                     raise ValueError("Invalid division by zero")
                 return left_value / right_value
+            elif operator == "<":
+                return left_value < right_value
+            elif operator == "<=":
+                return left_value <= right_value
+            elif operator == ">":
+                return left_value > right_value
+            elif operator == ">=":
+                return left_value >= right_value
 
-    raise ValueError(f"Invalid expression: {expression}")
+        elif operator == "+" and  \
+             isinstance(left_value, list) and isinstance(right_value, list):
+            return left_value + right_value
+
+        elif operator == "+" and  \
+             isinstance(left_value, (int, float, str)) and  \
+             isinstance(right_value, (int, float, str)):
+            return f"{left_value}{right_value}"
+
+    return expression  # Treat everything else as a "string"
+#   raise ValueError(f"Invalid expression: {expression}")
 
 def evaluate_condition(expressions, swag, logger=None):
     results = []
