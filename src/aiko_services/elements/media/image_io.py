@@ -68,8 +68,10 @@ import zlib
 import aiko_services as aiko
 
 __all__ = [
+    "bytes_to_image", "image_to_bytes",
+    "convert_image", "convert_images",
     "convert_image_to_numpy", "convert_image_to_pil",
-    "ImageOutput", "ImageOverlay", "ImageOverlayFilter",
+    "ImageConvert", "ImageOutput", "ImageOverlay", "ImageOverlayFilter",
     "ImageReadFile", "ImageReadZMQ", "ImageResize",
     "ImageWriteFile", "ImageWriteZMQ"
 ]
@@ -138,10 +140,30 @@ convert_image_handlers = {
     "pil": convert_image_to_pil
 }
 
-def convert_image(image, type):
-    if type not in convert_image_handlers:
-        raise ValueError(f"image_io:convert_image(): Unknown type: {type}")
-    return convert_image_handlers[type](image)
+def convert_image(image, media_type):
+    if media_type not in convert_image_handlers:
+        raise ValueError(
+            f"image_io:convert_image(): Unknown media type: {media_type}")
+    return convert_image_handlers[media_type](image)
+
+def convert_images(images, media_type):
+    images_converted = []
+    for image in images:
+        images_converted.append(convert_image(image, media_type))
+    return(images_converted)
+
+# --------------------------------------------------------------------------- #
+
+class ImageConvert(aiko.PipelineElement):
+    def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("image_convert:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
+        media_type, _ = self.get_parameter("media_type", None)
+        if media_type:
+            images = convert_images(images, media_type)
+        return aiko.StreamEvent.OKAY, {"images": images}
 
 # --------------------------------------------------------------------------- #
 # Useful for Pipeline output that should be all of the images processed
@@ -281,10 +303,14 @@ class ImageReadFile(aiko.DataSource):  # PipelineElement
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream, paths) -> Tuple[aiko.StreamEvent, dict]:
+        stream.variables["timestamps"] = [stream.frame_id * (1 / 25)]
         images = []
+        media_type, _ = self.get_parameter("media_type", None)
         for path in paths:
             try:
                 image = Image.open(path)
+                if media_type:
+                    image = convert_image(image, media_type)
                 images.append(image)
                 self.logger.debug(f"{self.my_id()}: {path} {image.size}")
             except Exception as exception:
@@ -310,6 +336,7 @@ class ImageReadZMQ(aiko.DataSource):  # PipelineElement
         context.get_implementation("PipelineElement").__init__(self, context)
 
     def process_frame(self, stream, records) -> Tuple[aiko.StreamEvent, dict]:
+        stream.variables["timestamps"] = [stream.frame_id * (1 / 25)]
         images = []
         media_type, _ = self.get_parameter("media_type", None)
         if media_type:

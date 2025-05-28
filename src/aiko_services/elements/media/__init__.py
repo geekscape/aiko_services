@@ -20,8 +20,10 @@ from .audio_io import (
 from .elements import Mock, NoOp
 
 from .image_io import (
+    bytes_to_image, image_to_bytes,
+    convert_image, convert_images,
     convert_image_to_numpy, convert_image_to_pil,
-    ImageOutput, ImageOverlay, ImageOverlayFilter,
+    ImageConvert, ImageOutput, ImageOverlay, ImageOverlayFilter,
     ImageReadFile, ImageReadZMQ, ImageResize,
     ImageWriteFile, ImageWriteZMQ
 )
@@ -31,6 +33,8 @@ from .text_io import (
     TextSample, TextTransform, TextWriteFile, TextWriteZMQ
 )
 
-from .video_io import VideoOutput, VideoReadFile, VideoShow, VideoWriteFile
+from .video_io import (
+    VideoOutput, VideoReadFile, VideoShow, VideoWriteFile
+)
 
 from .webcam_io import VideoReadWebcam

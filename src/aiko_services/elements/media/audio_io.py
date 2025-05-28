@@ -354,8 +354,8 @@ class PE_GraphXY(PipelineElement):
         graph.render_to_png(memory_file)
         memory_file.seek(0)
         image = Image.open(memory_file)
-        image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-        cv2.imshow(WINDOW_TITLE, image)
+        image_bgr = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        cv2.imshow(WINDOW_TITLE, image_bgr)
         if cv2.waitKey(GRAPH_FRAME_PERIOD) & 0xff == ord('x'):
             return False, {}
         else:

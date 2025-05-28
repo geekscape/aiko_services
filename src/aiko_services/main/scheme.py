@@ -1,6 +1,10 @@
 # To Do
 # ~~~~~
-# - None, yet !
+# - Improve "parse_data_url_*()" using ...
+#     from urllib.parse import urlparse
+#     url = urlparse(url_string)
+#       url.scheme, url.netloc, url.path, url.query, url.fragment
+#       url.hostname, url.port
 
 from abc import abstractmethod
 

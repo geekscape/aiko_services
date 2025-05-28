@@ -68,7 +68,8 @@ import aiko_services as aiko
 from aiko_services.main.utilities import parse_int
 
 __all__ = [
-    "VideoOutput", "VideoReadFile", "VideoSample", "VideoShow", "VideoWriteFile"
+    "VideoOutput", "VideoReadFile", "VideoSample", "VideoShow",
+    "VideoWriteFile", "VideoWriteFiles"
 ]
 
 _LOGGER = aiko.get_logger(__name__)
@@ -184,6 +185,10 @@ class VideoReadFile(aiko.DataSource):  # PipelineElement
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         stream.variables["timestamps"] = [stream.frame_id * (1 / 25)]
         self.logger.debug(f"{self.my_id()}")
+
+        media_type, _ = self.get_parameter("media_type", None)
+        if media_type:
+            images = convert_images(images, media_type)
         return aiko.StreamEvent.OKAY, {"images": images}
 
     def stop_stream(self, stream, stream_id):
@@ -403,8 +408,8 @@ class VideoWriteFiles(aiko.PipelineElement):
             self.ec_producer.update("video_pathname", video_pathname)
         stream.variables["last_minute"] = now_minute
 
-        image = cv2.cvtColor(np.array(images[0]), cv2.COLOR_RGB2BGR)
-        stream.variables["video_writer"].write(image)
+        image_bgr = cv2.cvtColor(np.array(images[0]), cv2.COLOR_RGB2BGR)
+        stream.variables["video_writer"].write(image_bgr)
 
         return aiko.StreamEvent.OKAY, {}
 

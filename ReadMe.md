@@ -82,14 +82,18 @@ See [GitHub Issues](https://github.com/geekscape/aiko_services/issues)
 
 # Presentations
 
-- [Building an open framework combining AIoT, Media, Robotics & Machine Learning (YouTube)](https://www.youtube.com/watch?v=htbzn_xwEnU)
-    - [Slide deck (Google slides)](https://docs.google.com/presentation/d/1dR8jw6sEKkgPBMDsKkZd87Y79LMk7jhVxxAmRMbjmbE/edit#)
-    - Everything Open conference March 2023: Melbourne
-
-- [Using Python to stream media using GStreamer for RTSP and WebRTC applications (YouTube)](https://www.youtube.com/watch?v=VwnWHC04Qp8)
-    - [Slide deck (Google slides)](https://docs.google.com/presentation/d/1yc8jMcq8967L3fzIBmiy7MMYaBhSKD1L3XJ979_VanE/edit#)
-    - PyCon AU conference August 2023: Adelaide
+- An open-source framework for creating awesome Machine Learning applications
+    - [Slide deck (Google slides)](https://docs.google.com/presentation/d/1lMgo-QPcHy2ywFjHfFN32kn7dxTX3o6AQtCqfDG9qmI/edit#)
+    - Everything Open conference January 2025: Adelaide, Australia
 
 - [microPython distributed, embedded services (YouTube)](https://www.youtube.com/watch?v=25Ij-EUjqS4)
     - [Slide deck (Google slides)](https://docs.google.com/presentation/d/1V0_Hr3AKxRysg6AvgI1w2viBhFNmvcF1RwdIBMJJVCI/edit#)
-    - microPython meet-up November 2023: Melbourne
+    - microPython meet-up November 2023: Melbourne, Australia
+
+- [Using Python to stream media using GStreamer for RTSP and WebRTC applications (YouTube)](https://www.youtube.com/watch?v=VwnWHC04Qp8)
+    - [Slide deck (Google slides)](https://docs.google.com/presentation/d/1yc8jMcq8967L3fzIBmiy7MMYaBhSKD1L3XJ979_VanE/edit#)
+    - PyCon AU conference August 2023: Adelaide, Australia
+
+- [Building an open framework combining AIoT, Media, Robotics & Machine Learning (YouTube)](https://www.youtube.com/watch?v=htbzn_xwEnU)
+    - [Slide deck (Google slides)](https://docs.google.com/presentation/d/1dR8jw6sEKkgPBMDsKkZd87Y79LMk7jhVxxAmRMbjmbE/edit#)
+    - Everything Open conference March 2023: Melbourne, Australia

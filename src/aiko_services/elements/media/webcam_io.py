@@ -153,6 +153,10 @@ class VideoReadWebcam(aiko.DataSource):  # PipelineElement
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         stream.variables["timestamps"] = [stream.frame_id * (1 / 25)]
         self.logger.debug(f"{self.my_id()}: read image")
+
+        media_type, _ = self.get_parameter("media_type", None)
+        if media_type:
+            images = convert_images(images, media_type)
         return aiko.StreamEvent.OKAY, {"images": images}
 
     def stop_stream(self, stream, stream_id):

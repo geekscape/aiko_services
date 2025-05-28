@@ -20,6 +20,7 @@
 from typing import Tuple
 
 import aiko_services as aiko
+# from aiko_services.elements.media import convert_images
 from aiko_services.main.utilities import *
 
 __all__ = ["VideoReadRTSP"]
@@ -43,6 +44,10 @@ class VideoReadRTSP(aiko.DataSource):  # PipelineElement
             timestamp = stream.variables["timestamps"][0]  # Unix time
             timestamp = timestamp if timestamp else -4.0
         self.logger.debug(f"{self.my_id()}: process_frame(): {timestamp:.2f}")
+
+        media_type, _ = self.get_parameter("media_type", None)
+        if media_type:
+            images = convert_images(images, media_type)
     #   print_memory_used("VideoReadRTSP.process_frame(): ")
         return aiko.StreamEvent.OKAY, {"images": images}
 
