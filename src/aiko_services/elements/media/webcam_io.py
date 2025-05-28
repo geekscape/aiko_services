@@ -44,6 +44,7 @@ import os
 from typing import Tuple
 
 import aiko_services as aiko
+from aiko_services.elements.media import convert_images
 
 __all__ = ["VideoReadWebcam"]
 

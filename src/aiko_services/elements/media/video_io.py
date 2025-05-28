@@ -65,6 +65,7 @@ from typing import Tuple
 from pathlib import Path
 
 import aiko_services as aiko
+from aiko_services.elements.media import convert_images
 from aiko_services.main.utilities import parse_int
 
 __all__ = [
