@@ -201,6 +201,7 @@ class RegistrarImpl(Registrar):
         self.services = Services()
 
         self.share = {
+            "aiko_id": aiko.id,
             "lifecycle": "start",
             "log_level": get_log_level_name(_LOGGER),
             "source_file": f"v{REGISTRAR_VERSION}⇒ {__file__}",
