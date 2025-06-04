@@ -16,6 +16,9 @@
 #
 # To Do
 # ~~~~~
+# * Fix: Use of do_request(), before starting, may need to wait for ...
+#        Connection.is_connected(ConnectionState.REGISTRAR) ?
+#
 # * Implement timeouts ...
 #   * do_command(), do_request(): Timeout waiting for discovery for request
 #   * do_request(): Timeout waiting for response

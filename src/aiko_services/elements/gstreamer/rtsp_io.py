@@ -20,7 +20,7 @@
 from typing import Tuple
 
 import aiko_services as aiko
-# from aiko_services.elements.media import convert_images
+from aiko_services.elements.media import convert_images
 from aiko_services.main.utilities import *
 
 __all__ = ["VideoReadRTSP"]

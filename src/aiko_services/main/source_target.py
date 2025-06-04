@@ -60,7 +60,7 @@ class DataSource(PipelineElementImpl):
 
     def stop_stream(self, stream, stream_id):
         if "data_scheme" in stream.variables:
-            if tream.variables["data_scheme"]:
+            if stream.variables["data_scheme"]:
                 stream.variables["data_scheme"].destroy_sources(stream)
             del stream.variables["data_scheme"]
         return StreamEvent.OKAY, {}
