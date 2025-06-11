@@ -223,7 +223,7 @@ class ActorImpl(Actor):
         self.share = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(self.logger),
-        #   "running": False  # TODO: Consolidate into self.share["lifecycle"] ?
+            "running": False  # TODO: Consolidate into self.share ?
         }
         self.ec_producer = ECProducer(self, self.share)
         self.ec_producer.add_handler(self.ec_producer_change_handler)
@@ -296,17 +296,19 @@ class ActorImpl(Actor):
             except ValueError:
                 pass
 
-#   def is_running(self):
-#       return self.share["running"]
+    def is_running(self):
+        return self.share["running"]
 
 # TODO: Refactor this method into "service.py"
     def run(self, mqtt_connection_required=True):
+        self.share["running"] = True
         try:
             aiko.process.run(mqtt_connection_required=mqtt_connection_required)
         except Exception as exception:
         #   _LOGGER.error(f"Exception caught in {self.__class__.__name__}: {type(exception).__name__}: {exception}")
             _LOGGER.error(traceback.format_exc())
             raise exception
+        self.share["running"] = False
 
     def set_log_level(self, level):
         self.ec_producer.update("log_level", level.upper())
