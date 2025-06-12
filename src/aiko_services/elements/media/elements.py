@@ -23,7 +23,7 @@ class Mock(aiko.PipelineElement):
 
     def process_frame(self, stream) -> Tuple[aiko.StreamEvent, dict]:
         label, _ = self.get_parameter("label", default="")
-        self.logger.info(f"{self.my_id()} {label}")
+        self.logger.debug(f"{self.my_id()} {label}")
         return aiko.StreamEvent.OKAY, {}
 
 # --------------------------------------------------------------------------- #

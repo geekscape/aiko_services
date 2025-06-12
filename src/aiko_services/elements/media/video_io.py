@@ -311,6 +311,10 @@ class VideoWriteFile(aiko.DataTarget):  # PipelineElement
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         self.logger.debug(f"{self.my_id()}")
 
+        if images and not isinstance(images[0], np.ndarray):
+            diagnostic = "Image media_type must be a numpy array"
+            return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+
         if stream.variables["video_writer"]:
             video_writer = stream.variables["video_writer"]
         else:

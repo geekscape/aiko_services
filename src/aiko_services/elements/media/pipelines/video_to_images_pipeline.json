@@ -1,0 +1,31 @@
+{
+  "version": 0,
+  "name":    "p_video_to_images",
+  "runtime": "python",
+
+  "graph": ["(VideoReadFile ImageWriteFile)"],
+
+  "parameters": {"rate": 0.0},
+
+  "elements": [
+    { "name":   "VideoReadFile",
+      "parameters": {
+        "data_sources": "(file://data_in/in_00.mp4)",
+        "data_batch_size": 1
+      },
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    },
+    { "name":   "ImageWriteFile",
+      "parameters": {"data_targets": "(file://data_out/out_{:06d}.jpeg)"},
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    }
+  ]
+}
