@@ -72,7 +72,7 @@ __all__ = [
     "convert_image", "convert_images",
     "convert_image_to_numpy", "convert_image_to_pil",
     "ImageConvert", "ImageOutput", "ImageOverlay", "ImageOverlayFilter",
-    "ImageReadFile", "ImageReadZMQ", "ImageResize",
+    "ImageReadFile", "ImageReadZMQ", "ImageResize", "ImageSquareCenterCrop",
     "ImageWriteFile", "ImageWriteZMQ"
 ]
 
@@ -358,6 +358,7 @@ class ImageReadZMQ(aiko.DataSource):  # PipelineElement
         return aiko.StreamEvent.OKAY, {"images": images}
 
 # --------------------------------------------------------------------------- #
+# TODO: Combine ImageResize and ImageSquareCenterCrop PipelineElements
 # TODO: Add logic for using different backends (opencv,...) or
 #           different input types (np.ndarray, ...)
 #
@@ -388,6 +389,44 @@ class ImageResize(aiko.PipelineElement):
                 image_resized = image.resize((int(width), int(height)))
             images_resized.append(image_resized)
         return aiko.StreamEvent.OKAY, {"images": images_resized}
+
+# --------------------------------------------------------------------------- #
+# TODO: Combine ImageResize and ImageSquareCenterCrop PipelineElements
+#       ImageResize should be able to handle both Pillow and NumPy array
+#       ImageResize should have a "square_centre_crop=boolean" parameter
+
+def square_center_crop(image):  # Either Pillow or NumPy array Image
+    if isinstance(image, Image.Image):
+        width, height = image.size
+        is_pil = True
+    elif isinstance(image, np.ndarray):
+        height, width = image.shape[:2]
+        is_pil = False
+    else:
+        raise TypeError(
+            f"square_center_crop() requires PIL.Image or np.ndarray, "
+            f"but received type {type(image)}"
+        )
+
+    side = min(width, height)  # Maintain shortest side
+    left = (width - side) // 2
+    top  = (height - side) // 2
+
+    if is_pil:
+        return image.crop((left, top, left + side, top + side))
+    else:
+        return image[top : top + side, left : left + side, ...]
+
+class ImageSquareCenterCrop(aiko.PipelineElement):
+    def __init__(self, context: aiko.ContextPipelineElement):
+        context.set_protocol("image_square_center_crop:0")
+        context.get_implementation("PipelineElement").__init__(self, context)
+
+    def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
+        images_cropped = []
+        for image in images:
+            images_cropped.append(square_center_crop(image))
+        return aiko.StreamEvent.OKAY, {"images": images_cropped}
 
 # --------------------------------------------------------------------------- #
 # ImageWriteFile is a DataTarget that writes images to files

@@ -24,7 +24,7 @@ from .image_io import (
     convert_image, convert_images,
     convert_image_to_numpy, convert_image_to_pil,
     ImageConvert, ImageOutput, ImageOverlay, ImageOverlayFilter,
-    ImageReadFile, ImageReadZMQ, ImageResize,
+    ImageReadFile, ImageReadZMQ, ImageResize, ImageSquareCenterCrop,
     ImageWriteFile, ImageWriteZMQ
 )
 
