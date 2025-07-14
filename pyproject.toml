@@ -3,7 +3,7 @@ name = "aiko_services"
 version = "0.6"
 readme = "ReadMe.md"
 description = "Distributed embedded service framework for A.I and robotics"
-requires-python = ">=3.9.0,<=3.13.3"
+requires-python = ">=3.9.0,<=3.13.5"
 
 authors = [
     {name = "Andy Gelme", email = "geekscape@gmail.com"}
