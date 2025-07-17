@@ -162,7 +162,6 @@
 
 from abc import abstractmethod
 import avro.schema
-from avro_validator.schema import Schema
 import click
 import copy
 from collections import OrderedDict  # All OrderedDict operations are O(1)
