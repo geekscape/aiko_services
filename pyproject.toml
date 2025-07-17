@@ -36,7 +36,6 @@ classifiers = [
 dependencies = [
     "asciimatics~=1.15.0",
     "avro~=1.12.0",
-    "avro-validator~=1.2.1",
     "click~=8.1.7",
     "numpy>=1.26.4",
     "paho-mqtt>=1.6.1,<2.0.0",
