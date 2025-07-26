@@ -6,18 +6,18 @@ which are backed by the local file-system for persistent storage
 # HyperSpace example instructions
 
 - Install Aiko Services and activate the Python virtual environment ...
-  see [instructions](../../../../ReadMe.md), which enables the
-   `aiko_hyperspace` CLI command
+  see [instructions](../../../../ReadMe.md#installation), which enables
+  the `aiko_hyperspace` CLI command
 
 - Change the current working directory to this HyperSpace example directory
 
 ```
 $ cd src/aiko_services/examples/hyperspace
 ```
-- Create the `.root` softlink, which points to the current directory
+- Initialize this HyperSpace file-system storage area
 
 ```
-$ ln -s `pwd` .root
+$ aiko_hyperspace initialize
 ```
 - Display HyperSpace CLI command help
 
@@ -29,6 +29,7 @@ Options:
   --help  Show this message and exit.
 
 Commands:
+  initialize  Initialize HyperSpace: .root and storage/
   ln          Create new link to an existing node or category
   ls          List nodes (files) and categories (directories)
   ls_storage  List node storage/tracked_paths and linked nodes

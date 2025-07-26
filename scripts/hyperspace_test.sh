@@ -31,10 +31,10 @@ while [[ $# -gt 0 ]]; do
       case "$1" in
         shell)
           PREFIX="_"
-          source ../${SOURCE}.sh
+          source ${SOURCE}.sh
           ;;
         python)
-          PREFIX="../${SOURCE}.py "
+          PREFIX="aiko_hyperspace "
           ;;
         *)
           echo "Error: Invalid implementation '$1', use shell or python" >&2
@@ -55,7 +55,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-PREFIX=${PREFIX:-"../${SOURCE}.py "}
+PREFIX=${PREFIX:-"aiko_hyperspace "}
 
 # -----------------------------------------------------------------------------
 
@@ -95,8 +95,8 @@ ${PREFIX}ln cat_b cat_a
 printf "\n### ${PREFIX}ls -l -n -r ###\n"
 ${PREFIX}ls -l -n -r
 
-printf "\n### ${PREFIX}ls_storage -s ###\n"
-${PREFIX}ls_storage -s
+printf "\n### ${PREFIX}storage -s ###\n"
+${PREFIX}storage -s
 
 # -----------------------------------------------------------------------------
 
@@ -114,8 +114,8 @@ if [[ "$TEST_ALL" == true ]]; then
   printf "\n### ${PREFIX}ls -l -n -r cat_b ###\n"
   ${PREFIX}ls -l -n -r cat_b
 
-  printf "\n### ${PREFIX}ls_storage -s ###\n"
-  ${PREFIX}ls_storage -s
+  printf "\n### ${PREFIX}storage -s ###\n"
+  ${PREFIX}storage -s
 fi
 
 # -----------------------------------------------------------------------------

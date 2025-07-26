@@ -4,24 +4,29 @@
 # ~~~~~
 #   export HYPERSPACE_RANDOM_HASH=false  # use incrementing hash value
 #
-#   ./hyperspace.py ln          new_link  node         # node | category
-#   ./hyperspace.py ls          [-l] [-n] [-r] [path]
-#   ./hyperspace.py ls_storage  [-s]
-#   ./hyperspace.py mk          node                   # node only
-#   ./hyperspace.py mkdir       category               # category only
-#   ./hyperspace.py rm          node                   # node | category
+#   ./hyperspace.py initialize
+#   ./hyperspace.py ln      new_link  node        # node | category
+#   ./hyperspace.py ls      [-l] [-n] [-r] [path]
+#   ./hyperspace.py mk      node                  # node only
+#   ./hyperspace.py mkdir   category              # category only
+#   ./hyperspace.py rm      node                  # node | category
+#   ./hyperspace.py storage [-s]
 #
 # Functions
 # ~~~~~~~~~
+#   _initialize()
 #   _ln(link_path, target_path)
 #   _ls(path, long_format, node_count, recursive))
-#   _ls_storage(sort_by_name)
 #   _mk(name)
 #   _mkdir(name)
 #   _rm(name)
+#   _storage(sort_by_name)
 #
 # To Do
 # ~~~~~
+# * Persist "_hash_counter", e.g HASH_PATHNAME="$STORAGE_FILENAME/hash_counter"
+#   - Ensure compatibility with "hyperspace.sh"
+#
 # * Validate hyperspace structure
 #   * Checks "storage/tracked_paths" is correct (using predictable hash)
 #   * Checks file-system ensuring everything linked together properly
@@ -67,7 +72,17 @@ _hash_counter = 0
 
 # Initialize storage directory and .root symlink
 
-def __initialize():
+def _check_root_symlink():
+    root_pathname = Path.cwd() / ROOT_FILENAME
+    if not os.path.lexists(root_pathname):
+        raise FileExistsError(
+            f'HyperSpace: Symlink "./{ROOT_FILENAME}" must exist')
+    else:
+        if not os.path.islink(root_pathname):
+            raise FileExistsError(
+                f'HyperSpace: File "./{ROOT_FILENAME}" must be a symlink')
+
+def _initialize():
     cwd = Path.cwd()
     root_pathname = cwd / ROOT_FILENAME
     if not root_pathname.is_symlink():
@@ -78,7 +93,7 @@ def __initialize():
         storage_pathname.mkdir(parents=True)
         print(f"Created {STORAGE_FILENAME}")
 
-def __generate_hash():
+def _generate_hash():
     global _hash_counter
     if os.environ.get("HYPERSPACE_RANDOM_HASH", "true").lower() == "true":
         hash = hashlib.sha256(os.urandom(16)).hexdigest()
@@ -89,7 +104,7 @@ def __generate_hash():
 
 # Clean up empty storage directories up to root
 
-def __clean_storage(tracked_directory):
+def _clean_storage(tracked_directory):
     tracked_path = Path(tracked_directory)
     storage_path = Path(STORAGE_FILENAME)
     while tracked_path != storage_path and tracked_path != Path("."):
@@ -101,13 +116,13 @@ def __clean_storage(tracked_directory):
 
 # Generate a unique storage path avoiding collisions
 
-def __create_path():
+def _create_path():
     storage_path = Path(STORAGE_FILENAME)
     existing_paths = set()
     if Path(TRACKED_PATHNAME).exists():
         existing_paths.update(Path(TRACKED_PATHNAME).read_text().splitlines())
     while True:
-        hash = __generate_hash()
+        hash = _generate_hash()
         path_parts = [hash[i:i+2] for i in range(0, len(hash), 2)]
         new_path = storage_path.joinpath(*path_parts)
         if not new_path.exists() and str(new_path) not in existing_paths:
@@ -115,7 +130,7 @@ def __create_path():
 
 # Normalize path to relative from CWD
 
-def __normalize_path(target_path):
+def _normalize_path(target_path):
     absolute_target_path = Path(target_path).resolve()
     cwd = Path.cwd()
     try:
@@ -126,13 +141,13 @@ def __normalize_path(target_path):
 
 # Compute relative path using os.path.relpath
 
-def __relative_path(target_path, start_path):
+def _relative_path(target_path, start_path):
     return os.path.relpath(target_path, start=start_path)
 
 # Track a created storage path
 
-def __track_path(path):
-    relative_path = __normalize_path(path)
+def _track_path(path):
+    relative_path = _normalize_path(path)
     Path(TRACKED_PATHNAME).parent.mkdir(parents=True, exist_ok=True)
     with open(TRACKED_PATHNAME, "a+") as tracked_paths_file:
         tracked_paths_file.seek(0)
@@ -142,8 +157,8 @@ def __track_path(path):
 
 # Untrack a removed storage path
 
-def __untrack_path(path):
-    relative_path = __normalize_path(path)
+def _untrack_path(path):
+    relative_path = _normalize_path(path)
     tracked_path = Path(TRACKED_PATHNAME)
     if tracked_path.is_file():
         tracked_paths = tracked_path.read_text().splitlines()
@@ -177,7 +192,7 @@ def _ln(link_path, target_path):
 
     # Construct full path under .root
     dot_root_path = link_base / relative_storage_path
-    relative_path = __relative_path(str(dot_root_path), str(base_directory))
+    relative_path = _relative_path(str(dot_root_path), str(base_directory))
     try:
         Path(link_path).symlink_to(relative_path)
     except FileExistsError:
@@ -189,7 +204,7 @@ def _ln(link_path, target_path):
 # ./hyperspace.py ls [-l] [-n] [-r] [path]
 
 def _ls(path, long_format=False, node_count=False, recursive=False):
-    def __get_hash_path(link):
+    def _get_hash_path(link):
         absolute_target_path = Path(link).resolve()
         try:
             relative_path =  \
@@ -198,65 +213,45 @@ def _ls(path, long_format=False, node_count=False, recursive=False):
         except ValueError:
             return ""
 
-    def __file_count(link_directory):
+    def _file_count(link_directory):
         target_path = Path(link_directory).resolve()
         return sum(1 for f in target_path.rglob("*")  \
                       if f.is_file() and f.stat().st_size > 0)
 
-    def __list_links(current, indent=""):
+    def _list_links(current, indent=""):
         for directory_entry in sorted(Path(current).iterdir()):
             if not directory_entry.is_symlink():
                 continue
             entry_name = directory_entry.name
             if entry_name.startswith("."):  # Skip hidden directory entries
                 continue
-            hash = __get_hash_path(directory_entry)
+            hash = _get_hash_path(directory_entry)
             if directory_entry.is_dir():
                 if long_format:
                     print(f"{hash}  {indent}{entry_name}/", end="")
                 else:
                     print(f"{indent}{entry_name}/", end="")
                 if node_count:
-                    count = __file_count(directory_entry)
+                    count = _file_count(directory_entry)
                     if count > 0:
                         print(f" ({count})", end="")
                 print()
                 if recursive and not entry_name.startswith("."):
-                    __list_links(directory_entry, indent + "  ")
+                    _list_links(directory_entry, indent + "  ")
             else:
                 if long_format:
                     print(f"{hash}  {indent}{entry_name}")
                 else:
                     print(f"{indent}{entry_name}")
 
-    __list_links(path)
-
-# List storage in reverse-mapped form with deduplication and optional name sort
-#
-# ./hyperspace.py ls_storage [-s]
-
-def _ls_storage(sort_by_name=False):
-    tracked_paths = set()
-    cwd = Path.cwd()
-    for path in cwd.rglob("*"):
-        if path.is_symlink():
-            absolute_target_path = path.resolve()
-            try:
-                absolute_path = cwd / STORAGE_FILENAME
-                relative_path = absolute_target_path.relative_to(absolute_path)
-                tracked_paths.add((str(relative_path), path.name))
-            except ValueError:
-                continue
-    items = sorted(tracked_paths, key=lambda x: x[1] if sort_by_name else x[0])
-    for relative_path, name in items:
-        print(f"{relative_path}  {name}")
+    _list_links(path)
 
 # Create a node (file)
 #
 # ./hyperspace.py mk node  # node only
 
 def _mk(name):
-    path = Path(__create_path())
+    path = Path(_create_path())
     path.parent.mkdir(parents=True, exist_ok=True)
     path.touch()
     try:
@@ -264,16 +259,16 @@ def _mk(name):
     except FileExistsError:
         print(f'Error: "{name}" already exists', file=sys.stderr)
         return 1
-    __track_path(path)
+    _track_path(path)
 
 # Create a category (directory)
 #
 # ./hyperspace.py mkdir category  # category only
 
 def _mkdir(name):
-    path = Path(__create_path())
+    path = Path(_create_path())
     path.mkdir(parents=True, exist_ok=True)
-    rel_back = __relative_path(str(Path.cwd() / ROOT_FILENAME), path)
+    rel_back = _relative_path(str(Path.cwd() / ROOT_FILENAME), path)
     try:
         Path(path, ROOT_FILENAME).symlink_to(rel_back)
     except FileExistsError:
@@ -285,7 +280,7 @@ def _mkdir(name):
     except FileExistsError:
         print(f'Error: "{name}" already exists', file=sys.stderr)
         return 1
-    __track_path(path)
+    _track_path(path)
 
 # Delete a node (file) or category (directory)
 #
@@ -306,27 +301,62 @@ def _rm(name):
         others = [x for x in cwd.rglob("*")  \
                      if x.is_symlink() and x.resolve() == absolute_target_path]
         if not others:
-            __untrack_path(str(absolute_target_path))
+            _untrack_path(str(absolute_target_path))
             if absolute_target_path.is_dir():
                 for sub in absolute_target_path.rglob("*"):
                     sub.unlink() if sub.is_file() else sub.rmdir()
                 absolute_target_path.rmdir()
             else:
                 absolute_target_path.unlink()
-            __clean_storage(absolute_target_path.parent)
+            _clean_storage(absolute_target_path.parent)
     else:
         print(f'Error: "{name}" is not a symbolic link', file=sys.stderr)
         return 1
 
+# List storage in reverse-mapped form with deduplication and optional name sort
+#
+# ./hyperspace.py storage [-s]
+
+def _storage(sort_by_name=False):
+    tracked_paths = set()
+    cwd = Path.cwd()
+    for path in cwd.rglob("*"):
+        if path.is_symlink():
+            absolute_target_path = path.resolve()
+            try:
+                absolute_path = cwd / STORAGE_FILENAME
+                relative_path = absolute_target_path.relative_to(absolute_path)
+                tracked_paths.add((str(relative_path), path.name))
+            except ValueError:
+                continue
+    items = sorted(tracked_paths, key=lambda x: x[1] if sort_by_name else x[0])
+    for relative_path, name in items:
+        print(f"{relative_path}  {name}")
+
 # --------------------------------------------------------------------------- #
 
 @click.group()
-def cli():
-    pass
+def main():
+    if not click.get_current_context().invoked_subcommand == "initialize":
+        diagnostic = None
+        try:
+            _check_root_symlink()
+        except FileExistsError as file_exists_error:
+            diagnostic = str(file_exists_error)
+        if diagnostic:
+            advice = 'Consider running "aiko_hyperspace initialize"'
+            raise SystemExit(f"{diagnostic}\n{advice}")
+
+# ./hyperspace.py initialize
+
+@main.command(name="initialize")
+def initialize_command():
+    "Initialize HyperSpace: .root and storage/"
+    _initialize()
 
 # ./hyperspace.py ln new_link_node existing_node
 
-@cli.command(name="ln")
+@main.command(name="ln")
 @click.argument("link_path")
 @click.argument("target_path")
 def ln_command(link_path, target_path):
@@ -335,7 +365,7 @@ def ln_command(link_path, target_path):
 
 # ./hyperspace.py ls [-l] [-n] [-r] [path]
 
-@cli.command(name="ls")
+@main.command(name="ls")
 @click.argument("path", required=False, default=".")
 @click.option("-l", "--long_format", default=False, is_flag=True,
     help="Long format with hash identifiers")
@@ -347,18 +377,9 @@ def ls_command(path, long_format, node_count, recursive):
     "List nodes (files) and categories (directories)"
     _ls(path, long_format, node_count, recursive)
 
-# ./hyperspace.py ls_storage [-s]
-
-@cli.command(name="ls_storage")
-@click.option("-s", "--sort_by_name", default=False, is_flag=True,
-    help="Sort by name")
-def ls_storage_command(sort_by_name):
-    "List node storage/tracked_paths and linked nodes"
-    _ls_storage(sort_by_name)
-
 # ./hyperspace.py mk node  # node only
 
-@cli.command(name="mk")
+@main.command(name="mk")
 @click.argument("name")
 def mk_command(name):
     "Create a node (file)"
@@ -366,7 +387,7 @@ def mk_command(name):
 
 # # ./hyperspace.py mkdir category  # category only
 
-@cli.command(name="mkdir")
+@main.command(name="mkdir")
 @click.argument("name")
 def mkdir_command(name):
     "Create a category (directory)"
@@ -374,14 +395,19 @@ def mkdir_command(name):
 
 # ./hyperspace.py rm node  # node | category
 
-@cli.command(name="rm")
+@main.command(name="rm")
 @click.argument("name")
 def rm_command(name):
     "Remove a node or category"
     _rm(name)
 
-if __name__ == "__main__":
-    __initialize()
-    cli()
+# ./hyperspace.py storage [-s]
+
+@main.command(name="storage")
+@click.option("-s", "--sort_by_name", default=False, is_flag=True,
+    help="Sort by name")
+def storage_command(sort_by_name):
+    "List node storage/tracked_paths and linked nodes"
+    _storage(sort_by_name)
 
 # --------------------------------------------------------------------------- #

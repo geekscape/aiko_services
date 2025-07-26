@@ -6,17 +6,17 @@
 #   export HYPERSPACE_RANDOM_HASH=false  # use incrementing hash value
 #   source hyperspace.sh
 #
-#   _ln          new_link  node          # node | category
-#   _ls          [-l] [-n] [-r] [path]
-#   _ls_storage  [-s]
-#   _mk          node                    # node only
-#   _mkdir       category                # category only
-#   _rm          node                    # node | category
+#   _ln      new_link  node        # node | category
+#   _ls      [-l] [-n] [-r] [path]
+#   _mk      node                  # node only
+#   _mkdir   category              # category only
+#   _rm      node                  # node | category
+#   _storage [-s]
 #
 # To Do
 # ~~~~~
 # - BUG: These commands only work in the top-level directory ...
-#        - "_mk", "_mkdir", "_ls", "_ls_storage", "_ln" and "_rm"
+#        - "_mk", "_mkdir", "_ls", "_ln", "_rm" and "_storage"
 #
 # - Review / improve code via ChatGPT, as per ...
 #   - https://chatgpt.com/c/685cc9c2-29b4-8002-befb-0f00c872d1ad
@@ -28,27 +28,27 @@ fi
 
 if [[ "${HYPERSPACE_IMPL:-shell}" == "python" ]]; then
   _ln() {
-    ../hyperspace.py ln "$1" "$2"
+    aiko_hyperspace ln "$1" "$2"
   }
   _ls() {
-    ../hyperspace.py ls "$@"
-  }
-  _ls_storage() {
-    ../hyperspace.py ls_storage "$@"
+    aiko_hyperspace ls "$@"
   }
   _mk() {
-    ../hyperspace.py mk "$1"
+    aiko_hyperspace mk "$1"
   }
   _mkdir() {
-    ../hyperspace.py mkdir "$1"
+    aiko_hyperspace mkdir "$1"
   }
   _rm() {
-    ../hyperspace.py rm "$1"
+    aiko_hyperspace rm "$1"
+  }
+  _storage() {
+    aiko_hyperspace storage "$@"
   }
   return 0
 fi
 
-# set -euo pipefail  # TODO: _ls_storage() causes shell to exit
+# set -euo pipefail  # TODO: _storage() causes shell to exit
 IFS=$'\n\t'
 
 ROOT_FILENAME=".root"
@@ -257,31 +257,6 @@ _ls() {
   __listLinks "$path" ""
 }
 
-# _ls_storage [-s]
-
-_ls_storage() {
-  local sortByName=false
-  if [[ "${1:-}" == "-s" ]]; then
-    sortByName=true
-  fi
-
-  find . -type l | while read -r link; do
-    local target absTarget relPath name
-    target=$(readlink "$link")
-    absTarget=$(realpath "$target" 2>/dev/null || readlink -f "$target")
-    if [[ "$absTarget" == "$PWD/$STORAGE_FILENAME"/* ]]; then
-      relPath=${absTarget#$PWD/$STORAGE_FILENAME/}
-      name=$(basename "$link")
-      echo "$relPath  $name"
-    fi
-  done | sort -u |
-  if $sortByName; then
-    sort -k2,2
-  else
-    sort
-  fi | awk '{ print $1"  "$2 }'
-}
-
 # _mk node  # node only
 
 _mk() {
@@ -342,6 +317,31 @@ _rm() {
       __cleanStorage "$(dirname "$absTarget")"
     fi
   fi
+}
+
+# _storage [-s]
+
+_storage() {
+  local sortByName=false
+  if [[ "${1:-}" == "-s" ]]; then
+    sortByName=true
+  fi
+
+  find . -type l | while read -r link; do
+    local target absTarget relPath name
+    target=$(readlink "$link")
+    absTarget=$(realpath "$target" 2>/dev/null || readlink -f "$target")
+    if [[ "$absTarget" == "$PWD/$STORAGE_FILENAME"/* ]]; then
+      relPath=${absTarget#$PWD/$STORAGE_FILENAME/}
+      name=$(basename "$link")
+      echo "$relPath  $name"
+    fi
+  done | sort -u |
+  if $sortByName; then
+    sort -k2,2
+  else
+    sort
+  fi | awk '{ print $1"  "$2 }'
 }
 
 __initialize
