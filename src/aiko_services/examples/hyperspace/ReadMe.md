@@ -17,7 +17,7 @@ $ cd src/aiko_services/examples/hyperspace
 - Create the `.root` softlink, which points to the current directory
 
 ```
-$ ln `pwd` .root
+$ ln -s `pwd` .root
 ```
 - Display HyperSpace CLI command help
 
