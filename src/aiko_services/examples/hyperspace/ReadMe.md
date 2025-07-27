@@ -1,25 +1,32 @@
-# HyperSpace overview
+# HyperSpace example
 
-HyperSpace provides hyperlinked distributed Services,
-which are backed by the local file-system for persistent storage
+## Overview
 
-# HyperSpace example instructions
+HyperSpace organizes [Services](../../main/service.py) as a distributed
+[hyperlinked](https://en.wikipedia.org/wiki/Hyperlink) graph,
+which is backed by the local file-system for persistent storage
+
+HyperSpace enables the interconnection and navigation of a distributed system
+of Services, Actors, Agents and Pipelines, as if they were (highly dynamic)
+Web pages
+
+## Instructions
 
 - Install Aiko Services and activate the Python virtual environment ...
   see [instructions](../../../../ReadMe.md#installation), which enables
-  the `aiko_hyperspace` CLI command
+  the `aiko_hyperspace` command
 
 - Change the current working directory to this HyperSpace example directory
 
 ```
 $ cd src/aiko_services/examples/hyperspace
 ```
-- Initialize this HyperSpace file-system storage area
+- Initialize this prexisting (via GitHub) HyperSpace example local file-system storage
 
 ```
 $ aiko_hyperspace initialize
 ```
-- Display HyperSpace CLI command help
+- Show the `aiko_hyperspace` command help and the `ls` sub-command help
 
 ```
 $ aiko_hyperspace --help
