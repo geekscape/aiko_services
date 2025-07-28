@@ -10,6 +10,11 @@ HyperSpace enables the interconnection and navigation of a distributed system
 of Services, Actors, Agents and Pipelines, as if they were (highly dynamic)
 Web pages
 
+Note: HyperSpace uses
+[file-system symbolic links](https://en.wikipedia.org/wiki/Symbolic_link)
+extensively, which means that when using the GitHub website it is very onerous
+to navigate and view a Hyperspace instance
+
 ## Instructions
 
 - Install Aiko Services and activate the Python virtual environment ...
@@ -59,7 +64,7 @@ Options:
   along with their [unique identifiers](https://en.wikipedia.org/wiki/Unique_identifier)
 
 ```
-$ aiko_hyperspace ls -l -n -r
+$ aiko_hyperspace ls -l -r
 8e/14/68/53/d2/05  devices/
 b1/c8/8a/11/cf/ce  federation/
 41/b7/28/9e/9d/4d    local/
@@ -68,7 +73,7 @@ b1/c8/8a/11/cf/ce  federation/
 5b/07/c7/a1/74/e4  services/
 8a/bb/6c/a7/5b/ef    hyperspace/
 fa/9d/cb/77/69/32    mosquitto
-a1/40/6b/c4/3f/7a    process_manager/ (1)
+a1/40/6b/c4/3f/7a    process_manager/
 2c/3e/18/a4/11/2a    recorder
 6c/07/82/14/a4/76    registrar
 71/bf/ee/ee/a6/25    storage_manager/

@@ -37,13 +37,15 @@
 #
 # - Consider current "storage/tracked_paths" versus reference counting ?
 #
-# - Registrar(Actor) requires Category plus implement "(update)" for all fields
-# - HyperSpace(Actor) requires Category and Dependencies
-#   - Services that implement Category assign tag "category=true" (temporary)
-#
 # * ProcessManager bootstraps (read only) by directly using Python functions
 #   * Implement HyperSpace(Actor) CRUD API ... used by ProcessManager bootstrap
 #     * File-system listener --> event
+#
+# * Registrar(Actor) requires Category plus implement "(update)" for all fields
+#
+# * HyperSpace(Actor) requires Category and Dependencies
+#   - Services that implement Category assign tag "category=true" (temporary)
+#
 # * Aiko Dashboard plug-in for HyperSpace(Actor), e.g tree view
 #
 # - ProcessManager(LifeCycleManager): Complete Service LifeCycle State
@@ -67,6 +69,7 @@ HASH_LENGTH = 12  # 6 bytes = 12 hex digits
 ROOT_FILENAME = ".root"
 STORAGE_FILENAME = "storage"
 TRACKED_PATHNAME = f"{STORAGE_FILENAME}/tracked_paths"
+HASH_PATHNAME = f"{STORAGE_FILENAME}/hash_counter"
 
 _hash_counter = 0
 
@@ -88,10 +91,22 @@ def _initialize():
     if not root_pathname.is_symlink():
         root_pathname.symlink_to(cwd)
         print(f"Created {ROOT_FILENAME} --> {cwd}")
+
     storage_pathname = cwd / STORAGE_FILENAME
     if not storage_pathname.is_dir():
         storage_pathname.mkdir(parents=True)
         print(f"Created {STORAGE_FILENAME}")
+
+    global _hash_counter
+    hash_pathname = cwd / HASH_PATHNAME
+    if not hash_pathname.exists():
+        hash_pathname.write_text("0")
+    try:
+        _hash_counter = int(hash_pathname.read_text())
+    except ValueError:
+        _hash_counter = 0
+
+# Generate hash UID, persisting the hash_counter when using incremental mode
 
 def _generate_hash():
     global _hash_counter
@@ -100,6 +115,7 @@ def _generate_hash():
     else:
         hash = str(_hash_counter).zfill(HASH_LENGTH)
         _hash_counter += 1
+        Path(HASH_PATHNAME).write_text(f"{_hash_counter}\n")
     return hash[-HASH_LENGTH:]
 
 # Clean up empty storage directories up to root
