@@ -643,7 +643,7 @@ class Pipeline(PipelineElement):
         pass
 
     @abstractmethod
-    def destroy_stream(self, stream_id, graceful=False, use_thread_local=True, diagnostic={}):
+    def destroy_stream(self, stream_id, graceful=False, use_thread_local=True, diagnostic={}, with_lock=False):
         pass
 
     @abstractmethod
@@ -1019,7 +1019,8 @@ class PipelineImpl(Pipeline):
     def destroy_stream(self, stream_id,
                        graceful=False,
                        use_thread_local=True,
-                       diagnostic={}):
+                       diagnostic={},
+                       with_lock=False):
         stream_id = str(stream_id)
 
     # TODO: Proper solution for handling of remote Pipeline proxy
@@ -1051,7 +1052,8 @@ class PipelineImpl(Pipeline):
             if use_thread_local:
                 self._enable_thread_local("destroy_stream()", stream_id)
             stream, _ = self.get_stream()
-            stream.lock.acquire("destroy_stream()")
+            if not with_lock:
+                stream.lock.acquire("destroy_stream()")
 
             if graceful and len(stream.frames):
                 arguments = [stream_id, graceful, use_thread_local, diagnostic]
@@ -1613,10 +1615,10 @@ class PipelineImpl(Pipeline):
             stream_state = StreamState.ERROR
             self.logger.error(get_diagnostic(diagnostic))
             if not in_destroy_stream:  # avoid destroy_stream() recursion
-                if stream.lock._in_use:
-                    stream.lock.release()
+                #if stream.lock._in_use:
+                #    stream.lock.release()
                 stream.state = StreamState.ERROR
-                self.destroy_stream(get_stream_id(), use_thread_local=False, diagnostic=diagnostic)
+                self.destroy_stream(get_stream_id(), use_thread_local=False, diagnostic=diagnostic, with_lock=stream.lock._in_use)
 
         return stream_state
 
