@@ -24,9 +24,6 @@
 #
 # To Do
 # ~~~~~
-# * Persist "_hash_counter", e.g HASH_PATHNAME="$STORAGE_FILENAME/hash_counter"
-#   - Ensure compatibility with "hyperspace.sh"
-#
 # * Validate hyperspace structure
 #   * Checks "storage/tracked_paths" is correct (using predictable hash)
 #   * Checks file-system ensuring everything linked together properly
