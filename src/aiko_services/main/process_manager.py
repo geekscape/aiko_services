@@ -2,68 +2,211 @@
 #
 # Aiko Service: Process Manager
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Create and destroy processes
+# Create, List(Read), Update and Destroy processes
 #
 # Usage
 # ~~~~~
-# ./process_manager.py  # run as an Aiko Service  # TO BE COMPLETED
+# ./process_manager.py run  [--name name] [--watchdog] [hyperspace_pathname]
+# ./process_manager.py dump [--name name]
+# ./process_manager.py exit [--name name] [--grace_time seconds]
 #
-# ./process_manager.py --example python
-# ./process_manager.py --example shell
+# ./process_manager.py create  [--name name] [--uid uid] command [arguments ...]
+# ./process_manager.py list    [--name name] [uid]
+# ./process_manager.py destroy [--name name] [--kill] uid
+#
+# ./process_manager.py enable | disable | start | status | stop hyperspace_path
+#
+# Shell and Python scripts
+# ~~~~~~~~~~~~~~~~~~~~~~~~
+# aiko_process create uid:0 date
+# aiko_process create uid:1 sleep 5
+# aiko_process create uid:2 aiko_process exit -gt 0  # self terminate !
+#
+# Simultaneous processes terminating at different times
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# aiko_process create uid:0 /bin/sh -c "echo Start A; sleep 10; echo Stop A"
+# aiko_process create uid:0 /bin/sh -c "echo Start B; sleep 15; echo Stop B"
+# aiko_process create uid:0 /bin/sh -c "echo Start C; sleep  5; echo Stop C"
+#
+# Design notes
+# ~~~~~~~~~~~~
+# Concurrency: Except _run(), all functions execute on the Actor main thread.
+# Meaning that those functions are safely executed in order, one-at-a-time.
+# The _run() function executes on its own daemon thread and needs to ...
+# - Insulate itself from shared data updates, e.g loops must copy the iterator
+# - All shared data updates must be posted to the Actor main thread
 #
 # To Do
 # ~~~~~
-# - Check out https://pypi.org/project/python-daemon
+# * ProcessManager as-a LifeCycleManager as-a Category
+#   * Design and use HyperSpace API and Storage SPI (file, SQL, MQTT ?)
 #
+# * CLI commands: CRUD Services in HyperSpace/Storage filesystem structure
+#   - Process LifeCycle: create, enable, start, status, stop, disable, destroy
+#   - Disambiguate CLI create() versus start() and destroy() versus stop() !
+#
+# * Aiko Dashboard plug-in support: Process CRUD et al plus ThreadManager view
+#   * Use ThreadManager: Investigate https://github.com/DedInc/pythread
+#   * TUI ASCII graphs for metrics and events
+#
+# * Send "process events" to Dashboard, Agents, Time-Series DataBase --> Graphs
+#   - Use Open Telemetry schema
+#
+# * Handle process standard output and standard error
+# * Relaunch failed processes, but don't retry continuously failing processes
+# * Auto-scaling workers up/down: same host, distributed ?
+#
+# * Implement process "owner" field and populate automatically
+#   * Implement "destroy --force" flag to destroy other owner's processes
+#   * System processes owned by "aiko", e.g ProcessManager, MQTT, Registrar
+#
+# * ProcessManager "name", default is `hostname`, automatically strip ".local"
+#   * Only one primary ProcessManager per host (refactor Registrar code)
+# * ProcessManager primary / watchdog: monitor and relaunch primary
+#   * Multiple ProcessManager on different hosts in the same namespace ?
+#     * All the home/office servers plus handle mobile laptops (discovery) ?
+#
+# - aiko_process run --exit_no_processes -enp  # No running processes, then exit
+#
+# - Track runtime (seconds since started) for ProcessManager
+#   - All process metrics: owner, restarts, runtime and resource usage (psutil)
+#
+# * Test on Windows operating system
+# * Support Operating System specific: systemd, launchd and task scheduler
+#
+# - Shell pipe: (DataSource | shell command 0 | shell command 1 | DataTarget)
+#   - DataSource file:// with FileSystemEventPatternMatch() for any MediaType
+#
+# - Consider process specific "process_exit_handler()" implementations ?
+#
+# - Consider using "selectors" or "asyncio.create_subprocess_exec()"
+# - Check out https://pypi.org/project/python-daemon
 # - Use of threading versus multiprocessing
 #   - https://docs.python.org/2/library/multiprocessing.html
 #   - https://hackernoon.com/concurrent-programming-in-python-is-not-what-you-think-it-is-b6439c3f3e6a
-#
-# - Complete implementation as an Aiko Service
-#   - Keep running, even when there are no processes to manage
-#   - Share running processes
-# - Handle process standard output and standard error
 
+from abc import abstractmethod
 import click
 import importlib
 import os
-import select
+from subprocess import Popen
+import sys
+from threading import Thread
 import time
 
-from subprocess import Popen
-from threading import Thread
-
 from aiko_services.main import *
+from aiko_services.main.utilities import *
 
 __all__ = ["ProcessManager"]
 
+ACTOR_TYPE = "process_manager"
+VERSION = 0
+PROTOCOL = f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE}:{VERSION}"
 
-PROCESS_POLL_TIME = 0.2  # seconds
-PROTOCOL_PROCESS_MANAGER = f"SERVICE_PROTOCOL_AIKO/process_manager:0"
+_GRACE_TIME=5.0  # seconds
+_MY_UID="000000"  # self-aware 🤔
+_PROCESS_POLL_TIME = 1.0  # seconds
+_RESPONSE_TOPIC = f"{aiko.topic_in}"
+_THREAD_NAME=f"aiko-{ACTOR_TYPE}"
 
 # --------------------------------------------------------------------------- #
 
-# poll = select.poll  # TODO: Is this required ?  Not available on Windows
+class ProcessManager(Actor):
+    Interface.default("ProcessManager",
+        "aiko_services.main.process_manager.ProcessManagerImpl")
 
-class ProcessManager:
-    def __init__(self, process_exit_handler=None):
-        self.process_exit_handler = process_exit_handler
-        self.processes = {}
-        self.thread = None
+    @abstractmethod
+    def create(self, command, arguments=None, uid=None):
+        pass
+
+    @abstractmethod
+    def destroy(self, uid, kill=False):
+        pass
+
+    @abstractmethod
+    def dump(self):
+        pass
+
+    @abstractmethod
+    def exit(self, grace_time=_GRACE_TIME):
+        pass
+
+    @abstractmethod
+    def list(self, topic_path_response, uid=None):
+        pass
+
+# --------------------------------------------------------------------------- #
+
+class ProcessCurrent:
+    def __init__(self):
+        self.pid = os.getpid()
+        self.stdin = sys.stdin
+        self.stdout = sys.stdout
+        self.stderr = sys.stderr
+        self.returncode = None  # Current process is still running 😂
+
+    def poll(self):
+        return self.returncode
+
+    def wait(self, timeout=None):
+        raise RuntimeError("Cannot wait on the current process")
+
+class ProcessManagerImpl(ProcessManager):
+    def __init__(self, context, hyperspace_pathname, watchdog,
+        process_exit_handler=None):
+
+        context.get_implementation("Actor").__init__(self, context)
+
+        if process_exit_handler:
+            self.process_exit_handler=process_exit_handler
+        else:
+            self.process_exit_handler=self._process_exit_handler_default
+        self.processes = {
+            _MY_UID: {  # self-aware 🤔
+                "command_line": ["aiko_process", "run"],
+                "process": ProcessCurrent()
+            }
+        }
+        self.uid_default = 1
+
+        self.share = {
+            "lifecycle": "ready",
+            "log_level": get_log_level_name(self.logger),
+            "source_file": f"v{VERSION}⇒ {__file__}",
+            "hyperspace_pathname": hyperspace_pathname,
+            "metrics": {
+                "created": 0,
+                "running": len(self.processes),
+            #   "runtime": 0                                    # TODO: Runtime
+            },
+            "watchdog": watchdog
+        }
+        self.ec_producer = ECProducer(self, self.share)
+        self.ec_producer.add_handler(self._ec_producer_change_handler)
+
+        self.thread = Thread(target=self._run, daemon=True, name=_THREAD_NAME)
+        self.thread.start()                           # TODO: Use ThreadManager
 
     def __str__(self):
-        output = ""
-        for id, process_data in self.processes.items():
-            pid = process_data["process"].pid
-            command = process_data["command_line"][0]
-            if output: output += "\n"
-            output += f"{id}: {pid} {command}"
-        return output
+        result = ""
+        for uid in self.processes.keys():
+            uid_str = self._get_uid_str(uid)
+            new_line = "\n" if result else ""
+            result += f"{new_line}  {uid_str}"
+        return result
 
-    def create(self, id, command, arguments=None):
+    def create(self, command, arguments=None, uid=None):
+        if not uid:
+            uid = f"{self.uid_default:06d}"
+            self.uid_default += 1
+        if uid in self.processes:
+            self.logger.warning(
+                f"Create: <{uid}> exists, process not started: {command}")
+            return
+
         command_line = [command]
         file_extension = os.path.splitext(command)[-1]
-        if file_extension not in [".py", ".sh"]:
+        if file_extension not in [".py", ".sh"]:     # TODO: Other extensions ?
             specification = None
             try:
                 importlib.util.find_spec
@@ -73,113 +216,231 @@ class ProcessManager:
                 specification = importlib.util.find_spec(command)
             if specification:
                 command_line = [specification.origin]
-                print(f'Module path resolved to: "{command_line}"')
+                self.logger.info(f'Module path resolved to: "{command_line}"')
 
         if arguments:
             command_line.extend(arguments)
-        process = Popen(command_line, bufsize=0, shell=False)
-        self.processes[id] = {
-            "command_line": command_line,
-            "process": process,
-            "return_code": None
-        }
+        self.logger.info(f"Create: <{uid}> {command_line}")
+        try:
+            process = Popen(command_line, bufsize=0, shell=False)
+            self.processes[uid] = {
+                "command_line": command_line,
+                "process": process
+            }
+            self.ec_producer.update("metrics.running", len(self.processes))
+            self.ec_producer.update("metrics.created",
+                self.share["metrics"]["created"] + 1)
+        except FileNotFoundError as file_not_found_error:
+            self.logger.warning(f"{file_not_found_error}")
+        except Exception as exception:
+            name = exception.__class__.__name__
+            self.logger.error(f"Unexpected exception: {name}: {exception}")
 
-        if not self.thread:
-            self.thread = Thread(target=self.run)
-            self.thread.start()
+    def destroy(self, uid, kill=False):
+        if uid != _MY_UID and uid in self.processes:
+            if self._is_running(uid):
+                process = self.processes[uid]["process"]
+                if kill:
+                    process.kill()       # SIGKILL: Can't catch, no clean-up
+                else:
+                    process.terminate()  # SIGTERM: Can catch and clean-up
 
-    def delete(self, id, terminate=True, kill=False):
-        process_data = self.processes[id]
-        del self.processes[id]
-        process = process_data["process"]
-        if terminate:
-            process.terminate()
-        if kill:
-            process.kill()
-        if self.process_exit_handler:
-            self.process_exit_handler(id, process_data)
+    def dump(self):
+        if len(self.processes):
+            state = f" ...\n{self}"
+        else:
+            state = ": no processes"
+        self.logger.info(f"Dump state{state}")
 
-    def run(self):
-        while len(self.processes):
-            for id, process_data in list(self.processes.items()):
-                process = process_data["process"]
-                return_code = process.poll()
-                if return_code is not None:
-                    process_data["return_code"] = return_code
-                    self.delete(id, terminate=False, kill=False)
-            time.sleep(PROCESS_POLL_TIME)
+    def _ec_producer_change_handler(self, command, item_name, item_value):
+        if item_name == "log_level":
+            self.logger.setLevel(str(item_value).upper())
 
-def process_exit_handler_default(id, process_data):
-    details = ""
-    if process_data:
-        command = process_data["command_line"][0]
-        return_code = process_data["return_code"]
-        details = f": {command} status: {return_code}"
-    print(f"Exit process {id}" + details)
+    def exit(self, grace_time):
+        grace_time = parse_int(grace_time, _GRACE_TIME)
+        for uid in self.processes.keys():
+            self.destroy(uid, kill=False)  # Graceful 😇
+
+        self.ec_producer.update("metrics.running", len(self.processes))
+        time.sleep(grace_time)    # TODO: Improve how to wait for all processes
+
+        for uid in self.processes.keys():
+            self.destroy(uid, kill=True)   # Brutal ☠️
+        aiko.process.terminate()
+
+    def _get_process_info(self, uid):
+        command = pid = "unknown"
+        if uid in self.processes:
+            process_info = self.processes[uid]
+            command = process_info["command_line"]
+            pid = process_info["process"].pid
+        return command, pid
+
+    def _get_return_code(self, uid):
+        return_code = "uid_unknown"
+        if uid in self.processes:
+            return_code = self.processes[uid]["process"].poll()
+        return return_code
+
+    def _get_uid_str(self, uid):
+        command, pid = self._get_process_info(uid)
+        return f"<{uid}> PID: {pid} {command[0]}"
+
+    def _is_running(self, uid):
+        return self._get_return_code(uid) is None
+
+    def list(self, topic_path_response, uid=None):
+        responses = []
+        for uid_key in self.processes.keys():
+            if uid is None or uid == uid_key:
+                command, pid = self._get_process_info(uid_key)
+                response = f"{uid_key} {pid} {" ".join(command)}"
+                responses.append(response)
+        aiko.message.publish(
+            topic_path_response, f"(item_count {len(responses)})")
+        for response in responses:
+            aiko.message.publish(
+                topic_path_response, f"(response {response})")
+
+    def _process_exit_handler_default(self, uid):
+        if uid in self.processes:
+            uid_str = self._get_uid_str(uid)
+            return_code = self._get_return_code(uid)
+            process_info = f"{uid_str}, return_code: {return_code}"
+            self.logger.info(f"Exit {process_info}")
+
+    def _remove(self, uids):
+        for uid in uids:
+            if uid in self.processes:
+                if self.process_exit_handler:
+                    self.process_exit_handler(uid)
+                del self.processes[uid]
+        self.ec_producer.update("metrics.running", len(self.processes))
+
+############################################################################
+# _run() executes on a daemon thread, see concurrency design notes (above) #
+############################################################################
+
+    def _run(self):
+        while True:
+            zombies = []
+            for uid in list(self.processes.keys()):  # safe
+                if not self._is_running(uid):
+                    zombies.append(uid)
+            if zombies:
+                self._post_message(ActorTopic.IN, "_remove", [zombies])  # safe
+            time.sleep(_PROCESS_POLL_TIME)
 
 # --------------------------------------------------------------------------- #
 
-def topic_in_handler(aiko, topic, payload_in):
-    print(f"Message: {topic}: {payload_in}")
+@click.group()
 
-#   tokens = payload_in[1:-1].split()
-#   if len(tokens) >= 1:
-#       command = tokens[0]
+def main():
+    """Create, Read/List, Update and Destroy Processes"""
+    pass
 
-#       if command == "task" and len(tokens) == 2:
-#           operation = tokens[1]
-#           if operation == "start":
-#               if aks.get_parameter("publish_parameters") == "true":
-#                   for parameter_name in aks_info.parameters[0]:
-#                       parameter_value = aks.get_parameter(parameter_name)
-#                       payload_out = f"{parameter_name}: {parameter_value}"
-#                       aks_info.mqtt_client.publish(
-#                           aks_info.TOPIC_OUT, payload_out)
+@main.command(name="create",
+    context_settings=dict(allow_interspersed_args=False), no_args_is_help=True)
+@click.argument("command", type=str)
+@click.argument("arguments", nargs=-1, type=click.UNPROCESSED)
+@click.option("--uid", "-u", type=str, default=None,
+    help="")
 
-#         payload_out = payload_in
-#         mqtt_client.publish(aks_info.TOPIC_OUT, payload_in)
+def create_command(command, arguments, uid):
+    """Create Process
 
-    return False
+    aiko_process create [--uid UID] COMMAND [ARGUMENTS ...]
 
-# --------------------------------------------------------------------------- #
+    \b
+    • UID:        Unique IDentifier
+    • COMMAND:    Command name
+    • ARGUMENTS:  Command arguments
+    """
 
-def example_code(process_manager, example):
-    if example == "ls":
-        command_line = [ "ls", "-l" ]
-        process = Popen(command_line, bufsize=0, shell=False)
+    do_command(ProcessManager,
+        ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
+        lambda actor: actor.create(command, arguments, uid), terminate=True)
+    aiko.process.run()
 
-    if example == "python":
-        command = "./process_manager.py"
-        arguments = [ "--example", "ls" ]
-        process_manager.create("test_1", command, arguments)
+@main.command(name="destroy", no_args_is_help=True)
+@click.argument("uid", type=str)
+@click.option("--kill", "-k", is_flag=True,
+    help="Use SIGKILL, process can't catch and no clean-up")
 
-    if example == "shell":
-        command = "/bin/sh"
-        arguments = [ "-c", "echo Start A; sleep  1; echo Stop A" ]
-        process_manager.create("A", command, arguments)
-        arguments = [ "-c", "echo Start B; sleep  2; echo Stop B" ]
-        process_manager.create("B", command, arguments)
-        arguments = [ "-c", "echo Start C; sleep 10; echo Stop C" ]
-        process_manager.create("C", command, arguments)
-        time.sleep(5)
-        process_manager.delete("C")
+def destroy_command(uid, kill):
+    """Destroy Process
 
-# --------------------------------------------------------------------------- #
+    aiko_process destroy UID [--kill]
 
-@click.command()
-@click.option("--example", type=click.STRING, help="Run example")
-@click.option("--tags", "-t", type=click.STRING, help="Aiko Service tags")
+    \b
+    • UID: Unique IDentifier
+    """
 
-def main(example, tags):
-    process_manager = ProcessManager(process_exit_handler_default)
+    do_command(ProcessManager,
+        ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
+        lambda actor: actor.destroy(uid, kill), terminate=True)
+    aiko.process.run()
 
-    if example:
-        example_code(process_manager, example)
-    else:
-        pass
-    #   self.add_message_handler(self.topic_in_handler, self.topic_in)
-    #   ServiceTags.parse_tags(tags)
-    #   aiko.process.run(True)
+@main.command(name="dump", help="Dump ProcessManager state")
+
+def dump_command():
+    do_command(ProcessManager,
+        ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
+        lambda actor: actor.dump(), terminate=True)
+    aiko.process.run()
+
+@main.command(name="exit", help="Exit ProcessManager")
+@click.option("--grace_time", "-gt", type=int, default=_GRACE_TIME,
+    help="Wait time before killing child processes")
+
+def exit_command(grace_time):
+    do_command(ProcessManager,
+        ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
+        lambda actor: actor.exit(grace_time), terminate=True)
+    aiko.process.run()
+
+@main.command(name="list")
+@click.argument("uid", type=str, required=False, default=None)
+
+def list_command(uid):
+    """List Processes
+
+    aiko_process list [UID]
+
+    \b
+    • UID: Unique IDentifier to match
+    """
+
+    def response_handler(response):
+        if len(response):
+            output = f"Processes ..."
+            for process_record in response:
+                uid = process_record[0]
+                pid = process_record[1]
+                command = process_record[2:]
+                output += f"\n  uid: {uid}, pid: {pid}, {" ".join(command)}"
+        else:
+            output = "No processes"
+        print(output)
+
+    do_request(ProcessManager,
+        ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
+        lambda actor: actor.list(_RESPONSE_TOPIC, uid),
+        response_handler, _RESPONSE_TOPIC, terminate=True)
+    aiko.process.run()
+
+@main.command(name="run", help="Run ProcessManager")
+@click.argument("hyperspace_pathname", required=False, default=None)
+@click.option("--watchdog", "-w", is_flag=True,
+    help="Monitor ProcessManager, if required relauch it")
+
+def run_command(hyperspace_pathname, watchdog):
+    tags = ["ec=true"]       # TODO: Add ECProducer tag before add to Registrar
+    init_args = actor_args(ACTOR_TYPE, None, None, PROTOCOL, tags)
+    init_args["hyperspace_pathname"] = hyperspace_pathname
+    init_args["watchdog"] = watchdog
+    process_manager = compose_instance(ProcessManagerImpl, init_args)
+    aiko.process.run()
 
 if __name__ == "__main__":
     main()

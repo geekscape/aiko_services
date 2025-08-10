@@ -24,6 +24,8 @@
 #
 # To Do
 # ~~~~~
+# * - aiko_hyperspace export output_filename.hyperspace --> hyperspace commands
+#
 # * Validate hyperspace structure
 #   * Checks "storage/tracked_paths" is correct (using predictable hash)
 #   * Checks file-system ensuring everything linked together properly

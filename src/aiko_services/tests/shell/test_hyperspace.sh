@@ -3,7 +3,7 @@
 # Usage
 # ~~~~~
 # mkdir test;  cd test  # Start with an empty "test/" directory
-# ./hyperspace_test.sh  [-i shell | python]
+# ./test_hyperspace.sh  [-i shell | python]
 #
 # To Do
 # ~~~~~
@@ -31,7 +31,7 @@ while [[ $# -gt 0 ]]; do
       case "$1" in
         shell)
           PREFIX="_"
-          source ${SOURCE}.sh
+          source ../../../../../scripts/${SOURCE}.sh
           ;;
         python)
           PREFIX="aiko_hyperspace "

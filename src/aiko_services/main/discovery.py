@@ -231,10 +231,10 @@ def do_request(
         elif command == "response" and items_received < item_count:
             response.append(arguments)
             items_received += 1
-            if items_received == item_count:
-                response_handler(response)
-                if terminate:
-                    aiko.process.terminate()
+        if items_received == item_count:
+            response_handler(response)
+            if terminate:
+                aiko.process.terminate()
 
     aiko.process.add_message_handler(response_handler_internal, response_topic)
     do_command(

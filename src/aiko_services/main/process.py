@@ -24,6 +24,8 @@
 #
 # To Do
 # ~~~~~
+# * Rename ProcessData to ProcessInfo ?
+#
 # * Automatically attempt reconnection with MQTT server after disconnection
 #
 # * BUG: AikoLogger.logger()" uses a Service Id of 0, not actual Service Id
@@ -177,6 +179,20 @@ class ProcessImplementation(ProcessData):
 
     def run(self, loop_when_no_handlers=False, mqtt_connection_required=True):
         self.initialize(mqtt_connection_required=mqtt_connection_required)
+
+    # https://docs.python.org/3/library/faulthandler.html
+    #   import faulthandler  # Python 3.3 or later
+    #   faulthandler.enable()
+    #   faulthandler.dump_traceback_later(timeout=10)
+
+    # https://github.com/kmaork/madbg
+    # madbg connect localhost 3513
+    #   import madbg
+    #   madbg.set_trace_on_connect()
+
+    # https://gist.github.com/niccokunzmann/6038331
+    #   from hanging_threads import start_monitoring
+    #   start_monitoring(seconds_frozen=10, test_interval=100)
 
         if not self.running:
             try:
