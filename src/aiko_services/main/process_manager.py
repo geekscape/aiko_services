@@ -60,10 +60,10 @@
 #   * Implement "destroy --force" flag to destroy other owner's processes
 #   * System processes owned by "aiko", e.g ProcessManager, MQTT, Registrar
 #
-# * ProcessManager "name", default is `hostname`, automatically strip ".local"
-#   * Only one primary ProcessManager per host (refactor Registrar code)
+# * Consider only one primary ProcessManager per host (refactor Registrar code)
+#   * Don't allow two ProcessManagers with the same name
 # * ProcessManager primary / watchdog: monitor and relaunch primary
-#   * Multiple ProcessManager on different hosts in the same namespace ?
+# * Unify ProcessManagers on different hosts in the same namespace ?
 #     * All the home/office servers plus handle mobile laptops (discovery) ?
 #
 # - aiko_process run --exit_no_processes -enp  # No running processes, then exit
@@ -333,6 +333,11 @@ class ProcessManagerImpl(ProcessManager):
 
 # --------------------------------------------------------------------------- #
 
+def get_service_filter(name=None, owner="*"):
+    if not name:
+        name = get_hostname().removesuffix(".local")
+    return ServiceFilter("*", name, PROTOCOL, "*", owner, "*")
+
 @click.group()
 
 def main():
@@ -341,73 +346,82 @@ def main():
 
 @main.command(name="create",
     context_settings=dict(allow_interspersed_args=False), no_args_is_help=True)
+@click.option("--name", "-n", type=str, default=None,
+    help="ProcessManager name, default is the hostname")
+@click.option("--uid", "-u", type=str, default=None,
+    help="Unique name for referring to the process")
 @click.argument("command", type=str)
 @click.argument("arguments", nargs=-1, type=click.UNPROCESSED)
-@click.option("--uid", "-u", type=str, default=None,
-    help="")
 
-def create_command(command, arguments, uid):
+def create_command(name, uid, command, arguments):
     """Create Process
 
-    aiko_process create [--uid UID] COMMAND [ARGUMENTS ...]
+    aiko_process create [--name NAME] [--uid UID] COMMAND [ARGUMENTS ...]
 
     \b
+    • NAME:       ProcessManager name, default is the hostname
     • UID:        Unique IDentifier
     • COMMAND:    Command name
     • ARGUMENTS:  Command arguments
     """
 
-    do_command(ProcessManager,
-        ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
+    do_command(ProcessManager, get_service_filter(name),
         lambda actor: actor.create(command, arguments, uid), terminate=True)
     aiko.process.run()
 
 @main.command(name="destroy", no_args_is_help=True)
-@click.argument("uid", type=str)
 @click.option("--kill", "-k", is_flag=True,
     help="Use SIGKILL, process can't catch and no clean-up")
+@click.option("--name", "-n", type=str, default=None,
+    help="ProcessManager name, default is the hostname")
+@click.argument("uid", type=str)
 
-def destroy_command(uid, kill):
+def destroy_command(kill, name, uid):
     """Destroy Process
 
-    aiko_process destroy UID [--kill]
+    aiko_process destroy [--kill] [--name NAME] UID
 
     \b
-    • UID: Unique IDentifier
+    • NAME: ProcessManager name, default is the hostname
+    • UID:  Unique IDentifier
     """
 
-    do_command(ProcessManager,
-        ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
+    do_command(ProcessManager, get_service_filter(name),
         lambda actor: actor.destroy(uid, kill), terminate=True)
     aiko.process.run()
 
 @main.command(name="dump", help="Dump ProcessManager state")
+@click.option("--name", "-n", type=str, default=None,
+    help="ProcessManager name, default is the hostname")
 
-def dump_command():
-    do_command(ProcessManager,
-        ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
+def dump_command(name):
+    do_command(ProcessManager, get_service_filter(name),
         lambda actor: actor.dump(), terminate=True)
     aiko.process.run()
 
 @main.command(name="exit", help="Exit ProcessManager")
 @click.option("--grace_time", "-gt", type=int, default=_GRACE_TIME,
     help="Wait time before killing child processes")
+@click.option("--name", "-n", type=str, default=None,
+    help="ProcessManager name, default is the hostname")
 
-def exit_command(grace_time):
-    do_command(ProcessManager,
-        ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
+def exit_command(grace_time, name):
+    do_command(ProcessManager, get_service_filter(name),
         lambda actor: actor.exit(grace_time), terminate=True)
     aiko.process.run()
 
 @main.command(name="list")
+@click.option("--name", "-n", type=str, default=None,
+    help="ProcessManager name, default is the hostname")
 @click.argument("uid", type=str, required=False, default=None)
 
-def list_command(uid):
+def list_command(name, uid):
     """List Processes
 
-    aiko_process list [UID]
+    aiko_process list [--name NAME] [UID]
 
     \b
+    • NAME:       ProcessManager name, default is the hostname
     • UID: Unique IDentifier to match
     """
 
@@ -423,20 +437,33 @@ def list_command(uid):
             output = "No processes"
         print(output)
 
-    do_request(ProcessManager,
-        ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
+    do_request(ProcessManager, get_service_filter(name),
         lambda actor: actor.list(_RESPONSE_TOPIC, uid),
         response_handler, _RESPONSE_TOPIC, terminate=True)
     aiko.process.run()
 
-@main.command(name="run", help="Run ProcessManager")
-@click.argument("hyperspace_pathname", required=False, default=None)
+@main.command(name="run")
+@click.option("--name", "-n", type=str, default=None,
+    help="ProcessManager name, default is the hostname")
 @click.option("--watchdog", "-w", is_flag=True,
     help="Monitor ProcessManager, if required relauch it")
+@click.argument("hyperspace_pathname", required=False, default=None)
 
-def run_command(hyperspace_pathname, watchdog):
+def run_command(name, watchdog, hyperspace_pathname):
+    """Run ProcessManager
+
+    aiko_process run [--name NAME] [--watchdog] [HYPERSPACE_PATHNAME]
+
+    \b
+    • NAME:                ProcessManager name, default is the hostname
+    • HYPERSPACE_PATHNAME: HyperSpace storage file-system location
+    """
+
+    if not name:
+        name = get_hostname().removesuffix(".local")
+
     tags = ["ec=true"]       # TODO: Add ECProducer tag before add to Registrar
-    init_args = actor_args(ACTOR_TYPE, None, None, PROTOCOL, tags)
+    init_args = actor_args(name, None, None, PROTOCOL, tags)
     init_args["hyperspace_pathname"] = hyperspace_pathname
     init_args["watchdog"] = watchdog
     process_manager = compose_instance(ProcessManagerImpl, init_args)
