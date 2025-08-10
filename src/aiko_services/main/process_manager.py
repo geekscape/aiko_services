@@ -175,7 +175,7 @@ class ProcessManagerImpl(ProcessManager):
             "source_file": f"v{VERSION}⇒ {__file__}",
             "hyperspace_pathname": hyperspace_pathname,
             "metrics": {
-                "created": 0,
+                "created": 1,  # Including self, i.e this ProcessManager 😅
                 "running": len(self.processes),
             #   "runtime": 0                                    # TODO: Runtime
             },
@@ -334,8 +334,7 @@ class ProcessManagerImpl(ProcessManager):
 # --------------------------------------------------------------------------- #
 
 def get_service_filter(name=None, owner="*"):
-    if not name:
-        name = get_hostname().removesuffix(".local")
+    name = name if name else get_hostname()
     return ServiceFilter("*", name, PROTOCOL, "*", owner, "*")
 
 @click.group()
@@ -459,8 +458,7 @@ def run_command(name, watchdog, hyperspace_pathname):
     • HYPERSPACE_PATHNAME: HyperSpace storage file-system location
     """
 
-    if not name:
-        name = get_hostname().removesuffix(".local")
+    name = name if name else get_hostname()
 
     tags = ["ec=true"]       # TODO: Add ECProducer tag before add to Registrar
     init_args = actor_args(name, None, None, PROTOCOL, tags)

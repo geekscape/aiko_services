@@ -96,7 +96,7 @@ def get_hostname():
         hyphen = hostname.find("-") + 1
         fullstop = hostname.find(".")
         hostname = hostname[hyphen:fullstop].replace("-", ".")
-    return hostname
+    return hostname.removesuffix(".local")
 
 def get_mqtt_configuration(tls_enabled=None):
     server_up, mqtt_host, mqtt_port = get_mqtt_host()
