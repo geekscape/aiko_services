@@ -6,7 +6,7 @@
 #
 # Usage
 # ~~~~~
-# ./process_manager.py run  [--name name] [--watchdog] [hyperspace_pathname]
+# ./process_manager.py run  [--name name] [--watchdog] [definition_pathname]
 # ./process_manager.py dump [--name name]
 # ./process_manager.py exit [--name name] [--grace_time seconds]
 #
@@ -88,6 +88,7 @@
 from abc import abstractmethod
 import click
 import importlib
+import json
 import os
 from subprocess import Popen
 import sys
@@ -152,7 +153,7 @@ class ProcessCurrent:
         raise RuntimeError("Cannot wait on the current process")
 
 class ProcessManagerImpl(ProcessManager):
-    def __init__(self, context, hyperspace_pathname, watchdog,
+    def __init__(self, context, definition_pathname, watchdog,
         process_exit_handler=None):
 
         context.get_implementation("Actor").__init__(self, context)
@@ -173,7 +174,7 @@ class ProcessManagerImpl(ProcessManager):
             "lifecycle": "ready",
             "log_level": get_log_level_name(self.logger),
             "source_file": f"v{VERSION}⇒ {__file__}",
-            "hyperspace_pathname": hyperspace_pathname,
+            "definition_pathname": definition_pathname,
             "metrics": {
                 "created": 1,  # Including self, i.e this ProcessManager 😅
                 "running": len(self.processes),
@@ -186,6 +187,8 @@ class ProcessManagerImpl(ProcessManager):
 
         self.thread = Thread(target=self._run, daemon=True, name=_THREAD_NAME)
         self.thread.start()                           # TODO: Use ThreadManager
+
+        self._parse_definition(definition_pathname)
 
     def __str__(self):
         result = ""
@@ -301,6 +304,23 @@ class ProcessManagerImpl(ProcessManager):
         for response in responses:
             aiko.message.publish(
                 topic_path_response, f"(response {response})")
+
+    def _parse_definition(self, definition_pathname):
+        diagnostic = None
+        if definition_pathname:
+            if definition_pathname.endswith(".json"):
+                try:
+                    commands = json.load(open(definition_pathname, "r"))
+                    for command in commands:
+                        command = command.split()
+                        self.create(command[0], command[1:])
+                except json.decoder.JSONDecodeError as json_decode_error:
+                    diagnostic = f"Definition format: {json_decode_error}"
+            else:
+                diagnostic = 'Definition must be a ".json" file: ' +  \
+                    definition_pathname
+        if diagnostic:
+            raise SystemExit(f"Error: {diagnostic}")
 
     def _process_exit_handler_default(self, uid):
         if uid in self.processes:
@@ -446,9 +466,9 @@ def list_command(name, uid):
     help="ProcessManager name, default is the hostname")
 @click.option("--watchdog", "-w", is_flag=True,
     help="Monitor ProcessManager, if required relauch it")
-@click.argument("hyperspace_pathname", required=False, default=None)
+@click.argument("definition_pathname", required=False, default=None)
 
-def run_command(name, watchdog, hyperspace_pathname):
+def run_command(name, watchdog, definition_pathname):
     """Run ProcessManager
 
     aiko_process run [--name NAME] [--watchdog] [HYPERSPACE_PATHNAME]
@@ -462,7 +482,7 @@ def run_command(name, watchdog, hyperspace_pathname):
 
     tags = ["ec=true"]       # TODO: Add ECProducer tag before add to Registrar
     init_args = actor_args(name, None, None, PROTOCOL, tags)
-    init_args["hyperspace_pathname"] = hyperspace_pathname
+    init_args["definition_pathname"] = definition_pathname
     init_args["watchdog"] = watchdog
     process_manager = compose_instance(ProcessManagerImpl, init_args)
     aiko.process.run()
