@@ -16,7 +16,7 @@ all = ["do_create_pipeline"]
 class Terminate(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("terminate:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream) -> Tuple[aiko.StreamEvent, dict]:
         self.logger.info(f"{self.my_id()}")

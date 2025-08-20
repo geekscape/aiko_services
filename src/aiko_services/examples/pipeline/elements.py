@@ -39,7 +39,7 @@ import time
 class PE_Add(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("add:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, i) -> Tuple[aiko.StreamEvent, dict]:
         constant, _ = self.get_parameter("constant", default=1)
@@ -60,7 +60,7 @@ import random
 class PE_RandomIntegers(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("random_integers:0")  # data_source:0
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
         self.share["random"] = "?"
 
     def start_stream(self, stream, stream_id):
@@ -92,7 +92,7 @@ class PE_RandomIntegers(aiko.PipelineElement):
 class PE_0(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("increment:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, a) -> Tuple[aiko.StreamEvent, dict]:
         pe_0_inc, _ = self.get_parameter("pe_0_inc", 1)
@@ -105,7 +105,7 @@ class PE_0(aiko.PipelineElement):
 class PE_1(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("increment:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, b) -> Tuple[aiko.StreamEvent, dict]:
         increment = 1
@@ -121,7 +121,7 @@ class PE_1(aiko.PipelineElement):
 class PE_2(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("increment:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, c) -> Tuple[aiko.StreamEvent, dict]:
         d = int(c) + 1
@@ -133,7 +133,7 @@ class PE_2(aiko.PipelineElement):
 class PE_3(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("increment:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, c) -> Tuple[aiko.StreamEvent, dict]:
         e = int(c) + 1
@@ -145,7 +145,7 @@ class PE_3(aiko.PipelineElement):
 class PE_4(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("sum:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, d, e) -> Tuple[aiko.StreamEvent, dict]:
         f = int(d) + int(e)
@@ -167,7 +167,7 @@ class PE_4(aiko.PipelineElement):
 class PE_IN(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("in:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, in_a) -> Tuple[aiko.StreamEvent, dict]:
         text_b = f"{in_a}:in"
@@ -179,7 +179,7 @@ class PE_IN(aiko.PipelineElement):
 class PE_TEXT(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("text_to_text:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, text_b) -> Tuple[aiko.StreamEvent, dict]:
         text_b = f"{text_b}:text"
@@ -191,7 +191,7 @@ class PE_TEXT(aiko.PipelineElement):
 class PE_OUT(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("out:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, text_b) -> Tuple[aiko.StreamEvent, dict]:
         out_c = f"{text_b}:out"
@@ -202,7 +202,7 @@ class PE_OUT(aiko.PipelineElement):
 
 class PE_DataDecode(aiko.PipelineElement):
     def __init__(self, context):
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, data) -> Tuple[aiko.StreamEvent, dict]:
         data = base64.b64decode(data.encode("utf-8"))
@@ -215,7 +215,7 @@ class PE_DataDecode(aiko.PipelineElement):
 
 class PE_DataEncode(aiko.PipelineElement):
     def __init__(self, context):
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, data) -> Tuple[aiko.StreamEvent, dict]:
     #   self.logger.info(f"{self.my_id()} data: {data}")

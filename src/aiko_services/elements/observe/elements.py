@@ -21,7 +21,7 @@ __all__ = ["Inspect", "Metrics"]
 class Inspect(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("inspect:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def _get_inspect_file(self, stream, target):
         inspect_file = stream.variables.get("inspect_file", None)
@@ -85,7 +85,7 @@ class Inspect(aiko.PipelineElement):
 class Metrics(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("metrics:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream) -> Tuple[aiko.StreamEvent, dict]:
         enable, _ = self.get_parameter("enable", True)

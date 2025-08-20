@@ -36,7 +36,7 @@ __all__ = ["PromptMediaFusion", "RobotActions", "RobotAgents"]
 class PromptMediaFusion(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("robot_actions:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def start_stream(self, stream, stream_id):
         stream.variables["ml_memory_detections"] = []
@@ -58,7 +58,7 @@ class PromptMediaFusion(aiko.PipelineElement):
 class RobotActions(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("robot_actions:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def _get_robot(self, stream):
         return stream.variables["robot_actions_actor"]
@@ -197,7 +197,7 @@ def create_initial_value(stream, name):  # TODO: Move to "main/stream.py"
 class RobotAgents(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("robot_actions:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream) -> Tuple[aiko.StreamEvent, dict]:
         return aiko.StreamEvent.OKAY, {

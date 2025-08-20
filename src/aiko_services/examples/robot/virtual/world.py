@@ -570,7 +570,7 @@ class PhysicsEngine(ShowBase):
 class World(aiko.PipelineElement):  # TODO: Should be a DataSource
     def __init__(self, context):
         context.set_protocol("device:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
         self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"
 
     def start_stream(self, stream, stream_id):

@@ -26,7 +26,7 @@
 #
 # class ActorTestImpl(ActorTest):
 #     def __init__(self, context):
-#         context.get_implementation("Actor").__init__(self, context)
+#         context.call_init(self, "Actor", context)
 #
 #     def test(self):
 #         print("ActorTestImpl.test() invoked")
@@ -333,7 +333,7 @@ class ActorTest(Actor):  # TODO: Move into "../examples/"
 
 class ActorTestImpl(ActorTest):  # TODO: Move into "../examples/" showing hooks
     def __init__(self, context):
-        context.get_implementation("Actor").__init__(self, context)
+        context.call_init(self, "Actor", context)
         self.test_count = None
 
     def initialize(self):

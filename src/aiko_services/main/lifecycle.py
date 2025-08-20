@@ -14,7 +14,9 @@
 #
 # To Do: LifeCycleManager
 # ~~~~~~~~~~~~~~~~~~~~~~~
-# - Implement "lifecycle_manager.delete(lifecycle_client_id)"
+# * Refactor ProcessManager to provide functionality without being an Actor
+#
+# - Implement "lifecycle_manager.destroy(lifecycle_client_id)"
 #
 # - BUG: Fix "aiko_services/event.py" ...
 #        With multiple timer handlers using the same handler function,
@@ -33,7 +35,7 @@
 #   network (ConnectionState changes) and/or lease expiring.  Should LCM
 #   recreate LCCs or terminate ?  Should LCC terminate ?
 #
-# - PRIORITY: Optionally replace ProcessManager with Ray to create Actor
+# - OBSOLETE: Optionally replace ProcessManager with Ray to create Actor
 #
 # - Should be able to create LifeCycleClients as either separate processes
 #   or within the same process.  When the LifeCycleClients are all running
@@ -64,6 +66,8 @@ from typing import Dict, List
 from aiko_services.main import *
 from aiko_services.main.transport import *
 from aiko_services.main.utilities import *
+
+__all__ = ["LifeCycleClient", "LifeCycleManager"]
 
 CLIENT_SHELL_COMMAND = "./lifecycle.py"
 
@@ -300,7 +304,7 @@ class LifeCycleManagerTest(Actor, LifeCycleManager):
 
 class LifeCycleManagerTestImpl(LifeCycleManagerTest):
     def __init__(self, context, client_count):
-        context.get_implementation("Actor").__init__(self, context)
+        context.call_init(self, "Actor", context)
 
         self.share = {
             "lifecycle": "ready",
@@ -309,7 +313,10 @@ class LifeCycleManagerTestImpl(LifeCycleManagerTest):
             "client_count": client_count
         }
         self.ec_producer = ECProducer(self, self.share)
-        self.process_manager = ProcessManager()
+
+        tags = ["ec=true"]   # TODO: Add ECProducer tag before add to Registrar
+        init_args = actor_args("_process_manager", None, None, None, tags)
+        self.process_manager = compose_instance(ProcessManagerImpl, init_args)
 
         context.get_implementation("LifeCycleManager").__init__(self,
             self._lifecycle_client_change_handler, self.ec_producer)
@@ -321,10 +328,10 @@ class LifeCycleManagerTestImpl(LifeCycleManagerTest):
 
         command = parameters
         arguments = ["client", str(client_id), lifecycle_manager_topic]
-        self.process_manager.create(client_id, command, arguments)
+        self.process_manager.create(command, arguments, client_id)
 
     def _lcm_delete_client(self, client_id, force=False):
-        self.process_manager.delete(client_id, kill=True)
+        self.process_manager.destroy(client_id, kill=True)
 
     def _connection_state_handler(self, connection, connection_state):
         if connection.is_connected(ConnectionState.REGISTRAR):
@@ -398,7 +405,7 @@ class LifeCycleClientTest(Actor, LifeCycleClient):
 
 class LifeCycleClientTestImpl(LifeCycleClientTest):
     def __init__(self, context, client_id, lifecycle_manager_topic):
-        context.get_implementation("Actor").__init__(self, context)
+        context.call_init(self, "Actor", context)
 
         self.share = {
             "lifecycle": "ready",

@@ -435,7 +435,7 @@ class PipelineElementImpl(PipelineElement):
         if context.protocol == "*":
             context.set_protocol(
                 PROTOCOL_PIPELINE if self.is_pipeline else PROTOCOL_ELEMENT)
-        context.get_implementation("Actor").__init__(self, context)
+        context.call_init(self, "Actor", context)
 
     #  "log_level" parameter overrides "AIKO_LOG_LEVEL" environment variable
         log_level, found = self.get_parameter(
@@ -677,7 +677,7 @@ class PipelineImpl(Pipeline):
 
         self.pipeline_graph = None
         self.actor = context.get_implementation("Actor")    # _WINDOWS
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
         self.logger.info(f"MQTT topic: {self.topic_in}")
 
         self.share["definition_pathname"] = context.definition_pathname
@@ -1653,7 +1653,7 @@ class PipelineImpl(Pipeline):
 
 class PipelineRemote(PipelineElement):
     def __init__(self, context):
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
         self.set_remote_absent(True)
 
     def create_stream(self, stream_id, graph_path=None,

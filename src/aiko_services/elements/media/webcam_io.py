@@ -76,7 +76,7 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
 class VideoReadWebcam(aiko.DataSource):  # PipelineElement
     def __init__(self, context):
         context.set_protocol("webcam:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
         self.path_current = None
         self.stream_started = 0

@@ -43,7 +43,7 @@ AUDIO_CHANNELS = 1  # 1 or 2 channels
 class PE_LLM(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("llm:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, text) -> Tuple[aiko.StreamEvent, dict]:
         return aiko.StreamEvent.OKAY, {"text": text}
@@ -60,7 +60,7 @@ AUDIO_CACHE_SIZE = int(AUDIO_SAMPLE_DURATION / AUDIO_CHUNK_DURATION)
 class PE_AudioFraming(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("audio_framing:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
         self._lru_cache = LRUCache(AUDIO_CACHE_SIZE)
         _LOGGER.info(f"PE_AudioFraming: Sliding windows: {AUDIO_CACHE_SIZE}")
@@ -89,7 +89,7 @@ AUDIO_PATH_TEMPLATE = "y_audio_{frame_id:06}.wav"
 class PE_AudioWriteFile(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("audio_write_file:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, audio) -> Tuple[aiko.StreamEvent, dict]:
         frame_id = stream["frame_id"]
@@ -123,8 +123,7 @@ if COQUI_TTS_LOADED:
     class PE_COQUI_TTS(aiko.PipelineElement):
         def __init__(self, context):
             context.set_protocol("text_to_speech:0")
-            implementation = context.get_implementation("PipelineElement")
-            implementation.__init__(self, context)
+            context.call_init(self, "PipelineElement", context)
 
             self._ml_model = TTS(COQUI_MODEL_NAME, gpu=True)
             _LOGGER.info(f"PE_COQUI_TTS: ML model loaded: {COQUI_MODEL_NAME}")
@@ -150,7 +149,7 @@ if COQUI_TTS_LOADED:
 class PE_SpeechFraming(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("speech_framing:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, text) -> Tuple[aiko.StreamEvent, dict]:
         return aiko.StreamEvent.OKAY, {"text": text}
@@ -204,8 +203,7 @@ if WHISPERX_LOADED:
     class PE_WhisperX(aiko.PipelineElement):
         def __init__(self, context):
             context.set_protocol("speech_to_text:0")
-            implementation = context.get_implementation("PipelineElement")
-            implementation.__init__(self, context)
+            context.call_init(self, "PipelineElement", context)
 
         # WORKAROUND: https://github.com/m-bain/whisperX/issues/708
         # 2024-02-25: "faster-whisper" updated recently and

@@ -30,7 +30,7 @@ The AlohaHonua [Actor](https://en.wikipedia.org/wiki/Actor_model) below is a dis
 
     class AlohaHonua(Actor):
         def __init__(self, context):
-            context.get_implementation("Actor").__init__(self, context)
+            context.call_init(self, "Actor", context)
             print(f"MQTT topic: {self.topic_in}")
 
         def aloha(self, name):
@@ -94,7 +94,7 @@ The AlohaHonua class is defined as a Python class that inherits from the Aiko Se
 
     class AlohaHonua(Actor):
         def __init__(self, context):
-            context.get_implementation("Actor").__init__(self, context)
+            context.call_init(self, "Actor", context)
             print(f"MQTT topic: {self.topic_in}")
 
 One of the features that the Actor `__init__()` function provides is a [logger](https://en.wikipedia.org/wiki/Logging_(computing)) [instance](https://en.wikipedia.org/wiki/Instance_(computer_science)#Object-oriented_programming) for this Actor

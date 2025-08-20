@@ -82,7 +82,7 @@ TOPIC_DETECTIONS = f"{get_namespace()}/detections"
 class PE_COQUI_TTS(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("text_to_speech:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, text) -> Tuple[aiko.StreamEvent, dict]:
         return aiko.StreamEvent.OKAY, {"text": text}
@@ -203,7 +203,7 @@ Your state information when relevant may be used in your response messages
 
 class Detection(aiko.PipelineElement):
     def __init__(self, context):
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
         context.set_protocol("detections:0")
 
     def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
@@ -211,7 +211,7 @@ class Detection(aiko.PipelineElement):
 
 class LLM(aiko.PipelineElement):
     def __init__(self, context):
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
         context.set_protocol("llm:0")
 
         self.detections = None

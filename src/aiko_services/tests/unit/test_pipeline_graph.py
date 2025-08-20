@@ -73,7 +73,7 @@ ELEMENTS = """
 
 class A(aiko.PipelineElement):
     def __init__(self, context):
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream):
         a_out_0 = 0
@@ -86,7 +86,7 @@ class A(aiko.PipelineElement):
 
 class B(aiko.PipelineElement):
     def __init__(self, context):
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, b_in_0, b_in_1):
         b_out_0 = [b_in_0, b_in_1]
@@ -97,7 +97,7 @@ class B(aiko.PipelineElement):
 
 class C(aiko.PipelineElement):
     def __init__(self, context):
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, c_in_0, c_in_1, c_in_2):
         c_out_0 = [c_in_0] + c_in_1 + [c_in_2]

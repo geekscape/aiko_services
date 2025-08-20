@@ -17,7 +17,7 @@
 #
 # class ServiceTestImpl(ServiceTest):
 #     def __init__(self, context):
-#         context.get_implementation("Service").__init__(self, context)
+#         context.call_init(self, "Service", context)
 #
 #     def test(self):
 #         print("ServiceTestImpl.test() invoked")
@@ -549,7 +549,7 @@ class Service(ServiceProtocolInterface, Hooks):  # TODO: Make Hooks be optional
 # --------------------------------------------------------------------------- #
 
 class ServiceImpl(Service):
-    def __init__(self, context):
+    def __init__(self, context, register_service=True):
 
     # TODO: Move name, protocol, tags, topic_path, transport into ServiceFields
         self.time_started = time.monotonic()
@@ -557,7 +557,11 @@ class ServiceImpl(Service):
         self.protocol = context.protocol
         self._tags = context.tags
         self.transport = context.transport
-        aiko.process.add_service(self)  # Initializes service_id and topic_path
+
+        self.service_id = None
+        self.topic_path = None
+        if register_service:
+            aiko.process.add_service(self)  # Assigns service_id and topic_path
 
         self._registrar_handler_function = None
         self.topic_control = f"{self.topic_path}/control"

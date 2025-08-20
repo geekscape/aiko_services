@@ -157,7 +157,7 @@ def convert_images(images, media_type):
 class ImageConvert(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("image_convert:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         media_type, _ = self.get_parameter("media_type", None)
@@ -171,7 +171,7 @@ class ImageConvert(aiko.PipelineElement):
 class ImageOutput(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("image_output:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         return aiko.StreamEvent.OKAY, {"images": images}
@@ -186,7 +186,7 @@ class ImageOutput(aiko.PipelineElement):
 class ImageOverlay(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("image_overlay:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
         self.color = (0, 255, 255)
         self.font = cv2.FONT_HERSHEY_SIMPLEX
         self.font_scale = 0.75
@@ -256,7 +256,7 @@ class ImageOverlay(aiko.PipelineElement):
 class ImageOverlayFilter(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("image_overlay_filter:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, overlay)  \
         -> Tuple[aiko.StreamEvent, dict]:
@@ -300,7 +300,7 @@ class ImageOverlayFilter(aiko.PipelineElement):
 class ImageReadFile(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("image_read_file:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, paths) -> Tuple[aiko.StreamEvent, dict]:
         stream.variables["timestamps"] = [stream.frame_id * (1 / 25)]
@@ -333,7 +333,7 @@ class ImageReadFile(aiko.DataSource):  # PipelineElement
 class ImageReadZMQ(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("image_read_zmq:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, records) -> Tuple[aiko.StreamEvent, dict]:
         stream.variables["timestamps"] = [stream.frame_id * (1 / 25)]
@@ -371,7 +371,7 @@ class ImageReadZMQ(aiko.DataSource):  # PipelineElement
 class ImageResize(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("image_resize:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         resolution, found = self.get_parameter("resolution")
@@ -420,7 +420,7 @@ def square_center_crop(image):  # Either Pillow or NumPy array Image
 class ImageSquareCenterCrop(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("image_square_center_crop:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         images_cropped = []
@@ -438,7 +438,7 @@ class ImageSquareCenterCrop(aiko.PipelineElement):
 class ImageWriteFile(aiko.DataTarget):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("image_write_file:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         for image in images:
@@ -473,7 +473,7 @@ class ImageWriteFile(aiko.DataTarget):  # PipelineElement
 class ImageWriteZMQ(aiko.DataTarget):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("image_write_zmq:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         media_type = "image"                            # TODO: "image/zip" ?

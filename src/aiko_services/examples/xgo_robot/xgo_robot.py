@@ -220,7 +220,7 @@ class RobotCore:
 
 class XGORobotImpl(XGORobot, RobotCore):
     def __init__(self, context):
-        context.get_implementation("Actor").__init__(self, context)
+        context.call_init(self, "Actor", context)
         RobotCore.__init__(self, context)
 
         if is_robot():

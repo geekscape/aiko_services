@@ -41,7 +41,7 @@ class MQTTTest(Actor):
 
 class MQTTTestImpl(MQTTTest):
     def __init__(self, context):
-        context.get_implementation("Actor").__init__(self, context)
+        context.call_init(self, "Actor", context)
 
         self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"
         self.share["message"] = None

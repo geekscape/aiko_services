@@ -22,7 +22,7 @@ class TransportMQTT(Actor):
 
 class TransportMQTTImpl(TransportMQTT):
     def __init__(self, context):
-        context.get_implementation("Actor").__init__(self, context)
+        context.call_init(self, "Actor", context)
 
     def terminate(self):
         self.stop()

@@ -51,7 +51,7 @@ from ultralytics import YOLO
 class YoloDetector(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("object_detector:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def start_stream(self, stream, stream_id):
         self.device = "mps" if torch.backends.mps.is_available() else "cpu"

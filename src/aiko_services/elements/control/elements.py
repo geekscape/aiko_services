@@ -20,7 +20,7 @@ __all__ = ["Loop"]
 class Loop(aiko.PipelineElementLoop):
     def __init__(self, context):
         context.set_protocol("loop:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream) -> Tuple[aiko.StreamEvent, dict]:
         self.logger.debug(f"{self.my_id()}")

@@ -75,7 +75,7 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
 class AudioOutput(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("audio_output:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, audio_samples)  \
         -> Tuple[aiko.StreamEvent, dict]:
@@ -95,7 +95,7 @@ class AudioOutput(aiko.PipelineElement):
 class AudioReadFile(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("audio_read_file:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def start_stream(self, stream, stream_id):
     #   stream.variables["audio_capture"] = None
@@ -206,7 +206,7 @@ AF_SAMPLES_MAXIMUM = 100
 class PE_AudioFilter(PipelineElement):
     def __init__(self, context):
         context.set_protocol("audio_filter:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self,
         stream, amplitudes, frequencies) -> Tuple[aiko.StreamEvent, dict]:
@@ -237,7 +237,7 @@ AR_BAND_COUNT = 8
 class PE_AudioResampler(PipelineElement):  # TODO: AudioTransform ?
     def __init__(self, context):
         context.set_protocol("audio_resample:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
         self.counter = 0
 
 # Frequencies: [0:2399] --> 0, 10, 20, ... 23990 Hz
@@ -299,7 +299,7 @@ FFT_AMPLITUDE_SCALER = 1_000_000
 class PE_FFT(PipelineElement):
     def __init__(self, context):
         context.set_protocol("fft:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, audio) -> Tuple[aiko.StreamEvent, dict]:
         fft_output = np.fft.fft(audio)
@@ -334,7 +334,7 @@ WINDOW_TITLE = GRAPH_TITLE
 class PE_GraphXY(PipelineElement):
     def __init__(self, context):
         context.set_protocol("graph_xy:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self,
         stream, amplitudes, frequencies) -> Tuple[aiko.StreamEvent, dict]:
@@ -412,7 +412,7 @@ def pyaudio_initialize():
 class PE_MicrophonePA(PipelineElement):
     def __init__(self, context):
         context.set_protocol("microphone:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
         self.share["frame_id"] = -1
 
@@ -466,7 +466,7 @@ import sounddevice as sd
 class PE_MicrophoneSD(PipelineElement):
     def __init__(self, context):
         context.set_protocol("microphone:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
         self.share["mute"] = 0
         self.share["frame_id"] = -1
@@ -540,7 +540,7 @@ SP_SPEED_UP = 0.7                              # talk time fine tuning !
 class PE_Speaker(PipelineElement):
     def __init__(self, context):
         context.set_protocol("speaker:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
         self._microphone_service = None
         do_discovery(

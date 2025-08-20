@@ -267,7 +267,7 @@ class Example(Actor):
 
 class ExampleImpl(Example):
     def __init__(self, context):
-        context.get_implementation("Actor").__init__(self, context)
+        context.call_init(self, "Actor", context)
         self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"
 
     def command(self, argument):

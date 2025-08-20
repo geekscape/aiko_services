@@ -19,7 +19,7 @@ __all__ = ["Mock", "NoOp"]
 class Mock(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("mock:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream) -> Tuple[aiko.StreamEvent, dict]:
         label, _ = self.get_parameter("label", default="")
@@ -31,7 +31,7 @@ class Mock(aiko.PipelineElement):
 class NoOp(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("noop:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream) -> Tuple[aiko.StreamEvent, dict]:
         return aiko.StreamEvent.OKAY, {}

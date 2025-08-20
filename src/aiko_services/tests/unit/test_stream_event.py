@@ -36,7 +36,7 @@ PIPELINE_DEFINITION = """{
 class StreamError(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("stream_error:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream) -> Tuple[aiko.StreamEvent, dict]:
         self.logger.info(f"process_frame(): {self.my_id()}")

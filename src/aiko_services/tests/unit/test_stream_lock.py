@@ -48,7 +48,7 @@ PIPELINE_DEFINITION = """{
 class StreamLock_0(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("stream_lock:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def start_stream(self, stream, stream_id):
         self.logger.info(f"{self.my_id()} start_stream()")
@@ -64,7 +64,7 @@ class StreamLock_0(aiko.PipelineElement):
 class StreamLock_1(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("stream_lock:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def start_stream(self, stream, stream_id):
         self.logger.info(f"{self.my_id()} start_stream()")
@@ -83,7 +83,7 @@ class StreamLock_1(aiko.PipelineElement):
 class StreamLock_2(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("stream_lock:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def start_stream(self, stream, stream_id):
         self.logger.info(f"{self.my_id()} start_stream()")

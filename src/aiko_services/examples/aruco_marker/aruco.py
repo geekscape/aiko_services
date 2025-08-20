@@ -80,7 +80,7 @@ _ARUCO_TAGS_TABLE = {
 class ArucoMarkerDetector(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("aruco_marker_detector:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(
             _ARUCO_TAGS_TABLE[_DEFAULT_ARUCO_TAGS])
@@ -136,7 +136,7 @@ COLOR_TEXT   = COLOR_PURPLE
 class ArucoMarkerOverlay(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("aruco_marker_overlay:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, images, overlays)  \
         -> Tuple[aiko.StreamEvent, dict]:

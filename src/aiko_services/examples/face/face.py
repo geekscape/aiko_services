@@ -52,7 +52,7 @@ from deepface.DeepFace import extract_faces
 class FaceDetector(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("face_detector:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
     #   os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
         self.detector_backend = "retinaface"
         self.share["detections"] = 0

@@ -13,7 +13,7 @@
 #
 #     class Example(Actor):
 #         def __init__(self, context):
-#             context.get_implementation("Actor").__init__(self, context)
+#             context.call_init(self, "Actor", context)
 #
 #     init_args = actor_args("example")
 #     compose_instance(Example, init_args)

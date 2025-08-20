@@ -28,6 +28,8 @@ from collections import deque
 from aiko_services.main import *
 from aiko_services.main.utilities import *
 
+__all__ = ["Recorder"]
+
 _VERSION = 0
 
 SERVICE_TYPE = "recorder"
@@ -49,7 +51,7 @@ class Recorder(Service):
 
 class RecorderImpl(Recorder):
     def __init__(self, context, topic_path_filter):
-        context.get_implementation("Service").__init__(self, context)
+        context.call_init(self, "Service", context)
 
 # TODO: Add LRUCache popitem() handler to remove oldest ring buffer ?
 #       And send ECProducer.remove(topic) to update the ECConsumer

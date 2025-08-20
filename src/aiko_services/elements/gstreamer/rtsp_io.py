@@ -36,7 +36,7 @@ __all__ = ["VideoReadRTSP"]
 class VideoReadRTSP(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("video_read_rtsp:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         timestamp = -3.0

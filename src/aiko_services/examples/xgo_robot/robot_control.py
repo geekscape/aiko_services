@@ -92,7 +92,7 @@ class RobotControl(Actor):
 
 class RobotControlImpl(RobotControl):
     def __init__(self, context, robot_topic):
-        context.get_implementation("Actor").__init__(self, context)
+        context.call_init(self, "Actor", context)
 
         self.share["frame_id"] = 0
         self.share["robot_topic"] = robot_topic
@@ -308,7 +308,7 @@ class VideoTest(Actor):
 
 class VideoTestImpl(VideoTest):
     def __init__(self, context):
-        context.get_implementation("Actor").__init__(self, context)
+        context.call_init(self, "Actor", context)
 
         self.share["sleep_period"] = SLEEP_PERIOD
         self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"

@@ -116,6 +116,8 @@ import time
 from aiko_services.main import *
 from aiko_services.main.utilities import *
 
+__all__ = ["Registrar"]
+
 _LOGGER = aiko.logger(__name__)
 
 _HISTORY_LIMIT_DEFAULT = 16
@@ -192,7 +194,7 @@ class Registrar(Service):
 
 class RegistrarImpl(Registrar):
     def __init__(self, context):
-        context.get_implementation("Service").__init__(self, context)
+        context.call_init(self, "Service", context)
 
         state_machine_model = StateMachineModel(self)
         self.state_machine = StateMachineOld(state_machine_model)

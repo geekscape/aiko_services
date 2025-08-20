@@ -22,6 +22,8 @@ import sqlite3
 
 from aiko_services.main import *
 
+__all__ = ["Storage"]
+
 _VERSION = 0
 
 ACTOR_TYPE = "storage"
@@ -45,7 +47,7 @@ class Storage(Actor):
 
 class StorageImpl(Storage):
     def __init__(self, context, database_pathname):
-        context.get_implementation("Actor").__init__(self, context)
+        context.call_init(self, "Actor", context)
         self.connection = sqlite3.connect(database_pathname)
         self.share["database_pathname"] = database_pathname
         self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"

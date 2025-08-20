@@ -669,7 +669,7 @@ def services_cache_delete():
 
 class ECProducerTest(Service):
     def __init__(self, context):
-        context.get_implementation("Service").__init__(self, context)
+        context.call_init(self, "Service", context)
         _LOGGER.info(f"ECProducer: topic path: {self.topic_path}")
 
         self.share = {
@@ -693,7 +693,7 @@ class ECProducerTest(Service):
 
 class ECConsumerTest(Service):
     def __init__(self, context, ec_producer_pid, ec_producer_sid, filter):
-        context.get_implementation("Service").__init__(self, context)
+        context.call_init(self, "Service", context)
         _LOGGER.info(f"ECConsumer: topic path: {self.topic_path}")
 
         self.share_producer = {

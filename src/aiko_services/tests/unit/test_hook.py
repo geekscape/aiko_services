@@ -23,7 +23,7 @@ HOOK_NAME = "HookTest.test_hook:0"
 
 class HookTest(aiko.Actor):  # primarily acts as a Framework component
     def __init__(self, context):
-        context.get_implementation("Actor").__init__(self, context)
+        context.call_init(self, "Actor", context)
 
     def hook_check(self):
         hook_count_base = len(self.get_hooks())

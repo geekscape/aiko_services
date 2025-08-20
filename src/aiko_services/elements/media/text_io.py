@@ -89,7 +89,7 @@ __all__ = [
 class TextOutput(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("text_output:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
         return aiko.StreamEvent.OKAY, {"texts": texts}
@@ -107,7 +107,7 @@ class TextOutput(aiko.PipelineElement):
 class TextReadFile(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("text_read_file:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, paths) -> Tuple[aiko.StreamEvent, dict]:
         texts = []
@@ -128,7 +128,7 @@ class TextReadFile(aiko.DataSource):  # PipelineElement
 class TextReadTTY(aiko.DataSource):  # PipelineElement
     def __init__(self, context):
         context.set_protocol("text_read_tty:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def start_stream(self, stream, stream_id):
         print('# Type "/?" for help and "/x" to exit')
@@ -202,7 +202,7 @@ class TextReadTTY(aiko.DataSource):  # PipelineElement
 class TextReadZMQ(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("text_read_zmq:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, records) -> Tuple[aiko.StreamEvent, dict]:
         texts = []
@@ -220,7 +220,7 @@ class TextReadZMQ(aiko.DataSource):  # PipelineElement
 class TextSample(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("text_sample:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
         sample_rate, _ = self.get_parameter("sample_rate", 1)
@@ -236,7 +236,7 @@ class TextSample(aiko.PipelineElement):
 class TextTransform(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("text_transform:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
         self.transforms = {
             "lowercase": lambda text: text.lower(),  # looks like this !
@@ -280,7 +280,7 @@ class TextTransform(aiko.PipelineElement):
 class TextWriteFile(aiko.DataTarget):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("text_write_file:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def start_stream(self, stream, stream_id):
         stream_event, diagnostic = super().start_stream(stream, stream_id)
@@ -333,7 +333,7 @@ class TextWriteFile(aiko.DataTarget):  # PipelineElement
 class TextWriteTTY(aiko.DataTarget):  # PipelineElement
     def __init__(self, context):
         context.set_protocol("text_write_tty:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
         for text in texts:
@@ -356,7 +356,7 @@ class TextWriteTTY(aiko.DataTarget):  # PipelineElement
 class TextWriteZMQ(aiko.DataTarget):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("text_write_zmq:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
         media_type = "text"                            # TODO: "text/zip" ?

@@ -63,7 +63,7 @@ from .discovery import (
     do_command, do_discovery, do_request, get_service_proxy
 )
 
-from .process_manager import ProcessManager
+from .process_manager import ProcessManager, ProcessManagerImpl
 
 from .lifecycle import LifeCycleClient, LifeCycleManager
 
@@ -84,7 +84,7 @@ from .scheme import DataScheme
 
 from .source_target import DataSource, DataTarget
 
-from .registrar import *
+from .registrar import *                  # TODO: Narrow to required references
 
 # from .cli import *
 

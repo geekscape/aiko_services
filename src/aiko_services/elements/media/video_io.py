@@ -113,7 +113,7 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
 class VideoOutput(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("video_output:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         return aiko.StreamEvent.OKAY, {"images": images}
@@ -131,7 +131,7 @@ class VideoOutput(aiko.PipelineElement):
 class VideoReadFile(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("video_read_file:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def start_stream(self, stream, stream_id):
         stream.variables["video_capture"] = None
@@ -204,7 +204,7 @@ class VideoReadFile(aiko.DataSource):  # PipelineElement
 class VideoSample(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("video_sample:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         sample_rate, _ = self.get_parameter("sample_rate", 1)
@@ -221,7 +221,7 @@ class VideoSample(aiko.PipelineElement):
 class VideoShow(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("video_show:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
 #   def slider_handler(self, value):
 #       print(f"slider: {value}")
@@ -269,7 +269,7 @@ class VideoShow(aiko.PipelineElement):
 class VideoWriteFile(aiko.DataTarget):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("video_write_file:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def start_stream(self, stream, stream_id):
         stream_event, diagnostic = super().start_stream(stream, stream_id)
@@ -347,7 +347,7 @@ class VideoWriteFile(aiko.DataTarget):  # PipelineElement
 class VideoWriteFiles(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("video_write_files:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
+        context.call_init(self, "PipelineElement", context)
 
     def start_stream(self, stream, stream_id):
         stream.variables["last_minute"] = 0
