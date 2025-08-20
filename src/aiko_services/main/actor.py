@@ -213,7 +213,8 @@ class ActorImpl(Actor):
             topic, command, args, target_function=actual_function)
 
     def __init__(self, context):
-        context.get_implementation("Service").__init__(self, context)
+        context.call_init(self, "Service", context)
+
         if not hasattr(self, "logger"):
             self.logger = aiko.logger(context.name)
 

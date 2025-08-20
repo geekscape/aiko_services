@@ -26,7 +26,7 @@
 # - Change "lease_time: seconds" to "lease: {start: UTC, duration: seconds}" ?
 #
 # - Lease request rejected ...
-#   - Response (lease_rejected maximum_time 60
+#   - Response (lease_rejected maximum_time 60)
 #   - Response (lease_rejected no_resource memory)
 
 import os

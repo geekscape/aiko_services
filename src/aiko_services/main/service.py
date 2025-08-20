@@ -98,6 +98,7 @@ from collections import OrderedDict  # All OrderedDict operations are O(1)
 import time
 
 from aiko_services.main import *
+from aiko_services.main.utilities import get_hostname
 
 __all__ = [
     "ServiceFields", "ServiceFilter", "ServiceProtocol",
@@ -221,6 +222,8 @@ class ServiceFilter:
 
     def __init__(self, topic_paths="*",
         name="*", protocol="*", transport="*", owner="*", tags="*"):
+
+        name = name if name else get_hostname()
 
         self.topic_paths = topic_paths
         self.name = name

@@ -12,6 +12,8 @@
 #
 # To Do
 # ~~~~~
+# - Rename "StorageImpl" to "StorageFile"
+#
 # - Consider GraphQL over MQTT !
 
 from abc import abstractmethod

@@ -13,6 +13,8 @@
 #
 # To Do
 # ~~~~~
+# * YOLO checkpoint file pathname should be a parameter
+#
 # - Implement multiple simultaneous YOLO model checkpoints, referenced by name
 #
 # - Provide more flexible search for "_YOLO_MODEL_PATHNAME" ?

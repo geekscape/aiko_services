@@ -16,6 +16,8 @@
 #
 # To Do
 # ~~~~~
+# - Design, implement and use Dependency
+#
 # * Fix: Use of do_request(), before starting, may need to wait for ...
 #        Connection.is_connected(ConnectionState.REGISTRAR) ?
 #
@@ -29,7 +31,6 @@
 # - Consolidate "proxy.py" (used by "actor.py") and "get_service_proxy()"
 #   - See "_proxy_post_message()" below
 #
-# - Design and implement Dependency
 # - Refactor ServiceDiscovery into an Interface and Implementation ?
 #
 # * Make Service/ActorDiscovery and get_actor_mqtt() more convenient

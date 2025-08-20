@@ -14,6 +14,8 @@
 #
 # To Do
 # ~~~~~
+# - Consider keeping a process wide list of all the Locks, which can be shown
+#
 # - Replace all Locks (not time critical), by ensuring all updates occur via
 #   "events" (handlers, messages and timers) managed by the event loop and
 #   executed solely by the event loop thread

@@ -58,6 +58,12 @@ class Context:
     name: str = "<interface>"
     implementations: Dict[str, str] = field(default_factory=dict)
 
+    def call_init(self, caller, implementation_name, context, **kwargs):
+        if not self.is_initialized(implementation_name):
+            callee = self.get_implementation(implementation_name)
+            callee.__init__(caller, context, **kwargs)
+            self.set_initialized(implementation_name)
+
     def get_implementation(self, implementation_name):
         return self.implementations[implementation_name]
 
@@ -67,11 +73,17 @@ class Context:
     def get_name(self) -> str:
         return self.name
 
+    def is_initialized(self, implementation_name):
+        return hasattr(self, f"initialized_{implementation_name}")
+
     def set_implementation(self, implementation_name, implementation):
         self.implementations[implementation_name] = implementation
 
     def set_implementations(self, implementations):
         self.implementations = implementations
+
+    def set_initialized(self, implementation_name):
+        setattr(self, f"initialized_{implementation_name}", True)
 
 class Interface(ABC):
     context = Context()
