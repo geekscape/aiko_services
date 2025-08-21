@@ -16,7 +16,7 @@ from aiko_services.main.utilities import get_network_port_free
 
 __all__ = ["DataSchemeZMQ"]
 
-_LOGGER = aiko.get_logger(__name__)
+_LOGGER = aiko.process.logger(__name__)
 
 # --------------------------------------------------------------------------- #
 # parameter: "data_sources" provides the ZMQ server bind details (incoming)

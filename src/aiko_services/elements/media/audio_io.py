@@ -41,7 +41,7 @@ import aiko_services as aiko
 
 __all__ = ["AudioOutput", "AudioReadFile"]  # "AudioWriteFile"
 
-_LOGGER = aiko.get_logger(__name__)
+_LOGGER = aiko.process.logger(__name__)
 
 _XXX_IMPORTED = False
 try:

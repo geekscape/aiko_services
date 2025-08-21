@@ -76,7 +76,7 @@ __all__ = [
     "ImageWriteFile", "ImageWriteZMQ"
 ]
 
-_LOGGER = aiko.get_logger(__name__)
+_LOGGER = aiko.process.logger(__name__)
 
 _CV2_IMPORTED = False
 try:

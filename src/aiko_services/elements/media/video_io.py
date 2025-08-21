@@ -73,7 +73,7 @@ __all__ = [
     "VideoWriteFile", "VideoWriteFiles"
 ]
 
-_LOGGER = aiko.get_logger(__name__)
+_LOGGER = aiko.process.logger(__name__)
 
 _DEFAULT_MINUTE_RANGE = "*"   # "*" or specific minute range to capture "00-01"
 

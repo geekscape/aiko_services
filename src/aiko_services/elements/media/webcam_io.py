@@ -51,7 +51,7 @@ __all__ = ["VideoReadWebcam"]
 _DEFAULT_CAMERA_PATHNAME = 0  # Linux: "/dev/video0"
 _DEFAULT_FRAME_RATE = 10.0    # 10 Hz frames per second
 
-_LOGGER = aiko.get_logger(__name__)
+_LOGGER = aiko.process.logger(__name__)
 
 _CV2_IMPORTED = False
 try:

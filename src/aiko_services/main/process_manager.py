@@ -297,7 +297,7 @@ class ProcessManagerImpl(ProcessManager):
         for uid_key in self.processes.keys():
             if uid is None or uid == uid_key:
                 command, pid = self._get_process_info(uid_key)
-                response = f"{uid_key} {pid} {" ".join(command)}"
+                response = f"{uid_key} {pid} {' '.join(command)}"
                 responses.append(response)
         aiko.message.publish(
             topic_path_response, f"(item_count {len(responses)})")
@@ -451,7 +451,7 @@ def list_command(name, uid):
                 uid = process_record[0]
                 pid = process_record[1]
                 command = process_record[2:]
-                output += f"\n  uid: {uid}, pid: {pid}, {" ".join(command)}"
+                output += f"\n  uid: {uid}, pid: {pid}, {' '.join(command)}"
         else:
             output = "No processes"
         print(output)
