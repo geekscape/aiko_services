@@ -1121,8 +1121,21 @@ class PipelineImpl(Pipeline):
                 f"{stack_traceback}")
         return element_class
 
+    @staticmethod
+    def _replace_remote_with_local(data: dict) -> dict:
+        modified_data = copy.deepcopy(data)
+
+        for element in modified_data.get("elements", []):
+            deploy = element.get("deploy", {})
+            if "remote" in deploy:
+                remote_config = deploy.pop("remote")
+                remote_config.pop("service_filter", None)
+                deploy["local"] = remote_config
+
+        return modified_data
+
     @classmethod
-    def parse_pipeline_definition(cls, pipeline_definition_pathname):
+    def parse_pipeline_definition(cls, pipeline_definition_pathname, force_deploy_to_local=False):
         CLASS_NAME_FIELD = "class_name"
         COMMENT_FIELD = "#"
         PARAMETERS_FIELD = "parameters"
@@ -1130,6 +1143,8 @@ class PipelineImpl(Pipeline):
         try:
             pipeline_definition_dict = json.load(
                 open(pipeline_definition_pathname, "r"))
+            if force_deploy_to_local:
+                pipeline_definition_dict = cls._replace_remote_with_local(pipeline_definition_dict)
             PipelineDefinitionSchema.validate(pipeline_definition_dict)
         except ValueError as value_error:
             PipelineImpl._exit(header, value_error)
