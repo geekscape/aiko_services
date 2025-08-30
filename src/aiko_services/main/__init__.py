@@ -63,6 +63,12 @@ from .discovery import (
     do_command, do_discovery, do_request, get_service_proxy
 )
 
+from .dependency import Dependency
+
+from .category import Category, CategoryImpl
+
+from .hyperspace import HyperSpace
+
 from .process_manager import ProcessManager, ProcessManagerImpl
 
 from .lifecycle import LifeCycleClient, LifeCycleManager

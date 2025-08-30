@@ -50,6 +50,8 @@
 # ~~~~~
 # - BUG: Provide filtered Services to "service_change_handler"
 #
+# * Combine ServiceFields and ServiceFilter into a single data structure ?
+#
 # - Service Hooks should be optional, whilst Actor Hooks are baked in
 #
 # - Consider using @dataclass, as per "pipeline.py"
@@ -233,9 +235,9 @@ class ServiceFilter:
         self.tags = tags
 
     def __repr__(self):
-        return f"{self.topic_paths}, {self.name}, "    \
-               f"{self.protocol}, {self.transport}, "  \
-               f"{self.owner}, {self.tags}"
+        return f"({self.topic_paths} {self.name} "    \
+               f"{self.protocol} {self.transport} "  \
+               f"{self.owner} ({" ".join(self.tags)}))"
 
     def summary(self):
         summary  = "" if self.topic_paths == "*" else f", {self.topic_paths}"

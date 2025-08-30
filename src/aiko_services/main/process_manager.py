@@ -440,8 +440,8 @@ def list_command(name, uid):
     aiko_process list [--name NAME] [UID]
 
     \b
-    • NAME:       ProcessManager name, default is the hostname
-    • UID: Unique IDentifier to match
+    • NAME: ProcessManager name, default is the hostname
+    • UID:  Unique IDentifier to match
     """
 
     def response_handler(response):
