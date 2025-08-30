@@ -3,49 +3,30 @@
 # Aiko Service: Category(Dependency)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Create, Read, Update and Destroy Categories
-# Add to, List and Remove from a Category, which is a group of Dependencies
+# Add to, List and Remove from a Category (which is a group of Dependencies)
 #
 # Usage
 # ~~~~~
-# ./category.py create  --help
-# ./category.py create  CATEGORY_NAME # process runs until Category.destroy()
+# ./category.py --help
+# ./category.py run     CATEGORY_NAME  # Creates Category instance for testing
+# ./category.py exit    CATEGORY_NAME  # Terminates running Category instance
+#
 # ./category.py add     CATEGORY_NAME DEPENDENCY_NAME -p p -o a -t key_0=value_0
 # ./category.py list    CATEGORY_NAME [--long_format | -l]
-# ./category.py update  CATEGORY_NAME DEPENDENCY_NAME -p q -o b -t key_1=value_1
 # ./category.py read    CATEGORY_NAME # TODO: Design and implement
 # ./category.py remove  CATEGORY_NAME DEPENDENCY_NAME
-# ./category.py destroy CATEGORY_NAME
+# ./category.py update  CATEGORY_NAME DEPENDENCY_NAME -p q -o b -t key_1=value_1
 #
 # To Do
 # ~~~~~
-# * Update design and implementation, so that Category truly is-a Dependency
-#   - Also, consider LifeCycleManager as-a Category as-a DependencyManager
-#
 # - Categories: HyperSpace, Registrar, LifeCycleManager, WorkSpace
 #   - LifeCycleManagers: HyperSpace, ProcessManager, Pipeline
 #   - Distributed Garbage Collection: Use of Leases by LifeCycleManagers ?
 #     - LifeCycleManagers also "reference count" Categories references ?
 #     - Interaction with Storage for managing persistence life-time ?
 #
-# - Separate the design and implementation of HyperSpace and Storage
-#   - Move HyperSpace file implementation into Storage ?
-#   - HyperSpace:
-#       - create(): Category or Dependency or different HyperSpace root ?
-#       - destroy()
-#       - list()
-#       - update()
-#       - _initialize()
-#       - _ln(link_path, target_path)
-#       - _ls(path, long_format, node_count, recursive))
-#       - _mk(name)
-#       - _mkdir(name)
-#       - _rm(name)
-#       - _storage(sort_by_name)
-#   - Storage: ????
-#       - create(): Dependency, Category or Entry (Definition and Contents) ?
-#       - destroy() ?
-#       - list() ?
-#       - update() ?
+# * Update design and implementation, so that Category truly is-a Dependency
+#   - Also, consider LifeCycleManager as-a Category as-a DependencyManager
 #
 # * Fix CLI "(add    dn (None * * * * (a=b c=d)) 0: 0:)"  # None --> 0:
 # * Fix CLI "(update dn (None * * * * (a=b c=d)) 0: 0:)"  # None --> 0:
@@ -85,7 +66,6 @@ ACTOR_TYPE = "category"
 VERSION = 0
 PROTOCOL = f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE}:{VERSION}"
 
-_GRACE_TIME=5.0  # seconds
 _RESPONSE_TOPIC = f"{aiko.topic_in}"
 
 # --------------------------------------------------------------------------- #
@@ -93,19 +73,17 @@ _RESPONSE_TOPIC = f"{aiko.topic_in}"
 class Category(Actor):
     Interface.default("Category", "aiko_services.main.category.CategoryImpl")
 
-    @classmethod
-    @abstractmethod
-    def create(cls, category_name, implementations=None,
-        parameters=None, protocol=PROTOCOL, tags=None, transport=None):
-        pass
-
     @abstractmethod
     def add(self, dependency_name,
         service_filter, lifecycle_manager_url=None, storage_url=None):
         pass
 
     @abstractmethod
-    def destroy(self, grace_time=_GRACE_TIME):
+    def destroy(self):
+        pass
+
+    @abstractmethod
+    def exit(self):
         pass
 
     @abstractmethod
@@ -128,29 +106,17 @@ class Category(Actor):
 # --------------------------------------------------------------------------- #
 
 class CategoryImpl(Category):
-    @classmethod
-    def create(cls, category_name, implementations=None,
-        parameters=None, protocol=PROTOCOL, tags=None, transport=None):
-
-        return compose_instance(CategoryImpl, actor_args(
-            category_name, implementations, parameters, protocol, tags))
-
     def __init__(self, context):
         context.call_init(self, "Actor", context)
 
         self.dependencies = {}
 
-        self.share = {
-            "lifecycle": "ready",
-            "log_level": get_log_level_name(self.logger),
+        self.share.update({                                # Inherit from Actor
             "source_file": f"v{VERSION}⇒ {__file__}",
             "dependencies": len(self.dependencies)
-        }
+        })
         self.ec_producer = ECProducer(self, self.share)
         self.ec_producer.add_handler(self._ec_producer_change_handler)
-
-    def __str__(self):
-        return "Category_State"
 
     def add(self, dependency_name,
         service_filter, lifecycle_manager_url=None, storage_url=None):
@@ -164,13 +130,15 @@ class CategoryImpl(Category):
             self.dependencies[dependency_name] = dependency
             self.ec_producer.update("dependencies", len(self.dependencies))
 
-    def destroy(self, grace_time=_GRACE_TIME):
-        grace_time = parse_int(grace_time, _GRACE_TIME)  # TODO: Implement
-        aiko.process.terminate()
+    def destroy(self):
+        pass
 
     def _ec_producer_change_handler(self, command, item_name, item_value):
         if item_name == "log_level":
             self.logger.setLevel(str(item_value).upper())
+
+    def exit(self):
+        aiko.process.terminate()
 
     def list(self, topic_path_response, dependency_name=None):
         responses = []
@@ -276,39 +244,36 @@ def add_command(category_name, dependency_name,
             service_filter, lifecycle_manager_url, storage_url), terminate=True)
     aiko.process.run()
 
-@main.command(name="create", no_args_is_help=True)
-@click.argument("category_name", required=True)
-
-def create_command(category_name):
-    """Create Category
-
-    aiko_category create CATEGORY_NAME
-
-    \b
-    • CATEGORY_NAME: Category name
-    """
-
-    tags = ["ec=true"]       # TODO: Add ECProducer tag before add to Registrar
-    init_args = actor_args(category_name, None, None, PROTOCOL, tags)
-    category = compose_instance(CategoryImpl, init_args)
-    aiko.process.run()
-
 @main.command(name="destroy", no_args_is_help=True)
-@click.option("--grace_time", "-gt", type=int, default=_GRACE_TIME,
-    help="Wait time before Category process exit")
 @click.argument("category_name", required=True)
 
-def destroy_command(grace_time, category_name):
+def destroy_command(category_name):
     """Destroy Category
 
-    aiko_category destroy [--grace_time GRACE_TIME] CATEGORY_NAME
+    aiko_category destroy CATEGORY_NAME
 
     \b
     • CATEGORY_NAME: Category name
     """
 
     do_command(Category, ServiceFilter(name=category_name, protocol=PROTOCOL),
-        lambda category: category.destroy(grace_time), terminate=True)
+        lambda category: category.destroy(), terminate=True)
+    aiko.process.run()
+
+@main.command(name="exit", no_args_is_help=True)
+@click.argument("category_name", required=True)
+
+def exit_command(category_name):
+    """Exit Category
+
+    aiko_category exit CATEGORY_NAME
+
+    \b
+    • CATEGORY_NAME: Category name
+    """
+
+    do_command(Category, ServiceFilter(name=category_name, protocol=PROTOCOL),
+        lambda category: category.exit(), terminate=True)
     aiko.process.run()
 
 @main.command(name="list", no_args_is_help=True)
@@ -392,6 +357,23 @@ def remove_command(category_name, dependency_name):
 
     do_command(Category, ServiceFilter(name=category_name, protocol=PROTOCOL),
         lambda category: category.remove(dependency_name), terminate=True)
+    aiko.process.run()
+
+@main.command(name="run", no_args_is_help=True)
+@click.argument("category_name", required=True)
+
+def run_command(category_name):
+    """Run Category
+
+    aiko_category run CATEGORY_NAME
+
+    \b
+    • CATEGORY_NAME: Category name
+    """
+
+    tags = ["ec=true"]       # TODO: Add ECProducer tag before add to Registrar
+    init_args = actor_args(category_name, None, None, PROTOCOL, tags)
+    category = compose_instance(CategoryImpl, init_args)
     aiko.process.run()
 
 @main.command(name="update", no_args_is_help=True)

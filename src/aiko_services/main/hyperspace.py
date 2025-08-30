@@ -45,6 +45,30 @@
 #
 # To Do
 # ~~~~~
+# - Separate the design and implementation of HyperSpace and Storage
+#   - Move HyperSpace file implementation into StorageFile ?
+#   - HyperSpace:
+#       - create(): Category or Dependency or different HyperSpace root ?
+#       - destroy()
+#       - list()
+#       - update()
+#       - _initialize()
+#       - _ln(link_path, target_path)
+#       - _ls(path, long_format, node_count, recursive))
+#       - _mk(name)
+#       - _mkdir(name)
+#       - _rm(name)
+#       - _storage(sort_by_name)
+#   - Storage: ????
+#       - create(): Dependency, Category or Entry (Definition and Contents) ?
+#       - destroy() ?
+#       - list() ?
+#       - update() ?
+# ------------------
+# * FIX: AttributeError: 'ServiceRemoteProxy' object has no attribute 'create'
+#        do_command(HyperSpace, ServiceFilter(...),  # HyperSpaceImpl works
+#            lambda actor: actor.create(), ...)      # actor.create() fails
+#
 # * HyperSpace as-a CategoryManager as-a LifeCycleManager as-a Category
 #
 # * HyperSpace/StorageFile uses FileSystemEventPatternMatch in "scheme_file.py"
@@ -127,30 +151,23 @@ class HyperSpace(Category, Actor):
     def dump(self):
         pass
 
-    @abstractmethod
-    def exit(self):
-        pass
-
 # --------------------------------------------------------------------------- #
 
 class HyperSpaceImpl(HyperSpace):
     def __init__(self, context, hyperspace_url):
         context.call_init(self, "Actor", context)
         context.call_init(self, "Category", context)
+        self.category = context.get_implementation("Category")        # methods
 
-    #   self.root_category = CategoryImpl.create("root")
-
-        self.share = {
-            "lifecycle": "ready",
-            "log_level": get_log_level_name(self.logger),
+        self.share.update({                             # Inherit from Category
             "source_file": f"v{VERSION}⇒ {__file__}",
             "hyperspace_url": hyperspace_url,
             "metrics": {
-                "created": 1  # Including self 😅
-            #   "running": len(self.dependencies)               # TODO: Running
-            #   "runtime": 0                                    # TODO: Runtime
+                "created": 1,  # Including self 😅
+                "running": len(self.dependencies)
+            #   "time_started": 0                      # TODO: UTC time started
             },
-        }
+        })
         self.ec_producer = ECProducer(self, self.share)
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
@@ -160,11 +177,6 @@ class HyperSpaceImpl(HyperSpace):
     #   if not hyperspace_url:
     #       hyperspace_url = PATHNAME_OF_CURRENT_WORKING_DIRECTORY
     #   self._load_hyperspace(hyperspace_url)
-
-        self.category = context.get_implementation("Category")
-
-    def __str__(self):
-        return "HyperSpace_State"
 
     def create(self):
         print(f"### Unimplemented: HyperSpace.create() ###")
@@ -565,7 +577,7 @@ def storage_command(sort_by_name):
     help="HyperSpace name, default is the hostname")
 
 def create_command(name):
-    """Create HyperSpace dependency
+    """Create HyperSpace Category
 
     aiko_hyperspace create [--name NAME]
 
@@ -573,7 +585,7 @@ def create_command(name):
     • NAME: HyperSpace name, default is the hostname
     """
 
-    do_command(HyperSpace, ServiceFilter(name=name, protocol=PROTOCOL),
+    do_command(HyperSpaceImpl, ServiceFilter(name=name, protocol=PROTOCOL),
         lambda actor: actor.create(), terminate=True)
     aiko.process.run()
 
