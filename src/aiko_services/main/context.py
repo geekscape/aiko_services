@@ -21,6 +21,8 @@
 #
 # To Do
 # ~~~~~
+# * FIX: "service_args()" to include "owner" --> "hyperspace.py:run_command()"
+#
 # - Provide get_parameter() and set_parameter() (using existing code) ?
 #
 # - Use "__file__" instead of "__name__" and ...
@@ -40,7 +42,7 @@ from typing import Dict, List
 
 __all__ = {
     "Context", "Interface", "ServiceProtocolInterface", "ContextService",
-    "ContextPipelineElement", "ContextPipeline"
+    "ContextPipelineElement", "ContextPipeline", "context_args",
     "service_args", "actor_args", "pipeline_element_args", "pipeline_args"
 }
 
@@ -168,6 +170,9 @@ class ContextPipeline(ContextPipelineElement):
 
     def get_graph_path(self) -> str:
         return self.graph_path
+
+def context_args():
+    return {"context": Context()}
 
 def service_args(name, implementations=None,
     parameters=None, protocol=None, tags=None, transport=None):

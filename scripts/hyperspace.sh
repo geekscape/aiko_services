@@ -6,11 +6,11 @@
 #   export HYPERSPACE_RANDOM_HASH=false  # use incrementing hash value
 #   source hyperspace.sh
 #
-#   _ln      new_link  node        # node | category
-#   _ls      [-l] [-n] [-r] [path]
-#   _mk      node                  # node only
+#   _ln      new_link entry        # dependency | category
+#   _ls      [-c] [-l] [-r] [path]
+#   _mk      entry                 # dependency only
 #   _mkdir   category              # category only
-#   _rm      node                  # node | category
+#   _rm      entry                 # dependency | category
 #   _storage [-s]
 #
 # To Do
@@ -147,7 +147,7 @@ __relativePath() {
   echo "${back}${forward}"
 }
 
-# _ln new_link node  # node | category
+# _ln new_link entry  # dependency | category
 
 _ln() {
   local linkName="$1"
@@ -179,11 +179,11 @@ _ln() {
   ln -s "$relPath" "$linkName"
 }
 
-# _ls [-l] [-n] [-r] [path]
+# _ls [-c] [-l] [-r] [path]
 
 _ls() {
-  local longFormat=false  # -l  Show node hash identifier
-  local nodeCount=false   # -n  Show category's node count
+  local entryCount=false   # -c  Show category's entry count
+  local longFormat=false  # -l  Show entry hash identifier
   local recursive=false   # -r  List category's childred recursively
   local path="."
   local arg
@@ -191,8 +191,8 @@ _ls() {
   while [[ "$#" -gt 0 ]]; do
     arg="$1"
     case "$arg" in
+      -c) entryCount=true ;;
       -l) longFormat=true ;;
-      -n) nodeCount=true ;;
       -r) recursive=true ;;
       --) shift; break ;;
       -*) echo "Unknown option: $arg" >&2; return 1 ;;
@@ -200,7 +200,7 @@ _ls() {
     esac
     shift
   done
-  [[ -n "${1:-}" ]] && path="$1"
+  [[ -c "${1:-}" ]] && path="$1"
 
   __getHashPath() {
     local linkTarget absTarget
@@ -235,7 +235,7 @@ _ls() {
         else
           printf "%s/" "$indent$base"
         fi
-        if [[ "$nodeCount" == true ]]; then
+        if [[ "$entryCount" == true ]]; then
           count=$(__countFiles "$item")
           if [[ "$count" -gt 0 ]]; then
             printf " (%d)" "$count"
@@ -257,7 +257,7 @@ _ls() {
   __listLinks "$path" ""
 }
 
-# _mk node  # node only
+# _mk entry  # dependency only
 
 _mk() {
   local name="$1"
@@ -283,7 +283,7 @@ _mkdir() {
   __trackPath "$path"
 }
 
-# _rm node  # node | category
+# _rm entry  # dependency | category
 
 _rm() {
   local name="$1"

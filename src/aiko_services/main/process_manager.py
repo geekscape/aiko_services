@@ -366,7 +366,7 @@ def main():
 @main.command(name="create",
     context_settings=dict(allow_interspersed_args=False), no_args_is_help=True)
 @click.option("--name", "-n", type=str, default=None,
-    help="ProcessManager name, default is the hostname")
+    help="ProcessManager name, default is the local hostname")
 @click.option("--uid", "-u", type=str, default=None,
     help="Unique name for referring to the process")
 @click.argument("command", type=str)
@@ -378,7 +378,7 @@ def create_command(name, uid, command, arguments):
     aiko_process create [--name NAME] [--uid UID] COMMAND [ARGUMENTS ...]
 
     \b
-    • NAME:       ProcessManager name, default is the hostname
+    • NAME:       ProcessManager name, default is the local hostname
     • UID:        Unique IDentifier
     • COMMAND:    Command name
     • ARGUMENTS:  Command arguments
@@ -392,7 +392,7 @@ def create_command(name, uid, command, arguments):
 @click.option("--kill", "-k", is_flag=True,
     help="Use SIGKILL, process can't catch and no clean-up")
 @click.option("--name", "-n", type=str, default=None,
-    help="ProcessManager name, default is the hostname")
+    help="ProcessManager name, default is the local hostname")
 @click.argument("uid", type=str)
 
 def destroy_command(kill, name, uid):
@@ -401,7 +401,7 @@ def destroy_command(kill, name, uid):
     aiko_process destroy [--kill] [--name NAME] UID
 
     \b
-    • NAME: ProcessManager name, default is the hostname
+    • NAME: ProcessManager name, default is the local hostname
     • UID:  Unique IDentifier
     """
 
@@ -411,7 +411,7 @@ def destroy_command(kill, name, uid):
 
 @main.command(name="dump", help="Dump ProcessManager state")
 @click.option("--name", "-n", type=str, default=None,
-    help="ProcessManager name, default is the hostname")
+    help="ProcessManager name, default is the local hostname")
 
 def dump_command(name):
     do_command(ProcessManager, get_service_filter(name),
@@ -422,7 +422,7 @@ def dump_command(name):
 @click.option("--grace_time", "-gt", type=int, default=_GRACE_TIME,
     help="Wait time before killing child processes")
 @click.option("--name", "-n", type=str, default=None,
-    help="ProcessManager name, default is the hostname")
+    help="ProcessManager name, default is the local hostname")
 
 def exit_command(grace_time, name):
     do_command(ProcessManager, get_service_filter(name),
@@ -431,7 +431,7 @@ def exit_command(grace_time, name):
 
 @main.command(name="list")
 @click.option("--name", "-n", type=str, default=None,
-    help="ProcessManager name, default is the hostname")
+    help="ProcessManager name, default is the local hostname")
 @click.argument("uid", type=str, required=False, default=None)
 
 def list_command(name, uid):
@@ -440,7 +440,7 @@ def list_command(name, uid):
     aiko_process list [--name NAME] [UID]
 
     \b
-    • NAME: ProcessManager name, default is the hostname
+    • NAME: ProcessManager name, default is the local hostname
     • UID:  Unique IDentifier to match
     """
 
@@ -463,7 +463,7 @@ def list_command(name, uid):
 
 @main.command(name="run")
 @click.option("--name", "-n", type=str, default=None,
-    help="ProcessManager name, default is the hostname")
+    help="ProcessManager name, default is the local hostname")
 @click.option("--watchdog", "-w", is_flag=True,
     help="Monitor ProcessManager, if required relauch it")
 @click.argument("definition_pathname", required=False, default=None)
@@ -474,7 +474,7 @@ def run_command(name, watchdog, definition_pathname):
     aiko_process run [--name NAME] [--watchdog] [HYPERSPACE_PATHNAME]
 
     \b
-    • NAME:                ProcessManager name, default is the hostname
+    • NAME:                ProcessManager name, default is the local hostname
     • HYPERSPACE_PATHNAME: HyperSpace storage file-system location
     """
 

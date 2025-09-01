@@ -6,6 +6,11 @@
 
 SERVICE_PROTOCOL_AIKO = "github.com/geekscape/aiko_services/protocol"
 
+CATEGORY_ACTOR_TYPE = "category"
+CATEGORY_VERSION = 0
+CATEGORY_PROTOCOL =  \
+    f"{SERVICE_PROTOCOL_AIKO}/{CATEGORY_ACTOR_TYPE}:{CATEGORY_VERSION}"
+
 REGISTRAR_SERVICE_TYPE = "registrar"
 REGISTRAR_VERSION = 2
 REGISTRAR_PROTOCOL =  \
@@ -13,7 +18,7 @@ REGISTRAR_PROTOCOL =  \
 
 from .context import (
     Context, Interface, ServiceProtocolInterface, ContextService,
-    ContextPipelineElement, ContextPipeline,
+    ContextPipelineElement, ContextPipeline, context_args,
     service_args, actor_args, pipeline_element_args, pipeline_args
 )
 
@@ -63,7 +68,7 @@ from .discovery import (
     do_command, do_discovery, do_request, get_service_proxy
 )
 
-from .dependency import Dependency
+from .dependency import Dependency, dependency_args, DependencyImpl
 
 from .category import Category, CategoryImpl
 
