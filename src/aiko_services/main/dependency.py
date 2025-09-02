@@ -26,6 +26,8 @@
 #
 # To Do
 # ~~~~~
+# * Consider Dependency.update() same as Category.update() for "service_filter"
+#
 # * Consider use of ServiceFields rather than ServiceFilter ?
 #
 # * Replace current Pipeline prototype implementation with this improved design

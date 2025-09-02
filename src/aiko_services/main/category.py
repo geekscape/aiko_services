@@ -13,9 +13,7 @@
 # ./category.py exit    CATEGORY_NAME  # Terminates running Category instance
 #
 # ./category.py add     CATEGORY_NAME ENTRY_NAME -p p -o a -t key_0=value_0
-# ./category.py destroy CATEGORY_NAME # TODO: Design and implement
 # ./category.py list    CATEGORY_NAME [ENTRY_NAME] [--long_format | -l]
-# ./category.py read    CATEGORY_NAME # TODO: Design and implement
 # ./category.py remove  CATEGORY_NAME ENTRY_NAME
 # ./category.py update  CATEGORY_NAME ENTRY_NAME -p protocol -t key_0=value_0
 #
@@ -81,19 +79,11 @@ class Category(Actor, Dependency):
         pass
 
     @abstractmethod
-    def destroy(self, category_name):
-        pass
-
-    @abstractmethod
     def exit(self):
         pass
 
     @abstractmethod
     def list(self, topic_path_response, entry_name=None):
-        pass
-
-    @abstractmethod
-    def read(self, topic_path_response):
         pass
 
     @abstractmethod
@@ -103,10 +93,12 @@ class Category(Actor, Dependency):
 # --------------------------------------------------------------------------- #
 
 class CategoryImpl(Category):
-    def __init__(self, context):
+    def __init__(self, context, service_filter=None):
         context.call_init(self, "Actor", context)
-        context.call_init(self, "Dependency", context)
+        context.call_init(self, "Dependency", context,
+            service_filter=service_filter)
 
+        self.dependency = context.get_implementation("Dependency")    # methods
         self.entries = {}                         # Categories and Dependencies
 
         self.share.update({                       # Inherit from Actor
@@ -128,9 +120,6 @@ class CategoryImpl(Category):
             self.entries[entry_name] = dependency
             self.ec_producer.update("entries", len(self.entries))
 
-    def destroy(self, category_name):
-        print(f"### Unimplemented: Category.destroy() ###")
-
     def _ec_producer_change_handler(self, command, entry_name, entry_value):
         if entry_name == "log_level":
             self.logger.setLevel(str(entry_value).upper())
@@ -138,7 +127,7 @@ class CategoryImpl(Category):
     def exit(self):
         aiko.process.terminate()
 
-    def get_entry_records(self, entry_name=None):
+    def _get_entry_records(self, entry_name=None):
         entry_records = []
         for entry_key in self.entries.keys():
             if entry_name is None or entry_name == entry_key:
@@ -150,20 +139,64 @@ class CategoryImpl(Category):
         return entry_records
 
     def list(self, topic_path_response, entry_name=None):
-        entry_records = self.get_entry_records(entry_name)
+        entry_records = self._get_entry_records(entry_name)
+        self._list_publish(topic_path_response, entry_records)
+
+    def _list_publish(self, topic_path_response, entry_records):
         aiko.message.publish(
             topic_path_response, f"(item_count {len(entry_records)})")
         for entry_record in entry_records:
             aiko.message.publish(
                 topic_path_response, f"(response {entry_record})")
 
-    def read(self, topic_path_response):
-        print(f"### Unimplemented: Category.read() ###")
-
     def remove(self, entry_name):
         if entry_name in self.entries:
             del self.entries[entry_name]
             self.ec_producer.update("entries", len(self.entries))
+
+    def __repr__(self):
+        return self.dependency.__repr__(self)
+
+    @classmethod
+    def list_command(cls, actor_name, entry_name, long_format, protocol):
+        def response_handler(response):
+            if len(response):
+                if long_format:
+                    output =  "Name: (Service) LifeCycleManager, Storage\n"
+                    output += "      (Topic Name Protocol Transport Owner Tags)"
+                else:
+                    output = "Name: Protocol Owner"
+                for record in response:
+                    entry_name = record[0]
+                    if record[1][0]:
+                        service_filter = ServiceFilter(*record[1][0])
+                        protocol = service_filter.protocol
+                        after_slash = protocol.rfind("/") + 1
+                        service_filter.protocol = protocol[after_slash:]
+                    else:
+                        service_filter = ServiceFilter()
+                    if long_format:
+                        lifecycle_manager_url = record[1][1]
+                        storage_url = record[1][2]
+                        output += f"\n  {entry_name}: "  \
+                                  f"{service_filter} "  \
+                                  f"{lifecycle_manager_url}, "  \
+                                  f"{storage_url}"
+                    else:
+                        name = service_filter.name
+                        if name is None or name == "*" or name == entry_name:
+                            name = ""
+                        output += f"\n  {entry_name}: "  \
+                                  f"{service_filter.protocol} "  \
+                                  f"{service_filter.owner}  {name}"
+            else:
+                output = "No category entries"
+            print(output)
+
+        do_request(Category,
+            ServiceFilter(name=actor_name, protocol=protocol),
+            lambda actor: actor.list(_RESPONSE_TOPIC, entry_name),
+            response_handler, _RESPONSE_TOPIC, terminate=True)
 
     def update(self, entry_name, service=None,
         service_filter=None, lifecycle_manager_url=None, storage_url=None):
@@ -246,23 +279,6 @@ def add_command(category_name, entry_name,
             service_filter, lifecycle_manager_url, storage_url), terminate=True)
     aiko.process.run()
 
-@main.command(name="destroy", no_args_is_help=True)
-@click.argument("category_name", required=True)
-
-def destroy_command(category_name):
-    """Destroy Category
-
-    aiko_category destroy CATEGORY_NAME
-
-    \b
-    • CATEGORY_NAME: Category name
-    """
-
-    do_command(Category,
-        ServiceFilter(name=category_name, protocol=CATEGORY_PROTOCOL),
-        lambda category: category.destroy(), terminate=True)
-    aiko.process.run()
-
 @main.command(name="exit", no_args_is_help=True)
 @click.argument("category_name", required=True)
 
@@ -296,55 +312,8 @@ def list_command(category_name, entry_name, long_format):
     • ENTRY_NAME: Entry name
     """
 
-    def response_handler(response):
-        if len(response):
-            if long_format:
-                output =  "Name: (Service) LifeCycleManager URL, Storage URL\n"
-                output += "      (Topic Name Protocol Transport Owner Tags)"
-            else:
-                output = "Name: Protocol Owner"
-            for record in response:
-                entry_name = record[0]
-                service_filter = ServiceFilter(*record[1][0])
-                if long_format:
-                    lifecycle_manager_url = record[1][1]
-                    storage_url = record[1][2]
-                    output += f"\n  {entry_name}: "  \
-                              f"{service_filter} "  \
-                              f"{lifecycle_manager_url}, "  \
-                              f"{storage_url}"
-                else:
-                    name = service_filter.name
-                    if name is None or name == "*" or name == entry_name:
-                        name = ""
-                    output += f"\n  {entry_name}: "  \
-                              f"{service_filter.protocol} "  \
-                              f"{service_filter.owner}  {name}"
-        else:
-            output = "No category entries"
-        print(output)
-
-    do_request(Category,
-        ServiceFilter(name=category_name, protocol=CATEGORY_PROTOCOL),
-        lambda category: category.list(_RESPONSE_TOPIC, entry_name),
-        response_handler, _RESPONSE_TOPIC, terminate=True)
-    aiko.process.run()
-
-@main.command(name="read", no_args_is_help=True)
-@click.argument("category_name", type=str, required=True, default=None)
-
-def read_command(category_name):
-    """Read Category details
-
-    aiko_category read CATEGORY_NAME
-
-    \b
-    • CATEGORY_NAME: Category name
-    """
-
-    do_command(Category,
-        ServiceFilter(name=category_name, protocol=CATEGORY_PROTOCOL),
-        lambda category: category.read(_RESPONSE_TOPIC), terminate=True)
+    CategoryImpl.list_command(
+        category_name, entry_name, long_format, CATEGORY_PROTOCOL)
     aiko.process.run()
 
 @main.command(name="remove", no_args_is_help=True)

@@ -1,43 +1,45 @@
 #!/usr/bin/env python3
 #
-# Aiko Service: HyperSpace(Category)
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Create, List(Read), Update and Destroy a Graph of Categories and Dependencies
+# Aiko Service: HyperSpace(Category(Dependency))
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# HyperSpace is a LifeCycleManager of Categories (category.py and lifecycle.py)
+# Create, Read, Update and Destroy a network graph of Categories
+# Add to, List and Remove from any Category, which is a group of Entries
+# Entries can be either a Category or a Dependency
 #
 # Usage: Distributed Actor
 # ~~~~~~~~~~~~~~~~~~~~~~~~
-#   export HYPERSPACE_RANDOM_HASH=false  # use incrementing hash value
+#   export HYPERSPACE_RANDOM_HASH=false    # use incrementing hash value
 #
-#   ./hyperspace.py run     [hyperspace_url]  # file, in-memory, sqlite, mqtt
+#   ./hyperspace.py run     [storage_url]  # file, in-memory, sqlite, mqtt
 #   ./hyperspace.py dump
 #   ./hyperspace.py exit
 #
-#   ./hyperspace.py add     ...
-#   ./hyperspace.py create  ...  # Category or Dependency
-#   ./hyperspace.py destroy ...
-#   ./hyperspace.py link    ...  # TODO: "link" to existing Dependency
-#   ./hyperspace.py list    ...
-#   ./hyperspace.py read    ...
-#   ./hyperspace.py remove  ...  # TODO: Also performs "unlink"
-#   ./hyperspace.py update  ...
+#   ./hyperspace.py add     DEPENDENCY_NAME
+#   ./hyperspace.py create  CATEGORY_NAME
+#   ./hyperspace.py destroy CATEGORY_NAME
+#   ./hyperspace.py link    ENTRY_NAME_NEW ENTRY_NAME_EXIST    # TODO: "link"
+#   ./hyperspace.py list    [ENTRY_NAME] [--long_format | -l] [--recursive | -r]
+#   ./hyperspace.py remove  ENTRY_NAME_EXIST                   # TODO: "unlink"
+#   ./hyperspace.py update  ENTRY_NAME -p protocol -t key_0=value_0
 #
 # Usage: Bootstrap
 # ~~~~~~~~~~~~~~~~
 #   export HYPERSPACE_RANDOM_HASH=false  # use incrementing hash value
 #
 #   ./hyperspace.py initialize
-#   ./hyperspace.py ln      new_link  node        # node | category
+#   ./hyperspace.py ln      new_link entry        # dependency | category
 #   ./hyperspace.py ls      [-l] [-n] [-r] [path]
-#   ./hyperspace.py mk      node                  # node only
+#   ./hyperspace.py mk      dependency            # dependency
 #   ./hyperspace.py mkdir   category              # category only
-#   ./hyperspace.py rm      node                  # node | category
+#   ./hyperspace.py rm      entry                 # dependency | category
 #   ./hyperspace.py storage [-s]
 #
 # Functions
 # ~~~~~~~~~
 #   _initialize()
 #   _ln(link_path, target_path)
-#   _ls(path, long_format, node_count, recursive))
+#   _ls(path, long_format, dependency_count, recursive))
 #   _mk(name)
 #   _mkdir(name)
 #   _rm(name)
@@ -48,13 +50,13 @@
 # - Separate the design and implementation of HyperSpace and Storage
 #   - Move HyperSpace file implementation into StorageFile ?
 #   - HyperSpace:
-#       - create(): Category or Dependency or different HyperSpace root ?
+#       - create(): Category (different HyperSpace root ?)
 #       - destroy()
 #       - list()
 #       - update()
 #       - _initialize()
 #       - _ln(link_path, target_path)
-#       - _ls(path, long_format, node_count, recursive))
+#       - _ls(path, long_format, dependency_count, recursive))
 #       - _mk(name)
 #       - _mkdir(name)
 #       - _rm(name)
@@ -65,9 +67,15 @@
 #       - list() ?
 #       - update() ?
 # ------------------
+# - Implement "aiko_hyperspace repl" for interactive CRUD, etc
+#
+# * FIX: Consolidate service.py:ServiceFilter into ServiceFields (and use this)
+#
+# * FIX: "service.py:service_args()" to include "owner" --> "run_command()"
+#
 # * FIX: AttributeError: 'ServiceRemoteProxy' object has no attribute 'create'
-#        do_command(HyperSpace, ServiceFilter(...),  # HyperSpaceImpl works
-#            lambda actor: actor.create(), ...)      # actor.create() fails
+#        do_command(HyperSpace, ServiceFilter(...),  # But HyperSpaceImpl works
+#            lambda hyperspace: hyperspace.create(), ...)      # create() fails
 #
 # * HyperSpace as-a CategoryManager as-a LifeCycleManager as-a Category
 #
@@ -94,7 +102,7 @@
 # * HyperSpace(Actor) requires Category and Dependencies
 #   - Services that implement Category assign tag "category=true" (temporary)
 #
-# * Aiko Dashboard plug-in for HyperSpace(Actor), e.g tree view
+# * Aiko Dashboard plug-in for HyperSpace(Actor), e.g REPL and tree view
 #
 # * Implement Category "owner" field and populate automatically
 #   * Implement "destroy --force" flag to destroy other owner's Categories
@@ -110,7 +118,7 @@
 #   - "aiko_hyperspace run" option for Category lease-time and maximum loaded
 #   - ProcessManager(LifeCycleManager): Complete Service LifeCycle State
 #     - Improvements to "src/aiko_services/main/state.py"
-#   - ProcessManager(LifeCycleManager): Lazy loading of HyperSpace nodes
+#   - ProcessManager(LifeCycleManager): Lazy loading of HyperSpace entries
 #
 # - StorageManager (content, definition) backed by ...
 #   - ❌ In-memory, ✅ File-system, ❌ SQLite3, ❌ MQTT
@@ -136,6 +144,7 @@ VERSION = 0
 PROTOCOL = f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE}:{VERSION}"
 
 _HASH_LENGTH = 12  # 6 bytes = 12 hex digits
+_RESPONSE_TOPIC = f"{aiko.topic_in}"
 _ROOT_FILENAME = ".root"
 _STORAGE_FILENAME = "storage"
 _TRACKED_PATHNAME = f"{_STORAGE_FILENAME}/tracked_paths"
@@ -148,24 +157,33 @@ class HyperSpace(Category, Actor):
         "HyperSpace", "aiko_services.main.hyperspace.HyperSpaceImpl")
 
     @abstractmethod
+    def create(self, category_name):
+        pass
+
+    @abstractmethod
+    def destroy(self, category_name):
+        pass
+
+    @abstractmethod
     def dump(self):
         pass
 
 # --------------------------------------------------------------------------- #
 
 class HyperSpaceImpl(HyperSpace):
-    def __init__(self, context, hyperspace_url):
+    def __init__(self, context, storage_url):
         context.call_init(self, "Actor", context)
         context.call_init(self, "Category", context)
+
         self.category = context.get_implementation("Category")        # methods
 
         self.share.update({                             # Inherit from Category
             "source_file": f"v{VERSION}⇒ {__file__}",
-            "hyperspace_url": hyperspace_url,
+            "storage_url": storage_url,
             "metrics": {
-                "created": 1,  # Including self 😅
-                "running": len(self.dependencies)
-            #   "time_started": 0                      # TODO: UTC time started
+                "created": 0,
+                "running": 1 + len(self.entries)   # Including self 😅
+            #   "time_started": 0            # TODO: UTC time started --> Actor
             },
         })
         self.ec_producer = ECProducer(self, self.share)
@@ -174,21 +192,39 @@ class HyperSpaceImpl(HyperSpace):
     #   self.thread = Thread(target=self._run, daemon=True, name=_THREAD_NAME)
     #   self.thread.start()                           # TODO: Use ThreadManager
 
-    #   if not hyperspace_url:
-    #       hyperspace_url = PATHNAME_OF_CURRENT_WORKING_DIRECTORY
-    #   self._load_hyperspace(hyperspace_url)
+    #   if not storage_url:
+    #       storage_url = PATHNAME_OF_CURRENT_WORKING_DIRECTORY
+    #   self._load_hyperspace(storage_url)
 
-    def create(self):
-        print(f"### Unimplemented: HyperSpace.create() ###")
+    def create(self, category_name):
+        if category_name not in self.entries:
+            tags = ["ec=true"]
+            init_args = actor_args(
+                category_name, None, None, CATEGORY_PROTOCOL, tags)
+            init_args["service_filter"] = ServiceFilter(
+                name=category_name, protocol=CATEGORY_PROTOCOL)
+            category = compose_instance(CategoryImpl, init_args)
 
-    def destroy(self):
-        print(f"### Unimplemented: HyperSpace.destroy() ###")
+            self.entries[category_name] = category
+            self.ec_producer.update("entries", len(self.entries))
+
+# TODO: Categories destroy() and Dependencies remove() ?  Check protocol ?
+# TODO: Recursively remove Categories
+# TODO: Replace "destroy()" with "remove()", only destroy when last reference
+# TODO: Remove Dependencies and clean-up any resources ?
+
+    def destroy(self, category_name):
+        if category_name in self.entries:
+            protocol = self.entries[category_name].service_filter.protocol
+            if protocol == CATEGORY_PROTOCOL:
+                del self.entries[category_name]
+                self.ec_producer.update("entries", len(self.entries))
 
     def dump(self):
-        if len(self.dependencies):
+        if len(self.entries):
             state = f" ...\n{self}"
         else:
-            state = ": no dependencies"
+            state = ": no entries"
         self.logger.info(f"Dump state{state}")
 
     def _ec_producer_change_handler(self, command, item_name, item_value):
@@ -198,13 +234,32 @@ class HyperSpaceImpl(HyperSpace):
     def exit(self):
         aiko.process.terminate()
 
-    def list(self):
-        print(f"### Unimplemented: HyperSpace.list() ###")
+    def list(self, topic_path_response, entry_name=None):
+        entry_records = self._get_entry_records()
+        self._list_publish(topic_path_response, entry_records)
 
-    def update(self):
-        print(f"### Unimplemented: HyperSpace.update() ###")
+# TODO: Categories destroy() and Dependencies remove() ?  Check protocol ?
+
+    def remove(self, entry_name):
+        if entry_name in self.entries:
+            protocol = self.entries[entry_name].service_filter.protocol
+            if protocol == CATEGORY_PROTOCOL:
+                self.destroy(entry_name)
+            else:
+                self.category.remove(self, entry_name)
+
+    def __str__(self):
+        result = ""
+        for entry_key in self.entries.keys():
+            entry = self.entries[entry_key]
+            is_category = entry.protocol == CATEGORY_PROTOCOL
+            entry_type = "/" if is_category else ""
+            new_line = "\n" if result else ""
+            result += f"{new_line}  {entry_key}{entry_type}"
+        return result
 
 # --------------------------------------------------------------------------- #
+# HyperSpace Storage: File-system based persistance
 
 _hash_counter = 0
 
@@ -316,9 +371,9 @@ def _untrack_path(path):
         tracked_path.write_text(
             "\n".join(l for l in tracked_paths if l != relative_path))
 
-# Create new link to an existing node or category
+# Create new link to an existing dependency or category
 #
-# ./hyperspace.py ln new_link  node  # node | category
+# ./hyperspace.py ln new_link entry  # dependency | category
 
 def _ln(link_path, target_path):
     if not Path(target_path).exists():
@@ -351,11 +406,11 @@ def _ln(link_path, target_path):
         print(f'Error: "{link_path}" already exists', file=sys.stderr)
         return 1
 
-# List nodes and categories in a tree-style recursive format
+# List categories and depedencies in a tree-style recursive format
 #
 # ./hyperspace.py ls [-l] [-n] [-r] [path]
 
-def _ls(path, long_format=False, node_count=False, recursive=False):
+def _ls(path, long_format=False, entry_count=False, recursive=False):
     def _get_hash_path(link):
         absolute_target_path = Path(link).resolve()
         try:
@@ -383,7 +438,7 @@ def _ls(path, long_format=False, node_count=False, recursive=False):
                     print(f"{hash}  {indent}{entry_name}/", end="")
                 else:
                     print(f"{indent}{entry_name}/", end="")
-                if node_count:
+                if entry_count:
                     count = _file_count(directory_entry)
                     if count > 0:
                         print(f" ({count})", end="")
@@ -398,9 +453,9 @@ def _ls(path, long_format=False, node_count=False, recursive=False):
 
     _list_links(path)
 
-# Create a node (file)
+# Create a Dependency (file)
 #
-# ./hyperspace.py mk node  # node only
+# ./hyperspace.py mk entry  # Dependency only
 
 def _mk(name):
     path = Path(_create_path())
@@ -434,9 +489,9 @@ def _mkdir(name):
         return 1
     _track_path(path)
 
-# Delete a node (file) or category (directory)
+# Delete a Dependency (file) or Category (directory)
 #
-# ./hyperspace.py rm node  # node | category
+# ./hyperspace.py rm entry  # Dependency | Category
 
 def _rm(name):
     path = Path(name)
@@ -513,13 +568,13 @@ def initialize_command():
     "Initialize HyperSpace: .root and storage/"
     _initialize()
 
-# ./hyperspace.py ln new_link_node existing_node
+# ./hyperspace.py ln new_link_entry existing_entry
 
 @main.command(name="ln")
 @click.argument("link_path")
 @click.argument("target_path")
 def ln_command(link_path, target_path):
-    "Create new link to an existing node or category"
+    "Create new link to an existing dependency or category"
     _ln(link_path, target_path)
 
 # ./hyperspace.py ls [-l] [-n] [-r] [path]
@@ -528,20 +583,20 @@ def ln_command(link_path, target_path):
 @click.argument("path", required=False, default=".")
 @click.option("--long_format", "-l", default=False, is_flag=True,
     help="Long format with hash identifiers")
-@click.option("--node_count", "-n", default=False, is_flag=True,
-    help="Show category's node count")
+@click.option("--entry_count", "-c", default=False, is_flag=True,
+    help="Show category's entry count")
 @click.option("--recursive", "-r", default=False, is_flag=True,
     help="Recursive listing")
-def ls_command(path, long_format, node_count, recursive):
-    "List nodes (files) and categories (directories)"
-    _ls(path, long_format, node_count, recursive)
+def ls_command(path, long_format, entry_count, recursive):
+    "List dependencies (files) and categories (directories)"
+    _ls(path, long_format, entry_count, recursive)
 
-# ./hyperspace.py mk node  # node only
+# ./hyperspace.py mk entry  # dependency only
 
 @main.command(name="mk")
 @click.argument("name")
 def mk_command(name):
-    "Create a node (file)"
+    "Create a dependency (file)"
     _mk(name)
 
 # ./hyperspace.py mkdir category  # category only
@@ -552,12 +607,12 @@ def mkdir_command(name):
     "Create a category (directory)"
     _mkdir(name)
 
-# ./hyperspace.py rm node  # node | category
+# ./hyperspace.py rm entry  # dependency | category
 
 @main.command(name="rm")
 @click.argument("name")
 def rm_command(name):
-    "Remove a node or category"
+    "Remove a dependency or category"
     _rm(name)
 
 # ./hyperspace.py storage [-s]
@@ -566,84 +621,279 @@ def rm_command(name):
 @click.option("--sort_by_name", "-s", default=False, is_flag=True,
     help="Sort by name")
 def storage_command(sort_by_name):
-    "List node storage/tracked_paths and linked nodes"
+    "List entry storage/tracked_paths and linked entries"
     _storage(sort_by_name)
 
 # --------------------------------------------------------------------------- #
 # HyperSpace CLI: Distributed Actor commands
+#
+# To Do
+# ~~~~~
+# add
+# ~~~
+# * category_name tree: category/category/category
+# * Protocol well-known short names, e.g "category" --> CATEGORY_PROTOCOL
+# * Created and modified time
+# - Owner defaults to current user, ACLs "u:name g:name o:name rwx:name ..." ?
+# - ServiceFilter fields (see aiko_hyperspace create)
+#
+# create
+# ~~~~~~
+# * category_name tree: category/category/category
+# * Protocol well-known short names, e.g "category" --> CATEGORY_PROTOCOL
+# * Created and modified time
+# - Owner defaults to current user, ACLs "u:name g:name o:name rwx:name ..." ?
+# - ServiceFilter fields ...
+#   -n,   --service_name TEXT           # Service name
+#   -p,   --protocol TEXT               # CATEGORY_PROTOCOL (default)
+#   -tr,  --transport TEXT              # Service transport (MQTT default)
+# * -o,   --owner TEXT                  # Service owner     (current user)
+#   -t,   --tags TEXT                   # Service tags
+# * -lcm, --lifecycle_manager_url TEXT  # LifeCycleManager URL
+# * -s,   --storage_url TEXT            # Storage URL (file, sqlite, MQTT, etc)
+#
+# destroy
+# ~~~~~~~
+# * category_name tree: category/category/category
+# - Regex, e.g wildcards "*", "+", ...
+# - [r]ecursive [level]  # default: 1, * means no limit
+# - Only owner can destroy ... ACLs later
+#
+# list
+# ~~~~
+# * category_name tree: category/category/category
+# * Regex, e.g wildcards "*", "+", ...
+# * [l]ong_format
+# * [r]ecursive [level]  # default: 1, * means no limit
+#
+# remove
+# ~~~~~~
+# * category_name tree: category/category/category
+# - Regex, e.g wildcards "*", "+", ...
+# - [r]ecursive [level]  # default: 1, * means no limit
+# - Only owner can remove ... ACLs later
+#
+# update
+# ~~~~~~
+# * category_name tree: category/category/category
+# * Protocol well-known short names, e.g "category" --> CATEGORY_PROTOCOL
+# - Regex, e.g wildcards "*", "+", ...
+# - ServiceFilter fields (see aiko_hyperspace create)
 
-@main.command(name="create", no_args_is_help=False)
-@click.option("--name", "-n", type=str, default=None,
-    help="HyperSpace name, default is the hostname")
+@main.command(name="add", no_args_is_help=True)
+@click.argument("entry_name", type=str, required=True, default=None)
+@click.option("--hyperspace_name", "-hn", type=str, default=None,
+    help="HyperSpace name, default is the local hostname")
+@click.option("--service_name", "-n", type=str, default="*",
+    help="Service name")
+@click.option("--protocol", "-p", type=str, default="*",
+    help="Service protocol")
+@click.option("--transport", "-tr", type=str, default="*",
+    help="Service transport")
+@click.option("--owner", "-o", type=str, default="*",
+    help="Service owner")
+@click.option("--tags", "-t", type=str, multiple=True, default=None,
+    help="Service tags")
+@click.option("--lifecycle_manager_url", "-lcm", type=str, default=None,
+    help="LifeCycleManager URL")
+@click.option("--storage_url", "-s", type=str, default=None,
+    help="Storage URL")
 
-def create_command(name):
-    """Create HyperSpace Category
+def add_command(entry_name, hyperspace_name,
+    service_name, protocol, transport, owner, tags,
+    lifecycle_manager_url, storage_url):
 
-    aiko_hyperspace create [--name NAME]
+    """Add HyperSpace Entry
+
+    aiko_hyperspace add ENTRY_NAME
 
     \b
-    • NAME: HyperSpace name, default is the hostname
+    • ENTRY_NAME: Entry name
     """
 
-    do_command(HyperSpaceImpl, ServiceFilter(name=name, protocol=PROTOCOL),
-        lambda actor: actor.create(), terminate=True)
+    tags = tags if tags else []                 # Assign default tags value
+    service_name = entry_name if service_name == "*" else service_name
+    service_filter = ServiceFilter(             # TODO: Or use ServiceFields ??
+        "0:", service_name, protocol, transport, owner, tags)     # None --> 0:
+
+# TODO: "(add dn (None * * * * (a=b c=d)) 0: 0:)"                 # None --> 0:
+    do_command(Category,
+        ServiceFilter(name=hyperspace_name, protocol=PROTOCOL),
+        lambda hyperspace: hyperspace.add(entry_name,
+            service_filter, lifecycle_manager_url, storage_url), terminate=True)
     aiko.process.run()
 
-@main.command(name="destroy")
+@main.command(name="create", no_args_is_help=True)
+@click.argument("category_name", type=str, required=True, default=None)
+@click.option("--hyperspace_name", "-hn", type=str, default=None,
+    help="HyperSpace name, default is the local hostname")
 
-def destroy_command():
-    print(f"### Unimplemented CLI: HyperSpace.destroy() ###")
+def create_command(category_name, hyperspace_name):
+    """Create HyperSpace Category
+
+    aiko_hyperspace create [-hn HYPERSPACE_NAME] CATEGORY_NAME
+
+    \b
+    • CATEGORY_NAME: Category name
+    """
+
+    do_command(HyperSpaceImpl,
+        ServiceFilter(name=hyperspace_name, protocol=PROTOCOL),
+        lambda hyperspace: hyperspace.create(category_name), terminate=True)
+    aiko.process.run()
+
+@main.command(name="destroy", no_args_is_help=True)
+@click.argument("category_name", type=str, required=True, default=None)
+@click.option("--hyperspace_name", "-hn", type=str, default=None,
+    help="HyperSpace name, default is the local hostname")
+
+def destroy_command(category_name, hyperspace_name):
+    """Destroy HyperSpace Category
+
+    aiko_hyperspace destroy [-hn HYPERSPACE_NAME] CATEGORY_NAME
+
+    \b
+    • CATEGORY_NAME: Category name
+    """
+
+    do_command(HyperSpaceImpl,
+        ServiceFilter(name=hyperspace_name, protocol=PROTOCOL),
+        lambda hyperspace: hyperspace.destroy(category_name), terminate=True)
+    aiko.process.run()
 
 @main.command(name="dump", help="Dump HyperSpace state")
-@click.option("--name", "-n", type=str, default=None,
-    help="HyperSpace name, default is the hostname")
+@click.option("--hyperspace_name", "-hn", type=str, default=None,
+    help="HyperSpace name, default is the local hostname")
 
-def dump_command(name):
-    do_command(HyperSpace, ServiceFilter(name=name, protocol=PROTOCOL),
+def dump_command(hyperspace_name):
+    do_command(HyperSpace,
+        ServiceFilter(name=hyperspace_name, protocol=PROTOCOL),
         lambda hyperspace: hyperspace.dump(), terminate=True)
     aiko.process.run()
 
 @main.command(name="exit", help="Exit HyperSpace")
-@click.option("--name", "-n", type=str, default=None,
-    help="HyperSpace name, default is the hostname")
+@click.option("--hyperspace_name", "-hn", type=str, default=None,
+    help="HyperSpace name, default is the local hostname")
 
-def exit_command(name):
-    do_command(HyperSpace, ServiceFilter(name=name, protocol=PROTOCOL),
+def exit_command(hyperspace_name):
+    do_command(HyperSpace,
+        ServiceFilter(name=hyperspace_name, protocol=PROTOCOL),
         lambda hyperspace: hyperspace.exit(), terminate=True)
     aiko.process.run()
 
 @main.command(name="list")
+@click.argument("entry_name", type=str, required=False, default=None)
+@click.option("--hyperspace_name", "-hn", type=str, default=None,
+    help="HyperSpace name, default is the local hostname")
+@click.option("--long_format", "-l", is_flag=True,
+    help="Long format with Service, LifeCycleManager URL, Storage URL")
+@click.option("--recursive", "-r", is_flag=True,
+    help="Recursively list Category entries")
 
-def list_command():
-    print(f"### Unimplemented CLI: HyperSpace.list() ###")
+def list_command(entry_name, hyperspace_name, long_format, recursive):
+    """List HyperSpace Entries
 
-@main.command(name="run")
-@click.option("--name", "-n", type=str, default=None,
-    help="HyperSpace name, default is the hostname")
-@click.argument("hyperspace_url", required=False, default=None)
-
-def run_command(name, hyperspace_url):
-    """Run HyperSpace
-
-    aiko_hyperspace run [--name NAME] [HYPERSPACE_PATHNAME]
+    aiko_category list ENTRY_NAME [-l] [-r]
 
     \b
-    • NAME:                HyperSpace name, default is the hostname
-    • HYPERSPACE_PATHNAME: HyperSpace storage file-system location
+    • ENTRY_NAME: Entry name
     """
 
-    name = name if name else get_hostname()
+    CategoryImpl.list_command(
+        hyperspace_name, entry_name, long_format, PROTOCOL)
+    aiko.process.run()
 
-    tags = ["ec=true"]       # TODO: Add ECProducer tag before add to Registrar
-    init_args = actor_args(name, None, None, PROTOCOL, tags)
-    init_args["hyperspace_url"] = hyperspace_url
+@main.command(name="remove", no_args_is_help=True)
+@click.argument("entry_name", type=str, required=True, default=None)
+@click.option("--hyperspace_name", "-hn", type=str, default=None,
+    help="HyperSpace name, default is the local hostname")
+
+def remove_command(entry_name, hyperspace_name):
+    """Remove HyperSpace Entry
+
+    aiko_hyperspace remove [-hn HYPERSPACE_NAME] ENTRY_NAME
+
+    \b
+    • ENTRY_NAME: Entry name
+    """
+
+    do_command(HyperSpaceImpl,
+        ServiceFilter(name=hyperspace_name, protocol=PROTOCOL),
+        lambda hyperspace: hyperspace.remove(entry_name), terminate=True)
+    aiko.process.run()
+
+@main.command(name="run")
+@click.argument("storage_url", required=False, default=None)  # TODO: Implement
+@click.option("--hyperspace_name", "-hn", type=str, default=None,
+    help="HyperSpace name, default is the local hostname")
+@click.option("--protocol", "-p", type=str, default=PROTOCOL,
+    help="Service protocol")
+@click.option("--transport", "-tr", type=str, default=None,
+    help="Service transport")
+# @click.option("--owner", "-o", type=str, default=None,      # TODO: Implement
+#     help="Service owner")
+@click.option("--tags", "-t", type=str, multiple=True, default=None,
+    help="Service tags")
+
+def run_command(storage_url, hyperspace_name, protocol, transport, tags):
+    """Run HyperSpace
+
+    aiko_hyperspace run [-hn HYPERSPACE_NAME] [STORAGE_URL]
+
+    \b
+    • STORAGE_URL: HyperSpace storage location, e.g file://...
+    """
+
+    hyperspace_name = hyperspace_name if hyperspace_name else get_hostname()
+
+    tags = list(tags) + ["ec=true"]
+    init_args = actor_args(
+        hyperspace_name, None, None, protocol, tags, transport)
+    init_args["storage_url"] = storage_url
     hyperspace = compose_instance(HyperSpaceImpl, init_args)
     aiko.process.run()
 
-@main.command(name="update")
+@main.command(name="update", no_args_is_help=True)
+@click.argument("entry_name", type=str, required=True, default=None)
+@click.option("--hyperspace_name", "-hn", type=str, default=None,
+    help="HyperSpace name, default is the local hostname")
+@click.option("--service_name", "-n", type=str, default="0:",     # None --> 0:
+    help="Service name")
+@click.option("--protocol", "-p", type=str, default="0:",         # None --> 0:
+    help="Service protocol")
+@click.option("--transport", "-tr", type=str, default="0:",       # None --> 0:
+    help="Service transport")
+@click.option("--owner", "-o", type=str, default="0:",            # None --> 0:
+    help="Service owner")
+@click.option("--tags", "-t", type=str, multiple=True, default=None,
+    help="Service tags")
+@click.option("--lifecycle_manager_url", "-lcm", type=str, default=None,
+    help="LifeCycleManager URL")
+@click.option("--storage_url", "-s", type=str, default=None,
+    help="Storage URL")
 
-def update_command():
-    print(f"### Unimplemented CLI: HyperSpace.update() ###")
+def update_command(entry_name, hyperspace_name,
+    service_name, protocol, transport, owner, tags,
+    lifecycle_manager_url, storage_url):
+
+    """Update HyperSpace Entry
+
+    aiko_hyperspace update [-hn HYPERSPACE_NAME] ENTRY_NAME
+
+    \b
+    • ENTRY_NAME: Entry name
+    """
+
+    tags = tags if tags else []                 # Assign default tags value
+    service_filter = ServiceFilter(             # TODO: Or use ServiceFields ??
+        "0:", service_name, protocol, transport, owner, tags)     # None --> 0:
+
+# TODO: "(update dn (None None None None None (a=b c=d)) 0: 0:)"  # None --> 0:
+    do_command(HyperSpaceImpl,
+        ServiceFilter(name=hyperspace_name, protocol=PROTOCOL),
+        lambda hyperspace: hyperspace.update(entry_name, None,
+            service_filter, lifecycle_manager_url, storage_url), terminate=True)
+    aiko.process.run()
 
 if __name__ == "__main__":
     main()
