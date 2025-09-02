@@ -265,15 +265,17 @@ class ProcessImplementation(ProcessData):
         return self.service_count
 
     def remove_service(self, service_id):
+        service = None
         try:
             self._services_lock.acquire("remove_service")
             if service_id in self._services:
+                service = self._services[service_id]
                 del self._services[service_id]
                 self.service_count -= 1
         finally:
             self._services_lock.release()
 
-        if self.connection.is_connected(ConnectionState.REGISTRAR):
+        if service and self.connection.is_connected(ConnectionState.REGISTRAR):
             self._remove_service_from_registrar(service)
         return self.service_count
 

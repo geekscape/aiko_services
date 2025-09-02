@@ -43,6 +43,8 @@
 # ~~~~~
 # * Define public API (available function calls) in the Registrar Interface
 #
+# * BUG: "_service_remove()" if Process, then remove *all* Process' Services
+#
 # * BUG: When ECProducer updates "service_count", need to int(services_count) !
 #
 # * BUG: Registrar won't become primary when there isn't another Registrar
@@ -334,12 +336,13 @@ class RegistrarImpl(Registrar):
     def _service_remove(self, topic_path):
         service_topic_path = ServiceTopicPath.parse(topic_path)
         if service_topic_path:
+        # TODO: For this Process, remove *all* Services
             if service_topic_path.service_id == "0":  # Process terminated
                 process_topic_path, _ = ServiceTopicPath.topic_paths(topic_path)
                 topic_paths =  \
                     self.services.get_process_services(process_topic_path)
             else:
-                topic_paths = topic_path
+                topic_paths = [topic_path]
 
             for topic_path in list(topic_paths):
                 service_details = self.services.get_service(topic_path)
