@@ -11,6 +11,7 @@ import psutil
 import subprocess
 
 __all__ = [
+    "dir_base_name",
     "get_memory_used", "get_virtual_memory",
     "print_memory_used", "print_virtual_memory",
     "get_uptime"
@@ -18,6 +19,23 @@ __all__ = [
 
 DEFAULT_MEMORY_UNIT = "Mb"
 DEFAULT_VIRTUAL_MEMORY_UNIT = "Gb"
+
+# --------------------------------------------------------------------------- #
+# Like "dirname" and "basename" combined, used by "../main/hyperspace.py"
+
+def dir_base_name(path: str) -> tuple[str, str]:
+    if path is None or path == "":
+        return (".", "")
+    while "//" in path:
+        path = path.replace("//", "/")
+    if len(path) > 1 and path.endswith("/"):
+        path = path.rstrip("/")
+    index = path.rfind("/")
+    if index == -1:
+        return (".", path)
+    if index == 0:
+        return ("/", path[1:])
+    return (path[:index], path[index+1:])
 
 # --------------------------------------------------------------------------- #
 

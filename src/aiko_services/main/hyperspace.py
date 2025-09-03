@@ -6,6 +6,7 @@
 # Create, Read, Update and Destroy a network graph of Categories
 # Add to, List and Remove from any Category, which is a group of Entries
 # Entries can be either a Category or a Dependency
+# Category paths support a tree-like structure "category_a/category_b/entry_c"
 #
 # Usage: Distributed Actor
 # ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -15,13 +16,13 @@
 #   ./hyperspace.py dump
 #   ./hyperspace.py exit
 #
-#   ./hyperspace.py add     DEPENDENCY_NAME
-#   ./hyperspace.py create  CATEGORY_NAME
-#   ./hyperspace.py destroy CATEGORY_NAME
-#   ./hyperspace.py link    ENTRY_NAME_NEW ENTRY_NAME_EXIST    # TODO: "link"
-#   ./hyperspace.py list    [ENTRY_NAME] [--long_format | -l] [--recursive | -r]
-#   ./hyperspace.py remove  ENTRY_NAME_EXIST                   # TODO: "unlink"
-#   ./hyperspace.py update  ENTRY_NAME -p protocol -t key_0=value_0
+#   ./hyperspace.py add     ENTRY_PATH
+#   ./hyperspace.py create  CATEGORY_PATH
+#   ./hyperspace.py destroy CATEGORY_PATH
+#   ./hyperspace.py link    ENTRY_PATH_NEW ENTRY_PATH_EXIST    # TODO: "link"
+#   ./hyperspace.py list    [ENTRY_PATH] [--long_format | -l] [--recursive | -r]
+#   ./hyperspace.py remove  ENTRY_PATH_EXIST                   # TODO: "unlink"
+#   ./hyperspace.py update  ENTRY_PATH -p protocol -t key_0=value_0
 #
 # Usage: Bootstrap
 # ~~~~~~~~~~~~~~~~
@@ -48,25 +49,10 @@
 # To Do
 # ~~~~~
 # - Separate the design and implementation of HyperSpace and Storage
-#   - Move HyperSpace file implementation into StorageFile ?
-#   - HyperSpace:
-#       - create(): Category (different HyperSpace root ?)
-#       - destroy()
-#       - list()
-#       - update()
-#       - _initialize()
-#       - _ln(link_path, target_path)
-#       - _ls(path, long_format, dependency_count, recursive))
-#       - _mk(name)
-#       - _mkdir(name)
-#       - _rm(name)
-#       - _storage(sort_by_name)
-#   - Storage: ????
-#       - create(): Dependency, Category or Entry (Definition and Contents) ?
-#       - destroy() ?
-#       - list() ?
-#       - update() ?
-# ------------------
+#   - Move HyperSpace file-system based implementation into StorageFile ?
+#   - HyperSpace: create(): Category with different HyperSpace root ?
+#   - Storage:    create(): Category or Dependency (Definition and Contents)
+#
 # - Implement "aiko_hyperspace repl" for interactive CRUD, etc
 #
 # * FIX: Consolidate service.py:ServiceFilter into ServiceFields (and use this)
@@ -144,6 +130,7 @@ VERSION = 0
 PROTOCOL = f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE}:{VERSION}"
 
 _HASH_LENGTH = 12  # 6 bytes = 12 hex digits
+_PATH_DELIMITER = "/"
 _RESPONSE_TOPIC = f"{aiko.topic_in}"
 _ROOT_FILENAME = ".root"
 _STORAGE_FILENAME = "storage"
@@ -157,11 +144,11 @@ class HyperSpace(Category, Actor):
         "HyperSpace", "aiko_services.main.hyperspace.HyperSpaceImpl")
 
     @abstractmethod
-    def create(self, category_name):
+    def create(self, category_path):
         pass
 
     @abstractmethod
-    def destroy(self, category_name):
+    def destroy(self, category_path):
         pass
 
     @abstractmethod
@@ -184,7 +171,7 @@ class HyperSpaceImpl(HyperSpace):
                 "created": 0,
                 "running": 1 + len(self.entries)   # Including self 😅
             #   "time_started": 0            # TODO: UTC time started --> Actor
-            },
+            },                               #       or time.monotonic()
         })
         self.ec_producer = ECProducer(self, self.share)
         self.ec_producer.add_handler(self._ec_producer_change_handler)
@@ -196,28 +183,73 @@ class HyperSpaceImpl(HyperSpace):
     #       storage_url = PATHNAME_OF_CURRENT_WORKING_DIRECTORY
     #   self._load_hyperspace(storage_url)
 
-    def create(self, category_name):
-        if category_name not in self.entries:
-            tags = ["ec=true"]
-            init_args = actor_args(
-                category_name, None, None, CATEGORY_PROTOCOL, tags)
-            init_args["service_filter"] = ServiceFilter(
-                name=category_name, protocol=CATEGORY_PROTOCOL)
-            category = compose_instance(CategoryImpl, init_args)
+    def _category_iterator(self, category_path, delimiter=_PATH_DELIMITER):
+        for name in category_path.split(delimiter):
+            yield name
 
-            self.entries[category_name] = category
+    def _category_traverse(self, category_path, delimiter=_PATH_DELIMITER):
+        dirname, basename = dir_base_name(category_path)
+        current_category = self
+        if dirname == ".":
+            return current_category, basename
+
+        for category_name in self._category_iterator(dirname):
+            if category_name in current_category.entries:
+                entry = current_category.entries[category_name]
+                if entry.service_filter.protocol != CATEGORY_PROTOCOL:
+                    return None, None
+                current_category = entry
+            else:
+                return None, None
+        return current_category, basename
+
+    def add(self, entry_path,
+        service_filter, lifecycle_manager_url=None, storage_url=None):
+
+        category, entry_name = self._category_traverse(entry_path)
+        if category:
+            self.category.add(category, entry_name,
+                service_filter, lifecycle_manager_url, state)
+
+    def create(self, category_path):
+        current_category = self
+        category_created = False
+        tags = ["ec=true"]
+
+        for category_name in self._category_iterator(category_path):
+            if category_name in current_category.entries:
+                entry = current_category.entries[category_name]
+                if entry.service_filter.protocol != CATEGORY_PROTOCOL:
+                    break
+                category = entry
+            else:
+                init_args = actor_args(
+                    category_name, None, None, CATEGORY_PROTOCOL, tags)
+                init_args["service_filter"] = ServiceFilter(
+                    name=category_name, protocol=CATEGORY_PROTOCOL)
+                category = compose_instance(CategoryImpl, init_args)
+                current_category.entries[category_name] = category
+                category_created = True
+            current_category = category
+
+        if category_created:
             self.ec_producer.update("entries", len(self.entries))
 
 # TODO: Categories destroy() and Dependencies remove() ?  Check protocol ?
-# TODO: Recursively remove Categories
+# TODO: Recursively remove Categories ... using "limit" argument
 # TODO: Replace "destroy()" with "remove()", only destroy when last reference
 # TODO: Remove Dependencies and clean-up any resources ?
 
-    def destroy(self, category_name):
-        if category_name in self.entries:
-            protocol = self.entries[category_name].service_filter.protocol
-            if protocol == CATEGORY_PROTOCOL:
-                del self.entries[category_name]
+    def destroy(self, category_path):
+        category_parent, category_name = self._category_traverse(category_path)
+        self._destroy(category_parent, category_name)
+
+    def _destroy(self, category_parent, category_name):
+        if category_parent and category_name in category_parent.entries:
+            category = category_parent.entries[category_name]
+            if category.service_filter.protocol == CATEGORY_PROTOCOL:
+                del category_parent.entries[category_name]
+                aiko.process.remove_service(category.service_id)
                 self.ec_producer.update("entries", len(self.entries))
 
     def dump(self):
@@ -234,19 +266,25 @@ class HyperSpaceImpl(HyperSpace):
     def exit(self):
         aiko.process.terminate()
 
-    def list(self, topic_path_response, entry_name=None):
-        entry_records = self._get_entry_records()
-        self._list_publish(topic_path_response, entry_records)
+    def list(self, topic_path_response, entry_path=None):
+        category, entry_name = self._category_traverse(entry_path)
+        if category and entry_name in category.entries:
+            entry = category.entries[entry_name]
+            if entry.service_filter.protocol == CATEGORY_PROTOCOL:
+                category = entry
+        entry_records = category._get_entry_records()
+        category._list_publish(topic_path_response, entry_records)
 
 # TODO: Categories destroy() and Dependencies remove() ?  Check protocol ?
 
-    def remove(self, entry_name):
-        if entry_name in self.entries:
-            protocol = self.entries[entry_name].service_filter.protocol
-            if protocol == CATEGORY_PROTOCOL:
-                self.destroy(entry_name)
+    def remove(self, entry_path):
+        category_parent, entry_name = self._category_traverse(entry_path)
+        if category_parent and entry_name in category_parent.entries:
+            entry = category_parent.entries[entry_name]
+            if entry.service_filter.protocol == CATEGORY_PROTOCOL:
+                self._destroy(category_parent, entry_name)
             else:
-                self.category.remove(self, entry_name)
+                self.category.remove(category_parent, entry_name)
 
     def __str__(self):
         result = ""
@@ -257,6 +295,14 @@ class HyperSpaceImpl(HyperSpace):
             new_line = "\n" if result else ""
             result += f"{new_line}  {entry_key}{entry_type}"
         return result
+
+    def update(self, entry_path, service=None,
+        service_filter=None, lifecycle_manager_url=None, storage_url=None):
+
+        category_parent, entry_name = self._category_traverse(entry_path)
+        if category_parent and entry_name in category_parent.entries:
+            self.category.update(category_parent, entry_name, service,
+                service_filter, lifecycle_manager_url, storage_url)
 
 # --------------------------------------------------------------------------- #
 # HyperSpace Storage: File-system based persistance
@@ -564,6 +610,7 @@ def main():
 # ./hyperspace.py initialize
 
 @main.command(name="initialize")
+
 def initialize_command():
     "Initialize HyperSpace: .root and storage/"
     _initialize()
@@ -573,6 +620,7 @@ def initialize_command():
 @main.command(name="ln")
 @click.argument("link_path")
 @click.argument("target_path")
+
 def ln_command(link_path, target_path):
     "Create new link to an existing dependency or category"
     _ln(link_path, target_path)
@@ -581,13 +629,14 @@ def ln_command(link_path, target_path):
 
 @main.command(name="ls")
 @click.argument("path", required=False, default=".")
-@click.option("--long_format", "-l", default=False, is_flag=True,
-    help="Long format with hash identifiers")
 @click.option("--entry_count", "-c", default=False, is_flag=True,
     help="Show category's entry count")
+@click.option("--long_format", "-l", default=False, is_flag=True,
+    help="Long format with hash identifiers")
 @click.option("--recursive", "-r", default=False, is_flag=True,
     help="Recursive listing")
-def ls_command(path, long_format, entry_count, recursive):
+
+def ls_command(path, entry_count, long_format, recursive):
     "List dependencies (files) and categories (directories)"
     _ls(path, long_format, entry_count, recursive)
 
@@ -595,6 +644,7 @@ def ls_command(path, long_format, entry_count, recursive):
 
 @main.command(name="mk")
 @click.argument("name")
+
 def mk_command(name):
     "Create a dependency (file)"
     _mk(name)
@@ -603,6 +653,7 @@ def mk_command(name):
 
 @main.command(name="mkdir")
 @click.argument("name")
+
 def mkdir_command(name):
     "Create a category (directory)"
     _mkdir(name)
@@ -611,6 +662,7 @@ def mkdir_command(name):
 
 @main.command(name="rm")
 @click.argument("name")
+
 def rm_command(name):
     "Remove a dependency or category"
     _rm(name)
@@ -620,6 +672,7 @@ def rm_command(name):
 @main.command(name="storage")
 @click.option("--sort_by_name", "-s", default=False, is_flag=True,
     help="Sort by name")
+
 def storage_command(sort_by_name):
     "List entry storage/tracked_paths and linked entries"
     _storage(sort_by_name)
@@ -631,7 +684,6 @@ def storage_command(sort_by_name):
 # ~~~~~
 # add
 # ~~~
-# * category_name tree: category/category/category
 # * Protocol well-known short names, e.g "category" --> CATEGORY_PROTOCOL
 # * Created and modified time
 # - Owner defaults to current user, ACLs "u:name g:name o:name rwx:name ..." ?
@@ -639,7 +691,7 @@ def storage_command(sort_by_name):
 #
 # create
 # ~~~~~~
-# * category_name tree: category/category/category
+# * Differentiate Categories with same name, e.g ENTRY_PATH tag ?
 # * Protocol well-known short names, e.g "category" --> CATEGORY_PROTOCOL
 # * Created and modified time
 # - Owner defaults to current user, ACLs "u:name g:name o:name rwx:name ..." ?
@@ -654,34 +706,36 @@ def storage_command(sort_by_name):
 #
 # destroy
 # ~~~~~~~
-# * category_name tree: category/category/category
+# * Clean-up all Process, Service, Actor, Dependency, Category resources
+# * Only destroy() Categories with a LifeCycleManager of "HyperSpaceImpl.self"
 # - Regex, e.g wildcards "*", "+", ...
 # - [r]ecursive [level]  # default: 1, * means no limit
-# - Only owner can destroy ... ACLs later
+# - Only owner can destroy ... implement ACLs later
 #
 # list
 # ~~~~
-# * category_name tree: category/category/category
+# * Specific "entry_path"
 # * Regex, e.g wildcards "*", "+", ...
+# * [c]ount  # Category Entry count
 # * [l]ong_format
-# * [r]ecursive [level]  # default: 1, * means no limit
+# * [r]ecursive [level]  # default: 1 or * ? (* means no limit)
 #
 # remove
 # ~~~~~~
-# * category_name tree: category/category/category
 # - Regex, e.g wildcards "*", "+", ...
 # - [r]ecursive [level]  # default: 1, * means no limit
 # - Only owner can remove ... ACLs later
 #
 # update
 # ~~~~~~
-# * category_name tree: category/category/category
+# * category_path tree: category/category/category
 # * Protocol well-known short names, e.g "category" --> CATEGORY_PROTOCOL
 # - Regex, e.g wildcards "*", "+", ...
 # - ServiceFilter fields (see aiko_hyperspace create)
+# - Only owner can update ... implement ACLs later
 
 @main.command(name="add", no_args_is_help=True)
-@click.argument("entry_name", type=str, required=True, default=None)
+@click.argument("entry_path", type=str, required=True, default=None)
 @click.option("--hyperspace_name", "-hn", type=str, default=None,
     help="HyperSpace name, default is the local hostname")
 @click.option("--service_name", "-n", type=str, default="*",
@@ -699,66 +753,66 @@ def storage_command(sort_by_name):
 @click.option("--storage_url", "-s", type=str, default=None,
     help="Storage URL")
 
-def add_command(entry_name, hyperspace_name,
+def add_command(entry_path, hyperspace_name,
     service_name, protocol, transport, owner, tags,
     lifecycle_manager_url, storage_url):
 
     """Add HyperSpace Entry
 
-    aiko_hyperspace add ENTRY_NAME
+    aiko_hyperspace add ENTRY_PATH
 
     \b
-    • ENTRY_NAME: Entry name
+    • ENTRY_PATH: Entry PATH
     """
 
     tags = tags if tags else []                 # Assign default tags value
-    service_name = entry_name if service_name == "*" else service_name
+    service_name = entry_path if service_name == "*" else service_name
     service_filter = ServiceFilter(             # TODO: Or use ServiceFields ??
         "0:", service_name, protocol, transport, owner, tags)     # None --> 0:
 
 # TODO: "(add dn (None * * * * (a=b c=d)) 0: 0:)"                 # None --> 0:
     do_command(Category,
         ServiceFilter(name=hyperspace_name, protocol=PROTOCOL),
-        lambda hyperspace: hyperspace.add(entry_name,
+        lambda hyperspace: hyperspace.add(entry_path,
             service_filter, lifecycle_manager_url, storage_url), terminate=True)
     aiko.process.run()
 
 @main.command(name="create", no_args_is_help=True)
-@click.argument("category_name", type=str, required=True, default=None)
+@click.argument("category_path", type=str, required=True, default=None)
 @click.option("--hyperspace_name", "-hn", type=str, default=None,
     help="HyperSpace name, default is the local hostname")
 
-def create_command(category_name, hyperspace_name):
+def create_command(category_path, hyperspace_name):
     """Create HyperSpace Category
 
-    aiko_hyperspace create [-hn HYPERSPACE_NAME] CATEGORY_NAME
+    aiko_hyperspace create [-hn HYPERSPACE_NAME] CATEGORY_PATH
 
     \b
-    • CATEGORY_NAME: Category name
+    • CATEGORY_PATH: Category path
     """
 
     do_command(HyperSpaceImpl,
         ServiceFilter(name=hyperspace_name, protocol=PROTOCOL),
-        lambda hyperspace: hyperspace.create(category_name), terminate=True)
+        lambda hyperspace: hyperspace.create(category_path), terminate=True)
     aiko.process.run()
 
 @main.command(name="destroy", no_args_is_help=True)
-@click.argument("category_name", type=str, required=True, default=None)
+@click.argument("category_path", type=str, required=True, default=None)
 @click.option("--hyperspace_name", "-hn", type=str, default=None,
     help="HyperSpace name, default is the local hostname")
 
-def destroy_command(category_name, hyperspace_name):
+def destroy_command(category_path, hyperspace_name):
     """Destroy HyperSpace Category
 
-    aiko_hyperspace destroy [-hn HYPERSPACE_NAME] CATEGORY_NAME
+    aiko_hyperspace destroy [-hn HYPERSPACE_NAME] CATEGORY_PATH
 
     \b
-    • CATEGORY_NAME: Category name
+    • CATEGORY_PATH: Category path
     """
 
     do_command(HyperSpaceImpl,
         ServiceFilter(name=hyperspace_name, protocol=PROTOCOL),
-        lambda hyperspace: hyperspace.destroy(category_name), terminate=True)
+        lambda hyperspace: hyperspace.destroy(category_path), terminate=True)
     aiko.process.run()
 
 @main.command(name="dump", help="Dump HyperSpace state")
@@ -782,7 +836,7 @@ def exit_command(hyperspace_name):
     aiko.process.run()
 
 @main.command(name="list")
-@click.argument("entry_name", type=str, required=False, default=None)
+@click.argument("entry_path", type=str, required=False, default=None)
 @click.option("--hyperspace_name", "-hn", type=str, default=None,
     help="HyperSpace name, default is the local hostname")
 @click.option("--long_format", "-l", is_flag=True,
@@ -790,36 +844,36 @@ def exit_command(hyperspace_name):
 @click.option("--recursive", "-r", is_flag=True,
     help="Recursively list Category entries")
 
-def list_command(entry_name, hyperspace_name, long_format, recursive):
+def list_command(entry_path, hyperspace_name, long_format, recursive):
     """List HyperSpace Entries
 
-    aiko_category list ENTRY_NAME [-l] [-r]
+    aiko_category list ENTRY_PATH [-l] [-r]
 
     \b
-    • ENTRY_NAME: Entry name
+    • ENTRY_PATH: Entry path
     """
 
     CategoryImpl.list_command(
-        hyperspace_name, entry_name, long_format, PROTOCOL)
+        hyperspace_name, entry_path, long_format, PROTOCOL)
     aiko.process.run()
 
 @main.command(name="remove", no_args_is_help=True)
-@click.argument("entry_name", type=str, required=True, default=None)
+@click.argument("entry_path", type=str, required=True, default=None)
 @click.option("--hyperspace_name", "-hn", type=str, default=None,
     help="HyperSpace name, default is the local hostname")
 
-def remove_command(entry_name, hyperspace_name):
+def remove_command(entry_path, hyperspace_name):
     """Remove HyperSpace Entry
 
-    aiko_hyperspace remove [-hn HYPERSPACE_NAME] ENTRY_NAME
+    aiko_hyperspace remove [-hn HYPERSPACE_NAME] ENTRY_PATH
 
     \b
-    • ENTRY_NAME: Entry name
+    • ENTRY_PATH: Entry path
     """
 
     do_command(HyperSpaceImpl,
         ServiceFilter(name=hyperspace_name, protocol=PROTOCOL),
-        lambda hyperspace: hyperspace.remove(entry_name), terminate=True)
+        lambda hyperspace: hyperspace.remove(entry_path), terminate=True)
     aiko.process.run()
 
 @main.command(name="run")
@@ -854,7 +908,7 @@ def run_command(storage_url, hyperspace_name, protocol, transport, tags):
     aiko.process.run()
 
 @main.command(name="update", no_args_is_help=True)
-@click.argument("entry_name", type=str, required=True, default=None)
+@click.argument("entry_path", type=str, required=True, default=None)
 @click.option("--hyperspace_name", "-hn", type=str, default=None,
     help="HyperSpace name, default is the local hostname")
 @click.option("--service_name", "-n", type=str, default="0:",     # None --> 0:
@@ -872,16 +926,16 @@ def run_command(storage_url, hyperspace_name, protocol, transport, tags):
 @click.option("--storage_url", "-s", type=str, default=None,
     help="Storage URL")
 
-def update_command(entry_name, hyperspace_name,
+def update_command(entry_path, hyperspace_name,
     service_name, protocol, transport, owner, tags,
     lifecycle_manager_url, storage_url):
 
     """Update HyperSpace Entry
 
-    aiko_hyperspace update [-hn HYPERSPACE_NAME] ENTRY_NAME
+    aiko_hyperspace update [-hn HYPERSPACE_NAME] ENTRY_PATH
 
     \b
-    • ENTRY_NAME: Entry name
+    • ENTRY_PATH: Entry path
     """
 
     tags = tags if tags else []                 # Assign default tags value
@@ -891,7 +945,7 @@ def update_command(entry_name, hyperspace_name,
 # TODO: "(update dn (None None None None None (a=b c=d)) 0: 0:)"  # None --> 0:
     do_command(HyperSpaceImpl,
         ServiceFilter(name=hyperspace_name, protocol=PROTOCOL),
-        lambda hyperspace: hyperspace.update(entry_name, None,
+        lambda hyperspace: hyperspace.update(entry_path, None,
             service_filter, lifecycle_manager_url, storage_url), terminate=True)
     aiko.process.run()
 

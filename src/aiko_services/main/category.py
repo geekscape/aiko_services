@@ -111,7 +111,7 @@ class CategoryImpl(Category):
     def add(self, entry_name,
         service_filter, lifecycle_manager_url=None, storage_url=None):
 
-        if not isinstance(service_filter, ServiceFilter):
+        if service_filter and not isinstance(service_filter, ServiceFilter):
             service_filter = ServiceFilter(*service_filter)
 
         if entry_name not in self.entries:
@@ -136,6 +136,7 @@ class CategoryImpl(Category):
                 entry = entry.replace("None", "0:")
                 entry_record = f"{entry_key} {entry}"
                 entry_records.append(entry_record)
+        entry_records.sort()
         return entry_records
 
     def list(self, topic_path_response, entry_name=None):
@@ -202,7 +203,7 @@ class CategoryImpl(Category):
         service_filter=None, lifecycle_manager_url=None, storage_url=None):
 
     # Prevent ServiceFilter() from overriding "name" with "hostname()"
-        if not isinstance(service_filter, ServiceFilter):
+        if service_filter and not isinstance(service_filter, ServiceFilter):
             service_filter_name_null = service_filter[1] is None
             service_filter = ServiceFilter(*service_filter)
             if service_filter_name_null:
