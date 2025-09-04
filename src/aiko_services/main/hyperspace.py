@@ -183,7 +183,7 @@ class HyperSpaceImpl(HyperSpace):
     #       storage_url = PATHNAME_OF_CURRENT_WORKING_DIRECTORY
     #   self._load_hyperspace(storage_url)
 
-    def _category_iterator(self, category_path, delimiter=_PATH_DELIMITER):
+    def _category_path_iterator(self, category_path, delimiter=_PATH_DELIMITER):
         for name in category_path.split(delimiter):
             yield name
 
@@ -193,7 +193,7 @@ class HyperSpaceImpl(HyperSpace):
         if dirname == ".":
             return current_category, basename
 
-        for category_name in self._category_iterator(dirname):
+        for category_name in self._category_path_iterator(dirname):
             if category_name in current_category.entries:
                 entry = current_category.entries[category_name]
                 if entry.service_filter.protocol != CATEGORY_PROTOCOL:
@@ -208,15 +208,19 @@ class HyperSpaceImpl(HyperSpace):
 
         category, entry_name = self._category_traverse(entry_path)
         if category:
+            if service_filter and not isinstance(service_filter, ServiceFilter):
+                service_filter = ServiceFilter(*service_filter)
+            if service_filter.name == "*":
+                service_filter.name = entry_name
             self.category.add(category, entry_name,
-                service_filter, lifecycle_manager_url, state)
+                service_filter, lifecycle_manager_url, storage_url)
 
     def create(self, category_path):
         current_category = self
         category_created = False
         tags = ["ec=true"]
 
-        for category_name in self._category_iterator(category_path):
+        for category_name in self._category_path_iterator(category_path):
             if category_name in current_category.entries:
                 entry = current_category.entries[category_name]
                 if entry.service_filter.protocol != CATEGORY_PROTOCOL:
@@ -226,7 +230,7 @@ class HyperSpaceImpl(HyperSpace):
                 init_args = actor_args(
                     category_name, None, None, CATEGORY_PROTOCOL, tags)
                 init_args["service_filter"] = ServiceFilter(
-                    name=category_name, protocol=CATEGORY_PROTOCOL)
+                    name=category_name, protocol=CATEGORY_PROTOCOL, tags=[])
                 category = compose_instance(CategoryImpl, init_args)
                 current_category.entries[category_name] = category
                 category_created = True
@@ -235,7 +239,7 @@ class HyperSpaceImpl(HyperSpace):
         if category_created:
             self.ec_producer.update("entries", len(self.entries))
 
-# TODO: Categories destroy() and Dependencies remove() ?  Check protocol ?
+# TODO: Categories destroy() versus Dependencies remove() ?  Check protocol ?
 # TODO: Recursively remove Categories ... using "limit" argument
 # TODO: Replace "destroy()" with "remove()", only destroy when last reference
 # TODO: Remove Dependencies and clean-up any resources ?
@@ -266,16 +270,36 @@ class HyperSpaceImpl(HyperSpace):
     def exit(self):
         aiko.process.terminate()
 
-    def list(self, topic_path_response, entry_path=None):
+    def is_type(self, type_name):
+        if type_name.lower() == "hyperspace":
+            return True
+        return self.category.is_type(self, type_name)
+
+    def list(self, topic_path_response, entry_path=None, recursive=False):
+        if not isinstance(recursive, bool):
+            recursive = recursive.lower() in ("true", "t")
+
         category, entry_name = self._category_traverse(entry_path)
         if category and entry_name in category.entries:
             entry = category.entries[entry_name]
             if entry.service_filter.protocol == CATEGORY_PROTOCOL:
                 category = entry
-        entry_records = category._get_entry_records()
+
+        def get_entry_records(entry_records, category, category_name, level):
+            if level > 0:
+                entry_records += [f"{-level} {category_name}"]
+            entry_records += category._get_entry_records(None, level)
+            if recursive:
+                for entry_name, entry in category.entries.items():
+                    if entry.is_type("Category"):
+                        get_entry_records(
+                            entry_records, entry, entry_name, level+1)
+
+        entry_records = []
+        get_entry_records(entry_records, category, None, 0)
         category._list_publish(topic_path_response, entry_records)
 
-# TODO: Categories destroy() and Dependencies remove() ?  Check protocol ?
+# TODO: Categories destroy() versus Dependencies remove() ?  Check protocol ?
 
     def remove(self, entry_path):
         category_parent, entry_name = self._category_traverse(entry_path)
@@ -288,12 +312,10 @@ class HyperSpaceImpl(HyperSpace):
 
     def __str__(self):
         result = ""
-        for entry_key in self.entries.keys():
-            entry = self.entries[entry_key]
-            is_category = entry.protocol == CATEGORY_PROTOCOL
-            entry_type = "/" if is_category else ""
+        for entry_name, entry in self.entries.items():
+            entry_type = "/" if entry.is_type("Category") else ""
             new_line = "\n" if result else ""
-            result += f"{new_line}  {entry_key}{entry_type}"
+            result += f"{new_line}  {entry_name}{entry_type}"
         return result
 
     def update(self, entry_path, service=None,
@@ -766,11 +788,9 @@ def add_command(entry_path, hyperspace_name,
     """
 
     tags = tags if tags else []                 # Assign default tags value
-    service_name = entry_path if service_name == "*" else service_name
     service_filter = ServiceFilter(             # TODO: Or use ServiceFields ??
-        "0:", service_name, protocol, transport, owner, tags)     # None --> 0:
+        "*", service_name, protocol, transport, owner, tags)
 
-# TODO: "(add dn (None * * * * (a=b c=d)) 0: 0:)"                 # None --> 0:
     do_command(Category,
         ServiceFilter(name=hyperspace_name, protocol=PROTOCOL),
         lambda hyperspace: hyperspace.add(entry_path,
@@ -854,7 +874,7 @@ def list_command(entry_path, hyperspace_name, long_format, recursive):
     """
 
     CategoryImpl.list_command(
-        hyperspace_name, entry_path, long_format, PROTOCOL)
+        hyperspace_name, entry_path, long_format, recursive, PROTOCOL)
     aiko.process.run()
 
 @main.command(name="remove", no_args_is_help=True)
@@ -940,9 +960,8 @@ def update_command(entry_path, hyperspace_name,
 
     tags = tags if tags else []                 # Assign default tags value
     service_filter = ServiceFilter(             # TODO: Or use ServiceFields ??
-        "0:", service_name, protocol, transport, owner, tags)     # None --> 0:
+        "*", service_name, protocol, transport, owner, tags)
 
-# TODO: "(update dn (None None None None None (a=b c=d)) 0: 0:)"  # None --> 0:
     do_command(HyperSpaceImpl,
         ServiceFilter(name=hyperspace_name, protocol=PROTOCOL),
         lambda hyperspace: hyperspace.update(entry_path, None,

@@ -52,6 +52,10 @@ class Dependency(Interface):
         "Dependency", "aiko_services.main.dependency.DependencyImpl")
 
     @abstractmethod
+    def is_type(self, type_name):
+        pass
+
+    @abstractmethod
     def update(self, entry_name, service=None,
         service_filter=None, lifecycle_manager_url=None, storage_url=None):
         pass
@@ -86,6 +90,9 @@ class DependencyImpl(Dependency):
         self.service_filter = service_filter       # Used for discovery
         self.lifecycle_manager_url = lifecycle_manager_url
         self.storage_url = storage_url
+
+    def is_type(self, type_name):
+        return type_name.lower() == "dependency"
 
     def __repr__(self):
         return f"({self.service_filter} "  \
