@@ -1012,7 +1012,8 @@ class PipelineImpl(Pipeline):
                             stream_id, Graph.path_remote(stream.graph_path),
                             parameters, grace_time, None, self.topic_in)
         finally:
-            stream.lock.release()
+            if stream.lock.in_use():
+                stream.lock.release()
             self._disable_thread_local("create_stream()")
         return True
 
@@ -1413,7 +1414,8 @@ class PipelineImpl(Pipeline):
                 del stream.frames[stream.frame_id]
             if frame_complete and stream.frame_id in stream.frames:
                 del stream.frames[stream.frame_id]
-            stream.lock.release()
+            if stream.lock.in_use():
+                stream.lock.release()
             self._disable_thread_local("process_frame()")
         return True
 
