@@ -202,6 +202,10 @@ PIPELINE_HOOK_PROCESS_ELEMENT_POST = "pipeline.process_element_post:"
 _PIPELINE_HOOK_PROCESS_ELEMENT_POST = PIPELINE_HOOK_PROCESS_ELEMENT_POST+"0"
 PIPELINE_HOOK_PROCESS_FRAME = "pipeline.process_frame:"
 _PIPELINE_HOOK_PROCESS_FRAME = PIPELINE_HOOK_PROCESS_FRAME+"0"
+PIPELINE_HOOK_PROCESS_FRAME_COMPLETE = "pipeline.process_frame_complete:"
+_PIPELINE_HOOK_PROCESS_FRAME_COMPLETE = PIPELINE_HOOK_PROCESS_FRAME_COMPLETE+"0"
+PIPELINE_HOOK_DESTROY_STREAM = "pipeline.destroy_stream:"
+_PIPELINE_HOOK_DESTROY_STREAM = PIPELINE_HOOK_DESTROY_STREAM+"0"
 
 _GRACE_TIME = 60  # seconds
 _LOGGER = aiko.logger(__name__)
@@ -697,6 +701,8 @@ class PipelineImpl(Pipeline):
         self.add_hook(_PIPELINE_HOOK_PROCESS_ELEMENT)
         self.add_hook(_PIPELINE_HOOK_PROCESS_ELEMENT_POST)
         self.add_hook(_PIPELINE_HOOK_PROCESS_FRAME)
+        self.add_hook(_PIPELINE_HOOK_PROCESS_FRAME_COMPLETE)
+        self.add_hook(_PIPELINE_HOOK_DESTROY_STREAM)
 
         self.pipeline_graph = self._create_pipeline_graph(context.definition)
         self.share["element_count"] = self.pipeline_graph.element_count
@@ -1094,13 +1100,15 @@ class PipelineImpl(Pipeline):
                         stream.state = StreamState.ERROR
 
             # Notify listeners that the stream has stopped
-            stop_state = stream.state
-            if stop_state >= StreamState.RUN:
-                stop_state = StreamState.STOP
+            if stream.state >= StreamState.RUN:
+                stream.state = StreamState.STOP
+            self.run_hook(_PIPELINE_HOOK_DESTROY_STREAM,
+                lambda: {"stream": stream,
+                         "diagnostic": diagnostic})
             stream_info = {
                 "stream_id": stream.stream_id,
                 "frame_id": stream.frame_id,
-                "state": stop_state}
+                "state": stream.state}
             if stream.queue_response:
                 stream.queue_response.put((stream_info, diagnostic))
             if stream.topic_response:
@@ -1393,6 +1401,10 @@ class PipelineImpl(Pipeline):
                     "stream_id": stream.stream_id,
                     "frame_id": stream.frame_id,
                     "state": stream.state}
+                self.run_hook(_PIPELINE_HOOK_PROCESS_FRAME_COMPLETE,
+                    lambda: {
+                        "stream": stream,
+                        "frame_data_out": frame_data_out})
                 if stream.queue_response:
                     stream.queue_response.put((stream_info, frame_data_out))
                 elif stream.topic_response:
