@@ -203,6 +203,10 @@ PIPELINE_HOOK_PROCESS_ELEMENT_POST = "pipeline.process_element_post:"
 _PIPELINE_HOOK_PROCESS_ELEMENT_POST = PIPELINE_HOOK_PROCESS_ELEMENT_POST+"0"
 PIPELINE_HOOK_PROCESS_FRAME = "pipeline.process_frame:"
 _PIPELINE_HOOK_PROCESS_FRAME = PIPELINE_HOOK_PROCESS_FRAME+"0"
+PIPELINE_HOOK_PROCESS_FRAME_COMPLETE = "pipeline.process_frame_complete:"
+_PIPELINE_HOOK_PROCESS_FRAME_COMPLETE = PIPELINE_HOOK_PROCESS_FRAME_COMPLETE+"0"
+PIPELINE_HOOK_DESTROY_STREAM = "pipeline.destroy_stream:"
+_PIPELINE_HOOK_DESTROY_STREAM = PIPELINE_HOOK_DESTROY_STREAM+"0"
 
 _GRACE_TIME = 60  # seconds
 _LOGGER = aiko.logger(__name__)
@@ -698,6 +702,8 @@ class PipelineImpl(Pipeline):
         self.add_hook(_PIPELINE_HOOK_PROCESS_ELEMENT)
         self.add_hook(_PIPELINE_HOOK_PROCESS_ELEMENT_POST)
         self.add_hook(_PIPELINE_HOOK_PROCESS_FRAME)
+        self.add_hook(_PIPELINE_HOOK_PROCESS_FRAME_COMPLETE)
+        self.add_hook(_PIPELINE_HOOK_DESTROY_STREAM)
 
         self.pipeline_graph = self._create_pipeline_graph(context.definition)
         self.share["element_count"] = self.pipeline_graph.element_count
@@ -1059,6 +1065,7 @@ class PipelineImpl(Pipeline):
             if stream_id in self.DEBUG:                     # DEBUG: 2024-12-02
                 del self.DEBUG[stream_id]
 
+            diagnostic = {}
             graph_path = self.pipeline_graph.get_path(self.share["graph_path"])
             for node in graph_path:
                 element, element_name, local, _ =  \
@@ -1078,6 +1085,10 @@ class PipelineImpl(Pipeline):
                         in_destroy_stream=True))
                     if stream.state == StreamState.ERROR:
                         break
+
+            self.run_hook(_PIPELINE_HOOK_DESTROY_STREAM,
+                lambda: {"stream": stream,
+                         "diagnostic": diagnostic.get("diagnostic") if diagnostic else None})
         finally:
             if use_thread_local:
                 stream.lock.release()
@@ -1361,6 +1372,10 @@ class PipelineImpl(Pipeline):
                             graph_node_list = loop_graph
 
             if frame_complete:
+                self.run_hook(_PIPELINE_HOOK_PROCESS_FRAME_COMPLETE,
+                    lambda: {
+                        "stream": stream,
+                        "frame_data_out": frame_data_out})
                 stream_info = {
                     "stream_id": stream.stream_id,
                     "frame_id": stream.frame_id,
