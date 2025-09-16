@@ -617,7 +617,8 @@ def main():
     """Create, Read/List, Update and Destroy HyperSpace"""
 
     subcommand = click.get_current_context().invoked_subcommand
-    subcommands_which_run_anywhere = ["create", "dump", "exit", "initialize"]
+    subcommands_which_run_anywhere = ["add", "create", "destroy",
+        "dump", "exit", "initialize", "list", "remove", "update"]
 
     if subcommand not in subcommands_which_run_anywhere:
         diagnostic = None

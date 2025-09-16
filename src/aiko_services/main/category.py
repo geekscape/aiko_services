@@ -168,7 +168,7 @@ class CategoryImpl(Category):
     def list_command(cls,
         actor_name, entry_name, long_format, recursive, protocol):
 
-        #TODO: Turn this into @dataclass(es)
+        # TODO: Turn this into @dataclass(es)
         # Record types: A) new child Category, B) current Catefory Entry
         # A) record[0]: -indent [1]: category_name
         # B) record[0]:  indent [1]: entry_name, [2] ServiceFilter LCM Storage
@@ -188,7 +188,7 @@ class CategoryImpl(Category):
                     indent = int(record[0]) * 2     # Category depth formatting
                     if indent < 0:                  # new child Category
                         indent = -indent
-                        output += f"\n\n{' '*indent} {record[1]}/"
+                        output += f"\n\n{' '*indent}{record[1]}/"
                     else:                           # current Category Entry
                         entry_name = record[1]
                         if record[2][0]:
@@ -201,15 +201,16 @@ class CategoryImpl(Category):
                         if long_format:
                             lifecycle_manager_url = record[2][1]
                             storage_url = record[2][2]
-                            output += f"\n   {' '*indent}{entry_name}: "  \
+                            output += f"\n{' '*indent}  {entry_name}: "  \
                                       f"{service_filter} "  \
                                       f"{lifecycle_manager_url}, "  \
                                       f"{storage_url}"
                         else:
                             name = service_filter.name
-                            if name is None or name == "*" or name == entry_name:
+                            if name is None or  \
+                                name == "*" or name == entry_name:
                                 name = ""
-                                output += f"\n   {' '*indent}{entry_name}: "  \
+                                output += f"\n{' '*indent}  {entry_name}: "  \
                                           f"{service_filter.protocol} "  \
                                           f"{service_filter.owner}  {name}"
             else:

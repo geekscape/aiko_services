@@ -300,7 +300,7 @@ class ActorImpl(Actor):
     def is_running(self):
         return self.share["running"]
 
-# TODO: Refactor this method into "service.py"
+# TODO: Refactor this method into "process.py" or maybe "service.py"
     def run(self, mqtt_connection_required=True):
         self.share["running"] = True
         try:

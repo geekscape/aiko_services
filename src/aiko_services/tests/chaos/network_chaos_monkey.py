@@ -30,6 +30,11 @@
 # ./network_chaos_monkey.py stop
 #
 # mosquitto_sub -h 127.0.0.1 -p 9883 -t test -V mqttv311 -v -d
+#
+# To Do
+# ~~~~~
+# - Implement as an Actor, which directly uses the MQTT backend port
+# - "aiko/service/network_chaos_monkey" bootstrap in case Registar unavailable ?
 
 import argparse
 import asyncio

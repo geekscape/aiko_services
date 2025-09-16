@@ -76,6 +76,7 @@ if is_robot():
 
 import aiko_services as aiko
 from aiko_services.main import *
+from aiko_services.main.utilities import get_namespace
 
 _VERSION = 0
 
