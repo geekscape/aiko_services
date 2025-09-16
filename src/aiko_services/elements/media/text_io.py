@@ -13,7 +13,7 @@
 # aiko_pipeline create pipelines/text_pipeline_0.json -s 1  \
 #     -p TextWriteFile.path "file://data_out/out_{:02d}.txt"
 #
-# aiko_pipeline create pipelines/text_pipeline_0.json -s 1           \
+# aiko_pipeline create pipelines/text_pipeline_0.json -s 1 \
 #   -p TextReadFile.data_sources file://data_in/in_00.txt  \
 #   -p TextTransform.transform titlecase                   \
 #   -p TextWriteFile.data_targets file://data_out/out_00.txt

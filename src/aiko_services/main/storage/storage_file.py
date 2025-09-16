@@ -12,9 +12,11 @@
 #
 # To Do
 # ~~~~~
-# - Rename "StorageImpl" to "StorageFile"
+# - Rename "StorageImpl" to "StorageFileImpl"
 #
 # - Consider GraphQL over MQTT !
+#
+# - Consider implementations: file-system, Git, Knowledge Graph, MQTT, SQLite ?
 
 from abc import abstractmethod
 import click
@@ -90,6 +92,12 @@ def test_command(argument):
 def test_request(request):
     def response_handler(response):
         print(f"Storage response: {response}")
+
+##########################################################
+### TODO: FIX: UPDATE TO LATEST DISCOVERY DO_REQUEST() ###
+##########################################################
+### TODO: IMPROVE TO BE AN ACTOR, LIKE PROCESS_MANAGER ###
+##########################################################
 
     do_request(Storage, ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
         lambda storage: storage.test_request(_RESPONSE_TOPIC, request),
