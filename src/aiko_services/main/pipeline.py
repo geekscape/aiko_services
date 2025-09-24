@@ -1128,8 +1128,8 @@ class PipelineImpl(Pipeline):
         PARAMETERS_FIELD = "parameters"
         header = f"Error: Parsing PipelineDefinition: {pipeline_definition_pathname}"
         try:
-            pipeline_definition_dict = json.load(
-                open(pipeline_definition_pathname, "r"))
+            with open(pipeline_definition_pathname, "r") as f:
+                pipeline_definition_dict = json.load(f)
             PipelineDefinitionSchema.validate(pipeline_definition_dict)
         except ValueError as value_error:
             PipelineImpl._exit(header, value_error)
