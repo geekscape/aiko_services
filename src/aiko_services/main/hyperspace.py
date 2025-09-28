@@ -10,9 +10,11 @@
 #
 # Usage: Distributed Actor
 # ~~~~~~~~~~~~~~~~~~~~~~~~
+# Can use either "aiko_hyperspace" (preferred) or "./hyperspace.py"
+#
 #   export HYPERSPACE_RANDOM_HASH=false    # use incrementing hash value
 #
-#   ./hyperspace.py run     [storage_url]  # file, in-memory, sqlite, mqtt
+#   ./hyperspace.py run     [storage_url]  # file in-memory sqlite mqtt valkey
 #   ./hyperspace.py dump
 #   ./hyperspace.py exit
 #
@@ -52,6 +54,8 @@
 #   - Move HyperSpace file-system based implementation into StorageFile ?
 #   - HyperSpace: create(): Category with different HyperSpace root ?
 #   - Storage:    create(): Category or Dependency (Definition and Contents)
+#
+# * HyperSpace/Registrar(Category): Filters(Code), Order(Sort), Pagination
 #
 # - Implement "aiko_hyperspace repl" for interactive CRUD, etc
 #
@@ -129,11 +133,12 @@ ACTOR_TYPE = "hyperspace"
 VERSION = 0
 PROTOCOL = f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE}:{VERSION}"
 
+_CWD_URL = "file://./"  # relative URL for the current working directory
 _HASH_LENGTH = 12  # 6 bytes = 12 hex digits
 _PATH_DELIMITER = "/"
 _RESPONSE_TOPIC = f"{aiko.topic_in}"
 _ROOT_FILENAME = ".root"
-_STORAGE_FILENAME = "storage"
+_STORAGE_FILENAME = "_hyperspace_"  # TODO: Rename to "_HYPERSPACE_FILENAME"
 _TRACKED_PATHNAME = f"{_STORAGE_FILENAME}/tracked_paths"
 _HASH_PATHNAME = f"{_STORAGE_FILENAME}/hash_counter"
 
@@ -158,6 +163,16 @@ class HyperSpace(Category, Actor):
 # --------------------------------------------------------------------------- #
 
 class HyperSpaceImpl(HyperSpace):
+    @classmethod
+    def create_hyperspace(cls, hyperspace_name=None,
+        storage_url=_CWD_URL, protocol=PROTOCOL, tags=None, transport=None):
+
+        tags = list(tags) + ["ec=true"]
+        init_args = actor_args(
+            hyperspace_name, None, None, protocol, tags, transport)
+        init_args["storage_url"] = storage_url
+        return compose_instance(HyperSpaceImpl, init_args)
+
     def __init__(self, context, storage_url):
         context.call_init(self, "Actor", context)
         context.call_init(self, "Category", context)
@@ -275,7 +290,11 @@ class HyperSpaceImpl(HyperSpace):
             return True
         return self.category.is_type(self, type_name)
 
-    def list(self, topic_path_response, entry_path=None, recursive=False):
+    def list(self, topic_path_response, entry_path=None,
+        long_format=False, recursive=False):
+
+        if not isinstance(long_format, bool):
+            long_format = long_format.lower() in ("true", "t")
         if not isinstance(recursive, bool):
             recursive = recursive.lower() in ("true", "t")
 
@@ -297,7 +316,8 @@ class HyperSpaceImpl(HyperSpace):
 
         entry_records = []
         get_entry_records(entry_records, category, None, 0)
-        category._list_publish(topic_path_response, entry_records)
+        CategoryImpl._list_publish(
+            topic_path_response, entry_records, long_format)
 
 # TODO: Categories destroy() versus Dependencies remove() ?  Check protocol ?
 
@@ -493,33 +513,34 @@ def _ls(path, long_format=False, entry_count=False, recursive=False):
         return sum(1 for f in target_path.rglob("*")  \
                       if f.is_file() and f.stat().st_size > 0)
 
-    def _list_links(current, indent=""):
-        for directory_entry in sorted(Path(current).iterdir()):
-            if not directory_entry.is_symlink():
-                continue
-            entry_name = directory_entry.name
-            if entry_name.startswith("."):  # Skip hidden directory entries
-                continue
-            hash = _get_hash_path(directory_entry)
-            if directory_entry.is_dir():
-                if long_format:
-                    print(f"{hash}  {indent}{entry_name}/", end="")
+    def _list_links(path, indent=""):
+        if path.is_dir():
+            for directory_entry in sorted(Path(path).iterdir()):
+                if not directory_entry.is_symlink():
+                    continue
+                entry_name = directory_entry.name
+                if entry_name.startswith("."):  # Skip hidden directory entries
+                    continue
+                hash = _get_hash_path(directory_entry)
+                if directory_entry.is_dir():
+                    if long_format:
+                        print(f"{hash}  {indent}{entry_name}/", end="")
+                    else:
+                        print(f"{indent}{entry_name}/", end="")
+                    if entry_count:
+                        count = _file_count(directory_entry)
+                        if count > 0:
+                            print(f" ({count})", end="")
+                    print()
+                    if recursive and not entry_name.startswith("."):
+                        _list_links(directory_entry, indent + "  ")
                 else:
-                    print(f"{indent}{entry_name}/", end="")
-                if entry_count:
-                    count = _file_count(directory_entry)
-                    if count > 0:
-                        print(f" ({count})", end="")
-                print()
-                if recursive and not entry_name.startswith("."):
-                    _list_links(directory_entry, indent + "  ")
-            else:
-                if long_format:
-                    print(f"{hash}  {indent}{entry_name}")
-                else:
-                    print(f"{indent}{entry_name}")
+                    if long_format:
+                        print(f"{hash}  {indent}{entry_name}")
+                    else:
+                        print(f"{indent}{entry_name}")
 
-    _list_links(path)
+    _list_links(Path(path))
 
 # Create a Dependency (file)
 #
@@ -617,10 +638,10 @@ def main():
     """Create, Read/List, Update and Destroy HyperSpace"""
 
     subcommand = click.get_current_context().invoked_subcommand
-    subcommands_which_run_anywhere = ["add", "create", "destroy",
+    subcommands_which_work_anywhere = ["add", "create", "destroy",
         "dump", "exit", "initialize", "list", "remove", "update"]
 
-    if subcommand not in subcommands_which_run_anywhere:
+    if subcommand not in subcommands_which_work_anywhere:
         diagnostic = None
         try:
             _check_root_symlink()
@@ -920,12 +941,8 @@ def run_command(storage_url, hyperspace_name, protocol, transport, tags):
     """
 
     hyperspace_name = hyperspace_name if hyperspace_name else get_hostname()
-
-    tags = list(tags) + ["ec=true"]
-    init_args = actor_args(
-        hyperspace_name, None, None, protocol, tags, transport)
-    init_args["storage_url"] = storage_url
-    hyperspace = compose_instance(HyperSpaceImpl, init_args)
+    hyperspace = HyperSpaceImpl.create_hyperspace(
+        hyperspace_name, storage_url, protocol, tags, transport)
     aiko.process.run()
 
 @main.command(name="update", no_args_is_help=True)

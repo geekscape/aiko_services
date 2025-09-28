@@ -6,27 +6,27 @@
 #
 # Usage
 # ~~~~~
-# ./process_manager.py run  [--name name] [--watchdog] [definition_pathname]
-# ./process_manager.py dump [--name name]
-# ./process_manager.py exit [--name name] [--grace_time seconds]
+# aiko_process run  [--name name] [--watchdog] [definition_pathname]
+# aiko_process dump [--name name]
+# aiko_process exit [--name name] [--grace_time seconds]
 #
-# ./process_manager.py create  [--name name] [--uid uid] command [arguments ...]
-# ./process_manager.py list    [--name name] [uid]
-# ./process_manager.py destroy [--name name] [--kill] uid
+# aiko_process create  [--name name] [--uid uid] command [arguments ...]
+# aiko_process list    [--name name] [uid]
+# aiko_process destroy [--name name] [--kill] uid
 #
-# ./process_manager.py enable | disable | start | status | stop hyperspace_path
+# aiko_process enable | disable | start | status | stop hyperspace_path
 #
 # Shell and Python scripts
 # ~~~~~~~~~~~~~~~~~~~~~~~~
-# aiko_process create uid:0 date
-# aiko_process create uid:1 sleep 5
-# aiko_process create uid:2 aiko_process exit -gt 0  # self terminate !
+# aiko_process create -u uid:0 date
+# aiko_process create -u uid:1 sleep 5
+# aiko_process create -u uid:2 aiko_process exit -gt 0  # self terminate !
 #
 # Simultaneous processes terminating at different times
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# aiko_process create uid:0 /bin/sh -c "echo Start A; sleep 10; echo Stop A"
-# aiko_process create uid:0 /bin/sh -c "echo Start B; sleep 15; echo Stop B"
-# aiko_process create uid:0 /bin/sh -c "echo Start C; sleep  5; echo Stop C"
+# aiko_process create -u uid:0 /bin/sh -c "echo Start A; sleep 10; echo Stop A"
+# aiko_process create -u uid:1 /bin/sh -c "echo Start B; sleep 15; echo Stop B"
+# aiko_process create -u uid:2 /bin/sh -c "echo Start C; sleep  5; echo Stop C"
 #
 # Design notes
 # ~~~~~~~~~~~~
@@ -39,7 +39,7 @@
 # To Do
 # ~~~~~
 # * ProcessManager as-a LifeCycleManager as-a Category
-#   * Design and use HyperSpace API and Storage SPI (file, SQL, MQTT ?)
+#   * Design and use HyperSpace API and Storage SPI (file, SQL, MQTT, ValKey ?)
 #
 # * CLI commands: CRUD Services in HyperSpace/Storage filesystem structure
 #   - Process LifeCycle: create, enable, start, status, stop, disable, destroy
@@ -55,6 +55,7 @@
 # * Handle process standard output and standard error
 # * Relaunch failed processes, but don't retry continuously failing processes
 # * Auto-scaling workers up/down: same host, distributed ?
+# * Schedule (crontab) automated modification of the process lifecycle state
 #
 # * Implement process "owner" field and populate automatically
 #   * Implement "destroy --force" flag to destroy other owner's processes

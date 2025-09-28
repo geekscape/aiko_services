@@ -81,7 +81,8 @@ class Category(Actor, Dependency):
         pass
 
     @abstractmethod
-    def list(self, topic_path_response, entry_name=None, recursive=False):
+    def list(self, topic_path_response, entry_name=None,
+        long_format=False, recursive=False):
         pass
 
     @abstractmethod
@@ -145,30 +146,18 @@ class CategoryImpl(Category):
 
 # Note: "recursive" only needed for HyperSpace, not Category, ignore it here
 
-    def list(self, topic_path_response, entry_name=None, recursive=False):
+    def list(self, topic_path_response, entry_name=None,
+        long_format=False, recursive=False):
+
         entry_records = self._get_entry_records(entry_name)
-        self._list_publish(topic_path_response, entry_records)
-
-    def _list_publish(self, topic_path_response, entry_records):
-        aiko.message.publish(
-            topic_path_response, f"(item_count {len(entry_records)})")
-        for entry_record in entry_records:
-            aiko.message.publish(
-                topic_path_response, f"(response {entry_record})")
-
-    def remove(self, entry_name):
-        if entry_name in self.entries:
-            del self.entries[entry_name]
-            self.ec_producer.update("entries", len(self.entries))
-
-    def __repr__(self):
-        return self.dependency.__repr__(self)
+        CategoryImpl._list_publish(
+            topic_path_response, entry_records, long_format)
 
     @classmethod
     def list_command(cls,
         actor_name, entry_name, long_format, recursive, protocol):
 
-        # TODO: Turn this into @dataclass(es)
+        # TODO: Turn the "response" into @dataclass(es)
         # Record types: A) new child Category, B) current Catefory Entry
         # A) record[0]: -indent [1]: category_name
         # B) record[0]:  indent [1]: entry_name, [2] ServiceFilter LCM Storage
@@ -177,50 +166,76 @@ class CategoryImpl(Category):
         # class StorageFile:      see src/aiko_services/main/storage.py
 
         def response_handler(response):
-            if len(response):
-                if long_format:
-                    output =  "Name: (Service) LifeCycleManager, Storage\n"
-                    output += "      (Topic Name Protocol Transport Owner Tags)"
-                else:
-                    output = "Name: Protocol Owner"
-
-                for record in response:
-                    indent = int(record[0]) * 2     # Category depth formatting
-                    if indent < 0:                  # new child Category
-                        indent = -indent
-                        output += f"\n\n{' '*indent}{record[1]}/"
-                    else:                           # current Category Entry
-                        entry_name = record[1]
-                        if record[2][0]:
-                            service_filter = ServiceFilter(*record[2][0])
-                            protocol = service_filter.protocol
-                            after_slash = protocol.rfind("/") + 1
-                            service_filter.protocol = protocol[after_slash:]
-                        else:
-                            service_filter = ServiceFilter()
-                        if long_format:
-                            lifecycle_manager_url = record[2][1]
-                            storage_url = record[2][2]
-                            output += f"\n{' '*indent}  {entry_name}: "  \
-                                      f"{service_filter} "  \
-                                      f"{lifecycle_manager_url}, "  \
-                                      f"{storage_url}"
-                        else:
-                            name = service_filter.name
-                            if name is None or  \
-                                name == "*" or name == entry_name:
-                                name = ""
-                                output += f"\n{' '*indent}  {entry_name}: "  \
-                                          f"{service_filter.protocol} "  \
-                                          f"{service_filter.owner}  {name}"
-            else:
-                output = "No category entries"
-            print(output)
+            CategoryImpl._list_print(response, long_format)
 
         do_request(Category,
             ServiceFilter(name=actor_name, protocol=protocol),
-            lambda actor: actor.list(_RESPONSE_TOPIC, entry_name, recursive),
+            lambda actor: actor.list(
+                _RESPONSE_TOPIC, entry_name, long_format, recursive),
             response_handler, _RESPONSE_TOPIC, terminate=True)
+
+    @classmethod
+    def _list_print(cls, entry_records, long_format):
+        if len(entry_records):
+            if long_format:
+                output =  "Name: (Service)   LifeCycleManager, Storage\n"
+                output += "      (Topic Name Protocol Transport Owner Tags)"
+            else:
+                output = "Name: Protocol Owner"
+
+            for record in entry_records:
+                indent = int(record[0]) * 2     # Category depth formatting
+                if indent < 0:                  # new child Category
+                    indent = -indent
+                    output += f"\n\n{' '*indent}{record[1]}/"
+                else:                           # current Category Entry
+                    entry_name = record[1]
+                    if record[2][0]:
+                        service_filter = ServiceFilter(*record[2][0])
+                        protocol = service_filter.protocol
+                        after_slash = protocol.rfind("/") + 1
+                        service_filter.protocol = protocol[after_slash:]
+                    else:
+                        service_filter = ServiceFilter()
+                    if long_format:
+                        lifecycle_manager_url = record[2][1]
+                        storage_url = record[2][2]
+                        output += f"\n{' '*indent}  {entry_name}: "  \
+                                  f"{service_filter} "  \
+                                  f"{lifecycle_manager_url}, "  \
+                                  f"{storage_url}"
+                    else:
+                        name = service_filter.name
+                        if name is None or  \
+                            name == "*" or name == entry_name:
+                            name = ""
+                            output += f"\n{' '*indent}  {entry_name}: "  \
+                                      f"{service_filter.protocol} "  \
+                                      f"{service_filter.owner}  {name}"
+        else:
+            output = "No category entries"
+        print(output)
+
+    @classmethod
+    def _list_publish(cls,
+        topic_path_response, entry_records, long_format=False):
+
+        if topic_path_response:
+            aiko.message.publish(
+                topic_path_response, f"(item_count {len(entry_records)})")
+            for entry_record in entry_records:
+                aiko.message.publish(
+                    topic_path_response, f"(response {entry_record})")
+        else:
+            CategoryImpl._list_print(entry_records, long_format)
+
+    def remove(self, entry_name):
+        if entry_name in self.entries:
+            del self.entries[entry_name]
+            self.ec_producer.update("entries", len(self.entries))
+
+    def __repr__(self):
+        return self.dependency.__repr__(self)
 
     def update(self, entry_name, service=None,
         service_filter=None, lifecycle_manager_url=None, storage_url=None):
@@ -335,7 +350,7 @@ def list_command(category_name, entry_name, long_format):
     """
 
     CategoryImpl.list_command(
-        category_name, entry_name, long_format, CATEGORY_PROTOCOL)
+        category_name, entry_name, long_format, False, CATEGORY_PROTOCOL)
     aiko.process.run()
 
 @main.command(name="remove", no_args_is_help=True)

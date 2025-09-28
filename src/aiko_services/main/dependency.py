@@ -26,6 +26,8 @@
 #
 # To Do
 # ~~~~~
+# * Implement @classmethod "create_dependency()" ... see "create_hyperspace()"
+#
 # * Consider Dependency.update() same as Category.update() for "service_filter"
 #
 # * Consider use of ServiceFields rather than ServiceFilter ?

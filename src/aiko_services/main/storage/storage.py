@@ -1,0 +1,61 @@
+# Aiko Services: Storage SPI
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+# To Do
+# ~~~~~
+# - Complete Interface method signatures using "from typing"
+
+from abc import abstractmethod
+
+from aiko_services.main import Actor, Interface
+
+__all__ = ["Storage"]
+
+# --------------------------------------------------------------------------- #
+
+class Storage(Actor):
+    Interface.default("Storage",
+        "aiko_services.main.storage.storage_file.StorageFileImpl")
+
+    @abstractmethod
+    def add(self, entry_name, dependency=None):
+        pass
+
+    @abstractmethod
+    def create(self, category_path):
+        pass
+
+    @abstractmethod
+    def destroy(self, category_path):
+        pass
+
+    @abstractmethod
+    def dump(self):
+        pass
+
+    @abstractmethod
+    def exit(self):
+        pass
+
+    @abstractmethod
+    def initialize(self, storage_url):
+        pass
+
+    @abstractmethod
+    def list(self, topic_path_response, entry_name=None, recursive=False):
+        pass
+
+    @abstractmethod
+    def link(self, entry_path_new, entry_path_existing):
+        pass
+
+    @abstractmethod
+    def remove(self, entry_name):
+        pass
+
+    @abstractmethod
+    def update(self, entry_name, service=None,
+        service_filter=None, lifecycle_manager_url=None, storage_url=None):
+        pass
+
+# --------------------------------------------------------------------------- #

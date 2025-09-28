@@ -43,6 +43,8 @@
 #
 # To Do
 # ~~~~~
+# * AI REPL --> LISP/Ollama --> Aiko Services analysis logs and MQTT messages
+#
 # * BUG: Dashboard doesn't display variables that contain whitespace !
 #        Variable doesn't appear at all :(
 #
