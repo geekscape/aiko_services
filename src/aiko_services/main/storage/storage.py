@@ -46,11 +46,11 @@ class Storage(Actor):
         pass
 
     @abstractmethod
-    def list(self, topic_path_response, entry_name=None, recursive=False):
+    def link(self, entry_path_new, entry_path_existing):
         pass
 
     @abstractmethod
-    def link(self, entry_path_new, entry_path_existing):
+    def list(self, topic_path_response, entry_name=None, recursive=False):
         pass
 
     @abstractmethod

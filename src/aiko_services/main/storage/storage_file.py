@@ -45,7 +45,16 @@
 # * Implement store and load for Dependency, LifeCycleManagerURL and StorageURL
 #   * LifeCycleManager, HyperSpace(LCM) and ProcessManager(LCM) use these values
 #
+# * Validate StorageFile structure
+#   * Checks "_storage_/tracked_paths" is correct (using predictable UIDs)
+#   * Checks file-system ensuring everything linked together properly
+#   * Checks file-system ensuring that soft-links aren't "dead"
+#   * Checks that file contents are correct (using predicatable data)
+#   * Checks that directory contents are correct
+#   * Checks file-system against a known good "backed-up" copy
+#
 # * Carefully work through the semantics of add, create, destroy and remove !
+#   * Consider current "_storage_/tracked_paths" versus reference counting ?
 #
 # * Implement "update" subcommand
 # * Implement "aiko_storage_file list -c"   Category entry count
@@ -56,6 +65,9 @@
 #   * "rm -rf _hyperspace_ .root"
 #
 # * HyperSpace/StorageFile uses FileSystemEventPatternMatch in "scheme_file.py"
+# * ProcessManager bootstraps (read only) by directly using Python functions
+#   * Implement HyperSpace(Actor) CRUD API ... used by ProcessManager bootstrap
+#     * File-system listener --> event
 #
 # - Consider database-based and ValKey(Redis distributed) implementation(s)
 #     import sqlite3
