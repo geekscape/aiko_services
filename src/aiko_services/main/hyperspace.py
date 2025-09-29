@@ -8,45 +8,45 @@
 # Entries can be either a Category or a Dependency
 # Category paths support a tree-like structure "category_a/category_b/entry_c"
 #
-# Usage: Distributed Actor
-# ~~~~~~~~~~~~~~~~~~~~~~~~
 # Can use either "aiko_hyperspace" (preferred) or "./hyperspace.py"
 #
-#   export HYPERSPACE_RANDOM_HASH=false    # use incrementing hash value
+# Usage: Distributed Actor
+# ~~~~~~~~~~~~~~~~~~~~~~~~
+# export HYPERSPACE_RANDOM_HASH=false    # use incrementing hash value
 #
-#   ./hyperspace.py run     [storage_url]  # file in-memory sqlite mqtt valkey
-#   ./hyperspace.py dump
-#   ./hyperspace.py exit
+# ./hyperspace.py run     [storage_url]  # file in-memory sqlite mqtt valkey
+# ./hyperspace.py dump
+# ./hyperspace.py exit
 #
-#   ./hyperspace.py add     ENTRY_PATH
-#   ./hyperspace.py create  CATEGORY_PATH
-#   ./hyperspace.py destroy CATEGORY_PATH
-#   ./hyperspace.py link    ENTRY_PATH_NEW ENTRY_PATH_EXIST    # TODO: "link"
-#   ./hyperspace.py list    [ENTRY_PATH] [--long_format | -l] [--recursive | -r]
-#   ./hyperspace.py remove  ENTRY_PATH_EXIST                   # TODO: "unlink"
-#   ./hyperspace.py update  ENTRY_PATH -p protocol -t key_0=value_0
+# ./hyperspace.py add     ENTRY_PATH
+# ./hyperspace.py create  CATEGORY_PATH
+# ./hyperspace.py destroy CATEGORY_PATH
+# ./hyperspace.py link    ENTRY_PATH_NEW ENTRY_PATH_EXIST    # TODO: "link"
+# ./hyperspace.py list    [ENTRY_PATH] [--long_format | -l] [--recursive | -r]
+# ./hyperspace.py remove  ENTRY_PATH_EXIST                   # TODO: "unlink"
+# ./hyperspace.py update  ENTRY_PATH -p protocol -t key_0=value_0
 #
-# Usage: Bootstrap
-# ~~~~~~~~~~~~~~~~
-#   export HYPERSPACE_RANDOM_HASH=false  # use incrementing hash value
+# Usage: Bootstrap [--bootstrap] or [-b]
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# export HYPERSPACE_RANDOM_HASH=false  # use incrementing hash value
 #
-#   ./hyperspace.py initialize
-#   ./hyperspace.py ln      new_link entry        # dependency | category
-#   ./hyperspace.py ls      [-l] [-n] [-r] [path]
-#   ./hyperspace.py mk      dependency            # dependency
-#   ./hyperspace.py mkdir   category              # category only
-#   ./hyperspace.py rm      entry                 # dependency | category
-#   ./hyperspace.py storage [-s]
+# ./hyperspace.py initialize
+# ./hyperspace.py ln      new_link entry        # dependency | category
+# ./hyperspace.py ls      [-l] [-n] [-r] [path]
+# ./hyperspace.py mk      dependency            # dependency
+# ./hyperspace.py mkdir   category              # category only
+# ./hyperspace.py rm      entry                 # dependency | category
+# ./hyperspace.py storage [-s]
 #
 # Functions
 # ~~~~~~~~~
-#   _initialize()
-#   _ln(link_path, target_path)
-#   _ls(path, long_format, dependency_count, recursive))
-#   _mk(name)
-#   _mkdir(name)
-#   _rm(name)
-#   _storage(sort_by_name)
+# _initialize()
+# _ln(link_path, target_path)
+# _ls(path, long_format, dependency_count, recursive))
+# _mk(name)
+# _mkdir(name)
+# _rm(name)
+# _storage(sort_by_name)
 #
 # To Do
 # ~~~~~

@@ -4,6 +4,10 @@
 # To Do
 # ~~~~~
 # - Complete Interface method signatures using "from typing"
+#
+# - Consider "dependency_name" --> "dependency_path"
+# - Consider "category_name" --> "category_path"
+# - Consider "entry_name" --> "entry_path"
 
 from abc import abstractmethod
 
@@ -18,19 +22,19 @@ class Storage(Actor):
         "aiko_services.main.storage.storage_file.StorageFileImpl")
 
     @abstractmethod
-    def add(self, entry_name, dependency=None):
+    def add(self, dependency_name, dependency=None):
         pass
 
     @abstractmethod
-    def create(self, category_path):
+    def create(self, category_name):
         pass
 
     @abstractmethod
-    def destroy(self, category_path):
+    def destroy(self, entry_name):     # Entry is either Category or Dependency
         pass
 
     @abstractmethod
-    def dump(self):
+    def dump(self, sort_by_name):
         pass
 
     @abstractmethod
@@ -50,7 +54,7 @@ class Storage(Actor):
         pass
 
     @abstractmethod
-    def remove(self, entry_name):
+    def remove(self, entry_name):      # Entry is either Category or Dependency
         pass
 
     @abstractmethod
