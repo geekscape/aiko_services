@@ -50,7 +50,8 @@ class Storage(Actor):
         pass
 
     @abstractmethod
-    def list(self, topic_path_response, entry_name=None, recursive=False):
+    def list(self, topic_path_response, entry_name=None,
+        long_format=False, recursive=False, entry_records=None):
         pass
 
     @abstractmethod

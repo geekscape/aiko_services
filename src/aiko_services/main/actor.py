@@ -212,8 +212,9 @@ class ActorImpl(Actor):
         actual_object._post_message(
             topic, command, args, target_function=actual_function)
 
-    def __init__(self, context):
-        context.call_init(self, "Service", context)
+    def __init__(self, context, register_service=True):
+        context.call_init(self, "Service", context,
+            register_service=register_service)
 
         if not hasattr(self, "logger"):
             self.logger = aiko.logger(context.name)

@@ -22,6 +22,7 @@
 # To Do
 # ~~~~~
 # * FIX: "service_args()" to include "owner" --> "hyperspace.py:run_command()"
+# * FIX" "service_args()" to include "register_service" --> "storage_file.py"
 #
 # - Provide get_parameter() and set_parameter() (using existing code) ?
 #
