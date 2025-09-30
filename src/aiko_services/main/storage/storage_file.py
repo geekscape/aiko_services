@@ -45,6 +45,8 @@
 # * Implement store and load for Dependency, LifeCycleManagerURL and StorageURL
 #   * LifeCycleManager, HyperSpace(LCM) and ProcessManager(LCM) use these values
 #
+# - Implement "aiko_storage_file repl" for interactive CRUD, etc
+#
 # * Validate StorageFile structure
 #   * Checks "_storage_/tracked_paths" is correct (using predictable UIDs)
 #   * Checks file-system ensuring everything linked together properly
@@ -107,14 +109,18 @@ _UID_PATHNAME = f"{_STORAGE_FILENAME}/uid_counter"
 
 class StorageFileImpl(Storage):
     @classmethod
-    def create_storage(cls, storage_name, storage_url=_CWD_URL):
+    def create_storage(cls, storage_name, storage_url=_CWD_URL,
+        register_service=True):
+
         tags = ["ec=true"]
-        init_args = actor_args(storage_name, protocol=PROTOCOL, tags=tags)
+        init_args = actor_args(name=storage_name, protocol=PROTOCOL, tags=tags)
+        init_args["register_service"] = register_service
         init_args["storage_url"] = storage_url
         return compose_instance(StorageFileImpl, init_args)
 
-    def __init__(self, context, storage_url):
-        context.call_init(self, "Actor", context)
+    def __init__(self, context, storage_url=None, register_service=True):
+        context.call_init(self, "Actor", context,
+            register_service=register_service)
 
         self.share.update({                                # Inherit from Actor
             "source_file": f"v{_VERSION}⇒ {__file__}",
@@ -172,6 +178,10 @@ class StorageFileImpl(Storage):
             Path(category_name).symlink_to(f"{_ROOT_FILENAME}/{path}")
         except FileExistsError:
             print(f'Error: "{category_name}" already exists', file=sys.stderr)
+            return 1
+        except FileNotFoundError:
+            print(f'Error: "{category_name}" symbolic_link target not found',
+            file=sys.stderr)
             return 1
         self._track_path(path)
 
@@ -323,7 +333,7 @@ class StorageFileImpl(Storage):
     #       service_filter=None, lifecycle_manager_url=None, storage_url=None
 
     def list(self, topic_path_response, entry_path=None,
-        long_format=False, recursive=False):
+        long_format=False, recursive=False, entry_records=None):
 
         if not isinstance(long_format, bool):
             long_format = long_format.lower() in ("true", "t")
@@ -384,7 +394,7 @@ class StorageFileImpl(Storage):
             #       if count > 0:
             #           entry_records.append(f" ({count})")
                 if recursive:
-                    _get_entry_records(entry_records, entry.name, level+1)
+                    _get_entry_records(entry_records, entry, level+1)
 
         def _traverse_entries(entry_records, entry_path, level, entry_handler):
             path = Path(entry_path)
@@ -394,11 +404,14 @@ class StorageFileImpl(Storage):
                         entry_handler(entry_records, entry, level)
 
         entry_path = entry_path if entry_path else "."
-        entry_records = []
-    #   _get_entry_records(entry_records, category, None, 0)  # TODO: Later ?
-        _get_entry_records(entry_records, entry_path)
-        CategoryImpl._list_publish(
-            topic_path_response, entry_records, long_format)
+        _entry_records = []
+    #   _get_entry_records(_entry_records, category, None, 0)  # TODO: Later ?
+        _get_entry_records(_entry_records, entry_path)
+        if entry_records is None:
+            CategoryImpl._list_publish(
+                topic_path_response, _entry_records, long_format)
+        else:
+            entry_records += _entry_records
 
     # Remove Category (directory) or Dependency (file)
     #
@@ -728,7 +741,7 @@ def list_command(entry_path, bootstrap, storage_name, long_format, recursive):
     if bootstrap:
         storage_url = None                 # TODO: Implement "storage_url" ?
         storage = StorageFileImpl.create_storage("<no_name>", storage_url)
-        storage.list(None, entry_path, long_format, recursive)
+        storage.list(None, entry_path, long_format, recursive, None)
     else:
         CategoryImpl.list_command(
             storage_name, entry_path, long_format, recursive, PROTOCOL)

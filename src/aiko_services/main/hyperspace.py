@@ -35,12 +35,12 @@
 # To Do
 # ~~~~~
 # - Separate the design and implementation of HyperSpace and Storage
-#   - Move HyperSpace file-system based implementation into StorageFile ?
 #   - HyperSpace: create(): Category with different HyperSpace root ?
 #   - Storage:    create(): Category or Dependency (Definition and Contents)
 #
 # * HyperSpace/Registrar(Category): Filters(Code), Order(Sort), Pagination
 #
+# - Implement "aiko_hyperspace run --register_storage_service" optional flag
 # - Implement "aiko_hyperspace repl" for interactive CRUD, etc
 #
 # * FIX: Consolidate service.py:ServiceFilter into ServiceFields (and use this)
@@ -57,7 +57,7 @@
 #
 # * aiko_hyperspace export output_filename.hyperspace --> hyperspace commands
 #
-# * Validate hyperspace structure
+# * Validate HyperSpace structure, see StorageFile structure validation
 #
 # * Registrar(Actor) requires Category plus implement "(update)" for all fields
 #
@@ -135,7 +135,7 @@ class HyperSpaceImpl(HyperSpace):
         init_args["storage_url"] = storage_url
         return compose_instance(HyperSpaceImpl, init_args)
 
-    def __init__(self, context, storage_url):
+    def __init__(self, context, storage_url=_CWD_URL):
         context.call_init(self, "Actor", context)
         context.call_init(self, "Category", context)
 
@@ -153,12 +153,7 @@ class HyperSpaceImpl(HyperSpace):
         self.ec_producer = ECProducer(self, self.share)
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
-    #   self.thread = Thread(target=self._run, daemon=True, name=_THREAD_NAME)
-    #   self.thread.start()                           # TODO: Use ThreadManager
-
-    #   if not storage_url:
-    #       storage_url = PATHNAME_OF_CURRENT_WORKING_DIRECTORY
-    #   self._load_hyperspace(storage_url)
+        self._hyperspace_load(storage_url)
 
     def _category_path_iterator(self, category_path, delimiter=_PATH_DELIMITER):
         for name in category_path.split(delimiter):
@@ -180,8 +175,13 @@ class HyperSpaceImpl(HyperSpace):
                 return None, None
         return current_category, basename
 
+    # Default outcome is to use StorageFile to persist the new Dependency.
+    # "_hyperspace_load()" only needs to create the in-memory representation
+    # from Storage persistence, hence "use_storage=False"
+
     def add(self, entry_path,
-        service_filter, lifecycle_manager_url=None, storage_url=None):
+        service_filter, lifecycle_manager_url=None, storage_url=None,
+        use_storage=True):
 
         category, entry_name = self._category_traverse(entry_path)
         if category:
@@ -191,8 +191,17 @@ class HyperSpaceImpl(HyperSpace):
                 service_filter.name = entry_name
             self.category.add(category, entry_name,
                 service_filter, lifecycle_manager_url, storage_url)
+            dependency = compose_instance(DependencyImpl, dependency_args(
+                None, service_filter, lifecycle_manager_url, storage_url))
 
-    def create(self, category_path):
+            if use_storage:
+                self.storage.add(entry_name, dependency)
+
+    # Default outcome is to use StorageFile to persist the new Category.
+    # "_hyperspace_load()" only needs to create the in-memory representation
+    # from Storage persistence, hence "use_storage=False"
+
+    def create(self, category_path, use_storage=True):
         current_category = self
         category_created = False
         tags = ["ec=true"]
@@ -211,6 +220,10 @@ class HyperSpaceImpl(HyperSpace):
                 category = compose_instance(CategoryImpl, init_args)
                 current_category.entries[category_name] = category
                 category_created = True
+
+                if use_storage:
+                    self.storage.create(str(category_path))
+
             current_category = category
 
         if category_created:
@@ -247,13 +260,45 @@ class HyperSpaceImpl(HyperSpace):
     def exit(self):
         aiko.process.terminate()
 
+    def _hyperspace_load(self, storage_url=_CWD_URL):
+        entry_records = []
+        storage_name = f"{get_hostname()}_hs"
+        storage_url = None                 # TODO: Implement "storage_url" ?
+        self.storage = StorageFileImpl.create_storage(
+            storage_name, storage_url, register_service=False)
+        self.storage.list(None, None, False, True, entry_records)
+
+        metrics = [0, 0]  # [Dependencies, Categories]
+        entry_path = ""
+        for record in entry_records:
+            level = int(record[0])
+            entry_name = record[1]
+            if level < 0:
+                entry_path = entry_name
+            else:
+                if record[2][0]:
+                    service_filter = ServiceFilter(*record[2][0])
+                    is_category = service_filter.protocol == CATEGORY_PROTOCOL
+                else:
+                    service_filter = ServiceFilter(name=entry_name)
+                    is_category = False
+                if entry_path:
+                    entry_name = f"{entry_path}/{entry_name}"
+                if is_category:
+                    self.create(entry_name, use_storage=False)
+                else:
+                    self.add(entry_name,
+                        service_filter, None, None, use_storage=False)
+                metrics[1 if is_category else 0] += 1
+        print(f"Dependencies: {metrics[0]}, Categories: {metrics[1]}")
+
     def is_type(self, type_name):
         if type_name.lower() == "hyperspace":
             return True
         return self.category.is_type(self, type_name)
 
     def list(self, topic_path_response, entry_path=None,
-        long_format=False, recursive=False):
+        long_format=False, recursive=False, entry_records=None):
 
         if not isinstance(long_format, bool):
             long_format = long_format.lower() in ("true", "t")

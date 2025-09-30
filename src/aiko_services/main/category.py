@@ -82,7 +82,7 @@ class Category(Actor, Dependency):
 
     @abstractmethod
     def list(self, topic_path_response, entry_name=None,
-        long_format=False, recursive=False):
+        long_format=False, recursive=False, entry_records=None):
         pass
 
     @abstractmethod
@@ -147,7 +147,7 @@ class CategoryImpl(Category):
 # Note: "recursive" only needed for HyperSpace, not Category, ignore it here
 
     def list(self, topic_path_response, entry_name=None,
-        long_format=False, recursive=False):
+        long_format=False, recursive=False, entry_records=None):
 
         entry_records = self._get_entry_records(entry_name)
         CategoryImpl._list_publish(
@@ -171,49 +171,50 @@ class CategoryImpl(Category):
         do_request(Category,
             ServiceFilter(name=actor_name, protocol=protocol),
             lambda actor: actor.list(
-                _RESPONSE_TOPIC, entry_name, long_format, recursive),
+                _RESPONSE_TOPIC, entry_name, long_format, recursive, None),
             response_handler, _RESPONSE_TOPIC, terminate=True)
 
     @classmethod
     def _list_print(cls, entry_records, long_format):
         if len(entry_records):
             if long_format:
-                output =  "Name: (Service)   LifeCycleManager, Storage\n"
-                output += "      (Topic Name Protocol Transport Owner Tags)"
+                output =  "Name  (ServiceFields)  LifeCycleManager, Storage\n"
+                output += "      (Topic Name  Protocol Transport Owner Tags)"
             else:
-                output = "Name: Protocol Owner"
-
-            for record in entry_records:
-                indent = int(record[0]) * 2     # Category depth formatting
-                if indent < 0:                  # new child Category
-                    indent = -indent
-                    output += f"\n\n{' '*indent}{record[1]}/"
-                else:                           # current Category Entry
-                    entry_name = record[1]
-                    if record[2][0]:
-                        service_filter = ServiceFilter(*record[2][0])
-                        protocol = service_filter.protocol
-                        after_slash = protocol.rfind("/") + 1
-                        service_filter.protocol = protocol[after_slash:]
-                    else:
-                        service_filter = ServiceFilter()
-                    if long_format:
-                        lifecycle_manager_url = record[2][1]
-                        storage_url = record[2][2]
-                        output += f"\n{' '*indent}  {entry_name}: "  \
-                                  f"{service_filter} "  \
-                                  f"{lifecycle_manager_url}, "  \
-                                  f"{storage_url}"
-                    else:
-                        name = service_filter.name
-                        if name is None or  \
-                            name == "*" or name == entry_name:
-                            name = ""
-                            output += f"\n{' '*indent}  {entry_name}: "  \
-                                      f"{service_filter.protocol} "  \
-                                      f"{service_filter.owner}  {name}"
+                output =  "Name  Protocol  Owner"
         else:
             output = "No category entries"
+
+        for record in entry_records:
+            level = int(record[0])
+            if level < 0:                   # new child Category
+                indent = "  " * (abs(level) - 1)
+                output += f"\n\n{indent}{record[1]}/"
+            else:                           # current Category Entry
+                entry_name = record[1]
+                if record[2][0]:
+                    service_filter = ServiceFilter(*record[2][0])
+                    protocol = service_filter.protocol
+                    after_slash = protocol.rfind("/") + 1
+                    service_filter.protocol = protocol[after_slash:]
+                else:
+                    service_filter = ServiceFilter()
+                indent = "  " * level
+                padding = " " * (20 - len(entry_name))
+                if long_format:
+                    lifecycle_manager_url = record[2][1]
+                    storage_url = record[2][2]
+                    output += f"\n{indent}{entry_name} {padding}"  \
+                              f"{service_filter} "  \
+                              f"{lifecycle_manager_url}, "  \
+                              f"{storage_url}"
+                else:
+                    name = service_filter.name
+                    if name is None or name == "*" or name == entry_name:
+                        name = ""
+                        output += f"\n{indent}{entry_name} {padding}"  \
+                                  f"{service_filter.protocol} "  \
+                                  f"{service_filter.owner}  {name}"
         print(output)
 
     @classmethod
