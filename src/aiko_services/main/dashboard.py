@@ -287,6 +287,7 @@ class FrameCommon:
                        " Enter  Update variable value\n"          \
                        " Tab    Move to next section\n"           \
                        " c      Copy topic path to clipboard \n"  \
+                       " f      Filter Service (toggle)\n"        \
                        " l      Log level change\n"               \
                        " s      Select Service (toggle)\n"        \
                        " C      Clear selection\n"                \
@@ -319,6 +320,8 @@ class FrameCommon:
 class DashboardFrame(FrameCommon, asciimatics_Frame):
     dashboard_singleton = None  # Instance reference for ServiceFrames plugins
 
+    FILTER_OUT = set(["category", "pipeline_element"])
+
     @classmethod
     def get_singleton(cls):
         return DashboardFrame.dashboard_singleton
@@ -334,6 +337,7 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
 
         self.ec_consumer = None
         self._ec_consumer_reset()
+        self.filter_out = DashboardFrame.FILTER_OUT.copy()
         self.services_row = -1
         self.selected_service = None
         self.selected_services = {}
@@ -398,6 +402,20 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
         self.service_cache = {}
         self.service_tags = None
 
+    def _filter(self, parent, service, topic_path, protocol):
+        protocol = protocol.split(":")[0]
+        if topic_path.service_id == "1":
+            parent = (topic_path, protocol)
+
+        show = protocol not in self.filter_out
+        if topic_path.service_id != "1":
+            if "sid>1" in self.filter_out:
+                show = False
+            if "pipeline_element" in self.filter_out and  \
+                parent[1] and parent[1] == "pipeline":
+                show = False
+        return parent, show
+
     def _kill_service(self, service):
         topic_path = service[0]
         transport = service[3]
@@ -408,22 +426,6 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
                 command_line = ["kill", kill_signal, process_id]
                 Popen(command_line, bufsize=0, shell=False)
                 self._ec_consumer_set(self.services_row + 1)
-
-    def _service_selection_clear(self):
-        self.selected_services = {}
-
-    def _service_selection_color(self, color, topic_path, topic_path_show):
-        topic_path_colored = topic_path_show
-        if topic_path in self.selected_services:
-            topic_path_colored = self._color_text(color, topic_path_show)
-        return topic_path_colored
-
-    def _service_selection_toggle(self, service):
-        topic_path = service[0]
-        if topic_path in self.selected_services:
-            del self.selected_services[topic_path]
-        else:
-            self.selected_services[topic_path] = service
 
     def _on_change_services(self):
         row = self._services_widget.value
@@ -457,20 +459,75 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
                 popup_dialog.fix()
                 self.scene.add_effect(popup_dialog)
 
+    def process_event(self, event):
+        if isinstance(event, KeyboardEvent):
+            if event.key_code == ord("c") and self.selected_service:
+                pyperclip.copy(self.selected_service[0])
+            if event.key_code == ord("f"):
+                self.scene.add_effect(FilterPopupMenu(self._screen,
+                    self._services_widget))
+            if event.key_code == ord("l") and self.selected_service:
+                self.scene.add_effect(LogLevelPopupMenu(self._screen,
+                    self._services_widget, self.selected_service[0]))
+            if event.key_code == ord("s") and self.selected_service:
+                self._service_selection_toggle(self.selected_service)
+            if event.key_code == ord("C"):
+                self._service_selection_clear()
+            if event.key_code == ord("K") and self.selected_service:
+                self._kill_service(self.selected_service)
+            if event.key_code == ord("L") and self.selected_service:
+                raise NextScene("Log")
+            if event.key_code == ord("S") and self.selected_service:
+                self._raise_next_scene(self.selected_service)
+        self._process_event_common(event)
+        return super(DashboardFrame, self).process_event(event)
+
+    def _raise_next_scene(self, service):
+        service_name = service[1]
+        service_protocol = self._short_name(service[2]).split(":")[0]
+        names = [service_name, service_protocol]
+        scene_name = [name for name in names if name in _PLUGINS]
+
+        if scene_name:
+            raise NextScene(scene_name[0])
+        else:
+            text = f" Service: {service_name} \n Does not have a custom page "
+            self.scene.add_effect(
+                PopUpDialog(self._screen, text, ["OK"], theme="nice"))
+
+    def _service_selection_clear(self):
+        self.selected_services = {}
+
+    def _service_selection_color(self, color, topic_path, topic_path_show):
+        topic_path_colored = topic_path_show
+        if topic_path in self.selected_services:
+            topic_path_colored = self._color_text(color, topic_path_show)
+        return topic_path_colored
+
+    def _service_selection_toggle(self, service):
+        topic_path = service[0]
+        if topic_path in self.selected_services:
+            del self.selected_services[topic_path]
+        else:
+            self.selected_services[topic_path] = service
+
     def _update(self, frame_no):
         if self.adjust_palette_required:
             self._adjust_palette()
 
+        parent = (None, None)
         services_count = self.services_cache.get_services().count   # correct
         services = self.services_cache.get_services().copy()  # count is zero
         services_formatted = []
         for service in services:
             topic_path = aiko.ServiceTopicPath.parse(service[0])
-            topic_path = self._service_selection_color(
+            topic_color = self._service_selection_color(
                 self.YELLOW, str(topic_path), topic_path.terse)
             protocol = self._short_name(service[2])
-            services_formatted.append(
-                (topic_path, service[1], service[4], protocol, service[3]))
+            parent, show = self._filter(parent, service, topic_path, protocol)
+            if show:
+                services_formatted.append(
+                    (topic_color, service[1], service[4], protocol, service[3]))
         self._services_widget.options = [
             (service_info, row_index)
             for row_index, service_info in enumerate(services_formatted)
@@ -502,52 +559,23 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             for row_index, variable in enumerate(variables)
         ]
 
+        parent = (None, None)
         service_history = list(self.services_cache.get_history())
         services_formatted = []
         for service in service_history:
-            topic_path = aiko.ServiceTopicPath.parse(service[0]).terse
+            topic_path = aiko.ServiceTopicPath.parse(service[0])
+            topic_terse = topic_path.terse
             protocol = self._short_name(service[2])
-            services_formatted.append(
-                (topic_path, service[1], service[4], protocol, service[3]))
+            parent, show = self._filter(parent, service, topic_path, protocol)
+            if show:
+                services_formatted.append(
+                    (topic_terse, service[1], service[4], protocol, service[3]))
         self._history_widget.options = [
             (service_info, row_index)
             for row_index, service_info in enumerate(services_formatted)
         ]
 
         super(DashboardFrame, self)._update(frame_no)
-
-    def process_event(self, event):
-        if isinstance(event, KeyboardEvent):
-            if event.key_code == ord("c") and self.selected_service:
-                pyperclip.copy(self.selected_service[0])
-            if event.key_code == ord("l") and self.selected_service:
-                self.scene.add_effect(LogLevelPopupMenu(self._screen,
-                    self._services_widget, self.selected_service[0]))
-            if event.key_code == ord("s") and self.selected_service:
-                self._service_selection_toggle(self.selected_service)
-            if event.key_code == ord("C"):
-                self._service_selection_clear()
-            if event.key_code == ord("K") and self.selected_service:
-                self._kill_service(self.selected_service)
-            if event.key_code == ord("L") and self.selected_service:
-                raise NextScene("Log")
-            if event.key_code == ord("S") and self.selected_service:
-                self._raise_next_scene(self.selected_service)
-        self._process_event_common(event)
-        return super(DashboardFrame, self).process_event(event)
-
-    def _raise_next_scene(self, service):
-        service_name = service[1]
-        service_protocol = self._short_name(service[2]).split(":")[0]
-        names = [service_name, service_protocol]
-        scene_name = [name for name in names if name in _PLUGINS]
-
-        if scene_name:
-            raise NextScene(scene_name[0])
-        else:
-            text = f" Service: {service_name} \n Does not have a custom page "
-            self.scene.add_effect(
-                PopUpDialog(self._screen, text, ["OK"], theme="nice"))
 
 # ServiceFrame subclass __init__() must include "self.fix()"
 
@@ -701,6 +729,53 @@ class LogFrame(ServiceFrame):
         super(LogFrame, self)._update(frame_no)
         self.log_ui._update(frame_no)
 
+class FilterPopupMenu(PopupMenu):
+    def __init__(self, screen, parent_widget):
+        self._dashboard = DashboardFrame.get_singleton()
+        self._screen = screen
+        self._parent_widget = parent_widget
+
+        menu_items = [
+            ("   Cancel",          self._parent_widget.focus),
+            ("1: Service id > 1",  self._button_handler),
+            ("c: Category",        self._button_handler),
+            ("e: PipelineElement", self._button_handler),
+            ("R: Reset",           self._button_handler)]
+        x = screen.width // 2 - 4
+        y = screen.height // 3
+
+        super().__init__(self._screen, menu_items, x, y)
+        self.palette = NICE_COLORS
+
+    def _button_handler(self):
+        log_level = self.focussed_widget.text.upper()
+    #   self._set_log_level(log_level)
+
+    def _set_log_level(self, log_level):
+    #   self._dashboard._update_ecproducer_variable(
+    #       self._service_selected, "log_level", log_level)
+        self._parent_widget.focus()
+
+    filter_key_map = {
+        ord("1"): "sid>1",
+        ord("c"): "category",
+        ord("e"): "pipeline_element"
+    }
+
+    def process_event(self, event):
+        if isinstance(event, KeyboardEvent):
+            if event.key_code == ord("R"):
+                self._dashboard.filter_out = DashboardFrame.FILTER_OUT.copy()
+                self._destroy()
+            if event.key_code in FilterPopupMenu.filter_key_map:
+                filter = FilterPopupMenu.filter_key_map[event.key_code]
+                if filter in self._dashboard.filter_out:
+                    self._dashboard.filter_out.discard(filter)
+                else:
+                    self._dashboard.filter_out.add(filter)
+                self._destroy()
+        return super(FilterPopupMenu, self).process_event(event)
+
 class LogLevelPopupMenu(PopupMenu):
     def __init__(self, screen, parent_widget, service_selected):
         self._dashboard = DashboardFrame.get_singleton()
@@ -746,8 +821,6 @@ class LogLevelPopupMenu(PopupMenu):
 
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
-            if event.key_code == ord("c"):
-                self._destroy()
             if self._dashboard.selected_service:
                 if event.key_code in LogLevelPopupMenu.log_level_key_map:
                     level = LogLevelPopupMenu.log_level_key_map[event.key_code]
