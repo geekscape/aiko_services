@@ -2,8 +2,8 @@
 #
 # Usage
 # ~~~~~
-#   export HYPERSPACE_IMPL=shell         # shell | python
-#   export HYPERSPACE_RANDOM_HASH=false  # use incrementing hash value
+#   export HYPERSPACE_IMPL=shell        # shell | python
+#   export HYPERSPACE_RANDOM_UID=false  # use incrementing UID value
 #   source hyperspace.sh
 #
 #   _ln      new_link entry        # dependency | category
@@ -52,10 +52,10 @@ fi
 IFS=$'\n\t'
 
 ROOT_FILENAME=".root"
-STORAGE_FILENAME="storage"
+STORAGE_FILENAME="_hyperspace_"
 TRACK_PATHNAME="$STORAGE_FILENAME/tracked_paths"
-HASH_LENGTH=12  # 6 bytes = 12 hex digits
-HASH_PATHNAME="$STORAGE_FILENAME/hash_counter"
+UID_LENGTH=12  # 6 bytes = 12 hex digits
+UID_PATHNAME="$STORAGE_FILENAME/uid_counter"
 
 __initialize() {
   if [ ! -L "$ROOT_FILENAME" ]; then
@@ -66,19 +66,19 @@ __initialize() {
     mkdir -p "$STORAGE_FILENAME"
     echo "Created $STORAGE_FILENAME"
   fi
-  if [ ! -f "$HASH_PATHNAME" ]; then
-    echo 0 >"$HASH_PATHNAME"
+  if [ ! -f "$UID_PATHNAME" ]; then
+    echo 0 >"$UID_PATHNAME"
   fi
-  HASH_COUNTER=$(cat "$HASH_PATHNAME")
+  UID_COUNTER=$(cat "$UID_PATHNAME")
 }
 
-__generateHash() {
-  if [[ "${HYPERSPACE_RANDOM_HASH:-true}" == "true" ]]; then
-    hash=$(openssl rand -hex $((HASH_LENGTH/2)))
+__generateUID() {
+  if [[ "${HYPERSPACE_RANDOM_UID:-true}" == "true" ]]; then
+    uid=$(openssl rand -hex $((UID_LENGTH/2)))
   else
-    printf -v hash "%0${HASH_LENGTH}x" "$HASH_COUNTER"
-    HASH_COUNTER=$((HASH_COUNTER + 1))
-    echo "$HASH_COUNTER" >"$HASH_PATHNAME"
+    printf -v uid "%0${UID_LENGTH}x" "$UID_COUNTER"
+    UID_COUNTER=$((UID_COUNTER + 1))
+    echo "$UID_COUNTER" >"$UID_PATHNAME"
   fi
 }
 
@@ -92,8 +92,8 @@ __relpath() {
 __createPath() {
   local path
   while :; do
-    __generateHash
-    path="$STORAGE_FILENAME/${hash:0:2}/${hash:2:2}/${hash:4:2}/${hash:6:2}/${hash:8:2}/${hash:10:2}"
+    __generateUID
+    path="$STORAGE_FILENAME/${uid:0:2}/${uid:2:2}/${uid:4:2}/${uid:6:2}/${uid:8:2}/${uid:10:2}"
     if [[ ! -e "$path" ]] && ! grep -qxF "$path" "$TRACK_PATHNAME" 2>/dev/null; then
       echo "$path"
       return
@@ -183,7 +183,7 @@ _ln() {
 
 _ls() {
   local entryCount=false   # -c  Show category's entry count
-  local longFormat=false  # -l  Show entry hash identifier
+  local longFormat=false  # -l  Show entry UID identifier
   local recursive=false   # -r  List category's childred recursively
   local path="."
   local arg
@@ -202,7 +202,7 @@ _ls() {
   done
   [[ -c "${1:-}" ]] && path="$1"
 
-  __getHashPath() {
+  __getUIDPath() {
     local linkTarget absTarget
     linkTarget=$(readlink "$1")
     absTarget=$(realpath "$linkTarget" 2>/dev/null || readlink -f "$linkTarget")
@@ -224,14 +224,14 @@ _ls() {
   __listLinks() {
     local dir="$1"
     local indent="$2"
-    local item base hash count
+    local item base uid count
     for item in "$dir"/*; do
       [[ ! -L "$item" ]] && continue
       base="$(basename "$item")"
-      hash=$(__getHashPath "$item")
+      uid=$(__getUIDPath "$item")
       if [[ -d "$item" ]]; then
         if [[ "$longFormat" == true ]]; then
-          printf "%s  %s/" "$hash" "$indent$base"
+          printf "%s  %s/" "$uid" "$indent$base"
         else
           printf "%s/" "$indent$base"
         fi
@@ -245,7 +245,7 @@ _ls() {
         [[ "$recursive" == true ]] && __listLinks "$item" "  $indent"
       else
         if [[ "$longFormat" == true ]]; then
-          printf "%s  %s" "$hash" "$indent$base"
+          printf "%s  %s" "$uid" "$indent$base"
         else
           printf "%s" "$indent$base"
         fi

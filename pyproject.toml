@@ -64,6 +64,7 @@ aiko_hyperspace = "aiko_services.main.hyperspace:main"
 aiko_pipeline = "aiko_services.main.pipeline:main"
 aiko_process = "aiko_services.main.process_manager:main"
 aiko_registrar = "aiko_services.main.registrar:main"
+aiko_storage_file = "aiko_services.main.storage.storage_file:main"
 
 [tool.hatch]
 [build-system]
