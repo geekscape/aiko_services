@@ -125,6 +125,17 @@
 # - Registrar(s), LifeCycleManager(s), StorageManager(s), HyperSpace
 # - Pipeline(s) / PipelineElement(s)
 # - Ray node(s)
+#
+# Ideas
+# ~~~~~
+# - Dashboard plug-ins: Metrics for all Services/Actors/Agents/Pipelines
+#   - LISP REPL: Interactive, composable GUI IDE Graph WorkSpace
+#     - Interact with Ollama(Actor), timg (videos, images)
+#     - do_discovery(), do_command(), do_request() with Services
+#   - mosquitto (MQTT): Metrics (charts), publish, subscribe, DynSec admin
+#   - Registrar: Query the Services OrderedDict or as a tree viewer
+#   - ProcessManager: LISP REPL using API
+#   - HyperSpace: Tree view and LISP REPL using API
 
 import click
 from collections import defaultdict, deque
@@ -462,7 +473,14 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
             if event.key_code == ord("c") and self.selected_service:
-                pyperclip.copy(self.selected_service[0])
+                try:
+                    pyperclip.copy(self.selected_service[0])
+                except pyperclip.PyperclipException:
+                    text = 'Clipboard copy/paste failed\n'          \
+                           'Python package "pyperclip" requires\n'  \
+                           'Linux package  "xclip"'
+                    self.scene.add_effect(
+                        PopUpDialog(self._screen, text, ["OK"], theme="nice"))
             if event.key_code == ord("f"):
                 self.scene.add_effect(FilterPopupMenu(self._screen,
                     self._services_widget))

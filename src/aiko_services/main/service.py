@@ -94,6 +94,12 @@
 # - ServiceTopicPath
 #   - Parser and generator (for presentation)
 #   - Validation for each setter
+#
+# Ideas
+# ~~~~~
+# - Turn "Services:self._services = OrderedDict()" into tree structure ...
+#   - Ordered by Service "topic_path" fields: namespace, host, pid, sid
+#   - Share portions of the tree via Eventual Consistency like GraphQL
 
 from abc import abstractmethod
 from collections import OrderedDict  # All OrderedDict operations are O(1)

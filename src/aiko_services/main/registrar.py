@@ -110,6 +110,12 @@
 #     This means the Aiko V2 framework should do the subscription automagically
 #     - Find the primary registrar (if it exists ?)
 #     - Find all other registars via "share"
+#
+# Ideas
+# ~~~~~
+# - Use "Services:self._services = OrderedDict()" as a tree structure ...
+#   - Ordered by Service "topic_path" fields: namespace, host, pid, sid
+#   - Share portions of the tree via Eventual Consistency like GraphQL
 
 import click
 from collections import deque
