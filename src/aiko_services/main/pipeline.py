@@ -1451,8 +1451,13 @@ class PipelineImpl(Pipeline):
         new_stream_id = DEFAULT_STREAM_ID if _WINDOWS else stream_id
         if stream_id == new_stream_id:
             if new_stream_id not in self.stream_leases:
-                self.logger.warning(f"_process_initialize called for non-existent stream {stream_id}")
-                return None, None
+                status = self.create_stream(
+                    new_stream_id, graph_path=stream.graph_path,
+                    parameters=stream.parameters,
+                    queue_response=stream.queue_response,
+                    topic_response=stream.topic_response)
+                if status == False:
+                    return None, None
 
         frame_id = stream.frame_id
         header = f"Process frame <{stream_id}:{frame_id}>:"
