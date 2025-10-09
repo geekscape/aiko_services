@@ -1,4 +1,5 @@
 import tempfile
+import time
 import threading
 from typing import Tuple
 
@@ -45,9 +46,12 @@ class FrameGeneratorException(aiko.PipelineElement):
             raise RuntimeError("Simulated frame generator exception - this should cause unreleased lock!")
 
     def process_frame(self, stream, **kwargs) -> Tuple[aiko.StreamEvent, dict]:
+        self.logger.warning(f"Processin frame {stream.frame_id}")
+        time.sleep(1)
         return aiko.StreamEvent.OKAY, {}
 
     def stop_stream(self, stream, stream_id):
+        time.sleep(1)
         self.stop()
         return aiko.StreamEvent.OKAY, {}
 
