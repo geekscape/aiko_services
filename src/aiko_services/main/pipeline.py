@@ -533,7 +533,8 @@ class PipelineElementImpl(PipelineElement):
 
                 if stream.state in _STREAM_STATE_WORKING:
                     stream.set_state(StreamState.RUN)
-                stream.lock.release()
+                if stream.lock._in_use:
+                    stream.lock.release()
 
                 if rate and stream.state == StreamState.RUN:
                 # TODO: When "rate" parameter updates, then fix "period_time"
@@ -1010,7 +1011,8 @@ class PipelineImpl(Pipeline):
                             stream_id, Graph.path_remote(stream.graph_path),
                             parameters, grace_time, None, self.topic_in)
         finally:
-            stream.lock.release()
+            if stream.lock._in_use:
+                stream.lock.release()
             self._disable_thread_local("create_stream()")
         return True
 
@@ -1082,7 +1084,8 @@ class PipelineImpl(Pipeline):
                     if stream.state == StreamState.ERROR:
                         break
         finally:
-            stream.lock.release()
+            if stream.lock._in_use:
+                stream.lock.release()
             if use_thread_local:
                 self._disable_thread_local("destroy_stream()")
 
@@ -1389,7 +1392,8 @@ class PipelineImpl(Pipeline):
                 del stream.frames[stream.frame_id]
             if frame_complete and stream.frame_id in stream.frames:
                 del stream.frames[stream.frame_id]
-            stream.lock.release()
+            if stream.lock._in_use:
+                stream.lock.release()
             self._disable_thread_local("process_frame()")
         return True
 
