@@ -48,12 +48,16 @@ class DataScheme:
 
     @classmethod
     def parse_data_url_path(cls, data_url):  # data_source or data_target
+        if data_url.startswith("data:"):
+            raise NotImplementedError("'data:' URLs do not have a path component")
         tokens = data_url.split("://")  # URL "scheme://path" or "path"
         path = tokens[0] if len(tokens) == 1 else tokens[1]
         return path
 
     @classmethod
     def parse_data_url_scheme(cls, data_url):  # data_source or data_target
+        if data_url.startswith("data:"):
+            return "data"
         tokens = data_url.split("://")  # URL "scheme://path"
         scheme = "file" if len(tokens) == 1 else tokens[0]
         return scheme.lower()
