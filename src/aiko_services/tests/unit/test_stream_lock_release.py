@@ -46,7 +46,7 @@ class FrameGeneratorException(aiko.PipelineElement):
             raise RuntimeError("Simulated frame generator exception - this should cause unreleased lock!")
 
     def process_frame(self, stream, **kwargs) -> Tuple[aiko.StreamEvent, dict]:
-        self.logger.warning(f"Processin frame {stream.frame_id}")
+        self.logger.warning(f"Processing frame {stream.frame_id}")
         time.sleep(1)
         return aiko.StreamEvent.OKAY, {}
 
