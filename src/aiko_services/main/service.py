@@ -241,9 +241,9 @@ class ServiceFilter:
         self.tags = tags
 
     def __repr__(self):
-        return f"({self.topic_paths} {self.name} "    \
+        return f"({self.topic_paths} {self.name} "   \
                f"{self.protocol} {self.transport} "  \
-               f"{self.owner} ({" ".join(self.tags)}))"
+               f"{self.owner} ({' '.join(self.tags)}))"
 
     def summary(self):
         summary  = "" if self.topic_paths == "*" else f", {self.topic_paths}"
