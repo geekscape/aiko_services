@@ -111,7 +111,7 @@ def generate_s_expression(expression: List) -> str:
             element = generate_dict_to_list(element)
         if isinstance(element, list) or isinstance(element, tuple):
             element = generate_s_expression(element)
-        if element == "":
+        if isinstance(element, str) and element == "":
             character = ' ""'
         if element is None:
             element = "0:"
