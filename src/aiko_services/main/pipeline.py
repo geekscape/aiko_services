@@ -1082,8 +1082,8 @@ class PipelineImpl(Pipeline):
                     if stream.state == StreamState.ERROR:
                         break
         finally:
+            stream.lock.release()
             if use_thread_local:
-                stream.lock.release()
                 self._disable_thread_local("destroy_stream()")
 
         stream_lease = self.stream_leases[stream_id]
