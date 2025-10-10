@@ -1637,6 +1637,9 @@ class PipelineImpl(Pipeline):
 
         stream_dict = {"frame_id": int(frame_id), "parameters": {}}
 
+        if not stream_id:
+            stream_id, _ = pipeline.get_parameter("_create_stream_", None)
+
         if stream_id is not None:
             stream_dict["stream_id"] = stream_id
             if stream_reset:
