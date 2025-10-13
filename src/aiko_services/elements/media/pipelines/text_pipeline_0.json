@@ -3,13 +3,15 @@
   "name":    "p_text_0",
   "runtime": "python",
 
-  "graph": ["(TextReadFile TextTransform TextWriteFile)"],
-  "#":     ["(TextReadFile TextTransform TextWriteFile TextOutput)"],
+  "#":     ["(TextReadFile TextTransform TextWriteFile)"],
+  "graph": ["(TextReadFile TextTransform TextWriteFile TextOutput)"],
+
+  "parameters": {"_create_stream_": "1"},
 
   "elements": [
     { "name":   "TextReadFile",
       "parameters": {
-        "data_sources": "(file://data_in/in_{}.txt)",
+        "data_sources": "(file:data_in/in_{}.txt)",
         "data_batch_size": 1
       },
       "input":  [{ "name": "paths", "type": "[Path]" }],
@@ -28,7 +30,7 @@
       }
     },
     { "name":   "TextWriteFile",
-      "parameters": {"data_targets": "(file://data_out/out_{:02d}.txt)"},
+      "parameters": {"data_targets": "(file:data_out/out_{:02d}.txt)"},
       "input":  [{ "name": "texts", "type": "[str]" }],
       "output": [],
       "deploy": {

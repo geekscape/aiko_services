@@ -5,11 +5,14 @@
 
   "graph": ["(VideoReadWebcam ImageResize ImageWriteZMQ)"],
 
-  "parameters": {"resolution": "320x240", "resolution_mac": "320x180"},
+  "parameters": {
+    "_create_stream_": "1",
+    "resolution": "320x240", "resolution_mac": "320x180"
+  },
 
   "elements": [
     { "name":   "VideoReadWebcam",
-      "parameters": {"path": "/dev/video0", "rate": 10.0}, "#": "10 Hz",
+      "parameters": {"path": "0", "rate": 10.0}, "#": "10 Hz",
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [{"name": "images", "type": "[image]"}],
       "deploy": {

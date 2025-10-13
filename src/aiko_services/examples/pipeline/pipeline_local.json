@@ -20,7 +20,7 @@
     "p_1": true,
     "p_2": 0,
     "p_3": "test",
-    "sliding_windows": false
+    "_sliding_windows_": false
   },
 
   "elements": [

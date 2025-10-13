@@ -8,15 +8,15 @@
 #   -p VideoReadFile.data_batch_size 8
 #
 # aiko_pipeline create pipelines/video_pipeline_0.json -s 1  \
-#   -p VideoReadFile.data_sources file://data_in/in_{}.mp4
+#   -p VideoReadFile.data_sources file:data_in/in_{}.mp4
 #
 # aiko_pipeline create pipelines/video_pipeline_0.json -s 1  \
-#   -p VideoWriteFile.path "file://data_out/out_{:02d}.mp4"
+#   -p VideoWriteFile.path "file:data_out/out_{:02d}.mp4"
 #
 # aiko_pipeline create pipelines/video_pipeline_0.json -s 1  \
-#   -p VideoReadFile.data_sources file://data_in/in_00.mp4   \
+#   -p VideoReadFile.data_sources file:data_in/in_00.mp4   \
 #   -p ImageResize.resolution 320x240                        \
-#   -p VideoWriteFile.data_targets file://data_out/out_00.mp4
+#   -p VideoWriteFile.data_targets file:data_out/out_00.mp4
 #
 # Drop frame test
 # ~~~~~~~~~~~~~~~
@@ -45,7 +45,7 @@
 #     frame_rate = int(video_capture.get(cv2.CAP_PROP_FPS))
 #
 # - VideoReadFile should accept a DataSource type ...
-#   - URL: "file://" and media_type: "mp4", etc
+#   - URL: "file:" and media_type: "mp4", etc
 #
 # - Metrics: Determine what to metrics to capture, e.g frame rates ?
 #
@@ -63,6 +63,7 @@
 from datetime import datetime
 from typing import Tuple
 from pathlib import Path
+import platform
 
 import aiko_services as aiko
 from aiko_services.elements.media import convert_images
@@ -70,7 +71,7 @@ from aiko_services.main.utilities import parse_int
 
 __all__ = [
     "VideoOutput", "VideoReadFile", "VideoSample", "VideoShow",
-    "VideoWriteFile", "VideoWriteFiles"
+    "VideoWriteFile", "VideoWriteFiles", "open_video_capture"
 ]
 
 _LOGGER = aiko.process.logger(__name__)
@@ -106,6 +107,26 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
     diagnostic = "video_io.py: Couldn't import numpy module"
 #   print(f"WARNING: {diagnostic}")
 #   _LOGGER.warning(diagnostic)
+
+# --------------------------------------------------------------------------- #
+
+CAMERA_API_SYSTEM_LOOKUP = {
+    "darwin":  cv2.CAP_AVFOUNDATION,
+    "linux":   cv2.CAP_V4L2,
+    "windows": cv2.CAP_MSMF
+}
+
+def open_video_capture(camera_id=0):
+    camera_api = 0  # auto-select
+    system = platform.system().lower()
+    if system in CAMERA_API_SYSTEM_LOOKUP:
+        camera_api = CAMERA_API_SYSTEM_LOOKUP[system]
+
+    video_capture = cv2.VideoCapture(camera_id, camera_api)
+    if not video_capture.isOpened():
+        video_capture.release()
+        video_capture = cv2.VideoCapture(camera_id)
+    return video_capture
 
 # --------------------------------------------------------------------------- #
 # Useful for Pipeline output that should be all of the images processed
@@ -167,7 +188,7 @@ class VideoReadFile(aiko.DataSource):  # PipelineElement
             #   if isinstance(path, str) and path.isdigit():
             #       path = int(str(path))
 
-                video_capture = cv2.VideoCapture(str(path))
+                video_capture = open_video_capture(str(path))
                 if not video_capture.isOpened():
                     diagnostic = f"Couldn't open video file: {path}"
                     return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}

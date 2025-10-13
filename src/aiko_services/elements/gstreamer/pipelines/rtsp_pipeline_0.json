@@ -5,6 +5,9 @@
 
   "graph": ["(VideoReadRTSP VideoShow)"],
 
+  "parameters": {"_create_stream_": "1",
+                 "resolution": "640x480", "resolution_mac": "640x360"},
+
   "elements": [
     { "name":   "VideoReadRTSP",
       "parameters": {

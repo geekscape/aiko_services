@@ -66,6 +66,7 @@ from ultralytics import YOLO
 
 import aiko_services as aiko
 from aiko_services import *
+from aiko_services.elements.media import open_video_capture
 
 _VERSION = 0
 
@@ -318,7 +319,7 @@ class VideoTestImpl(VideoTest):
         self._thread = Thread(target=self._run).start()
 
     def _camera_initialize(self):
-        camera = cv2.VideoCapture(0)
+        camera = open_video_capture(0)
         camera.set(3, 320)
         camera.set(4, 240)
         return camera

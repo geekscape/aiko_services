@@ -6,11 +6,14 @@
   "#":     ["(VideoReadWebcam ImageResize VideoWriteFiles Metrics)"],
   "graph": ["(VideoReadWebcam ImageResize VideoShow VideoWriteFiles Metrics)"],
 
-  "parameters": {"resolution": "640x480", "resolution_mac": "640x360"},
+  "parameters": {
+    "_create_stream_": "1",
+    "resolution": "640x480", "resolution_mac": "640x360"
+  },
 
   "elements": [
     { "name":   "VideoReadWebcam",
-      "parameters": {"path": "/dev/video0", "rate": 4.0}, "#": "4 Hz",
+      "parameters": {"path": "0", "rate": 4.0}, "#": "4 Hz",
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [{"name": "images", "type": "[image]"}],
       "deploy": {
@@ -25,7 +28,7 @@
       }
     },
     { "name":   "VideoWriteFile",
-      "parameters": {"data_targets": "(file://data_out/out_{:02d}.mp4)"},
+      "parameters": {"data_targets": "(file:data_out/out_{:02d}.mp4)"},
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [],
       "deploy": {
@@ -41,7 +44,7 @@
     },
     { "name":   "VideoWriteFiles",
       "parameters": {
-        "DATA_TARGETS": "(file://data_out/out.mp4)",
+        "DATA_TARGETS": "(file:data_out/out.mp4)",
         "video_name":          "data_out",
         "directory":           "{video_name}/{y:04d}/{m:02d}/{d:02d}/{h:02d}",
         "pathname":            "{directory}/{m:02d}m_{s:02d}s.mp4",

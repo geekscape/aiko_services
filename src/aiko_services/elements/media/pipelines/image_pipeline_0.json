@@ -6,12 +6,13 @@
   "graph": ["(ImageReadFile ImageResize ImageWriteFile)"],
   "#":     ["(ImageReadFile ImageResize ImageWriteFile ImageOutput)"],
 
-  "parameters": {"resolution": "320x240"},
+  "parameters": {"_create_stream_": "1",
+                 "resolution":      "320x240"},
 
   "elements": [
     { "name":   "ImageReadFile",
       "parameters": {
-        "data_sources": "(file://data_in/in_{}.jpeg)",
+        "data_sources": "(file:data_in/in_{}.jpeg)",
         "data_batch_size": 1
       },
       "input":  [{"name": "paths",  "type": "[Path]"}],
@@ -28,7 +29,7 @@
       }
     },
     { "name":   "ImageWriteFile",
-      "parameters": {"data_targets": "(file://data_out/out_{:02d}.jpeg)"},
+      "parameters": {"data_targets": "(file:data_out/out_{:02d}.jpeg)"},
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [],
       "deploy": {

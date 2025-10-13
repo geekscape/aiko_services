@@ -75,6 +75,7 @@ if is_robot():
 # --------------------------------------------------------------------------- #
 
 import aiko_services as aiko
+from aiko_services.elements.media import open_video_capture
 from aiko_services.main import *
 from aiko_services.main.utilities import get_namespace
 
@@ -284,7 +285,7 @@ class XGORobotImpl(XGORobot, RobotCore):
         aiko.message.publish(self.topic_out, payload_out)
 
     def _camera_initialize(self):
-        camera = cv2.VideoCapture(0)
+        camera = open_video_capture(0)
         camera.set(3, 320)
         camera.set(4, 240)
         return camera

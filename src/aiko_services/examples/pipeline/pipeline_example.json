@@ -5,10 +5,12 @@
 
   "graph": ["(PE_RandomIntegers PE_Add (random: i))"],
 
-  "parameters": { "constant": 1,
-                  "delay":    0.0,
-                  "limit":    2,
-                  "rate":     1.0
+  "parameters": {
+	  "_create_stream_": 1,
+    "constant":        1,
+    "delay":           0.0,
+    "limit":           2,
+    "rate":            1.0
   },
 
   "elements": [

@@ -5,6 +5,8 @@
 
   "graph": ["(Factorial Tool_A Inspect)"],
 
+  "parameters": {"_create_stream_": "1"},
+
   "elements": [
     { "name": "Factorial", "input": [], "output": [],
       "parameters": { "boundary":   "Tool_A:Inspect",

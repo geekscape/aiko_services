@@ -5,12 +5,13 @@
 
   "graph": ["(ImageReadFile VideoShow)"],
 
-  "parameters": {},
+  "parameters": {"_create_stream_": "1",
+                 "resolution":      "320x240"},
 
   "elements": [
     { "name":   "ImageReadFile",
       "parameters": {
-        "data_sources": "(file://data_in/in_{}.jpeg)",
+        "data_sources": "(file:data_in/in_{}.jpeg)",
         "data_batch_size": 1
       },
       "input":  [{"name": "paths",  "type": "[Path]"}],

@@ -13,15 +13,15 @@
 #   -p AudioReadFile.data_batch_size 8
 #
 # aiko_pipeline create pipelines/audio_pipeline_0.json -s 1  \
-#   -p AudioReadFile.data_sources file://data_in/in_{}.mp3
+#   -p AudioReadFile.data_sources file:data_in/in_{}.mp3
 #
 # aiko_pipeline create pipelines/audio_pipeline_0.json -s 1  \
-#   -p AudioWriteFile.path "file://data_out/out_{:02d}.mp3"
+#   -p AudioWriteFile.path "file:data_out/out_{:02d}.mp3"
 #
 # aiko_pipeline create pipelines/audio_pipeline_0.json -s 1  \
-#   sp AudioReadFile.data_sources file://data_in/in_00.mp3   \
+#   sp AudioReadFile.data_sources file:data_in/in_00.mp3   \
 #   sp AudioResample.rate ?????                              \
-#   sp AudioWriteFile.data_targets file://data_out/out_00.mp3
+#   sp AudioWriteFile.data_targets file:data_out/out_00.mp3
 #
 # Resources
 # ~~~~~~~~~
@@ -38,6 +38,7 @@ from typing import Tuple
 from pathlib import Path
 
 import aiko_services as aiko
+from aiko_services.elements.media import open_video_capture
 
 __all__ = ["AudioOutput", "AudioReadFile"]  # "AudioWriteFile"
 
@@ -130,7 +131,7 @@ class AudioReadFile(aiko.DataSource):  # PipelineElement
             #   if isinstance(path, str) and path.isdigit():
             #       path = int(str(path))
 
-                audio_capture = cv2.VideoCapture(str(path))
+                audio_capture = open_video_capture(str(path))
                 if not audio_capture.isOpened():
                     diagnostic = f"Couldn't open audio file: {path}"
                     return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}

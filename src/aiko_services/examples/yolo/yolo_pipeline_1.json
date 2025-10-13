@@ -5,13 +5,16 @@
 
   "graph": ["(VideoReadWebcam ImageResize ArucoMarkerDetector YoloDetector ArucoMarkerOverlay ImageOverlay VideoShow VideoWriteFile)"],
 
-  "parameters": {"resolution": "640x480", "resolution_mac": "640x360"},
+  "parameters": {
+    "_create_stream_": "1",
+    "resolution": "640x480", "resolution_mac": "640x360"
+  },
 
   "elements": [
     { "name":   "VideoReadWebcam",
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [{"name": "images", "type": "[image]"}],
-      "parameters": {"path": "/dev/video0"},
+      "parameters": {"path": "0"},
       "deploy": {
         "local": {"module": "aiko_services.elements.media.webcam_io"}
       }
@@ -61,7 +64,7 @@
       }
     },
     { "name":   "VideoWriteFile",
-      "parameters": {"data_targets": "(file://data_out/out_{:02d}.mp4)"},
+      "parameters": {"data_targets": "(file:data_out/out_{:02d}.mp4)"},
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [],
       "deploy": {

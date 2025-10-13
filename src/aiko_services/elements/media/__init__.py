@@ -35,7 +35,7 @@ from .text_io import (
 
 from .video_io import (
     VideoOutput, VideoReadFile, VideoSample, VideoShow,
-    VideoWriteFile, VideoWriteFiles
+    VideoWriteFile, VideoWriteFiles, open_video_capture
 )
 
 from .webcam_io import VideoReadWebcam

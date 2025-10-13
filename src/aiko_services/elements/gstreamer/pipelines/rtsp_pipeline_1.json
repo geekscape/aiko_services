@@ -6,7 +6,8 @@
   "#":     ["(VideoReadRTSP VideoWriteFiles Metrics)"],
   "graph": ["(VideoReadRTSP VideoShow VideoWriteFiles Metrics)"],
 
-  "parameters": {"resolution": "640x480", "resolution_mac": "640x360"},
+  "parameters": {"_create_stream_": "1",
+                 "resolution": "640x480", "resolution_mac": "640x360"},
 
   "elements": [
     { "name":   "VideoReadRTSP",
@@ -32,7 +33,7 @@
     },
     { "name":   "VideoWriteFiles",
       "parameters": {
-        "DATA_TARGETS": "(file://data_out/out.mp4)",
+        "DATA_TARGETS": "(file:data_out/out.mp4)",
         "minute_range":        "*",         "#": "* or 00-01",
         "video_name":          "data_out",
         "directory":           "{video_name}/{y:04d}/{m:02d}/{d:02d}/{h:02d}",

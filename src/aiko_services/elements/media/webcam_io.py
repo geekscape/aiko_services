@@ -3,7 +3,7 @@
 # aiko_pipeline create pipelines/webcam_pipeline_0.json -s 1 -ll debug
 #
 # aiko_pipeline create pipelines/webcam_pipeline_0.json -s 1  \
-#   -p VideoReadWebcam.path /dev/video2
+#   -p VideoReadWebcam.path /dev/video2  # Linux
 #
 # aiko_pipeline create pipelines/webcam_pipeline_1.json -s 1
 #
@@ -44,7 +44,7 @@ import os
 from typing import Tuple
 
 import aiko_services as aiko
-from aiko_services.elements.media import convert_images
+from aiko_services.elements.media import convert_images, open_video_capture
 
 __all__ = ["VideoReadWebcam"]
 
@@ -112,7 +112,7 @@ class VideoReadWebcam(aiko.DataSource):  # PipelineElement
                 self._close_camera()
             if isinstance(path, str) and path.isdigit():
                 path = int(path)
-            self.video_capture = cv2.VideoCapture(path)
+            self.video_capture = open_video_capture(path)
             if self.video_capture and self.video_capture.isOpened():
                 self.logger.info(f"Open camera: {path}")
                 self.path_current = path
