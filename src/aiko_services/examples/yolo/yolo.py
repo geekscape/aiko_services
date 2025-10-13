@@ -9,7 +9,7 @@
 # AIKO_LOG_LEVEL=DEBUG aiko_pipeline create yolo_pipeline_0.json -s 1
 #
 # aiko_pipeline create yolo_pipeline_0.json -s 1  \
-#   -sp VideoReadWebcam.path /dev/video2
+#   -sp VideoReadWebcam.path /dev/video2  # Linux
 #
 # To Do
 # ~~~~~
@@ -24,11 +24,16 @@
 # - YoloDetector
 #   - Performance ... use GPU efficiently ?
 #   - Ultralytics issues with OpenCV.imshow() --> Python AV package ?!?
+#
+# * PipelineDefinition parameter: YOLOE class confidence level(s)
+# * Implement YOLOE segmentation overlay with different colors per class
+# * Support YOLOE streaming for local and YouTube videos (live stream ?)
 
 import os
 from typing import Tuple
 
 import aiko_services as aiko
+from aiko_services.main.utilities import parse
 
 __all__ = [ "YoloDetector" ]
 
@@ -46,7 +51,7 @@ _ROBOTDOG_CLASSES = [
     20, 21, 22, 23, 26, 27, 28, 30, 31, 33, 34, 35, 61, 77, 78, 79 ]
 
 import torch
-from ultralytics import YOLO
+from ultralytics import YOLO, YOLOE
 
 class YoloDetector(aiko.PipelineElement):
     def __init__(self, context):
@@ -56,7 +61,21 @@ class YoloDetector(aiko.PipelineElement):
     def start_stream(self, stream, stream_id):
         self.device = "mps" if torch.backends.mps.is_available() else "cpu"
         self.device = "cuda" if torch.cuda.is_available() else self.device
-        self.yolo_model = YOLO(_YOLO_MODEL_PATHNAME)
+
+        yolo_model_pathname, _ = self.get_parameter(
+            "model", default=_YOLO_MODEL_PATHNAME)
+
+        self.yolo_model = YOLO(yolo_model_pathname)
+        self.is_yoloe = yolo_model_pathname.startswith("yoloe")
+
+        if self.is_yoloe:
+            names, _ = self.get_parameter("names", default="()")
+            names = parse(names, car_cdr=False)
+            if isinstance(names, list) and len(names) and names[0] != "":
+                self.yolo_model.set_classes(
+                    names, self.yolo_model.get_text_pe(names))
+            else:
+                self.logger.warning('Parameter "names" must be a list')
         return aiko.StreamEvent.OKAY, {}
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
@@ -73,7 +92,7 @@ class YoloDetector(aiko.PipelineElement):
                 box_id = 0
                 for box in detection.boxes:
                     class_id = int(box.cls[0].item())
-                    if class_id in _ROBOTDOG_CLASSES:
+                    if self.is_yoloe or class_id in _ROBOTDOG_CLASSES:
                         name = detection.names[class_id]
                         confidence = round(box.conf[0].item(), 2)
                         x = int(box.xyxy[0][0].item())

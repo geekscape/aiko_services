@@ -1,0 +1,55 @@
+{
+  "version": 0,
+  "name":    "p_yoloe",
+  "runtime": "python",
+
+  "graph": [ "(VideoReadFile YoloDetector ImageOverlay VideoWriteFile)" ],
+
+  "parameters": {"_create_stream_": "1"},
+
+  "elements": [
+    { "name":   "VideoReadFile",
+      "parameters": {
+        "data_sources": "(file:data_in/things.mp4)",
+        "data_batch_size": 1
+      },
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    },
+    { "name":   "YoloDetector",
+			"parameters": {
+				"model": "yoloe-11s-seg.pt",  "#": "model sizes: yoloe-11[sml]-seg.pt",
+			  "names": "(apple ball banana cat dog fork glasses knife spoon lightbulb mug person)"
+			},
+      "input":  [{"name": "images",  "type": "[image]"}],
+      "output": [{"name": "overlay", "type": "[overlay]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.examples.yolo.yolo"}
+      }
+    },
+    { "name":   "ImageOverlay",
+      "input":  [{"name": "images",  "type": "[image]"},
+                 {"name": "overlay", "type": "[overlay]"}],
+      "output": [{"name": "images",  "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "VideoWriteFile",
+      "parameters": {
+        "data_targets": "(file:data_out/things.mp4)",
+        "format": "MP4V",
+        "frame_rate": 10.0,
+        "resolution": "640x360"
+      },
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    }
+  ]
+}
