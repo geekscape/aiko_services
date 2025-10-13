@@ -351,9 +351,10 @@ class VideoWriteFile(aiko.DataTarget):  # PipelineElement
         return aiko.StreamEvent.OKAY, {}
 
     def stop_stream(self, stream, stream_id):
-        if stream.variables["video_writer"]:
-            stream.variables["video_writer"].release()
-            stream.variables["video_writer"] = None
+        if "video_writer" in stream.variables:
+            if stream.variables["video_writer"]:
+                stream.variables["video_writer"].release()
+                stream.variables["video_writer"] = None
         return aiko.StreamEvent.OKAY, {}
 
 # --------------------------------------------------------------------------- #
