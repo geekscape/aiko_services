@@ -481,7 +481,7 @@ class PipelineElementImpl(PipelineElement):
 # TODO: For "rate" measure time since last frame to be more accurate
 # FIX:  For "rate" check "rate=0" (fills mailbox) versus "rate=None" ?
 
-    def _create_frames_generator(self, stream, frame_generator, frame_id, rate):
+    def xx_create_frames_generator(self, stream, frame_generator, frame_id, rate):
         try:
             self.pipeline._enable_thread_local(
                 "_create_frames_generator()", stream.stream_id, frame_id)
@@ -504,8 +504,10 @@ class PipelineElementImpl(PipelineElement):
                     elif mailbox_name in event.mailboxes:
                         mailbox_queue = event.mailboxes[mailbox_name].queue
 
-                stream.lock.acquire("_create_frames_generator()")
+                # stream.lock.acquire("_create_frames_generator()")
                 try:
+                    stream.lock.release()
+                    # stream.lock.release()
                     stream_event, frame_data = frame_generator(stream, frame_id)
                 except Exception as exception:
                     self.logger.error(

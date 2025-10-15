@@ -1,114 +1,114 @@
 # Usage
 # ~~~~~
-# pytest [-s] unit/test_stream_lock_bug.py
-# pytest [-s] unit/test_stream_lock_bug.py::test_create_frames_generator_lock_not_released_on_exception
+# PYTHONPATH=src pytest src/aiko_services/tests/unit/test_stream_lock_bug.py -v -s
 #
-# test_create_frames_generator_lock_not_released_on_exception()
-# - PipelineElement._create_frames_generator() acquires stream.lock but doesn't release it
-#   when an exception occurs in the frame_generator, causing lock contention.
-#   This reproduces the issue seen in logs where lock is acquired but never released.
+# This test reproduces the lock issue found in _create_frames_generator() where 
+# stream.lock.acquire() is not properly paired with stream.lock.release() in a 
+# try-finally block, causing locks to remain acquired when exceptions occur.
 
 import threading
 import time
 from typing import Tuple
-from unittest.mock import patch
+from unittest.mock import Mock, patch, MagicMock
+import traceback
 
 import aiko_services as aiko
-from aiko_services.tests.unit import do_create_pipeline
-
-
-PIPELINE_DEFINITION = """{
-  "version": 0, "name": "p_test", "runtime": "python",
-  "graph": ["(FrameGeneratorException)"],
-  "elements": [
-    { "name":   "FrameGeneratorException", "input":  [], "output": [],
-      "deploy": {
-        "local": { "module": "aiko_services.tests.unit.test_stream_lock_bug" }
-      }
-    }
-  ]
-}
-"""
-
-
-class FrameGeneratorException(aiko.PipelineElement):
-    def __init__(self, context):
-        context.set_protocol("frame_generator_exception:0")
-        context.get_implementation("PipelineElement").__init__(self, context)
-        self.frame_count = 0
-
-    def start_stream(self, stream, stream_id):
-        """Start stream with a frame generator that will throw an exception"""
-        # Use create_frames to start the problematic _create_frames_generator thread
-        self.create_frames(stream, self.failing_frame_generator, rate=10.0)
-        return aiko.StreamEvent.OKAY, {}
-
-    def failing_frame_generator(self, stream, frame_id):
-        """Frame generator that throws an exception after a few frames"""
-        self.frame_count += 1
-        
-        if self.frame_count <= 2:
-            # Generate a couple successful frames first
-            return aiko.StreamEvent.OKAY, {"frame": self.frame_count}
-        else:
-            # Now throw an exception that will leave the lock unreleased
-            raise RuntimeError("Simulated frame generator exception - this should cause unreleased lock!")
-
-    def process_frame(self, stream, **kwargs) -> Tuple[aiko.StreamEvent, dict]:
-        # This shouldn't be called much since we use create_frames
-        return aiko.StreamEvent.OKAY, {}
-
-    def stop_stream(self, stream, stream_id):
-        return aiko.StreamEvent.OKAY, {}
 
 
 def test_create_frames_generator_lock_not_released_on_exception():
     """Test that reproduces the lock not being released when _create_frames_generator encounters exception"""
     
-    # We need to run this test in a way that doesn't hang the test runner
-    # Create the pipeline in a separate thread with a timeout
-    test_result = {"pipeline": None, "exception": None, "lock_states": []}
+    # Import the actual PipelineElementImpl class
+    from aiko_services.main.pipeline import PipelineElementImpl
+    from aiko_services.main.utilities.lock import Lock
     
-    def run_pipeline():
-        try:
-            # Patch aiko.process.terminate to prevent actual termination
-            with patch('aiko_services.main.process.terminate'):
-                # Create pipeline with our problematic element
-                pipeline = do_create_pipeline(PIPELINE_DEFINITION)
-                test_result["pipeline"] = pipeline
-                
-        except Exception as e:
-            test_result["exception"] = e
+    # Create a real pipeline element for testing
+    # We need to patch dependencies to make this work without full pipeline setup
     
-    # Start pipeline in thread
-    pipeline_thread = threading.Thread(target=run_pipeline, daemon=True)
-    pipeline_thread.start()
+    # Create a mock stream with a real lock
+    mock_stream = Mock()
+    mock_stream.lock = Lock("test_stream_lock")
+    mock_stream.state = aiko.StreamState.RUN
+    mock_stream.stream_id = "test_stream"
+    mock_stream.frame_id = 1
+    mock_stream.graph_path = []
+    mock_stream.parameters = {}
+    mock_stream.queue_response = None
+    mock_stream.topic_response = None
     
-    # Wait a bit for the pipeline to start and the frame generator to fail
-    pipeline_thread.join(timeout=5.0)
+    # Set up mock methods that will throw exceptions AFTER the lock is acquired
+    # This simulates the real bug scenario
+    def mock_set_state_that_throws(new_state):
+        # This simulates an exception occurring in stream.set_state() which happens
+        # AFTER stream.lock.acquire() but BEFORE stream.lock.release()  
+        raise RuntimeError("Exception in set_state - this should leave lock unreleased!")
     
-    # The test succeeds if we can demonstrate the issue exists
-    # In a real scenario, this would hang or cause issues
-    # For the test, we mainly want to show that the exception handling is problematic
+    mock_stream.set_state = mock_set_state_that_throws
     
-    if test_result["exception"]:
-        print(f"Pipeline failed with: {test_result['exception']}")
+    def working_frame_generator(stream, frame_id):
+        """Frame generator that works fine - the exception will happen after it"""
+        return aiko.StreamEvent.OKAY, {"frame": frame_id}
     
-    if test_result["pipeline"]:
-        # Check if there are any stream locks that might be stuck
-        pipeline = test_result["pipeline"]
-        if hasattr(pipeline, 'stream_leases'):
-            for stream_id, stream_lease in pipeline.stream_leases.items():
-                stream = stream_lease.stream
-                if hasattr(stream, 'lock') and stream.lock.in_use():
-                    print(f"WARNING: Stream {stream_id} lock still in use by: {stream.lock.in_use()}")
-                    print("This demonstrates the lock issue - lock acquired but not released!")
-                    # This is the bug - the lock is still held!
-                    assert stream.lock.in_use() is not None, "Lock should be unreleased, demonstrating the bug"
-                    return  # Test passes by demonstrating the bug exists
+    # Create a mock pipeline element with minimal setup
+    mock_element = Mock(spec=PipelineElementImpl)
+    mock_element.name = "TestElement"
+    mock_element.logger = Mock()
+    mock_element.logger.error = Mock()
     
-    # If we get here, the bug might have been fixed or the test didn't trigger the condition
-    print("Test completed - may not have triggered the exact lock issue condition")
+    # Mock pipeline and thread local dependencies
+    mock_pipeline = Mock()
+    mock_pipeline._enable_thread_local = Mock()
+    mock_pipeline._disable_thread_local = Mock()
+    mock_pipeline._process_stream_event = Mock(return_value=aiko.StreamState.RUN)
+    mock_pipeline.thread_local = Mock()
+    mock_pipeline.thread_local.frame_id = 1
+    mock_element.pipeline = mock_pipeline
+    
+    # Mock get_stream method
+    mock_element.get_stream = Mock(return_value=(mock_stream, 1))
+    
+    # Mock get_parameter method  
+    mock_element.get_parameter = Mock(return_value=([], None))
+    
+    # Mock create_frame method
+    mock_element.create_frame = Mock()
+    
+    # Verify lock is initially not in use
+    assert mock_stream.lock.in_use() is None, "Lock should start unused"
+    
+    # Test the problematic method directly by calling it on our mock element
+    # The key is that the exception will happen AFTER lock acquisition
+    try:
+        # This calls the actual _create_frames_generator method which has the bug
+        PipelineElementImpl._create_frames_generator(
+            mock_element,
+            mock_stream, 
+            working_frame_generator,  # This will succeed
+            frame_id=1,
+            rate=None
+        )
+    except RuntimeError as e:
+        # Expected exception from our mock_set_state_that_throws
+        print(f"Expected exception occurred: {e}")
+    except Exception as e:
+        print(f"Unexpected exception: {e}")
+        traceback.print_exc()
+    
+    # Check if lock is still held (this demonstrates the bug)
+    lock_owner = mock_stream.lock.in_use()
+    if lock_owner:
+        print(f"BUG REPRODUCED: Lock still held by: {lock_owner}")
+        print("This demonstrates the exact issue from the logs!")
+        print("The lock was acquired but never released due to missing try-finally block")
+        
+        # Clean up the lock for the test
+        mock_stream.lock.release()
+        
+        # Test passes by successfully demonstrating the bug
+        assert True, "Successfully reproduced the lock issue"
+    else:
+        print("Lock was properly released - the bug may have been fixed")
+        assert False, "Expected to reproduce the lock bug but lock was released"
 
 
 def test_demonstrate_proper_lock_handling():
@@ -117,10 +117,10 @@ def test_demonstrate_proper_lock_handling():
     # This demonstrates the CORRECT way to handle locks that should be implemented
     # to fix the bug found in _create_frames_generator
     
-    import aiko_services.main.utilities.lock as lock_module
+    from aiko_services.main.utilities.lock import Lock
     
     # Create a test lock
-    test_lock = lock_module.Lock("test_lock_demo")
+    test_lock = Lock("test_lock_demo")
     
     # Demonstrate proper exception handling with locks
     def proper_lock_usage():

@@ -65,7 +65,34 @@ class DataSchemeRTSP(aiko.DataScheme):
         return aiko.StreamEvent.OKAY, {}
 
     def create_targets(self, stream, data_targets):
-        diagnostic = "DataSchemeRTSP does not implement create_targets()"
+        diagnostic = "DataSchemeRTSP does not implement create_targets()"   
+        bind_address,port = data_targets[0]
+        username = self.get_parameter['username']
+        password = self.get_parameter['password']
+
+        ipaddress = get_host_ipaddress()
+        self.share["rtsp_url"] = f"rtsp://{ipaddress}:{port}"
+
+        self.video_file = str(video_file)
+        self.port = port
+
+        Gst.init(None)
+        self.server = GstRtspServer.RTSPServer()
+        self.server.set_service(str(port))
+        self.factory = GstRtspServer.RTSPMediaFactory()
+        pipeline = (
+        f'( appsrc location="{self.video_file}" ! '
+        'qtdemux name=d '
+        'd.video_0 ! queue ! decodebin ! videoconvert ! '
+        'x264enc tune=zerolatency speed-preset=veryfast bitrate=1000 ! '
+        'rtph264pay name=pay0 pt=96 )'
+        )
+        self.factory.set_launch(pipeline)
+        self.factory.set_shared(True)
+        mount_points = self.server.get_mount_points()
+        mount_points.add_factory("/test", self.factory)
+        self.server.attach(None)
+
         return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
     def destroy_sources(self, stream):
