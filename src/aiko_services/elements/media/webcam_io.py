@@ -123,9 +123,11 @@ class VideoReadWebcam(aiko.DataSource):  # PipelineElement
 
     def start_stream(self, stream, stream_id):
         self.stream_started += 1
-        path, _ = self.get_parameter("path", _DEFAULT_CAMERA_PATHNAME)
+        path, _ = self.get_parameter(
+            "path", _DEFAULT_CAMERA_PATHNAME, self_share_priority=False)
         self._open_camera(path)
-        rate, _ = self.get_parameter("rate", _DEFAULT_FRAME_RATE)
+        rate, _ = self.get_parameter(
+            "rate", _DEFAULT_FRAME_RATE, self_share_priority=False)
         self.create_frames(stream, self.frame_generator, rate=float(rate))
         return aiko.StreamEvent.OKAY, {}
 
