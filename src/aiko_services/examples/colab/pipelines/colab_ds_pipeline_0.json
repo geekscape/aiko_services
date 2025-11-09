@@ -1,6 +1,6 @@
 {
   "version": 0,
-  "name":    "p_colab_0",
+  "name":    "p_colab_ds_0",
   "runtime": "python",
 
   "graph": ["(VideoReadColab)"],
