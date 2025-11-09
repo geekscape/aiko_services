@@ -1,0 +1,23 @@
+{
+  "version": 0,
+  "name":    "p_colab_0",
+  "runtime": "python",
+
+  "graph": ["(VideoReadColab)"],
+
+  "parameters": {
+    "_create_stream_": "1",
+    "resolution": "320x240", "resolution_mac": "320x180"
+  },
+
+  "elements": [
+    { "name":   "VideoReadColab",
+			"parameters": {"data_sources": "(colab://)"},
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.colab.colab_io"}
+      }
+    }
+  ]
+}
