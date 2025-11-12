@@ -986,7 +986,7 @@ class PipelineImpl(Pipeline):
             stream, _ = self.get_stream()
             stream.lock.acquire("create_stream()")
 
-            graph_path = self.pipeline_graph.get_path(self.share["graph_path"])
+            graph_path = self.pipeline_graph.get_path(graph_path)
             for node in graph_path:
                 element, element_name, local, _ =  \
                     PipelineGraph.get_element(node)
