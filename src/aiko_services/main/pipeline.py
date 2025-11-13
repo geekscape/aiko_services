@@ -286,7 +286,7 @@ class PipelineGraph(Graph):
             if element.__class__.__name__ == "PipelineRemote":
                 name = node.name
             else:
-                name = element.__class__.__name__
+                name = node.name
 
         return element, name, local, lifecycle
 
