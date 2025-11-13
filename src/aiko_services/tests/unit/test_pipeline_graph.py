@@ -112,4 +112,3 @@ def test_graph_name_mapping():
 
         pipeline_definition = HEADER + GRAPHS[graph_index] + ELEMENTS
         do_create_pipeline(pipeline_definition)
-        break
