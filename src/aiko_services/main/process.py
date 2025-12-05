@@ -24,6 +24,9 @@
 #
 # To Do
 # ~~~~~
+# * Monitor processes in case of failure (watchdog) and superfluous new copies
+#   - People accidentally starting the same core framework processes
+#
 # * Rename ProcessData to ProcessInfo ?
 #
 # * Automatically attempt reconnection with MQTT server after disconnection

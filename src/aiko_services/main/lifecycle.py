@@ -316,6 +316,8 @@ class LifeCycleManagerTestImpl(LifeCycleManagerTest):
 
         tags = ["ec=true"]   # TODO: Add ECProducer tag before add to Registrar
         init_args = actor_args("_process_manager", None, None, None, tags)
+        init_args["definition_pathname"] = None
+        init_args["watchdog"] = False
         self.process_manager = compose_instance(ProcessManagerImpl, init_args)
 
         context.get_implementation("LifeCycleManager").__init__(self,

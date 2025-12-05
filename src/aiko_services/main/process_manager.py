@@ -76,7 +76,7 @@
 # * Support Operating System specific: systemd, launchd and task scheduler
 #
 # - Shell pipe: (DataSource | shell command 0 | shell command 1 | DataTarget)
-#   - DataSource file:// with FileSystemEventPatternMatch() for any MediaType
+#   - DataSource file: with FileSystemEventPatternMatch() for any MediaType
 #
 # - Consider process specific "process_exit_handler()" implementations ?
 #
