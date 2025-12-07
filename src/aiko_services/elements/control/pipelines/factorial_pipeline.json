@@ -5,7 +5,10 @@
 
   "graph": ["(Factorial Tool_A Inspect)"],
 
-  "parameters": {"_create_stream_": "1"},
+  "parameters": {
+    "_create_stream_":       "1",
+    "_destroy_stream_exit_": "1"
+  },
 
   "elements": [
     { "name": "Factorial", "input": [], "output": [],

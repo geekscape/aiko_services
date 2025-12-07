@@ -6,7 +6,8 @@
   "graph": ["(VideoReadWebcam ImageResize VideoShow VideoWriteFile)"],
 
   "parameters": {
-    "_create_stream_": "1",
+    "_create_stream_":       "1",
+    "_destroy_stream_exit_": "1",
     "resolution": "640x480", "resolution_mac": "640x360"
   },
 

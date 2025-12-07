@@ -1046,6 +1046,7 @@ class PipelineImpl(Pipeline):
         if stream_id not in self.stream_leases:
             return False
 
+        exit_id = None  # Acquire during "._enable_thread_local()" for later on
         try:
             if use_thread_local:
                 self._enable_thread_local("destroy_stream()", stream_id)
@@ -1060,6 +1061,8 @@ class PipelineImpl(Pipeline):
                 return False
 
             self.logger.debug(f"Destroy stream: <{stream_id}>")
+
+            exit_id, _ = self.get_parameter("_destroy_stream_exit_", None)
 
             if stream_id in self.DEBUG:                     # DEBUG: 2024-12-02
                 del self.DEBUG[stream_id]
@@ -1091,16 +1094,22 @@ class PipelineImpl(Pipeline):
 
         stream_lease = self.stream_leases[stream_id]
         del self.stream_leases[stream_id]
+
+        if exit_id and exit_id == stream_id:  # "exit_id" acquired earlier
+            diagnostic =  \
+                f"Pipeline terminated when Stream <{exit_id}> destroyed"
+            self.logger.info(diagnostic)
+            raise SystemExit()
         return True
 
     def _error_pipeline(self, header, diagnostic):
         PipelineImpl._exit(header, diagnostic)
 
     @classmethod
-    def _exit(cls, header, diagnostic):
+    def _exit(cls, header, diagnostic, error_code=-1):
         complete_diagnostic = f"{header}\n{diagnostic}"
         _LOGGER.error(complete_diagnostic)
-        raise SystemExit(-1)
+        raise SystemExit(error_code)
 
     def get_stream(self):   # See _enable_thread_local()
         stream = self.thread_local.stream

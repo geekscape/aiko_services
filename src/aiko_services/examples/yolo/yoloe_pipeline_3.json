@@ -5,7 +5,10 @@
 
   "graph": [ "(VideoReadFile YoloDetector ImageOverlay VideoWriteFile)" ],
 
-  "parameters": {"_create_stream_": "1"},
+  "parameters": {
+    "_create_stream_":       "1",
+    "_destroy_stream_exit_": "1"
+  },
 
   "elements": [
     { "name":   "VideoReadFile",
@@ -20,10 +23,10 @@
       }
     },
     { "name":   "YoloDetector",
-			"parameters": {
-				"model": "yoloe-11s-seg.pt",  "#": "model sizes: yoloe-11[sml]-seg.pt",
-			  "names": "(apple ball banana cat dog fork glasses knife spoon lightbulb mug person)"
-			},
+      "parameters": {
+        "model": "yoloe-11s-seg.pt",  "#": "model sizes: yoloe-11[sml]-seg.pt",
+        "names": "(apple ball banana cat dog fork glasses knife spoon lightbulb mug person)"
+      },
       "input":  [{"name": "images",  "type": "[image]"}],
       "output": [{"name": "overlay", "type": "[overlay]"}],
       "deploy": {

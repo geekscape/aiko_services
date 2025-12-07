@@ -6,13 +6,14 @@
   "graph": ["(VideoReadColab)"],
 
   "parameters": {
-    "_create_stream_": "1",
+    "_create_stream_":       "1",
+    "_destroy_stream_exit_": "1",
     "resolution": "320x240", "resolution_mac": "320x180"
   },
 
   "elements": [
     { "name":   "VideoReadColab",
-			"parameters": {"data_sources": "(colab://)"},
+      "parameters": {"data_sources": "(colab://)"},
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [{"name": "images", "type": "[image]"}],
       "deploy": {
