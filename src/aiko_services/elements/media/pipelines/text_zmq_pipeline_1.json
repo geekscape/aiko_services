@@ -8,7 +8,7 @@
   "elements": [
     { "name":   "TextReadFile",
       "parameters": {
-        "data_sources": "(file://data_in/in_{}.txt)",
+        "data_sources": "(file:data_in/in_{}.txt)",
         "data_batch_size": 1
       },
       "input":  [{ "name": "paths", "type": "[Path]" }],

@@ -11,16 +11,16 @@ __all__ = ["DataSchemeFile"]
 
 # --------------------------------------------------------------------------- #
 # parameter: "data_sources" provides the file pathname(s)
-# - "(file://pathname_0 file://pathname_1 ...)"
-# - "(file://data_in/in_{}.txt)"
-# - "(file://data_in/in_{}.jpeg)"
-# - "(file://data_in/in_{}.mp4)"
+# - "(file:pathname_0 file:pathname_1 ...)"
+# - "(file:data_in/in_{}.txt)"
+# - "(file:data_in/in_{}.jpeg)"
+# - "(file:data_in/in_{}.mp4)"
 #
 # parameter: "data_targets" provides the file pathname(s)
-# - "(file://pathname_0 file://pathname_1 ...)"
-# - "(file://data_out/out{}.txt)"
-# - "(file://data_out/out_{}.jpeg)"
-# - "(file://data_out/out_{}.mp4)"
+# - "(file:pathname_0 file:pathname_1 ...)"
+# - "(file:data_out/out{}.txt)"
+# - "(file:data_out/out_{}.jpeg)"
+# - "(file:data_out/out_{}.mp4)"
 
 class DataSchemeFile(aiko.DataScheme):
     def create_sources(self,
@@ -31,7 +31,7 @@ class DataSchemeFile(aiko.DataScheme):
 
         paths = []
         for data_source in data_sources:
-            path = aiko.DataScheme.parse_data_url_path(data_source)
+            path = aiko.DataScheme.parse_url_path(data_source)
             file_glob = "*"
             if aiko.DataScheme.contains_all(path, "{}"):
                 file_glob = os.path.basename(path).replace("{}", "*")
@@ -69,7 +69,7 @@ class DataSchemeFile(aiko.DataScheme):
         return aiko.StreamEvent.OKAY, {}
 
     def create_targets(self, stream, data_targets):
-        path = aiko.DataScheme.parse_data_url_path(data_targets[0])
+        path = aiko.DataScheme.parse_url_path(data_targets[0])
         target_path_template = aiko.DataScheme.contains_all(path, "{}")
 
         stream.variables["target_file_id"] = 0

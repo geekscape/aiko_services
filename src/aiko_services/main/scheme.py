@@ -46,16 +46,25 @@ class DataScheme:
     def destroy_targets(self, stream):
         pass
 
-    @classmethod
-    def parse_data_url_path(cls, data_url):  # data_source or data_target
-        tokens = data_url.split("://")  # URL "scheme://path" or "path"
-        path = tokens[0] if len(tokens) == 1 else tokens[1]
-        return path
+# TODO: "def parse_url()", which returns "scheme", "authority", "path"
 
     @classmethod
-    def parse_data_url_scheme(cls, data_url):  # data_source or data_target
-        tokens = data_url.split("://")  # URL "scheme://path"
-        scheme = "file" if len(tokens) == 1 else tokens[0]
-        return scheme.lower()
+    def parse_data_url_path(cls, url):  # data_source or data_target
+        auth_path = url.split(":", 1)[1] if ":" in url else ""
+        if auth_path.startswith("//"):
+            auth_path = auth_path[2:] if len(auth_path) >= 3 else ""
+        return auth_path  # TODO: Should only return "path"
+
+    @classmethod
+    def parse_url_path(cls, url):
+        return DataScheme.parse_data_url_path(url)
+
+    @classmethod
+    def parse_data_url_scheme(cls, url):  # data_source or data_target
+        return url.split(":")[0].lower() if ":" in url else "file"
+
+    @classmethod
+    def parse_url_scheme(cls, url):
+        return DataScheme.parse_data_url_scheme(url)
 
 # --------------------------------------------------------------------------- #

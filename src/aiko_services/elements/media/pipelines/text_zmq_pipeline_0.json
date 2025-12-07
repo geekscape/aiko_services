@@ -20,7 +20,7 @@
       }
     },
     { "name":   "TextWriteFile",
-      "parameters": {"data_targets": "(file://data_out/out_00.txt)"},
+      "parameters": {"data_targets": "(file:data_out/out_00.txt)"},
       "input":  [{ "name": "texts", "type": "[str]" }],
       "output": [],
       "deploy": {

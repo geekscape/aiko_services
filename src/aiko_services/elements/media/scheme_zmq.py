@@ -103,7 +103,7 @@ class DataSchemeZMQ(aiko.DataScheme):
 
     def _parse_zmq_url(self, data_urls, find_free_port=False):
         data_url = data_urls[0]
-        path = aiko.DataScheme.parse_data_url_path(data_url)
+        path = aiko.DataScheme.parse_url_path(data_url)
         tokens = path.split(":")  # "hostname:port_range", e.g "*:6502-6510"
         diagnostic =  \
             f'ZMQ Data URL "{data_url}" must be "zmq://host:port_range"'
