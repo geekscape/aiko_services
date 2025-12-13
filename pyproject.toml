@@ -3,7 +3,7 @@ name = "aiko_services"
 version = "0.6"
 readme = "ReadMe.md"
 description = "Distributed embedded service framework for A.I and robotics"
-requires-python = ">=3.9.0,<=3.13.9"
+requires-python = ">=3.9.0,<=3.13.11"
 
 authors = [
     {name = "Andy Gelme", email = "geekscape@gmail.com"}
@@ -67,6 +67,15 @@ aiko_registrar = "aiko_services.main.registrar:main"
 aiko_storage_file = "aiko_services.main.storage.storage_file:main"
 
 [tool.hatch]
+
+# [tool.pyrefly]
+# project-includes = ["**/*"]
+# project-excludes = [
+#     "**/node_modules",
+#     "**/__pycache__",
+#     "**/*venv/**/*",
+# ]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
