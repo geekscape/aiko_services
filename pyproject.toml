@@ -3,7 +3,7 @@ name = "aiko_services"
 version = "0.6"
 readme = "ReadMe.md"
 description = "Distributed embedded service framework for A.I and robotics"
-requires-python = ">=3.9.0,<=3.13.11"
+requires-python = ">=3.9.0,<=3.14.2"
 
 authors = [
     {name = "Andy Gelme", email = "geekscape@gmail.com"}
@@ -14,7 +14,7 @@ keywords = [
     "internet of things", "machine learning", "media", "robotics"
 ]
 
-licence-files = { paths = ["LICENCE"]}
+licence-files = ["LICENCE"]
 
 # See: https://pypi.org/classifiers
 classifiers = [
@@ -67,6 +67,7 @@ aiko_registrar = "aiko_services.main.registrar:main"
 aiko_storage_file = "aiko_services.main.storage.storage_file:main"
 
 [tool.hatch]
+dev-mode-dirs = ["src"]
 
 # [tool.pyrefly]
 # project-includes = ["**/*"]
