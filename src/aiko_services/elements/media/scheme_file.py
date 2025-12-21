@@ -24,7 +24,7 @@ __all__ = ["DataSchemeFile"]
 
 class DataSchemeFile(aiko.DataScheme):
     def create_sources(self,
-        stream, data_sources, frame_generator=None, use_create_frame=True):
+        stream, data_sources, frame_generator=None, use_create_frame=False):
 
         if not frame_generator:
             frame_generator = self.frame_generator
