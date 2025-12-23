@@ -67,7 +67,6 @@ aiko_registrar = "aiko_services.main.registrar:main"
 aiko_storage_file = "aiko_services.main.storage.storage_file:main"
 
 [tool.hatch]
-dev-mode-dirs = ["src"]
 
 # [tool.pyrefly]
 # project-includes = ["**/*"]
@@ -81,17 +80,17 @@ dev-mode-dirs = ["src"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build]
+dev-mode-dirs = ["src"]
+skip-excluded-dirs = true
+
 [tool.hatch.build.targets.sdist]
 packages = ["src/aiko_services"]
 exclude = [
+    "cache",
     "src/aiko_services/archive",
     "src/aiko_services/elements/media/data",
-    "src/aiko_services/examples/jukebox",
-    "src/aiko_services/examples/onnx",
-    "src/aiko_services/examples/yolo",
-#   "src/aiko_services/examples/yolo/datasets",
-#   "src/aiko_services/examples/yolo/media",
-    "cache",
+    "src/aiko_services/examples",
     "venv*"
 ]
 
@@ -99,14 +98,10 @@ exclude = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/aiko_services"]
 exclude = [
+    "cache",
     "src/aiko_services/archive",
     "src/aiko_services/elements/media/data",
-    "src/aiko_services/examples/jukebox",
-    "src/aiko_services/examples/onnx",
-    "src/aiko_services/examples/yolo",
-#   "src/aiko_services/examples/yolo/datasets",
-#   "src/aiko_services/examples/yolo/media",
-    "cache",
+    "src/aiko_services/examples",
     "venv*"
 ]
 
