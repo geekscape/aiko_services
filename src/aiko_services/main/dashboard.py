@@ -46,12 +46,12 @@
 # * AI REPL --> LISP/Ollama --> Aiko Services analysis logs and MQTT messages
 #
 # * BUG: Dashboard doesn't display variables that contain whitespace !
-#        Variable doesn't appear at all :(
+#        Variable doesn't appear at all 😔
 #
 # * BUG: When Dashboard exits, must clean-up (unshared) the ECConsumer !
 #        Also, check that the ECProducer lease(s) expire as required
 #
-# * BUG: Dashboard isn't terminating ECConsumer lease extend timer :(
+# * BUG: Dashboard isn't terminating ECConsumer lease extend timer 😔
 #
 # - BUG: If currently selected Service terminates, then Dashboard doesn't
 #        update selected Service's veriables section
@@ -351,7 +351,7 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
         self.filter_out = DashboardFrame.FILTER_OUT.copy()
         self.services_row = -1
         self.selected_service = None
-        self.selected_services = {}
+        self.selected_services = {}  # TODO: Make this a set() ?
         self.subscribed_service = None
 
         self.services_cache = aiko.services_cache_create_singleton(
@@ -389,22 +389,15 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
         self.fix()  # Prepare asciimatics_Frame for use
         self._value_width = self._service_widget.width - 16
 
-    def _ec_consumer_set(self, index):
+    def _ec_consumer_set(self, topic_path):
         self._ec_consumer_reset()
-        self.services_row = -1
-        self.selected_service = None
-
         services = self.services_cache.get_services()
-        services_topic_paths = services.get_topic_paths()
-        if len(services_topic_paths) > index:
-            self.services_row = index
-            service_topic_path = services_topic_paths[index]
-            self.selected_service = services.get_service(service_topic_path)
-            self.service_tags = self.selected_service[5]
-            if aiko.ServiceTags.match_tags(self.service_tags, ["ec=true"]):
-                topic_control = f"{service_topic_path}/control"
-                self.ec_consumer = aiko.ECConsumer(
-                    aiko.process, 0, self.service_cache, topic_control)
+        self.selected_service = services.get_service(topic_path)
+        self.service_tags = self.selected_service[5]
+        if aiko.ServiceTags.match_tags(self.service_tags, ["ec=true"]):
+            topic_control = f"{topic_path}/control"
+            self.ec_consumer = aiko.ECConsumer(
+                aiko.process, 0, self.service_cache, topic_control)
 
     def _ec_consumer_reset(self):
         if self.ec_consumer:
@@ -427,6 +420,15 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
                 show = False
         return parent, show
 
+    def _get_service_topic_path_next(self):
+        service_topic_path_next = None
+        services_row_next = self.services_row + 1
+        services = self._services_widget.options
+        if len(services) > services_row_next:
+            service = services[services_row_next]
+            service_topic_path_next = str(service[0][0])  # remove color
+        return service_topic_path_next
+
     def _kill_service(self, service):
         topic_path = service[0]
         transport = service[3]
@@ -434,14 +436,18 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
         if topic_path.count("/") == 3:
             process_id = aiko.ServiceTopicPath.parse(topic_path).process_id
             if process_id.isnumeric():
+                topic_path_next = self._get_service_topic_path_next()
+                if topic_path_next:
+                    self._ec_consumer_set(topic_path_next)
                 command_line = ["kill", kill_signal, process_id]
                 Popen(command_line, bufsize=0, shell=False)
-                self._ec_consumer_set(self.services_row + 1)
 
     def _on_change_services(self):
         row = self._services_widget.value
         if row is not None and row != self.services_row:
-            self._ec_consumer_set(row)
+            self.services_row = row
+            topic_path_color = self._services_widget.options[row][0][0]
+            self._ec_consumer_set(str(topic_path_color))  # remove color
 
     def _on_select_variable(self):
         text_box = TextBox(1, None, None, False, False)
@@ -514,17 +520,17 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
                 PopUpDialog(self._screen, text, ["OK"], theme="nice"))
 
     def _service_selection_clear(self):
-        self.selected_services = {}
+        self.selected_services = {}  # TODO: Make this a set() ?
 
     def _service_selection_color(self, color, topic_path, topic_path_show):
         topic_path_colored = topic_path_show
-        if topic_path in self.selected_services:
+        if topic_path in self.selected_services:  # TODO: Make this a set() ?
             topic_path_colored = self._color_text(color, topic_path_show)
         return topic_path_colored
 
     def _service_selection_toggle(self, service):
         topic_path = service[0]
-        if topic_path in self.selected_services:
+        if topic_path in self.selected_services:  # TODO: Make this a set() ?
             del self.selected_services[topic_path]
         else:
             self.selected_services[topic_path] = service
