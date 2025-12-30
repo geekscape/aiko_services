@@ -16,7 +16,9 @@
 #
 # To Do
 # ~~~~~
-# - Design, implement and use Dependency
+# - For consistency, rename "start" subcommand to "run", implement "exit"
+#
+# - Design, implement and use Dependency and Category (for groups ?)
 #
 # * Fix: Use of do_request(), before starting, may need to wait for ...
 #        Connection.is_connected(ConnectionState.REGISTRAR) ?

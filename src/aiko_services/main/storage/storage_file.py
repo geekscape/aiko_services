@@ -74,7 +74,7 @@
 # - Consider database-based and ValKey(Redis distributed) implementation(s)
 #     import sqlite3
 #     self.connection = sqlite3.connect(storage_url)
-#     @click.argument("storage_url", default="file://./aiko_storage.db")
+#     @click.argument("storage_url", default="file:aiko_storage.db")
 
 from abc import abstractmethod
 import click
@@ -96,7 +96,7 @@ PROTOCOL_TYPE = "storage"
 ACTOR_TYPE = f"{PROTOCOL_TYPE}_file"
 PROTOCOL = f"{SERVICE_PROTOCOL_AIKO}/{PROTOCOL_TYPE}:{_VERSION}"
 
-_CWD_URL = "file://./"         # relative URL for the current working directory
+_CWD_URL = "file:"             # relative URL for the current working directory
 _RESPONSE_TOPIC = f"{aiko.topic_in}"
 _ROOT_FILENAME = ".root"
 _STORAGE_FILENAME = "_hyperspace_"      # TODO: Default will become "_storage_"
@@ -587,7 +587,7 @@ def initialize_command(storage_url):
     aiko_storage_file initialize [STORAGE_URL]
 
     \b
-    • STORAGE_URL: Storage file-system location, e.g file://./
+    • STORAGE_URL: Storage file-system location, e.g file:
     """
 
     storage_name = get_hostname()
@@ -784,7 +784,7 @@ def run_command(storage_name, storage_url):
     aiko_storage_file run [-sn STORAGE_NAME] [STORAGE_URL]
 
     \b
-    • STORAGE_URL: Storage file-system location, e.g file://./
+    • STORAGE_URL: Storage file-system location, e.g file:
     """
 
     storage_name = storage_name if storage_name else get_hostname()

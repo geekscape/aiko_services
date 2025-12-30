@@ -13,7 +13,7 @@
 # Usage: Distributed Actor
 # ~~~~~~~~~~~~~~~~~~~~~~~~
 # aiko_hyperspace.py run     [storage_url]  # file in-memory sqlite mqtt valkey
-# aiko_hyperspace.py dump
+# aiko_hyperspace.py dump                   # Not recursive, top-level only
 # aiko_hyperspace.py exit
 #
 # aiko_hyperspace.py add     ENTRY_PATH
@@ -21,7 +21,7 @@
 # aiko_hyperspace.py destroy CATEGORY_PATH
 # aiko_hyperspace.py link    ENTRY_PATH_NEW ENTRY_PATH_EXIST    # TODO: "link"
 # aiko_hyperspace.py list    [ENTRY_PATH] [--long_format|-l] [--recursive|-r]
-# aiko_hyperspace.py remove  ENTRY_PATH_EXIST                   # TODO: "unlink"
+# aiko_hyperspace.py remove  ENTRY_PATH                         # TODO: "unlink"
 # aiko_hyperspace.py update  ENTRY_PATH -p protocol -t key_0=value_0
 #
 # Usage: Bootstrap
@@ -37,6 +37,8 @@
 # - Separate the design and implementation of HyperSpace and Storage
 #   - HyperSpace: create(): Category with different HyperSpace root ?
 #   - Storage:    create(): Category or Dependency (Definition and Contents)
+#
+# ** Update self.share["running" and "active"]  # total Category counts
 #
 # * HyperSpace/Registrar(Category): Filters(Code), Order(Sort), Pagination
 #
@@ -94,13 +96,13 @@ from aiko_services.main import *
 from aiko_services.main.storage import StorageFileImpl
 from aiko_services.main.utilities import dir_base_name, get_hostname
 
-__all__ = ["HyperSpace"]
+__all__ = ["HyperSpace", "HyperSpaceImpl"]
 
 ACTOR_TYPE = "hyperspace"
 VERSION = 0
 PROTOCOL = f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE}:{VERSION}"
 
-_CWD_URL = "file://./"  # relative URL for the current working directory
+_CWD_URL = "file:"              # relative URL for the current working directory
 _PATH_DELIMITER = "/"
 # _RESPONSE_TOPIC = f"{aiko.topic_in}"
 
@@ -127,7 +129,7 @@ class HyperSpace(Category, Actor):
 class HyperSpaceImpl(HyperSpace):
     @classmethod
     def create_hyperspace(cls, hyperspace_name=None,
-        storage_url=_CWD_URL, protocol=PROTOCOL, tags=None, transport=None):
+        storage_url=_CWD_URL, protocol=PROTOCOL, tags=[], transport=None):
 
         tags = list(tags) + ["ec=true"]
         init_args = actor_args(
@@ -146,7 +148,7 @@ class HyperSpaceImpl(HyperSpace):
             "storage_url": storage_url,
             "metrics": {
                 "created": 0,
-                "running": 1 + len(self.entries)   # Including self 😅
+                "running": 1,                # Include self 😅
             #   "time_started": 0            # TODO: UTC time started --> Actor
             },                               #       or time.monotonic()
         })
@@ -155,99 +157,149 @@ class HyperSpaceImpl(HyperSpace):
 
         self._hyperspace_load(storage_url)
 
-    def _category_path_iterator(self, category_path, delimiter=_PATH_DELIMITER):
-        for name in category_path.split(delimiter):
-            yield name
+    def _path_iterator(self, pathname, delimiter=_PATH_DELIMITER):
+        names = [name for name in pathname.split(delimiter) if name]
+        if not names:
+            return
+        last_index = len(names) - 1
+        for index, name in enumerate(names):
+            yield name, (index == last_index)  # name, is_last_name_in_pathname
 
-    def _category_traverse(self, category_path, delimiter=_PATH_DELIMITER):
-        dirname, basename = dir_base_name(category_path)
-        current_category = self
-        if dirname == ".":
-            return current_category, basename
+# _find_entry(): entry_path --> return values
+# - "", ".", "/"            --> HyperSpace,      ""
+# - "category"              --> parent category, category_name
+# - "dependency"            --> parent category, dependency_name
+# - "dependency not found"  --> parent category, None
+# - "entry_path invalid"    --> None,            None
+#
+# TODO: Used by: add(), destroy(), list(), remove(), update(), but not create()
 
-        for category_name in self._category_path_iterator(dirname):
-            if category_name in current_category.entries:
-                entry = current_category.entries[category_name]
-                if entry.service_filter.protocol != CATEGORY_PROTOCOL:
-                    return None, None
-                current_category = entry
+    def _find_entry(self, entry_path, strict=True):
+        current_category = self  # HyperSpace(Category)
+        if entry_path is None or entry_path in ["", ".", _PATH_DELIMITER]:
+            return current_category, ""
+
+        for name, is_last in self._path_iterator(entry_path):
+            entries = current_category.share["entries"]
+            use_name = name in entries or not strict
+            entry_name = name if use_name else None
+
+            if is_last:
+                return current_category, entry_name
             else:
-                return None, None
-        return current_category, basename
+                if entry_name:
+                    entry = entries[entry_name]
+                    if entry.is_type("Category"):
+                        current_category = entry
+                    else:
+                        return None, None
+                else:
+                    return None, None
 
     # Default outcome is to use StorageFile to persist the new Dependency.
     # "_hyperspace_load()" only needs to create the in-memory representation
     # from Storage persistence, hence "use_storage=False"
 
+    # Must always have a Category to add to ... and ether ...
+    # - Not using storage, e.g perfoming "_hyperspace_load()"
+    # - Using storage and no entry, e.g no existing Category or Dependency
+
     def add(self, entry_path,
         service_filter, lifecycle_manager_url=None, storage_url=None,
         use_storage=True):
 
-        category, entry_name = self._category_traverse(entry_path)
-        if category:
+        category, entry_name = self._find_entry(entry_path, use_storage)
+        if (category and not use_storage) or  \
+           (category and use_storage and entry_name is None):
+
+            entry_name = entry_path.split(_PATH_DELIMITER)[-1]
             if service_filter and not isinstance(service_filter, ServiceFilter):
                 service_filter = ServiceFilter(*service_filter)
             if service_filter.name == "*":
                 service_filter.name = entry_name
             self.category.add(category, entry_name,
                 service_filter, lifecycle_manager_url, storage_url)
-            dependency = compose_instance(DependencyImpl, dependency_args(
-                None, service_filter, lifecycle_manager_url, storage_url))
 
+        # TODO: Consider Category supports "use_storage" via "storage_url" ?
             if use_storage:
-                self.storage.add(entry_name, dependency)
+                dependency = compose_instance(DependencyImpl, dependency_args(
+                    None, service_filter, lifecycle_manager_url, storage_url))
+                self.storage.add(entry_path, dependency)
 
     # Default outcome is to use StorageFile to persist the new Category.
     # "_hyperspace_load()" only needs to create the in-memory representation
     # from Storage persistence, hence "use_storage=False"
+
+    # Must always have a Category to add to ... and ether ...
+    # - Not using storage, e.g perfoming "_hyperspace_load()"
+    # - Using storage and no entry, e.g no existing Category or Dependency
+
+    ### TO DO: REVIEW ####
+    # - "", ".", "/"            --> HyperSpace,      ""               # NO
+    # - "category"              --> parent category, category_name    # NO
+    # - "dependency"            --> parent category, dependency_name  # NO
+    # - "dependency not found"  --> parent category, None             # YES
+    # - "entry_path invalid"    --> None,            None             # NO
 
     def create(self, category_path, use_storage=True):
         current_category = self
         category_created = False
         tags = ["ec=true"]
 
-        for category_name in self._category_path_iterator(category_path):
-            if category_name in current_category.entries:
-                entry = current_category.entries[category_name]
-                if entry.service_filter.protocol != CATEGORY_PROTOCOL:
+        for name, _ in self._path_iterator(category_path): # TODO: _find_entry()
+            if name in current_category.share["entries"]:
+                entry = current_category.share["entries"][name]
+            #   if entry.service_filter.protocol != CATEGORY_PROTOCOL: #REFACTOR
+                if not entry.is_type("Category"):
                     break
                 category = entry
             else:
                 init_args = actor_args(
-                    category_name, None, None, CATEGORY_PROTOCOL, tags)
+                    name, None, None, CATEGORY_PROTOCOL, tags)
                 init_args["service_filter"] = ServiceFilter(
-                    name=category_name, protocol=CATEGORY_PROTOCOL, tags=[])
+                    name=name, protocol=CATEGORY_PROTOCOL, tags=[])
                 category = compose_instance(CategoryImpl, init_args)
-                current_category.entries[category_name] = category
-                category_created = True
+
+                current_category.ec_producer.update(
+                    f"entries.{name}", category)
+                current_category.ec_producer.update(
+                    "entries_count", len(current_category.share["entries"]))
 
                 if use_storage:
                     self.storage.create(str(category_path))
 
             current_category = category
 
-        if category_created:
-            self.ec_producer.update("entries", len(self.entries))
-
 # TODO: Categories destroy() versus Dependencies remove() ?  Check protocol ?
-# TODO: Recursively remove Categories ... using "limit" argument
+# TODO: Recursively remove Categories (deepest first) ... use "limit" argument
 # TODO: Replace "destroy()" with "remove()", only destroy when last reference
-# TODO: Remove Dependencies and clean-up any resources ?
+# TODO: Remove Dependencies and clean-up any resources, i.e Service instance ?
 
     def destroy(self, category_path):
-        category_parent, category_name = self._category_traverse(category_path)
-        self._destroy(category_parent, category_name)
+        category_parent, category_name = self._find_entry(category_path)
+        self._destroy(category_path, category_parent, category_name)
 
-    def _destroy(self, category_parent, category_name):
-        if category_parent and category_name in category_parent.entries:
-            category = category_parent.entries[category_name]
-            if category.service_filter.protocol == CATEGORY_PROTOCOL:
-                del category_parent.entries[category_name]
-                aiko.process.remove_service(category.service_id)
-                self.ec_producer.update("entries", len(self.entries))
+    def _destroy(self, category_path, category_parent, category_name):
+        if category_parent:
+            category_parent_entries = category_parent.share["entries"]
+            if category_name in category_parent_entries:
+                category = category_parent_entries[category_name]
+            #   if category.service_filter.protocol == CATEGORY_PROTOCOL: #REFACTOR
+                if category.is_type("Category"):
+                # TODO: Remove Dependencies and check if linked elsewhere ?
+                    if category.share["entries_count"] == 0:
+                    # TODO: Refactor into category.destroy()
+                        del category_parent_entries[category_name]
+                        aiko.process.remove_service(category.service_id)
+                        category_parent.ec_producer.remove(
+                            f"entries.{category_name}")
+                        category_parent.ec_producer.update(
+                            "entries_count", len(category_parent_entries))
+                        print(f"### CATEGORY_PATH: {category_path} ###")
+                        self.storage.destroy(str(category_path))
 
     def dump(self):
-        if len(self.entries):
+        if len(self.share["entries"]):
             state = f" ...\n{self}"
         else:
             state = ": no entries"
@@ -259,6 +311,9 @@ class HyperSpaceImpl(HyperSpace):
 
     def exit(self):
         aiko.process.terminate()
+
+    def get_type(self):
+        return "hyperspace"
 
     def _hyperspace_load(self, storage_url=_CWD_URL):
         entry_records = []
@@ -305,42 +360,58 @@ class HyperSpaceImpl(HyperSpace):
         if not isinstance(recursive, bool):
             recursive = recursive.lower() in ("true", "t")
 
-        category, entry_name = self._category_traverse(entry_path)
-        if category and entry_name in category.entries:
-            entry = category.entries[entry_name]
-            if entry.service_filter.protocol == CATEGORY_PROTOCOL:
-                category = entry
+        def get_entry_records(
+            entry_records, category, category_name, filter_name, level):
 
-        def get_entry_records(entry_records, category, category_name, level):
             if level > 0:
                 entry_records += [f"{-level} {category_name}"]
-            entry_records += category._get_entry_records(None, level)
+            entry_records += category._get_entry_records(filter_name, level)
             if recursive:
-                for entry_name, entry in category.entries.items():
+                for entry_name, entry in category.share["entries"].items():
                     if entry.is_type("Category"):
                         get_entry_records(
-                            entry_records, entry, entry_name, level+1)
+                            entry_records, entry, entry_name, None, level+1)
+
+        category, entry_name = self._find_entry(entry_path)
 
         entry_records = []
-        get_entry_records(entry_records, category, None, 0)
+        if category is None:
+            entry_records = ['text "Entry path is invalid"']
+        else:
+            category_entries = category.share["entries"]
+            if entry_name is None:
+                entry_records = ['text "Entry path not found"']
+            else:
+                filter_name = None
+                if entry_name:
+                    entry = category_entries[entry_name]
+                    if entry.is_type("Category"):
+                        category = entry
+                    else:
+                        filter_name = entry_name
+                        recursive = False
+                get_entry_records(entry_records, category, None, filter_name, 0)
+
         CategoryImpl._list_publish(
             topic_path_response, entry_records, long_format)
 
 # TODO: Categories destroy() versus Dependencies remove() ?  Check protocol ?
 
     def remove(self, entry_path):
-        category_parent, entry_name = self._category_traverse(entry_path)
-        if category_parent and entry_name in category_parent.entries:
-            entry = category_parent.entries[entry_name]
-            if entry.service_filter.protocol == CATEGORY_PROTOCOL:
-                self._destroy(category_parent, entry_name)
+        category_parent, entry_name = self._find_entry(entry_path)
+        if category_parent and entry_name in category_parent.share["entries"]:
+            entry = category_parent.share["entries"][entry_name]
+        #   if entry.service_filter.protocol == CATEGORY_PROTOCOL: #REFACTOR
+            if entry.is_type("Category"):
+                self._destroy(entry, path, category_parent, entry_name)
             else:
                 self.category.remove(category_parent, entry_name)
+            # TODO: self.storage.remove()  # does destroy !
 
     def __str__(self):
         result = ""
-        for entry_name, entry in self.entries.items():
-            entry_type = "/" if entry.is_type("Category") else ""
+        for entry_name, entry in self.share["entries"].items():
+            entry_type = _PATH_DELIMITER if entry.is_type("Category") else ""
             new_line = "\n" if result else ""
             result += f"{new_line}  {entry_name}{entry_type}"
         return result
@@ -348,8 +419,8 @@ class HyperSpaceImpl(HyperSpace):
     def update(self, entry_path, service=None,
         service_filter=None, lifecycle_manager_url=None, storage_url=None):
 
-        category_parent, entry_name = self._category_traverse(entry_path)
-        if category_parent and entry_name in category_parent.entries:
+        category_parent, entry_name = self._find_entry(entry_path)
+        if category_parent and entry_name in category_parent["entries"]:
             self.category.update(category_parent, entry_name, service,
                 service_filter, lifecycle_manager_url, storage_url)
 
@@ -457,7 +528,7 @@ def add_command(entry_path, hyperspace_name,
     aiko_hyperspace add ENTRY_PATH
 
     \b
-    • ENTRY_PATH: Entry PATH
+    • ENTRY_PATH: Category or Dependency pathname
     """
 
     tags = tags if tags else []                 # Assign default tags value
@@ -543,7 +614,7 @@ def list_command(entry_path, hyperspace_name, long_format, recursive):
     aiko_category list ENTRY_PATH [-l] [-r]
 
     \b
-    • ENTRY_PATH: Entry path
+    • ENTRY_PATH: Category or Dependency pathname
     """
 
     CategoryImpl.list_command(
@@ -561,7 +632,7 @@ def remove_command(entry_path, hyperspace_name):
     aiko_hyperspace remove [-hn HYPERSPACE_NAME] ENTRY_PATH
 
     \b
-    • ENTRY_PATH: Entry path
+    • ENTRY_PATH: Category or Dependency pathname
     """
 
     do_command(HyperSpaceImpl,
@@ -624,7 +695,7 @@ def update_command(entry_path, hyperspace_name,
     aiko_hyperspace update [-hn HYPERSPACE_NAME] ENTRY_PATH
 
     \b
-    • ENTRY_PATH: Entry path
+    • ENTRY_PATH: Category or Dependency pathname
     """
 
     tags = tags if tags else []                 # Assign default tags value

@@ -72,7 +72,7 @@ from .dependency import Dependency, dependency_args, DependencyImpl
 
 from .category import Category, CategoryImpl
 
-from .hyperspace import HyperSpace
+from .hyperspace import HyperSpace, HyperSpaceImpl
 
 from .process_manager import ProcessManager, ProcessManagerImpl
 

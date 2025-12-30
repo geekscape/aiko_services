@@ -98,12 +98,11 @@ class CategoryImpl(Category):
             service_filter=service_filter)
 
         self.dependency = context.get_implementation("Dependency")    # methods
-        self.entries = {}                         # Categories and Dependencies
 
         self.share.update({                       # Inherit from Actor
             "source_file": f"v{CATEGORY_VERSION}⇒ {__file__}",
-            "entries": len(self.entries)
-        })
+            "entries": {},                        # Categories and Dependencies
+            "entries_count": 0})
         self.ec_producer = ECProducer(self, self.share)
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
@@ -115,11 +114,11 @@ class CategoryImpl(Category):
         if service_filter.name == "*":
             service_filter.name = entry_name
 
-        if entry_name not in self.entries:
+        if entry_name not in self.share["entries"]:
             dependency = compose_instance(DependencyImpl, dependency_args(
                 None, service_filter, lifecycle_manager_url, storage_url))
-            self.entries[entry_name] = dependency
-            self.ec_producer.update("entries", len(self.entries))
+            self.ec_producer.update(f"entries.{entry_name}", dependency)
+            self.ec_producer.update("entries_count", len(self.share["entries"]))
 
     def _ec_producer_change_handler(self, command, entry_name, entry_value):
         if entry_name == "log_level":
@@ -130,7 +129,7 @@ class CategoryImpl(Category):
 
     def _get_entry_records(self, entry_name=None, level=0):
         entry_records = []
-        for entry_key, entry in self.entries.items():
+        for entry_key, entry in self.share["entries"].items():
             if entry_name is None or entry_name == entry_key:
             # TODO: "(dn (None * * * * (a=b c=d)) 0: 0:)"         # None --> 0:
                 entry = str(entry).replace("None", "0:")
@@ -138,6 +137,9 @@ class CategoryImpl(Category):
                 entry_records.append(entry_record)
         entry_records.sort()
         return entry_records
+
+    def get_type(self):
+        return "category"
 
     def is_type(self, type_name):
         if type_name.lower() == "category":
@@ -186,6 +188,10 @@ class CategoryImpl(Category):
             output = "No category entries"
 
         for record in entry_records:
+            if record[0] == "text":
+                output += f"\n\n{record[1]}"
+                continue
+
             level = int(record[0])
             if level < 0:                   # new child Category
                 indent = "  " * (abs(level) - 1)
@@ -231,9 +237,9 @@ class CategoryImpl(Category):
             CategoryImpl._list_print(entry_records, long_format)
 
     def remove(self, entry_name):
-        if entry_name in self.entries:
-            del self.entries[entry_name]
-            self.ec_producer.update("entries", len(self.entries))
+        if entry_name in self.share["entries"]:
+            self.ec_producer.remove(f"entries.{entry_name}")
+            self.ec_producer.update("entries_count", len(self.share["entries"]))
 
     def __repr__(self):
         return self.dependency.__repr__(self)
@@ -248,8 +254,8 @@ class CategoryImpl(Category):
             if service_filter_name_null:
                 service_filter.name = None
 
-        if entry_name in self.entries:
-            entry = self.entries[entry_name]
+        if entry_name in self.share["entries"]:
+            entry = self.share["entries"][entry_name]
             if service_filter:
                 if service_filter.name:
                     entry.service_filter.name = service_filter.name
@@ -267,6 +273,8 @@ class CategoryImpl(Category):
 
             if storage_url:
                 entry.storage_url = storage_url
+
+            self.ec_producer.update(f"entries.{entry_name}", entry)
 
 # --------------------------------------------------------------------------- #
 
