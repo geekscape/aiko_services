@@ -45,6 +45,8 @@
 # ~~~~~
 # * AI REPL --> LISP/Ollama --> Aiko Services analysis logs and MQTT messages
 #
+# * Command line option: Set number of rows for each DashboardFrame widget
+#
 # * BUG: Dashboard doesn't display variables that contain whitespace !
 #        Variable doesn't appear at all 😔
 #
@@ -267,7 +269,10 @@ class FrameCommon:
 
     def _update(self, frame_no):
         super(FrameCommon, self)._update(frame_no)
-        if frame_no > 5 and frame_no % _FRAME_UPDATE_RATE:  # roughly 1 Hz
+        connection = aiko.process.connection
+        if frame_no <= 5:
+            self.connection_state_last = connection.connection_state
+        elif frame_no % _FRAME_UPDATE_RATE:  # roughly 1 Hz
             connection = aiko.process.connection
             connection_state = connection.connection_state
             if self.connection_state_last != connection_state:
