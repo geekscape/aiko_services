@@ -5,6 +5,7 @@
 # aiko_chat
 # > :change_change yolo
 
+from abc import abstractmethod
 import os
 from typing import Tuple
 
@@ -26,22 +27,27 @@ class ConvertDetections(aiko.PipelineElement):
 
 # --------------------------------------------------------------------------- #
 
-class ChatServer(aiko.Actor):  # Dummy class, methods won't be invoked
-    pass
+class ChatServer(aiko.Actor):
+    @abstractmethod
+    def send_message(self, username, recipients, message):
+        pass
 
 class MQTTPublish(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("mqtt_publish:0")
         context.call_init(self, "PipelineElement", context)
+        self.chat_server = None
         self.chat_server_topic = None
 
     def discovery_add_handler(self, service_details, service):
         print(f"Connected {service_details[1]}: {service_details[0]}")
         chat_channel = self.share["chat_channel"]
+        self.chat_server = service
         self.chat_server_topic = f"{service_details[0]}/{chat_channel}"
 
     def discovery_remove_handler(self, service_details):
-        self.print(f"Disconnected {service_details[1]}: {service_details[0]}")
+        print(f"Disconnected {service_details[1]}: {service_details[0]}")
+        self.chat_server = None
         self.chat_server_topic = None
 
     def start_stream(self, stream, stream_id):
@@ -67,9 +73,16 @@ class MQTTPublish(aiko.PipelineElement):
         return aiko.StreamEvent.OKAY, {}
 
     def process_frame(self, stream, message) -> Tuple[aiko.StreamEvent, dict]:
-        if self.chat_server_topic and message:
-            payload = f"{self.share["username"]}:{message}"
-            aiko.process.message.publish(self.chat_server_topic, payload)
+        if message:
+            message = f"{self.share["username"]}:{message}"
+
+            if self.chat_server:
+                username = self.share["username"]
+                recipients = [self.share["chat_channel"]]
+                self.chat_server.send_message(username, recipients, message)
+
+        #   if self.chat_server_topic:
+        #       aiko.process.message.publish(self.chat_server_topic, payload)
 
         return aiko.StreamEvent.OKAY, {}
 
