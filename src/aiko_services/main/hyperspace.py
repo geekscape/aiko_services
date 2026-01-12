@@ -40,7 +40,9 @@
 #
 # ** Update self.share["running" and "active"]  # total Category counts
 #
-# * HyperSpace/Registrar(Category): Filters(Code), Order(Sort), Pagination
+# * Registrar(HyperSpace(Category)): Filters(Code), Order(Sort), Pagination
+#   * Registrar is-a HyperSpace and also can (share) a Category for given query
+#     - Result is a Category that matches a specific Filter(Code)
 #
 # - Implement "aiko_hyperspace run --register_storage_service" optional flag
 # - Implement "aiko_hyperspace repl" for interactive CRUD, etc

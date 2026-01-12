@@ -67,6 +67,7 @@ from ultralytics import YOLO
 import aiko_services as aiko
 from aiko_services import *
 from aiko_services.elements.media import open_video_capture
+from aiko_services.main.utilities import get_namespace
 
 _VERSION = 0
 
