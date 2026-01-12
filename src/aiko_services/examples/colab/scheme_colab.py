@@ -3,11 +3,17 @@
 # - Implement DataTarget
 
 from base64 import b64decode, b64encode
-from google.colab import output
 from io import BytesIO
 from IPython.display import display, Javascript, JSON
 from PIL import Image
 import queue
+
+_GOOGLE_COLAB_IMPORTED = False
+try:
+    from google.colab import output
+    _GOOGLE_COLAB_IMPORTED = True
+except ModuleNotFoundError:  # TODO: Optional warning flag
+    diagnostic = "scheme_colab.py: Couldn't import google.colab module"
 
 import aiko_services as aiko
 

@@ -1,0 +1,56 @@
+{
+  "version": 0,
+  "name":    "p_yoloe",
+  "runtime": "python",
+
+  "graph": [ "(VideoReadWebcam YoloDetector ConvertDetections MQTTPublish ImageOverlay)" ],
+
+  "parameters": {
+    "_create_stream_":       "1",
+    "_destroy_stream_exit_": "1"
+  },
+
+  "elements": [
+    { "name":   "VideoReadWebcam",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "parameters": {"path": "0", "rate": 1.0}, "#": "1 Hz",
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.webcam_io"}
+      }
+    },
+    { "name":   "YoloDetector",
+      "parameters": {
+        "model": "yoloe-11s-seg.pt",  "#": "model sizes: yoloe-11[sml]-seg.pt",
+        "names": "(apple ball banana cat dog fork glasses knife spoon lightbulb mug person)"
+      },
+      "input":  [{"name": "images",  "type": "[image]"}],
+      "output": [{"name": "overlay", "type": "[overlay]"}],
+      "deploy": {"local": {"module": "aiko_services.examples.yolo.yolo"}}
+    },
+    { "name":   "ConvertDetections",
+      "input":  [{"name": "overlay", "type": "[overlay]"}],
+      "output": [{"name": "message",  "type": "str"}],
+      "deploy": {"local": {"module": "aiko_services.examples.colab.elements"}}
+    },
+    { "name":   "MQTTPublish",
+      "parameters": {
+        "chat_channel": "yolo",
+				"username": "<env_var>",  "#": "Default: $USER environment variable",
+        "service_filter": {
+         "name": "chat_server", 
+         "protocol": "github.com/geekscape/aiko_services/protocol/chat_server:0"
+        }
+      },
+      "input":  [{"name": "message", "type": "[message]"}],
+      "output": [],
+      "deploy": {"local": {"module": "aiko_services.examples.colab.elements"}}
+    },
+    { "name":   "ImageOverlay",
+      "input":  [{"name": "images",  "type": "[image]"},
+                 {"name": "overlay", "type": "[overlay]"}],
+      "output": [{"name": "images",  "type": "[image]"}],
+      "deploy": {"local": {"module": "aiko_services.elements.media.image_io"}}
+    }
+  ]
+}

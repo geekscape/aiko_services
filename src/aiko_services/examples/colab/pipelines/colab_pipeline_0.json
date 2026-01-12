@@ -7,10 +7,10 @@
 
   "elements": [
     { "name":   "YoloDetector",
-			"parameters": {
-				"model": "yoloe-11s-seg.pt",  "#": "model sizes: yoloe-11[sml]-seg.pt",
-			  "names": "(apple ball banana cat dog fork glasses knife spoon lightbulb mug person)"
-			},
+      "parameters": {
+        "model": "yoloe-11s-seg.pt",  "#": "model sizes: yoloe-11[sml]-seg.pt",
+        "names": "(apple ball banana cat dog fork glasses knife spoon lightbulb mug person)"
+      },
       "input":  [{"name": "images",  "type": "[image]"}],
       "output": [{"name": "overlay", "type": "[overlay]"}],
       "deploy": {
