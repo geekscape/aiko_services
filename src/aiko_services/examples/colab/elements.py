@@ -74,7 +74,7 @@ class MQTTPublish(aiko.PipelineElement):
 
     def process_frame(self, stream, message) -> Tuple[aiko.StreamEvent, dict]:
         if message:
-            message = f"{self.share["username"]}:{message}"
+            message = f"{self.share['username']}:{message}"
 
             if self.chat_server:
                 username = self.share["username"]
