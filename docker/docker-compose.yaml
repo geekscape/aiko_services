@@ -1,0 +1,45 @@
+---
+services:
+  aiko_registrar:
+    image: ghcr.io/0xdec0de/aiko_services:latest
+    restart: on-failure
+    depends_on:
+      mqtt:
+        condition: service_started
+    environment:
+      - AIKO_MQTT_HOST=mqtt
+      - AIKO_LOG_LEVEL=DEBUG
+    command: aiko_registrar
+
+  aiko_chat:
+    image: ghcr.io/0xdec0de/aiko_chat:latest
+    depends_on:
+      aiko_registrar:
+        condition: service_started
+    restart: on-failure
+    environment:
+      - AIKO_MQTT_HOST=mqtt
+      - OPENAI_API_KEY=lolz
+    models:
+      llm:
+        endpoint_var: OPENAI_BASE_URL
+        model_var: OPENAI_MODEL
+
+  mqtt:
+    image: eclipse-mosquitto:latest
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    configs:
+      - source: mosquitto_config
+        target: /mosquitto/config/mosquitto.conf
+
+configs:
+  mosquitto_config:
+    content: |
+      listener 1883
+      allow_anonymous true
+
+models:
+  llm:
+    model: ai/smollm2:latest
