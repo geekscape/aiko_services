@@ -11,8 +11,8 @@ cd docker
 docker compose up
 ```
 
-Access the web interface at http://localhost:5000
+Access the web interface at https://localhost:5000
 
 The JSON files under `src/aiko_services/examples` should be visible
 inside the container, and updates to anything in that directory
-should propogate into the container immediately
+should propagate into the container immediately
