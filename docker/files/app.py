@@ -7,7 +7,7 @@ from threading import Thread
 
 import aiko_services as aiko
 from aiko_services.elements.media import convert_image
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, send_from_directory
 from flask_socketio import SocketIO, emit
 from PIL import Image
 
@@ -56,7 +56,7 @@ def do_create_frame(image_in_pil=None):
 
     response = app.config["QUEUE_RESPONSE"].get()
     stream_out, frame_data_out = response
-    stream_frame_ids = f'<{stream_out["stream_id"]}:{stream_out["frame_id"]}>'
+    stream_frame_ids = f"<{stream_out['stream_id']}:{stream_out['frame_id']}>"
     image_out_numpy = frame_data_out["images"][0]
     image_out_pil = convert_image(image_out_numpy, "pil")
     app.logger.debug("Processed frame %s", stream_frame_ids)
@@ -94,6 +94,6 @@ if __name__ == "__main__":
     socketio.run(app, host="0.0.0.0", port=5000, debug=True, allow_unsafe_werkzeug=True)
 else:
     # Fixup logging if running under Gunicorn
-    gunicorn_logger = logging.getLogger('gunicorn.error')
+    gunicorn_logger = logging.getLogger("gunicorn.error")
     app.logger.handlers = gunicorn_logger.handlers
     app.logger.setLevel(gunicorn_logger.level)
