@@ -311,12 +311,15 @@ class ProcessManagerImpl(ProcessManager):
         if definition_pathname:
             if definition_pathname.endswith(".json"):
                 try:
-                    commands = json.load(open(definition_pathname, "r"))
+                    with open(definition_pathname, "r") as file:
+                        commands = json.load(file)
                     for command in commands:
                         command = command.split()
                         self.create(command[0], command[1:])
                 except json.decoder.JSONDecodeError as json_decode_error:
                     diagnostic = f"Definition format: {json_decode_error}"
+                except OSError as os_error:
+                    diagnostic = f"Failed to open definition file: {os_error}"
             else:
                 diagnostic = 'Definition must be a ".json" file: ' +  \
                     definition_pathname
