@@ -171,7 +171,7 @@ class Message:
         if diagnostic:
             if stack_traceback:
                 _LOGGER.error(stack_traceback)
-                raise SystemExit(f"SystemExit: actor.py: {diagnostic}")
+            #   raise SystemExit(f"SystemExit: actor.py: {diagnostic}")
             else:
                 _LOGGER.error(diagnostic)
 

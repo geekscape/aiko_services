@@ -38,12 +38,17 @@
 #
 # To Do
 # ~~~~~
+# * Refactor ProcessManager to provide functionality without being an Actor
+#   * Then, update LifeCycleManager accordingly
+#
 # * ProcessManager as-a LifeCycleManager as-a Category
 #   * Design and use HyperSpace API and Storage SPI (file, SQL, MQTT, ValKey ?)
 #
 # * CLI commands: CRUD Services in HyperSpace/Storage filesystem structure
 #   - Process LifeCycle: create, enable, start, status, stop, disable, destroy
 #   - Disambiguate CLI create() versus start() and destroy() versus stop() !
+#
+# * Consider design and implementation of "./process_manager.py update ..." ?
 #
 # * Aiko Dashboard plug-in support: Process CRUD et al plus ThreadManager view
 #   * Use ThreadManager: Investigate https://github.com/DedInc/pythread
@@ -99,7 +104,7 @@ import time
 from aiko_services.main import *
 from aiko_services.main.utilities import *
 
-__all__ = ["ProcessManager"]
+__all__ = ["ProcessManager", "ProcessManagerImpl"]
 
 ACTOR_TYPE = "process_manager"
 VERSION = 0
@@ -154,10 +159,10 @@ class ProcessCurrent:
         raise RuntimeError("Cannot wait on the current process")
 
 class ProcessManagerImpl(ProcessManager):
-    def __init__(self, context, definition_pathname, watchdog,
-        process_exit_handler=None):
+    def __init__(self, context, definition_pathname=None,
+        watchdog=False, process_exit_handler=None):
 
-        context.get_implementation("Actor").__init__(self, context)
+        context.call_init(self, "Actor", context)
 
         if process_exit_handler:
             self.process_exit_handler=process_exit_handler

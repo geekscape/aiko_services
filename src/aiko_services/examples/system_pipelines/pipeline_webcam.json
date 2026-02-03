@@ -1,0 +1,73 @@
+{
+  "version": 0,
+  "name":    "p_webcam",
+  "runtime": "python",
+
+  "graph": ["(VideoReadWebcam ImageResize ImagesToBase64 Detector Base64ToImages VideoShow Metrics)"],
+
+  "parameters": {
+    "_create_stream_":       "*",
+    "_destroy_stream_exit_": "*",
+    "resolution": "320x240", "resolution_mac": "320x180"
+  },
+
+  "elements": [
+    { "name":       "VideoReadWebcam",
+      "parameters": {"path": "0", "rate": 10.0}, "#": "10 Hz",
+      "input":      [{"name": "images", "type": "[image]"}],
+      "output":     [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.webcam_io"}
+      }
+    },
+    { "name":   "ImageResize",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "ImagesToBase64",
+      "input":  [{"name": "images",      "type": "[image]"}],
+      "output": [{"name": "base64_data", "type": "base64_data"}],
+      "deploy": {
+        "local": {"module": "aiko_services.examples.system_pipelines.elements"}
+      }
+    },
+    { "name":   "Detector",
+      "input":  [{"name": "base64_data", "type": "base64_data"}],
+      "output": [{"name": "base64_data", "type": "base64_data"}],
+      "deploy": {
+        "remote": {
+          "module": "aiko_services.examples.pipeline.elements",
+          "service_filter": {
+            "topic_path": "*", "name": "p_yoloe",
+            "owner": "*", "protocol": "*", "transport": "*", "tags": "*"
+          }
+        }
+      }
+    },
+    { "name":   "Base64ToImages",
+      "input":  [{"name": "base64_data", "type": "base64_data"}],
+      "output": [{"name": "images",      "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.examples.system_pipelines.elements"}
+      }
+    },
+    { "name":       "VideoShow",
+      "parameters": {"position": "1280:0", "title": "YOLO detection"},
+      "input":      [{"name": "images", "type": "[image]"}],
+      "output":     [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    },
+    { "name":   "Metrics",
+      "parameters": {"enable": false, "rate": 1},
+      "input":  [], "output": [],
+      "deploy": {
+        "local": { "module": "aiko_services.elements.observe.elements" }
+      }
+    }
+  ]
+}

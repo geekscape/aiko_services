@@ -1,0 +1,70 @@
+{
+  "version": 0,
+  "name":    "p_yoloe",
+  "runtime": "python",
+
+  "graph": ["(Base64ToImages YoloDetector ImageOverlay VideoShow ImagesToBase64 Inspect Metrics)"],
+
+  "elements": [ 
+    { "name":   "Base64ToImages",
+      "input":  [{"name": "base64_data", "type": "base64_data"}],
+      "output": [{"name": "images",      "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.examples.system_pipelines.elements"}
+      }
+    },
+    { "name":   "YoloDetector",
+      "parameters": {
+        "model": "yoloe-11s-seg.pt",  "#": "model sizes: yoloe-11[sml]-seg.pt",
+        "names": "(glasses person)"
+      },
+      "input":  [{"name": "images",  "type": "[image]"}],
+      "output": [{"name": "overlay", "type": "[overlay]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.examples.yolo.yolo"}
+      }
+    },
+    { "name":   "ImageOverlay",
+      "input":  [{"name": "images",  "type": "[image]"},
+                 {"name": "overlay", "type": "[overlay]"}],
+      "output": [{"name": "images",  "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":       "VideoShow",
+      "parameters": {"position": "1280:0", "title": "YOLO detection"},
+      "input":      [{"name": "images", "type": "[image]"}],
+      "output":     [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    },
+    { "name":   "ImagesToBase64",
+      "input":  [{"name": "images",      "type": "[image]"}],
+      "output": [{"name": "base64_data", "type": "base64_data"}],
+      "deploy": {                                
+        "local": {"module": "aiko_services.examples.system_pipelines.elements"}
+      }
+    },
+    { "name":   "Inspect",
+      "parameters": {
+        "enable":  false,                 "#": "true or false",
+        "inspect": "(*)",                 "#": "inputs / outputs names",
+        "target":  "file:z_inspect.txt",  "#": "file:, log or print"},
+      "input":  [],
+      "output": [],
+      "deploy": {
+        "local": { "module": "aiko_services.elements.observe.elements" }
+      }
+    },
+    { "name":   "Metrics",
+      "parameters": {"enable": false, "rate": 1},
+      "input":  [],
+      "output": [{"name": "base64_data", "type": "[base64_data]"}],
+      "deploy": {
+        "local": { "module": "aiko_services.elements.observe.elements" }
+      }
+    }
+  ]
+}
