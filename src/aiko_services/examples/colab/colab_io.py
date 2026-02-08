@@ -8,19 +8,66 @@
 # - Consider DataScheme "mqtt://" ... can create own MQTT Connection
 # - Plain web server / browser combination that works outside of Google Colab
 
+from base64 import b64decode, b64encode
+from io import BytesIO
+from IPython.display import display, Javascript, JSON
 import numpy as np
+from PIL import Image
 import subprocess
 import tempfile
-from typing import Tuple
+from typing import Optional, Tuple
+
+try:
+    from google.colab import output
+except ModuleNotFoundError:
+    output = None
 
 import aiko_services as aiko
+from aiko_services.elements.media import convert_image
 
 __all__ = [
-    "do_print", "do_start_stream", "encode_silence",
+    "ColabCommon", "common",
+    "do_create_audio_frame", "do_create_image_frame", "do_print",
+    "do_start_stream", "encode_silence",
     "handle_audio_frame", "handle_image_frame"
 ]
 
 _LOGGER = aiko.process.logger(__name__)
+
+# --------------------------------------------------------------------------- #
+
+class ColabCommon:
+    def __init__(self, pipeline=None, queue_response=None):
+        self.frame_id = 0
+        self.pipeline = pipeline
+        self.queue_response = queue_response
+
+common = ColabCommon()
+
+# --------------------------------------------------------------------------- #
+
+def do_create_audio_frame(
+    audio_in: Optional[bytes]=None, mime_type_in: str="audio/webm;codecs=opus"):
+
+    if audio_in is None:
+        audio_in = encode_silence(mime_type_in)
+
+    stream_in = {"stream_id": stream_id, "frame_id": common.frame_id}
+    frame_data_in = {"audio": audio_in, "mime_type": mime_type_in}
+    common.pipeline.create_frame(stream_in, frame_data_in)
+    common.frame_id += 1
+
+    response = common.queue_response.get()
+    stream_out, frame_data_out = response
+    stream_frame_ids = f'<{stream_out["stream_id"]}:{stream_out["frame_id"]}>'
+    audio_out = frame_data_out.get("audio", b"")
+    mime_type_out = frame_data_out.get("mime_type", mime_type_in)
+    return stream_frame_ids, audio_out, mime_type_out
+
+# --------------------------------------------------------------------------- #
+
+def do_create_image_frame(image_in_pil=None):
+    return "Loopback", image_in_pil
 
 # --------------------------------------------------------------------------- #
 
@@ -68,17 +115,13 @@ def encode_silence(
 
 # --------------------------------------------------------------------------- #
 
-from base64 import b64decode, b64encode
-from google.colab import output
-from io import BytesIO
-from IPython.display import display, Javascript, JSON
-from PIL import Image
-
 def do_print(message):
     print(message)
 
-output.register_callback('notebook.do_print', do_print)
+if output:
+    output.register_callback('notebook.do_print', do_print)
 
+# --------------------------------------------------------------------------- #
 # Python function for JavaScript to create a frame for Pipeline processing
 
 def handle_audio_frame(payload: dict):
@@ -100,7 +143,10 @@ def handle_audio_frame(payload: dict):
         # Return an error object JS can handle
         return JSON({"error": str(e)})
 
-output.register_callback('notebook.handle_audio_frame', handle_audio_frame)
+if output:
+    output.register_callback('notebook.handle_audio_frame', handle_audio_frame)
+
+# --------------------------------------------------------------------------- #
 
 def handle_image_frame(data_url: str):
     header, encoded = data_url.split(',', 1)
@@ -118,8 +164,10 @@ def handle_image_frame(data_url: str):
     new_image_data_url = "data:image/jpeg;base64," + new_image_b64
     return JSON({"data_url": new_image_data_url})
 
-output.register_callback('notebook.handle_image_frame', handle_image_frame)
+if output:
+    output.register_callback('notebook.handle_image_frame', handle_image_frame)
 
+# --------------------------------------------------------------------------- #
 # JavaScript code for web camera input and displaying Pipeline output
 
 def do_start_stream():
