@@ -8,11 +8,11 @@
   "elements": [
     { "name":   "AudioPassThrough",
       "input": [
-        {"name": "audio",     "type": "audio"},
+        {"name": "audio",     "type": "bytes"},
         {"name": "mime_type", "type": "mime_type"}
       ],
       "output": [
-        {"name": "audio",     "type": "audio"},
+        {"name": "audio",     "type": "bytes"},
         {"name": "mime_type", "type": "mime_type"}
       ],
       "deploy": {"local": {"module": "aiko_services.examples.colab.elements"}}

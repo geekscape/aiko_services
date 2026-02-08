@@ -18,6 +18,8 @@ from typing import Optional, Tuple
 
 import aiko_services as aiko
 
+__all__ = ["encode_silence"]
+
 # --------------------------------------------------------------------------- #
 
 DEFAULT_SAMPLE_RATE = 48_000
