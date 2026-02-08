@@ -1,6 +1,6 @@
 # Usage
 # ~~~~~
-# aiko_pipeline create pipelines/colab_pipeline_1.json
+# aiko_pipeline create pipelines/colab_pipeline_1.json -ll debug_all
 #
 # aiko_chat
 # > :change_change yolo
@@ -10,6 +10,19 @@ import os
 from typing import Tuple
 
 import aiko_services as aiko
+
+# --------------------------------------------------------------------------- #
+
+class AudioPassThrough(aiko.PipelineElement):
+    def __init__(self, context):
+        context.set_protocol("audio_pass_through:0")
+        context.call_init(self, "PipelineElement", context)
+
+    def process_frame(self, stream, audio, mime_type)  \
+        -> Tuple[aiko.StreamEvent, dict]:
+
+        self.logger.info(f"{self.my_id()}: len: {len(audio)}, {mime_type}")
+        return aiko.StreamEvent.OKAY, {"audio": audio, "mime_type": mime_type}
 
 # --------------------------------------------------------------------------- #
 

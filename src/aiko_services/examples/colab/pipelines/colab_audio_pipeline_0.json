@@ -1,0 +1,21 @@
+{
+  "version": 0,
+  "name":    "p_audio",
+  "runtime": "python",
+
+  "graph": ["(AudioPassThrough)"],
+
+  "elements": [
+    { "name":   "AudioPassThrough",
+      "input": [
+        {"name": "audio",     "type": "audio"},
+        {"name": "mime_type", "type": "mime_type"}
+      ],
+      "output": [
+        {"name": "audio",     "type": "audio"},
+        {"name": "mime_type", "type": "mime_type"}
+      ],
+      "deploy": {"local": {"module": "aiko_services.examples.colab.elements"}}
+    }
+  ]
+}
