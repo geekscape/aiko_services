@@ -43,6 +43,9 @@ class ColabCommon:
         self.queue_response = queue_response
         self.stream_id = "1"
 
+    def __str__(self):
+        return f"({self.stream_id}, {self.frame_id}, {self.pipeline}, {self.queue_response})"
+
 common = ColabCommon()
 
 # --------------------------------------------------------------------------- #
