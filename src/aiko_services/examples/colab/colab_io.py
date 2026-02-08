@@ -41,6 +41,7 @@ class ColabCommon:
         self.frame_id = 0
         self.pipeline = pipeline
         self.queue_response = queue_response
+        self.stream_id = "1"
 
 common = ColabCommon()
 
@@ -52,7 +53,7 @@ def do_create_audio_frame(
     if audio_in is None:
         audio_in = encode_silence(mime_type_in)
 
-    stream_in = {"stream_id": stream_id, "frame_id": common.frame_id}
+    stream_in = {"stream_id": common.stream_id, "frame_id": common.frame_id}
     frame_data_in = {"audio": audio_in, "mime_type": mime_type_in}
     common.pipeline.create_frame(stream_in, frame_data_in)
     common.frame_id += 1
