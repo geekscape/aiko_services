@@ -7,62 +7,19 @@
 #
 # To Do
 # ~~~~~
-# - For "encode_silence()", consider caching "silence", which saves 40 ms 🤔
+# - None, yet !
 
 from abc import abstractmethod
-import numpy as np
 import os
-import subprocess
-import tempfile
-from typing import Optional, Tuple
+from typing import Tuple
 
 import aiko_services as aiko
+from aiko_services.elements.media import convert_images
 
-__all__ = ["encode_silence"]
-
-# --------------------------------------------------------------------------- #
-
-DEFAULT_SAMPLE_RATE = 48_000
-DEFAULT_CHANNELS = 1
-DEFAULT_DURATION_SEC = 1.0
-
-def encode_silence(
-    mime_type: str,
-    sample_rate: int = DEFAULT_SAMPLE_RATE,
-    channels: int = DEFAULT_CHANNELS,
-    duration_sec: float = DEFAULT_DURATION_SEC
-    ) -> bytes:
-
-    # Generate PCM silence (float32)
-    num_samples = int(sample_rate * duration_sec)
-    silence = np.zeros((num_samples, channels), dtype=np.float32)
-
-    with tempfile.NamedTemporaryFile(suffix=".raw", delete=False) as pcm_file, \
-         tempfile.NamedTemporaryFile(delete=False) as out_file:
-
-        silence.tofile(pcm_file.name)
-
-        if "opus" in mime_type:
-            codec = "libopus"
-            container = "webm" if "webm" in mime_type else "ogg"
-        elif "wav" in mime_type:
-            codec = "pcm_f32le"
-            container = "wav"
-        else:
-            codec = "libopus"
-            container = "webm"
-
-        out_file_path = f"{out_file.name}.{container}"
-
-        ffmpeg_command = ["ffmpeg", "-y", "-f", "f32le", "-ar",
-            str(sample_rate), "-ac", str(channels), "-i", pcm_file.name,
-            "-t", str(duration_sec), "-c:a", codec, out_file_path]
-
-        subprocess.run(ffmpeg_command,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-
-        with open(out_file_path, "rb") as f:
-            return f.read()
+__all__ = [
+    "AudioPassThrough", "ConvertDetections", "ChatServer", "MQTTPublish",
+    "VideoReadColab"
+]
 
 # --------------------------------------------------------------------------- #
 
@@ -74,7 +31,7 @@ class AudioPassThrough(aiko.PipelineElement):
     def process_frame(self, stream, audio, mime_type)  \
         -> Tuple[aiko.StreamEvent, dict]:
 
-        self.logger.info(f"{self.my_id()}: len: {len(audio)}, {mime_type}")
+        self.logger.debug(f"{self.my_id()}: len: {len(audio)}, {mime_type}")
         return aiko.StreamEvent.OKAY, {"audio": audio, "mime_type": mime_type}
 
 # --------------------------------------------------------------------------- #
@@ -151,5 +108,23 @@ class MQTTPublish(aiko.PipelineElement):
         #       aiko.process.message.publish(self.chat_server_topic, payload)
 
         return aiko.StreamEvent.OKAY, {}
+
+# --------------------------------------------------------------------------- #
+# VideoReadColab is a DataSource supporting web cameras running in Google Colab
+#
+# parameter: "data_sources" is the read file path or device number
+#
+# Note: Only supports Streams with "data_sources" parameter
+
+class VideoReadColab(aiko.DataSource):  # PipelineElement
+    def __init__(self, context):
+        context.set_protocol("colab:0")
+        context.call_init(self, "PipelineElement", context)
+
+    def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
+        media_type, _ = self.get_parameter("media_type", None)
+        if media_type:
+            images = convert_images(images, media_type)
+        return aiko.StreamEvent.OKAY, {"images": images}
 
 # --------------------------------------------------------------------------- #

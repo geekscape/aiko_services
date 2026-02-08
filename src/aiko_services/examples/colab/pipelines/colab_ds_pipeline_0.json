@@ -17,7 +17,7 @@
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [{"name": "images", "type": "[image]"}],
       "deploy": {
-        "local": {"module": "aiko_services.elements.colab.colab_io"}
+        "local": {"module": "aiko_services.elements.colab.elements"}
       }
     }
   ]
