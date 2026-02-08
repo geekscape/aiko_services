@@ -164,13 +164,15 @@ class Message:
                 try:
                     target_function(*self.arguments)
                 except TypeError as type_error:
-                    diagnostic = f"Message.invoke: {self.command} {self.arguments}"
+                    arguments = ", ".join(repr(arg) for arg in self.arguments)
+                    diagnostic =  \
+                        f"Message.invoke: {self.command}(self, {arguments})"
                     stack_traceback = traceback.format_exc()
             else:
                 diagnostic = f"{self}: isn't callable"
         if diagnostic:
             if stack_traceback:
-                _LOGGER.error(stack_traceback)
+                _LOGGER.error(f"{stack_traceback}actor.py: {diagnostic}")
             #   raise SystemExit(f"SystemExit: actor.py: {diagnostic}")
             else:
                 _LOGGER.error(diagnostic)
