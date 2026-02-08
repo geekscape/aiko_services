@@ -4,12 +4,63 @@
 #
 # aiko_chat
 # > :change_change yolo
+#
+# To Do
+# ~~~~~
+# - For "encode_silence()", consider caching "silence", which saves 40 ms 🤔
 
 from abc import abstractmethod
+import numpy as np
 import os
-from typing import Tuple
+import subprocess
+import tempfile
+from typing import Optional, Tuple
 
 import aiko_services as aiko
+
+# --------------------------------------------------------------------------- #
+
+DEFAULT_SAMPLE_RATE = 48_000
+DEFAULT_CHANNELS = 1
+DEFAULT_DURATION_SEC = 1.0
+
+def encode_silence(
+    mime_type: str,
+    sample_rate: int = DEFAULT_SAMPLE_RATE,
+    channels: int = DEFAULT_CHANNELS,
+    duration_sec: float = DEFAULT_DURATION_SEC
+    ) -> bytes:
+
+    # Generate PCM silence (float32)
+    num_samples = int(sample_rate * duration_sec)
+    silence = np.zeros((num_samples, channels), dtype=np.float32)
+
+    with tempfile.NamedTemporaryFile(suffix=".raw", delete=False) as pcm_file, \
+         tempfile.NamedTemporaryFile(delete=False) as out_file:
+
+        silence.tofile(pcm_file.name)
+
+        if "opus" in mime_type:
+            codec = "libopus"
+            container = "webm" if "webm" in mime_type else "ogg"
+        elif "wav" in mime_type:
+            codec = "pcm_f32le"
+            container = "wav"
+        else:
+            codec = "libopus"
+            container = "webm"
+
+        out_file_path = f"{out_file.name}.{container}"
+
+        ffmpeg_command = ["ffmpeg", "-y", "-f", "f32le", "-ar",
+            str(sample_rate), "-ac", str(channels), "-i", pcm_file.name,
+            "-t", str(duration_sec), "-c:a", codec, out_file_path]
+
+        subprocess.run(ffmpeg_command,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+
+        with open(out_file_path, "rb") as f:
+            return f.read()
 
 # --------------------------------------------------------------------------- #
 
