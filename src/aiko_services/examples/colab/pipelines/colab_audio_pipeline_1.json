@@ -1,0 +1,23 @@
+{
+  "version": 0,
+  "name": "p_audio_stt",
+  "runtime": "python",
+
+  "graph": ["(SpeechToText)"],
+
+  "elements": [
+    {
+      "name": "SpeechToText",
+      "input": [
+        {"name": "audio",     "type": "bytes"},
+        {"name": "mime_type", "type": "mime_type"}
+      ],
+      "output": [
+        {"name": "audio",     "type": "bytes"},
+        {"name": "mime_type", "type": "mime_type"},
+        {"name": "text",      "type": "string"}
+      ],
+      "deploy": {"local": {"module": "aiko_services.examples.colab.elements"}}
+    }
+  ]
+}

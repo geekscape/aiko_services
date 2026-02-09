@@ -306,7 +306,7 @@ def do_start_stream():
       const rateLabel = el('span', { innerText: 'Frame interval (ms)' });
       const rateSlider = el('input');
       rateSlider.type = 'range';
-      rateSlider.min = 500;
+      rateSlider.min = 250;
       rateSlider.max = 2000;
       rateSlider.step = 50;
       rateSlider.value = frameIntervalMs;

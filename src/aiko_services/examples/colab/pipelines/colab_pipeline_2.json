@@ -29,7 +29,7 @@
          "protocol": "github.com/geekscape/aiko_services/protocol/chat_server:0"
         }
       },
-      "input":  [{"name": "message", "type": "[message]"}],
+      "input":  [{"name": "message", "type": "str"}],
       "output": [],
       "deploy": {"local": {"module": "aiko_services.examples.colab.elements"}}
     },

@@ -1,0 +1,12 @@
+av==16.1.0
+coqui-tts==0.24.1
+coqui-tts-trainer==0.3.3
+faster-whisper==1.2.1
+ipython==9.10.0
+opencv-python==4.13.0.92
+numpy==2.3.0
+sounddevice==0.5.5
+soundfile==0.13.1
+torch==2.10.0
+torchaudio==2.10.0
+transformers==4.40.2
