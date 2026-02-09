@@ -3,7 +3,7 @@
   "name": "p_audio_stt",
   "runtime": "python",
 
-  "graph": ["(SpeechToText)"],
+  "graph": ["(SpeechToText Expression MQTTPublish)"],
 
   "elements": [
     {
@@ -12,6 +12,31 @@
         {"name": "audio",     "type": "bytes"},
         {"name": "mime_type", "type": "mime_type"}
       ],
+      "output": [
+        {"name": "audio",     "type": "bytes"},
+        {"name": "mime_type", "type": "mime_type"},
+        {"name": "text",      "type": "string"}
+      ],
+      "deploy": {"local": {"module": "aiko_services.examples.colab.elements"}}
+    },
+    { "name": "Expression",
+      "parameters": {"define": "((message text))"},
+      "input":  [],
+      "output": [{ "name": "message", "type": "str" }],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.utilities.elements"}
+      }
+    },
+    { "name":   "MQTTPublish",
+      "parameters": {
+        "chat_channel": "llm",
+        "username": "<env_var>",  "#": "Default: $USER environment variable",
+        "service_filter": {
+         "name": "chat_server",
+         "protocol": "github.com/geekscape/aiko_services/protocol/chat_server:0"
+        }
+      },
+      "input":  [{"name": "message", "type": "str"}],
       "output": [
         {"name": "audio",     "type": "bytes"},
         {"name": "mime_type", "type": "mime_type"},

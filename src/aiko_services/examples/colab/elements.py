@@ -19,6 +19,7 @@ from typing import Optional, Tuple
 
 import aiko_services as aiko
 from aiko_services.elements.media import convert_images
+from aiko_services.elements.utilities import all_outputs
 
 __all__ = [
     "AudioPassThrough", "ConvertDetections", "ChatServer", "MQTTPublish",
@@ -111,7 +112,7 @@ class MQTTPublish(aiko.PipelineElement):
         #   if self.chat_server_topic:
         #       aiko.process.message.publish(self.chat_server_topic, payload)
 
-        return aiko.StreamEvent.OKAY, {}
+        return aiko.StreamEvent.OKAY, all_outputs(self, stream)
 
 # -------- Audio helpers (no temp files) ------------------------------------ #
 

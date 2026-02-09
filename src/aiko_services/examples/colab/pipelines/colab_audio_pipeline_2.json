@@ -32,7 +32,7 @@
         "chat_channel": "llm",
         "username": "<env_var>",  "#": "Default: $USER environment variable",
         "service_filter": {
-         "name": "chat_server", 
+         "name": "chat_server",
          "protocol": "github.com/geekscape/aiko_services/protocol/chat_server:0"
         }
       },
