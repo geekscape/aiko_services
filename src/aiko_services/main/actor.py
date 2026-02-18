@@ -64,6 +64,10 @@
 #
 # To Do
 # ~~~~~
+# - Refactor: Move all "pipeline.py:is_local()" into "actor.py" (generalize)
+#   - Probably, moving into "service.py:Service().is_local()" is even better !
+#   - See "discovery.py:_make_service_proxy().ServiceRemoteProxy().is_local()"
+#
 # - If default ActorImpl is too heavy, then create lightweight ActorCoreImpl
 #
 # * Provide "priority" mailbox for internal requirements, e.g
@@ -163,7 +167,7 @@ class Message:
             #       For the specific argument TypeErrors and nothing else
                 try:
                     target_function(*self.arguments)
-                except TypeError as type_error:
+                except Exception as exception:  # Used to be only TypeError
                     arguments = ", ".join(repr(arg) for arg in self.arguments)
                     diagnostic =  \
                         f"Message.invoke: {self.command}(self, {arguments})"

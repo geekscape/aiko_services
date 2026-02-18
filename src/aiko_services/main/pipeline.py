@@ -24,7 +24,7 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Update is applied to an existing Pipeline with the specified Pipeline name
 # Stream Response best with "-sr -s N -r"  # Else can't change topic_response
-#                              ---
+#
 #   Update and create Stream and/or Frame
 #   -------------------------------------
 # aiko_pipeline create ../examples/pipeline/pipeline_local.json -ll debug
@@ -114,6 +114,10 @@
 #
 # To Do
 # ~~~~~
+# - Refactor: Move all "pipeline.py:is_local()" into "actor.py" (generalize)
+#   - Probably, moving into "service.py:Service().is_local()" is even better !
+#   - See "discovery.py:_make_service_proxy().ServiceRemoteProxy().is_local()"
+#
 # * BUG: "PipelineImpl.create_frame(..., graph_path=None)" doesn't use the
 #     "graph_path" parameter at all !
 #
@@ -277,11 +281,11 @@ class PipelineGraph(Graph):
 
         if element.__class__.__name__ == "ServiceRemoteProxy":
             lifecycle = "ready"  # element.get_lifecycle() ?
-            local = False        # element.is_local() ?
+            local = False        # element.is_local() and pipeline.is_local() ?
             name = node.name
         else:
             lifecycle = element.share["lifecycle"]  # element.get_lifecycle() ?
-            local = element.is_local()
+            local = element.is_local()  # and pipeline.is_local() ?
 
             if element.__class__.__name__ == "PipelineRemote":
                 name = node.name
@@ -403,7 +407,7 @@ class PipelineElement(Actor):
         pass
 
     @classmethod
-    def is_local(cls):
+    def is_local(cls):  # TODO: Move to either "actor.py" or "service.py"
         return True
 
     @abstractmethod
@@ -1619,6 +1623,9 @@ class PipelineImpl(Pipeline):
         for parameter in parameters:
             self.set_parameter(stream_id, parameter[0], parameter[1])
 
+# When update_pipeline(pipeline, ...) is invoked on a remote Pipeline,
+# then all "pipeline.method()" calls must not except a return value
+
     @classmethod
     def update_pipeline(cls, pipeline, graph_path, stream_id,
         parameters, frame_id, frame_data, grace_time,
@@ -1647,7 +1654,9 @@ class PipelineImpl(Pipeline):
         stream_dict = {"frame_id": int(frame_id), "parameters": {}}
 
         if not stream_id:
-            stream_id, _ = pipeline.get_parameter("_create_stream_", None)
+            stream_id = None
+            if pipeline.is_local():
+                stream_id, _ = pipeline.get_parameter("_create_stream_", None)
 
         if stream_id is not None:
             stream_dict["stream_id"] = stream_id
@@ -1690,7 +1699,7 @@ class PipelineRemote(PipelineElement):
         return not self.absent
 
     @classmethod
-    def is_local(cls):
+    def is_local(cls):  # TODO: Move to either "actor.py" or "service.py"
         return False
 
     def log_error(self, function_name):

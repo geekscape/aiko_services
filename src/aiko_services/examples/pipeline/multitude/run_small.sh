@@ -29,6 +29,7 @@ FRAME_DELAY=${3:-1.0}                # 1.0 / frame_rate
 
 USE_PIPELINE=a  # or b, c
 
+_HOSTNAME="${HOSTNAME%.local}"  # Remove ".local" suffix
 GRACE_TIME=10
 STREAM_ID=1
 
@@ -52,10 +53,10 @@ process_ids=""
 for pipeline_id in a b c; do
   pipeline_name=pipeline_small_${pipeline_id}
   aiko_pipeline create ${pipeline_name}.json --log_level $AIKO_LOG_LEVEL --windows &
-  # aiko_pipeline create ${pipeline_name}.json 2>${pipeline_name}.log &
+# aiko_pipeline create ${pipeline_name}.json 2>${pipeline_name}.log &
   process_id=$!
   process_ids="$process_ids $process_id"
-  export topic_pipeline_${pipeline_id}=aiko/$HOSTNAME/$process_id/1/in
+  export topic_pipeline_${pipeline_id}=aiko/$_HOSTNAME/$process_id/1/in
 done
 
 use_topic_name=topic_pipeline_${USE_PIPELINE}

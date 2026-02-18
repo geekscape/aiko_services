@@ -155,7 +155,9 @@ def _get_public_method_names(protocol_class):
     return public_method_names
 
 def _make_service_proxy(target_topic_in, public_method_names):
-    class ServiceRemoteProxy(): pass
+    class ServiceRemoteProxy():
+        def is_local(self):
+            return False
 
     def _proxy_send_message(method_name):
         def closure(*args, **kwargs):
