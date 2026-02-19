@@ -13,7 +13,7 @@
 
   "elements": [
     { "name":       "VideoReadWebcam",
-      "parameters": {"path": "0", "rate": 10.0}, "#": "10 Hz",
+      "parameters": {"path": "0", "rate": 1.0}, "#": "maximum 10 Hz",
       "input":      [{"name": "images", "type": "[image]"}],
       "output":     [{"name": "images", "type": "[image]"}],
       "deploy": {
@@ -63,7 +63,7 @@
       }
     },
     { "name":   "Metrics",
-      "parameters": {"enable": false, "rate": 1},
+      "parameters": {"enable": true, "rate": 1},
       "input":  [], "output": [],
       "deploy": {
         "local": { "module": "aiko_services.elements.observe.elements" }
