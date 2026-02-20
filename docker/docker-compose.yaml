@@ -1,0 +1,100 @@
+---
+services:
+  aiko:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+    depends_on:
+      mqtt:
+        condition: service_started
+    restart: on-failure
+    expose:
+      - "5000"
+    volumes:
+      - ../src/aiko_services/examples:/app/examples
+    environment:
+      - AIKO_MQTT_HOST=mqtt
+      - USER=${USER}
+      - DEFINITION_PATHNAME=examples/colab/pipelines/colab_pipeline_2.json
+    # NOTE(nic): if desired, one can forego Gunicorn and just run the Flask
+    #  debug server by uncommenting this:
+    # command: [ python3, app.py ]
+
+  mqtt:
+    image: eclipse-mosquitto:latest
+    restart: unless-stopped
+    expose:
+      - "1883"
+    configs:
+      - source: mosquitto_config
+        target: /mosquitto/config/mosquitto.conf
+
+  # NOTE(nic): This is a simple SSL termination proxy for people that may
+  #  want to use navigator.mediaDevices.getUserMedia() non-locally, and that
+  #  requires HTTPS. It generates a self-signed cert on startup, and will
+  #  automagically regenerate them if they "go bad"
+  nginx:
+    image: nginx:stable
+    depends_on:
+      cert-generator:
+        condition: service_completed_successfully
+      aiko:
+        condition: service_started
+    restart: unless-stopped
+    ports:
+      - "5000:8080"
+    configs:
+      - source: nginx_config
+        target: /etc/nginx/nginx.conf
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
+      - ./files/index.html:/usr/share/nginx/html/index.html:ro
+
+  cert-generator:
+    image: nginx:stable
+    volumes:
+      - ./certs:/certs
+    entrypoint: |
+      sh -c "
+      check_cert_validity() {
+        openssl x509 -in /certs/cert.pem -noout -checkend 86400 || return 1
+        openssl rsa -in /certs/key.pem -check -noout || return 1
+        openssl x509 -in /certs/cert.pem -noout || return 1
+        echo 'Valid certs found, using...'
+        return 0
+      }
+      check_cert_validity 2>/dev/null && exit 0
+      echo 'Certificates invalid, expired, or missing.  Generating...'
+      rm -f /certs/cert.pem /certs/key.pem
+      openssl req -x509 -newkey rsa:4096 -nodes -keyout /certs/key.pem -out /certs/cert.pem -days 365 -subj '/CN=localhost'
+      "
+
+configs:
+  mosquitto_config:
+    content: |
+      listener 1883
+      allow_anonymous true
+
+  nginx_config:
+    content: |
+      events { worker_connections 1024; }
+      http {
+        upstream aiko { server aiko:5000; }
+        server {
+          listen 8080 ssl;
+          ssl_certificate /etc/nginx/certs/cert.pem;
+          ssl_certificate_key /etc/nginx/certs/key.pem;
+          location / {
+            root /usr/share/nginx/html;
+            index index.html;
+          }
+          location /socket.io/ {
+            proxy_pass http://aiko;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $$http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $$host;
+            proxy_set_header X-Real-IP $$remote_addr;
+          }
+        }
+      }
