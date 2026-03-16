@@ -38,7 +38,7 @@ class DataSource(PipelineElementImpl):
         return data_sources, scheme
 
     def start_stream(self, stream, stream_id,
-        frame_generator=None, use_create_frame=True):
+        frame_generator=None, use_create_frame=False):
 
         stream.variables["data_scheme"] = None
 
