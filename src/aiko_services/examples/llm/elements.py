@@ -20,7 +20,7 @@
 #
 # -----------------------------------------
 # https://python.langchain.com/docs/get_started/quickstart#llm-chain -->
-#   OpenAI API ... or ... Ollama (llama3.2)
+#   OpenAI API ... or ... Ollama (llama3.2 or gemma4)
 #
 # -----------------------------------------
 # pip install langchain langchain-openai langchain_community
@@ -32,7 +32,7 @@
 #
 # -----------------------------------------
 # ollama serve
-# ollama run llama3.2
+# ollama run llama3.2  # gemma4
 #
 # pip install langchain langchain_community langchain-ollama
 # export LANGCHAIN_TRACING_V2="true"
@@ -64,14 +64,18 @@ from aiko_services.main.utilities import get_namespace
 # LLM_MODEL_NAME = "deepseek-r1:latest"          # 7b   - show/hide "thinking"
 # LLM_MODEL_NAME = "deepseek-r1:1.5b"            # 1.5b - show/hide "thinking"
 
+LLM_MODEL_NAME = "gemma4:latest"                 # e4b
+
 # LLM_MODEL_NAME = "llama3.1:latest"             # 8b
-LLM_MODEL_NAME = "llama3.2:latest"               # 3b
+# LLM_MODEL_NAME = "llama3.2:latest"             # 3b
 
 # LLM_MODEL_NAME = "llama3.2-vision:latest"      # 11b
 # LLM_MODEL_NAME = "llama3.3:70b-instruct-q8_0"  # 70b: latest ?
 # LLM_MODEL_NAME = "llava-llama3:8b-v1.1-fp16"   # latest ?
 
 # LLM_MODEL_NAME = "rashakol/sky-t1-32B-preview-cline:latest"
+
+# LLM_MODEL_NAME = "gpt-oss:latest"              # 3b
 
 LLM_TEMPERATURE = 0.0
 
