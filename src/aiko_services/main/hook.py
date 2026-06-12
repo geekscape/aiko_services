@@ -105,7 +105,7 @@ class Hooks:
         pass
 
     @abstractmethod
-    def run_hook(self, hook_name):
+    def run_hook(self, hook_name, variables=None):
         pass
 
     @abstractmethod
