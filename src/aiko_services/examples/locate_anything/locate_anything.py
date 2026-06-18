@@ -43,17 +43,10 @@ _LOCATE_ANYTHING_MODEL_PATHNAME = "nvidia/LocateAnything-3B"
 
 # --------------------------------------------------------------------------- #
 # Default categories for robotdog detection
-# tennis_ball, kong_ball, rubber_ball, dog_biscuit
-# blue_cup, red_cup, orange_cone
-# stop_sign, sign
-# octopus, red_ball, green_ball, building
-# pine_tree, oak_tree, xgomini2
 
 _ROBOTDOG_CATEGORIES = [
-    "tennis_ball", "kong_ball", "rubber_ball", "dog_biscuit",
-    "blue_cup", "red_cup", "orange_cone",
-    "stop_sign", "sign",
-    "octopus", "red_ball", "green_ball", "building",
+    "tennis_ball", "kong_ball", "rubber_ball", "dog_biscuit", "blue_cup", "red_cup",
+    "orange_cone", "stop_sign", "sign", "octopus", "red_ball", "green_ball", "building",
     "pine_tree", "oak_tree", "xgomini2",
 ]
 
