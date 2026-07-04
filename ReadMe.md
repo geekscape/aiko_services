@@ -11,16 +11,24 @@ See [**Wiki**](https://github.com/geekscape/aiko_services/wiki) for [Glossary (c
 
 - Consistent distributed system approach integrating [best-of-breed](https://wiki.c2.com/?BestOfBreed) technology choices
     - Supports the [Actor Model](https://en.wikipedia.org/wiki/Actor_model)
+    - Provides [HyperSpace](documentation/okf/hyperspace.md) ([example](src/aiko_services/examples/hyperspace)), a unified distributed network graph for everything !
     - Supports [Flow based programming](https://en.wikipedia.org/wiki/Flow-based_programming) via distributed pipeline graphs
-    - [Low-latency performance](https://en.wikipedia.org/wiki/Event-driven_programming) with fully asynchronous [message passing](https://en.wikipedia.org/wiki/Message_passing#Distributed_objects)
+    - [Low-latency performance](https://en.wikipedia.org/wiki/Event-driven_programming) with fully asynchronous function / method calls via [message passing](https://en.wikipedia.org/wiki/Message_passing#Distributed_objects)
 
-- Ease of visualization and diagnosis for systems with many interconnected components
+- Ease of visualization and diagnosis for systems with many interconnected components via
+the [Aiko Dashboard](src/aiko_services/main/dashboard.py)
 
 - Light-weight core design, i.e a [micro-controller reference implementation](https://github.com/geekscape/aiko_engine_mp), e.g [ESP32](https://en.wikipedia.org/wiki/ESP32) running [microPython](https://micropython.org)
 
 - Flexible deployment choices when deciding which components should run in the same process (for performance) or across different processes and/or hosts (for flexibility)
 
 - Aiming to make the difficult parts ... much easier !
+
+# Documention
+
+- Aiko Services [Reference guide](documentation/okf/ReadMe.md) and [Design overview](documentation/okf/design_overview.md)
+
+Uses the [Open Knowledge Format](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) ... and is immediately useable by your favorite A.I coding assistant 🤖
 
 # Installation
 
