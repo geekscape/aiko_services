@@ -7,7 +7,7 @@ type: index
 audience: [architects, developers, end-users]
 status: draft
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-07-06
 ---
 
 # Aiko Services: distributed system infrastructure
@@ -141,3 +141,10 @@ The distributed structural model — see the
 These subsystems are under active development (version 0.6). Each document
 distinguishes **implemented** behaviour from **planned / work-in-progress**
 behaviour, based on the source code as of 2026-07-05.
+
+## Related documentation
+
+- [PipelineElements guide](../elements/ReadMe.md) — OKF documentation for
+  the element library in `src/aiko_services/elements/` (control,
+  gstreamer, media, observe, utilities), built on the Pipeline concepts
+  above
