@@ -8,8 +8,8 @@ audience: [architects, developers, end-users]
 status: work-in-progress
 source:
   - src/aiko_services/main/registrar.py
-related: [design_overview, service, discovery, share, connection, state,
-  event, message, transport, dashboard, lifecycle]
+related: [design_overview, process, service, discovery, share, connection,
+  state, event, message, transport, dashboard, lifecycle]
 version: "0.6"
 last_updated: 2026-07-05
 ---
@@ -282,6 +282,8 @@ From the source `To Do` list — highlights (the source marks several as
 ## Related concepts
 
 - [Design overview](design_overview.md)
+- [Process](process.md) — performs the boot handshake and (re)registers its
+  hosted Services
 - [Service](service.md) — what is registered; `Services`, topic paths, tags
 - [Discovery](discovery.md) — `do_discovery()` et al. build on the Registrar
 - [Share](share.md) — `ServicesCache` consumes the share / history protocol

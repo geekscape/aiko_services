@@ -8,8 +8,8 @@ audience: [architects, developers, end-users]
 status: work-in-progress
 source:
   - src/aiko_services/main/discovery.py
-related: [design_overview, registrar, service, actor, share, proxy,
-  message, transport, pipeline, lifecycle]
+related: [design_overview, process, registrar, service, actor, share,
+  proxy, message, transport, pipeline, lifecycle]
 version: "0.6"
 last_updated: 2026-07-05
 ---
@@ -288,6 +288,8 @@ From the source `To Do` list — highlights:
 ## Related concepts
 
 - [Design overview](design_overview.md)
+- [Process](process.md) — `ServiceDiscovery(aiko.process)` and Registrar
+  tracking live here
 - [Registrar](registrar.md) — the source of truth discovery consumes
 - [Share](share.md) — `ServicesCache`, the eventually-consistent directory
 - [Service](service.md) — `ServiceFilter`, `ServiceFields`, topic paths

@@ -12,7 +12,8 @@ source:
   - src/aiko_services/main/message/message.py
   - src/aiko_services/main/message/mqtt.py
   - src/aiko_services/main/message/castaway.py
-related: [design_overview, transport, connection, service, event, registrar]
+related: [design_overview, process, transport, connection, service, event,
+  registrar]
 version: "0.6"
 last_updated: 2026-07-05
 ---
@@ -117,9 +118,10 @@ class Message(abc.ABC):
 process passes its message-handler dictionary directly, so its keys
 become the subscriptions.
 
-**You normally receive the Message ready-made.** The process event loop
-creates the singleton connection during `aiko.process.initialize()` and
-publishes it as `aiko.message` (`src/aiko_services/main/process.py`):
+**You normally receive the Message ready-made.** The
+[Process](process.md) creates the singleton connection during
+`aiko.process.initialize()` and publishes it as `aiko.message`
+(`src/aiko_services/main/process.py`):
 
 ```python
 aiko.message = Castaway()          # standalone and isolated :(
@@ -265,7 +267,7 @@ Key design points:
 | `Message` (abstract) | Declare the pub/sub contract: `publish()`, `subscribe()`, `unsubscribe()`, `set_last_will_and_testament()`; define `MessageState` | Implementations below; `ProcessImplementation` (owner) |
 | `MQTT` | Select and connect to an MQTT server; register the LWT; defer/replay subscriptions across (re)connection; manage `#` wildcard mode; report state changes; `wait_*` synchronisation | paho-mqtt `Client` (network thread); `get_mqtt_configuration()` (server selection); [Connection](connection.md) via `mqtt_state_handler` |
 | `Castaway` | Null Object: satisfy the Message contract with no-ops when no server is available | `ProcessImplementation` (fallback when MQTT construction fails) |
-| `ProcessImplementation` (in `process.py`) | Own the singleton `aiko.message`; queue incoming messages onto the event loop; dispatch by topic (exact, `#`, `+` matching); map MessageState onto Connection state | `MQTT` / `Castaway`; [Event](event.md) loop; [Registrar](registrar.md) boot topic |
+| `ProcessImplementation` (see [Process](process.md)) | Own the singleton `aiko.message`; queue incoming messages onto the event loop; dispatch by topic (exact, `#`, `+` matching); map MessageState onto Connection state | `MQTT` / `Castaway`; [Event](event.md) loop; [Registrar](registrar.md) boot topic |
 
 ## Current limitations and roadmap
 
@@ -301,6 +303,7 @@ From the source `To Do` lists — highlights:
 ## Related concepts
 
 - [Design overview](design_overview.md)
+- [Process](process.md) — owns the singleton connection and message dispatch
 - [Transport](transport.md) — remote Service invocation built on Message
 - [Connection](connection.md) — the state machine fed by MessageState
 - [Service](service.md) — topic conventions per Service (`in`/`out`/`log`)

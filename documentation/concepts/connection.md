@@ -8,7 +8,8 @@ audience: [architects, developers, end-users]
 status: work-in-progress
 source:
   - src/aiko_services/main/connection.py
-related: [design_overview, registrar, message, transport, share, lifecycle]
+related: [design_overview, process, registrar, message, transport, share,
+  lifecycle]
 version: "0.6"
 last_updated: 2026-07-05
 ---
@@ -154,7 +155,7 @@ Key design points:
   gracefully (losing the Registrar drops `REGISTRAR → TRANSPORT`; losing
   MQTT drops to `NONE`).
 - **Callers own the transitions**: Connection stores and notifies, but the
-  rules for *when* to move rungs live in `process.py`
+  rules for *when* to move rungs live in [Process](process.md)
   (`on_mqtt_state()`, `on_registrar()`), which is also why the lock is
   exposed rather than internalised — the critical section spans the
   caller's check *and* the update.
@@ -207,6 +208,7 @@ Key design points:
 ## Related concepts
 
 - [Design overview](design_overview.md)
+- [Process](process.md) — owns `aiko.connection` and drives every transition
 - [Message](message.md) / [Transport](transport.md) — whose connect and
   disconnect events drive the `TRANSPORT` rung
 - [Registrar](registrar.md) — whose discovery and loss drive the

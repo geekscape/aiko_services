@@ -43,6 +43,7 @@ The single-process machinery that everything else builds on.
 
 | Concept | One-line summary |
 |---------|------------------|
+| [Process](process.md) | The per-OS-process framework singleton — the `aiko` global, MQTT connection ownership, message dispatch, Service registration and Registrar tracking |
 | [Event](event.md) | The cooperative event loop at the heart of every Aiko Services process — timer, mailbox, queue and flat-out handlers on a single event-loop thread |
 | [Hook](hook.md) | Named extension points inside the framework that third-party developers attach handler functions to |
 | [State](state.md) | A finite state machine wrapper (StateMachineOld) over the "transitions" package, used by the Registrar election |
@@ -127,7 +128,7 @@ The distributed structural model — see the
   [HyperSpace](hyperspace.md) and [Category](category.md) for the
   structural model; [Dashboard](dashboard.md) to observe it all running.
 - **Framework developers**: bottom-up — [Event](event.md),
-  [Component](component.md) / [Context](context.md),
+  [Process](process.md), [Component](component.md) / [Context](context.md),
   [Message](message.md), [Service](service.md), [Actor](actor.md),
   [Share (Eventual Consistency)](share.md), [Registrar](registrar.md) —
   paying particular attention to the *For framework developers* sections,

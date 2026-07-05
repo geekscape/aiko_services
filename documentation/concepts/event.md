@@ -8,7 +8,8 @@ audience: [architects, developers, end-users]
 status: work-in-progress
 source:
   - src/aiko_services/main/event.py
-related: [design_overview, actor, lease, message, service, connection]
+related: [design_overview, process, actor, lease, message, service,
+  connection]
 version: "0.6"
 last_updated: 2026-07-05
 ---
@@ -137,8 +138,8 @@ def queue_handler(item, item_type):
 
 The framework itself uses one queue handler (item type `"message"`) to
 move raw MQTT messages from the transport thread onto the event loop
-(`process.py`). The queue handler mechanism is slated for removal in
-favour of mailboxes (see roadmap).
+(see [Process](process.md)). The queue handler mechanism is slated for
+removal in favour of mailboxes (see roadmap).
 
 **Flat-out handlers.** `add_flatout_handler(handler)` registers a
 zero-argument function called on every loop pass — for polling-style work
@@ -260,6 +261,8 @@ From the source `To Do` list — highlights:
 ## Related concepts
 
 - [Design overview](design_overview.md)
+- [Process](process.md) — calls `event.loop()` in `run()` and feeds the
+  `"message"` queue from the MQTT thread
 - [Actor](actor.md) — delivers every incoming message through an event
   mailbox
 - [Lease](lease.md) — time-limited claims built on timer handlers

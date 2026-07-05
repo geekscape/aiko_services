@@ -8,8 +8,8 @@ audience: [architects, developers, end-users]
 status: work-in-progress
 source:
   - src/aiko_services/main/actor.py
-related: [design_overview, service, event, share, hook, proxy, lifecycle,
-  pipeline]
+related: [design_overview, process, service, event, share, hook, proxy,
+  lifecycle, pipeline]
 version: "0.6"
 last_updated: 2026-07-05
 ---
@@ -287,6 +287,7 @@ From the source `To Do` list — highlights:
 ## Related concepts
 
 - [Design overview](design_overview.md)
+- [Process](process.md) — hosts every Actor and feeds its topics from MQTT
 - [Service](service.md) — what an Actor is, before the mailbox is added
 - [Event](event.md) — the loop, mailboxes and timers that drive invocation
 - [Share](share.md) — `self.share` / ECProducer built into every Actor

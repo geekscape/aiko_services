@@ -9,8 +9,8 @@ status: work-in-progress
 source:
   - src/aiko_services/main/service.py
   - src/aiko_services/main/process.py
-related: [design_overview, actor, component, context, hook, registrar,
-  discovery, share, message, transport]
+related: [design_overview, process, actor, component, context, hook,
+  registrar, discovery, share, message, transport]
 version: "0.6"
 last_updated: 2026-07-05
 ---
@@ -26,8 +26,8 @@ unit of functionality that can be **discovered** via the
 builds on it — an [Actor](actor.md) is-a Service that serializes messages
 through a mailbox, a Pipeline is-an Actor, and so on.
 
-A Service always lives inside a **Process** (see
-`src/aiko_services/main/process.py`): one operating-system process hosts
+A Service always lives inside a **[Process](process.md)**
+(`src/aiko_services/main/process.py`): one operating-system process hosts
 none, one or many Services, and the Process owns the MQTT connection, the
 event loop and the Registrar handshake on behalf of all of them. When a
 Service is added to its Process it is assigned a `service_id` and a
@@ -275,7 +275,7 @@ Key design points:
 | `ServiceTags` | Parse and match `key=value` tag lists | `ServiceImpl`, `Services` |
 | `ServiceTopicPath` | Parse/compose `namespace/host/pid/sid`; terse display form | `Services`, [Message](message.md) topic conventions |
 | `Services` | Two-level ordered collection of Service details, keyed by Process then Service topic path; filtering and iteration | [Registrar](registrar.md), `ServicesCache` in [Share](share.md) |
-| `ProcessImplementation` (in `process.py`) | Own MQTT connection, event loop, message routing, Service registry and Registrar handshake for the whole process | [Message](message.md), [Event](event.md), [Connection](connection.md), [Registrar](registrar.md) |
+| `ProcessImplementation` (see [Process](process.md)) | Own MQTT connection, event loop, message routing, Service registry and Registrar handshake for the whole process | [Message](message.md), [Event](event.md), [Connection](connection.md), [Registrar](registrar.md) |
 
 ## Current limitations and roadmap
 
@@ -310,6 +310,7 @@ From the source `To Do` lists — highlights:
 ## Related concepts
 
 - [Design overview](design_overview.md)
+- [Process](process.md) — the per-OS-process singleton every Service lives in
 - [Actor](actor.md) — a Service with a mailbox that serializes message handling
 - [Component](component.md) and [Context](context.md) — the Interface /
   `compose_instance()` machinery Services are built with
