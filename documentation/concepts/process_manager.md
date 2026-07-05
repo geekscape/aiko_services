@@ -9,12 +9,12 @@ source:
   - src/aiko_services/main/process_manager.py
 related: [design_overview, hyperspace, dependency, storage]
 version: "0.6"
-last_updated: 2026-07-04
+last_updated: 2026-07-05
 ---
 
 # ProcessManager
 
-## At a glance
+## Overview
 
 **ProcessManager** is an Actor that creates, lists and destroys operating
 system processes on its host — the muscle behind the structural model:
@@ -24,122 +24,22 @@ ProcessManager is the component that actually launches and reaps OS
 processes. It is analogous to the Unix `init` process (pid 1): typically
 one per host, named after the hostname, supervising everything beneath it.
 
-Because it is a distributed Actor, any authorised client anywhere in the
-namespace can start a process on any host with one command:
+**Why you'd use it**: because it is a distributed Actor, any authorised
+client anywhere in the namespace can start a process on any host with one
+command:
 
 ```bash
 aiko_process create --name that_host aiko_pipeline create my_pipeline.json
 ```
 
-## Design
+## For application developers
 
-```
-   aiko_process CLI ──MQTT──►  ProcessManager Actor (protocol: process_manager:0)
-                               │
-                               │  processes (uid → command_line, Popen)
-                               ├── <000000>  aiko_process run     ◄─ itself 🤔
-                               ├── <000001>  date
-                               ├── <uid:1>   sleep 5
-                               └── <000002>  python my_agent.py
-                               │
-                               ├── reaper thread: poll every 1 s,
-                               │   reap exited processes, fire exit handler
-                               └── metrics: created, running  (ECProducer)
-```
-
-| Operation | Effect |
-|-----------|--------|
-| `create(command, arguments, uid)` | Launch a process (`Popen`, no shell); UID auto-assigned (`000001`, `000002`, …) if not given |
-| `list(topic_path_response, uid)` | Publish `uid pid command…` records for all or one process |
-| `destroy(uid, kill=False)` | SIGTERM (catchable, clean-up possible) or, with `kill`, SIGKILL |
-| `dump()` | Log current process table |
-| `exit(grace_time)` | SIGTERM everything, wait `grace_time` seconds, SIGKILL survivors, terminate self |
-
-A **definition file** (JSON array of command strings) can pre-populate the
-process table at startup — the `init`-style "boot this host" use case.
-ProcessManager registers *itself* in its own table as UID `000000`
-(self-aware 🤔), wrapped in a `ProcessCurrent` shim so uniform bookkeeping
-applies; it is protected from `destroy()`.
-
-The design direction (see roadmap) is **ProcessManager as-a
-LifeCycleManager as-a Category**: driving the full Service lifecycle
-(`create, enable, start, status, stop, disable, destroy`) from the
-HyperSpace/Storage structure, including lazy loading of HyperSpace entries.
-
-## Developer guide (internals)
-
-### Concurrency model
-
-This is the file's central design note. Every method except `_run()`
-executes on the Actor main thread — serialized, one at a time, so no
-locking is needed. `_run()` is a daemon *reaper thread* that:
-
-- copies iterators before looping (insulating itself from concurrent
-  mutation of `self.processes`), and
-- never mutates shared data directly — it posts reap work back to the
-  Actor main thread with
-  `self._post_message(ActorTopic.IN, "_remove", [zombies])`.
-
-`_remove()` (on the main thread) fires the `process_exit_handler` for each
-exited UID, deletes the table entries and updates `metrics.running`. The
-poll interval is 1 second (`_PROCESS_POLL_TIME`).
-
-Follow the same rule in any extension: post to the main thread rather than
-touching `self.processes` from another thread.
-
-### Process creation details
-
-- Commands ending in `.py` / `.sh` run as given. Any other command is
-  first resolved as a *Python module name* via
-  `importlib.util.find_spec()`; if found, the module's file path is
-  executed instead — so `aiko_process create my_package.my_module` works
-  without knowing the installation path.
-- `Popen(command_line, bufsize=0, shell=False)` — no shell interpretation;
-  to use shell features, invoke the shell explicitly
-  (`/bin/sh -c "…"`, see examples below).
-- Duplicate UIDs are rejected with a warning (process not started);
-  `FileNotFoundError` and other exceptions are logged, not raised.
-- A pluggable `process_exit_handler(uid)` can be supplied at construction;
-  the default logs UID, PID, command and return code on exit.
-
-### Shared state
-
-`self.share` publishes `lifecycle`, `log_level`, `source_file`,
-`definition_pathname`, `watchdog` and `metrics` (`created` and `running`,
-both including ProcessManager itself 😅) via ECProducer — so the Dashboard
-sees the process population of every host in real time.
-
-### Wire protocol
-
-`list()` follows the standard response idiom on the requester's topic:
-
-```
-(item_count N)
-(response UID PID COMMAND ARG…)      # repeated
-```
-
-### Embedding in your own process
-
-```python
-from aiko_services.main import *
-from aiko_services.main.process_manager import ProcessManagerImpl, PROTOCOL
-
-init_args = actor_args(get_hostname(), None, None, PROTOCOL, ["ec=true"])
-init_args["definition_pathname"] = None
-init_args["watchdog"] = False
-process_manager = compose_instance(ProcessManagerImpl, init_args)
-aiko.process.run()
-```
-
-A custom `process_exit_handler` may be passed via `init_args` to react to
-child exits (relaunch policies, notifications, …).
-
-## User guide (command line)
+### Command-line usage
 
 `aiko_process`. The target ProcessManager is selected with `--name / -n`,
 defaulting to the local hostname.
 
-### Lifecycle
+Lifecycle:
 
 ```bash
 aiko_process run  [--name NAME] [--watchdog] [DEFINITION_PATHNAME]
@@ -154,7 +54,7 @@ strings, launched at startup:
 ["aiko_registrar", "aiko_pipeline create pipeline.json -ll debug"]
 ```
 
-### Manage processes
+Manage processes:
 
 ```bash
 aiko_process create [--name NAME] [--uid UID] COMMAND [ARGUMENTS ...]
@@ -190,6 +90,117 @@ Planned (not yet implemented) — Service lifecycle driven from HyperSpace:
 ```bash
 aiko_process enable | disable | start | status | stop HYPERSPACE_PATH
 ```
+
+### Public API
+
+Core operations:
+
+| Operation | Effect |
+|-----------|--------|
+| `create(command, arguments, uid)` | Launch a process (`Popen`, no shell); UID auto-assigned (`000001`, `000002`, …) if not given |
+| `list(topic_path_response, uid)` | Publish `uid pid command…` records for all or one process |
+| `destroy(uid, kill=False)` | SIGTERM (catchable, clean-up possible) or, with `kill`, SIGKILL |
+| `dump()` | Log current process table |
+| `exit(grace_time)` | SIGTERM everything, wait `grace_time` seconds, SIGKILL survivors, terminate self |
+
+Embedding in your own process:
+
+```python
+from aiko_services.main import *
+from aiko_services.main.process_manager import ProcessManagerImpl, PROTOCOL
+
+init_args = actor_args(get_hostname(), None, None, PROTOCOL, ["ec=true"])
+init_args["definition_pathname"] = None
+init_args["watchdog"] = False
+process_manager = compose_instance(ProcessManagerImpl, init_args)
+aiko.process.run()
+```
+
+A custom `process_exit_handler(uid)` may be passed via `init_args` to react
+to child exits (relaunch policies, notifications, …); the default logs UID,
+PID, command and return code on exit.
+
+**Wire protocol.** `list()` follows the standard response idiom on the
+requester's topic (see [Category](category.md) for the general pattern):
+
+```
+(item_count N)
+(response UID PID COMMAND ARG…)      # repeated
+```
+
+## For framework developers (internals)
+
+### Design
+
+```
+   aiko_process CLI ──MQTT──►  ProcessManager Actor (protocol: process_manager:0)
+                               │
+                               │  processes (uid → command_line, Popen)
+                               ├── <000000>  aiko_process run     ◄─ itself 🤔
+                               ├── <000001>  date
+                               ├── <uid:1>   sleep 5
+                               └── <000002>  python my_agent.py
+                               │
+                               ├── reaper thread: poll every 1 s,
+                               │   reap exited processes, fire exit handler
+                               └── metrics: created, running  (ECProducer)
+```
+
+A **definition file** (JSON array of command strings) can pre-populate the
+process table at startup — the `init`-style "boot this host" use case.
+ProcessManager registers *itself* in its own table as UID `000000`
+(self-aware 🤔), wrapped in a `ProcessCurrent` shim so uniform bookkeeping
+applies; it is protected from `destroy()`.
+
+The design direction (see roadmap) is **ProcessManager as-a
+LifeCycleManager as-a Category**: driving the full Service lifecycle
+(`create, enable, start, status, stop, disable, destroy`) from the
+HyperSpace/Storage structure, including lazy loading of HyperSpace entries.
+
+### Implementation notes
+
+**Concurrency model.** This is the file's central design note. Every method
+except `_run()` executes on the Actor main thread — serialized, one at a
+time, so no locking is needed. `_run()` is a daemon *reaper thread* that:
+
+- copies iterators before looping (insulating itself from concurrent
+  mutation of `self.processes`), and
+- never mutates shared data directly — it posts reap work back to the
+  Actor main thread with
+  `self._post_message(ActorTopic.IN, "_remove", [zombies])`.
+
+`_remove()` (on the main thread) fires the `process_exit_handler` for each
+exited UID, deletes the table entries and updates `metrics.running`. The
+poll interval is 1 second (`_PROCESS_POLL_TIME`).
+
+Follow the same rule in any extension: post to the main thread rather than
+touching `self.processes` from another thread.
+
+**Process creation details:**
+
+- Commands ending in `.py` / `.sh` run as given. Any other command is
+  first resolved as a *Python module name* via
+  `importlib.util.find_spec()`; if found, the module's file path is
+  executed instead — so `aiko_process create my_package.my_module` works
+  without knowing the installation path.
+- `Popen(command_line, bufsize=0, shell=False)` — no shell interpretation;
+  to use shell features, invoke the shell explicitly
+  (`/bin/sh -c "…"`, see the command-line examples above).
+- Duplicate UIDs are rejected with a warning (process not started);
+  `FileNotFoundError` and other exceptions are logged, not raised.
+
+**Shared state.** `self.share` publishes `lifecycle`, `log_level`,
+`source_file`, `definition_pathname`, `watchdog` and `metrics` (`created`
+and `running`, both including ProcessManager itself 😅) via ECProducer — so
+the Dashboard sees the process population of every host in real time.
+
+### CRC card
+
+| Class | Responsibilities | Collaborators |
+|-------|------------------|---------------|
+| `ProcessManager` (Interface) | Declare the process-table contract: `create()`, `list()`, `destroy()`, `dump()`, `exit()`; is-an Actor | `Actor` (parent Interface) |
+| `ProcessManagerImpl` | Maintain the `uid → (command_line, Popen)` table; launch via `Popen` with module-name resolution; reap exits on the reaper thread and marshal them back to the main thread; publish metrics via ECProducer; load definition files; graceful `exit()` escalation (SIGTERM → SIGKILL) | `ProcessCurrent` (self-entry shim); `ECProducer` (shared state); [HyperSpace](hyperspace.md) / [Storage](storage.md) (planned lifecycle-driving structure); [Dependency](dependency.md) (`lifecycle_manager_url` target) |
+| `ProcessCurrent` | Present the ProcessManager's own OS process with the same interface as a `Popen` child, so UID `000000` gets uniform bookkeeping | `ProcessManagerImpl` (sole user) |
 
 ## Current limitations and roadmap
 

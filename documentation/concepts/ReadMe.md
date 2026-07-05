@@ -6,7 +6,7 @@ type: index
 audience: [architects, developers, end-users]
 status: draft
 version: "0.6"
-last_updated: 2026-07-04
+last_updated: 2026-07-05
 ---
 
 # Aiko Services: distributed system infrastructure
@@ -21,10 +21,15 @@ The documentation follows the Open Knowledge Format (OKF) conventions:
 - **One concept per file**, each self-contained and individually linkable
 - **YAML front-matter** carrying metadata: title, description, type,
   audience, status, source files and related concepts
-- **Audience-layered sections** in every concept document:
-  *Design* (executive overview), *Developer guide* (internals) and
-  *User guide* (Python API and command line usage)
+- **Audience-first sections** in every concept document, ordered from
+  broadest to most specialised audience: *Overview*, then
+  *For application developers* (Command-line usage, Public API), then
+  *For framework developers* (Design, Implementation notes, CRC card)
 - **Explicit cross-links** between related concepts
+
+The full section structure and writing guidance is defined in the
+constitution's OKF Concepts documentation template
+(`documentation/constitution/okf_concept_template.md`).
 
 ## Start here
 
@@ -45,11 +50,11 @@ The documentation follows the Open Knowledge Format (OKF) conventions:
 
 - **Architects / evaluators**: [Design overview](design_overview.md) only.
 - **Application developers**: [Design overview](design_overview.md), then
-  the *User guide* sections of [HyperSpace](hyperspace.md),
+  the *For application developers* sections of [HyperSpace](hyperspace.md),
   [Category](category.md) and [ProcessManager](process_manager.md).
 - **Framework developers**: everything, paying particular attention to the
-  *Developer guide* sections and the Composite design pattern described in
-  [Dependency](dependency.md) and [Storage](storage.md).
+  *For framework developers* sections and the Composite design pattern
+  described in [Dependency](dependency.md) and [Storage](storage.md).
 
 ## Status
 

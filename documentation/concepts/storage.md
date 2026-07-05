@@ -11,36 +11,89 @@ source:
   - src/aiko_services/main/storage/storage_file.py
 related: [design_overview, dependency, category, hyperspace]
 version: "0.6"
-last_updated: 2026-07-04
+last_updated: 2026-07-05
 ---
 
 # Storage
 
-## At a glance
+## Overview
 
 **Storage** is the persistence SPI (Service Provider Interface) beneath
 [HyperSpace](hyperspace.md): it stores [Categories](category.md) and
 [Dependencies](dependency.md) so the distributed system's structure survives
 process restarts. **StorageFile** is the current implementation, mapping the
-Composite pattern directly onto the file-system:
-
-| Concept | Composite role | File-system representation |
-|---------|----------------|------------------------------|
-| Dependency | Component (leaf) | a *file*, referenced by a symbolic link |
-| Category | Container (and also a Component) | a *directory* of Entries, referenced by a symbolic link |
-| Entry | either of the above | a *symbolic link* at a human-readable path |
+Composite pattern directly onto the file-system: a Dependency becomes a
+*file*, a Category a *directory*, and every named Entry a *symbolic link*.
 
 StorageFile is unusual among Aiko Services components in that it runs two
-ways: as a
-**distributed Actor** (a Storage Service operated over MQTT) and as a
-**standalone library in bootstrap mode** — the same commands working
+ways: as a **distributed Actor** (a Storage Service operated over MQTT) and
+as a **standalone library in bootstrap mode** — the same commands working
 directly against the local file-system with no Services running. Bootstrap
 mode exists because you cannot use a distributed Storage Service to
 bootstrap Storage itself.
 
-## Design
+**Why you'd use it**: directly, to initialize and inspect the persistent
+structure beneath a HyperSpace host — most applications go through
+HyperSpace and only meet Storage when bootstrapping or debugging:
 
-### The Storage SPI
+```bash
+aiko_storage_file initialize      # prepare a fresh host
+aiko_storage_file dump -b         # see exactly what is on disk
+```
+
+## For application developers
+
+### Command-line usage
+
+`aiko_storage_file` (preferred) or `./storage_file.py`. Every data command
+takes `--bootstrap / -b` (operate standalone on the local file-system, no
+Storage Service required) and `--storage_name / -sn` (target Service name,
+default: local hostname).
+
+Lifecycle:
+
+```bash
+export STORAGE_RANDOM_UID=False   # optional: predictable UIDs for debugging
+
+aiko_storage_file initialize [STORAGE_URL]  # set up .root and storage dir
+aiko_storage_file run [STORAGE_URL]         # run as a distributed Actor
+aiko_storage_file dump [-b] [--sort_by_name]# low-level reverse-mapped view
+aiko_storage_file exit                      # terminate the Storage Service
+```
+
+CRUD:
+
+```bash
+aiko_storage_file add     [-b] DEPENDENCY             # file
+aiko_storage_file create  [-b] CATEGORY               # directory
+aiko_storage_file link    [-b] NEW_ENTRY EXISTING_ENTRY
+aiko_storage_file list    [-b] [-l] [-r] [PATH]
+aiko_storage_file remove  [-b] ENTRY                  # currently == destroy
+aiko_storage_file destroy [-b] ENTRY
+aiko_storage_file update  [-b] ENTRY …                # TODO: unimplemented
+```
+
+Example bootstrap session:
+
+```bash
+mkdir workspace && cd workspace
+aiko_storage_file initialize
+# Created directory _hyperspace_/
+# Created symbolic link .root --> /…/workspace
+
+aiko_storage_file create -b models
+aiko_storage_file add    -b models/yolo_v8
+aiko_storage_file link   -b best_model models/yolo_v8
+aiko_storage_file list   -b -r
+aiko_storage_file dump   -b
+# ab/cd/ef/01/23/45           models
+# 67/89/ab/cd/ef/01           yolo_v8
+# 67/89/ab/cd/ef/01           best_model     ← two names, one storage target
+```
+
+### Public API
+
+The Storage SPI:
 
 ```python
 class Storage(Actor):
@@ -65,7 +118,49 @@ Planned alternative backends behind the same SPI: in-memory, SQLite3, MQTT,
 ValKey (distributed Redis). Today only the file-system implementation
 exists.
 
-### StorageFile on-disk layout
+Standalone (bootstrap) use as a library:
+
+```python
+from aiko_services.main.storage import StorageFileImpl
+
+storage = StorageFileImpl.create_storage("<no_name>", None)
+StorageFileImpl.initialize()          # idempotent: .root, _hyperspace_/
+storage.create("models")              # Category  (directory)
+storage.add("models/yolo_v8")         # Dependency (file)   — via cwd paths
+storage.link("best_model", "models/yolo_v8")
+storage.list(None, None, long_format=False, recursive=True)
+storage.destroy("best_model")         # unlink; target kept (still linked)
+```
+
+Distributed use goes through discovery, exactly as the CLI does:
+
+```python
+do_command(Storage, ServiceFilter(name=None, protocol=PROTOCOL),
+    lambda storage: storage.create("models"), terminate=True)
+aiko.process.run()
+```
+
+**Wire protocol.** `list()` emits the shared Category record format (see
+[Category](category.md) for the full grammar):
+`[level, entry_name, [service_filter, lcm_url, storage_url]]`, with
+`[-level, path]` headers for recursion into directories. Directory entries
+are reported with `CATEGORY_PROTOCOL`; files with protocol `*`. Records are
+delivered one of three ways: published to `topic_path_response`
+(`(item_count N)` / `(response …)`), appended to a caller-supplied
+`entry_records` list (how HyperSpace loads at startup), or pretty-printed
+via `CategoryImpl._list_publish()`.
+
+## For framework developers (internals)
+
+### Design
+
+The Composite pattern mapped onto the file-system:
+
+| Concept | Composite role | File-system representation |
+|---------|----------------|------------------------------|
+| Dependency | Component (leaf) | a *file*, referenced by a symbolic link |
+| Category | Container (and also a Component) | a *directory* of Entries, referenced by a symbolic link |
+| Entry | either of the above | a *symbolic link* at a human-readable path |
 
 `initialize` prepares a working directory; subsequent operations build a
 structure like this:
@@ -111,9 +206,9 @@ Key mechanisms:
   the same storage target is the target itself deleted (recursively for
   directories) and empty parent directories cleaned up.
 
-## Developer guide (internals)
+### Implementation notes
 
-### Construction and modes
+**Construction and modes:**
 
 ```python
 storage = StorageFileImpl.create_storage(
@@ -134,7 +229,7 @@ storage = StorageFileImpl.create_storage(
 root; the CLI converts the failure into
 *"Consider running `aiko_storage_file initialize`"*.
 
-### Operation notes
+**Operation notes:**
 
 - `add()` creates the UID file, then symlinks
   `DEPENDENCY_NAME -> .root/_hyperspace_/<uid path>` and tracks the path.
@@ -147,14 +242,7 @@ root; the CLI converts the failure into
   then creates the new symlink relative to the *nearest* `.root` (the one
   in the destination's directory if present, else the root's).
 - `list()` walks symlinked entries (skipping dot-names), emitting the
-  shared Category record format (see [Category](category.md)):
-  `[level, entry_name, [service_filter, lcm_url, storage_url]]`, with
-  `[-level, path]` headers for recursion into directories. Directory
-  entries are reported with `CATEGORY_PROTOCOL`; files with protocol `*`.
-  Records are either published to `topic_path_response`
-  (`(item_count N)` / `(response …)`), appended to a caller-supplied
-  `entry_records` list (how HyperSpace loads), or pretty-printed via
-  `CategoryImpl._list_publish()`.
+  shared Category record format described under Public API.
 - `dump()` is the low-level truth: it reverse-maps every symlink in the
   tree to its storage path and prints `RELATIVE_STORAGE_PATH  NAME` pairs,
   deduplicated, sorted by path (or by name with `--sort_by_name`).
@@ -162,85 +250,18 @@ root; the CLI converts the failure into
   semantics are TODO.
 - `update()` is **unimplemented** (prints a placeholder).
 
-### Semantics still being worked through
+**Semantics still being worked through.** The header flags that the add /
+create / destroy / remove semantics — and whether `tracked_paths` should
+become true reference counting — are under active review. Treat destructive
+operations as provisional. Structure validation (dead links, tracked-path
+consistency, content checks) is planned.
 
-The header flags that the add / create / destroy / remove semantics — and
-whether `tracked_paths` should become true reference counting — are under
-active review. Treat destructive operations as provisional. Structure
-validation (dead links, tracked-path consistency, content checks) is
-planned.
+### CRC card
 
-## User guide (application developers)
-
-Standalone (bootstrap) use as a library:
-
-```python
-from aiko_services.main.storage import StorageFileImpl
-
-storage = StorageFileImpl.create_storage("<no_name>", None)
-StorageFileImpl.initialize()          # idempotent: .root, _hyperspace_/
-storage.create("models")              # Category  (directory)
-storage.add("models/yolo_v8")         # Dependency (file)   — via cwd paths
-storage.link("best_model", "models/yolo_v8")
-storage.list(None, None, long_format=False, recursive=True)
-storage.destroy("best_model")         # unlink; target kept (still linked)
-```
-
-Distributed use goes through discovery, exactly as the CLI does:
-
-```python
-do_command(Storage, ServiceFilter(name=None, protocol=PROTOCOL),
-    lambda storage: storage.create("models"), terminate=True)
-aiko.process.run()
-```
-
-## User guide (command line)
-
-`aiko_storage_file` (preferred) or `./storage_file.py`. Every data command
-takes `--bootstrap / -b` (operate standalone on the local file-system, no
-Storage Service required) and `--storage_name / -sn` (target Service name,
-default: local hostname).
-
-### Lifecycle
-
-```bash
-export STORAGE_RANDOM_UID=False   # optional: predictable UIDs for debugging
-
-aiko_storage_file initialize [STORAGE_URL]  # set up .root and storage dir
-aiko_storage_file run [STORAGE_URL]         # run as a distributed Actor
-aiko_storage_file dump [-b] [--sort_by_name]# low-level reverse-mapped view
-aiko_storage_file exit                      # terminate the Storage Service
-```
-
-### CRUD
-
-```bash
-aiko_storage_file add     [-b] DEPENDENCY             # file
-aiko_storage_file create  [-b] CATEGORY               # directory
-aiko_storage_file link    [-b] NEW_ENTRY EXISTING_ENTRY
-aiko_storage_file list    [-b] [-l] [-r] [PATH]
-aiko_storage_file remove  [-b] ENTRY                  # currently == destroy
-aiko_storage_file destroy [-b] ENTRY
-aiko_storage_file update  [-b] ENTRY …                # TODO: unimplemented
-```
-
-Example bootstrap session:
-
-```bash
-mkdir workspace && cd workspace
-aiko_storage_file initialize
-# Created directory _hyperspace_/
-# Created symbolic link .root --> /…/workspace
-
-aiko_storage_file create -b models
-aiko_storage_file add    -b models/yolo_v8
-aiko_storage_file link   -b best_model models/yolo_v8
-aiko_storage_file list   -b -r
-aiko_storage_file dump   -b
-# ab/cd/ef/01/23/45           models
-# 67/89/ab/cd/ef/01           yolo_v8
-# 67/89/ab/cd/ef/01           best_model     ← two names, one storage target
-```
+| Class | Responsibilities | Collaborators |
+|-------|------------------|---------------|
+| `Storage` (Interface) | Declare the persistence SPI: `add()`, `create()`, `destroy()`, `remove()`, `link()`, `list()`, `update()`, `dump()`, `initialize()`, `exit()`; is-an Actor | `Actor` (parent Interface); future backend implementations (in-memory, SQLite3, MQTT, ValKey) |
+| `StorageFileImpl` | Map Entries onto UID-addressed files/directories with symlink names; `.root` anchoring; `tracked_paths` registry; reference-counted destroy; serve all three modes (registered Service, embedded engine, bootstrap CLI) | [Dependency](dependency.md) / [Category](category.md) (what is persisted); [HyperSpace](hyperspace.md) (embedded consumer); `CategoryImpl` (shared record format and printing); `ECProducer` (shared state when registered) |
 
 ## Current limitations and roadmap
 
