@@ -24,7 +24,7 @@ the [Aiko Dashboard](src/aiko_services/main/dashboard.py)
 
 - Aiming to make the difficult parts ... much easier !
 
-# Documention
+# Documentation
 
 - Aiko Services [Concepts guide](documentation/concepts/ReadMe.md) and [Design overview](documentation/concepts/design_overview.md)
 
@@ -55,12 +55,39 @@ pip install -e .          # Install Aiko Services for development
 ## Installing for package maintainers
 
 Recommended when making an [Aiko Services release to PyPI](https://pypi.org/project/aiko_services)
-After **installing from GitHub** *(above)*, perform these additional commands
+
+Before building, ensure that the release version has been updated and committed
+in **both** of these files ...
+
+- `src/aiko_services/__init__.py` ... `__version__` and `__id__`
+- `pyproject.toml` ... `version` (used by Hatch for the package version)
+
+**Important:** Always build from a fresh `git clone`, never from a development
+working tree.  Hatch bundles all directory contents into the package, so any
+untracked local files, e.g media files or back-up copies, would be included
 ```
-pip install -U hatch  # Install latest Hatch build and package manager
-hatch shell           # Run shell using Hatch to manage dependencies
-# hatch test          # Run local tests (to be completed)
-hatch build           # Publish Aiko Services package to PyPI
+git clone https://github.com/geekscape/aiko_services.git aiko_services_release
+cd aiko_services_release
+python3 -m venv venv      # Once only
+source venv/bin/activate  # Each terminal session
+pip install -U pip        # Install latest pip
+pip install -U hatch      # Install latest Hatch build and package manager
+# hatch test              # Run local tests (to be completed)
+hatch build               # Build Aiko Services package: dist/*.whl and dist/*.tar.gz
+```
+
+Check that the build output is correct, i.e the wheel should be well under
+1 MB and only contain source code (plus a few small sample data files)
+```
+unzip -l dist/aiko_services-*.whl
+```
+
+Publishing to PyPI requires a [PyPI API token](https://pypi.org/manage/account/token/)
+scoped to the *aiko-services* project ... username / password uploads are no
+longer supported by PyPI
+```
+HATCH_INDEX_USER=__token__ HATCH_INDEX_AUTH=pypi-YOUR_API_TOKEN  \
+    hatch publish dist/   # Publish Aiko Services package to PyPI
 ```
 
 # Quick start
