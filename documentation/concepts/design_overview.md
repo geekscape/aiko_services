@@ -6,8 +6,9 @@ type: overview
 audience: [architects, developers, end-users]
 status: draft
 version: "0.6"
-last_updated: 2026-07-04
-related: [dependency, category, hyperspace, storage, process_manager]
+last_updated: 2026-07-05
+related: [dependency, category, hyperspace, storage, process_manager,
+  service, actor, share, registrar, lifecycle, message]
 ---
 
 # Design overview
@@ -15,9 +16,13 @@ related: [dependency, category, hyperspace, storage, process_manager]
 ## Executive summary
 
 Aiko Services is a distributed system framework in which every unit of
-functionality — Service, Actor, Agent, PipelineElement, Pipeline — is a
-network-discoverable, message-driven component. The five concepts documented
-here answer the questions every distributed system must eventually answer:
+functionality — [Service](service.md), [Actor](actor.md), Agent,
+[PipelineElement](pipeline_element.md), [Pipeline](pipeline.md) — is a
+network-discoverable, message-driven component. This document is the
+executive overview of the *structural model*; the full framework catalog
+— runtime foundations, composition, messaging, Services and Pipelines —
+is indexed in [ReadMe.md](ReadMe.md). The five structural concepts answer
+the questions every distributed system must eventually answer:
 
 | Question | Concept | Analogy |
 |----------|---------|---------|
@@ -140,10 +145,12 @@ The end-to-end story that these five concepts enable:
 
 ## Distributed and bootstrap operation
 
-Every one of these components is itself an Aiko Services *Actor*: it
-registers with the Registrar, exposes its state via shared Environment
-Context (ECProducer, visible in the Aiko Services Dashboard) and is operated
-remotely over MQTT. All CLI
+Every one of these components is itself an Aiko Services
+[*Actor*](actor.md): it registers with the [Registrar](registrar.md),
+exposes its state via eventually-consistent shared state
+([ECProducer](share.md), visible in the Aiko Services
+[Dashboard](dashboard.md)) and is operated remotely over
+[MQTT](message.md). All CLI
 commands follow the same pattern: discover the target Actor by
 *ServiceFilter* (name defaults to the local hostname), invoke the method
 remotely, print any response.
@@ -189,3 +196,10 @@ host is initialized before HyperSpace and ProcessManager come up.
 - [HyperSpace](hyperspace.md)
 - [Storage](storage.md)
 - [ProcessManager](process_manager.md)
+- [Concepts guide index](ReadMe.md) — the full framework catalog
+- [Service](service.md) / [Actor](actor.md) — the component model these
+  structures refer to
+- [Registrar](registrar.md) — the discovery hub behind every ServiceFilter
+- [Share (Eventual Consistency)](share.md) — the shared-state machinery
+- [LifeCycle](lifecycle.md) — the manager/client pattern ProcessManager
+  will realise

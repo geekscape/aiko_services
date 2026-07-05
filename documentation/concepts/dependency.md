@@ -7,7 +7,8 @@ audience: [architects, developers, end-users]
 status: work-in-progress
 source:
   - src/aiko_services/main/dependency.py
-related: [design_overview, category, hyperspace, storage, process_manager]
+related: [design_overview, category, hyperspace, storage, process_manager,
+  service, component, lifecycle]
 version: "0.6"
 last_updated: 2026-07-05
 ---
@@ -74,8 +75,9 @@ class Dependency(Interface):
         lifecycle_manager_url=None, storage_url=None): ...
 ```
 
-Construction uses the standard Aiko Services composition machinery.
-Creating a Dependency that will match any Service named `my_service`:
+Construction uses the standard Aiko Services
+[composition machinery](component.md). Creating a Dependency that will
+match any [Service](service.md) named `my_service`:
 
 ```python
 from aiko_services.main import *
@@ -124,7 +126,7 @@ A Dependency bundles four pieces of information:
 | Field | Role | Values |
 |-------|------|--------|
 | `service` | Live Service instance reference, once discovered | `None` (not discovered / absent) · local instance reference (same process) · remote proxy reference (different process or host) |
-| `service_filter` | **WHAT** — how to discover the Service via the Registrar | a `ServiceFilter(topic_path, name, protocol, transport, owner, tags)` |
+| `service_filter` | **WHAT** — how to discover the Service via the [Registrar](registrar.md) | a `ServiceFilter(topic_path, name, protocol, transport, owner, tags)` — see [Service](service.md) |
 | `lifecycle_manager_url` | **WHO** — the Actor that manages the Service lifecycle (load / unload), e.g. a [ProcessManager](process_manager.md) | `None` (manually started) · `"*"` (discover, planned default) · explicit URL — *semantics work-in-progress* |
 | `storage_url` | **WHERE** — the Actor that persists the Service definition / content, see [Storage](storage.md) | same value scheme as above — *work-in-progress* |
 
@@ -180,3 +182,8 @@ From the source `To Do` list — not yet implemented:
 - [Storage](storage.md) — persists Dependencies as files + symbolic links
 - [ProcessManager](process_manager.md) — the intended target of
   `lifecycle_manager_url`
+- [Service](service.md) — what a Dependency refers to; ServiceFilter fields
+- [LifeCycle](lifecycle.md) — the manager/client pattern behind
+  `lifecycle_manager_url`
+- [Component](component.md) — the composition machinery that builds
+  Dependencies

@@ -9,7 +9,8 @@ status: work-in-progress
 source:
   - src/aiko_services/main/storage/storage.py
   - src/aiko_services/main/storage/storage_file.py
-related: [design_overview, dependency, category, hyperspace]
+related: [design_overview, dependency, category, hyperspace,
+  process_manager, actor, share, discovery]
 version: "0.6"
 last_updated: 2026-07-05
 ---
@@ -26,8 +27,9 @@ Composite pattern directly onto the file-system: a Dependency becomes a
 *file*, a Category a *directory*, and every named Entry a *symbolic link*.
 
 StorageFile is unusual among Aiko Services components in that it runs two
-ways: as a **distributed Actor** (a Storage Service operated over MQTT) and
-as a **standalone library in bootstrap mode** — the same commands working
+ways: as a **distributed [Actor](actor.md)** (a Storage Service operated
+over MQTT) and as a **standalone library in bootstrap mode** — the same
+commands working
 directly against the local file-system with no Services running. Bootstrap
 mode exists because you cannot use a distributed Storage Service to
 bootstrap Storage itself.
@@ -132,7 +134,8 @@ storage.list(None, None, long_format=False, recursive=True)
 storage.destroy("best_model")         # unlink; target kept (still linked)
 ```
 
-Distributed use goes through discovery, exactly as the CLI does:
+Distributed use goes through [discovery](discovery.md), exactly as the CLI
+does:
 
 ```python
 do_command(Storage, ServiceFilter(name=None, protocol=PROTOCOL),
@@ -219,7 +222,7 @@ storage = StorageFileImpl.create_storage(
 
 - As a **Service**, StorageFile registers with protocol
   `…/storage:0`, tags `ec=true`, and shares `storage_url` and
-  `uid_counter` via ECProducer.
+  `uid_counter` via [ECProducer](share.md).
 - **Embedded**: HyperSpace creates one with `register_service=False` as its
   private persistence engine.
 - **Bootstrap CLI**: each subcommand with `-b` constructs a throwaway
@@ -287,3 +290,5 @@ Highlights from the source `To Do` lists:
 - [HyperSpace](hyperspace.md) — primary consumer of the Storage SPI
 - [Category](category.md) / [Dependency](dependency.md) — what is stored
 - [ProcessManager](process_manager.md) — future bootstrap-mode reader
+- [Actor](actor.md) / [Share (Eventual Consistency)](share.md) — the
+  Service-mode machinery

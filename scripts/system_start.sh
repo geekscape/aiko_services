@@ -19,6 +19,8 @@
 #
 # To Do
 # ~~~~~
+# - Use 0_mosquitto.conf
+#
 # - Convert to Python and add to "setup.py:entry_points:console_scripts"
 #   - Test on Linux, Mac OS X and Windows
 

@@ -7,7 +7,8 @@ audience: [architects, developers, end-users]
 status: work-in-progress
 source:
   - src/aiko_services/main/category.py
-related: [design_overview, dependency, hyperspace, storage]
+related: [design_overview, dependency, hyperspace, storage, actor,
+  service, share, discovery]
 version: "0.6"
 last_updated: 2026-07-05
 ---
@@ -23,9 +24,9 @@ directory to Dependency's file — and the building block from which
 [HyperSpace](hyperspace.md) assembles its network graph.
 
 Because a Category **is-a** Dependency, Categories nest arbitrarily. Because
-a Category **is-an** Actor, every Category is independently discoverable,
-remotely operable over MQTT, and its entries are live shared state visible
-in the Aiko Services Dashboard.
+a Category **is-an** [Actor](actor.md), every Category is independently
+discoverable, remotely operable over MQTT, and its entries are live shared
+state visible in the Aiko Services [Dashboard](dashboard.md).
 
 **Why you'd use it**: whenever a component needs to manage a queryable,
 observable collection of Service references. For example, a fleet of camera
@@ -130,7 +131,7 @@ For most applications, prefer operating through
 and adds path-based addressing and persistence.
 
 **Remote operation.** All CLI verbs use the standard Aiko Services idiom —
-discover, invoke, terminate:
+discover, invoke, terminate (see [Discovery](discovery.md)):
 
 ```python
 do_command(Category,
@@ -216,7 +217,7 @@ delegate `is_type()` and `__repr__()` down the composite chain.
 
 **Entries live in shared state.** Entries are not a private dict — they are
 stored in `self.share["entries"]` and every mutation goes through the
-`ECProducer`:
+[`ECProducer`](share.md):
 
 ```python
 self.ec_producer.update(f"entries.{entry_name}", dependency)
@@ -281,3 +282,7 @@ From the source `To Do` list — highlights:
 - [Dependency](dependency.md) — what Entries are made of
 - [HyperSpace](hyperspace.md) — root Category, path addressing, persistence
 - [Storage](storage.md) — how Category structures are persisted
+- [Actor](actor.md) — what a Category is-a; mailbox and main-thread model
+- [Share (Eventual Consistency)](share.md) — how entries become observable
+  shared state
+- [Service](service.md) — ServiceFilter and the Service fields

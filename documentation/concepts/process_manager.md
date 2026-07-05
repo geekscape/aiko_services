@@ -7,7 +7,8 @@ audience: [architects, developers, end-users]
 status: work-in-progress
 source:
   - src/aiko_services/main/process_manager.py
-related: [design_overview, hyperspace, dependency, storage]
+related: [design_overview, hyperspace, dependency, storage, actor, share,
+  lifecycle]
 version: "0.6"
 last_updated: 2026-07-05
 ---
@@ -16,8 +17,9 @@ last_updated: 2026-07-05
 
 ## Overview
 
-**ProcessManager** is an Actor that creates, lists and destroys operating
-system processes on its host — the muscle behind the structural model:
+**ProcessManager** is an [Actor](actor.md) that creates, lists and destroys
+operating system processes on its host — the muscle behind the structural
+model:
 where [HyperSpace](hyperspace.md) says *what should exist* and a
 [Dependency](dependency.md)'s `lifecycle_manager_url` says *who runs it*,
 ProcessManager is the component that actually launches and reaps OS
@@ -153,7 +155,8 @@ ProcessManager registers *itself* in its own table as UID `000000`
 applies; it is protected from `destroy()`.
 
 The design direction (see roadmap) is **ProcessManager as-a
-LifeCycleManager as-a Category**: driving the full Service lifecycle
+[LifeCycleManager](lifecycle.md) as-a Category**: driving the full Service
+lifecycle
 (`create, enable, start, status, stop, disable, destroy`) from the
 HyperSpace/Storage structure, including lazy loading of HyperSpace entries.
 
@@ -191,8 +194,9 @@ touching `self.processes` from another thread.
 
 **Shared state.** `self.share` publishes `lifecycle`, `log_level`,
 `source_file`, `definition_pathname`, `watchdog` and `metrics` (`created`
-and `running`, both including ProcessManager itself 😅) via ECProducer — so
-the Dashboard sees the process population of every host in real time.
+and `running`, both including ProcessManager itself 😅) via
+[ECProducer](share.md) — so the [Dashboard](dashboard.md) sees the process
+population of every host in real time.
 
 ### CRC card
 
@@ -228,3 +232,7 @@ Highlights from the source `To Do` list:
 - [Dependency](dependency.md) — `lifecycle_manager_url` points here
 - [HyperSpace](hyperspace.md) — the structure ProcessManager will realise
 - [Storage](storage.md) — future read-only bootstrap source
+- [LifeCycle](lifecycle.md) — the manager/client pattern ProcessManager is
+  slated to implement
+- [Actor](actor.md) — the mailbox/main-thread model behind the concurrency
+  rules above

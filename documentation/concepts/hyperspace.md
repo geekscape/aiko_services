@@ -8,7 +8,8 @@ audience: [architects, developers, end-users]
 status: work-in-progress
 source:
   - src/aiko_services/main/hyperspace.py
-related: [design_overview, category, dependency, storage, process_manager]
+related: [design_overview, category, dependency, storage, process_manager,
+  actor, share, discovery, lifecycle]
 version: "0.6"
 last_updated: 2026-07-05
 ---
@@ -27,7 +28,8 @@ If Dependency is the symbolic link and Category is the directory, HyperSpace
 is the mounted file-system: it provides **path addressing**
 (`category_a/category_b/entry_c`), **persistence** (via the
 [Storage](storage.md) SPI) and **lifecycle management** (Categories are
-created, loaded and destroyed by HyperSpace, and each one is a live Actor).
+created, loaded and destroyed by HyperSpace, and each one is a live
+[Actor](actor.md)).
 
 **Why you'd use it**: to give a distributed system a durable, navigable
 structure that outlives the processes in it. For example, registering a
@@ -122,7 +124,7 @@ hyperspace.list(None, None, long_format=False, recursive=True)
 aiko.process.run()
 ```
 
-Remote clients use the ordinary discovery idiom
+Remote clients use the ordinary [discovery idiom](discovery.md)
 (`do_command(HyperSpaceImpl, ServiceFilter(name=..., protocol=...), ...)`)
 — which is exactly what the CLI does.
 
@@ -294,3 +296,7 @@ Highlights from the source `To Do` list:
 - [Dependency](dependency.md) — the leaf type
 - [Storage](storage.md) — the persistence SPI beneath HyperSpace
 - [ProcessManager](process_manager.md) — the LifeCycleManager counterpart
+- [Actor](actor.md) / [Share (Eventual Consistency)](share.md) — the
+  machinery every Category node is built on
+- [LifeCycle](lifecycle.md) — the manager/client pattern HyperSpace applies
+  to Categories
