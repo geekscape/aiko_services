@@ -26,35 +26,41 @@ The AlohaHonua [Actor](https://en.wikipedia.org/wiki/Actor_model) below is a dis
 
 *Source code: [aloha\_honua\_0.py](aloha_honua_0.py)*
 
-    from aiko_services.main import *
+```python
+# file: aloha_honua_0.py
 
-    class AlohaHonua(Actor):
-        def __init__(self, context):
-            context.call_init(self, "Actor", context)
-            print(f"MQTT topic: {self.topic_in}")
+from aiko_services.main import *
 
-        def aloha(self, name):
-            self.logger.info(f"AlohaHonua {name} !")
+class AlohaHonua(Actor):
+    def __init__(self, context):
+        context.call_init(self, "Actor", context)
+        print(f"MQTT topic: {self.topic_in}")
 
-    if __name__ == "__main__":
-        init_args = actor_args("aloha_honua")
-        aloha_honua = compose_instance(AlohaHonua, init_args)
-        aiko.process.run()
+    def aloha(self, name):
+        self.logger.info(f"AlohaHonua {name} !")
+
+if __name__ == "__main__":
+    init_args = actor_args("aloha_honua")
+    aloha_honua = compose_instance(AlohaHonua, init_args)
+    aiko.process.run()
+```
 
 [### Running the AlohaHonua Actor with a local MQTT server](#run-local-server)
 
 After the Aiko Services framework has been installed, you'll need to start the Core Services, which are the [mosquitto](https://mosquitto.org) ([MQTT server](https://en.wikipedia.org/wiki/MQTT#MQTT_broker)) and the Aiko Registrar on your computer.  The Aiko Dashboard will also be started, which provides interactive monitoring and control.
 
-    # Current working directory should be the top-level of the Aiko Services repository
-    # The first command starts mosquitto, Aiko Registrar and Aiko Dashboard
-    ./scripts/system_start.sh
-        Starting: /usr/sbin/mosquitto
-        Starting: aiko_registrar
+```bash
+# Current working directory should be the top-level of the Aiko Services repository
+# The first command starts mosquitto, Aiko Registrar and Aiko Dashboard
+./scripts/system_start.sh
+    Starting: /usr/sbin/mosquitto
+    Starting: aiko_registrar
 
-    # Use another terminal session, also starting at the top-level of the repository
-    cd examples/aloha_honua
-    ./aloha_honua_0.py
-        MQTT topic: aiko/nomad.local/123/1/in
+# Use another terminal session, also starting at the top-level of the repository
+cd examples/aloha_honua
+./aloha_honua_0.py
+    MQTT topic: aiko/nomad.local/123/1/in
+```
 
 Whilst the AlohaHonua Actor is running, the Aiko Dashboard will show a list of the available Services / Actors and selecting `aloha_honua` will show further details ...
 
@@ -73,14 +79,16 @@ Whilst the AlohaHonua Actor is running, the Aiko Dashboard will show a list of t
 
 The AlohaHonua Actor example, Core Services and Aiko Dashboard can be stopped, as follows ...
 
-    # Type Control-C to stop the ./aloha_honua_0.py program
+```bash
+# Type Control-C to stop the ./aloha_honua_0.py program
 
-    # Select the terminal session running the Aiko Dashboard and press the "x" key
+# Select the terminal session running the Aiko Dashboard and press the "x" key
 
-    # Then stop the Core Services
-    ../../scripts/system_stop.sh
-        Stopping: aiko_registrar
-        Stopping: /usr/sbin/mosquitto
+# Then stop the Core Services
+../../scripts/system_stop.sh
+    Stopping: aiko_registrar
+    Stopping: /usr/sbin/mosquitto
+```
 
 ### Examining the AlohaHonua Actor source code
 
@@ -88,14 +96,18 @@ The AlohaHonua Actor example, Core Services and Aiko Dashboard can be stopped, a
 
 Start by importing the Aiko Services [module](https://www.w3schools.com/python/python_modules.asp) for the AlohaHonua Actor.
 
-    from aiko_services.main import *
+```python
+from aiko_services.main import *
+```
 
 The AlohaHonua class is defined as a Python class that inherits from the Aiko Services' Actor class.  The class constructor method `__init__()` is required, but don't worry about its implementation for the moment.  The `print()` statement shows the automagically generated MQTT topic path for communicating with this Actor instance and a target for publishing MQTT messages.
 
-    class AlohaHonua(Actor):
-        def __init__(self, context):
-            context.call_init(self, "Actor", context)
-            print(f"MQTT topic: {self.topic_in}")
+```python
+class AlohaHonua(Actor):
+    def __init__(self, context):
+        context.call_init(self, "Actor", context)
+        print(f"MQTT topic: {self.topic_in}")
+```
 
 One of the features that the Actor `__init__()` function provides is a [logger](https://en.wikipedia.org/wiki/Logging_(computing)) [instance](https://en.wikipedia.org/wiki/Instance_(computer_science)#Object-oriented_programming) for this Actor
 
@@ -112,17 +124,21 @@ By default, the `_LOGGER` instance will use distributed logging (via MQTT) that 
 
 Actors can define functions that can be invoked directly by other Actors (via MQTT messages).
 
-        def aloha(self, name):
-            self.logger.info(f"AlohaHonua {name} !")
+```python
+def aloha(self, name):
+    self.logger.info(f"AlohaHonua {name} !")
+```
 
 When coding in Python, Aiko Actors can be discovered and their functions invoked via a regular Python function call.  For testing and diagnosis, MQTT CLI tools can also used to *publish* hand-crafted messages and *subscribe* to observe the output from one or more Actors.
 
 The standard Python `__main__` code defines the AlohaHonua class constructor method` __init__()` arguments, e.g the Actor `name`.  Then creates (*composes*) the AlohaHonua Actor instance.  Finally, the Aiko Process main event loop can be run (which is a blocking call).
 
-    if __name__ == "__main__":
-        init_args = actor_args(ACTOR_NAME)
-        aloha_honua = compose_instance(AlohaHonua, init_args)
-        aiko.process.run()
+```python
+if __name__ == "__main__":
+    init_args = actor_args(ACTOR_NAME)
+    aloha_honua = compose_instance(AlohaHonua, init_args)
+    aiko.process.run()
+```
 
 The Aiko Services framework uses the [Inversion of Control (IoC)](https://en.wikipedia.org/wiki/Inversion_of_control) design pattern, which enables an extensible, event-driven programming model.
 
