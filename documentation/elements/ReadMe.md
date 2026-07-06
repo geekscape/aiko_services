@@ -65,3 +65,6 @@ planned / work-in-progress, based on the source code as of 2026-07-06.
 
 - [Concepts guide](../concepts/ReadMe.md) — the framework concepts these
   elements are built on
+- [Examples guide](../examples/ReadMe.md) — complete example
+  applications whose Pipelines deploy these elements alongside their
+  own

@@ -148,3 +148,7 @@ behaviour, based on the source code as of 2026-07-05.
   the element library in `src/aiko_services/elements/` (control,
   gstreamer, media, observe, utilities), built on the Pipeline concepts
   above
+- [Examples guide](../examples/ReadMe.md) — OKF documentation for the
+  example applications in `src/aiko_services/examples/`, from the
+  AlohaHonua hello-world Actor tutorial to computer vision, speech, LLM
+  and robot applications
