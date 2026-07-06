@@ -1,9 +1,28 @@
 ---
-# Release Notes v0.7
+title: Aiko Services release notes
+description: Release notes for each Aiko Services version — GitHub full
+  changelog link, features, testing and bug fixes — most recent release
+  first
+type: release-notes
+audience: [developers, end-users]
+status: operational
+version: "0.7"
+last_updated: 2026-07-06
+---
+
+# Aiko Services release notes
+
+One section per release, most recent first.  Each release provides the
+GitHub full changelog link and summarizes the noteworthy features, testing
+and bug fixes.
+
+---
+
+## Release Notes v0.7
 
 **Full Changelog**: https://github.com/geekscape/aiko_services/compare/v0.6...v0.7
 
-## Features
+### Features
 
 * Introduced HyperSpace: hyperlinked distributed Services, providing
   Categories (Services that refer to other Services) and Dependencies,
@@ -105,7 +124,7 @@
   messaging, Services, Pipelines, tools and utilities) ... and
   *documentation/elements/*, covering the PipelineElement library
 
-## Testing
+### Testing
 
 * Aiko Services now supports Python 3.9.7 through to 3.14.2
   (see *pyproject.toml*)
@@ -118,7 +137,7 @@
   distributed systems failures (MQTT server, system and application
   Services)
 
-## Bug Fixes
+### Bug Fixes
 
 * Fixed Stream *state* race conditions and *stream.lock* acquire / release
   problems in *create_stream()*, *destroy_stream()*, frame generation and
@@ -167,11 +186,12 @@
   large media files in *src/aiko_services/examples/*
 
 ---
-# Release Notes v0.6
+
+## Release Notes v0.6
 
 **Full Changelog**: https://github.com/geekscape/aiko_services/compare/v0.5...v0.6
 
-## Features
+### Features
 
 * Updated Python package dependency version numbers in *pyproject.toml*
 
@@ -219,7 +239,7 @@
 * By default, AIKO_LOG_MQTT environment variable is *all*, meaning that logging
   is sent to both the console and MQTT
 
-## Testing
+### Testing
 
 * Aiko Services *main/* and *elements/media/* code testing using Python 3.13.0
 
@@ -232,7 +252,7 @@
     * Python package *torch* works on with Python 3.12.7, but not 3.13.0
     * Ultralytics YOLOv8 example works on Python 3.12.7, but not 3.13.0
 
-## Bug Fixes
+### Bug Fixes
 
 * Fixed issues with running single process Pipelines without needing MQTT or
   Aiko Services Registrar.  Improve *main/message/mqtt.py* to only raise a
