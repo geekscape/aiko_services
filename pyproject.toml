@@ -40,7 +40,8 @@ dependencies = [
     "click~=8.1.7",
     "numpy>=1.26.4",
     "paho-mqtt>=1.6.1,<2.0.0",
-    "Pillow~=10.4.0",
+    "Pillow~=10.4.0; python_version<'3.14'",
+    "Pillow>=11.0.0; python_version>='3.14'",
     "psutil~=6.0.0",
     "pyperclip~=1.9.0",
     "pytest~=8.3.4",
@@ -50,7 +51,24 @@ dependencies = [
     "wrapt~=1.16.0"
 ]
 
-# [project.optional-dependencies]
+[project.optional-dependencies]
+# Inference deps for examples/locate_anything (LocateAnythingWorker).
+# locateanything_worker.py is not on PyPI; add Embodied to PYTHONPATH, e.g.:
+#   export PYTHONPATH=$PYTHONPATH:~/dev/open-source/vla-models/eagle/Embodied
+# decord is not on PyPI for macOS; locate_anything.py adds stubs/decord automatically.
+locate_anything = [
+    "accelerate>=1.5.2",
+    "einops",
+    "lmdb",
+    "opencv-python-headless>=4.10.0",
+    "peft>=0.12.0",
+    "sentencepiece>=0.2.0",
+    "timm>=1.0.11",
+    "tokenizers>=0.22.0",
+    "torch>=2.0",
+    "torchvision>=0.15.0",
+    "transformers>=4.57.1,<5",
+]
 # opencv-python = ["opencv-python~=4.10.0.84"]
 # opencv-contrib-python = ["opencv-contrib-python~=4.10.0.84"]
 # linux = ["PyAudio~=0.2.14"]
