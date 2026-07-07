@@ -15,7 +15,7 @@ OKF documentation for `src/aiko_services/elements/observe/` — the
 PipelineElements that provide observability from inside a Pipeline
 graph. One document per source module, following the structure defined
 in the constitution's OKF Concepts documentation template
-(`documentation/constitution/okf_concept_template.md`).
+(`documentation/constitution/t_00_OkfConceptTemplate.md`).
 
 ## Module documents
 

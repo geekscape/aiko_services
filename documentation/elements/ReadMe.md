@@ -26,7 +26,7 @@ in particular [PipelineElement](../concepts/pipeline_element.md),
 [Data Source / Target](../concepts/data_source_target.md) and
 [Scheme](../concepts/scheme.md) — and follow the same
 audience-first template
-(`documentation/constitution/okf_concept_template.md`).
+(`documentation/constitution/t_00_OkfConceptTemplate.md`).
 
 ## Packages
 

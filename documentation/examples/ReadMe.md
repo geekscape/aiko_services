@@ -29,7 +29,7 @@ covered conceptually by [HyperSpace](../concepts/hyperspace.md).
 
 These documents follow the same audience-first template as the
 Concepts and PipelineElements documentation
-(`documentation/constitution/okf_concept_template.md`).
+(`documentation/constitution/t_00_OkfConceptTemplate.md`).
 
 ## Packages
 
