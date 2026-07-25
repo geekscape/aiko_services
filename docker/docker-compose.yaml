@@ -23,8 +23,8 @@ services:
   mqtt:
     image: eclipse-mosquitto:latest
     restart: unless-stopped
-    expose:
-      - "1883"
+    ports:
+      - "1883:1883"
     configs:
       - source: mosquitto_config
         target: /mosquitto/config/mosquitto.conf
