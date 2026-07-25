@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pipeline Video Stream</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            margin: 20px;
+            font-family: monospace;
+        }
+        .canvas-row {
+            display: flex;
+            flex-direction: row;
+            gap: 8px;
+        }
+        .labels-row {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            width: 100%;
+            font-size: 12px;
+            max-width: 656px;
+        }
+        canvas {
+            border: 1px solid #ccc;
+        }
+        button {
+            padding: 8px 16px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h2>Pipeline Video Stream</h2>
+    <div class="labels-row">
+        <div>Original (320x240)</div>
+        <div>Processed (Pipeline)</div>
+    </div>
+    <div class="canvas-row">
+        <canvas id="inputCanvas" width="320" height="240"></canvas>
+        <canvas id="outputCanvas" width="320" height="240"></canvas>
+    </div>
+    <div>
+        <button id="startButton">Start Stream</button>
+        <button id="stopButton" disabled>Stop Stream</button>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const inputCanvas = document.getElementById('inputCanvas');
+        const outputCanvas = document.getElementById('outputCanvas');
+        const ctxIn = inputCanvas.getContext('2d');
+        const ctxOut = outputCanvas.getContext('2d');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+
+        const JPEG_QUALITY = 0.8;
+        const FRAME_INTERVAL_MS = 500;
+
+        let video = null;
+        let stream = null;
+        let running = false;
+        let socket = null;
+
+        startButton.onclick = async () => {
+            if (running) return;
+
+            socket = io();
+
+            video = document.createElement('video');
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: 320, height: 240 }
+            });
+            video.srcObject = stream;
+            await video.play();
+
+            running = true;
+            startButton.disabled = true;
+            stopButton.disabled = false;
+
+            socket.on('processed_frame', (data) => {
+                const image = new Image();
+                image.onload = () => {
+                    ctxOut.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+                    ctxOut.drawImage(image, 0, 0, outputCanvas.width, outputCanvas.height);
+                };
+                image.src = data.data_url;
+            });
+
+            processFrame();
+        };
+
+        stopButton.onclick = () => {
+            running = false;
+            if (stream) {
+                stream.getVideoTracks().forEach(t => t.stop());
+            }
+            if (socket) {
+                socket.disconnect();
+            }
+            ctxIn.clearRect(0, 0, inputCanvas.width, inputCanvas.height);
+            ctxOut.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+            startButton.disabled = false;
+            stopButton.disabled = true;
+        };
+
+        async function processFrame() {
+            if (!running) return;
+
+            ctxIn.drawImage(video, 0, 0, inputCanvas.width, inputCanvas.height);
+            const dataUrl = inputCanvas.toDataURL('image/jpeg', JPEG_QUALITY);
+
+            socket.emit('process_frame', { frame: dataUrl });
+
+            setTimeout(processFrame, FRAME_INTERVAL_MS);
+        }
+    </script>
+</body>
+</html>
