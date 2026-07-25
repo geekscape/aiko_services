@@ -1,0 +1,65 @@
+{
+    "#": "Adapted from examples/yolo/yolo_pipeline_0.json",
+    "version": 0,
+    "name":    "p_locate_anything",
+    "runtime": "python",
+  
+    "graph": [ "(VideoReadWebcam ImageResize LocateAnythingDetector ImageOverlay VideoShow Metrics)"
+     ],
+  
+    "parameters": {
+      "_create_stream_":       "1",
+      "_destroy_stream_exit_": "1",
+      "resolution": "640x480", "resolution_mac": "640x360"
+    },
+  
+    "elements": [
+      { "name":   "VideoReadWebcam",
+        "input":  [{"name": "images", "type": "[image]"}],
+        "output": [{"name": "images", "type": "[image]"}],
+        "parameters": {"path": "0"},
+        "deploy": {
+          "local": {"module": "aiko_services.elements.media.webcam_io"}
+        }
+      },
+      { "name":   "ImageResize",
+        "input":  [{"name": "images", "type": "[image]"}],
+        "output": [{"name": "images", "type": "[image]"}],
+        "deploy": {
+          "local": {"module": "aiko_services.elements.media.image_io"}
+        }
+      },
+      { "name":   "LocateAnythingDetector",
+        "input":  [{"name": "images",  "type": "[image]"}],
+        "output": [{"name": "overlay", "type": "[overlay]"}],
+        "deploy": {
+          "local": {"module": "aiko_services.examples.locate_anything.locate_anything"}
+        }
+      },
+      { "name":   "ImageOverlay",
+        "input":  [{"name": "images",  "type": "[image]"},
+                   {"name": "overlay", "type": "[overlay]"}],
+        "output": [{"name": "images",  "type": "[image]"}],
+        "deploy": {
+          "local": {"module": "aiko_services.elements.media.image_io"}
+        }
+      },
+      { "name":   "VideoShow",
+        "input":  [{"name": "images", "type": "[image]"}],
+        "output": [],
+        "parameters": {"position": "1280:0", "title": "Locate Anything detection"},
+        "deploy": {
+          "local": {"module": "aiko_services.elements.media.video_io"}
+        }
+      },
+      { "name":   "Metrics",
+        "#": "Provides Pipeline and PipelineElement timing information",
+        "input":  [],
+        "output": [{"name": "overlay", "type": "[overlay]"}],
+        "deploy": {
+          "local": {"module": "aiko_services.elements.observe.elements"}
+        }
+      }
+    ]
+  }
+  
