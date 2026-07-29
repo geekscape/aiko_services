@@ -1567,7 +1567,7 @@ class PipelineImpl(Pipeline):
         in_destroy_stream=False):
 
         def get_diagnostic(diagnostic):
-            event_name = StreamEventName[stream_event]
+            event_name = StreamEvent(stream_event).name.title().replace("_", "")
             if "diagnostic" in diagnostic:
                 diagnostic = diagnostic["diagnostic"]
             else:
