@@ -229,7 +229,7 @@ class VideoSample(aiko.PipelineElement):
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         sample_rate, _ = self.get_parameter("sample_rate", 1)
-        if stream.frame_id % sample_rate:
+        if not sample_rate or stream.frame_id % sample_rate:
             self.logger.debug(f"{self.my_id()}: frame dropped")
             return aiko.StreamEvent.DROP_FRAME, {}
         else:
