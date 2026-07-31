@@ -18,6 +18,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/pipeline.py`](../../src/aiko_services/main/pipeline.py)
+
 **Parameters** are the configuration mechanism for
 [Pipelines](pipeline.md) and [PipelineElements](pipeline_element.md):
 named values that an element reads at run-time with `get_parameter()`,

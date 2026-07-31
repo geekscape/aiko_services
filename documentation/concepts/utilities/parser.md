@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/utilities/parser.py`](../../../src/aiko_services/main/utilities/parser.py)
+
 The parser utility implements the **wire format of every Aiko Services
 message**: an S-expression of the shape `(command parameter ...)`.
 `generate()` turns a Python command and parameters into an S-expression

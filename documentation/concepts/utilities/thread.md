@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/utilities/thread.py`](../../../src/aiko_services/main/utilities/thread.py)
+
 `ThreadManager` is a registry of **named** `threading.Thread` instances:
 create-and-start threads by unique name, look them up, list them with
 liveness status, and let a background *thread_tidy* janitor prune

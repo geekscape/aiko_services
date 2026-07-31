@@ -18,6 +18,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/pipeline.py`](../../src/aiko_services/main/pipeline.py)
+
 A **PipelineElement** is the unit of work inside a
 [Pipeline](pipeline.md) graph: an [Actor](actor.md) whose
 `process_frame()` method transforms one Frame of a [Stream](stream.md),

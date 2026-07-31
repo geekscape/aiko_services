@@ -16,6 +16,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/utilities/probe.py`](../../../src/aiko_services/main/utilities/probe.py)
+
 `probe.py` is an **empty file** — zero bytes. It contains no code, no
 comments and no `To Do` list, and nothing anywhere in the repository
 imports it or refers to it. The name suggests a reserved slot for a

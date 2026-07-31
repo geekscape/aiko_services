@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/utilities/lock.py`](../../../src/aiko_services/main/utilities/lock.py)
+
 The lock utility wraps Python's `threading.Lock` with two additions: a
 *name* for the lock and a *location* string recorded on every acquire, so
 that deadlocks and contention can be diagnosed by log inspection instead

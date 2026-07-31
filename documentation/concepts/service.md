@@ -19,6 +19,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/service.py`](../../src/aiko_services/main/service.py), [`src/aiko_services/main/process.py`](../../src/aiko_services/main/process.py)
+
 A **Service** is the distributed component primitive of Aiko Services: a
 unit of functionality that can be **discovered** via the
 [Registrar](registrar.md) and **processes messages** delivered over the

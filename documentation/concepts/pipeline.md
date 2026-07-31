@@ -18,6 +18,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/pipeline.py`](../../src/aiko_services/main/pipeline.py)
+
 A **Pipeline** is an Actor that manages a directed graph of
 [PipelineElements](pipeline_element.md), moving [Streams](stream.md) of
 Frames through the graph — each PipelineElement transforming the frame data

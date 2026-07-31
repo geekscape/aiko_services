@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/category.py`](../../src/aiko_services/main/category.py)
+
 A **Category** is an Actor representing a group of **Entries**, where each
 Entry is either a [Dependency](dependency.md) (a Service reference) or
 another Category. It is the *Container* of the Composite pattern — the

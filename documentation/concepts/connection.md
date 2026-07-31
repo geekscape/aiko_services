@@ -18,6 +18,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/connection.py`](../../src/aiko_services/main/connection.py)
+
 A **Connection** tracks how connected an Aiko Services process currently
 is, as a ladder of `ConnectionState` values:
 

@@ -18,6 +18,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/component.py`](../../src/aiko_services/main/component.py)
+
 **Component** provides the machinery for Aiko Services *design by
 composition of Interfaces*. An **Interface** is a class containing only
 abstract methods — a pure contract. Each Interface registers a *default
@@ -127,11 +129,34 @@ aloha_honua = aiko.compose_instance(AlohaHonua, init_args)
 aiko.process.run()
 ```
 
+**The synthesized default `__init__()` (ADR-021, 2026-07-13).** When the
+seed class declares no `__init__()` of its own, `compose_class()`
+synthesizes the cooperative constructor: `context.call_init(self,
+base.__name__, context, **kwargs)` for each direct base that is an
+Interface with a registered implementation, in `__bases__` order. An
+optional `PROTOCOL` class attribute sets the protocol before cooperative
+init. So the idiom above may shrink to:
+
+```python
+class AlohaHonua(aiko.Actor):    # no __init__() required
+    PROTOCOL = "aloha_honua:0"
+
+    def aloha(self, name):
+        self.logger.info(f"Aloha {name} !")
+```
+
+An explicit `__init__()` anywhere in the seed's ancestry always wins —
+write one whenever the class takes extra constructor arguments or needs
+its own initialization; the synthesized form is purely the boilerplate
+case.
+
 If any Interface in the seed class's ancestry has neither a default nor
 an override implementation, `compose_class()` raises
-`ValueError("Unimplemented interfaces: ...")`. If a *non*-Interface
-ancestor (a class with concrete methods) shares its name with a
-registered implementation, it is skipped with a printed warning.
+`ValueError("Unimplemented interfaces: ...")` — the seed class itself is
+exempt from this check (it is the consumer of the contracts, not one of
+them). If a *non*-Interface ancestor (a class with concrete methods)
+shares its name with a registered implementation, it is skipped with a
+printed warning.
 
 There is no wire protocol: composition is an entirely in-process,
 construction-time mechanism. The composed instance's remote face is

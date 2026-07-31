@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/utilities/importer.py`](../../../src/aiko_services/main/utilities/importer.py)
+
 The importer utility loads Python modules chosen at *runtime* rather than
 import time: a module descriptor is either a source pathname
 (`directory/file.py`) or an installed dotted module name

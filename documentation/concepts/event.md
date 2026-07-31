@@ -18,6 +18,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/event.py`](../../src/aiko_services/main/event.py)
+
 The **Event** module (historically titled the *Aiko Engine*) provides the
 cooperative event loop that drives every Aiko Services process. All work in
 a process — incoming [messages](message.md) for an [Actor](actor.md), timer

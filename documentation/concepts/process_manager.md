@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/process_manager.py`](../../src/aiko_services/main/process_manager.py)
+
 **ProcessManager** is an [Actor](actor.md) that creates, lists and destroys
 operating system processes on its host — the muscle behind the structural
 model:

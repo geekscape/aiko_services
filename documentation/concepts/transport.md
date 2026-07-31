@@ -19,6 +19,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/transport/__init__.py`](../../src/aiko_services/main/transport/__init__.py), [`src/aiko_services/main/transport/transport_mqtt.py`](../../src/aiko_services/main/transport/transport_mqtt.py)
+
 The **Transport** layer sits between [Message](message.md) (raw topics
 and payloads) and [Services](service.md) (named, discoverable
 components). Its job is *remote invocation*: given a target Service's

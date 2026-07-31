@@ -19,6 +19,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/share.py`](../../src/aiko_services/main/share.py)
+
 **Share** is the Aiko Services mechanism for distributed state: a
 [Service](service.md) owns a dictionary (its *share*), an **ECProducer**
 publishes every change to it, and any number of **ECConsumers** — in the

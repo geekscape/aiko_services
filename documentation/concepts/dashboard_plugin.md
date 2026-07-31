@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/dashboard_plugins.py`](../../src/aiko_services/main/dashboard_plugins.py), [`src/aiko_services/main/dashboard.py`](../../src/aiko_services/main/dashboard.py)
+
 A **Dashboard plug-in** adds a custom page to the Aiko Services
 [Dashboard](dashboard.md) for a particular kind of
 [Service](service.md). When the user selects a Service and presses `S`

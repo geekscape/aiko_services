@@ -19,6 +19,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/stream.py`](../../src/aiko_services/main/stream.py), [`src/aiko_services/main/pipeline.py`](../../src/aiko_services/main/pipeline.py)
+
 A **Stream** is a flow of **Frames** through a [Pipeline](pipeline.md):
 the unit of session state that groups related Frames — a video, a sensor
 feed, one batch job — under a `stream_id`, with its own

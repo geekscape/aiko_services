@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/utilities/configuration.py`](../../../src/aiko_services/main/utilities/configuration.py)
+
 The configuration utility answers the first questions every Aiko Services
 process asks at start-up: *which MQTT server, which namespace, and who am
 I?* It reads `AIKO_*` environment variables, probes candidate MQTT hosts,

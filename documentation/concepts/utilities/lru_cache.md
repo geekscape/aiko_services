@@ -16,6 +16,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/utilities/lru_cache.py`](../../../src/aiko_services/main/utilities/lru_cache.py)
+
 `LRUCache` is a small fixed-capacity key/value cache with
 least-recently-used eviction: when a `put()` pushes the cache past its
 size, the entry that has gone longest without a `get()` or `put()` is

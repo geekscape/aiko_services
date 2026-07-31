@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/utilities/graph.py`](../../../src/aiko_services/main/utilities/graph.py)
+
 The graph utility provides `Graph` and `Node`: an insertion-ordered
 directed graph with deterministic traversal, plus a class method that
 parses S-expression graph definitions (via the

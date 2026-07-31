@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/utilities/metrics.py`](../../../src/aiko_services/main/utilities/metrics.py)
+
 The metrics utility is intended to become the home of **framework-wide
 metrics collection**: Pipeline / PipelineElement timing and resource
 usage, general Actor and MQTT Service metrics, distribution over MQTT

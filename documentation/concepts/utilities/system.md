@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/utilities/system.py`](../../../src/aiko_services/main/utilities/system.py)
+
 The system utility is a small grab-bag of host and process introspection
 helpers with no Aiko Services dependencies: a combined
 dirname/basename path splitter, process (RSS/VMS) and host virtual-memory

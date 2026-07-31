@@ -18,6 +18,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/context.py`](../../src/aiko_services/main/context.py)
+
 A **Context** is the single argument passed to every composed
 component's constructor. It is an extensible dataclass that bundles the
 common variable fields — name, implementations, parameters, protocol,
@@ -99,9 +101,16 @@ pipeline_args(..., definition_pathname=None, graph_path=None)
 
 Defaults (applied in `__post_init__` when a field is `None`):
 `parameters={}`, `protocol="*"`, `tags=[]`, `transport="mqtt"`,
-`definition=""`, `definition_pathname=""`. The Service `name` must be a
-non-empty string or `ValueError` is raised;
+`definition=""`, `definition_pathname=""`. Each context receives its
+*own copy* of the mutable defaults (2026-07-13 fix) — `add_tags()` on
+one Service can never pollute another context's tags. The Service
+`name` must be a non-empty string or `ValueError` is raised;
 `ContextPipelineElement` lower-cases the name.
+
+When a composed class declares no `__init__()` of its own, the
+cooperative constructor is synthesized at composition time — including
+`set_protocol()` from an optional `PROTOCOL` class attribute — see
+[Component](component.md) (ADR-021).
 
 **Composition support** — the methods the
 [Component](component.md) machinery and composed `__init__()` methods

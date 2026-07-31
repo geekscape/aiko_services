@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/dashboard.py`](../../src/aiko_services/main/dashboard.py)
+
 The **Dashboard** is the Aiko Services terminal user interface (TUI) —
 built on the `asciimatics` library — for watching and operating a running
 distributed system. It discovers every [Service](service.md) via the

@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/dependency.py`](../../src/aiko_services/main/dependency.py)
+
 A **Dependency** is a *reference* to a distributed Service — a Service,
 Actor, Agent, PipelineElement or Pipeline. It is the atom of the Aiko
 Services structural model: the *Component* (leaf) of the Composite pattern,

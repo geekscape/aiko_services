@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/source_target.py`](../../src/aiko_services/main/source_target.py)
+
 **DataSource** and **DataTarget** are the standard base classes for
 [PipelineElements](pipeline_element.md) that sit at the edges of a
 [Pipeline](pipeline.md): a DataSource *loads* frames of data from given

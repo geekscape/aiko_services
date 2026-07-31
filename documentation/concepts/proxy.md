@@ -18,6 +18,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/proxy.py`](../../src/aiko_services/main/proxy.py)
+
 **Proxy** provides transparent method interception: `ProxyAllMethods`
 wraps any object so that every public method call is routed through a
 single *proxy function*, which can log the call, time it, check access

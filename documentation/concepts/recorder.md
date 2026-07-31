@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/recorder.py`](../../src/aiko_services/main/recorder.py)
+
 The **Recorder** is a small diagnostic [Service](service.md) that
 subscribes to a wildcard MQTT topic filter — by default every process's
 log topic, `{namespace}/+/+/+/log` — and keeps the most recent records in

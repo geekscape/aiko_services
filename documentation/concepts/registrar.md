@@ -18,6 +18,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/registrar.py`](../../src/aiko_services/main/registrar.py)
+
 The **Registrar** is the discovery hub of an Aiko Services deployment: a
 [Service](service.md) that maintains the live directory of every other
 Service — its topic path, name, protocol, transport, owner and tags — and

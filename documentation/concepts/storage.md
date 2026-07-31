@@ -19,6 +19,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/storage/storage.py`](../../src/aiko_services/main/storage/storage.py), [`src/aiko_services/main/storage/storage_file.py`](../../src/aiko_services/main/storage/storage_file.py)
+
 **Storage** is the persistence SPI (Service Provider Interface) beneath
 [HyperSpace](hyperspace.md): it stores [Categories](category.md) and
 [Dependencies](dependency.md) so the distributed system's structure survives

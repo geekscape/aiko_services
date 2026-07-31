@@ -16,6 +16,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/utilities/context.py`](../../../src/aiko_services/main/utilities/context.py)
+
 The context utility provides `ContextManager`, a tiny holder that makes
 the current process's core framework objects — the `aiko` process data and
 the `message` (MQTT) instance — available globally via `get_context()`.

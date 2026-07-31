@@ -18,6 +18,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/process.py`](../../src/aiko_services/main/process.py)
+
 **Process** provides the Aiko Services framework for one operating system
 process. It is the singleton that everything else in a process hangs off:
 it owns the [Message](message.md) connection (MQTT), pumps incoming

@@ -18,6 +18,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/lifecycle.py`](../../src/aiko_services/main/lifecycle.py)
+
 **LifeCycle** is the managed create-track-destroy relationship between one
 **LifeCycleManager** and many **LifeCycleClients**. The manager creates
 clients (typically as separate operating system processes via

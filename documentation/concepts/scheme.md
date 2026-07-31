@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/scheme.py`](../../src/aiko_services/main/scheme.py)
+
 A **DataScheme** turns the *scheme* part of a URL — `file:`, `tty:`,
 `zmq:`, `rtsp:` — into the code that actually reads or writes the data.
 It is the plug-in half of the

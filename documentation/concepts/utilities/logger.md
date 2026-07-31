@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/utilities/logger.py`](../../../src/aiko_services/main/utilities/logger.py)
+
 The logger utility wraps Python's (notoriously unintuitive) `logging`
 package into two pieces: `get_logger()`, a one-call standalone logger
 factory driven by `AIKO_LOG_LEVEL`; and `LoggingHandlerMQTT`, a logging

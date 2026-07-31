@@ -16,6 +16,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/utilities/network.py`](../../../src/aiko_services/main/utilities/network.py)
+
 The network utility answers two local-host questions: *which network
 ports are already in use?* and *what is a free port I can bind?* It is a
 thin layer over `psutil.net_connections()` with no Aiko Services

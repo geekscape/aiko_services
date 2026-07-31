@@ -6,8 +6,8 @@ description: Release notes for each Aiko Services version — GitHub full
 type: release-notes
 audience: [developers, end-users]
 status: operational
-version: "0.7"
-last_updated: 2026-07-06
+version: "0.8-dev"
+last_updated: 2026-07-19
 ---
 
 # Aiko Services release notes
@@ -15,6 +15,116 @@ last_updated: 2026-07-06
 One section per release, most recent first.  Each release provides the
 GitHub full changelog link and summarizes the noteworthy features, testing
 and bug fixes.
+
+---
+
+## Release Notes v0.8 (unreleased, in development)
+
+**Full Changelog**: https://github.com/geekscape/aiko_services/compare/v0.7...v0.8
+
+### Features
+
+* Classes may now omit the *__init__()* method entirely when they need no
+  constructor arguments beyond *context* and no explicit super-class
+  initialization: the composition engine synthesizes the cooperative
+  constructor, and an optional *PROTOCOL* class attribute replaces
+  *context.set_protocol(...)*.  An explicit *__init__()* always takes
+  precedence, so all existing code is unaffected
+
+    ```python
+    class AlohaHonua(aiko.Actor):    # no __init__() required
+        PROTOCOL = "aloha_honua:0"
+
+        def aloha(self, name):
+            self.logger.info(f"Aloha {name} !")
+    ```
+
+* Eventual-consistency shared state now follows the standard Interface /
+  Implementation composition style: *ECProducer* and *ECConsumer* are
+  Interfaces implemented by *ECProducerImpl* and *ECConsumerImpl*, with
+  new *ec_producer_args()* and *ec_consumer_args()* factories.
+  Alternative implementations can now be substituted per composition,
+  e.g for testing
+
+* New *ECCache*: a general local replica of any remote Service's shared
+  variables — a leased, filtered *ECConsumer* subscription per Service
+  matching a *ServiceFilter*, each feeding a local cache with a
+  synchronous, non-blocking *get()* and optional filtered
+  "variable updated" call-backs (e.g water marks).  A remote getter
+  becomes a local read.  Generalizes the Dashboard's *ServicesCache*
+  pattern for use by any Service; construct via
+  *compose_instance(ECCacheImpl, ec_cache_args(service, service_filter))*
+
+* The Registrar Interface now declares its public API — *service_add()*,
+  *service_remove()*, *services_share()* and *services_history()* — as
+  real, documented methods implemented by *RegistrarImpl*; the wire
+  commands *(add ...)*, *(remove ...)*, *(share ...)* and *(history ...)*
+  are unchanged and now parse-and-delegate onto those methods.  The
+  Recorder Interface likewise declares *recorder_handler()*
+
+* Public API docstrings: the new and updated Interfaces (*ECProducer*,
+  *ECConsumer*, *ECCache*, *Registrar*, *Recorder*, *Hooks*) document
+  each method's contract, arguments, wire form and reply convention
+
+* Every concepts document (*documentation/concepts/*) now links directly
+  to its source code file at the top of its Overview section
+
+### Deprecations and compatibility
+
+The wire protocol is unchanged: implementations in other languages and
+remote callers are unaffected.  For Python code:
+
+* **Deprecated (still working in v0.8, removed in the next release):**
+  positional construction of eventual-consistency state, e.g
+  *ECProducer(service, share)* and *ECConsumer(service, id, cache,
+  topic_control, filter)*.  Migrate to the composed form:
+  *compose_instance(ECProducerImpl, ec_producer_args(service, share))*
+
+* **Breaking:** subclassing *ECProducer* or *ECConsumer* directly — they
+  are now abstract Interfaces.  Subclass *ECProducerImpl* /
+  *ECConsumerImpl* instead
+
+* **Breaking (unlikely):** the *Registrar* and *Recorder* Interfaces now
+  declare abstract methods, so custom subclasses must implement them or
+  compose the provided Impl; the Registrar's former private
+  *_service_add()* / *_service_remove()* methods are renamed to the
+  public *service_add()* / *service_remove()*
+
+* The Registrar's republished *(add ...)* payload is now canonical
+  *generate()* output rather than a byte-for-byte echo of the client's
+  payload — identical for any conforming S-expression parser
+
+* Identity checks *type(x) is ECProducer* are no longer true (instances
+  are composed Implementations); use *isinstance(x, ECProducer)*
+
+### Testing
+
+* Unit test baseline raised from 5 to 25 tests, all runnable without an
+  MQTT broker.  New *test_component.py* pins the composition engine's
+  contract (unimplemented-Interface errors, override precedence,
+  global-registry filtering, *call_init()* idempotency, the synthesized
+  *__init__()*); new *test_share.py* covers composed EC construction,
+  the deprecated-form shim and *ECCache*; new *test_registrar.py* covers
+  the promoted Registrar API and wire delegation
+
+### Bug Fixes
+
+* Hook state is now per-component: *HooksImpl* previously kept its hooks
+  in a class-level dictionary shared by every Service in the process, so
+  adding a hook on one component added it to all.  Code that relied on
+  attaching handlers to another component's hooks will now raise
+  *RuntimeError* — attach handlers on the component that declared the
+  hook
+
+* Context defaults are no longer shared between Services: previously
+  *add_tags()* on one Service (e.g the automatic *ec=true* tag) mutated
+  the module-level default tags list, polluting every subsequently
+  created context
+
+* *component.py:_check_interfaces_implemented()* no longer misclassifies
+  a seed class without concrete methods as an unimplemented Interface
+  (the seed class is the consumer of the Interface contracts, never one
+  of them)
 
 ---
 

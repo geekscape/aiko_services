@@ -18,6 +18,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/actor.py`](../../src/aiko_services/main/actor.py)
+
 An **Actor** is a [Service](service.md) that follows the
 [Actor Model](https://en.wikipedia.org/wiki/Actor_model): instead of
 handling MQTT messages (or local calls) on whatever thread they arrive,

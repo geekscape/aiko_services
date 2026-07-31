@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/lease.py`](../../src/aiko_services/main/lease.py)
+
 A **Lease** is a time-limited claim that expires unless it is extended.
 It is the Aiko Services answer to a hard distributed-systems problem:
 remote parties disappear without saying goodbye. Rather than holding

@@ -18,6 +18,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/hyperspace.py`](../../src/aiko_services/main/hyperspace.py)
+
 **HyperSpace** is the root [Category](category.md) and the LifeCycleManager
 of Categories. It composes Categories and [Dependencies](dependency.md) into
 a single unified network graph of distributed Service / Actor / Agent /

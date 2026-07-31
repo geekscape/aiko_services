@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/hook.py`](../../src/aiko_services/main/hook.py)
+
 A **Hook** is a named extension point placed inside the Aiko Services
 framework. The framework creates the Hook and invokes it at an interesting
 moment; a third-party developer attaches one or more *hook handler*

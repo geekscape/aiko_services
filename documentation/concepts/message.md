@@ -22,6 +22,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/message/__init__.py`](../../src/aiko_services/main/message/__init__.py), [`src/aiko_services/main/message/message.py`](../../src/aiko_services/main/message/message.py), [`src/aiko_services/main/message/mqtt.py`](../../src/aiko_services/main/message/mqtt.py), [`src/aiko_services/main/message/castaway.py`](../../src/aiko_services/main/message/castaway.py)
+
 **Message** is the lowest layer of the Aiko Services communication stack:
 an abstract publish/subscribe contract (`Message`) with two
 implementations — `MQTT`, which carries all distributed communication via

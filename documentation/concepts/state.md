@@ -17,6 +17,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/state.py`](../../src/aiko_services/main/state.py)
+
 The **State** module provides `StateMachineOld`, a thin wrapper around the
 third-party [`transitions`](https://github.com/pytransitions/transitions)
 package. It gives a framework component a simple operational finite state

@@ -18,6 +18,8 @@ last_updated: 2026-07-05
 
 ## Overview
 
+Source code: [`src/aiko_services/main/discovery.py`](../../src/aiko_services/main/discovery.py)
+
 **Discovery** is how Aiko Services code finds a running
 [Service](service.md) matching a `ServiceFilter` and talks to it without
 knowing in advance where (or whether) it is running. The module provides
