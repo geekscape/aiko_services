@@ -5,6 +5,7 @@ description: How to extend the Aiko Services Dashboard with a custom page
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/dashboard_plugins.py
   - src/aiko_services/main/dashboard.py

@@ -6,6 +6,7 @@ description: Shared helper module for the GStreamer elements — lazy
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/gstreamer/utilities.py
 related: [scheme_rtsp, rtsp_io, video_reader, video_example,

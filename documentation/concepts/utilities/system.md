@@ -6,6 +6,7 @@ description: Host and process introspection helpers — path splitting
 type: concept
 audience: [developers]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/utilities/system.py
 related: [design_overview, hyperspace, metrics]

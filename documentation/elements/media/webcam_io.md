@@ -5,6 +5,7 @@ description: VideoReadWebcam — a live-camera DataSource PipelineElement
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/media/webcam_io.py
   - src/aiko_services/elements/media/pipelines/webcam_pipeline_0.json

@@ -5,6 +5,7 @@ description: A minimal process-global holder for the (aiko, message)
 type: concept
 audience: [developers]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/utilities/context.py
 related: [design_overview, context]

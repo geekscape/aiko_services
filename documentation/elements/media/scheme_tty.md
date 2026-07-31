@@ -5,6 +5,7 @@ description: The tty DataScheme — line-oriented interactive terminal input
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/media/scheme_tty.py
 related: [scheme, data_source_target, pipeline_element, stream, parameters,

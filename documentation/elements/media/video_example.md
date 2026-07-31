@@ -6,6 +6,7 @@ description: A dormant Pipeline_2020-era demonstration of a branching
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/media/video_example.py
 related: [pipeline, pipeline_element, video_io, image_io, images_to_video]

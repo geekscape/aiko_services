@@ -6,6 +6,7 @@ description: PipelineElements for audio frames — a pass-through AudioOutput,
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/media/audio_io.py
 related: [pipeline_element, data_source_target, scheme, stream, parameters,

@@ -5,6 +5,7 @@ description: A minimal fixed-size least-recently-used cache built on
 type: concept
 audience: [developers]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/utilities/lru_cache.py
 related: [design_overview]

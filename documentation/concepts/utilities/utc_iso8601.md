@@ -5,6 +5,7 @@ description: Conversions between epoch seconds, Python datetime, UTC
 type: concept
 audience: [developers]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/utilities/utc_iso8601.py
 related: [design_overview, pipeline, recorder]

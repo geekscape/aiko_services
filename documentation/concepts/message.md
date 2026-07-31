@@ -7,6 +7,7 @@ description: The publish/subscribe messaging abstraction — an abstract
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/message/__init__.py
   - src/aiko_services/main/message/message.py

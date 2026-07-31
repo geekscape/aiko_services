@@ -6,6 +6,7 @@ description: The S-expression generate()/parse() pair that defines the wire
 type: concept
 audience: [developers]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/utilities/parser.py
 related: [design_overview, service, actor, share, registrar, graph]

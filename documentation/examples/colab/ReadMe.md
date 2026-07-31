@@ -7,6 +7,7 @@ description: Index of the Google Colab integration example — browser
 type: index
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/colab
 related: [pipeline, pipeline_element, data_source_target, scheme]

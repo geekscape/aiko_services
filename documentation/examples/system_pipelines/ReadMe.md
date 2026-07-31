@@ -6,6 +6,7 @@ description: Index of the System Pipelines example — a ProcessManager
 type: index
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/system_pipelines
 related: [pipeline, pipeline_element, process_manager, yolo]

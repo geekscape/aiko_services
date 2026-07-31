@@ -5,6 +5,7 @@ description: Legacy GStreamer wrapper that reads H.264 video frames from an
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/gstreamer/video_file_reader.py
 related: [video_reader, video_file_writer, video_example, utilities,

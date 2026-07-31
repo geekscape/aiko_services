@@ -6,6 +6,7 @@ description: The unit of work in a Pipeline — an Actor implementing the
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/pipeline.py
 related: [design_overview, pipeline, parameters, stream, actor, share,

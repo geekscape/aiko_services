@@ -6,6 +6,7 @@ description: world.py — a Panda3D virtual world whose rendered frames
 type: concept
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/robot/virtual/world.py
   - src/aiko_services/examples/robot/virtual/world_pipeline.json

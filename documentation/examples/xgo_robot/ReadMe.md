@@ -6,6 +6,7 @@ description: Index of the XGO-Mini 2 robot dog example concept
 type: index
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/xgo_robot
 related: [actor, service, message, share]

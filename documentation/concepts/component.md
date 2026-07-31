@@ -6,6 +6,7 @@ description: The composition engine — compose_class() and compose_instance()
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/component.py
 related: [design_overview, context, proxy, service, actor, category,

@@ -6,6 +6,7 @@ description: A Service following the Actor Model — incoming messages and
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/actor.py
 related: [design_overview, process, service, event, share, hook, proxy,

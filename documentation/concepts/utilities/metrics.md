@@ -6,6 +6,7 @@ description: Placeholder for framework-wide metrics collection — currently
 type: concept
 audience: [developers]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/utilities/metrics.py
 related: [design_overview, pipeline, dashboard, system]

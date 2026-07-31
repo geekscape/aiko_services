@@ -6,6 +6,7 @@ description: PE_A0 / PE_B0 / PE_C0 and PE_000 .. PE_090 — empty
 type: concept
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/pipeline/multitude/elements.py
 related: [pipeline_element, pipeline, elements]

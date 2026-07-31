@@ -6,6 +6,7 @@ description: RobotAgents, PromptMediaFusion and RobotActions — the
 type: concept
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/robot/ooda/elements.py
   - src/aiko_services/examples/robot/robot_pipeline.json

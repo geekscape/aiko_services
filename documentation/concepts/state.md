@@ -6,6 +6,7 @@ description: A finite state machine wrapper (StateMachineOld) over the
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/state.py
 related: [design_overview, registrar, lifecycle, event]

@@ -6,6 +6,7 @@ description: Release notes for each Aiko Services version — GitHub full
 type: release-notes
 audience: [developers, end-users]
 status: operational
+ste: false
 version: "0.8-dev"
 last_updated: 2026-07-19
 ---
@@ -15,6 +16,15 @@ last_updated: 2026-07-19
 One section per release, most recent first.  Each release provides the
 GitHub full changelog link and summarizes the noteworthy features, testing
 and bug fixes.
+
+**Language rule (adopted 2026-07-31).** Write each new release section in
+ASD-STE100 Simplified Technical English, at the `adapted` level of
+[constitution/t_04_SimplifiedTechnicalEnglish.md](constitution/t_04_SimplifiedTechnicalEnglish.md).
+This rule applies to v0.8 and to each release after it. The v0.6
+(human-written) and v0.7 (A.I-written) sections stay unchanged, because
+they are a historical record. Thus the front-matter `ste:` field of this
+document stays `false`: the document as a whole is not STE, but its new
+sections are.
 
 ---
 
@@ -46,20 +56,21 @@ and bug fixes.
   Alternative implementations can now be substituted per composition,
   e.g for testing
 
-* New *ECCache*: a general local replica of any remote Service's shared
-  variables — a leased, filtered *ECConsumer* subscription per Service
-  matching a *ServiceFilter*, each feeding a local cache with a
-  synchronous, non-blocking *get()* and optional filtered
-  "variable updated" call-backs (e.g water marks).  A remote getter
-  becomes a local read.  Generalizes the Dashboard's *ServicesCache*
-  pattern for use by any Service; construct via
+* New *ECCache*: a general local replica of the shared variables of any
+  remote Service.  *ECCache* keeps one leased, filtered *ECConsumer*
+  subscription for each Service that matches a *ServiceFilter*.  Each
+  subscription feeds a local cache, which gives a synchronous,
+  non-blocking *get()* and optional filtered "variable updated"
+  call-backs (for example, water marks).  Thus a remote getter becomes a
+  local read.  *ECCache* makes the *ServicesCache* pattern of the
+  Dashboard available to each Service.  To construct one, use
   *compose_instance(ECCacheImpl, ec_cache_args(service, service_filter))*
 
 * The Registrar Interface now declares its public API — *service_add()*,
   *service_remove()*, *services_share()* and *services_history()* — as
-  real, documented methods implemented by *RegistrarImpl*; the wire
+  real, documented methods that *RegistrarImpl* implements.  The wire
   commands *(add ...)*, *(remove ...)*, *(share ...)* and *(history ...)*
-  are unchanged and now parse-and-delegate onto those methods.  The
+  are unchanged.  They now parse and delegate onto those methods.  The
   Recorder Interface likewise declares *recorder_handler()*
 
 * Public API docstrings: the new and updated Interfaces (*ECProducer*,
@@ -85,41 +96,44 @@ remote callers are unaffected.  For Python code:
   *ECConsumerImpl* instead
 
 * **Breaking (unlikely):** the *Registrar* and *Recorder* Interfaces now
-  declare abstract methods, so custom subclasses must implement them or
-  compose the provided Impl; the Registrar's former private
-  *_service_add()* / *_service_remove()* methods are renamed to the
-  public *service_add()* / *service_remove()*
+  declare abstract methods.  Thus a custom subclass must implement those
+  methods or compose the supplied Impl.  The former private
+  *_service_add()* / *_service_remove()* methods of the Registrar are
+  renamed to the public *service_add()* / *service_remove()*
 
-* The Registrar's republished *(add ...)* payload is now canonical
-  *generate()* output rather than a byte-for-byte echo of the client's
-  payload — identical for any conforming S-expression parser
+* The republished *(add ...)* payload of the Registrar is now canonical
+  *generate()* output, not a byte-for-byte echo of the payload of the
+  client.  The two forms are identical for a conforming S-expression
+  parser
 
-* Identity checks *type(x) is ECProducer* are no longer true (instances
-  are composed Implementations); use *isinstance(x, ECProducer)*
+* Identity checks *type(x) is ECProducer* are no longer true, because the
+  instances are composed Implementations.  Use *isinstance(x,
+  ECProducer)*
 
 ### Testing
 
-* Unit test baseline raised from 5 to 25 tests, all runnable without an
-  MQTT broker.  New *test_component.py* pins the composition engine's
-  contract (unimplemented-Interface errors, override precedence,
-  global-registry filtering, *call_init()* idempotency, the synthesized
-  *__init__()*); new *test_share.py* covers composed EC construction,
-  the deprecated-form shim and *ECCache*; new *test_registrar.py* covers
-  the promoted Registrar API and wire delegation
+* Unit test baseline raised from 5 to 25 tests.  All of them run without
+  an MQTT broker.  New *test_component.py* pins the contract of the
+  composition engine (unimplemented-Interface errors, override
+  precedence, global-registry filtering, *call_init()* idempotency and
+  the synthesized *__init__()*).  New *test_share.py* covers composed EC
+  construction, the deprecated-form shim and *ECCache*.  New
+  *test_registrar.py* covers the promoted Registrar API and wire
+  delegation
 
 ### Bug Fixes
 
-* Hook state is now per-component: *HooksImpl* previously kept its hooks
-  in a class-level dictionary shared by every Service in the process, so
-  adding a hook on one component added it to all.  Code that relied on
+* Hook state is now per-component.  *HooksImpl* previously kept its hooks
+  in a class-level dictionary that every Service in the process shared.
+  Thus a hook added on one component was added to all.  Code that relied on
   attaching handlers to another component's hooks will now raise
   *RuntimeError* — attach handlers on the component that declared the
   hook
 
-* Context defaults are no longer shared between Services: previously
-  *add_tags()* on one Service (e.g the automatic *ec=true* tag) mutated
-  the module-level default tags list, polluting every subsequently
-  created context
+* Context defaults are no longer shared between Services.  Previously,
+  *add_tags()* on one Service (for example, the automatic *ec=true* tag)
+  changed the module-level default tags list.  This changed each context
+  created after it
 
 * *component.py:_check_interfaces_implemented()* no longer misclassifies
   a seed class without concrete methods as an unimplemented Interface

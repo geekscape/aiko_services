@@ -6,6 +6,7 @@ description: A per-process ladder of connectivity states — from no network
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/connection.py
 related: [design_overview, process, registrar, message, transport, share,

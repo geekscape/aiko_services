@@ -5,6 +5,7 @@ description: Executive overview and conceptual diagram of the Aiko Services
 type: overview
 audience: [architects, developers, end-users]
 status: draft
+ste: false
 version: "0.6"
 last_updated: 2026-07-05
 related: [dependency, category, hyperspace, storage, process_manager,

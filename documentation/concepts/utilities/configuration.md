@@ -6,6 +6,7 @@ description: Environment-driven discovery of the MQTT server, namespace and
 type: concept
 audience: [developers]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/utilities/configuration.py
 related: [design_overview, logger]

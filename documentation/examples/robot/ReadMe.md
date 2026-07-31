@@ -6,6 +6,7 @@ description: Index of the robot example concept documents — the
 type: index
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/robot
 related: [pipeline, pipeline_element, actor, discovery]

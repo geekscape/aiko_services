@@ -7,6 +7,7 @@ description: Index of the speech example — WhisperX speech-to-text and
 type: index
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/speech
 related: [pipeline, pipeline_element, audio_io, elements]

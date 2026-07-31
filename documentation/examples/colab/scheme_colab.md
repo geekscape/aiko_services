@@ -6,6 +6,7 @@ description: DataSchemeColab — a work-in-progress DataScheme that turns
 type: concept
 audience: [developers]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/colab/scheme_colab.py
 related: [scheme, data_source_target, pipeline_element, stream,

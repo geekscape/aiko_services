@@ -6,6 +6,7 @@ description: Legacy GStreamer wrapper that encodes queued numpy image frames
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/gstreamer/video_stream_writer.py
 related: [video_reader, video_stream_reader, video_file_writer,

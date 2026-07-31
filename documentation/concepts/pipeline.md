@@ -6,6 +6,7 @@ description: An Actor that executes a graph of PipelineElements, defined by
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/pipeline.py
 related: [design_overview, pipeline_element, parameters, stream, actor,

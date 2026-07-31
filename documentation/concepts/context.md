@@ -6,6 +6,7 @@ description: The single constructor argument for composed components — a
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/context.py
 related: [design_overview, component, proxy, service, actor,

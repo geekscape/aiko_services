@@ -6,6 +6,7 @@ description: The Actor that runs on the XGO-Mini 2 robot dog —
 type: concept
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/xgo_robot/xgo_robot.py
 related: [actor, service, message, share, event, robot,

@@ -5,6 +5,7 @@ description: An Actor that groups Entries — Dependencies and other
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/category.py
 related: [design_overview, dependency, hyperspace, storage, actor,

@@ -5,6 +5,7 @@ description: The zmq DataScheme — out-of-band record transport between
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/media/scheme_zmq.py
 related: [scheme, data_source_target, pipeline_element, stream, parameters,

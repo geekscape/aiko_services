@@ -6,6 +6,7 @@ description: Transparent method interception — ProxyAllMethods wraps an
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/proxy.py
 related: [design_overview, component, context, actor, service,

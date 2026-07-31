@@ -6,6 +6,7 @@ description: Index of the AlohaHonua (hello world) tutorial documents —
 type: index
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/aloha_honua
 related: [actor, service, discovery, registrar]

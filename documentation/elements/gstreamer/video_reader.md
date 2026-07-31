@@ -6,6 +6,7 @@ description: Legacy core GStreamer appsink wrapper — runs a given GStreamer
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/gstreamer/video_reader.py
 related: [utilities, video_camera_reader, video_file_reader,

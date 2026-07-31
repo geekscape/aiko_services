@@ -5,6 +5,7 @@ description: A terminal user interface for observing and controlling every
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/dashboard.py
 related: [design_overview, dashboard_plugin, service, share, registrar,

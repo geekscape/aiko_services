@@ -7,6 +7,7 @@ description: PipelineElements for the speech round trip — WhisperX
 type: concept
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/speech/speech_elements.py
 related: [pipeline_element, pipeline, stream, parameters, share,

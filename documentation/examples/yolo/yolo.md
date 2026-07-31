@@ -6,6 +6,7 @@ description: YoloDetector — a PipelineElement wrapping Ultralytics YOLO,
 type: concept
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/yolo/yolo.py
 related: [pipeline_element, pipeline, stream, parameters, image_io,

@@ -6,6 +6,7 @@ description: Index of the ArUco fiducial marker example — the
 type: index
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/aruco_marker
 related: [pipeline, pipeline_element, yolo]

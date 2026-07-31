@@ -6,6 +6,7 @@ description: A named, diagnosable wrapper around threading.Lock that
 type: concept
 audience: [developers]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/utilities/lock.py
 related: [design_overview, logger]

@@ -6,6 +6,7 @@ description: PipelineElements (current DataSource / DataTarget style) that
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/gstreamer/rtsp_io.py
   - src/aiko_services/elements/gstreamer/pipelines/rtsp_pipeline_0.json

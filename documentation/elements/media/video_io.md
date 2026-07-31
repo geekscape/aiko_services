@@ -5,6 +5,7 @@ description: PipelineElements that decode video files into image frames,
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/media/video_io.py
   - src/aiko_services/elements/media/pipelines/video_pipeline_0.json

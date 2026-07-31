@@ -6,6 +6,7 @@ description: A Service that subscribes to log topics, keeps recent records in
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/recorder.py
 related: [design_overview, service, share, registrar, dashboard, message]

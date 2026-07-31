@@ -5,6 +5,7 @@ description: The pluggable mapping from URL schemes such as file: or zmq:
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/scheme.py
 related: [design_overview, data_source_target, pipeline, pipeline_element,

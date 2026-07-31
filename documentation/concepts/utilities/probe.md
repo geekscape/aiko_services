@@ -5,6 +5,7 @@ description: An empty placeholder file — zero bytes, no code, no imports;
 type: concept
 audience: [developers]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/utilities/probe.py
 related: [design_overview, metrics, system]

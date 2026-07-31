@@ -6,6 +6,7 @@ description: Finding and invoking remote Services — ServiceDiscovery handlers
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/discovery.py
 related: [design_overview, process, registrar, service, actor, share,

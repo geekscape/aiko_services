@@ -6,6 +6,7 @@ description: Legacy GStreamer wrapper that reads H.264 video from an RTSP
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/gstreamer/video_stream_reader.py
 related: [video_reader, video_stream_writer, video_example, utilities,

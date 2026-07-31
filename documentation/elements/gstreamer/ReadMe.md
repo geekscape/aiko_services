@@ -6,6 +6,7 @@ description: Index of the OKF concept documents for
 type: index
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/gstreamer/__init__.py
 related: [rtsp_io, scheme_rtsp, utilities, video_reader,

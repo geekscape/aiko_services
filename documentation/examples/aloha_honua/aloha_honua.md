@@ -7,6 +7,7 @@ description: The graduated four-stage "hello world" tutorial — a minimal
 type: concept
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/aloha_honua/aloha_honua_0.py
   - src/aiko_services/examples/aloha_honua/aloha_honua_1.py

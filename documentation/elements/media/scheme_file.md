@@ -5,6 +5,7 @@ description: The file DataScheme — resolves file URLs, directory globs
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/media/scheme_file.py
 related: [scheme, data_source_target, pipeline_element, stream, parameters,

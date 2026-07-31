@@ -7,6 +7,7 @@ description: Index of the Pipeline example package — the teaching
 type: index
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/pipeline
 related: [pipeline, pipeline_element, stream, parameters]

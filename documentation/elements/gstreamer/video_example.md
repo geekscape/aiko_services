@@ -6,6 +6,7 @@ description: Legacy stand-alone command-line demonstration that copies video
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/gstreamer/video_example.py
 related: [utilities, video_file_reader, video_file_writer,

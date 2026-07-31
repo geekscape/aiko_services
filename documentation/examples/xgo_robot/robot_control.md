@@ -6,6 +6,7 @@ description: Laptop-side Actors — RobotControl, a video viewer with
 type: concept
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/xgo_robot/robot_control.py
 related: [actor, message, share, xgo_robot, robot]

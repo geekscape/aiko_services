@@ -6,6 +6,7 @@ description: Observability PipelineElements — Inspect writes selected
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/observe/elements.py
   - src/aiko_services/elements/observe/pipelines/pipeline_observe.json

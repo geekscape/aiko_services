@@ -6,6 +6,7 @@ description: How PipelineElement and Pipeline parameters are declared in
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/pipeline.py
 related: [design_overview, pipeline, pipeline_element, stream, share,

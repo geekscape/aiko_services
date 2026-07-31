@@ -5,6 +5,7 @@ description: Index of the face detection example — the FaceDetector
 type: index
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/face
 related: [pipeline, pipeline_element, share, yolo]

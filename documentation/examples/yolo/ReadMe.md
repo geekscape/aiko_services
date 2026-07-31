@@ -6,6 +6,7 @@ description: Index of the YOLO object detection example — the
 type: index
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/yolo
 related: [pipeline, pipeline_element, aruco, elements]

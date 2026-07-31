@@ -6,6 +6,7 @@ description: The rtsp URL DataScheme — a GStreamer-based RTSP client
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/gstreamer/scheme_rtsp.py
 related: [scheme, data_source_target, pipeline_element, stream, parameters,

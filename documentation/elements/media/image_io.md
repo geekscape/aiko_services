@@ -5,6 +5,7 @@ description: PipelineElements that read, convert, resize, overlay and write
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/media/image_io.py
   - src/aiko_services/elements/media/pipelines/image_pipeline_0.json

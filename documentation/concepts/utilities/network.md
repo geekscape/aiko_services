@@ -5,6 +5,7 @@ description: Discover which TCP/UDP ports are in use on this host and find
 type: concept
 audience: [developers]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/utilities/network.py
 related: [design_overview, scheme]

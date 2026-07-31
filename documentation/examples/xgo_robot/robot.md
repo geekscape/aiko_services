@@ -5,6 +5,7 @@ description: Work-in-progress extraction of the XGORobot Actor
 type: concept
 audience: [developers]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/xgo_robot/robot.py
 related: [actor, service, xgo_robot, robot_control]

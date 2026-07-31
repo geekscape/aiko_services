@@ -6,6 +6,7 @@ description: The LifeCycleManager / LifeCycleClient pair — one Actor creates,
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/lifecycle.py
 related: [design_overview, process_manager, lease, share, actor, service,

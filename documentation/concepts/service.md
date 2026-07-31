@@ -6,6 +6,7 @@ description: The distributed component primitive — a discoverable,
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/service.py
   - src/aiko_services/main/process.py

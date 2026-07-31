@@ -6,6 +6,7 @@ description: The persistence SPI for Categories and Dependencies, and
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/storage/storage.py
   - src/aiko_services/main/storage/storage_file.py

@@ -6,6 +6,7 @@ description: A time-limited claim on a resource, built on event-loop
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/lease.py
 related: [design_overview, event, share, lifecycle, pipeline, stream]

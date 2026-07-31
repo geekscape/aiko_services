@@ -6,6 +6,7 @@ description: A lightweight directed graph — Nodes with ordered successors —
 type: concept
 audience: [developers]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/utilities/graph.py
 related: [design_overview, parser]

@@ -5,6 +5,7 @@ description: Legacy GStreamer wrapper that reads video frames from a Linux
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/gstreamer/video_camera_reader.py
 related: [video_reader, utilities, video_example, data_source_target,

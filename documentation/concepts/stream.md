@@ -6,6 +6,7 @@ description: A leased flow of Frames through a Pipeline — the Stream and
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/stream.py
   - src/aiko_services/main/pipeline.py

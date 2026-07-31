@@ -6,6 +6,7 @@ description: Logging for Aiko Services — console and/or MQTT log
 type: concept
 audience: [developers]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/utilities/logger.py
 related: [design_overview, configuration]

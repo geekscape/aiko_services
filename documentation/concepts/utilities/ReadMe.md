@@ -5,6 +5,7 @@ description: Index of the concept documents for the Aiko Services utility
 type: index
 audience: [developers]
 status: work-in-progress
+ste: false
 related: [design_overview]
 version: "0.6"
 last_updated: 2026-07-05

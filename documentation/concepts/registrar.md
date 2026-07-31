@@ -6,6 +6,7 @@ description: The Service discovery hub — maintains the live directory of all
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/registrar.py
 related: [design_overview, process, service, discovery, share, connection,

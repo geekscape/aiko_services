@@ -7,6 +7,7 @@ description: The teaching PipelineElements — PE_Add, PE_Event,
 type: concept
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/pipeline/elements.py
 related: [pipeline_element, pipeline, stream, parameters, share,

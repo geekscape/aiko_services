@@ -5,6 +5,7 @@ description: PipelineElement base classes that load frames of data from,
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/source_target.py
 related: [design_overview, scheme, pipeline, pipeline_element, stream,

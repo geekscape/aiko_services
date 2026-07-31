@@ -5,6 +5,7 @@ description: ArucoMarkerDetector and ArucoMarkerOverlay — OpenCV ArUco
 type: concept
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/aruco_marker/aruco.py
 related: [pipeline_element, pipeline, stream, parameters, image_io,

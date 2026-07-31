@@ -5,6 +5,7 @@ description: Mock and NoOp — minimal PipelineElements for scaffolding,
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/media/elements.py
 related: [pipeline_element, pipeline, parameters, stream, text_io]

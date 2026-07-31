@@ -6,6 +6,7 @@ description: FaceDetector — a PipelineElement wrapping DeepFace
 type: concept
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/face/face.py
 related: [pipeline_element, pipeline, stream, share, image_io, yolo]

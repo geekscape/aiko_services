@@ -6,6 +6,7 @@ description: PipelineElements that wrap a LangChain LLM chain — Ollama
 type: concept
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/llm/elements.py
 related: [pipeline_element, pipeline, message, parameters, text_io,

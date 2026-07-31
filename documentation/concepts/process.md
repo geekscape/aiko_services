@@ -6,6 +6,7 @@ description: The per-operating-system-process framework singleton — the
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/process.py
 related: [design_overview, event, connection, message, service, actor,

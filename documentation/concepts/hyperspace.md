@@ -6,6 +6,7 @@ description: The root Category and LifeCycleManager for Categories — a
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/hyperspace.py
 related: [design_overview, category, dependency, storage, process_manager,

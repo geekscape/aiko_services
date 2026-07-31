@@ -6,6 +6,7 @@ description: A named-thread registry with a background "thread_tidy"
 type: concept
 audience: [developers]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/main/utilities/thread.py
 related: [design_overview, process_manager, event]

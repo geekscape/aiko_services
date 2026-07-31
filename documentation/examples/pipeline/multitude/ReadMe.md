@@ -7,6 +7,7 @@ description: Index of the multitude stress / scale examples — chains of
 type: index
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/pipeline/multitude
 related: [pipeline, pipeline_element, stream, elements]

@@ -6,6 +6,7 @@ description: Base64ToImages and ImagesToBase64 — PipelineElements that
 type: concept
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/system_pipelines/elements.py
 related: [pipeline_element, pipeline, stream, process_manager, yolo]

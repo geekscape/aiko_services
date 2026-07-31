@@ -6,6 +6,7 @@ description: Index of the LLM example — the LangChain / Ollama LLM
 type: index
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/llm
 related: [pipeline, pipeline_element, text_io, speech_elements]

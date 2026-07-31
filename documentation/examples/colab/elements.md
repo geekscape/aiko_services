@@ -7,6 +7,7 @@ description: The colab example element family — audio pass-through,
 type: concept
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/colab/elements.py
 related: [pipeline_element, pipeline, actor, data_source_target,

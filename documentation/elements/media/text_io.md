@@ -5,6 +5,7 @@ description: PipelineElements that read, transform, sample and write frames
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
+ste: false
 source:
   - src/aiko_services/elements/media/text_io.py
   - src/aiko_services/elements/media/pipelines/text_pipeline_0.json

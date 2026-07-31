@@ -6,6 +6,7 @@ description: Notebook-side bridge between browser JavaScript (web camera
 type: concept
 audience: [developers, end-users]
 status: draft
+ste: false
 source:
   - src/aiko_services/examples/colab/colab_io.py
 related: [pipeline, pipeline_element, stream, elements, scheme_colab]
