@@ -188,7 +188,8 @@ class ProcessManagerImpl(ProcessManager):
             },
             "watchdog": watchdog
         }
-        self.ec_producer = ECProducer(self, self.share)
+        self.ec_producer = compose_instance(
+            ECProducerImpl, ec_producer_args(self, self.share))
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
         self.thread = Thread(target=self._run, daemon=True, name=_THREAD_NAME)

@@ -77,43 +77,53 @@ class Hook:
                   field(default_factory=OrderedDictCollections)
     invoked: int = 0
 
-class Hooks:
+class Hooks(Interface):
+    """
+    Named extension points (concepts/hook.md): the framework declares a
+    hook, third-party developers attach handler functions, the framework
+    fires it.  Hook state is per composed component (instance state since
+    2026-07-13 — previously a class-level dictionary shared by every
+    Service in the process).  Local API only — hooks do not cross the wire
+    """
     Interface.default("Hooks", "aiko_services.main.hook.HooksImpl")
 
     @abstractmethod
     def add_hook(self, hook_name):
-        pass
+        """Declare the hook "component_name.hook_name:version" (idempotent)"""
 
     @abstractmethod
     def add_hook_handler(self, hook_name, hook_function, hook_options=None):
-        pass
+        """Attach hook_function(name, component, logger, variables, options);
+        raises RuntimeError when the hook does not exist"""
 
     @abstractmethod
     def get_hook(self, hook_name):
-        pass
+        """Return the Hook record, or None"""
 
     @abstractmethod
     def get_hooks(self):
-        pass
+        """Return this component's hooks dictionary (name --> Hook)"""
 
     @abstractmethod
     def remove_hook(self, hook_name):
-        pass
+        """Remove the hook; raises RuntimeError when it does not exist"""
 
     @abstractmethod
     def remove_hook_handler(self, hook_name, hook_function):
-        pass
+        """Detach a handler; raises RuntimeError when the hook is absent"""
 
     @abstractmethod
-    def run_hook(self, hook_name):
-        pass
+    def run_hook(self, hook_name, variables=None):
+        """Fire the hook's handlers; "variables" is a dict or a zero-argument
+        callable returning one (evaluated only when the hook is enabled)"""
 
     @abstractmethod
     def set_hook_enabled(self, hook_name, enabled_flag):
-        pass
+        """Enable or disable firing (also auto-managed by handler count)"""
 
 class HooksImpl(Hooks):
-    hooks: Dict[str, Hook] = {}
+    def __init__(self, context, hooks=None):
+        self.hooks = hooks if hooks is not None else {}
 
     def add_hook(self, hook_name):
         if not self.get_hook(hook_name):
@@ -129,13 +139,10 @@ class HooksImpl(Hooks):
         hook.enabled = len(hook.handlers) > 0
 
     def get_hook(self, hook_name):
-        if hook_name in HooksImpl.hooks:
-            return HooksImpl.hooks[hook_name]
-        else:
-            return None
+        return self.hooks.get(hook_name, None)
 
     def get_hooks(self):
-        return HooksImpl.hooks
+        return self.hooks
 
     def remove_hook(self, hook_name):
         hook = self.get_hook(hook_name)

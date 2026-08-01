@@ -64,3 +64,26 @@ def test_hook():                                                 # by developer
     hook_test = aiko.compose_instance(HookTest, init_args)
     aiko.event.add_timer_handler(hook_test.hook_check, 0.0)
     aiko.process.run(mqtt_connection_required=False)
+
+def test_hook_state_is_per_component():
+    # Regression (2026-07-13): hook state was a class-level dictionary
+    # shared by every Service in the process — adding a hook on one
+    # component must not add it to another
+
+    class HookIsolationA(aiko.Actor):
+        def __init__(self, context):
+            context.call_init(self, "Actor", context)
+
+    class HookIsolationB(aiko.Actor):
+        def __init__(self, context):
+            context.call_init(self, "Actor", context)
+
+    actor_a = aiko.compose_instance(
+        HookIsolationA, aiko.actor_args("hook_isolation_a"))
+    actor_b = aiko.compose_instance(
+        HookIsolationB, aiko.actor_args("hook_isolation_b"))
+
+    actor_a.add_hook("HookIsolationA.test:0")
+    assert actor_a.get_hook("HookIsolationA.test:0") is not None
+    assert actor_b.get_hook("HookIsolationA.test:0") is None
+    assert "HookIsolationA.test:0" not in actor_b.get_hooks()

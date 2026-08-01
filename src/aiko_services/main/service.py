@@ -558,6 +558,7 @@ class Service(ServiceProtocolInterface, Hooks):  # TODO: Make Hooks be optional
 
 class ServiceImpl(Service):
     def __init__(self, context, register_service=True):
+        context.call_init(self, "Hooks", context)  # per-instance hook state
 
     # TODO: Move name, protocol, tags, topic_path, transport into ServiceFields
         self.time_started = time.monotonic()

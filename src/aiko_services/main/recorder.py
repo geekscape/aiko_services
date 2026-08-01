@@ -23,6 +23,7 @@
 # - Why doesn't Python MQTT client subscribe("+/+/+/+/log") work ?
 
 import click
+from abc import abstractmethod
 from collections import deque
 
 from aiko_services.main import *
@@ -43,11 +44,19 @@ _RING_BUFFER_SIZE = 2  # 128
 # --------------------------------------------------------------------------- #
 
 class Recorder(Service):
+    """
+    Ring-buffers log topics matching "topic_path_filter" and republishes
+    them as shared state for the Dashboard (concepts/recorder.md).
+    Recording is driven by subscription, not commands: the filter is set
+    at construction (on-the-fly filter updates are a standing To Do)
+    """
     Interface.default("Recorder", "aiko_services.main.recorder.RecorderImpl")
 
-#   @abstractmethod
-#   def METHOD_NAME(self):
-#       pass
+    @abstractmethod
+    def recorder_handler(self, aiko, topic, payload_in):
+        """Record one message into the topic's ring buffer and publish it
+        via the ECProducer ("lru_cache.<topic>" share key).  Invoked by
+        subscription to topic_path_filter.  Projection: command"""
 
 class RecorderImpl(Recorder):
     def __init__(self, context, topic_path_filter):
@@ -66,7 +75,8 @@ class RecorderImpl(Recorder):
             "ring_buffer_size": _RING_BUFFER_SIZE,
             "topic_path_filter": topic_path_filter
         }
-        self.ec_producer = ECProducer(self, self.share)
+        self.ec_producer = compose_instance(
+            ECProducerImpl, ec_producer_args(self, self.share))
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
         self.add_message_handler(self.recorder_handler, topic_path_filter)

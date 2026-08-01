@@ -127,7 +127,8 @@ class StorageFileImpl(Storage):
             "storage_url": storage_url,
             "uid_counter": 0
         })
-        self.ec_producer = ECProducer(self, self.share)
+        self.ec_producer = compose_instance(
+            ECProducerImpl, ec_producer_args(self, self.share))
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
     def _ec_producer_change_handler(self, command, item_name, item_value):

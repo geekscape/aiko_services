@@ -47,6 +47,10 @@
 #
 # * Command line option: Set number of rows for each DashboardFrame widget
 #
+# * BUG: Filter pop-up diaglogue "fc" (Filter Category) on exit,
+#        causes main Dashboard to receive "c" keyboard event -->
+#        causes superfluous "Copy topic path to clipboard" :(
+#
 # * BUG: Dashboard doesn't display variables that contain whitespace !
 #        Variable doesn't appear at all 😔
 #
@@ -401,8 +405,9 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
         self.service_tags = self.selected_service[5]
         if aiko.ServiceTags.match_tags(self.service_tags, ["ec=true"]):
             topic_control = f"{topic_path}/control"
-            self.ec_consumer = aiko.ECConsumer(
-                aiko.process, 0, self.service_cache, topic_control)
+            self.ec_consumer = aiko.compose_instance(
+                aiko.ECConsumerImpl, aiko.ec_consumer_args(
+                    aiko.process, 0, self.service_cache, topic_control))
 
     def _ec_consumer_reset(self):
         if self.ec_consumer:

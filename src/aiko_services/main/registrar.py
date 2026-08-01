@@ -41,9 +41,7 @@
 #
 # To Do
 # ~~~~~
-# * Define public API (available function calls) in the Registrar Interface
-#
-# * BUG: "_service_remove()" if Process, then remove *all* Process' Services
+# * BUG: "service_remove()" if Process, then remove *all* Process' Services
 #
 # * BUG: When ECProducer updates "service_count", need to int(services_count) !
 #
@@ -117,6 +115,7 @@
 #   - Ordered by Service "topic_path" fields: namespace, host, pid, sid
 #   - Share portions of the tree via Eventual Consistency like GraphQL
 
+from abc import abstractmethod
 import click
 from collections import deque
 import time
@@ -198,7 +197,41 @@ class StateMachineModel():
 # --------------------------------------------------------------------------- #
 
 class Registrar(Service):
+    """
+    The Service discovery hub (concepts/registrar.md): the live directory
+    of running Services, their history, and the primary election.  Method
+    names carry a "service(s)_" prefix because the bare wire-command names
+    collide with universal Service state ("share", "history").  Requests
+    reply via messages to "topic_response" (s_02 §2), never return values
+    """
     Interface.default("Registrar", "aiko_services.main.registrar.RegistrarImpl")
+
+    @abstractmethod
+    def service_add(self, topic_path, name, protocol, transport, owner, tags):
+        """Register a Service.  Wire form: "(add topic_path name protocol
+        transport owner (tags))" on topic_in.  Projection: command"""
+
+    @abstractmethod
+    def service_remove(self, topic_path):
+        """Deregister a Service (a process topic_path with service id 0
+        removes all of that process's Services).  Wire form:
+        "(remove topic_path)".  Projection: command"""
+
+    @abstractmethod
+    def services_history(self, topic_response, count):
+        """Reply with up to "count" most-recently removed Services:
+        "(item_count n)" then one "(add ... time_add time_remove)" per
+        Service, to topic_response.  Wire form:
+        "(history topic_response count)".  Projection: request"""
+
+    @abstractmethod
+    def services_share(self, topic_response,
+        name, protocol, transport, owner, tags):
+        """Reply with the running Services matching the filter:
+        "(item_count n)" then one "(add ...)" per Service to
+        topic_response, then "(sync topic_response)" on topic_out.
+        Wire form: "(share topic_response name protocol transport owner
+        tags)".  Projection: request"""
 
 class RegistrarImpl(Registrar):
     def __init__(self, context):
@@ -217,7 +250,8 @@ class RegistrarImpl(Registrar):
             "source_file": f"v{REGISTRAR_VERSION}⇒ {__file__}",
             "service_count": 0
         }
-        self.ec_producer = ECProducer(self, self.share)
+        self.ec_producer = compose_instance(
+            ECProducerImpl, ec_producer_args(self, self.share))
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
         self.add_message_handler(
@@ -247,79 +281,76 @@ class RegistrarImpl(Registrar):
         command, parameters = parse(payload_in)
         if command == "absent" and topic.endswith("/state"):
             topic_path = topic[:-len("/state")]
-            self._service_remove(topic_path)
+            self.service_remove(topic_path)
 
     def _topic_in_handler(self, _, topic, payload_in):
         command, parameters = parse(payload_in)
         _LOGGER.debug(f"topic_in_handler(): {command}: {parameters}")
 
-        if len(parameters) > 0:
-            topic_path = parameters[0]
-            if len(parameters) == 6:
-                name = parameters[1]
-                protocol = parameters[2]
-                transport = parameters[3]
-                owner = parameters[4]
-                tags = parameters[5]
-
         if command == "add" and len(parameters) == 6:
-            self._service_add(
-                topic_path, name, protocol, transport, owner, tags, payload_in)
-
-        if command == "remove" and len(parameters) == 1:
-            self._service_remove(topic_path)
-
-        if command == "history" and len(parameters) == 2:
+            self.service_add(*parameters)
+        elif command == "remove" and len(parameters) == 1:
+            self.service_remove(parameters[0])
+        elif command == "history" and len(parameters) == 2:
             if parameters[1] == "*":
                 count = _HISTORY_LIMIT_DEFAULT
             else:
                 count = parse_int(parameters[1])
-            if len(self.history) < count:
-                count = len(self.history)
+            self.services_history(parameters[0], count)
+        elif command == "share" and len(parameters) == 6:
+            self.services_share(*parameters)
 
-            payload_out = f"(item_count {count})"
-            aiko.message.publish(topic_path, payload=payload_out)
+    def services_history(self, topic_response, count):
+        if len(self.history) < count:
+            count = len(self.history)
 
-            for service_details in self.history:
-                if count < 1:
-                    break
-                service_tags = " ".join(service_details["tags"])
-                payload_out =  "(add"                                \
-                              f" {service_details['topic_path']}"    \
-                              f" {service_details['name']}"          \
-                              f" {service_details['protocol']}"      \
-                              f" {service_details['transport']}"     \
-                              f" {service_details['owner']}"         \
-                              f" ({service_tags})"                   \
-                              f" {service_details['time_add']}"      \
-                              f" {service_details['time_remove']})"
-                aiko.message.publish(topic_path, payload_out)
-                count -= 1
+        payload_out = f"(item_count {count})"
+        aiko.message.publish(topic_response, payload=payload_out)
 
-        if command == "share" and len(parameters) == 6:
-            filter = ServiceFilter("*", name, protocol, transport, owner, tags)
-            services_out = self.services.filter_by_attributes(filter)
+        for service_details in self.history:
+            if count < 1:
+                break
+            service_tags = " ".join(service_details["tags"])
+            payload_out =  "(add"                                \
+                          f" {service_details['topic_path']}"    \
+                          f" {service_details['name']}"          \
+                          f" {service_details['protocol']}"      \
+                          f" {service_details['transport']}"     \
+                          f" {service_details['owner']}"         \
+                          f" ({service_tags})"                   \
+                          f" {service_details['time_add']}"      \
+                          f" {service_details['time_remove']})"
+            aiko.message.publish(topic_response, payload_out)
+            count -= 1
 
-            payload_out = f"(item_count {services_out.count})"
-            aiko.message.publish(topic_path, payload=payload_out)
+    def services_share(self, topic_response,
+        name, protocol, transport, owner, tags):
 
-            for service_details in services_out:
-                service_tags = " ".join(service_details["tags"])
-                payload_out =  "(add"                              \
-                              f" {service_details['topic_path']}"  \
-                              f" {service_details['name']}"        \
-                              f" {service_details['protocol']}"    \
-                              f" {service_details['transport']}"   \
-                              f" {service_details['owner']}"       \
-                              f" ({service_tags}))"
-                aiko.message.publish(topic_path, payload_out)
+        filter = ServiceFilter("*", name, protocol, transport, owner, tags)
+        services_out = self.services.filter_by_attributes(filter)
 
-            payload_out = f"(sync {topic_path})"
-            aiko.message.publish(self.topic_out, payload_out)
+        payload_out = f"(item_count {services_out.count})"
+        aiko.message.publish(topic_response, payload=payload_out)
 
-    def _service_add(self,
-        topic_path, name, protocol, transport, owner, tags, payload_out):
+        for service_details in services_out:
+            service_tags = " ".join(service_details["tags"])
+            payload_out =  "(add"                              \
+                          f" {service_details['topic_path']}"  \
+                          f" {service_details['name']}"        \
+                          f" {service_details['protocol']}"    \
+                          f" {service_details['transport']}"   \
+                          f" {service_details['owner']}"       \
+                          f" ({service_tags}))"
+            aiko.message.publish(topic_response, payload_out)
 
+        payload_out = f"(sync {topic_response})"
+        aiko.message.publish(self.topic_out, payload_out)
+
+    def service_add(self,
+        topic_path, name, protocol, transport, owner, tags):
+
+        payload_out = generate(
+            "add", [topic_path, name, protocol, transport, owner, tags])
         if not self.services.get_service(topic_path):
             _LOGGER.debug(f"Service add: {topic_path}")
 
@@ -339,7 +370,7 @@ class RegistrarImpl(Registrar):
 
             aiko.message.publish(self.topic_out, payload_out)
 
-    def _service_remove(self, topic_path):
+    def service_remove(self, topic_path):
         service_topic_path = ServiceTopicPath.parse(topic_path)
         if service_topic_path:
         # TODO: For this Process, remove *all* Services

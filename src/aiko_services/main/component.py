@@ -27,6 +27,17 @@
 # example = compose_instance(ExampleImpl, init_args)
 # example.method_0()
 #
+# When a class needs no constructor arguments beyond "context" and no
+# explicit super-class initialization, the "__init__()" method may be
+# omitted entirely (ADR-021): compose_class() synthesizes the cooperative
+# constructor, and an optional PROTOCOL class attribute sets the protocol
+#
+# class ExampleActor(Actor):    # no __init__() required
+#     PROTOCOL = f"{SERVICE_PROTOCOL_AIKO}/example:0"
+#
+#     def method_0(self):
+#         print("ExampleActor.method_0()")
+#
 # To Do
 # ~~~~~
 # - BUG: _check_interfaces_implemented() working correctly ?
@@ -82,11 +93,37 @@ def compose_class(impl_seed_class, impl_overrides=None):
         pass
 
     _add_methods(FrankensteinClass, implementations_loaded)
-    setattr(FrankensteinClass, "__init__", impl_seed_class.__init__)
+    if impl_seed_class.__init__ is object.__init__:
+        setattr(FrankensteinClass, "__init__",
+            _synthesize_init(impl_seed_class, implementations))
+    else:
+        setattr(FrankensteinClass, "__init__", impl_seed_class.__init__)
     _update_abstractmethods(FrankensteinClass)
     FrankensteinClass.__name__ = impl_seed_class.__name__
 
     return FrankensteinClass, implementations_loaded
+
+def _synthesize_init(impl_seed_class, implementations):
+    """
+    Synthesize the cooperative constructor when the seed class declares no
+    __init__ of its own (ADR-021): context.call_init() for each direct base
+    that is an Interface with a registered implementation, in __bases__
+    order, forwarding keyword arguments.  A PROTOCOL class attribute, when
+    present, sets the protocol before cooperative init.  An explicit
+    __init__ anywhere below the Interfaces always wins (never synthesized)
+    """
+
+    interface_names = [
+        base.__name__ for base in impl_seed_class.__bases__
+        if _is_interface(base) and base.__name__ in implementations]
+    protocol = impl_seed_class.__dict__.get("PROTOCOL", None)
+
+    def __init__(self, context, **kwargs):
+        if protocol:
+            context.set_protocol(protocol)
+        for interface_name in interface_names:
+            context.call_init(self, interface_name, context, **kwargs)
+    return __init__
 
 def compose_instance(impl_seed_class, init_args, impl_overrides=None):
     """
@@ -123,8 +160,15 @@ def _add_methods(base_class, implementations):
                     setattr(base_class, impl_attr_name, impl_attr)
 
 def _check_interfaces_implemented(cls, implementations):
+    """
+    Every Interface ancestor must have an implementation.  The seed class
+    itself (__mro__[0]) is the consumer of those contracts, never one of
+    them — a seed with no concrete methods (e.g. relying entirely on the
+    synthesized __init__, ADR-021) must not be misclassified as an
+    unimplemented Interface
+    """
     unimplemented_interfaces = []
-    for ancestor in cls.__mro__:
+    for ancestor in cls.__mro__[1:]:
         if _is_interface(ancestor) and  \
             ancestor not in [ABC, Interface, ServiceProtocolInterface, object]:
 

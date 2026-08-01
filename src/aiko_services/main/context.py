@@ -41,11 +41,12 @@ from abc import ABC
 from dataclasses import dataclass, field
 from typing import Dict, List
 
-__all__ = {
+__all__ = [
     "Context", "Interface", "ServiceProtocolInterface", "ContextService",
     "ContextPipelineElement", "ContextPipeline", "context_args",
+    "ec_cache_args", "ec_consumer_args", "ec_producer_args",
     "service_args", "actor_args", "pipeline_element_args", "pipeline_args"
-}
+]
 
 DEFAULT_PARAMETERS = {}
 DEFAULT_PROTOCOL = "*"
@@ -116,12 +117,12 @@ class ContextService(Context):
         elif not len(self.name):
             raise ValueError(f"Service name must not be an empty string")
         if self.parameters is None:
-            self.parameters = DEFAULT_PARAMETERS
+            self.parameters = dict(DEFAULT_PARAMETERS)  # copy: never share
         if self.protocol is None:
             self.protocol = DEFAULT_PROTOCOL
         if self.tags is None:
-            self.tags = DEFAULT_TAGS
-        if self.transport is None:
+            self.tags = list(DEFAULT_TAGS)  # copy: add_tags() must not
+        if self.transport is None:          # pollute the module default
             self.transport = DEFAULT_TRANSPORT
 
     def get_parameters(self) -> Dict[str, str]:
@@ -174,6 +175,28 @@ class ContextPipeline(ContextPipelineElement):
 
 def context_args():
     return {"context": Context()}
+
+def ec_cache_args(service, service_filter, variable_filter="*"):
+    """init_args for composing an ECCacheImpl (see share.py)"""
+
+    return {"context": Context(), "service": service,
+        "service_filter": service_filter,
+        "variable_filter": variable_filter}
+
+def ec_consumer_args(service, ec_consumer_id, cache,
+    ec_producer_topic_control, filter="*"):
+    """init_args for composing an ECConsumerImpl (see share.py)"""
+
+    return {"context": Context(), "service": service,
+        "ec_consumer_id": ec_consumer_id, "cache": cache,
+        "ec_producer_topic_control": ec_producer_topic_control,
+        "filter": filter}
+
+def ec_producer_args(service, share, topic_in=None, topic_out=None):
+    """init_args for composing an ECProducerImpl (see share.py)"""
+
+    return {"context": Context(), "service": service, "share": share,
+        "topic_in": topic_in, "topic_out": topic_out}
 
 def service_args(name, implementations=None,
     parameters=None, protocol=None, tags=None, transport=None):

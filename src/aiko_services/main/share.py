@@ -41,6 +41,11 @@
 #
 # To Do
 # ~~~~~
+# * For release v0.9, remove the v0.8 ECConsumer/ECProducer constructor shim
+#
+# * Replace ServicesCache with ECCache
+# * Registrar should migrate use of ServicesCache to ECProducer
+#
 # - BUG?: ECProducer remote expired leases
 # - BUG?: ECConsumer remote expired leases
 #
@@ -58,7 +63,6 @@
 #   constructor optionally includes the Service "name" to disambigute
 #
 # - Provide unit tests !
-# - Registrar should migrate use of ServicesCache to ECProducer
 # - ECProducer and ECConsumer should handle Registrar not available
 # - ECProducer and ECConsumer should handle Registrar stop and restart
 # - Allow ECConsumer to change share filter, with or without existing lease
@@ -67,6 +71,7 @@
 # - When subscribed to a component of a dictionary, removal of the dictionary
 #   does not send a remove message for the component
 
+from abc import ABCMeta, abstractmethod
 import click
 import os
 
@@ -74,10 +79,27 @@ from aiko_services.main import *
 from aiko_services.main.utilities import *
 
 __all__ = [
-    "ECConsumer", "PROTOCOL_EC_CONSUMER",
-    "ECProducer", "PROTOCOL_EC_PRODUCER",
+    "ECCache", "ECCacheImpl",
+    "ECConsumer", "ECConsumerImpl", "PROTOCOL_EC_CONSUMER",
+    "ECProducer", "ECProducerImpl", "PROTOCOL_EC_PRODUCER",
     "services_cache_create_singleton", "services_cache_delete"
 ]
+
+# Deprecated (one release, removed after v0.8): the positional construction
+# forms "ECProducer(service, share)" / "ECConsumer(service, ...)" predate
+# the Interface / Implementation split (e_10 §2.1, 2026-07-13).  This
+# metaclass routes a direct call on the abstract Interface to the composed
+# Implementation; composed classes (no abstract methods) pass through
+
+_EC_COMPAT = {}  # Interface name --> (Impl class, init_args factory)
+
+class _ECCompatShim(ABCMeta):
+    def __call__(cls, *args, **kwargs):
+        if cls.__abstractmethods__ and cls.__name__ in _EC_COMPAT:
+            impl_class, args_factory = _EC_COMPAT[cls.__name__]
+            return compose_instance(
+                impl_class, args_factory(*args, **kwargs))
+        return super().__call__(*args, **kwargs)
 
 _VERSION = 0
 
@@ -156,8 +178,43 @@ class ECLease(Lease):
             lease_time, topic, lease_expired_handler=lease_expired_handler)
         self.filter = filter
 
-class ECProducer:
-    def __init__(self, service, share, topic_in=None, topic_out=None):
+class ECProducer(Interface, metaclass=_ECCompatShim):
+    """
+    Publishes a Service's live state ("share" dictionary) for any number of
+    remote ECConsumers to replicate and watch: eventually consistent,
+    push-on-change (concepts/share.md).  Local mutation methods; the
+    publication to lease-holding consumers is the side effect.  Wire form:
+    "(add|remove|update item_name item_value)" on the producer's state
+    topic; "(share topic lease_time filter)" requests on its control topic
+    """
+    Interface.default("ECProducer", "aiko_services.main.share.ECProducerImpl")
+
+    @abstractmethod
+    def add_handler(self, handler):
+        """Attach handler(command, item_name, item_value); replays the
+        current share as "add" commands first.  Projection: observation"""
+
+    @abstractmethod
+    def get(self, item_name):
+        """Local read of a share item ("a.b.c" path); None if absent.
+        Projection: observation (local only — never crosses the wire)"""
+
+    @abstractmethod
+    def remove(self, item_name):
+        """Remove a share item and publish to consumers.
+        Projection: command"""
+
+    @abstractmethod
+    def remove_handler(self, handler):
+        """Detach a handler attached by add_handler()"""
+
+    @abstractmethod
+    def update(self, item_name, item_value):
+        """Update a share item and publish to consumers.
+        Projection: command"""
+
+class ECProducerImpl(ECProducer):
+    def __init__(self, context, service, share, topic_in=None, topic_out=None):
         self.share = share
         self.topic_in = topic_in if topic_in else service.topic_control
         self.topic_out = topic_out if topic_out else service.topic_state
@@ -354,8 +411,33 @@ class ECProducer:
 # --------------------------------------------------------------------------- #
 # Note: For non-Service use, can substitute "aiko.process" for "service"
 
-class ECConsumer:
-    def __init__(self,
+class ECConsumer(Interface, metaclass=_ECCompatShim):
+    """
+    Replicates a remote ECProducer's state into a local cache dictionary,
+    lease-refreshed (concepts/share.md).  Attachment happens at
+    construction; teardown is terminate().  Wire form: sends "(share
+    topic_share_in lease_time filter)" to the producer's control topic;
+    receives "(item_count|add|remove|update|sync ...)" replies
+    """
+    Interface.default("ECConsumer", "aiko_services.main.share.ECConsumerImpl")
+
+    @abstractmethod
+    def add_handler(self, handler):
+        """Attach handler(ec_consumer_id, command, item_name, item_value);
+        replays the current cache as "add" commands first.
+        Projection: observation"""
+
+    @abstractmethod
+    def remove_handler(self, handler):
+        """Detach a handler attached by add_handler()"""
+
+    @abstractmethod
+    def terminate(self):
+        """Cancel the lease and share subscription; empty the cache.
+        Projection: command"""
+
+class ECConsumerImpl(ECConsumer):
+    def __init__(self, context,
         service, ec_consumer_id, cache, ec_producer_topic_control, filter="*"):
 
         self.service = service
@@ -456,6 +538,129 @@ class ECConsumer:
             self.lease.terminate()
             self.lease = None
             self._share_request(lease_time=0)  # cancel share request
+
+# Deprecated positional-construction shim registrations (one release)
+_EC_COMPAT["ECProducer"] = (ECProducerImpl, ec_producer_args)
+_EC_COMPAT["ECConsumer"] = (ECConsumerImpl, ec_consumer_args)
+
+# --------------------------------------------------------------------------- #
+
+class ECCache(Interface):
+    """
+    The general local replica (e_10 §2.1, 2026-07-13): a leased, filtered
+    ECConsumer subscription per remote Service matching "service_filter",
+    each feeding a local cache — so a remote getter becomes a local,
+    non-blocking read.  This is the MCP / A2A observation shim
+    (e_04_McpIntegration).  ServicesCache is the Registrar-specific
+    precursor; freshness is the eventual-consistency guarantee
+    """
+    Interface.default("ECCache", "aiko_services.main.share.ECCacheImpl")
+
+    @abstractmethod
+    def get(self, item_name, default=None, topic_path=None):
+        """Local read, never remote: return the cached value of item_name
+        ("a.b.c" path) from the replica of topic_path — or, when only one
+        producer matches the service_filter, from that sole replica;
+        "default" when absent or ambiguous.  Projection: observation"""
+
+    @abstractmethod
+    def add_handler(self, handler, filter=None):
+        """Attach handler(topic_path, command, item_name, item_value) for
+        replica updates; replays current replicas as "add" commands first.
+        "filter" is an optional local callable
+        filter(item_name, item_value) -> bool (e.g. a water-mark
+        threshold).  Mobile (wire-delivered) filter expressions are
+        refused until the sandboxed predicate language ships (P12,
+        ADR-023).  Projection: observation"""
+
+    @abstractmethod
+    def remove_handler(self, handler):
+        """Detach a handler attached by add_handler()"""
+
+    @abstractmethod
+    def terminate(self):
+        """Detach from discovery, terminate every ECConsumer (cancelling
+        its lease) and empty the replicas.  Projection: command"""
+
+class ECCacheImpl(ECCache):
+    def __init__(self, context, service, service_filter, variable_filter="*"):
+        self.service = service
+        self.service_filter = service_filter
+        self.variable_filter = variable_filter
+
+        self.caches = {}      # topic_path --> replica dictionary
+        self.consumers = {}   # topic_path --> composed ECConsumer
+        self.handlers = set() # (handler, filter) pairs
+        self._ec_consumer_counter = 0
+
+        self._services_cache = services_cache_create_singleton(service)
+        self._services_cache.add_handler(
+            self._service_change_handler, service_filter)
+
+    def get(self, item_name, default=None, topic_path=None):
+        if topic_path is None:
+            if len(self.caches) != 1:
+                return default
+            topic_path = next(iter(self.caches))
+        cache = self.caches.get(topic_path)
+        if cache is None:
+            return default
+        item = cache
+        for key in _ec_parse_item_path(item_name):
+            if isinstance(item, dict) and key in item:
+                item = item.get(key)
+            else:
+                return default
+        return item
+
+    def add_handler(self, handler, filter=None):
+        for topic_path, cache in self.caches.items():
+            for item_name, item_value in _flatten_dictionary(cache):
+                if filter is None or filter(item_name, item_value):
+                    handler(topic_path, "add", item_name, item_value)
+        self.handlers.add((handler, filter))
+
+    def remove_handler(self, handler):
+        self.handlers = set(
+            (cache_handler, filter)
+            for cache_handler, filter in self.handlers
+            if cache_handler != handler)
+
+    def terminate(self):
+        self._services_cache.remove_handler(
+            self._service_change_handler, self.service_filter)
+        for consumer in self.consumers.values():
+            consumer.terminate()
+        self.caches = {}
+        self.consumers = {}
+
+    def _service_change_handler(self, command, service_details):
+        if command == "add" and service_details:
+            topic_path = service_details[0]
+            if topic_path not in self.consumers:
+                self._ec_consumer_counter += 1
+                cache = {}
+                self.caches[topic_path] = cache
+                consumer = compose_instance(ECConsumerImpl,
+                    ec_consumer_args(
+                        self.service, self._ec_consumer_counter, cache,
+                        f"{topic_path}/control", self.variable_filter))
+                consumer.add_handler(
+                    self._make_consumer_relay_handler(topic_path))
+                self.consumers[topic_path] = consumer
+        elif command == "remove" and service_details:
+            topic_path = service_details[0]
+            consumer = self.consumers.pop(topic_path, None)
+            if consumer:
+                consumer.terminate()
+            self.caches.pop(topic_path, None)
+
+    def _make_consumer_relay_handler(self, topic_path):
+        def relay_handler(_ec_consumer_id, command, item_name, item_value):
+            for handler, filter in self.handlers:
+                if filter is None or filter(item_name, item_value):
+                    handler(topic_path, command, item_name, item_value)
+        return relay_handler
 
 # --------------------------------------------------------------------------- #
 # Note: For use by non-Service, can substitute "aiko.process" for "service"
@@ -681,7 +886,8 @@ class ECProducerTest(Service):
                 "key_2": ["item_2a", "item_2b"]
             }
         }
-        self.ec_producer = ECProducer(self, self.share)
+        self.ec_producer = compose_instance(
+            ECProducerImpl, ec_producer_args(self, self.share))
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
     def _ec_producer_change_handler(self, command, item_name, item_value):
@@ -703,13 +909,14 @@ class ECConsumerTest(Service):
             "ec_producer_pid": ec_producer_pid,
             "ec_producer_sid": ec_producer_sid
         }
-        self.ec_producer = ECProducer(self, self.share_producer)
+        self.ec_producer = compose_instance(
+            ECProducerImpl, ec_producer_args(self, self.share_producer))
 
         self.share_consumer = {}
         ec_producer_topic_control =  \
             f"{get_namespace()}/{get_hostname()}/{ec_producer_pid}/{ec_producer_sid}/control"
-        self.ec_consumer = ECConsumer(
-            self, 0, self.share_consumer, ec_producer_topic_control, filter)
+        self.ec_consumer = compose_instance(ECConsumerImpl, ec_consumer_args(
+            self, 0, self.share_consumer, ec_producer_topic_control, filter))
         self.ec_consumer.add_handler(self._ec_consumer_change_handler)
 
     def _ec_consumer_change_handler(

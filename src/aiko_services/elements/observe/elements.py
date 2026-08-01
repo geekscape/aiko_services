@@ -1,6 +1,6 @@
 # Usage
 # ~~~~~
-# aiko_pipeline create pipelines/pipeline_observe.json -ll debug -fd "(b: 0)"
+# aiko_pipeline create pipelines/pipeline_observe.json -ll debug_all -fd "(b: 0)"
 #
 # To Do
 # ~~~~~

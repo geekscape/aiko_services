@@ -42,3 +42,16 @@ def test_actor_args():
     assert context.protocol == "*"
     assert context.tags == []
     assert context.transport == TRANSPORT
+
+def test_actor_args_defaults_not_shared():
+    # Regression: with tags/parameters omitted, each context must receive
+    # its own copy — add_tags() on one Service (e.g. ECProducer's
+    # "ec=true") must never pollute the module-level defaults
+
+    context_a = actor_args("Alice")["context"]
+    context_b = actor_args("Bob")["context"]
+    context_a.tags.append("ec=true")
+    context_a.parameters["key"] = "value"
+    assert context_b.tags == []
+    assert context_b.parameters == {}
+    assert aiko.actor_args("Carol")["context"].tags == []

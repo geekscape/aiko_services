@@ -19,6 +19,7 @@ REGISTRAR_PROTOCOL =  \
 from .context import (
     Context, Interface, ServiceProtocolInterface, ContextService,
     ContextPipelineElement, ContextPipeline, context_args,
+    ec_cache_args, ec_consumer_args, ec_producer_args,
     service_args, actor_args, pipeline_element_args, pipeline_args
 )
 
@@ -52,8 +53,9 @@ from .state import StateMachineOld
 from .proxy import ProxyAllMethods, is_callable, proxy_trace
 
 from .share import (
-    ECConsumer, PROTOCOL_EC_CONSUMER,
-    ECProducer, PROTOCOL_EC_PRODUCER,
+    ECCache, ECCacheImpl,
+    ECConsumer, ECConsumerImpl, PROTOCOL_EC_CONSUMER,
+    ECProducer, ECProducerImpl, PROTOCOL_EC_PRODUCER,
     services_cache_create_singleton, services_cache_delete
 )
 

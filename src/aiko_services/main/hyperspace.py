@@ -154,7 +154,8 @@ class HyperSpaceImpl(HyperSpace):
             #   "time_started": 0            # TODO: UTC time started --> Actor
             },                               #       or time.monotonic()
         })
-        self.ec_producer = ECProducer(self, self.share)
+        self.ec_producer = compose_instance(
+            ECProducerImpl, ec_producer_args(self, self.share))
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
         self._hyperspace_load(storage_url)

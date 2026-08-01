@@ -103,7 +103,8 @@ class CategoryImpl(Category):
             "source_file": f"v{CATEGORY_VERSION}⇒ {__file__}",
             "entries": {},                        # Categories and Dependencies
             "entries_count": 0})
-        self.ec_producer = ECProducer(self, self.share)
+        self.ec_producer = compose_instance(
+            ECProducerImpl, ec_producer_args(self, self.share))
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
     def add(self, entry_name,

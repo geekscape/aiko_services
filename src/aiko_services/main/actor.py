@@ -233,7 +233,8 @@ class ActorImpl(Actor):
             "log_level": get_log_level_name(self.logger),
             "running": False  # TODO: Consolidate into self.share ?
         }
-        self.ec_producer = ECProducer(self, self.share)
+        self.ec_producer = compose_instance(
+            ECProducerImpl, ec_producer_args(self, self.share))
         self.ec_producer.add_handler(self.ec_producer_change_handler)
 
         self.delayed_message_queue = queue.Queue()

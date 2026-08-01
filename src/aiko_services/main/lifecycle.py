@@ -217,11 +217,11 @@ class LifeCycleManagerImpl(LifeCycleManager, LifeCycleManagerPrivate):
                         "*", "*", "*", "*", "*"),
                     None, self._lcm_service_remove_handler)
 
-                ec_consumer = ECConsumer(
-                    self,
-                    client_id, {},
-                    f"{lifecycle_client_topic_path}/control",
-                    self.lcm_client_state_consumer_filter)
+                ec_consumer = compose_instance(
+                    ECConsumerImpl, ec_consumer_args(
+                        self, client_id, {},
+                        f"{lifecycle_client_topic_path}/control",
+                        self.lcm_client_state_consumer_filter))
                 if self.lcm_lifecycle_client_change_handler:
                     ec_consumer.add_handler(self.lcm_lifecycle_client_change_handler)
                 lifecycle_client_details = LifeCycleClientDetails(
@@ -312,7 +312,8 @@ class LifeCycleManagerTestImpl(LifeCycleManagerTest):
             "source_file": f"v{_VERSION}⇒ {__file__}",
             "client_count": client_count
         }
-        self.ec_producer = ECProducer(self, self.share)
+        self.ec_producer = compose_instance(
+            ECProducerImpl, ec_producer_args(self, self.share))
 
         tags = ["ec=true"]   # TODO: Add ECProducer tag before add to Registrar
         init_args = actor_args("_process_manager", None, None, None, tags)
@@ -415,7 +416,8 @@ class LifeCycleClientTestImpl(LifeCycleClientTest):
             "source_file": f"v{_VERSION}⇒ {__file__}",
             "client_id": client_id
         }
-        self.ec_producer = ECProducer(self, self.share)
+        self.ec_producer = compose_instance(
+            ECProducerImpl, ec_producer_args(self, self.share))
 
         context.get_implementation("LifeCycleClient").__init__(self,
             context, client_id, lifecycle_manager_topic, self.ec_producer)
