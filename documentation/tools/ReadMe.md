@@ -19,10 +19,11 @@ conversion of the documentation. The rules that they apply are in
 [t_04_SimplifiedTechnicalEnglish.md](../constitution/t_04_SimplifiedTechnicalEnglish.md).
 The tools use only the Python standard library.
 
-**Status (project-lead decision, 2026-08-01).** This directory is not
-committed yet. It becomes a git commit when the STE conversion is
-complete. The tools stay in the repository after that, because a future
-document, or a future issue of the standard, can need them again.
+**Status (project-lead decision, 2026-08-01).** This directory is
+committed and pushed, because the STE conversion of `documentation/` is
+complete. The tools stay in the repository, because a future document, or
+a future issue of the standard, can need them again. They are the only
+part of the governance tooling that is public.
 
 **File modes.** A file here is mode 600. An executable file is mode 700.
 
@@ -38,7 +39,7 @@ document, or a future issue of the standard, can need them again.
 python3 documentation/tools/asd_ste100_lint.py documentation/constitution/*.md
 ```
 
-Each line of the report gives one file and six counts:
+Each line of the report gives one file and seven counts:
 
 | Code | Rule | Meaning |
 |---|---|---|
@@ -62,9 +63,10 @@ that only starts the same way is safe: `e.golf` and `etcetera` are not
 reported. (Each example here sits in a code span, which the tool correctly
 ignores.)
 
-**A file is converted when all six counts are 0.** Only then can you set
+**A file is converted when all seven counts are 0.** Only then can you set
 its `ste:` front matter to `adapted` (rule 13 of
 [g_04_ModelHandoffGuide.md](../constitution/g_04_ModelHandoffGuide.md)).
+The `I` advisory does not block that, but read it first.
 
 Options:
 
@@ -99,16 +101,37 @@ each had to be found by hand, one at a time. The `-our` family stays an
 explicit list, because it is closed and "four", "hour" and "source" must
 not match.
 
-**Known exemptions that the tool cannot see.** Report these in review,
-do not "fix" them:
+**Declare an exemption in the document, never in your head.** A document
+that teaches the rules must quote them, and a quotation is not a finding
+(rule 8.6). Two markers say so, and both are HTML comments, so neither
+renders:
 
-- `t_04_SimplifiedTechnicalEnglish.md` §2 quotes the semicolon and the
-  Latin abbreviations as rule text (rule 8.6, quoted text)
+```markdown
+<!-- ste-exempt: GR-6 must show the abbreviations that it forbids -->
+- GR-6 Do not use Latin abbreviations (e.g., i.e., etc., et al.).
+<!-- ste-exempt-end -->
+
+<!-- ste-swap-table: left column is intentionally non-STE -->
+```
+
+The gate and `asd_ste100_fix.py` both honor them.
+`t_04_SimplifiedTechnicalEnglish.md` uses both, for the rule 8.1 semicolon,
+the GR-6 abbreviations and the §4 swap table.
+
+**Caution: an exemption is not a way to silence a finding.** Until
+2026-08-01 this section instead told the reader to remember that the whole
+of t_04 §2 and §4 was exempt. That blanket hid a real defect for weeks — a
+table cell that read "per-word dictionary proof is not required". Mark the
+smallest region that quotes the standard, and nothing more.
+
+**Findings the tool reports that are correct as they stand.** Report these
+in review, do not "fix" them:
+
 - The link *text* of a Markdown link is prose, and the tool examines it.
   Only the link target is out of scope. Thus `[behaviour](behaviour.md)`
   reports one finding, for the text, not two
-- Protocol state names and quoted text (for example, the A2A state
-  `input-required`) keep their words
+- Protocol state names keep their words (for example, the A2A state
+  `input-required`)
 - RFC 2119 keywords in capitals (MUST, REQUIRED) are quoted terms. The
   tool already skips them, together with hyphenated compounds
 

@@ -93,11 +93,13 @@ sections are.
 
 * New *documentation/tools/*: three command-line tools that verify and
   prepare a document for STE.  *asd_ste100_lint.py* is the gate, and it
-  reports six counts: long sentences, prose semicolons, British spelling,
-  swap-list words, Latin abbreviations and contractions.  A document is
-  converted when all six read zero.  *asd_ste100_fix.py* applies the
-  mechanical corrections only, and *asd_ste100_semisplit.py* divides the
-  prose semicolons into sentences
+  reports seven counts: long sentences, prose semicolons, British spelling,
+  swap-list words, Latin abbreviations, contractions and sentence shape.  A
+  document is converted when all seven read zero.  *asd_ste100_fix.py*
+  applies the mechanical corrections only, and *asd_ste100_semisplit.py*
+  divides the prose semicolons into sentences.  All of *documentation/* is
+  now converted: 183 documents declare *ste: adapted*, and the five
+  historical records keep *ste: false* on purpose
 
 ### Deprecations and compatibility
 
