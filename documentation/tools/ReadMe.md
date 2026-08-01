@@ -49,6 +49,12 @@ Each line of the report gives one file and six counts:
 | `X` | GR-6 | Latin abbreviations |
 | `C` | 4.2 | Contractions |
 
+The `X` check does not need the trailing period of an abbreviation. It
+reports `e.g` and `e.g.` alike, because both break GR-6. A longer token
+that only starts the same way is safe: `e.golf` and `etcetera` are not
+reported. (Each example here sits in a code span, which the tool correctly
+ignores.)
+
 **A file is converted when all six counts are 0.** Only then can you set
 its `ste:` front matter to `adapted` (rule 13 of
 [g_04_ModelHandoffGuide.md](../constitution/g_04_ModelHandoffGuide.md)).
@@ -70,10 +76,9 @@ do not "fix" them:
 
 - `t_04_SimplifiedTechnicalEnglish.md` §2 quotes the semicolon and the
   Latin abbreviations as rule text (rule 8.6, quoted text)
-- The `B`, `W`, `X` and `C` checks read the line before the inline code
-  spans are removed. A British word or a swap-list word inside a code
-  span, or in a link target, is reported. The `L` and `S` checks do
-  remove code spans first. No document in the tree has such a case today
+- The link *text* of a Markdown link is prose, and the tool examines it.
+  Only the link target is out of scope. Thus `[behaviour](behaviour.md)`
+  reports one finding, for the text, not two
 - Protocol state names and quoted text (for example, the A2A state
   `input-required`) keep their words
 - RFC 2119 keywords in capitals (MUST, REQUIRED) are quoted terms. The

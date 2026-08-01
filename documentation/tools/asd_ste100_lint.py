@@ -115,9 +115,12 @@ SWAPS = {
 }
 
 LATIN = {
-    r"\be\.g\.": "for example",
-    r"\bi\.e\.": "that is",
-    r"\betc\.": "and more",
+    # the trailing period is optional: "e.g" without it is the same GR-6
+    # abbreviation, and it must not pass the gate.  The negative lookahead
+    # stops a false positive on a longer token ("e.golf", "etcetera")
+    r"\be\.g\.?(?!\w)": "for example",
+    r"\bi\.e\.?(?!\w)": "that is",
+    r"\betc\.?(?!\w)": "and more",
     r"\bvs\.?\b": "compared with",
     r"\bet al\.": "and others",
     r"\bcf\.": "compare",
@@ -232,7 +235,17 @@ def lint(path, limit=25, verbose=True):
             findings["S"].append((start, prose_only.count(";"), blk[:100]))
 
     prose = "\n".join(lines)
-    for i, line in enumerate(lines):
+    for i, raw_line in enumerate(lines):
+        # An inline code span and a link target are not prose (t_04 section
+        # 5), so the word checks must not read them.  Without this, the
+        # Unix path "/etc/inittab" reads as the Latin "etc", and an
+        # identifier such as "serialise_data()" reads as British spelling.
+        # The replacement keeps the column count, so the hyphen test below
+        # still looks at the correct neighbouring characters
+        line = re.sub(r"`[^`]*`", lambda m: "`" + "x" * (len(m.group(0)) - 2) + "`",
+                      raw_line)
+        line = re.sub(r"\]\(([^)]*)\)",
+                      lambda m: "](" + "x" * len(m.group(1)) + ")", line)
         for pat, alt in BRITISH.items():
             for m in re.finditer(pat, line, re.I):
                 findings["B"].append((i + 1, m.group(0), alt))
