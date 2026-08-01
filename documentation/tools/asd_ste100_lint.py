@@ -237,6 +237,57 @@ LATIN = {
 CONTRACTIONS = r"\b(don't|doesn't|didn't|isn't|aren't|wasn't|weren't|can't|won't|shouldn't|couldn't|wouldn't|it's|that's|there's|here's|you'd|you're|you'll|we're|we'll|they're|hasn't|haven't|hadn't|let's)\b"
 
 
+EXEMPT_START = re.compile(r"<!--\s*ste-exempt:", re.I)
+EXEMPT_END = re.compile(r"<!--\s*ste-exempt-end\s*-->", re.I)
+SWAP_TABLE = re.compile(r"<!--\s*ste-swap-table", re.I)
+
+
+def exempt_lines(text):
+    """Line numbers (0-based) inside a declared exemption.
+
+    Two markers, both HTML comments so they do not render:
+      <!-- ste-exempt: reason -->  ...  <!-- ste-exempt-end -->
+      <!-- ste-swap-table: ... -->  (the table that follows)
+
+    This is for text that quotes the standard itself, where the
+    unapproved word IS the subject (rule 8.6, quoted text).
+    t_04_SimplifiedTechnicalEnglish uses both: section 2 paraphrases the
+    rule that forbids the semicolon and the Latin abbreviations, and
+    section 4 lists the unapproved words in its left column.
+    asd_ste100_fix.py already honors the swap-table marker; the gate must
+    honor it too, or a document can never reach zero.
+
+    Do not use this to hide a real finding.
+    """
+    out = set()
+    lines = text.split("\n")
+    in_region = False
+    in_table = False
+    for i, line in enumerate(lines):
+        s = line.strip()
+        if EXEMPT_END.search(s):
+            in_region = False
+            out.add(i)
+            continue
+        if EXEMPT_START.search(s):
+            in_region = True
+            out.add(i)
+            continue
+        if SWAP_TABLE.search(s):
+            in_table = True
+            out.add(i)
+            continue
+        if in_table:
+            if s and not s.startswith("|"):
+                in_table = False
+            else:
+                out.add(i)
+                continue
+        if in_region:
+            out.add(i)
+    return out
+
+
 def word_check_regions(text):
     """Return the lines the word checks read, preserving line numbers.
 
@@ -282,7 +333,10 @@ LOWER_START_OK = {"dora", "aiko", "xgo", "mqtt", "zmq", "ec", "eval", "exec",
                   "numpy", "opencv", "pytest", "git", "pip", "psutil", "arxiv",
                   "ros", "zenoh", "gst", "llm", "mcp", "repl", "cli", "iOS"}
 
-ABBREV_SAFE = re.compile(r"\b(e\.g|i\.e|etc|vs|cf|Mr|Dr|St|No|al)\.", re.I)
+ABBREV_SAFE = re.compile(
+    r"\b(e\.g|i\.e|etc|vs|cf|Mr|Dr|St|No|al|incl|approx|Fig|Sec|vol|ed)\.", re.I)
+# a dotted version or identifier is not a sentence end: "v0.6.post1"
+DOTTED_TOKEN = re.compile(r"\b[vV]?\d+(?:\.\w+)+\b")
 FILE_EXT = re.compile(r"\.(md|py|json|sh|txt|yaml|yml|toml|pt|jsonl|cfg|ini)\b")
 
 
@@ -296,6 +350,7 @@ def shape_findings(lines):
         s = re.sub(r"\[([^]]*)\]\([^)]*\)", r"\1", s)
         s = ABBREV_SAFE.sub("ABBR", s)
         s = FILE_EXT.sub("EXT", s)
+        s = DOTTED_TOKEN.sub("VER", s)
         # an ordered-list marker is not a sentence end: "1. text_io ..."
         s = re.sub(r"^(\s*)(\d+|[a-z])\.\s", r"\1", s)
         for m in re.finditer(r"\.\s+([a-z]{3,})", s):
@@ -384,7 +439,11 @@ def wc(sent):
 
 def lint(path, limit=25, verbose=True):
     text = open(path).read()
+    exempt = exempt_lines(text)
     lines = strip_regions(text)
+    for i in exempt:
+        if i < len(lines):
+            lines[i] = ""
     findings = {"L": [], "S": [], "B": [], "W": [], "X": [], "C": [], "F": [],
                 "I": []}   # I = advisory, excluded from the gate counts
     # a word used as a code span anywhere in the file is a term of art here
@@ -421,7 +480,11 @@ def lint(path, limit=25, verbose=True):
     findings["F"] = [(n, kind, ctx) for n, kind, ctx in shape_findings(lines)]
 
     # the word checks read prose, table cells and front-matter prose fields
-    for i, raw_line in enumerate(word_check_regions(text)):
+    word_lines = word_check_regions(text)
+    for i in exempt:
+        if i < len(word_lines):
+            word_lines[i] = ""
+    for i, raw_line in enumerate(word_lines):
         # An inline code span and a link target are not prose (t_04 section
         # 5), so the word checks must not read them.  Without this, the
         # Unix path "/etc/inittab" reads as the Latin "etc", and an
