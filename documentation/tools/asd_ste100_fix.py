@@ -135,8 +135,17 @@ SWAPS = [
     (r"\bad hoc\b", "unplanned"),
 ]
 
+# Quoted text is protected first, and never rewritten. Rule 8.6 counts a
+# quotation as one word, and t_04 section 1 forbids rewording a citation:
+# "to convert a citation would falsify it". Without this the fixer expanded
+# contractions inside cited source text five times in one conversion —
+# "Doesn't parse plain symbols" (parser.py:36), "Pipeline hasn't been
+# discovered" (pipeline.py:956), the recorder.py header question, and the
+# camera-roll note (world.py:72). Each had to be restored by hand.
 PROTECT = re.compile(
-    r"(`[^`]*`|\]\([^)]*\)|https?://\S+|\b\w*[_/]\w*\b|\b\w+\.(?:md|py|json|txt|sh|yaml)\b)"
+    r"(\"[^\"\n]{1,300}\"|“[^”\n]{1,300}”"
+    r"|`[^`]*`|\]\([^)]*\)|https?://\S+|\b\w*[_/]\w*\b"
+    r"|\b\w+\.(?:md|py|json|txt|sh|yaml)\b)"
 )
 
 

@@ -48,6 +48,13 @@ Each line of the report gives one file and six counts:
 | `W` | t_04 §4 | Words on the swap list |
 | `X` | GR-6 | Latin abbreviations |
 | `C` | 4.2 | Contractions |
+| `F` | 4.1 | Sentence shape — a bad split left by the semicolon tool |
+
+One more line can appear, and it is **advisory only**. `I` counts a
+swap-list word that is also a code span in the same file. That is an
+identifier collision, and the swap would rename something real (§3, API
+names beat the dictionary). The gate does not count `I`. Decide each by
+hand.
 
 The `X` check does not need the trailing period of an abbreviation. It
 reports `e.g` and `e.g.` alike, because both break GR-6. A longer token
@@ -65,11 +72,32 @@ Options:
 - `--limit=20` — use the procedural sentence limit (rule 5.1). The
   default limit is 25 words (rule 6.3, descriptive writing)
 
-The tool excludes these regions from the prose that it examines: YAML
-front matter, fenced code blocks, inline code spans, tables, headings,
-link targets, ASCII diagrams and indented blocks. It counts words by
-rules 8.4 through 8.7: a code span, a text in parentheses, a number and
-an identifier each count as one word.
+The `L` and `S` checks exclude these regions from the prose that they
+examine: YAML front matter, fenced code blocks, inline code spans,
+tables, headings, link targets, ASCII diagrams and indented blocks. They
+count words by rules 8.4 through 8.7: a code span, a text in
+parentheses, a number and an identifier each count as one word.
+
+**The word checks read more than the prose.** `B`, `W`, `X` and `C` also
+read **table cells** and the prose-bearing **front-matter fields**
+(`title:`, `description:`). t_04 §5 puts table-cell text in scope, and a
+`description:` is quoted verbatim by the one-line summary in each
+`ReadMe.md` index. Before 2026-08-01 those two regions were invisible,
+and about forty real British spellings hid in them across
+`documentation/`.
+
+**Quoted text is never a finding.** Rule 8.6 counts a quotation as one
+word, and t_04 §1 forbids rewording a citation. Both this tool and
+`asd_ste100_fix.py` protect `"..."` spans, so the gate never asks for a
+change that the fixer refuses to make.
+
+**British spelling is now a rule, not a list.** A general `-ise` /
+`-isation` pattern with an allowlist replaces the endless named stems.
+Before it, `sanitise`, `synthesise`, `tokenisation`, `deserialise`,
+`finalise`, `visualise`, `unrecognised`, `parameterise` and `stabilise`
+each had to be found by hand, one at a time. The `-our` family stays an
+explicit list, because it is closed and "four", "hour" and "source" must
+not match.
 
 **Known exemptions that the tool cannot see.** Report these in review,
 do not "fix" them:
@@ -141,12 +169,24 @@ second clause. It protects fenced code, inline code spans, document ids
 (`e_08`), snake_case identifiers and a list of product names (`xgo`,
 `aiko`, `mqtt` and more). It prints each capitalization that it made.
 
-**Always read that report and the diff.** The tool cannot see that a
-semicolon separates the items of an enumeration. Such a list must become a
-vertical list (rule 4.3), and this tool makes sentence fragments from it.
-Correct those by hand. Two errors seen in use: a wrongly capitalized
-identifier, and a duplicated phrase after a bulk substitution. Scan for
-both after each run.
+**Three regions are protected, each after a defect.**
+
+- **YAML front matter.** A `description:` field is quoted verbatim by the
+  one-line summary in every `ReadMe.md` index, so a split there
+  desynchronizes the index in silence. The tool now skips front matter,
+  and reports how many protected lines it left alone.
+- **Table rows.** `asd_ste100_lint.py` does not inspect a table, so a
+  rewrite there is invisible to the gate. The converted trees keep their
+  table-cell semicolons on purpose.
+- **A clause inside parentheses.** `(clause; clause)` would become
+  `(clause. Clause)`, which reads as a fragment.
+
+**Always read that report and the diff.** The tool still cannot see that
+a semicolon separates the items of an enumeration. Such a list must
+become a vertical list (rule 4.3), and this tool makes sentence fragments
+from it. Correct those by hand. Errors seen in use: a wrongly capitalized
+identifier, and a duplicated phrase after a bulk substitution. The `F`
+count of the gate now catches the two split shapes automatically.
 
 ## The conversion procedure for one document
 
@@ -154,7 +194,12 @@ both after each run.
 2. Run `asd_ste100_lint.py -d` on the document.
 3. Correct each `S` finding, then each `L` finding. Usually the same
    edit corrects both.
-4. Correct the `X`, `W`, `B` and `C` findings that remain.
-5. Run `asd_ste100_lint.py` again. When all counts are 0, set `ste: adapted` in
-   the front matter and set `last_updated` to today.
-6. Add an entry to [../log.md](../log.md).
+4. Correct the `X`, `W`, `B`, `C` and `F` findings that remain.
+5. Read any `I` advisory line. An identifier collision is a decision, not
+   a defect: keep the word when it names a real command or method.
+6. Run `asd_ste100_lint.py` again. When all seven counts are 0, set
+   `ste: adapted` in the front matter and set `last_updated` to today.
+7. Add an entry to [../log.md](../log.md).
+
+**When a `description:` field changes, check its `ReadMe.md` index row in
+the same change.** The row quotes that field, and the two must agree.
