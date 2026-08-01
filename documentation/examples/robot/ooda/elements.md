@@ -6,25 +6,25 @@ description: RobotAgents, PromptMediaFusion and RobotActions — the
 type: concept
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/robot/ooda/elements.py
   - src/aiko_services/examples/robot/robot_pipeline.json
 related: [pipeline_element, pipeline, stream, discovery, actor,
   world, xgo_robot]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # OODA-loop robot PipelineElements
 
 ## Overview
 
-`elements.py` provides the three
+`elements.py` gives the three
 [PipelineElements](../../../concepts/pipeline_element.md) at the heart
-of the robot example's OODA loop — Observe, Orient, Decide, Act — as
-wired up by `robot_pipeline.json` (the `p_robot`
-[Pipeline](../../../concepts/pipeline.md)):
+of the OODA loop of the robot example. OODA is Observe, Orient, Decide
+and Act. `robot_pipeline.json` wires them up, as the `p_robot`
+[Pipeline](../../../concepts/pipeline.md):
 
 - **`RobotAgents`** — the fan-in point: seeds each Frame's
   `detections` and `texts` from whatever earlier elements placed in
@@ -34,17 +34,17 @@ wired up by `robot_pipeline.json` (the `p_robot`
   returns hard-coded detections).
 - **`RobotActions`** — discovers a robot
   [Actor](../../../concepts/actor.md) by name and translates parsed
-  text commands, e.g `action sit`, into remote robot function calls
+  text commands, for example, `action sit`, into remote robot function calls
   (implemented).
 
 Observation arrives as images over ZeroMQ (from the
 [Panda3D virtual world](../virtual/world.md) or a real camera), and as
-text typed on the terminal; orientation is ArUco marker and YOLO
-detection; the decision maker is the LLM element
-(`aiko_services.examples.llm.elements`); action is a real or virtual
+text typed on the terminal. Orientation is ArUco marker and YOLO
+detection. The decision maker is the LLM element
+(`aiko_services.examples.llm.elements`). Action is a real or virtual
 robot — such as the [XGO-Mini 2 robot dog](../../xgo_robot/xgo_robot.md).
 
-**Why you'd use it**: type into the Pipeline's terminal prompt and
+**Why to use it**: type into the Pipeline's terminal prompt and
 watch a discovered robot obey:
 
 ```console
@@ -61,7 +61,7 @@ element in the same Pipeline.
 
 ### Command-line usage
 
-There is no console script; the elements are deployed by
+There is no console script. The elements are deployed by
 `robot_pipeline.json`. The source header records the working session
 (three terminals, run from `src/aiko_services/examples/robot/ooda/`):
 
@@ -89,7 +89,7 @@ Text commands typed at the `TextReadTTY` prompt (see
 [scheme_tty](../../../elements/media/scheme_tty.md)) flow through the
 LLM to `RobotActions`. Each processed text is logged with a status
 character — a tick (handled robot command), question mark (robot
-present, command not recognised) or cross (no robot discovered).
+present, command not recognized) or cross (no robot discovered).
 
 ### Public API
 
@@ -97,12 +97,12 @@ present, command not recognised) or cross (no robot discovered).
 |-------|--------|-------------------|------------|
 | `RobotAgents` | implemented | (none) -> `detections`, `texts` | (none) |
 | `PromptMediaFusion` | stub | `detections`, `texts` -> `detections`, `texts` | (none) |
-| `RobotActions` | implemented | `texts` -> (none) | `service_name` (required) |
+| `RobotActions` | implemented | `texts` -> (none) | `service_name` (needed) |
 
 All three declare Service protocol `robot_actions:0`.
 
-`RobotActions` recognises these commands (each arrives as the text
-`action <verb> [argument]`; `r` and `s` are shortcuts for
+`RobotActions` recognizes these commands (each arrives as the text
+`action <verb> [argument]`. `r` and `s` are shortcuts for
 `action reset` and `action stop`):
 
 | Command | Robot call(s) |
@@ -122,7 +122,7 @@ All three declare Service protocol `robot_actions:0`.
 | `turn left` / `turn right` | `turn(+40)` / `turn(-40)` |
 | `wag` | `action("wiggle_tail")` |
 
-If `service_name` is not provided, `start_stream()` returns
+If `service_name` is not given, `start_stream()` returns
 `StreamEvent.ERROR` and the [Stream](../../../concepts/stream.md)
 does not start.
 
@@ -157,7 +157,7 @@ Key design points:
   discovered Actor proxy in
   `stream.variables["robot_actions_actor"]`. The add / remove
   handlers keep the proxy current as the robot appears and
-  disappears; robot method calls are then plain remote function
+  disappears. Robot method calls are then plain remote function
   calls on the proxy.
 - **Per-Stream state lives in `stream.variables`**, never on `self`:
   the robot proxy, the discovery handler details (removed again in
@@ -179,7 +179,7 @@ Key design points:
   feedback is visible at the `-ll warning` level recommended for
   this Pipeline.
 - Robot selection (`action select <name|all>`) is present only as
-  commented-out code; `stream.variables["robot_selected"]` is
+  commented-out code. `stream.variables["robot_selected"]` is
   currently always `True`.
 
 ### CRC card
@@ -196,7 +196,7 @@ Key design points:
 **Stub / work-in-progress:**
 
 - `PromptMediaFusion.process_frame()` ignores its `detections` input
-  and returns the hard-coded list `["octopus", "oak_tree"]`; the
+  and returns the hard-coded list `["octopus", "oak_tree"]`. The
   planned `ml_memory_detections` aging logic is comments only. The
   source suggests merging it with `RobotAgents`.
 - Robot selection (`select <name|all>`) is commented out and
@@ -208,7 +208,7 @@ Key design points:
 
 - Console input / output as an Aiko Dashboard plug-in: change debug
   levels and parameters, select None / One / All robots (prompt
-  showing the selection via `stream.variables[]`), emergency stop,
+  showing the selection through `stream.variables[]`), emergency stop,
   response display, MQTT topic subscription.
 - Microphone --> Speech-To-Text (push-to-talk) and Text-To-Speech
   --> Speaker (mute) — currently `Mock` placeholders in

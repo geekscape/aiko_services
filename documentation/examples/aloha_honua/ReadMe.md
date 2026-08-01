@@ -6,12 +6,12 @@ description: Index of the AlohaHonua (hello world) tutorial documents —
 type: index
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/aloha_honua
 related: [actor, service, discovery, registrar]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # AlohaHonua example index
@@ -30,7 +30,7 @@ stages are covered by a single concept document:
 | `aloha_honua_0.py` | The minimal `AlohaHonua` Actor — discoverable Service, remotely callable `aloha(name)`, Share entries, distributed logging |
 | `aloha_honua_1.py` | A client program — `click` arguments, discovery with `aiko.do_command()` and a `ServiceFilter`, remote fire-and-forget call |
 | `aloha_honua_2.py` | Actor and client in one file as a `click` group: `hoomaka` (start), `aloha` (call), `ku` (remote stop) |
-| `aloha_honua_3.py` | `aiko.do_request()` — remote call with a reply on a caller-provided topic, and the `AlohaHonuaResponse` Interface |
+| `aloha_honua_3.py` | `aiko.do_request()` — remote call with a reply on a caller-given topic, and the `AlohaHonuaResponse` Interface |
 
 The source directory also contains a narrative
 [ReadMe](../../../src/aiko_services/examples/aloha_honua/ReadMe.md)

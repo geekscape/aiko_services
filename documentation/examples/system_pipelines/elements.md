@@ -6,23 +6,23 @@ description: Base64ToImages and ImagesToBase64 — PipelineElements that
 type: concept
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/system_pipelines/elements.py
 related: [pipeline_element, pipeline, stream, process_manager, yolo]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # System Pipelines transport elements
 
 ## Overview
 
-`elements.py` provides the two
+`elements.py` gives the two
 [PipelineElements](../../concepts/pipeline_element.md) that let the
 System Pipelines example split image processing across *two*
-[Pipelines](../../concepts/pipeline.md) — a local webcam Pipeline
-and a remote YOLOE detection Pipeline:
+[Pipelines](../../concepts/pipeline.md). Those two are a local webcam
+Pipeline and a remote YOLOE detection Pipeline:
 
 - **`ImagesToBase64`** — serializes a Frame's first image
   (`numpy.ndarray`) into a zlib-compressed, base64-encoded string.
@@ -34,7 +34,7 @@ MQTT as text, so binary image arrays must be encoded into a
 string-safe form first. These elements make that encoding an
 explicit, visible graph step at each end of the remote hop.
 
-**Why you'd use it**: run detection on a different host (or process)
+**Why to use it**: run detection on a different host (or process)
 from the camera, without changing either Pipeline's internals:
 
 ```
@@ -43,13 +43,13 @@ from the camera, without changing either Pipeline's internals:
 ```
 
 See the [package index](ReadMe.md) for the full two-Pipeline example
-launched via [ProcessManager](../../concepts/process_manager.md).
+launched through [ProcessManager](../../concepts/process_manager.md).
 
 ## For application developers
 
 ### Command-line usage
 
-There is no console script; the elements are deployed by
+There is no console script. The elements are deployed by
 `pipeline_webcam.json` and `pipeline_yoloe.json`. From the source
 header, run from `src/aiko_services/examples/system_pipelines/`:
 
@@ -104,13 +104,13 @@ shape ride along in the `.npy` header) and pickle-free.
 
 - The codec pair appears in *both* PipelineDefinitions: the webcam
   Pipeline encodes before its remote `Detector` element and decodes
-  the annotated result; the YOLOE Pipeline decodes on entry and
+  the annotated result. The YOLOE Pipeline decodes on entry and
   re-encodes annotated images on exit.
 - `np.save` / `np.load` with `allow_pickle=False` keeps the channel
   free of arbitrary-code-execution risk while preserving dtype and
   shape — a deliberate contrast to pickling.
 - Compression level 6 (zlib default) balances CPU against MQTT
-  payload size; the helpers expose it, the elements do not.
+  payload size. The helpers expose it, the elements do not.
 
 ### Implementation notes
 
@@ -118,7 +118,7 @@ shape ride along in the `.npy` header) and pickle-free.
   Frames carrying more than one image silently lose all but the
   first. `Base64ToImages` correspondingly always emits a one-image
   list.
-- Neither element defines `start_stream()` / `stop_stream()`; they
+- Neither element defines `start_stream()` / `stop_stream()`. They
   are [Stream](../../concepts/stream.md)-lifecycle-neutral codecs.
 - The helper functions carry full argument validation and keyword-only
   options, unusual polish for example code — they are intended for
@@ -134,15 +134,15 @@ shape ride along in the `.npy` header) and pickle-free.
 ## Current limitations and roadmap
 
 The source has no To Do list. Observed limitations of the
-implemented behaviour:
+implemented behavior:
 
 - Single-image Frames only: `images[0]` is encoded, the rest of the
   batch is dropped (see Implementation notes).
 - No parameters: compression level, and the optional `dtype` /
   `shape` validation of the helpers, are not exposed as
   PipelineDefinition parameters.
-- Base64-over-MQTT is a simple but bandwidth-heavy transport; the
-  neighbouring uncommitted `*_zmq` PipelineDefinition variants in
+- Base64-over-MQTT is a simple but bandwidth-heavy transport. The
+  neighboring uncommitted `*_zmq` PipelineDefinition variants in
   the same source directory experiment with ZeroMQ instead.
 
 ## Related concepts

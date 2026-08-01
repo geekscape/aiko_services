@@ -5,23 +5,23 @@ description: Index of the face detection example — the FaceDetector
 type: index
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/face
 related: [pipeline, pipeline_element, share, yolo]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Face example index
 
-The face example under `src/aiko_services/examples/face/` detects
-human faces in live webcam video using DeepFace (RetinaFace) and
-draws bounding boxes on screen — an Aiko Services
+The face example under `src/aiko_services/examples/face/` detects human
+faces in live webcam video with DeepFace (RetinaFace). It draws
+bounding boxes on screen. It is an Aiko Services
 [Pipeline](../../concepts/pipeline.md) with the same
 detect-overlay-display shape as the
 [YOLO example](../yolo/ReadMe.md), plus a live `detections` counter
-published via [Share](../../concepts/share.md). See [face](face.md).
+published through [Share](../../concepts/share.md). See [face](face.md).
 
 Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 [media elements](../../elements/media/ReadMe.md) ·
@@ -48,10 +48,10 @@ aiko_pipeline create face_pipeline.json -s 1  \
 |--------------------|---------------|---------|
 | `face_pipeline.json` | `p_face` | Webcam → resize → `FaceDetector` → `ImageOverlay` → display (`VideoShow`), plus [`Metrics`](../../elements/observe/elements.md) timing |
 
-Note: `face_pipeline.json` declares the `FaceDetector` /
-`ImageOverlay` overlay type as `"{rectangles]"` (mismatched
-brackets) rather than the `"[overlay]"` used by the sibling
-examples — the type strings are not currently validated.
+Note: `face_pipeline.json` declares the `FaceDetector` and
+`ImageOverlay` overlay type as `"{rectangles]"`, whose brackets do not
+match. The sibling examples use `"[overlay]"`. Nothing validates the
+type strings today.
 
 ## Related documentation
 

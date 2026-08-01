@@ -6,24 +6,24 @@ description: Index of the XGO-Mini 2 robot dog example concept
 type: index
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/xgo_robot
 related: [actor, service, message, share]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # XGO robot example index
 
 One concept document per Python module in
-`src/aiko_services/examples/xgo_robot/` — controlling the LuWu
-Dynamics XGO-Mini 2 quadruped robot dog (Raspberry Pi CM4, camera,
-LCD, 3 DoF arm with gripper) as an Aiko Services
+`src/aiko_services/examples/xgo_robot/`. These modules control the LuWu
+Dynamics XGO-Mini 2 quadruped robot dog (Raspberry Pi CM4, camera, LCD,
+3 DoF arm with gripper) as an Aiko Services
 [Actor](../../concepts/actor.md). The source
 `src/aiko_services/examples/xgo_robot/ReadMe.md` introduces the
-hardware, with links to the vendor wiki and KickStarter campaign;
-only the XGO-Mini 2 is supported, not the original XGO-Mini.
+hardware, with links to the vendor wiki and KickStarter campaign. Only
+the XGO-Mini 2 is supported, and not the original XGO-Mini.
 
 Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 [robot example](../robot/ReadMe.md)
@@ -34,17 +34,17 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 |----------|---------|
 | [xgo_robot](xgo_robot.md) | The Actor running on the robot: remote commands, camera video over MQTT, battery monitor, buttons; hardware calls currently mocked out |
 | [robot_control](robot_control.md) | Laptop-side `RobotControl` (video viewer with YOLO detection and speech-command relay) and `VideoTest` (webcam publisher) |
-| [robot](robot.md) | Work-in-progress extraction of the `XGORobot` Interface towards a generic `Robot` interface; not yet imported by `xgo_robot.py` |
+| [robot](robot.md) | Work-in-progress extraction of the `XGORobot` Interface toward a generic `Robot` interface; not yet imported by `xgo_robot.py` |
 
 ## Shell scripts
 
-Operational helpers, run on or against the robot; each contains
+Operational helpers, run on or against the robot. Each contains
 `AIKO_MQTT_HOST` / `ROBOT_HOSTNAME` placeholders to fill in:
 
 | Script | Purpose |
 |--------|---------|
 | `xgo_robot.sh` | On-robot launcher: activate the venv, set `PYTHONPATH` (Aiko Services plus the vendor `cm4-main` tree), start `xgo_robot.py` |
-| `action.sh [action]` | Find the running `xgo_robot` process id and publish `(action <name>)` (default `sit`) to its `/in` topic via `mosquitto_pub` |
+| `action.sh [action]` | Find the running `xgo_robot` process id and publish `(action <name>)` (default `sit`) to its `/in` topic through `mosquitto_pub` |
 | `terminate.sh` | Likewise publish `(terminate)` to shut the Actor down |
 
 The scripts' shared To Do list: use discovery to find the topic

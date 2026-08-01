@@ -7,13 +7,13 @@ description: The teaching PipelineElements — PE_Add, PE_Event,
 type: concept
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/pipeline/elements.py
 related: [pipeline_element, pipeline, stream, parameters, share,
   elements]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Pipeline example elements
@@ -22,30 +22,30 @@ last_updated: 2026-07-06
 
 `examples/pipeline/elements.py` is the teaching companion to the
 [Pipeline](../../concepts/pipeline.md) and
-[PipelineElement](../../concepts/pipeline_element.md) concepts. Where
-the media element families do real work, these elements do arithmetic
-and string tagging — just enough behaviour to make Frame flow,
-[Parameters](../../concepts/parameters.md) resolution, fan-out /
+[PipelineElement](../../concepts/pipeline_element.md) concepts. The
+media element families do real work. But these elements do only
+arithmetic and string tagging. That is enough behavior to make Frame
+flow, [Parameters](../../concepts/parameters.md) resolution, fan-out /
 fan-in, remote deployment and Graph Path selection visible in the log.
 
 Every committed PipelineDefinition in this package (see the
 [package index](ReadMe.md)) is built from these classes:
 
 - **`PE_Add`** — add a constant to `i`, with an optional per-frame
-  delay; the workhorse of the [multitude](multitude/ReadMe.md)
+  delay. The workhorse of the [multitude](multitude/ReadMe.md)
   stress-test Pipelines
 - **`PE_Event`** — parameter-driven StreamEvent demonstration
-  (work-in-progress; see limitations)
+  (work-in-progress, refer to the limitations)
 - **`PE_RandomIntegers`** — a self-clocking frame generator that
   publishes each value to its [Share](../../concepts/share.md)d state
 - **`PE_0` .. `PE_4`** — increment-and-sum elements forming a diamond
   graph (fan-out then fan-in)
 - **`PE_IN`, `PE_TEXT`, `PE_OUT`** — string-tagging elements reused
   under several node names to demonstrate multiple Graph Paths
-- **`PE_DataEncode`, `PE_DataDecode`** — base64 / NumPy serialisation
+- **`PE_DataEncode`, `PE_DataDecode`** — base64 / NumPy serialization
   for moving binary data between Pipelines as text
 
-**Why you'd use it**: watch a two-element Pipeline generate and
+**Why to use it**: watch a two-element Pipeline generate and
 transform Frames without any hardware, files or data preparation:
 
 ```bash
@@ -59,7 +59,7 @@ aiko_dashboard  # select "PE_RandomIntegers" and watch "random" update
 
 All commands run from `src/aiko_services/examples/pipeline` (the
 source header says `cd ../examples/pipeline`). `$HOST` is the MQTT
-server and `$TOPIC` is the Pipeline's `.../in` topic, i.e.
+server and `$TOPIC` is the Pipeline's `.../in` topic, that is
 `$NAMESPACE/$HOST/$PID/$SID/in`.
 
 Single-Process diamond graph (`PE_1 .. PE_4` plus `Inspect` and
@@ -72,7 +72,7 @@ mosquitto_pub -h $HOST -t $TOPIC -m "(process_frame (stream_id: 1) (b: 0))"
 ```
 
 Distributed Pipeline: `pipeline_remote.json` runs `PE_0` locally, then
-hands the Frame to the *whole* `p_local` Pipeline via a remote proxy
+hands the Frame to the *whole* `p_local` Pipeline through a remote proxy
 element (start `pipeline_local.json` first):
 
 ```bash
@@ -81,7 +81,7 @@ mosquitto_pub -h $HOST -t $TOPIC -m "(process_frame (stream_id: 1) (a: 0))"
 ```
 
 Self-generating stream — `PE_RandomIntegers` creates its own Frames,
-so only `create_stream` is needed (here via `-s 1` plus parameter
+so only `create_stream` is needed (here through `-s 1` plus parameter
 overrides):
 
 ```bash
@@ -90,8 +90,8 @@ aiko_dashboard  # select "PE_RandomIntegers" and watch "random" update
 ```
 
 Graph Path selection — choose which of the four paths in
-`pipeline_paths.json` handles the Stream, either for the Pipeline via
-`-gp` or per-Stream via `create_stream`:
+`pipeline_paths.json` handles the Stream, either for the Pipeline through
+`-gp` or per-Stream through `create_stream`:
 
 ```bash
 aiko_pipeline create pipeline_paths.json -gp PE_IN_0 -fd "(in_a: x)"
@@ -127,9 +127,9 @@ the default `start_stream()` / `stop_stream()` unless noted.
 |----------|------------------|------------|
 | `add:0` | `i` (int) → `i` (int) | `constant` (default 1), `delay` (default 0, seconds) |
 
-Adds `constant` to `i`, logs `i in / out` at info level, then sleeps
-`delay` seconds when non-zero — the delay makes Pipeline back-pressure
-and `Metrics` timing observable in the
+Adds `constant` to `i`, and logs `i in / out` at info level. It then
+sleeps `delay` seconds when that value is not zero. The delay makes
+Pipeline back-pressure and `Metrics` timing observable in the
 [multitude](multitude/ReadMe.md) stress tests.
 
 #### PE_Event
@@ -150,17 +150,17 @@ limitations).
 
 | Protocol | Inputs → Outputs | Parameters |
 |----------|------------------|------------|
-| `random_integers:0` | `random` (int) → `random` (int) | `rate` (default 1.0 frames/second), `limit` (required — no default) |
+| `random_integers:0` | `random` (int) → `random` (int) | `rate` (default 1.0 frames/second), `limit` (needed — no default) |
 
 A minimal self-clocking frame generator, structured like a
 [DataSource](../../concepts/data_source_target.md) (the source comments
 its protocol with `data_source:0`). `start_stream()` registers
-`frame_generator` via `create_frames(stream, self.frame_generator,
-rate=...)`; the generator emits `{"random": randint(0, 9)}` until
+`frame_generator` through `create_frames(stream, self.frame_generator,
+rate=...)`. The generator emits `{"random": randint(0, 9)}` until
 `frame_id` reaches `limit`, then returns `StreamEvent.STOP` with the
 diagnostic `"Frame limit reached"`. Each `process_frame()` call also
 publishes the value with `self.ec_producer.update("random", random)`,
-so the [Dashboard](../../concepts/dashboard.md) shows it live via
+so the [Dashboard](../../concepts/dashboard.md) shows it live through
 [Share](../../concepts/share.md). Commented-out code in
 `frame_generator` sketches two planned variations: returning several
 frames at once (a list of frame-data dicts) and extending the Stream
@@ -172,7 +172,7 @@ PipelineDefinition or the command line, `int(limit)` raises
 
 #### PE_0 .. PE_4 — the diamond graph
 
-| Class | Protocol | Inputs → Outputs | Behaviour |
+| Class | Protocol | Inputs → Outputs | Behavior |
 |-------|----------|------------------|-----------|
 | `PE_0` | `increment:0` | `a` → `b` | `b = a + pe_0_inc` (parameter, default 1) |
 | `PE_1` | `increment:0` | `b` → `c` | `c = b + pe_1_inc` (parameter, default 1); also reads Pipeline parameter `p_1` |
@@ -183,27 +183,27 @@ PipelineDefinition or the command line, `int(limit)` raises
 `pipeline_local.json` wires them as
 `(PE_1 (PE_2 PE_4) (PE_3 PE_4) Inspect Metrics)` — fan-out from `PE_1`
 to `PE_2` and `PE_3`, fan-in at `PE_4`. `pipeline_remote.json` runs
-`PE_0` locally and deploys "`PE_1`" as a **remote proxy for the entire
-`p_local` Pipeline**, demonstrating that a remote PipelineElement's
-contract (`b` in, `f` out) can be satisfied by another Pipeline.
+`PE_0` locally, and deploys "`PE_1`" as a **remote proxy for the entire
+`p_local` Pipeline**. This shows that another Pipeline can satisfy the
+contract of a remote PipelineElement (`b` in, `f` out).
 
 #### PE_IN, PE_TEXT, PE_OUT — Graph Path trio
 
-| Class | Protocol | Inputs → Outputs | Behaviour |
+| Class | Protocol | Inputs → Outputs | Behavior |
 |-------|----------|------------------|-----------|
 | `PE_IN` | `in:0` | `in_a` → `text_b` | `text_b = "<in_a>:in"` |
 | `PE_TEXT` | `text_to_text:0` | `text_b` → `text_b` | appends `":text"` |
 | `PE_OUT` | `out:0` | `text_b` → `out_c` | appends `":out"` |
 
 Each element tags the string with its own name, so the final `out_c`
-value (e.g. `x:in:text:out`) records exactly which path the Frame
+value (for example, `x:in:text:out`) records exactly which path the Frame
 took. `pipeline_paths.json` instantiates them under multiple node
 names (`PE_IN_0` .. `PE_IN_3`, `PE_OUT_0`, `PE_OUT_1`) using the
 `deploy.local.class_name` field, giving four selectable Graph Paths.
 
 #### PE_DataEncode and PE_DataDecode
 
-| Class | Inputs → Outputs | Behaviour |
+| Class | Inputs → Outputs | Behavior |
 |-------|------------------|-----------|
 | `PE_DataEncode` | `data` → `data` | `str` → UTF-8 bytes; `numpy.ndarray` → `np.save()` bytes; then base64-encode to a text string |
 | `PE_DataDecode` | `data` → `data` | base64-decode, then `np.load(..., allow_pickle=True)` back to an ndarray |
@@ -228,7 +228,7 @@ PE_Event ............... parameter-driven StreamEvent (WIP)
 PE_RandomIntegers ...... start_stream() + create_frames() generator,
                          self.share / ec_producer live state
 PE_0 .. PE_4 ........... multi-node graphs: fan-out, fan-in,
-                         Pipeline vs element Parameters
+                         Pipeline and element Parameters
 PE_IN / PE_TEXT / PE_OUT class_name aliasing, Graph Paths
 PE_DataEncode / Decode . binary payloads over a text transport
 ```
@@ -239,14 +239,14 @@ All follow the standard constructor idiom —
 in [PipelineElement](../../concepts/pipeline_element.md). Because the
 elements are trivial, the interesting design lives in the companion
 PipelineDefinitions (deployment topology, Graph Paths, remote
-proxies); see the [package index](ReadMe.md).
+proxies). See the [package index](ReadMe.md).
 
 ### Implementation notes
 
-- Frame values arrive as strings when published via `mosquitto_pub`,
+- Frame values arrive as strings when published through `mosquitto_pub`,
   so every arithmetic element coerces with `int(...)` before use.
 - `PE_1` reads Pipeline-level parameter `p_1` purely to demonstrate
-  Pipeline-scope parameter resolution; the value is not used. The
+  Pipeline-scope parameter resolution. The value is not used. The
   local variable `increment = 1` in `PE_1.process_frame()` is also
   unused.
 - `PE_DataDecode` passes `allow_pickle=True` to `np.load()` — do not
@@ -262,7 +262,7 @@ proxies); see the [package index](ReadMe.md).
 | `PE_0` .. `PE_3` | Increment one value, rename the output | [PipelineElement](../../concepts/pipeline_element.md) |
 | `PE_4` | Sum two inputs — fan-in | [PipelineElement](../../concepts/pipeline_element.md) |
 | `PE_IN` / `PE_TEXT` / `PE_OUT` | Tag a string with the path taken | [Pipeline](../../concepts/pipeline.md) Graph Paths |
-| `PE_DataEncode` / `PE_DataDecode` | base64 / NumPy (de)serialisation of `data` | [Transport](../../concepts/transport.md) |
+| `PE_DataEncode` / `PE_DataDecode` | base64 / NumPy (de)serialization of `data` | [Transport](../../concepts/transport.md) |
 
 ## Current limitations and roadmap
 
@@ -270,18 +270,18 @@ proxies); see the [package index](ReadMe.md).
   `condition` and `event`, but always returns `StreamEvent.OKAY` —
   the diagnostic string is produced, the event itself is not.
 - `PE_RandomIntegers.limit` has no default and fails with `TypeError`
-  when omitted; multi-frame generation and Stream-Lease extension are
+  when omitted. Multi-frame generation and Stream-Lease extension are
   present only as commented-out sketches.
 - From the source To Do list — **planned**: rework `PE_DataDecode` /
   `PE_DataEncode` to use `kwargs` for flexible choices of data type
-  transferred via function parameters.
+  transferred through function parameters.
 - The header's `aiko_pipeline create pipeline_test.json` refers to a
   PipelineDefinition that is not committed alongside this module.
 
 ## Related concepts
 
 - [Pipeline](../../concepts/pipeline.md) — the graphs these elements
-  populate; Graph Paths and remote deployment
+  populate. Graph Paths and remote deployment
 - [PipelineElement](../../concepts/pipeline_element.md) — the contract
   every class here implements
 - [Stream](../../concepts/stream.md) — StreamEvent semantics and the

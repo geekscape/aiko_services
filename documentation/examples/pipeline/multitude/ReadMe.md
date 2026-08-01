@@ -7,22 +7,22 @@ description: Index of the multitude stress / scale examples — chains of
 type: index
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/pipeline/multitude
 related: [pipeline, pipeline_element, stream, elements]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Multitude Pipeline examples index
 
 The multitude examples stress-test distributed
-[Pipelines](../../../concepts/pipeline.md): many Pipeline Processes
-chained head-to-tail through **remote PipelineElement proxies**, all
-doing trivial [`PE_Add`](../elements.md) arithmetic so that the
-measurable cost is the framework itself — MQTT round-trips, Frame
-routing and per-element overhead, reported by the
+[Pipelines](../../../concepts/pipeline.md). Many Pipeline Processes are
+chained head-to-tail through **remote PipelineElement proxies**. All of
+them do trivial [`PE_Add`](../elements.md) arithmetic. Thus the
+measurable cost is the framework itself: MQTT round-trips, Frame
+routing and per-element overhead. The
 [Metrics](../../../elements/observe/elements.md) element that ends
 every graph.
 
@@ -33,7 +33,7 @@ Navigation: [pipeline examples index](../ReadMe.md) ·
 
 | Document | Summary |
 |----------|---------|
-| [elements](elements.md) | `PE_A0` / `PE_B0` / `PE_C0` and `PE_000` .. `PE_090` — empty `PE_Add` subclasses required by the remote deployments |
+| [elements](elements.md) | `PE_A0` / `PE_B0` / `PE_C0` and `PE_000` .. `PE_090` — empty `PE_Add` subclasses needed by the remote deployments |
 
 ## The chained-Pipeline patterns
 
@@ -46,10 +46,10 @@ traversed.
 
 `pipeline_small_a.json`, `pipeline_small_b.json` and
 `pipeline_small_c.json` (Pipelines `p_small_a` / `_b` / `_c`) each run
-two local `PE_Add` nodes and — except the terminal `c` — one remote
-proxy *in the middle* of the graph, so the downstream Pipeline is
-called mid-Frame and its result flows back before the local tail node
-runs:
+two local `PE_Add` nodes. Each also runs one remote proxy *in the
+middle* of the graph, except the terminal `c`. Thus the downstream
+Pipeline is called mid-Frame, and its result flows back before the
+local tail node runs:
 
 ```
 p_small_a: (PE_A0  PE_B0*           PE_A1  Metrics)
@@ -111,10 +111,10 @@ usage:
 ./run_small.sh WARNING true 0.02  # max frame rate before falling behind
 ```
 
-- argument 1 → `AIKO_LOG_LEVEL` (default `WARNING`; `DEBUG` shows
+- argument 1 → `AIKO_LOG_LEVEL` (default `WARNING`, and `DEBUG` shows
   Metrics measurements)
 - argument 2 → `AIKO_LOG_MQTT` (usage comment says `true` = MQTT
-  logging, `false` = console; the script default is `all`)
+  logging, `false` = console. The script default is `all`)
 - argument 3 → seconds between Frames (default `1.0`)
 
 ## Current limitations and roadmap
@@ -129,9 +129,9 @@ From the scripts' To Do lists — **planned**, not implemented:
 ## Related documentation
 
 - [Multitude alias elements](elements.md) — why `PE_B0`, `PE_010`
-  etc. must exist as Python classes
+  and the other aliases must exist as Python classes
 - [Pipeline example elements](../elements.md) — `PE_Add`, the single
-  element behaviour used throughout
+  element behavior used throughout
 - [Pipeline examples index](../ReadMe.md) — the single-Pipeline
   teaching examples these scale up
 - [Pipeline](../../../concepts/pipeline.md) — remote deployment and

@@ -6,21 +6,22 @@ description: Index of the LLM example — the LangChain / Ollama LLM
 type: index
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/llm
 related: [pipeline, pipeline_element, text_io, speech_elements]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # LLM example index
 
 The LLM example under `src/aiko_services/examples/llm/` runs a local
-LLM — **Ollama** (default model `gemma4:latest`) via LangChain, with
-an OpenAI option — as the `p_llm` Aiko Services
-[Pipeline](../../concepts/pipeline.md), prompted as a robot-dog
-persona that replies only in S-Expressions.
+LLM as the `p_llm` Aiko Services
+[Pipeline](../../concepts/pipeline.md). That LLM is **Ollama** (default
+model `gemma4:latest`) through LangChain, and an OpenAI option also
+exists. The prompt casts it as a robot-dog persona that replies only in
+S-Expressions.
 
 Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 [media elements](../../elements/media/ReadMe.md) ·
@@ -81,7 +82,7 @@ microphone -> WhisperX  ==>  LLM (Ollama)  ==>  Coqui TTS -> speaker
 ```
 
 `pipeline_speech_llm_input.json` deploys its `PE_LLM` element remote
-to `p_llm`; enabling `llm_pipeline_0.json`'s `"#"` graph deploys
+to `p_llm`. Enabling `llm_pipeline_0.json`'s `"#"` graph deploys
 `PE_COQUI_TTS` remote to `p_llm_output`, which speaks the reply.
 
 ## Related documentation

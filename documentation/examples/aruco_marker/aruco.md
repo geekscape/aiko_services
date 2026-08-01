@@ -5,20 +5,20 @@ description: ArucoMarkerDetector and ArucoMarkerOverlay — OpenCV ArUco
 type: concept
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/aruco_marker/aruco.py
 related: [pipeline_element, pipeline, stream, parameters, image_io,
   yolo]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # ArUco marker detection example
 
 ## Overview
 
-`aruco.py` provides two
+`aruco.py` gives two
 [PipelineElements](../../concepts/pipeline_element.md) built on the
 OpenCV `cv2.aruco` module:
 
@@ -26,31 +26,31 @@ OpenCV `cv2.aruco` module:
   (`DICT_4X4_50` dictionary) in each image and emits their corner
   coordinates and marker ids as `overlays`.
 - **`ArucoMarkerOverlay`** — draws each detected marker back onto the
-  image: a yellow bounding box, a red centre dot and the marker id in
+  image: a yellow bounding box, a red center dot and the marker id in
   purple text above the top-left corner.
 
 ArUco markers are printed 2-D barcodes whose pose can be recovered
 from a single calibrated camera — cheap, robust ground-truth for
 robotics. The detector and overlay are separate elements so that the
-detection result can also feed non-visual consumers (e.g the robot
+detection result can also feed non-visual consumers (for example, the robot
 example's OODA loop) without drawing anything.
 
-**Why you'd use it**: hold a printed 4x4 ArUco marker up to your
+**Why to use it**: hold a printed 4x4 ArUco marker up to your
 webcam and see it boxed and numbered live:
 
 ```bash
 aiko_pipeline create aruco_pipeline_0.json -s 1 -ll debug
 ```
 
-Requires `opencv-python` (install Aiko Services with
-`--extras "opencv"`); importing `aruco.py` without it raises
+Needs `opencv-python` (install Aiko Services with
+`--extras "opencv"`). Importing `aruco.py` without it raises
 `ModuleNotFoundError` with installation instructions.
 
 ## For application developers
 
 ### Command-line usage
 
-There is no console script; the elements are deployed by
+There is no console script. The elements are deployed by
 `aruco_pipeline_0.json` (see the [package index](ReadMe.md)). From
 the source header, run from
 `src/aiko_services/examples/aruco_marker/`:
@@ -63,7 +63,7 @@ aiko_pipeline create aruco_pipeline_0.json -s 1  \
 ```
 
 The Pipeline records annotated output to
-`data_out/out_{:02d}.mp4` via `VideoWriteFile`.
+`data_out/out_{:02d}.mp4` through `VideoWriteFile`.
 
 ### Public API
 
@@ -86,9 +86,9 @@ overlay = {
 }
 ```
 
-This overlay format is *specific to* `ArucoMarkerOverlay` — it is not
+This overlay format is *specific to* `ArucoMarkerOverlay`. It is not
 the `objects` / `rectangles` format that
-[`ImageOverlay`](../../elements/media/image_io.md) consumes, which is
+[`ImageOverlay`](../../elements/media/image_io.md) consumes. That is
 why the ArUco pair travel together in a graph (the source To Do notes
 a plan to integrate the two).
 
@@ -97,10 +97,10 @@ grayscale and RGB inputs, and returns the annotated images (RGB) as
 `{"images": images_overlayed}`. Images with no detected markers pass
 through unmodified.
 
-Neither element currently takes parameters: the ArUco dictionary is
-fixed at `DICT_4X4_50` (`_DEFAULT_ARUCO_TAGS`), although a full
+Neither element currently takes parameters. The ArUco dictionary is
+fixed at `DICT_4X4_50` (`_DEFAULT_ARUCO_TAGS`). But a full
 `_ARUCO_TAGS_TABLE` of seventeen OpenCV dictionaries is already
-defined, and the marker size constant `_ARUCO_MARKER_SIZE_CM = 70.0`
+defined. The marker size constant `_ARUCO_MARKER_SIZE_CM = 70.0`
 is a TODO-flagged candidate parameter.
 
 ## For framework developers (internals)
@@ -121,10 +121,10 @@ is a TODO-flagged candidate parameter.
   [Stream](../../concepts/stream.md) — since the dictionary is fixed.
 - The OpenCV API changed at 4.7.0: on 4.7.0+ a
   `cv2.aruco.ArucoDetector` instance is constructed and
-  `detectMarkers()` is called on it; the pre-4.7.0 branch calls
+  `detectMarkers()` is called on it. The pre-4.7.0 branch calls
   `cv2.aruco.ArucoDetector.detectMarkers(...)` statically — see
   Implementation notes.
-- Pose estimation (distance and rotation via
+- Pose estimation (distance and rotation through
   `cv2.aruco.estimatePoseSingleMarkers` and a
   `CameraCalibration.pckl` file) is present but fully commented out —
   **not implemented**. Supporting calibration scripts live in the
@@ -137,14 +137,14 @@ is a TODO-flagged candidate parameter.
   `cv2.aruco.ArucoDetector` does not exist before OpenCV 4.7.0 — the
   legacy call was `cv2.aruco.detectMarkers(...)`. On older OpenCV,
   the constructor also never assigns `self.aruco_detector`. In
-  practice the element requires OpenCV >= 4.7.0.
+  practice the element needs OpenCV >= 4.7.0.
 - `numpy` import failure only logs a warning (unlike `cv2`, which
   raises), yet `ArucoMarkerOverlay` calls `np.array()`
   unconditionally — without numpy it fails at frame time, not import
   time.
 - Inside the overlay's marker loop, `corners` is reassigned
   (`corners = marker_corner.reshape((4, 2))`), shadowing the outer
-  per-image corners tuple; safe today because `zip()` has already
+  per-image corners tuple. Safe today because `zip()` has already
   captured it, but fragile.
 - `import pickle` and the `_ARUCO_MARKER_SIZE_CM` constant serve only
   the commented-out calibration / pose code.
@@ -154,21 +154,21 @@ is a TODO-flagged candidate parameter.
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `ArucoMarkerDetector` | Detect ArUco markers per image; emit corners and ids as `overlays` | [PipelineElement](../../concepts/pipeline_element.md), `cv2.aruco`, `ArucoMarkerOverlay` (consumer) |
-| `ArucoMarkerOverlay` | Draw box, centre dot and id text per marker; pass annotated images downstream | [PipelineElement](../../concepts/pipeline_element.md), `cv2`, `numpy`, [Stream](../../concepts/stream.md) |
+| `ArucoMarkerOverlay` | Draw box, center dot and id text per marker; pass annotated images downstream | [PipelineElement](../../concepts/pipeline_element.md), `cv2`, `numpy`, [Stream](../../concepts/stream.md) |
 
 ## Current limitations and roadmap
 
 From the source To Do list — **planned**, not implemented:
 
 - Implement "distance (tvec)" pose estimation and overlay it next to
-  the marker id (code drafted but commented out; requires a camera
-  calibration file).
-- Determine and standardise the image type (PIL and/or
+  the marker id. The code is drafted but commented out, and it needs a
+  camera calibration file.
+- Determine and standardize the image type (PIL and/or
   `numpy.ndarray`).
 - Integrate `ArucoMarkerOverlay` with the general-purpose
   [`ImageOverlay`](../../elements/media/image_io.md) element.
 - An integrated camera calibration tool (CLI, desktop GUI): capture
-  calibration video, perform calibration, standard multi-camera
+  calibration video, do calibration, standard multi-camera
   calibration file naming / format, and ArUco marker generation
   (calibration board, page of six markers, or one).
 - Make `_ARUCO_MARKER_SIZE_CM` (and, implicitly, the ArUco
@@ -181,7 +181,7 @@ From the source To Do list — **planned**, not implemented:
 - [Pipeline](../../concepts/pipeline.md) — the deploying graph
 - [Stream](../../concepts/stream.md) — StreamEvent semantics
 - [image_io](../../elements/media/image_io.md) — `ImageResize`
-  upstream; `ImageOverlay`, the planned integration target
+  upstream. `ImageOverlay`, the planned integration target
 - [webcam_io](../../elements/media/webcam_io.md) — the live image
   DataSource
 - [YOLO example](../yolo/yolo.md) — combined with the ArUco pair in

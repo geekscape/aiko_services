@@ -6,12 +6,12 @@ description: Index of the robot example concept documents — the
 type: index
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/robot
 related: [pipeline, pipeline_element, actor, discovery]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Robot example index
@@ -41,9 +41,9 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 | PipelineDefinition | Document(s) | Purpose |
 |--------------------|-------------|---------|
 | `robot_pipeline.json` | [ooda/elements](ooda/elements.md) | The `p_robot` OODA loop: ZeroMQ images and terminal text in, ArUco + YOLO detection, LLM decision, robot commands out. Elements are annotated `++ DONE ++`, `-- TODO --` or `noop` (Mock placeholder) — audio (microphone, speech-to-text, text-to-speech, speaker) and `SceneDescription` are placeholders |
-| `virtual/world_pipeline.json` | [virtual/world](virtual/world.md) | The `p_world` Pipeline with five Graph Paths: `World` (Metrics only), `World_OODA` (local detect and display), `World_ZMQ` (publish images via ZeroMQ), `ZMQ_OODA` (consume ZeroMQ images) and the shared `OODA` tail |
+| `virtual/world_pipeline.json` | [virtual/world](virtual/world.md) | The `p_world` Pipeline with five Graph Paths: `World` (Metrics only), `World_OODA` (local detect and display), `World_ZMQ` (publish images through ZeroMQ), `ZMQ_OODA` (consume ZeroMQ images) and the shared `OODA` tail |
 
-`robot_pipeline.json` also deploys elements from neighbouring
+`robot_pipeline.json` also deploys elements from neighboring
 examples (`examples/llm/elements.py`, `examples/yolo/yolo.py`,
 `examples/aruco_marker/aruco.py`) and from the standard
 [media element families](../../elements/media/ReadMe.md)
@@ -60,7 +60,7 @@ examples (`examples/llm/elements.py`, `examples/yolo/yolo.py`,
 | `ooda/yolov8n_robotdog.pt` | Symbolic link to `../../yolo/yolov8n_robotdog.pt` — YOLOv8 model fine-tuned for the robot-dog scene |
 | `virtual/yolov8n_robotdog.pt` | The same symbolic link, for the virtual world's `YoloDetector` |
 | `virtual/models/` | Panda3D assets: `world.egg.pz` terrain, `robot.egg.pz` with `robot-run` / `robot-walk` animations, and textures (`ground.jpg`, `hedge.jpg`, `robot.jpg`, `rock03.jpg`, `tree.jpg`) |
-| `virtual/LICENSE` | Modified BSD licence for the Panda3D "Roaming Ralph" sample the virtual world derives from |
+| `virtual/LICENSE` | Modified BSD license for the Panda3D "Roaming Ralph" sample the virtual world derives from |
 
 The `z_notes.txt` and `z_todo.txt` scratch files record the working
 terminal sessions and the example-wide To Do list.

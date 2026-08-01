@@ -6,13 +6,13 @@ description: The Actor that runs on the XGO-Mini 2 robot dog —
 type: concept
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/xgo_robot/xgo_robot.py
 related: [actor, service, message, share, event, robot,
   robot_control]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # XGO-Mini 2 robot dog Actor (xgo_robot.py)
@@ -24,24 +24,24 @@ the XGO-Mini 2 quadruped robot dog (Raspberry Pi CM4 with camera,
 LCD screen, buttons, a 3 DoF arm with gripper, and an ESP32 driving
 the servos — see the source `ReadMe.md`). It exposes the robot as an
 Aiko Services [Service](../../concepts/service.md) with protocol
-`.../xgo_robot:0`: every robot command — `action`, `arm`, `claw`,
-`move`, `turn`, `attitude`, ... — is a remote function call, and the
-camera is published as a compressed video stream over MQTT for the
+`.../xgo_robot:0`. Every robot command is a remote function call:
+`action`, `arm`, `claw`, `move`, `turn`, `attitude` and more. The
+camera is published as a compressed video stream over MQTT, for the
 laptop-side [robot_control](robot_control.md) viewer or the
 Pipeline-based [OODA loop](../robot/ooda/elements.md).
 
-**Why you'd use it**: command a robot dog from anywhere on the
+**Why to use it**: command a robot dog from anywhere on the
 [message](../../concepts/message.md) transport:
 
 ```bash
 mosquitto_pub --topic $TOPIC_PATH/in --message "(action sit)"
 ```
 
-The same file also defines the `XGORobot` Interface (duplicated in
-[robot.py](robot.md), the in-progress extraction) and gates all
-hardware access behind `is_robot()` — a hostname check against
-`REAL_ROBOTS = ["laika", "oscar"]` — so the module can run,
-mocked, on a development host.
+The same file also defines the `XGORobot` Interface, which is
+duplicated in [robot.py](robot.md), the in-progress extraction. It gates
+all hardware access behind `is_robot()`, a hostname check against
+`REAL_ROBOTS = ["laika", "oscar"]`. Thus the module can run mocked on a
+development host.
 
 ## For application developers
 
@@ -88,8 +88,8 @@ wiggle_tail, sniff, shake_paw, arm
 
 Video is published to `<namespace>/video` as zlib-compressed
 `numpy.save` RGB frames (camera at 320x240, mirrored). Each command
-also echoes an S-expression such as `(claw 128)` or
-`(battery 85)` to the Actor's `/out` topic, so observers can track
+also echoes an S-expression to the Actor's `/out` topic, such as
+`(claw 128)` or `(battery 85)`. Thus observers can track
 what the robot was told to do.
 
 ## For framework developers (internals)
@@ -114,13 +114,13 @@ Key design points:
 
 - **`RobotCore` / `XGORobotImpl` split**: `RobotCore` holds the
   hardware-agnostic state (attitude / translation accumulators,
-  camera, video thread); `XGORobotImpl` mixes it with the Actor
-  machinery and, on a real robot, opens the XGO serial port
-  (`/dev/ttyAMA0`, `version="xgomini"`), reads firmware / library
+  camera, video thread). `XGORobotImpl` mixes it with the Actor
+  machinery. On a real robot it also opens the XGO serial port
+  (`/dev/ttyAMA0`, `version="xgomini"`), reads the firmware and library
   versions, and calls `claw(0)` once to "show signs of life".
-- **Stateful actuator model**: `attitude()` and `translation()`
-  keep the last pitch / roll / yaw and x / y / z, so a caller can
-  update one axis and preserve the rest (`"nil"` arguments).
+- **Stateful actuator model**: `attitude()` and `translation()` keep
+  the last pitch / roll / yaw and x / y / z. Thus a caller can update
+  one axis and keep the rest (`"nil"` arguments).
 - **Battery monitoring** uses an
   [event](../../concepts/event.md) timer
   (`event.add_timer_handler(..., 10.0, immediate=True)`), updating
@@ -130,16 +130,16 @@ Key design points:
 
 ### Implementation notes
 
-- **The hardware calls are currently commented out**: every
-  actuator method's `self._xgo.*` line is disabled with a `# MOCK`
-  marker, leaving only the `/out` echo publish — as committed, the
-  Actor does not drive the servos even on a real robot (only the
+- **The hardware calls are currently commented out.** A `# MOCK`
+  marker disables the `self._xgo.*` line of every actuator method, and
+  only the `/out` echo publish remains. Thus, as committed, the Actor
+  does not drive the servos even on a real robot (only the
   startup `claw(0)` and battery reads use `xgolib`). The header
   notes why: `xgolib` blocks all threads until an action completes.
 - The LCD screen is likewise disabled: `_screen_initialize()`
   returns `None`, so the status / detail overlay branch never runs.
 - Hardware imports (`RPi`, `spidev`, `key.Button`, `LCD_2inch`,
-  `xgolib`) only occur when `is_robot()` is true; these come from
+  `xgolib`) only occur when `is_robot()` is true. These come from
   the vendor `cm4-main` tree on the robot's `PYTHONPATH`.
 
 ### CRC card
@@ -155,16 +155,16 @@ Key design points:
 **Sharp edges in the implemented code:**
 
 - In `RobotCore._run()`, the button-check block, `_sleep()` and the
-  FPS calculation sit *outside* the `while not self._terminated`
-  loop — the capture loop never sleeps (ignoring `sleep_period`)
-  and the on-robot buttons are only examined after termination.
+  FPS calculation sit *outside* the `while not self._terminated` loop.
+  Thus the capture loop never sleeps, and it ignores `sleep_period`.
+  The on-robot buttons are also examined only after termination.
 - `translation()` publishes `(attitude x y z)` instead of
   `(translation x y z)` on the `/out` echo topic.
 - Video topic is `<namespace>/video`, while
   `robot_control.py` subscribes to `<namespace>/<robot_name>/video`
   — the two ends currently disagree.
-- The `XGORobot` Interface is duplicated here and in `robot.py`;
-  the To Do list says to import `robot.py` instead.
+- The `XGORobot` Interface is duplicated here and in `robot.py`. The
+  To Do list says to import `robot.py` instead.
 - `attitude()` / `translation()` abstract declarations omit `self`.
 
 **Planned** (source To Do list):
@@ -176,13 +176,13 @@ Key design points:
 - `(lambda NAME (COMMAND ...) ...)` scripted command sequences with
   `run` / `sleep` / `do` control, movement `period` arguments, and
   head nods for yes / no.
-- Publish video and YOLO inferences as first-class DataSources;
-  QR-code and ArUco readers driving actions; selectable on-robot ML
-  model.
-- Investigate making `xgolib` asynchronous (non-blocking); proper
-  logging of syntax and runtime errors; CPU% display; new menu and
-  button actions; LCD messages, sound and speech synthesis via
-  `/in`; LIDAR (LD06), Oak-D Lite camera and ROS2 integration.
+- Publish video and YOLO inferences as first-class DataSources. Add
+  QR-code and ArUco readers that drive actions. Add a selectable
+  on-robot ML model.
+- Investigate making `xgolib` asynchronous (non-blocking). Proper
+  logging of syntax and runtime errors. CPU% display. New menu and
+  button actions. LCD messages, sound and speech synthesis through
+  `/in`. LIDAR (LD06), Oak-D Lite camera and ROS2 integration.
 
 ## Related concepts
 

@@ -7,7 +7,7 @@ description: The graduated four-stage "hello world" tutorial — a minimal
 type: concept
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/aloha_honua/aloha_honua_0.py
   - src/aiko_services/examples/aloha_honua/aloha_honua_1.py
@@ -16,7 +16,7 @@ source:
   - src/aiko_services/examples/aloha_honua/ReadMe.md
 related: [actor, service, discovery, registrar, process, share, dashboard]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # AlohaHonua hello-world Actor tutorial
@@ -24,13 +24,15 @@ last_updated: 2026-07-06
 ## Overview
 
 *Aloha honua* is Hawaiian for "hello world". This example package is the
-Aiko Services equivalent of the traditional hello-world program — except
-that even the smallest stage is a *distributed* Service: an
-[Actor](../../concepts/actor.md) that registers with the
-[Registrar](../../concepts/registrar.md), can be discovered from any
-other process on the network, exposes a remotely callable method, logs
-via distributed logging and appears live on the
-[Dashboard](../../concepts/dashboard.md).
+Aiko Services equivalent of the traditional hello-world program. But
+even the smallest stage is a *distributed* Service. It is an
+[Actor](../../concepts/actor.md) that does all of these:
+
+- Registers with the [Registrar](../../concepts/registrar.md)
+- Can be discovered from any other process on the network
+- Exposes a remotely callable method
+- Logs through distributed logging
+- Appears live on the [Dashboard](../../concepts/dashboard.md)
 
 The tutorial is graduated across four source files, each building on
 the last:
@@ -38,9 +40,9 @@ the last:
 | Stage | File | Adds |
 |-------|------|------|
 | 0 | `aloha_honua_0.py` | The minimal `AlohaHonua` Actor: `aloha(name)` method, [Share](../../concepts/share.md) entries, MQTT topic printout |
-| 1 | `aloha_honua_1.py` | A separate client: `click` argument parsing, [discovery](../../concepts/discovery.md) via `aiko.do_command()` and a `ServiceFilter`, remote fire-and-forget invocation |
+| 1 | `aloha_honua_1.py` | A separate client: `click` argument parsing, [discovery](../../concepts/discovery.md) through `aiko.do_command()` and a `ServiceFilter`, remote fire-and-forget invocation |
 | 2 | `aloha_honua_2.py` | Actor and client combined into one file as a `click` command group — `hoomaka` (start), `aloha` (call), `ku` (remote stop) |
-| 3 | `aloha_honua_3.py` | `aiko.do_request()` — a remote call that returns a *response* on a caller-provided topic, plus the `AlohaHonuaResponse` response Interface |
+| 3 | `aloha_honua_3.py` | `aiko.do_request()` — a remote call that returns a *response* on a caller-given topic, plus the `AlohaHonuaResponse` response Interface |
 
 The source directory also carries its own narrative
 [ReadMe](../../../src/aiko_services/examples/aloha_honua/ReadMe.md)
@@ -48,7 +50,7 @@ The source directory also carries its own narrative
 architecture diagram `aiko_diagram_0.png` and a Dashboard screenshot
 `aiko_dashboard_0a.png`.
 
-**Why you'd use it**: this is the first runnable code to try after
+**Why to use it**: this is the first runnable code to try after
 installing Aiko Services — three terminal sessions demonstrate the
 whole distributed model in under a minute:
 
@@ -132,11 +134,11 @@ AIKO_LOG_MQTT=false  ./aloha_honua_0.py   # log to console, not MQTT
 [Actor](../../concepts/actor.md) whose public methods *are* the remote
 contract:
 
-| Method | Stage | Behaviour |
+| Method | Stage | Behavior |
 |--------|-------|-----------|
 | `aloha(name)` | 0-3 | Log `Aloha {name} !` at info level |
 | `ku()` | 2-3 | Log a farewell, then `raise SystemExit()` — stops the Actor process |
-| `request(topic_path_response, request)` | 3 | Reply on `topic_path_response` via a Service proxy: `item_count(1)` then `response(f"Aloha {request} 👋")` |
+| `request(topic_path_response, request)` | 3 | Reply on `topic_path_response` through a Service proxy: `item_count(1)` then `response(f"Aloha {request} 👋")` |
 
 Stage 0 additionally publishes two extra
 [Share](../../concepts/share.md) entries beside those inherited from
@@ -228,9 +230,10 @@ Request / response sequence (stage 3 `aloha` sub-command):
 
 ### Design
 
-The tutorial is deliberately a *minimal slice* through the framework's
-runtime structure — one [Process](../../concepts/process.md) per
-terminal session, all glued together by MQTT and the Registrar:
+The tutorial is deliberately a *minimal slice* through the runtime
+structure of the framework. There is one
+[Process](../../concepts/process.md) per terminal session. MQTT and the
+Registrar glue them together:
 
 ```
 +---------------------+        +----------------------+
@@ -259,12 +262,13 @@ Key design points, in the order the stages introduce them:
 - **Stage 1 — proxy-based remoting.** `do_command()` wraps
   `do_discovery()`: when the Registrar reports a Service matching the
   `ServiceFilter`, `get_service_proxy()` manufactures a proxy object
-  whose method calls serialise to S-expressions published on the
+  whose method calls serialize to S-expressions published on the
   target's `topic_in`. The client code reads like a local call —
   `aloha_honua.aloha(name)`.
 - **Stage 2 — symmetric roles.** One file can be *either* the Actor or
-  a client depending on the `click` sub-command, showing that there is
-  no structural difference between "server" and "client" processes.
+  a client, and the `click` sub-command decides which. This shows that
+  there is no structural difference between "server" and "client"
+  processes.
 - **Stage 3 — responses without a server socket.** A "request" is a
   command that carries a reply-to topic. The Actor builds its *own*
   proxy toward the caller (`get_service_proxy(topic_path_response,
@@ -278,7 +282,7 @@ Key design points, in the order the stages introduce them:
   evaluated at import time — it is the *client process's own* incoming
   topic, reused as the reply-to address.
 - Stage 3's `aloha` sub-command must run the event loop with
-  `aiko.process.run(loop_when_no_handlers=True)`; otherwise the
+  `aiko.process.run(loop_when_no_handlers=True)`. Otherwise the
   process would exit before the asynchronous response arrives.
 - `AlohaHonuaResponse` mirrors the framework's internal
   `DiscoveryResponse` class (`src/aiko_services/main/discovery.py`),
@@ -287,7 +291,7 @@ Key design points, in the order the stages introduce them:
   directly rather than implementing this Interface.
 - `aloha_honua_1.py` does `from aloha_honua_0 import AlohaHonua`, so
   it must be run from the source directory (Python adds the script's
-  directory to `sys.path`); it is not importable as a package module.
+  directory to `sys.path`). It is not importable as a package module.
 - `ku()` stops the Actor by raising `SystemExit` from within the
   message-handling path — the simplest possible remote shutdown, not
   a graceful [lifecycle](../../concepts/lifecycle.md) transition.
@@ -296,7 +300,7 @@ Key design points, in the order the stages introduce them:
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
-| `AlohaHonua` (stages 0-3) | Register as a discoverable Service; log greetings on `aloha(name)`; stop on `ku()`; reply via a response proxy on `request()` (stage 3) | [Actor](../../concepts/actor.md), [Process](../../concepts/process.md), [Registrar](../../concepts/registrar.md), [Share](../../concepts/share.md) |
+| `AlohaHonua` (stages 0-3) | Register as a discoverable Service; log greetings on `aloha(name)`; stop on `ku()`; reply through a response proxy on `request()` (stage 3) | [Actor](../../concepts/actor.md), [Process](../../concepts/process.md), [Registrar](../../concepts/registrar.md), [Share](../../concepts/share.md) |
 | `AlohaHonuaResponse` (Interface, stage 3) | Declare the reply contract: `item_count(count)`, `response(payload)` | [Actor](../../concepts/actor.md), `get_service_proxy()` ([Discovery](../../concepts/discovery.md)) |
 | `main` click group (stages 2-3) | Map sub-commands `hoomaka` / `aloha` / `ku` onto Actor start-up or `do_command()` / `do_request()` invocations | `click`, [Discovery](../../concepts/discovery.md) |
 
@@ -305,9 +309,10 @@ Key design points, in the order the stages introduce them:
 The four source To Do lists all read "None, yet !" — the example code
 itself is complete for its purpose. Remaining rough edges:
 
-- The stage 0 usage header's raw-MQTT example is a placeholder
-  (`mosquitto_pub -m "(aloha Pele)" -t ?`) with a note to replace it
-  with an `aiko_dashboard` publish — **planned**, not yet written.
+- The raw-MQTT example in the stage 0 usage header is a placeholder
+  (`mosquitto_pub -m "(aloha Pele)" -t ?`). A note says to replace it
+  with an `aiko_dashboard` publish. That is **planned**, not yet
+  written.
 - The source
   [ReadMe](../../../src/aiko_services/examples/aloha_honua/ReadMe.md)
   has several *[TBC]* sections (installation guide, remote MQTT
@@ -324,11 +329,11 @@ itself is complete for its purpose. Remaining rough edges:
 
 - [Actor](../../concepts/actor.md) — the class every stage subclasses
 - [Service](../../concepts/service.md) — what an Actor is to the rest
-  of the system; defines `ServiceFilter` fields
+  of the system. Defines `ServiceFilter` fields
 - [Discovery](../../concepts/discovery.md) — `do_command()`,
   `do_request()` and `get_service_proxy()` used by stages 1-3
 - [Registrar](../../concepts/registrar.md) — the Core Service that
-  makes discovery work; started by `system_start.sh`
+  makes discovery work. Started by `system_start.sh`
 - [Process](../../concepts/process.md) — `aiko.process.run()` event
   loop hosting each stage
 - [Share](../../concepts/share.md) — the `self.share` entries stage 0

@@ -6,21 +6,21 @@ description: Index of the ArUco fiducial marker example — the
 type: index
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/aruco_marker
 related: [pipeline, pipeline_element, yolo]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # ArUco marker example index
 
 The ArUco marker example under
 `src/aiko_services/examples/aruco_marker/` detects printed ArUco
-fiducial markers in live webcam video and draws each marker's
-bounding box, centre and id back onto the image — an Aiko Services
-[Pipeline](../../concepts/pipeline.md) built from two example
+fiducial markers in live webcam video. It draws each marker's bounding
+box, center and id back onto the image. It is an Aiko Services
+[Pipeline](../../concepts/pipeline.md), built from two example
 [PipelineElements](../../concepts/pipeline_element.md) and the
 standard [media element families](../../elements/media/ReadMe.md).
 See [aruco](aruco.md).
@@ -33,7 +33,7 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 
 | Document | Summary |
 |----------|---------|
-| [aruco](aruco.md) | `ArucoMarkerDetector` (corners and ids per image) and `ArucoMarkerOverlay` (box, centre dot and id text) — pose estimation drafted but not implemented |
+| [aruco](aruco.md) | `ArucoMarkerDetector` (corners and ids per image) and `ArucoMarkerOverlay` (box, center dot and id text) — pose estimation drafted but not implemented |
 
 ## PipelineDefinitions
 
@@ -51,7 +51,7 @@ aiko_pipeline create aruco_pipeline_0.json -s 1  \
 | `aruco_pipeline_0.json` | `p_aruco_0` | Webcam → resize → `ArucoMarkerDetector` → `ArucoMarkerOverlay` → display (`VideoShow`) and record MP4 (`VideoWriteFile` to `data_out/out_{:02d}.mp4`) |
 
 The combined ArUco + YOLO Pipelines `yolo_pipeline_1.json` and
-`yolo_pipeline_2.json` live in the neighbouring
+`yolo_pipeline_2.json` live in the neighboring
 [YOLO example](../yolo/ReadMe.md) and deploy these elements
 alongside `YoloDetector`.
 

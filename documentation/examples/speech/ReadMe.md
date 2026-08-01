@@ -7,21 +7,21 @@ description: Index of the speech example — WhisperX speech-to-text and
 type: index
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/speech
 related: [pipeline, pipeline_element, audio_io, elements]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Speech example index
 
 The speech example under `src/aiko_services/examples/speech/` builds
-voice [Pipelines](../../concepts/pipeline.md) from microphone capture
-(PyAudio or sounddevice, via
-[audio_io](../../elements/media/audio_io.md)), WhisperX
-speech-to-text, Coqui text-to-speech and speaker playback — up to a
+voice [Pipelines](../../concepts/pipeline.md) from four parts. They are
+microphone capture (PyAudio or sounddevice, through
+[audio_io](../../elements/media/audio_io.md)), WhisperX speech-to-text,
+Coqui text-to-speech, and speaker playback. It goes up to a
 full round trip that feeds transcribed speech to the
 [LLM example](../llm/ReadMe.md) Pipeline and speaks its reply.
 
@@ -37,18 +37,18 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 
 ## Example PipelineDefinitions
 
-The eight git-committed PipelineDefinitions. **Caveat**: the
+The eight git-committed PipelineDefinitions. **Caution**: the
 microphone and speaker elements (`PE_MicrophonePA`, `PE_MicrophoneSD`,
 `PE_Speaker`) are deployed from
-[audio_io](../../elements/media/audio_io.md), where they are currently
-part of the *disabled* legacy suite — the Pipelines that use them are
+[audio_io](../../elements/media/audio_io.md). There they are currently
+part of the *disabled* legacy suite. Thus the Pipelines that use them are
 recorded here as designed, but cannot run until that suite is
 re-enabled or refactored.
 
 | PipelineDefinition | Pipeline | Demonstrates |
 |--------------------|----------|--------------|
-| `pipeline_microphone_pa.json` | `p_microphone` | Microphone capture alone, via **PyAudio** (`PE_MicrophonePA`) |
-| `pipeline_microphone_sd.json` | `p_microphone` | Microphone capture alone, via **sounddevice** (`PE_MicrophoneSD`, `audio_channels` 1) |
+| `pipeline_microphone_pa.json` | `p_microphone` | Microphone capture alone, through **PyAudio** (`PE_MicrophonePA`) |
+| `pipeline_microphone_sd.json` | `p_microphone` | Microphone capture alone, through **sounddevice** (`PE_MicrophoneSD`, `audio_channels` 1) |
 | `pipeline_speaker.json` | `p_speaker` | Speaker playback alone (`PE_Speaker`) |
 | `pipeline_whisperx.json` | `p_whisperx` | WhisperX speech-to-text alone (`PE_WhisperX`) |
 | `pipeline_tts_speaker.json` | `p_tts_speaker` | Text-to-speech to speaker (`PE_COQUI_TTS` → `PE_Speaker`) |
@@ -56,12 +56,13 @@ re-enabled or refactored.
 | `pipeline_speech_llm_input.json` | `p_llm_input` | The round-trip **input** half: microphone → WhisperX → framing → `PE_LLM` deployed *remote* to the `p_llm` Pipeline |
 | `pipeline_speech_llm_output.json` | `p_llm_output` | The round-trip **output** half: `PE_COQUI_TTS` → `PE_Speaker`, invoked remotely from `llm_pipeline_0.json` |
 
-Notes on the round-trip pair: both JSON files declare all six elements
-and keep the full single-Pipeline graph
+Notes on the round-trip pair. Both JSON files declare all six elements.
+Both also keep the full single-Pipeline graph
 `(PE_MicrophoneSD PE_WhisperX PE_SpeechFraming PE_LLM PE_COQUI_TTS
-PE_Speaker)` in a `"#"` comment key — each active graph is a subset,
-splitting the loop across `p_llm_input` → `p_llm` → `p_llm_output` via
-remote deploys matched by `service_filter` name.
+PE_Speaker)` in a `"#"` comment key. Each active graph is a subset of
+that. This splits the loop across `p_llm_input` → `p_llm` →
+`p_llm_output`, through remote deploys matched by `service_filter`
+name.
 
 `pipeline_transcription.json`'s graph names `PE_Speaker`, but its
 `elements` list does not define it — the definition is inconsistent as

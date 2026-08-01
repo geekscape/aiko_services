@@ -6,20 +6,20 @@ description: YoloDetector — a PipelineElement wrapping Ultralytics YOLO,
 type: concept
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/yolo/yolo.py
 related: [pipeline_element, pipeline, stream, parameters, image_io,
   video_io, webcam_io, aruco, elements]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # YOLO object detection example
 
 ## Overview
 
-`yolo.py` provides **`YoloDetector`**, a single
+`yolo.py` gives **`YoloDetector`**, a single
 [PipelineElement](../../concepts/pipeline_element.md) that wraps the
 Ultralytics YOLO family of object detectors. One class serves two
 distinct models, selected by the `model` parameter:
@@ -30,16 +30,17 @@ distinct models, selected by the `model` parameter:
   `red_cup`, `orange_cone`, `stop_sign` and `xgomini2`. Detections
   are filtered to only those custom class ids (`_ROBOTDOG_CLASSES`).
 - **YOLOE open-vocabulary** — any checkpoint whose file name starts
-  with `yoloe` (e.g `yoloe-11s-seg.pt`) switches the element into
+  with `yoloe` (for example, `yoloe-11s-seg.pt`) switches the element into
   YOLOE mode: the `names` parameter supplies a free-text class list
   as an S-expression, and every detection passes unfiltered.
 
-Each Frame's images are run through the model and the detections are
-emitted as an `overlay` — objects (`name`, `confidence`) and bounding
-`rectangles` (`x`, `y`, `w`, `h`) — drawn onto the images downstream
-by the [`ImageOverlay`](../../elements/media/image_io.md) element.
+Each Frame's images go through the model, and the detections are
+emitted as an `overlay`. That overlay holds objects (`name`,
+`confidence`) and bounding `rectangles` (`x`, `y`, `w`, `h`). The
+downstream [`ImageOverlay`](../../elements/media/image_io.md) element
+draws them onto the images.
 
-**Why you'd use it**: point a webcam at your desk and watch YOLOE
+**Why to use it**: point a webcam at your desk and watch YOLOE
 find whatever you name, with no training step:
 
 ```bash
@@ -49,17 +50,17 @@ aiko_pipeline create yoloe_pipeline_0.json -s 1
 ```
 
 The `yolov8n_robotdog.pt` model file (about 6.5 MB) is git-committed
-in `src/aiko_services/examples/yolo/`; the YOLOE checkpoints
+in `src/aiko_services/examples/yolo/`. The YOLOE checkpoints
 (`yoloe-11[sml]-seg.pt`) are not committed and are downloaded by the
 Ultralytics package on first use. The robot example's
 [OODA-loop Pipeline](../robot/ooda/elements.md) reuses
-`yolov8n_robotdog.pt` via a symbolic link.
+`yolov8n_robotdog.pt` through a symbolic link.
 
 ## For application developers
 
 ### Command-line usage
 
-There is no console script; `YoloDetector` is deployed by the
+There is no console script. `YoloDetector` is deployed by the
 PipelineDefinitions in this package (see the
 [package index](ReadMe.md)). From the source header, run from
 `src/aiko_services/examples/yolo/`:
@@ -96,7 +97,7 @@ Service protocol: `object_detector:0`.
 - **`model`** — pathname of the YOLO checkpoint. A file name starting
   with `yoloe` selects YOLOE mode.
 - **`names`** — YOLOE only: the open-vocabulary class list as an
-  S-expression, e.g `"(apple ball banana person)"`, parsed with
+  S-expression, for example, `"(apple ball banana person)"`, parsed with
   `parse(names, car_cdr=False)` and passed to
   `yolo_model.set_classes(names, yolo_model.get_text_pe(names))`.
   If the value is not a non-empty list, a warning is logged
@@ -117,11 +118,11 @@ overlay = {
 }
 ```
 
-`x, y` is the box top-left corner (from `box.xyxy`); `w, h` are the
+`x, y` is the box top-left corner (from `box.xyxy`). `w, h` are the
 box width and height (from `box.xywh`). The two lists are parallel:
 `objects[i]` describes `rectangles[i]`, accumulated across all images
 in the Frame. In YOLOv8 mode only detections whose class id is in
-`_ROBOTDOG_CLASSES` are kept; in YOLOE mode all detections are kept.
+`_ROBOTDOG_CLASSES` are kept. In YOLOE mode all detections are kept.
 
 ## For framework developers (internals)
 
@@ -135,27 +136,30 @@ in the Frame. In YOLOv8 mode only detections whose class id is in
                            +---------------+
 ```
 
-- The Ultralytics model is loaded once per Stream in
-  `start_stream()`, so a long-lived [Pipeline](../../concepts/pipeline.md)
-  pays the checkpoint-load cost only at Stream creation, and each
-  Stream may select a different `model`.
-- One class, two behaviours: YOLOE mode is detected by the file-name
+- The Ultralytics model is loaded once per Stream, in
+  `start_stream()`. Thus a long-lived
+  [Pipeline](../../concepts/pipeline.md) pays the checkpoint-load cost
+  only at Stream creation, and each Stream can select a different
+  `model`.
+- One class, two behaviors: YOLOE mode is detected by the file-name
   prefix test `yolo_model_pathname.startswith("yoloe")` — both model
   kinds are constructed through the `YOLO` class.
 - `torch` and `ultralytics` are imported at module level with no
-  guard, unlike the sibling `aruco.py` / `face.py` modules which wrap
-  optional imports in try/except — importing this module without
-  those packages installed raises `ModuleNotFoundError` directly.
+  guard. The sibling `aruco.py` and `face.py` modules instead wrap
+  their optional imports in try/except. Thus an import of this module
+  without those packages installed raises `ModuleNotFoundError`
+  directly.
 
 ### Implementation notes
 
 - The `startswith("yoloe")` test is applied to the whole `model`
-  parameter value, so a checkpoint given with a directory prefix
-  (e.g `models/yoloe-11s-seg.pt`) would *not* be recognised as YOLOE.
+  parameter value. Thus a checkpoint given with a directory prefix
+  (for example, `models/yoloe-11s-seg.pt`) would *not* be recognized as
+  YOLOE.
 - `from ultralytics import YOLO, YOLOE` imports `YOLOE`, but it is
-  never used — YOLOE checkpoints are loaded via `YOLO(...)`.
+  never used — YOLOE checkpoints are loaded through `YOLO(...)`.
 - The `image_id` / `detection_id` / `box_id` loop counters only feed
-  a commented-out `print()`; `box_id` increments inside the
+  a commented-out `print()`. `box_id` increments inside the
   class-filter branch while the others count every iteration.
 
 ### CRC card

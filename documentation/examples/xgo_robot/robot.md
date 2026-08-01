@@ -1,34 +1,33 @@
 ---
 title: Robot Interface extraction (robot.py)
 description: Work-in-progress extraction of the XGORobot Actor
-  Interface into its own module, towards a generic Robot interface
+  Interface into its own module, toward a generic Robot interface
 type: concept
 audience: [developers]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/xgo_robot/robot.py
 related: [actor, service, xgo_robot, robot_control]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Robot Interface extraction (robot.py)
 
 ## Overview
 
-`robot.py` is the beginning of a refactor: it extracts the
-`XGORobot` [Actor](../../concepts/actor.md) Interface — the abstract
-robot command contract — out of the monolithic
-[xgo_robot.py](xgo_robot.md) into its own module, on the way to a
-generic `Robot` interface that specific robots (such as the
-XGO-Mini 2) would extend. Today it duplicates the Interface that
-`xgo_robot.py` still defines for itself; nothing imports this module
+`robot.py` is the beginning of a refactor. It extracts the `XGORobot`
+[Actor](../../concepts/actor.md) Interface out of the monolithic
+[xgo_robot.py](xgo_robot.md), into its own module. That Interface is the
+abstract robot command contract. The goal is a generic `Robot`
+interface, which specific robots such as the XGO-Mini 2 would extend. Today it duplicates the Interface that
+`xgo_robot.py` still defines for itself. Nothing imports this module
 yet.
 
-**Why you'd use it**: read this file for the cleanest statement of
-the robot command contract and its argument ranges — every command a
-robot Actor accepts remotely, e.g:
+**Why to use it**: read this file for the clearest statement of the
+robot command contract and its argument ranges. It lists every command
+that a robot Actor accepts remotely, for example:
 
 ```bash
 mosquitto_pub --topic $TOPIC_PATH/in --message "(action sit)"
@@ -38,15 +37,15 @@ mosquitto_pub --topic $TOPIC_PATH/in --message "(action sit)"
 
 ### Command-line usage
 
-None — the module defines an Interface only. The header records the
-`mosquitto_pub` one-liner above for invoking a running robot Actor
-directly over MQTT (see [Message](../../concepts/message.md)), and
-reproduces the twenty-entry `ACTIONS` table (`fall`, `stand`,
+None. The module defines an Interface only. The header records the
+`mosquitto_pub` one-liner above, which invokes a running robot Actor
+directly over MQTT (refer to [Message](../../concepts/message.md)). The
+header also reproduces the twenty-entry `ACTIONS` table (`fall`, `stand`,
 `crawl`, ..., `shake_paw`, `arm`) implemented by `xgo_robot.py`.
 
 ### Public API
 
-`XGORobot(aiko.Actor)` declares the contract; the default
+`XGORobot(aiko.Actor)` declares the contract. The default
 implementation is bound with
 `aiko.Interface.default("XGORobot", f"{MODULE_PATH}.XGORobotImpl")`.
 
@@ -66,16 +65,16 @@ implementation is bound with
 | `translation(x, y, z)` | x -35..35, y -18..18, z 75..115; `"nil"` keeps the previous value |
 | `turn(speed)` | -100 (clockwise) to 100 degrees / second |
 
-The module-level helper `is_robot()` returns whether the current
-hostname is in `REAL_ROBOTS` (`["laika", "oscar"]`) and selects
-`MODULE_PATH` accordingly — the packaged module path on a real
-robot, `"__main__"` otherwise.
+The module-level helper `is_robot()` tells you whether the current
+hostname is in `REAL_ROBOTS` (`["laika", "oscar"]`). It also selects
+`MODULE_PATH`: the packaged module path on a real robot, and
+`"__main__"` in all other cases.
 
 ## For framework developers (internals)
 
 ### Design
 
-The intended shape (source To Do list, not yet realised):
+The intended shape (source To Do list, not yet realized):
 
 ```
 Robot (generic Interface)          <-- planned
@@ -95,7 +94,7 @@ same idiom every Aiko Services
 ### Implementation notes
 
 - The `MODULE_PATH = "__main__"` fallback assumes the defining file
-  is the process entry point; since `robot.py` has no `__main__`
+  is the process entry point. Since `robot.py` has no `__main__`
   block and defines no `XGORobotImpl`, resolving the default
   implementation from this module on a non-robot host would fail.
 - `attitude()` and `translation()` are declared without a `self`
@@ -112,14 +111,14 @@ same idiom every Aiko Services
 ## Current limitations and roadmap
 
 - **Not yet wired in**: the source To Do list says to update
-  `xgo_robot.py` to import this file and delete its duplicated
-  `class XGORobot` — until then the two copies must be kept in sync
-  by hand.
+  `xgo_robot.py`, so that it imports this file and erases its
+  duplicated `class XGORobot`. Until then, you must keep the two copies
+  in agreement by hand.
 - **Planned**: design a generic `Robot` interface and rename, with
   `XGORobot` / `XGORobotImpl` extending it.
-- `REAL_ROBOTS` hard-codes the hostnames `laika` and `oscar`;
-  `xgo_robot.py`'s To Do list proposes a hostname-to-implementation
-  mapping instead.
+- `REAL_ROBOTS` hard-codes the hostnames `laika` and `oscar`. The To Do
+  list of `xgo_robot.py` proposes a hostname-to-implementation mapping
+  instead.
 
 ## Related concepts
 

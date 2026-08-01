@@ -7,23 +7,24 @@ description: Index of the Pipeline example package — the teaching
 type: index
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/pipeline
 related: [pipeline, pipeline_element, stream, parameters]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Pipeline examples index
 
 The canonical worked examples for the
 [Pipeline](../../concepts/pipeline.md) concept, in
-`src/aiko_services/examples/pipeline/`. One Python module of small
-teaching [PipelineElements](../../concepts/pipeline_element.md) and
-eight committed PipelineDefinitions that exercise local versus remote
-deployment, fan-out / fan-in graphs, multiple Graph Paths,
-self-generating [Streams](../../concepts/stream.md) and binary data
+`src/aiko_services/examples/pipeline/`. There is one Python module of
+small teaching [PipelineElements](../../concepts/pipeline_element.md).
+There are also eight committed PipelineDefinitions. Those definitions
+exercise local and remote deployment, fan-out / fan-in graphs, multiple
+Graph Paths, self-generating [Streams](../../concepts/stream.md) and
+binary data
 encoding.
 
 Navigation: [concepts guide](../../concepts/ReadMe.md) ·
@@ -39,26 +40,26 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 
 ## Example PipelineDefinitions
 
-All element behaviour is documented in [elements](elements.md);
-`Inspect` and `Metrics` in the
-[observe elements](../../elements/observe/elements.md); `Expression`
-in the [utility elements](../../elements/utilities/elements.md).
+All element behavior is documented in [elements](elements.md).
+`Inspect` and `Metrics` are in the
+[observe elements](../../elements/observe/elements.md). `Expression`
+is in the [utility elements](../../elements/utilities/elements.md).
 
 | PipelineDefinition | Pipeline name | Demonstrates |
 |--------------------|---------------|--------------|
 | `pipeline_local.json` | `p_local` | All elements in one Process; diamond fan-out / fan-in `(PE_1 (PE_2 PE_4) (PE_3 PE_4) Inspect Metrics)`; Pipeline and element parameters; `class_name` reuse (`PE_5` reuses `PE_4`, defined but not in the graph) |
 | `pipeline_remote.json` | `p_remote` | Distributed Pipeline: local `PE_0`, then a **remote** proxy element whose contract is satisfied by the whole `p_local` Pipeline; run `pipeline_local.json` first |
 | `pipeline_example.json` | `p_example` | Self-generating Stream: `PE_RandomIntegers` creates its own Frames; `_create_stream_` / `_destroy_stream_exit_` Pipeline parameters; watch `random` in the [Dashboard](../../concepts/dashboard.md). A fuller graph adding `PE_Add` (with the `(random: i)` remap) and `PE_Event` is present but commented out |
-| `pipeline_paths.json` | `p_paths` | Four Graph Paths (`PE_IN_0`..`PE_IN_3` head nodes) over shared `PE_IN` / `PE_TEXT` / `PE_OUT` classes via `class_name` aliasing; path selection with `-gp` or `(create_stream 1 PE_IN_1)` |
+| `pipeline_paths.json` | `p_paths` | Four Graph Paths (`PE_IN_0`..`PE_IN_3` head nodes) over shared `PE_IN` / `PE_TEXT` / `PE_OUT` classes through `class_name` aliasing; path selection with `-gp` or `(create_stream 1 PE_IN_1)` |
 | `pipeline_decode.json` | `p_decode` | The serving half of the encode / decode pair: a lone local `PE_DataDecode` |
 | `pipeline_encode.json` | `p_encode` | Local `PE_DataEncode` chained to a **remote** `PE_DataDecode` served by `p_decode` — binary (NumPy) payloads over the text transport |
 | `pipeline_mic_fft.json` | `p_mic_fft` | (dormant) Microphone → FFT → resampler audio chain |
 | `pipeline_mic_fft_graph.json` | `p_mic_fft_graph` | (dormant) As above plus audio filter and XY graph display |
 
 **Dormant**: the two `pipeline_mic_fft*.json` definitions deploy their
-elements from `"module": "audio_io.py"` — a filename, not a Python
-module path — and the `PE_Microphone` / `PE_FFT` / `PE_AudioResampler`
-/ `PE_AudioFilter` / `PE_GraphXY` classes belong to the disabled
+elements from `"module": "audio_io.py"`, which is a filename and not a
+Python module path. The `PE_Microphone`, `PE_FFT`, `PE_AudioResampler`,
+`PE_AudioFilter` and `PE_GraphXY` classes also belong to the disabled
 legacy suite described in
 [audio_io](../../elements/media/audio_io.md). They are kept as design
 references and do not run as committed.
@@ -66,7 +67,7 @@ references and do not run as committed.
 ## Command-line usage
 
 From `src/aiko_services/examples/pipeline` (per the usage header in
-`elements.py`); `$TOPIC` is the Pipeline Stream topic
+`elements.py`). `$TOPIC` is the Pipeline Stream topic
 `$NAMESPACE/$HOST/$PID/$SID/in`:
 
 ```bash

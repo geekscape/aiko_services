@@ -6,12 +6,12 @@ description: Index of the YOLO object detection example — the
 type: index
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/yolo
 related: [pipeline, pipeline_element, aruco, elements]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # YOLO example index
@@ -19,7 +19,7 @@ last_updated: 2026-07-06
 The YOLO example under `src/aiko_services/examples/yolo/` runs
 Ultralytics object detection inside an Aiko Services
 [Pipeline](../../concepts/pipeline.md): live webcam or video-file
-images in, labelled bounding boxes drawn and displayed (or written to
+images in, labeled bounding boxes drawn and displayed (or written to
 video) out. One [PipelineElement](../../concepts/pipeline_element.md),
 `YoloDetector`, covers both a fine-tuned YOLOv8 checkpoint and
 open-vocabulary YOLOE models — see [yolo](yolo.md).
@@ -43,7 +43,7 @@ downloads them on first use.
 ## PipelineDefinitions
 
 Five committed PipelineDefinitions. Run from
-`src/aiko_services/examples/yolo/`, e.g:
+`src/aiko_services/examples/yolo/`, for example:
 
 ```bash
 aiko_pipeline create yolo_pipeline_0.json -s 1

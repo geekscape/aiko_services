@@ -6,22 +6,22 @@ description: Index of the System Pipelines example — a ProcessManager
 type: index
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/system_pipelines
 related: [pipeline, pipeline_element, process_manager, yolo]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # System Pipelines example index
 
 The System Pipelines example under
 `src/aiko_services/examples/system_pipelines/` demonstrates a small
-*system of Pipelines*: an overall data-flow
-[Pipeline](../../concepts/pipeline.md) reading from a web camera,
-which delegates object detection to a *remote* Pipeline containing a
-YOLOE [PipelineElement](../../concepts/pipeline_element.md) — both
+*system of Pipelines*. An overall data-flow
+[Pipeline](../../concepts/pipeline.md) reads from a web camera. It
+delegates object detection to a *remote* Pipeline, which contains a
+YOLOE [PipelineElement](../../concepts/pipeline_element.md). Both
 launched together by one
 [ProcessManager](../../concepts/process_manager.md) command. It
 exercises three framework features at once:
@@ -30,7 +30,7 @@ exercises three framework features at once:
    both Pipelines as managed child processes.
 2. **Remote PipelineElement deployment** — the webcam Pipeline's
    `Detector` element is deployed `"remote"` with a
-   `service_filter` naming `p_yoloe`; the Pipeline discovers the
+   `service_filter` naming `p_yoloe`. The Pipeline discovers the
    remote detection Pipeline and proxies Frames to it.
 3. **Image transport** — `ImagesToBase64` / `Base64ToImages` encode
    NumPy images as compressed base64 strings to cross the remote
@@ -82,11 +82,11 @@ Notes:
 - `pipeline_webcam.json` uses `"_create_stream_": "*"` /
   `"_destroy_stream_exit_": "*"` (wildcard), unlike the single-stream
   `"1"` used by the standalone [YOLO](../yolo/ReadMe.md) Pipelines.
-- The remote `Detector` element's `deploy.remote.module` refers to
-  `aiko_services.examples.pipeline.elements` — for a remote
-  deployment the element is realised by discovery of the `p_yoloe`
-  Service, not by importing that module locally.
-- The YOLOE checkpoint `yoloe-11s-seg.pt` is not committed; the
+- The `deploy.remote.module` of the remote `Detector` element refers to
+  `aiko_services.examples.pipeline.elements`. For a remote deployment,
+  discovery of the `p_yoloe` Service realizes the element. A local
+  import of that module does not.
+- The YOLOE checkpoint `yoloe-11s-seg.pt` is not committed. The
   Ultralytics package downloads it on first use.
 
 ## Related documentation

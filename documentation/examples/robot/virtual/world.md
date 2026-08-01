@@ -6,47 +6,46 @@ description: world.py — a Panda3D virtual world whose rendered frames
 type: concept
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/robot/virtual/world.py
   - src/aiko_services/examples/robot/virtual/world_pipeline.json
 related: [pipeline, pipeline_element, stream, data_source_target,
   elements, ooda_elements]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Panda3D virtual robot world
 
 ## Overview
 
-`world.py` creates a 3D virtual world using the Panda3D engine — a
-keyboard-driven robot character roaming uneven terrain, with a chase
-camera and a top-down minimap — and turns its rendered frames into an
-Aiko Services [Pipeline](../../../concepts/pipeline.md) image source.
+`world.py` makes a 3D virtual world with the Panda3D engine. That world
+holds a keyboard-driven robot character that roams uneven terrain, a
+chase camera, and a top-down minimap. It turns its rendered frames into
+an Aiko Services [Pipeline](../../../concepts/pipeline.md) image source.
 The `World` [PipelineElement](../../../concepts/pipeline_element.md)
-emits each rendered frame as a NumPy RGB image, so the same
-machine-learning Pipelines that process a real robot's camera (see
-the [OODA-loop elements](../ooda/elements.md)) can be developed and
-tested without hardware.
+emits each rendered frame as a NumPy RGB image. Thus you can develop and
+test the machine-learning Pipelines that process a real robot's camera
+(refer to the [OODA-loop elements](../ooda/elements.md)) without
+hardware.
 
-**Why you'd use it**: exercise the whole robot OODA loop — YOLO
-detection, LLM decisions, robot commands — on a laptop, driving a
-simulated robot with the arrow keys instead of powering up a real
-robot dog.
+**Why to use it**: to exercise the whole robot OODA loop on a laptop —
+YOLO detection, LLM decisions and robot commands. You drive a simulated
+robot with the arrow keys, and you do not power up a real robot dog.
 
 ```bash
 ./world.py -gp World_OODA -ll debug   # render, detect, overlay, show
 ```
 
 The code derives from the Panda3D "Roaming Ralph" sample (author
-Ryan Myers; models by Jeff Styers and Reagan Heller) under a Modified
-BSD licence — see the adjacent `LICENSE` file. The `models/`
+Ryan Myers. Models by Jeff Styers and Reagan Heller) under a Modified
+BSD license — refer to the adjacent `LICENSE` file. The `models/`
 directory holds the Panda3D assets (`world.egg.pz`, `robot.egg.pz`,
-`robot-run.egg.pz`, `robot-walk.egg.pz` and textures), and
-`yolov8n_robotdog.pt` is a symbolic link to the fine-tuned YOLOv8
-model in `src/aiko_services/examples/yolo/` used by the
-`YoloDetector` element.
+`robot-run.egg.pz`, `robot-walk.egg.pz` and textures). The
+`yolov8n_robotdog.pt` file is a symbolic link to the fine-tuned YOLOv8
+model in `src/aiko_services/examples/yolo/`, which the `YoloDetector`
+element uses.
 
 ## For application developers
 
@@ -72,7 +71,7 @@ models load relative to the current directory:
 ./world.py -gp World_OODA -ll debug   # local YOLO detect and display
 ```
 
-Over the network, the world publishes images via ZeroMQ (see
+Over the network, the world publishes images through ZeroMQ (see
 [scheme_zmq](../../../elements/media/scheme_zmq.md)) to a separate
 machine-learning Pipeline:
 
@@ -92,24 +91,26 @@ punzip models/world.egg.pz -o models/world.egg      # decompress model
 ```
 
 Keyboard controls shown on screen: arrow keys run / walk / rotate the
-robot, `a` / `d` yaw the camera, `x` exits. Additional bindings:
-`0` / `1` render mode, `2` / `3` bounds, `shift-c` reset camera,
-`shift-e` show events, `shift-k` print keyboard map, `shift-o` OOBE
-camera, `shift-r` reset robot, `t` toggle camera tracking. Further
-camera translate / pitch / roll / yaw keys (`w s q z i k u m j l`)
-are mapped into `key_map` but not yet acted upon — see limitations.
+robot, `a` / `d` yaw the camera, `x` exits. These are the additional
+bindings. `0` / `1` set the render mode, and `2` / `3` set the bounds.
+`shift-c` resets the camera, `shift-e` shows events, and `shift-k`
+prints the keyboard map. `shift-o` selects the OOBE camera, `shift-r`
+resets the robot, and `t` toggles camera tracking. Further camera
+translate / pitch / roll / yaw keys (`w s q z i k u m j l`) are mapped
+into `key_map`, but nothing acts on them yet. Refer to the
+limitations.
 
 ### Public API
 
 `World` is the only importable PipelineElement (protocol
-`device:0`); `PhysicsEngine` is the Panda3D application class.
+`device:0`). `PhysicsEngine` is the Panda3D application class.
 
 | Class | Kind | Inputs -> Outputs | Parameters |
 |-------|------|-------------------|------------|
-| `World` | image DataSource (by behaviour) | (none) -> `images` `[image]` | `rate` (default 20), `physics_engine` (passed in-process) |
+| `World` | image DataSource (by behavior) | (none) -> `images` `[image]` | `rate` (default 20), `physics_engine` (passed in-process) |
 
 `World.start_stream()` schedules `create_frames()` with a
-`frame_generator` at `rate` frames per second; each
+`frame_generator` at `rate` frames per second. Each
 `process_frame()` returns the most recent rendered frame as
 `{"images": [numpy_rgb_array]}`, or `[]` before the first frame is
 available.
@@ -126,7 +127,7 @@ with five Graph Paths, selected by `--graph_path` / `-gp`:
 | `OODA` | the shared detect-and-display tail (head `NoOp`) |
 
 `OODA` and `ZMQ_OODA` are `NoOp` grouping nodes (see
-[elements](../../../elements/media/elements.md)); the media elements
+[elements](../../../elements/media/elements.md)). The media elements
 are documented under [image_io](../../../elements/media/image_io.md)
 and [video_io](../../../elements/media/video_io.md).
 
@@ -134,9 +135,9 @@ and [video_io](../../../elements/media/video_io.md).
 
 ### Design
 
-Two engines share one process: Panda3D owns the main thread and the
-Aiko Services Pipeline runs in a daemon thread, with the latest
-rendered image handed over through a shared attribute:
+Two engines share one process. Panda3D owns the main thread, and the
+Aiko Services Pipeline runs in a daemon thread. A shared attribute
+carries the latest rendered image between them:
 
 ```
 main thread                          daemon thread
@@ -161,13 +162,13 @@ Key design points:
   sample the newest frame.
 - **The live `PhysicsEngine` object is passed as a Pipeline
   *parameter*** (`parameters={"physics_engine": ...}` to
-  `PipelineImpl.create_pipeline()`), which only works because every
-  element is deployed `local` — this Pipeline cannot be distributed
-  as-is.
+  `PipelineImpl.create_pipeline()`). This works only because every
+  element is deployed `local`. Thus you cannot distribute this Pipeline
+  as it is.
 - **Roaming Ralph mechanics**: `CollisionHandlerPusher` (two spheres
-  around the robot) keeps the robot out of obstacles; downward
+  around the robot) keeps the robot out of obstacles. Downward
   `CollisionRay`s from robot and camera clamp both to the terrain
-  height; the camera is kept 5-10 units from the robot and looks at
+  height. The camera is kept 5-10 units from the robot and looks at
   a "hover" node floating above it.
 - **Minimap**: a second `Camera` 500 units above the robot renders
   into a `DisplayRegion` in the top-right corner.
@@ -182,9 +183,9 @@ Key design points:
 - The Panda3D frame rate is capped with
   `ClockObject.MLimited` / `setFrameRate()`.
 - `main()` replaces `"{}"` in `--stream_id` with the process id
-  (`get_pid()`) for a sort-of unique Stream id, sets
-  `AIKO_LOG_LEVEL` / `AIKO_LOG_MQTT` from options, then starts the
-  Pipeline thread before entering `physics_engine.run()`.
+  (`get_pid()`), which gives an almost unique Stream id. It then sets
+  `AIKO_LOG_LEVEL` and `AIKO_LOG_MQTT` from the options. It starts the
+  Pipeline thread before it enters `physics_engine.run()`.
 - The trailing source comments document the
   `win.get_screenshot()` -> `Texture` -> `PNMImage` alternatives for
   future texture work.
@@ -205,9 +206,9 @@ Key design points:
   "TODO: Should be a
   [DataSource](../../../concepts/data_source_target.md)".
 - Only the `a` / `d` (camera-left / camera-right) keys are handled
-  by `update_camera()`; the other twelve `camera-*` key-map entries
+  by `update_camera()`. The other twelve `camera-*` key-map entries
   (`w s q z i k u m j l`) are bound but ignored, and the header
-  notes "FIX: Camera roll (y-axis) doesn't work".
+  notes `FIX: Camera roll (y-axis) doesn't work`.
 - The `t` camera-tracking toggle flips `camera_tracking`, but
   nothing reads that flag — the camera always tracks the robot.
 - `create_lights()` is defined but never called (the world model's
@@ -217,10 +218,10 @@ Key design points:
 
 **Planned** (source To Do list):
 
-- Insert recognisable objects into the world model (Astra,
+- Insert recognizable objects into the world model (Astra,
   XGO-Mini 2, monolith, DeLorean, ...) with collision handling.
-- Robot HUD and shared variables via
-  [Share](../../../concepts/share.md) eventual consistency; top-down
+- Robot HUD and shared variables through
+  [Share](../../../concepts/share.md) eventual consistency. Top-down
   navigation mini-map with robot tracks.
 - A Panda3D NodePath per Aiko Services Actor / Pipeline /
   PipelineElement — an Aiko Services 3D GUI.
@@ -228,7 +229,7 @@ Key design points:
   `queue_response`.
 - A World Interface offering DataSources (audio, LIDAR, telemetry,
   video) and DataTargets (audio, control).
-- Investigate `panda3d.ai` behaviours; the adjacent `z_notes.txt`
+- Investigate `panda3d.ai` behaviors. The adjacent `z_notes.txt`
   also lists alternative engines (Godot, Unity, Blender, Ogre3D).
 
 ## Related concepts

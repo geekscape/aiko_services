@@ -7,33 +7,38 @@ description: The colab example element family — audio pass-through,
 type: concept
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/colab/elements.py
 related: [pipeline_element, pipeline, actor, data_source_target,
   parameters, stream, colab_io, scheme_colab]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Google Colab example PipelineElements
 
 ## Overview
 
-`elements.py` provides the [PipelineElements](../../concepts/pipeline_element.md)
+`elements.py` gives the [PipelineElements](../../concepts/pipeline_element.md)
 used by the Google Colab example
-[PipelineDefinitions](ReadMe.md): a browser-audio loopback, a local
-speech-to-text / text-to-speech pair (faster-whisper and coqui-tts), a
-YOLO-detections-to-text converter, an element that publishes messages
-to a discovered chat server, and a DataSource for the browser web
-camera. Together with [colab_io](colab_io.md) (the notebook glue) and
+[PipelineDefinitions](ReadMe.md). They are:
+
+- A browser-audio loopback
+- A local speech-to-text / text-to-speech pair (faster-whisper and
+  coqui-tts)
+- A YOLO-detections-to-text converter
+- An element that publishes messages to a discovered chat server
+- A DataSource for the browser web camera
+
+Together with [colab_io](colab_io.md) (the notebook glue) and
 [scheme_colab](scheme_colab.md) (the `colab://` DataScheme) they form
 the Google Colab integration example.
 
-**Why you'd use it**: assemble a voice assistant on a Google Colab
-GPU — browser microphone in, transcription published to a chat
-channel, synthesised speech back to the browser speaker — from
-off-the-shelf elements:
+**Why to use it**: to assemble a voice assistant on a Google Colab GPU
+from off-the-shelf elements. The browser microphone goes in, the
+transcription is published to a chat channel, and the synthesized
+speech goes back to the browser speaker:
 
 ```
 (SpeechToText Expression MQTTPublish TextToSpeech)
@@ -41,8 +46,8 @@ off-the-shelf elements:
 
 The package `__init__.py` exports `AudioPassThrough`,
 `ConvertDetections`, `ChatServer`, `MQTTPublish` and `VideoReadColab`.
-`SpeechToText` and `TextToSpeech` are in the module's `__all__` but are
-*not* re-exported by the package — deploy them via the module path
+`SpeechToText` and `TextToSpeech` are in the module's `__all__`, but the
+package does *not* re-export them. Deploy them through the module path
 `aiko_services.examples.colab.elements`, which keeps the heavy
 faster-whisper / coqui-tts imports out of the package import.
 
@@ -61,14 +66,14 @@ aiko_chat
 
 `aiko_chat` is the Aiko Chat application (a separate Git repository)
 that implements the `chat_server` Service which `MQTTPublish`
-discovers; the `:change_change yolo` command in the comment switches
+discovers. The `:change_change yolo` command in the comment switches
 the chat channel (the command name in the comment may be stale —
 verify against the Aiko Chat repository).
 
-The audio elements are exercised by the three
-`colab_audio_pipeline_*.json` PipelineDefinitions, driven from a
-Google Colab notebook via [colab_io](colab_io.md) rather than from a
-terminal — see the [package ReadMe](ReadMe.md) for the mapping.
+The three `colab_audio_pipeline_*.json` PipelineDefinitions exercise
+the audio elements. A Google Colab notebook drives them through
+[colab_io](colab_io.md), and not a terminal. Refer to the
+[package ReadMe](ReadMe.md) for the mapping.
 
 ### Public API
 
@@ -76,40 +81,41 @@ terminal — see the [package ReadMe](ReadMe.md) for the mapping.
 |-------|----------|-------------------|------------|
 | `AudioPassThrough` | `audio_pass_through:0` | `audio`, `mime_type` -> same | (none) — logs length and MIME type at debug level |
 | `ConvertDetections` | `convert_detections:0` | `overlay` -> `message` | (none) — joins `overlay["objects"][*]["name"]` into a comma-separated string |
-| `MQTTPublish` | `mqtt_publish:0` | `message` -> declared outputs (forwarded from the swag via `all_outputs()`) | `chat_channel` (default `"yolo"`), `username` (default `<env_var>` = `$USER`), `service_filter` (`name`, `protocol` of the chat server) |
+| `MQTTPublish` | `mqtt_publish:0` | `message` -> declared outputs (forwarded from the swag through `all_outputs()`) | `chat_channel` (default `"yolo"`), `username` (default `<env_var>` = `$USER`), `service_filter` (`name`, `protocol` of the chat server) |
 | `SpeechToText` | `speech_to_text:0` | `audio`, `mime_type` -> `audio`, `mime_type`, `text` | `stt_model` (default `"small"`), `device` (default `"cuda"`, falls back to `"cpu"`), `compute_type` (default `"int8_float16"`), `stt_sample_rate` (default 16000), `language`, `task` (default `"transcribe"`), `vad_filter` (default true) |
 | `TextToSpeech` | `text_to_speech:0` | `text`, `mime_type` -> `audio`, `mime_type`, `text` (text cleared) | `tts_model` (default `"tts_models/en/ljspeech/tacotron2-DDC"`), `tts_gpu` (default true) |
-| `VideoReadColab` | `colab:0` | `images` -> `images` | `data_sources` (must be `"(colab://)"`), `media_type` (optional conversion via `convert_images()`) |
+| `VideoReadColab` | `colab:0` | `images` -> `images` | `data_sources` (must be `"(colab://)"`), `media_type` (optional conversion through `convert_images()`) |
 
 `ChatServer` is not a PipelineElement: it is an abstract
 [Actor](../../concepts/actor.md) Interface declaring one operation,
-`send_message(username, recipients, message)`. It exists so
-`MQTTPublish` can pass it to `aiko.do_discovery()` and obtain a remote
-proxy for whatever Service matches the `service_filter` — by
-convention the Aiko Chat server, protocol
+`send_message(username, recipients, message)`. It exists so that
+`MQTTPublish` can pass it to `aiko.do_discovery()`, and get a remote
+proxy for whichever Service matches the `service_filter`. By convention
+that Service is the Aiko Chat server, protocol
 `github.com/geekscape/aiko_services/protocol/chat_server:0`.
 
-**`MQTTPublish` behaviour** (the name is aspirational — see roadmap):
+**`MQTTPublish` behavior** (the name is aspirational — see roadmap):
 on `start_stream()` it resolves its
 [parameters](../../concepts/parameters.md) and starts
-[discovery](../../concepts/discovery.md) for the chat server; on each
+[discovery](../../concepts/discovery.md) for the chat server. On each
 frame with a non-empty `message` it prefixes `username:` and calls
 `chat_server.send_message()` on the discovered proxy. Direct MQTT
 topic publishing is present in the source but commented out.
 
 **`SpeechToText` / `TextToSpeech`** load their models lazily in
-`start_stream()` (with a defensive re-load in `process_frame()` if the
-model is missing), decode / encode audio entirely in memory through
-`ffmpeg` subprocess pipes, and preserve the browser's audio format:
+`start_stream()`, with a defensive re-load in `process_frame()` if the
+model is missing. They decode and encode audio entirely in memory,
+through `ffmpeg` subprocess pipes. They also keep the browser's audio
+format:
 `TextToSpeech` maps the incoming `mime_type` to a strict
 container / codec pair (`webm`/`opus`, `ogg`/`opus`, `mp4`/`aac`,
 `wav`/`pcm_s16le`) and returns `StreamEvent.ERROR` for anything else.
-An empty `text` synthesises one second of silence.
+An empty `text` synthesizes one second of silence.
 
 **`VideoReadColab`** is a
 [DataSource](../../concepts/data_source_target.md) whose
 `data_sources` URL selects the [`colab://`](scheme_colab.md)
-DataScheme; its `process_frame()` optionally converts the images'
+DataScheme. Its `process_frame()` optionally converts the images'
 `media_type`. It only supports Streams that carry a `data_sources`
 parameter.
 
@@ -138,7 +144,7 @@ Video path
   `_parse_audio_mime_strict()` (returning the frozen dataclass
   `AudioFormat`) and `_ffmpeg_transcode_wav_bytes_to_format_strict()`
   deliberately avoid temporary files — audio moves through `ffmpeg`
-  via stdin / stdout pipes (contrast `encode_silence()` in
+  through stdin / stdout pipes (contrast `encode_silence()` in
   [colab_io](colab_io.md), which still uses temporary files).
 - `MQTTPublish` uses `all_outputs(self, stream)` (from the
   [utility elements](../../elements/utilities/elements.md)) so the
@@ -154,9 +160,9 @@ Video path
 - `ConvertDetections.process_frame()` uses a nested-quote f-string,
   `f"{delimiter}{object["name"]}"` (`elements.py:53`) — this is valid
   only on Python 3.12+ (PEP 701) and is a syntax error on older
-  interpreters; it also shadows the `object` builtin.
+  interpreters. It also shadows the `object` builtin.
 - `MQTTPublish.start_stream()` keeps the `aiko.do_discovery()` return
-  values only in local variables; the discovery handlers keep working,
+  values only in local variables. The discovery handlers keep working,
   but there is no handle to cancel discovery on `stop_stream()`.
 - The lazy-load fallback in `SpeechToText.process_frame()` calls
   `stream.get("stream_id", ...)`, treating the Stream as a dict.
@@ -184,20 +190,20 @@ visible in the code:
 
 - **`MQTTPublish` does not publish to MQTT** — the
   `aiko.process.message.publish(...)` path is commented out
-  (`elements.py:112-113`); today it only calls the discovered
+  (`elements.py:112-113`). Today it only calls the discovered
   ChatServer Actor. Messages are silently dropped when no chat server
   has been discovered.
-- `ConvertDetections` requires Python 3.12+ (see Implementation
+- `ConvertDetections` needs Python 3.12+ (see Implementation
   notes), narrower than the Python versions Aiko Services otherwise
   supports.
 - `ConvertDetections` ignores `object["confidence"]` (noted in a
   trailing comment) — no confidence threshold or display.
 - `SpeechToText` / `TextToSpeech` depend on packages listed in the
   package `requirements.txt` (faster-whisper, coqui-tts, torch) that
-  are not Aiko Services dependencies; import failures surface as
+  are not Aiko Services dependencies. Import failures surface as
   `RuntimeError` at `start_stream()`.
 - No `stop_stream()` cleanup: models stay resident and discovery is
-  never cancelled.
+  never canceled.
 
 ## Related concepts
 

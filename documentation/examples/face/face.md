@@ -6,39 +6,39 @@ description: FaceDetector — a PipelineElement wrapping DeepFace
 type: concept
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/face/face.py
 related: [pipeline_element, pipeline, stream, share, image_io, yolo]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Face detection example
 
 ## Overview
 
-`face.py` provides **`FaceDetector`**, a
+`face.py` gives **`FaceDetector`**, a
 [PipelineElement](../../concepts/pipeline_element.md) that finds
 human faces in each Frame's images using the
 [DeepFace](https://github.com/serengil/deepface) library's
 `extract_faces()` with the RetinaFace detector backend. Detected face
-bounding boxes are emitted as an `overlay` of `rectangles` for the
-downstream [`ImageOverlay`](../../elements/media/image_io.md)
-element, and a running `detections` counter is published through the
-[Share](../../concepts/share.md) mechanism, so the count is visible
+bounding boxes are emitted as an `overlay` of `rectangles`, for the
+downstream [`ImageOverlay`](../../elements/media/image_io.md) element.
+A running `detections` counter is published through the
+[Share](../../concepts/share.md) mechanism. Thus the count is visible
 live in `aiko_dashboard`.
 
-**Why you'd use it**: a complete live face-detection demo in one
-command, and a worked example of a PipelineElement updating shared
-state that any Dashboard or remote Service can watch:
+**Why to use it**: for a complete live face-detection demo in one
+command. It is also a worked example of a PipelineElement that updates
+shared state, which any Dashboard or remote Service can watch:
 
 ```bash
 aiko_pipeline create face_pipeline.json -s 1
 # aiko_dashboard --> select p_face / FaceDetector --> "detections" ticks up
 ```
 
-Requires `opencv-python` (install Aiko Services with
+Needs `opencv-python` (install Aiko Services with
 `--extras "opencv"`) and the `deepface` package (which brings in
 TensorFlow — the source header points Apple silicon users at
 `tensorflow-metal`).
@@ -47,7 +47,7 @@ TensorFlow — the source header points Apple silicon users at
 
 ### Command-line usage
 
-There is no console script; `FaceDetector` is deployed by
+There is no console script. `FaceDetector` is deployed by
 `face_pipeline.json` (see the [package index](ReadMe.md)). From the
 source header, run from `src/aiko_services/examples/face/`:
 
@@ -86,15 +86,15 @@ overlay = {"rectangles": [facial_area, ...]}
 Shared state ([Share](../../concepts/share.md)):
 
 - **`detections`** — cumulative count of faces detected since the
-  element started, initialised to `0` in the constructor and updated
-  via `self.ec_producer.update("detections", ...)` each Frame that
-  contains faces.
+  element started. The constructor initializes it to `0`. Each Frame
+  that contains faces updates it through
+  `self.ec_producer.update("detections", ...)`.
 
 The detector backend is hard-coded to `"retinaface"`
-(`self.detector_backend`) — note it is *assigned but not passed* to
-`extract_faces()`, which therefore runs with DeepFace's default
-backend (see Implementation notes). Frames in which DeepFace finds
-no face raise `ValueError` internally; the element catches this and
+(`self.detector_backend`). Note that it is *assigned but not passed* to
+`extract_faces()`. Thus `extract_faces()` runs with the default backend
+of DeepFace (refer to the Implementation notes). Frames in which DeepFace finds
+no face raise `ValueError` internally. The element catches this and
 emits an empty `rectangles` list for that image.
 
 ## For framework developers (internals)
@@ -109,12 +109,11 @@ emits an empty `rectangles` list for that image.
               +--------------+
 ```
 
-- Images arrive RGB (or grayscale) and are converted to BGR with
-  OpenCV before calling DeepFace, which expects BGR — the source To
-  Do questions whether this conversion belongs in a common media
-  module instead.
+- Images arrive RGB (or grayscale). OpenCV converts them to BGR before
+  the call to DeepFace, which expects BGR. The source To Do asks
+  whether this conversion belongs in a common media module.
 - Unlike `YoloDetector`, all state is set up in the constructor —
-  there is no `start_stream()` model loading; DeepFace loads its
+  there is no `start_stream()` model loading. DeepFace loads its
   model weights lazily on the first `extract_faces()` call.
 - The cumulative `detections` counter demonstrates the
   ECProducer-side of the [Share](../../concepts/share.md) design from
@@ -128,9 +127,9 @@ emits an empty `rectangles` list for that image.
 - The `except ValueError: pass` treats *any* `ValueError` as
   "no face found", which also silences genuine argument errors.
 - In the `cv2` import-failure path, `face.py` calls
-  `aiko.logger(__name__)` — that attribute is not part of the
-  `aiko_services` public API (the sibling `aruco.py` uses
-  `aiko.process.logger(__name__)`), so the failure path would raise
+  `aiko.logger(__name__)`. That attribute is not part of the
+  `aiko_services` public API. The sibling `aruco.py` uses
+  `aiko.process.logger(__name__)`. Thus the failure path would raise
   `AttributeError` before the intended `ModuleNotFoundError`.
 - `image_id` and `face_id` counters are unused (debug leftovers).
 
@@ -144,15 +143,15 @@ emits an empty `rectangles` list for that image.
 
 From the source To Do list — **planned**, not implemented:
 
-- Confirm whether the RGB → BGR conversion is required at all, and
-  move OpenCV colour conversion into a shared
+- Confirm whether the RGB → BGR conversion is needed at all, and
+  move OpenCV color conversion into a shared
   `elements/media/common_io.py`.
 - Inference rate control (ignore frames).
 - GPU efficiency review.
 
-Additional observations (not in the To Do list): the detector
-backend is configurable in name only (see Implementation notes), and
-there are no element parameters — backend choice and confidence
+Additional observations, not in the To Do list. The detector backend is
+configurable in name only (refer to the Implementation notes). There are
+also no element parameters. The backend choice and the confidence
 thresholds would be natural PipelineDefinition parameters.
 
 ## Related concepts
@@ -161,7 +160,7 @@ thresholds would be natural PipelineDefinition parameters.
   contract `FaceDetector` implements
 - [Pipeline](../../concepts/pipeline.md) — the deploying graph
 - [Share](../../concepts/share.md) — the `detections` counter
-  published via ECProducer
+  published through ECProducer
 - [Stream](../../concepts/stream.md) — StreamEvent semantics
 - [image_io](../../elements/media/image_io.md) — `ImageResize`
   upstream and `ImageOverlay` downstream

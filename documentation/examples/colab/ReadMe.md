@@ -7,12 +7,12 @@ description: Index of the Google Colab integration example — browser
 type: index
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/colab
 related: [pipeline, pipeline_element, data_source_target, scheme]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Google Colab example index
@@ -22,7 +22,7 @@ browser — camera, microphone and speaker — to Aiko Services
 [Pipelines](../../concepts/pipeline.md) running inside a Google Colab
 notebook kernel. JavaScript in the notebook output captures media and
 calls registered Python kernel callbacks, which inject Frames into a
-Pipeline; results (processed images, synthesised speech, chat
+Pipeline. Results (processed images, synthesized speech, chat
 messages) flow back to the browser or out to a discovered chat
 server. This makes free Google Colab GPUs usable for interactive
 Aiko Services demonstrations: YOLOE object detection, faster-whisper
@@ -38,13 +38,13 @@ from `elements.py`, and `DataSchemeColab` from `scheme_colab.py`
 `SpeechToText` and `TextToSpeech` are intentionally *not* re-exported
 — they are deployed by module path, keeping their heavy model
 dependencies out of the package import. `colab_io.py` is imported
-directly by notebook cells, not via the package.
+directly by notebook cells, not through the package.
 
 ## Module documents
 
 | Document | Summary |
 |----------|---------|
-| [colab_io](colab_io.md) | Notebook glue — kernel callbacks, the camera + audio widget, and audio Frame injection via `pipeline.create_frame()` |
+| [colab_io](colab_io.md) | Notebook glue — kernel callbacks, the camera + audio widget, and audio Frame injection through `pipeline.create_frame()` |
 | [elements](elements.md) | The PipelineElements — `AudioPassThrough`, `ConvertDetections`, `ChatServer` / `MQTTPublish`, `SpeechToText`, `TextToSpeech`, `VideoReadColab` |
 | [scheme_colab](scheme_colab.md) | `colab://` DataScheme — browser web camera as a DataSource; work-in-progress browser loopback |
 
@@ -52,7 +52,7 @@ directly by notebook cells, not via the package.
 
 The seven git-committed PipelineDefinitions under
 `src/aiko_services/examples/colab/pipelines/`. The audio pipelines
-are driven from a notebook via [colab_io](colab_io.md); the YOLOE
+are driven from a notebook through [colab_io](colab_io.md). The YOLOE
 pipelines additionally use the YoloDetector element from
 `src/aiko_services/examples/yolo/yolo.py` (not yet documented) and
 [ImageOverlay](../../elements/media/image_io.md).
@@ -68,9 +68,9 @@ pipelines additionally use the YoloDetector element from
 | `colab_pipeline_2.json` | [elements](elements.md), [colab_io](colab_io.md) | As `colab_pipeline_1.json` but sourceless: injected browser images -> detection names published to chat channel `yolo`, overlaid images returned |
 
 Note: the image-injection path in [colab_io](colab_io.md) is currently
-a loopback stub, so `colab_pipeline_0.json` and
-`colab_pipeline_2.json` document the *intended* browser-camera flow;
-today only the audio pipelines receive browser Frames end-to-end.
+a loopback stub. Thus `colab_pipeline_0.json` and
+`colab_pipeline_2.json` document the *intended* browser-camera flow.
+Today only the audio pipelines receive browser Frames end-to-end.
 
 ## Requirements
 
@@ -79,7 +79,7 @@ Aiko Services itself: `faster-whisper` (speech-to-text), `coqui-tts`
 and `coqui-tts-trainer` (text-to-speech), `torch` / `torchaudio`,
 `transformers`, `opencv-python`, `numpy`, `av`, `sounddevice`,
 `soundfile` and `ipython`. Install them in the Google Colab runtime
-before creating the audio pipelines; `ffmpeg` must also be on the
+before creating the audio pipelines. `ffmpeg` must also be on the
 `PATH` (it is, on standard Colab images).
 
 ## Related documentation
@@ -90,8 +90,8 @@ before creating the audio pipelines; `ffmpeg` must also be on the
   contract
 - [DataSource / DataTarget](../../concepts/data_source_target.md) —
   the design `VideoReadColab` follows
-- [DataScheme](../../concepts/scheme.md) — URL-selected transports;
-  `colab://` registration
+- [DataScheme](../../concepts/scheme.md) — URL-selected transports, and
+  the `colab://` registration
 - [Stream](../../concepts/stream.md) — stream / frame lifecycle
 - [Media elements index](../../elements/media/ReadMe.md) —
   `ImageOverlay`, `VideoReadWebcam` and the fully implemented

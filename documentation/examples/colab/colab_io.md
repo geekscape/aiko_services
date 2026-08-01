@@ -6,35 +6,36 @@ description: Notebook-side bridge between browser JavaScript (web camera
 type: concept
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/colab/colab_io.py
 related: [pipeline, pipeline_element, stream, elements, scheme_colab]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Google Colab notebook glue (colab_io)
 
 ## Overview
 
-`colab_io.py` is the notebook-side glue that connects a web browser —
-camera, microphone and speaker, driven by JavaScript — to an
-Aiko Services [Pipeline](../../concepts/pipeline.md) running inside the
-Google Colab kernel. The browser cannot talk to the Pipeline directly:
+`colab_io.py` is the notebook-side glue. It connects a web browser to an
+Aiko Services [Pipeline](../../concepts/pipeline.md) that runs inside
+the Google Colab kernel. JavaScript drives the browser camera,
+microphone and speaker. The browser cannot talk to the Pipeline
+directly:
 Google Colab only allows JavaScript to call registered Python kernel
 callbacks. This module registers those callbacks
 (`notebook.do_print`, `notebook.handle_audio_frame`,
 `notebook.handle_image_frame`), injects the JavaScript user interface
 widget (`do_start_stream()`), and converts browser media payloads into
-Pipeline Frames via `pipeline.create_frame()`.
+Pipeline Frames through `pipeline.create_frame()`.
 
 It is designed to be imported in a notebook cell alongside the
-[colab example PipelineElements](elements.md); the Pipeline itself is
+[colab example PipelineElements](elements.md). The Pipeline itself is
 defined by the `pipelines/*.json` PipelineDefinitions indexed in the
 [package ReadMe](ReadMe.md).
 
-**Why you'd use it**: run a speech Pipeline on a free Google Colab GPU
+**Why to use it**: run a speech Pipeline on a free Google Colab GPU
 and talk to it from your laptop's browser:
 
 ```python
@@ -93,7 +94,7 @@ any audio frame is processed — both default to `None`.
 | `handle_image_frame(data_url)` | Kernel callback (`notebook.handle_image_frame`): decode a JPEG data URL to PIL, process, re-encode to a JPEG data URL |
 | `do_create_audio_frame(audio, mime_type)` | Build `stream` / `frame_data` dicts, call `common.pipeline.create_frame()`, then **block** on `common.queue_response.get()` for the Pipeline result |
 | `do_create_image_frame(image_pil)` | **Stub**: returns `("Loopback", image)` unchanged — image frames do not yet reach the Pipeline (see roadmap) |
-| `encode_silence(mime_type, ...)` | Encode one second of silence (48 kHz mono float32 by default) via an `ffmpeg` subprocess, honouring the requested container / codec (webm / ogg + opus, or wav) — used when an audio frame arrives empty |
+| `encode_silence(mime_type, ...)` | Encode one second of silence (48 kHz mono float32 by default) through an `ffmpeg` subprocess, honoring the requested container / codec (webm / ogg + opus, or wav) — used when an audio frame arrives empty |
 | `do_print(message)` | Kernel callback (`notebook.do_print`): JavaScript-side logging into the notebook output |
 
 The audio round-trip is the genuine multi-party exchange:
@@ -154,7 +155,7 @@ Key points:
 - **One stream, kernel-driven frames**: unlike a
   [DataScheme](../../concepts/scheme.md)-based DataSource, frames are
   created *push-style* by the kernel callback each time the browser
-  sends media; `common.frame_id` is incremented per call.
+  sends media. `common.frame_id` is incremented per call.
 - **Synchronous by construction**: `do_create_audio_frame()` blocks
   the kernel callback until the Pipeline responds, which in turn
   blocks the browser's `await invokeFunction(...)`. Throughput is
@@ -165,18 +166,18 @@ Key points:
 ### Implementation notes
 
 - Both `handle_audio_frame()` and `handle_image_frame()` contain an
-  `if False:` toggle to short-circuit the Pipeline and echo the input
-  (audio) or vertically flip the image — flip it to `True` to test the
-  browser / kernel path in isolation.
+  `if False:` toggle. That toggle short-circuits the Pipeline. It echoes
+  the input for audio, and flips the image vertically. Set it to `True`
+  to test the browser / kernel path alone.
 - `encode_silence()` writes two `NamedTemporaryFile`s with
-  `delete=False` and never removes them; each silent frame leaks two
+  `delete=False` and never removes them. Each silent frame leaks two
   files in the kernel's temporary directory.
 - `common.queue_response.get()` has no timeout: if the Pipeline drops
   the frame (or the notebook never wires the response queue), the
   kernel callback — and the browser widget — hang indefinitely.
 - The JavaScript widget selects the first `MediaRecorder` MIME type the
   browser supports from `audio/webm;codecs=opus`, `audio/webm`,
-  `audio/ogg;codecs=opus`, `audio/ogg`; the resulting MIME type is
+  `audio/ogg;codecs=opus`, `audio/ogg`. The resulting MIME type is
   carried end-to-end so [TextToSpeech](elements.md) can reply in the
   same container / codec.
 
@@ -185,7 +186,7 @@ Key points:
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `ColabCommon` | Hold shared notebook state: Pipeline reference, response queue, stream and frame identifiers | [Pipeline](../../concepts/pipeline.md); notebook code that assigns `pipeline` / `queue_response` |
-| *(module functions)* | Register kernel callbacks; inject the JavaScript widget; convert browser payloads to Frames and back; encode silence via `ffmpeg` | `google.colab.output`; `IPython.display`; [Pipeline](../../concepts/pipeline.md) `create_frame()`; [colab elements](elements.md) |
+| *(module functions)* | Register kernel callbacks; inject the JavaScript widget; convert browser payloads to Frames and back; encode silence through `ffmpeg` | `google.colab.output`; `IPython.display`; [Pipeline](../../concepts/pipeline.md) `create_frame()`; [colab elements](elements.md) |
 
 ## Current limitations and roadmap
 
@@ -204,8 +205,8 @@ Additional implemented-versus-planned gaps observed in the source:
   loopback stub, so the video half of the widget displays the camera
   input unprocessed. Only the audio path is wired through
   `create_frame()`. (The [scheme_colab](scheme_colab.md) DataScheme is
-  a parallel, also-incomplete attempt at the image path.)
-- The response-queue producer is left to the notebook; there is no
+  a parallel approach to the image path, and it is also incomplete.)
+- The response-queue producer is left to the notebook. There is no
   committed PipelineElement that fills `common.queue_response`.
 - The stale `webcam_pipeline_0.json` usage comment (see Command-line
   usage above).

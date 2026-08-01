@@ -6,38 +6,38 @@ description: PipelineElements that wrap a LangChain LLM chain — Ollama
 type: concept
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/llm/elements.py
 related: [pipeline_element, pipeline, message, parameters, text_io,
   speech_elements]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # LLM example elements
 
 ## Overview
 
-`elements.py` provides the **`LLM`**
+`elements.py` gives the **`LLM`**
 [PipelineElement](../../concepts/pipeline_element.md): each text frame
 is sent through a LangChain chain — `ChatPromptTemplate | llm |
 StrOutputParser` — to a local **Ollama** model (default
-`gemma4:latest`, temperature 0.0; a `llm_type` of `"openai"` selects
-LangChain's `ChatOpenAI` instead). The system prompt casts the model
-as "Oscar", an XGO-Mini 2 robot dog that replies **only in
-S-Expressions** — `(action ...)`, `(get_temperature ...)`,
-`(response ...)`, `(error ...)` — so replies can drive robot commands
+`gemma4:latest`, temperature 0.0). A `llm_type` of `"openai"` selects
+the `ChatOpenAI` of LangChain instead. The system prompt casts the model
+as "Oscar", an XGO-Mini 2 robot dog. That dog replies **only in
+S-Expressions**: `(action ...)`, `(get_temperature ...)`,
+`(response ...)` and `(error ...)`. Thus replies can drive robot commands
 directly. A `Detection` stub and a `PE_COQUI_TTS` pass-through
 complete the module.
 
-This is the `p_llm` Pipeline in the middle of the speech round trip:
-the [speech example](../speech/ReadMe.md) transcribes microphone audio
-and deploys its `PE_LLM` placeholder *remote* to this Pipeline, whose
-reply can in turn be deployed remote to the `p_llm_output`
-text-to-speech Pipeline.
+This is the `p_llm` Pipeline in the middle of the speech round trip.
+The [speech example](../speech/ReadMe.md) transcribes microphone audio,
+and deploys its `PE_LLM` placeholder *remote* to this Pipeline. Its
+reply can then be deployed remote to the `p_llm_output` text-to-speech
+Pipeline.
 
-**Why you'd use it**: chat with a local LLM from your terminal as an
+**Why to use it**: chat with a local LLM from your terminal as an
 Aiko Services [Pipeline](../../concepts/pipeline.md) (from the source
 usage header):
 
@@ -85,10 +85,10 @@ mosquitto_pub -t $TOPIC -m "$MESSAGE"
 ```
 
 The header also records LangChain setup notes (`pip install langchain
-langchain_community langchain-ollama`, optional `LANGCHAIN_*` /
-`OPENAI_API_KEY` environment variables) and invocations of a
-`./llm_chain.py` script that is **not present** in the package — a
-historical reference only.
+langchain_community langchain-ollama`, optional `LANGCHAIN_*` and
+`OPENAI_API_KEY` environment variables). It also records invocations of
+a `./llm_chain.py` script that is **not present** in the package. That
+is a historical reference only.
 
 ### Public API
 
@@ -100,23 +100,23 @@ historical reference only.
 
 #### LLM
 
-Per frame: takes `texts[0]`; a `"<silence>"` sentinel (from the
+Per frame: takes `texts[0]`. A `"<silence>"` sentinel (from the
 [speech elements](../speech/speech_elements.md)) is passed straight
-through; otherwise `llm_chain("ollama", text, detections)` is invoked
+through. Otherwise `llm_chain("ollama", text, detections)` is invoked
 and the response returned as `texts`. An Ollama connection failure
 (`httpx.ConnectError`) yields the reply
 `"#### Error: Can't connect to Ollama server ####"` instead of a
 StreamEvent error.
 
 The element also subscribes to the MQTT topic
-`{namespace}/detections` and stores `(time.monotonic(), detections)`
-on arrival — but the code that would merge those out-of-band
-detections (with a 1-second freshness window) into the prompt is
-commented out; only the `detections` frame input is used today.
+`{namespace}/detections`, and stores `(time.monotonic(), detections)`
+on arrival. But the code that would merge those out-of-band detections
+into the prompt is commented out. That code uses a 1-second freshness
+window. Only the `detections` frame input is used today.
 
 Module knobs (constants, not yet
 [Parameters](../../concepts/parameters.md)): `LLM_MODEL_NAME`
-(`gemma4:latest`; commented alternatives include `deepseek-r1`,
+(`gemma4:latest`, with commented alternatives `deepseek-r1`,
 `llama3.1/3.2/3.3`, `llama3.2-vision`, `llava-llama3`, `gpt-oss`) and
 `LLM_TEMPERATURE` (0.0).
 
@@ -129,10 +129,10 @@ element's two-input signature without a real detector.
 
 #### PE_COQUI_TTS
 
-A pass-through (`text` → `text`) bearing the same class name and
-protocol as the *real* Coqui text-to-speech element in
-[speech_elements](../speech/speech_elements.md) — here it only
-reserves the graph position; `llm_pipeline_0.json`'s commented
+A pass-through (`text` → `text`) with the same class name and protocol
+as the *real* Coqui text-to-speech element in
+[speech_elements](../speech/speech_elements.md). Here it only reserves
+the graph position. `llm_pipeline_0.json`'s commented
 alternative graph deploys the name *remote* to the `p_llm_output`
 Pipeline, where the real implementation runs.
 
@@ -165,16 +165,17 @@ Key design points:
   and `llm_chain(llm_type, text, detections)` builds and invokes the
   prompt chain. The PipelineElement is a thin frame adapter around
   them.
-- **S-Expression-constrained output**: the system prompt enumerates
-  the valid `(action ...)` commands (arm, crawl, pee, pitch, sniff,
-  wag, ...), a `(get_temperature location)` function, `(response
-  YOUR REPLY)` capped at 12 words and `(error diagnostic_message)` —
-  aligning LLM output with the S-Expression convention used across
-  Aiko Services, and appends `- see: {detections}` so the model can
-  answer "What can you see ?".
-- **Two deployment shapes for one Pipeline name** — both JSON files
-  name the Pipeline `p_llm`, so the speech example's remote
-  `service_filter` (`name: "p_llm"`) matches whichever is running.
+- **S-Expression-constrained output**: the system prompt lists four
+  permitted forms. They are the valid `(action ...)` commands (arm,
+  crawl, pee, pitch, sniff, wag and more), a
+  `(get_temperature location)` function, `(response YOUR REPLY)` capped
+  at 12 words, and `(error diagnostic_message)`. This aligns the LLM
+  output with the S-Expression convention of Aiko Services. The prompt
+  also appends `- see: {detections}`, so the model can answer
+  "What can you see ?".
+- **Two deployment shapes for one Pipeline name.** Both JSON files name
+  the Pipeline `p_llm`. Thus the remote `service_filter` of the speech
+  example (`name: "p_llm"`) matches whichever one is running.
 
 ### Implementation notes
 
@@ -186,11 +187,11 @@ Key design points:
   than 10 words") is immediately overwritten by the S-Expression
   prompt, and `SYSTEM_PROMPT_OLD` (an earlier multi-robot
   select/action grammar) is built but never used.
-- `OPENAI_API_KEY = "..."` inside `llm_load()` is a placeholder; the
+- `OPENAI_API_KEY = "..."` inside `llm_load()` is a placeholder. The
   `"openai"` path relies on the environment variable instead.
 - `LLM.__init__()` calls `context.call_init()` *before*
   `context.set_protocol()` — the reverse of the conventional order
-  used elsewhere (e.g. the speech elements).
+  used elsewhere (for example, the speech elements).
 
 ### CRC card
 
@@ -206,19 +207,19 @@ Implemented-versus-planned notes:
 
 - The out-of-band MQTT detections path is wired up (subscription and
   handler) but its use in `process_frame()` is commented out.
-- `Detection` is a stub; `PE_COQUI_TTS` here is a pass-through.
+- `Detection` is a stub. `PE_COQUI_TTS` here is a pass-through.
 - Vision-capable models are listed but the image path
   (`describe image`) exists only as a commented line in
   `llm_chain()`.
 
 From the source To Do list — **planned**, not implemented:
 
-- Attach a CLI UI; move robot selection into it.
+- Attach a CLI UI, and move robot selection into it.
 - Move the system prompt to a file specified by a CLI argument, and
   improve the prompt.
 - An example using `test.mosquitto.org`, splitting the CLI UI and the
   LLM into separate Pipelines.
-- Test using OpenAI ChatGPT-4o; set the LLM `seed` parameter.
+- Test using OpenAI ChatGPT-4o. Set the LLM `seed` parameter.
 
 ## Related concepts
 
