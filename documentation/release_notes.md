@@ -8,7 +8,7 @@ audience: [developers, end-users]
 status: operational
 ste: false
 version: "0.8-dev"
-last_updated: 2026-07-19
+last_updated: 2026-08-01
 ---
 
 # Aiko Services release notes
@@ -54,7 +54,7 @@ sections are.
   Interfaces implemented by *ECProducerImpl* and *ECConsumerImpl*, with
   new *ec_producer_args()* and *ec_consumer_args()* factories.
   Alternative implementations can now be substituted per composition,
-  e.g for testing
+  for example when testing
 
 * New *ECCache*: a general local replica of the shared variables of any
   remote Service.  *ECCache* keeps one leased, filtered *ECConsumer*
@@ -80,13 +80,32 @@ sections are.
 * Every concepts document (*documentation/concepts/*) now links directly
   to its source code file at the top of its Overview section
 
+* Aiko Services adopts **ASD-STE100 Simplified Technical English** (STE)
+  for its documentation and technical communications.  STE is a controlled
+  language: a limited vocabulary, one meaning for each word, short
+  sentences, the active voice and no semicolons.  The documentation becomes
+  easier to read for a person whose first language is not English.  It also
+  becomes easier for a language model to translate.  Each OKF document
+  declares its level in the new *ste:* front-matter field, which is *full*,
+  *adapted* or *false*.  A declaration is earned: a document changes from
+  *false* only when its text complies.  These release notes follow the same
+  rules from v0.8 onward, and so do the commit messages
+
+* New *documentation/tools/*: three command-line tools that verify and
+  prepare a document for STE.  *asd_ste100_lint.py* is the gate, and it
+  reports six counts: long sentences, prose semicolons, British spelling,
+  swap-list words, Latin abbreviations and contractions.  A document is
+  converted when all six read zero.  *asd_ste100_fix.py* applies the
+  mechanical corrections only, and *asd_ste100_semisplit.py* divides the
+  prose semicolons into sentences
+
 ### Deprecations and compatibility
 
 The wire protocol is unchanged: implementations in other languages and
 remote callers are unaffected.  For Python code:
 
 * **Deprecated (still working in v0.8, removed in the next release):**
-  positional construction of eventual-consistency state, e.g
+  positional construction of eventual-consistency state, for example
   *ECProducer(service, share)* and *ECConsumer(service, id, cache,
   topic_control, filter)*.  Migrate to the composed form:
   *compose_instance(ECProducerImpl, ec_producer_args(service, share))*
