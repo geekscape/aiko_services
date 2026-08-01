@@ -281,7 +281,7 @@ Highlights from the source `To Do` lists:
 - Implement `update`. Make `remove` unlink-only. Add `destroy
   --recursive`, `list -c` (entry counts), `-u` (UIDs) and recursion
   limits
-- REPL. structure validation (tracked paths, dead links, contents,
+- REPL. Structure validation (tracked paths, dead links, contents,
   comparison against a known-good copy)
 - File-system event integration (`FileSystemEventPatternMatch` in
   `scheme_file.py`) so HyperSpace/ProcessManager can react to storage

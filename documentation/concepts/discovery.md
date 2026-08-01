@@ -271,7 +271,7 @@ From the source `To Do` list — highlights:
   forever for discovery, and `do_request()` waits forever for a response
 - `do_request()` used before the Registrar connection is up may need to
   wait on `ConnectionState.REGISTRAR` (marked "Fix" in the source)
-- Promote `DiscoveryResponse` into the public API. handle multiple
+- Promote `DiscoveryResponse` into the public API. Handle multiple
   response items better. Replace message-payload parsing with remote
   function calls on a `DiscoveryResponse` implementation
 - Consolidate `proxy.py` (used by `actor.py`) with

@@ -43,7 +43,7 @@ heads, successors = Graph.traverse(["(a (b d) (c d))"])
 
 ### Command-line usage
 
-There is no CLI. the module is exercised by `aiko_pipeline` whenever a
+There is no CLI. `aiko_pipeline` exercises the module whenever a
 Pipeline definition's `graph` field is parsed.
 
 ### Public API
@@ -152,7 +152,7 @@ From the source `To Do` list:
 
 - Optimize `Graph.__iter__()` with an execution-order cache, invalidated
   on changes (currently recomputed every iteration)
-- Serialization through dataclasses and JSON. consider Avro / Pydantic
+- Serialization through dataclasses and JSON. Consider Avro / Pydantic
 - No direct unit tests. Covered indirectly by
   `src/aiko_services/tests/unit/test_pipeline_graph.py` through Pipeline
   creation

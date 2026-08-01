@@ -46,7 +46,7 @@ context.message.publish(topic, payload)
 
 ### Command-line usage
 
-There is no CLI. the module is exercised by every Aiko Services process —
+There is no CLI. Every Aiko Services process exercises the module —
 `process.py` activates the context during `initialize()`.
 
 ### Public API

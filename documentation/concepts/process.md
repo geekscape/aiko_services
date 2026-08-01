@@ -191,7 +191,7 @@ Design points:
   [Actor](actor.md) model work.
 - **Connection is a ladder, not a flag.** MQTT connect lifts
   [Connection](connection.md) to TRANSPORT. Registrar discovery lifts it to
-  REGISTRAR. components defer work until the rung they need exists.
+  REGISTRAR. Components defer work until the rung that they need exists.
 - **Logging works before the framework does.** `AikoLogger` is usable
   before `ProcessImplementation` exists, and routes records to the console
   and/or the process `…/0/log` topic (see [Recorder](recorder.md)).

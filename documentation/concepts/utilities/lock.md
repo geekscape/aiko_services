@@ -51,7 +51,7 @@ export AIKO_LOG_LEVEL_LOCK=DEBUG   # log every acquire / release / wait
 
 ### Command-line usage
 
-There is no CLI. the module is exercised by every Aiko Services process —
+There is no CLI. Every Aiko Services process exercises the module —
 the event loop, `process.py`, `stream.py` and `connection.py` all take
 these Locks (and `AIKO_LOG_LEVEL_LOCK=DEBUG` applies to any of them).
 

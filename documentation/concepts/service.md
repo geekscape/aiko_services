@@ -304,8 +304,8 @@ From the source `To Do` lists — highlights:
   ServicesCache. Longer term, turn `Services` into a tree ordered by
   topic-path fields and share subtrees through Eventual Consistency
   ("like GraphQL")
-- Move `ServiceImpl2` (referenced in To Do. Not present in the source) to
-  tutorials or examples
+- Move `ServiceImpl2` to tutorials or examples. The To Do references
+  it, but it is not present in the source
 - No unit tests exist for `service.py` (the repository's
   `src/aiko_services/tests/unit/` does not cover Service, Services or the
   filter classes)

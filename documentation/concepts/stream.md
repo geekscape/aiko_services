@@ -272,8 +272,8 @@ do not need an explicit `create_stream`.
   `pipeline.py` carries the matching *"Consider refactoring Stream into
   stream.py"* note.
 - Replace the free-form `metrics` dictionary with a `Metrics` dataclass
-  (To Do in `stream.py`. `pipeline.py` also suggests
-  `utilities/metrics.py`).
+  (a To Do in `stream.py`). `pipeline.py` also suggests
+  `utilities/metrics.py`.
 - Source TODO checklists: verify StreamState `RUN | STOP | ERROR`
   behavior for both local and remote cases across
   `_create_frame_generator()`, `create_stream()`,

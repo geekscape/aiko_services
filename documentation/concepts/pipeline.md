@@ -253,7 +253,7 @@ Key design points:
 - **Hooks.** Three [Hook](hook.md) points wrap execution:
   `pipeline.process_frame:0`, `pipeline.process_element:0` and
   `pipeline.process_element_post:0`, enabled through `--hooks pf,pe,pep`
-  (`am` adds the Actor message-call hook. `all` enables everything).
+  (`am` adds the Actor message-call hook, and `all` enables everything).
 
 ### Implementation notes
 
@@ -269,8 +269,8 @@ Key design points:
   Convert the returned StreamEvent through `_process_stream_event()`. Apply
   `map_out` renames. Merge `frame_data_out` into the swag. Per-element
   and whole-pipeline timings are captured into `frame.metrics`
-  (`psutil` memory metrics behind `_METRICS_MEMORY_ENABLE`. A refactor
-  into `utilities/metrics.py` is a TODO).
+  (`psutil` memory metrics sit behind `_METRICS_MEMORY_ENABLE`). A
+  refactor into `utilities/metrics.py` is a TODO.
 - **Remote elements pause the Frame.** Reaching a non-local node sets
   `frame.paused_pe_name`, invokes `process_frame` on the proxy with only
   `{stream_id, frame_id}` and breaks out of the loop. The eventual

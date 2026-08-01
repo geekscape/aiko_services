@@ -43,7 +43,7 @@ element_class = getattr(module, "ImageReadFile")
 
 ### Command-line usage
 
-There is no CLI. the module is exercised whenever `aiko_pipeline create`
+There is no CLI. The module is exercised whenever `aiko_pipeline create`
 loads the PipelineElements named in a Pipeline definition, and by
 `aiko_dashboard` when loading Service page plugins.
 

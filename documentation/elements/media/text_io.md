@@ -88,9 +88,9 @@ aiko_pipeline create pipelines/text_pipeline_0.json -s 1 \
 ```
 
 Drop-frame tests — `TextSample` locally, then split across two processes
-with a remote element (start `text_pipeline_3.json` first. See
+with a remote element. Start `text_pipeline_3.json` first, and refer to
 [PipelineElement](../../concepts/pipeline_element.md) for remote
-deployment):
+deployment:
 
 ```bash
 aiko_pipeline create pipelines/text_pipeline_1.json -s 1 -ll debug

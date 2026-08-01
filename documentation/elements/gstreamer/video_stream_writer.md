@@ -57,8 +57,8 @@ gst-launch-1.0 videotestsrc ! \
 ### Command-line usage
 
 No `__main__` of its own — exercised through the
-[video_example](video_example.md) CLI (`-os output_hostname:port`. The
-`rtmp_url` mode is not reachable from that CLI):
+[video_example](video_example.md) CLI (`-os output_hostname:port`). The
+`rtmp_url` mode is not reachable from that CLI:
 
 ```bash
 ./video_example.py -if ../data/football_test_0.mp4 -os 192.168.1.65:5000 \

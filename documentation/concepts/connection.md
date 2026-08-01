@@ -156,8 +156,8 @@ Key design points:
   (`aiko.connection`), shared by all Services in the process.
 - **Ladder, not a set of flags**: ordering lets `is_connected()` express
   "at least this much connectivity", and lets the process degrade
-  gracefully (losing the Registrar drops `REGISTRAR → TRANSPORT`. Losing
-  MQTT drops to `NONE`).
+  gracefully. Loss of the Registrar drops `REGISTRAR → TRANSPORT`, and
+  loss of MQTT drops to `NONE`.
 - **Callers own the transitions**. Connection stores and notifies. But
   the rules for *when* to move rungs live in [Process](process.md)
   (`on_mqtt_state()`, `on_registrar()`). That is also why the lock is

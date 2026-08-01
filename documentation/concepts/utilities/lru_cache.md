@@ -45,7 +45,7 @@ cache.get("key_1")              # "value_1" (now most recently used)
 
 ### Command-line usage
 
-There is no CLI. the module is exercised by `aiko_recorder` (recent log
+There is no CLI. `aiko_recorder` exercises the module (recent log
 records) and by Pipelines with frame diagnostics enabled.
 
 ### Public API

@@ -51,7 +51,7 @@ _LOGGER.debug("Diagnostic message")
 
 ### Command-line usage
 
-There is no CLI. behavior is controlled by environment variables, which
+There is no CLI. Environment variables control the behavior, and they
 apply to every Aiko Services process:
 
 ```bash

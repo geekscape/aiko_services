@@ -123,8 +123,8 @@ inherited from the shared wrapper. It follows the same shape as
 
 From the source To Do list:
 
-- Support Mac OS X camera sources (`v4l2src` is Linux-only. Mac OS X
-  would need `avfvideosrc`)
+- Support Mac OS X camera sources. `v4l2src` is Linux-only, and Mac OS
+  X would need `avfvideosrc`
 
 Additional observed gaps:
 

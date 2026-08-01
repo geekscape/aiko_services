@@ -139,8 +139,8 @@ The end-to-end story that these five concepts enable:
    process** for it. That manager is usually a
    [ProcessManager](process_manager.md). The `storage_url` identifies
    where its definition and content load from.
-   (This full lazy-loading loop is the design intent. Parts are still
-   work-in-progress — see the individual documents.)
+   (This full lazy-loading loop is the design intent, and parts are
+   still work-in-progress. Refer to the individual documents.)
 4. On restart, [HyperSpace](hyperspace.md) **reloads the entire graph** from
    Storage, so the structure of the distributed system survives any
    individual process.
