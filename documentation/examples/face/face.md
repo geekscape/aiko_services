@@ -1,7 +1,7 @@
 ---
 title: Face detection example
 description: FaceDetector — a PipelineElement wrapping DeepFace
-  RetinaFace face extraction, publishing a running detection count via
+  RetinaFace face extraction, publishing a running detection count through
   the Share mechanism
 type: concept
 audience: [developers, end-users]

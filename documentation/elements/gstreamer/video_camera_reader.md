@@ -1,7 +1,7 @@
 ---
 title: VideoCameraReader
 description: Legacy GStreamer wrapper that reads video frames from a Linux
-  V4L2 camera device via a parse_launch pipeline delegating to VideoReader
+  V4L2 camera device through a parse_launch pipeline delegating to VideoReader
 type: concept
 audience: [developers, end-users]
 status: work-in-progress

@@ -1,7 +1,7 @@
 ---
 title: Parameters
 description: How PipelineElement and Pipeline parameters are declared in
-  the PipelineDefinition, overridden per-Stream or via shared state, and
+  the PipelineDefinition, overridden per-Stream or through shared state, and
   resolved by get_parameter()
 type: concept
 audience: [architects, developers, end-users]

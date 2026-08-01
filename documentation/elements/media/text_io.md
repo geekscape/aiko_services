@@ -1,7 +1,7 @@
 ---
 title: Text I/O elements
 description: PipelineElements that read, transform, sample and write frames
-  of text — via files, an interactive terminal or ZeroMQ sockets
+  of text — through files, an interactive terminal or ZeroMQ sockets
 type: concept
 audience: [developers, end-users]
 status: work-in-progress

@@ -2,7 +2,7 @@
 title: Registrar
 description: The Service discovery hub — maintains the live directory of all
   Services, streams add / remove updates, answers share and history queries,
-  and elects a primary via a bootstrap topic
+  and elects a primary through a bootstrap topic
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress

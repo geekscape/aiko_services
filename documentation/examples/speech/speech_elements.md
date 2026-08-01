@@ -218,7 +218,7 @@ Key design points:
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `PE_WhisperX` | Transcribe audio frames; filter hallucinations; emit text or `"<silence>"`; voice-terminate | [PipelineElement](../../concepts/pipeline_element.md), WhisperX ML model, [Stream](../../concepts/stream.md) |
-| `PE_COQUI_TTS` | Synthesise speech from text; publish `speech` / `frame_id` share variables | [PipelineElement](../../concepts/pipeline_element.md), Coqui TTS ML model, `ECProducer` ([Share](../../concepts/share.md)) |
+| `PE_COQUI_TTS` | Synthesize speech from text; publish `speech` / `frame_id` share variables | [PipelineElement](../../concepts/pipeline_element.md), Coqui TTS ML model, `ECProducer` ([Share](../../concepts/share.md)) |
 | `PE_AudioFraming` | Slide a window of audio chunks; load and erase per-frame WAV files | `LRUCache`, WhisperX (`load_audio`), [Stream](../../concepts/stream.md) |
 | `PE_AudioWriteFile` | (Stub) name and write per-frame WAV files | [Parameters](../../concepts/parameters.md) |
 | `PE_SpeechFraming` | Hold the utterance-segmentation graph position | [PipelineElement](../../concepts/pipeline_element.md) |

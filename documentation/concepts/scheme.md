@@ -180,7 +180,7 @@ Key design points:
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `DataScheme` (base) | Own the scheme registry (`LOOKUP`, `add_data_scheme()`); define the per-Stream lifecycle contract (`create_sources()` / `create_targets()` / `destroy_*()`); parse URLs | [DataSource / DataTarget](data_source_target.md) (instantiation and lifecycle), [Stream](stream.md) (per-Stream state) |
-| `DataSchemeFile` (exemplar) | Resolve `file:` paths — single file, directory, `{}` glob template; choose `create_frame()` vs `create_frames()`; batch through `data_batch_size`; pace through `rate` | `DataScheme`, [PipelineElement](pipeline_element.md) (`create_frame(s)`, `get_parameter()`) |
+| `DataSchemeFile` (exemplar) | Resolve `file:` paths — single file, directory, `{}` glob template; choose `create_frame()` compared with `create_frames()`; batch through `data_batch_size`; pace through `rate` | `DataScheme`, [PipelineElement](pipeline_element.md) (`create_frame(s)`, `get_parameter()`) |
 
 ## Current limitations and roadmap
 

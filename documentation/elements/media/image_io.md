@@ -1,7 +1,7 @@
 ---
 title: Image I/O elements
 description: PipelineElements that read, convert, resize, overlay and write
-  frames of images — via files or ZeroMQ sockets, as PIL or NumPy images
+  frames of images — through files or ZeroMQ sockets, as PIL or NumPy images
 type: concept
 audience: [developers, end-users]
 status: work-in-progress

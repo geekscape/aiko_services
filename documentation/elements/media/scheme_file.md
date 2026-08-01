@@ -176,7 +176,7 @@ create_sources(stream, data_sources)
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
-| `DataSchemeFile` | Resolve `file:` URLs — single file, directory, `{}` glob template — into ordered `(path, file_id)` pairs; choose `create_frame()` vs paced `create_frames()`; batch paths per frame through `data_batch_size`; prepare `target_path` / `target_path_template` / `target_file_id` for DataTargets | [DataScheme](../../concepts/scheme.md) (base, registry), [DataSource / DataTarget](../../concepts/data_source_target.md) (owners), [PipelineElement](../../concepts/pipeline_element.md) (`create_frame(s)()`, `get_parameter()`), [Stream](../../concepts/stream.md) (per-Stream variables) |
+| `DataSchemeFile` | Resolve `file:` URLs — single file, directory, `{}` glob template — into ordered `(path, file_id)` pairs; choose `create_frame()` compared with paced `create_frames()`; batch paths per frame through `data_batch_size`; prepare `target_path` / `target_path_template` / `target_file_id` for DataTargets | [DataScheme](../../concepts/scheme.md) (base, registry), [DataSource / DataTarget](../../concepts/data_source_target.md) (owners), [PipelineElement](../../concepts/pipeline_element.md) (`create_frame(s)()`, `get_parameter()`), [Stream](../../concepts/stream.md) (per-Stream variables) |
 
 ## Current limitations and roadmap
 

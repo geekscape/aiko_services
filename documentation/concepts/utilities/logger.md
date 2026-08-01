@@ -135,7 +135,7 @@ summarized as `Repeated message count: N` at most once per
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `LoggingHandlerMQTT` | Publish log records over MQTT; console echo (`option="all"`); ring-buffer until connected; suppress and summarize repeats | `aiko.message` (publish), `aiko.connection` (readiness), `logging.Handler` (parent) |
-| *functions* `get_logger` et al. | Create configured loggers; translate level names for shared state and the `"_ALL"` propagation convention | `logging`; `process.py` (`aiko.logger()`), `actor.py` / `pipeline.py` (level changes) |
+| *functions* `get_logger` and its family | Create configured loggers; translate level names for shared state and the `"_ALL"` propagation convention | `logging`; `process.py` (`aiko.logger()`), `actor.py` / `pipeline.py` (level changes) |
 
 ## Current limitations and roadmap
 

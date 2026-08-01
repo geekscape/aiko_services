@@ -261,9 +261,9 @@ From the source `To Do` list — highlights:
   working correctly? The Interface-detection heuristic
   (`_is_interface()`) is the likely suspect — see Implementation notes
 - Support composing a class *once* and reusing it to create multiple
-  instances (currently every `compose_instance()` re-composes. Note
+  instances. Currently every `compose_instance()` re-composes. Note
   also that a `Context` records per-instance `initialized_*` flags, so
-  `init_args` must not be reused either — see [Context](context.md))
+  `init_args` must not be reused either (refer to [Context](context.md))
 - `impl_seed_class.get_implementations()` always picks up *all*
   registered Aiko Services Interface default implementations (global
   registry), relying on filtering rather than scoping

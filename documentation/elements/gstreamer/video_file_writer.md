@@ -1,7 +1,7 @@
 ---
 title: VideoFileWriter
 description: Legacy GStreamer wrapper that encodes queued numpy image frames
-  to an H.264 video file via appsrc and splitmuxsink on a background thread
+  to an H.264 video file through appsrc and splitmuxsink on a background thread
 type: concept
 audience: [developers, end-users]
 status: work-in-progress

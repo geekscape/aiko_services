@@ -180,7 +180,7 @@ Video path
 | `ChatServer` (Interface) | Declare the contract: `send_message(username, recipients, message)` | [Actor](../../concepts/actor.md); implemented by the Aiko Chat server (separate repository) |
 | `MQTTPublish` | Discover the chat server; publish `username:message` per frame; forward declared outputs | `ChatServer` proxy; [discovery](../../concepts/discovery.md) (`aiko.do_discovery`, `aiko.ServiceFilter`); [Share](../../concepts/share.md) (`chat_channel`, `username`); `all_outputs()` ([utility elements](../../elements/utilities/elements.md)) |
 | `SpeechToText` | Decode browser audio to 16 kHz mono PCM; transcribe with faster-whisper; emit `text` | `_ffmpeg_decode_to_pcm_f32_mono()`; `faster_whisper.WhisperModel`; torch (GPU probe) |
-| `TextToSpeech` | Synthesise `text` with coqui-tts; transcode to the caller's strict container / codec | `_wav_bytes_from_pcm_mono()`; `AudioFormat` / `_parse_audio_mime_strict()`; `_ffmpeg_transcode_wav_bytes_to_format_strict()`; `TTS.api.TTS` |
+| `TextToSpeech` | Synthesize `text` with coqui-tts; transcode to the caller's strict container / codec | `_wav_bytes_from_pcm_mono()`; `AudioFormat` / `_parse_audio_mime_strict()`; `_ffmpeg_transcode_wav_bytes_to_format_strict()`; `TTS.api.TTS` |
 | `VideoReadColab` | DataSource for the browser web camera; optional image `media_type` conversion | [DataSource](../../concepts/data_source_target.md); [DataSchemeColab](scheme_colab.md); `convert_images()` ([image_io](../../elements/media/image_io.md)) |
 
 ## Current limitations and roadmap

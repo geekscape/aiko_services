@@ -1,7 +1,7 @@
 ---
 title: VideoFileReader
 description: Legacy GStreamer wrapper that reads H.264 video frames from an
-  MP4/QuickTime file via a parse_launch pipeline delegating to VideoReader
+  MP4/QuickTime file through a parse_launch pipeline delegating to VideoReader
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
