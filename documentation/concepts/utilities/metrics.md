@@ -6,12 +6,12 @@ description: Placeholder for framework-wide metrics collection — currently
 type: concept
 audience: [developers]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/utilities/metrics.py
 related: [design_overview, pipeline, dashboard, system]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Metrics utility
@@ -41,7 +41,7 @@ print_memory_used("Frame 42: ")   # the working equivalent, in system.py
 
 ### Command-line usage
 
-There is no CLI and nothing exercises this module; do not import it until
+There is no CLI and nothing exercises this module. Do not import it until
 the syntax error is fixed.
 
 ### Public API
@@ -55,7 +55,7 @@ def print_memory_usage(label, unit="Mb")   # unit: "Kb"|"Mb"|"Gb"|"Tb"
 It is meant to run `gc.collect()`, read `psutil.virtual_memory().used`,
 scale it by the chosen binary unit and print `"{label}: Memory used:
 ..."`. Note this duplicates — less completely — what
-[system](system.md).`print_virtual_memory()` already provides.
+[system](system.md).`print_virtual_memory()` already does.
 
 ## For framework developers (internals)
 
@@ -75,15 +75,15 @@ shape is:
                       ──► CloudWatch / DataDog consolidation
 ```
 
-That is: metrics gathered where work happens
-([Pipeline](../pipeline.md), Actors), published as shared state so the
-[Dashboard](../dashboard.md) can display them via a `metrics:0` plugin,
-and optionally distributed via MQTT into time-series storage and cloud
-monitoring services.
+That is, metrics are gathered where work happens
+([Pipeline](../pipeline.md), Actors). They are published as shared state,
+so the [Dashboard](../dashboard.md) can display them through a
+`metrics:0` plugin. Optionally they are also distributed through MQTT
+into time-series storage and cloud monitoring services.
 
 ### CRC card
 
-The module is purely functions; one row describes the module itself:
+The module is purely functions. One row describes the module itself:
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
@@ -91,7 +91,7 @@ The module is purely functions; one row describes the module itself:
 
 ## Current limitations and roadmap
 
-Implemented behaviour: **none usable**.
+Implemented behavior: **none usable**.
 
 - **Syntax error** — the module does not compile:
   `raise ValueError(f"Unknown unit: {unit}"` at line 47 is missing its
@@ -102,17 +102,17 @@ Implemented behaviour: **none usable**.
   [system](system.md).`print_virtual_memory()`
 - Stale import: `from aiko_services.component import Interface` predates
   the `aiko_services.main` package layout (and `Interface` is unused)
-- Not listed in `utilities/__init__.py`; `__all__` is empty
+- Not listed in `utilities/__init__.py`. `__all__` is empty
 
 From the source `To Do` list (all planned):
 
-- PipelineElement metrics: Dashboard support via `self.share[]`, a
+- PipelineElement metrics: Dashboard support through `self.share[]`, a
   `metrics:0` `dashboard_plugin.py`, and Pipeline/PipelineElement
   timing and resource usage collected here
 - General Aiko Services framework and MQTT Service metrics (any Actor,
-  e.g. AlohaHonua), with Aiko Services Dashboard support
-- Distribution via MQTT; storage in InfluxDB, DynamoDB or Redis;
-  consolidation to CloudWatch, DataDog, etc
+  for example, AlohaHonua), with Aiko Services Dashboard support
+- Distribution through MQTT. Storage in InfluxDB, DynamoDB or Redis.
+  Consolidation to CloudWatch, DataDog and other services
 
 ## Related concepts
 

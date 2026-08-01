@@ -6,12 +6,12 @@ description: A lightweight directed graph — Nodes with ordered successors —
 type: concept
 audience: [developers]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/utilities/graph.py
 related: [design_overview, parser]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Graph utility
@@ -20,15 +20,15 @@ last_updated: 2026-07-05
 
 Source code: [`src/aiko_services/main/utilities/graph.py`](../../../src/aiko_services/main/utilities/graph.py)
 
-The graph utility provides `Graph` and `Node`: an insertion-ordered
+The graph utility gives `Graph` and `Node`: an insertion-ordered
 directed graph with deterministic traversal, plus a class method that
-parses S-expression graph definitions (via the
+parses S-expression graph definitions (through the
 [Parser](parser.md) utility). It exists chiefly to power Pipeline
 definitions — `PipelineGraph` in `pipeline.py` subclasses `Graph`, and
 every `"graph": ["(A B C)"]` line in a Pipeline definition file goes
 through `Graph.traverse()`.
 
-**Why you'd use it**: turn a declarative dataflow description into an
+**Why to use it**: turn a declarative dataflow description into an
 execution order:
 
 ```python
@@ -43,7 +43,7 @@ heads, successors = Graph.traverse(["(a (b d) (c d))"])
 
 ### Command-line usage
 
-There is no CLI; the module is exercised by `aiko_pipeline` whenever a
+There is no CLI. the module is exercised by `aiko_pipeline` whenever a
 Pipeline definition's `graph` field is parsed.
 
 ### Public API
@@ -122,17 +122,17 @@ Pipeline.
    └─────────────────────────────────────────┘
 ```
 
-`get_path()` computes execution order by depth-first descent with a
-"delete then re-append" trick on an OrderedDict: when a node is reached
-again by a later branch it moves to the *end*, guaranteeing every node
-appears after all of its predecessors (a topological order for DAGs).
-Nodes are decoupled from edges — successors are stored as names and
-resolved through the Graph, so a Node can be defined before its
+`get_path()` computes execution order by depth-first descent. It uses a
+"remove then re-append" trick on an OrderedDict. When a later branch
+reaches a node again, that node moves to the *end*. Thus every node
+appears after all of its predecessors, which is a topological order for
+DAGs. Nodes are decoupled from edges. Successors are stored as names and
+resolved through the Graph, so you can define a Node before its
 successors exist.
 
 ### Implementation notes
 
-- `Graph.add()` raises `KeyError` on a duplicate name; `remove()` is a
+- `Graph.add()` raises `KeyError` on a duplicate name. `remove()` is a
   silent no-op for unknown nodes — asymmetric by design of current use.
 - There is **no cycle detection**: a cyclic definition sends `get_path()`
   into infinite recursion. Pipeline loops are handled above this layer.
@@ -150,10 +150,10 @@ successors exist.
 
 From the source `To Do` list:
 
-- Optimise `Graph.__iter__()` with an execution-order cache, invalidated
+- Optimize `Graph.__iter__()` with an execution-order cache, invalidated
   on changes (currently recomputed every iteration)
-- Serialisation via dataclasses and JSON; consider Avro / Pydantic
-- No direct unit tests; covered indirectly by
+- Serialization through dataclasses and JSON. consider Avro / Pydantic
+- No direct unit tests. Covered indirectly by
   `src/aiko_services/tests/unit/test_pipeline_graph.py` through Pipeline
   creation
 - No cycle detection (see Implementation notes)

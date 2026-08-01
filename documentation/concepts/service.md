@@ -6,14 +6,14 @@ description: The distributed component primitive — a discoverable,
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/service.py
   - src/aiko_services/main/process.py
 related: [design_overview, process, actor, component, context, hook,
   registrar, discovery, share, message, transport]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Service
@@ -23,19 +23,19 @@ last_updated: 2026-07-05
 Source code: [`src/aiko_services/main/service.py`](../../src/aiko_services/main/service.py), [`src/aiko_services/main/process.py`](../../src/aiko_services/main/process.py)
 
 A **Service** is the distributed component primitive of Aiko Services: a
-unit of functionality that can be **discovered** via the
+unit of functionality that can be **discovered** through the
 [Registrar](registrar.md) and **processes messages** delivered over the
 [message transport](message.md) (MQTT). Every other distributed concept
 builds on it — an [Actor](actor.md) is-a Service that serializes messages
 through a mailbox, a Pipeline is-an Actor, and so on.
 
 A Service always lives inside a **[Process](process.md)**
-(`src/aiko_services/main/process.py`): one operating-system process hosts
-none, one or many Services, and the Process owns the MQTT connection, the
-event loop and the Registrar handshake on behalf of all of them. When a
-Service is added to its Process it is assigned a `service_id` and a
-**topic path** — `namespace/hostname/process_id/service_id` — which is its
-unique address in the distributed system.
+(`src/aiko_services/main/process.py`). One operating-system process hosts
+none, one or many Services. The Process owns the MQTT connection, the
+event loop and the Registrar handshake for all of them. When a Service is
+added to its Process, it gets a `service_id` and a **topic path**,
+`namespace/hostname/process_id/service_id`. That path is its unique
+address in the distributed system.
 
 Alongside the Service itself, `service.py` defines the descriptive data
 structures used throughout Aiko Services: `ServiceFields` (what a Service
@@ -43,10 +43,10 @@ structures used throughout Aiko Services: `ServiceFields` (what a Service
 `ServiceTags`, `ServiceTopicPath` and the `Services` collection (used by
 the Registrar and the [Share](share.md) ServicesCache).
 
-**Why you'd use it**: you implement a Service (or more commonly its
-subclass Actor) whenever you want functionality that any process on the
-network can find by *what it is* — name, protocol, tags — rather than by
-*where it is*:
+**Why to use it**: you implement a Service, or more usually its subclass
+Actor, when you want functionality that any process on the network can
+find. Such a process finds it by *what it is* (name, protocol, tags), and
+not by *where it is*:
 
 ```python
 from abc import abstractmethod
@@ -103,7 +103,7 @@ class Service(ServiceProtocolInterface, Hooks):
 | `stop()` | Terminate the owning Process (`aiko.process.terminate()`) |
 | `add_tags(tags)` / `add_tags_string("a=1,b=2")` / `get_tags_string()` | Manage the Service's tags |
 
-**Construction.** Services are composed via the
+**Construction.** Services are composed through the
 [Context](context.md) / [Component](component.md) machinery:
 
 ```python
@@ -148,13 +148,13 @@ service_fields = ServiceFields(
   filter for a single known topic path. Note:
   `ServiceFilter(name=None, ...)` substitutes the local hostname for the
   null name.
-- `ServiceProtocol` — `url_prefix/name:version`, e.g.
+- `ServiceProtocol` — `url_prefix/name:version`, for example
   `github.com/geekscape/aiko_services/protocol/service_test:0`.
 - `ServiceTags` — helpers over `key=value` string lists:
   `parse_tags()`, `get_tag_value()`, `match_tags()`.
-- `ServiceTopicPath` — parse/compose topic paths;
-  `topic_path_process` drops the service id, `terse` abbreviates for
-  display.
+- `ServiceTopicPath` — parse and compose topic paths.
+  `topic_path_process` drops the service id, and `terse` makes a short
+  form for display.
 - `Services` — a two-level `OrderedDict` collection (Process topic path
   → per-Process Services), iterable across all Services, with
   `add_service()`, `remove_service()`, `get_service()`,
@@ -173,10 +173,10 @@ do_command(ServiceTest,
 aiko.process.run()
 ```
 
-For request/response exchanges, `do_request()` additionally subscribes a
-response handler and gathers `(item_count N)` / `(response ...)` records
-— see [Category](category.md) for a worked sequence diagram of that
-protocol.
+For request/response exchanges, `do_request()` also subscribes a
+response handler. It then gathers `(item_count N)` and `(response ...)`
+records. Refer to [Category](category.md) for a worked sequence diagram
+of that protocol.
 
 **Wire protocol.** Remote method invocation is an S-expression payload
 published to the target's `topic_in`:
@@ -185,7 +185,7 @@ published to the target's `topic_in`:
 (method_name argument ...)        # e.g. (test) or (aloha Pele)
 ```
 
-The Process↔Registrar exchange (performed automatically by
+The Process↔Registrar exchange (done automatically by
 `process.py`) uses:
 
 ```
@@ -197,7 +197,7 @@ REGISTRAR/in                  (add TOPIC_PATH NAME PROTOCOL TRANSPORT
 ```
 
 Each Process also sets an MQTT Last Will and Testament of `(absent)` on
-its `.../state` topic, so the Registrar can drop its Services if the
+its `.../state` topic. Thus the Registrar can drop its Services when the
 Process dies.
 
 ## For framework developers (internals)
@@ -232,22 +232,22 @@ Key design points:
   thin — description plus message handling — so that many can share one
   Process cheaply.
 - **Identity is a topic path.** `service_id` is a monotonically
-  increasing integer per Process; the topic path composes namespace,
+  increasing integer per Process. The topic path composes namespace,
   hostname, process id and service id into a globally unique,
   transport-level address.
 - **Description over location.** `ServiceFields` / `ServiceFilter` embody
   the design direction that Services are found by matching descriptive
   fields, not by configuration of endpoints.
 - **Hooks are baked in (for now).** `Service` inherits
-  [Hooks](hook.md), giving every Service instrumentation points; the
-  To Do list intends Service Hooks to become optional whilst Actor Hooks
+  [Hooks](hook.md), giving every Service instrumentation points. The
+  To Do list intends Service Hooks to become optional while Actor Hooks
   remain built in.
 
 ### Implementation notes
 
 - `ServiceImpl.__init__()` records `time_started = time.monotonic()` and
   copies `name`, `protocol`, `tags`, `transport` from the construction
-  Context; a To Do notes these should consolidate into `ServiceFields`.
+  Context. A To Do notes these should consolidate into `ServiceFields`.
 - `Services.add_service()` orders entries so that Processes hosting a
   Registrar sort first (`move_to_end(..., last=protocol !=
   REGISTRAR_PROTOCOL)`), so iteration meets Registrars before ordinary
@@ -258,7 +258,7 @@ Key design points:
   `len(self._services)` counts *Processes*, not Services (the source
   carries a To Do questioning this).
 - `Services.filter_services()` applies `filter_by_topic_paths()` then
-  `filter_by_attributes()`; the attribute comparison is exact-match per
+  `filter_by_attributes()`. The attribute comparison is exact-match per
   field (no patterns) except tags, which use `ServiceTags.match_tags()`
   (subset semantics). The source notes this code is copied from the
   Registrar and should be unified with `share.py:_filter_compare()`.
@@ -271,7 +271,7 @@ Key design points:
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `Service` (Interface) | Declare the contract: message handlers, Registrar handler, tags, `run()`/`stop()` | `ServiceProtocolInterface`, [Hooks](hook.md) (parent Interfaces) |
-| `ServiceImpl` | Hold name/protocol/tags/transport; register with the Process to obtain `service_id` and `topic_path`; derive control/in/out/log/state topics; delegate messaging to `aiko.process` | `ProcessImplementation` (via `aiko.process`); [Registrar](registrar.md) (indirectly) |
+| `ServiceImpl` | Hold name/protocol/tags/transport; register with the Process to get `service_id` and `topic_path`; derive control/in/out/log/state topics; delegate messaging to `aiko.process` | `ProcessImplementation` (through `aiko.process`); [Registrar](registrar.md) (indirectly) |
 | `ServiceFields` | Describe one Service: topic_path, name, protocol, transport, owner, tags | [Registrar](registrar.md), [Dashboard](dashboard.md) |
 | `ServiceFilter` | Match criteria over the same fields (default `"*"`) | [Discovery](discovery.md), [Share](share.md) ServicesCache, [Category](category.md) |
 | `ServiceProtocol` | Structured `url_prefix/name:version` protocol identifier | All Service definitions |
@@ -284,27 +284,27 @@ Key design points:
 
 From the source `To Do` lists — highlights:
 
-- **BUG**: `ServicesCache.add_handler()` should provide *filtered*
+- **BUG**: `ServicesCache.add_handler()` should give *filtered*
   Services to the `service_change_handler` (noted at the top of
   `service.py`, lives in `share.py`)
-- `ServiceImpl.run()` is unimplemented — only Actor provides `run()`
+- `ServiceImpl.run()` is unimplemented — only Actor gives `run()`
 - Services created after the Registrar is found, or terminated while
   running, need guaranteed add/remove with the Registrar (currently
   handled by the Process re-announce path only)
-- Consolidate name/protocol/tags/transport into `ServiceFields`; consider
-  `@dataclass`; possibly merge `ServiceFields` and `ServiceFilter`
+- Consolidate name/protocol/tags/transport into `ServiceFields`. Consider
+  `@dataclass`. Possibly merge `ServiceFields` and `ServiceFilter`
 - Parsers, generators and setter validation for `ServiceFields`,
-  `ServiceTags`, `ServiceTopicPath`; a generator for `ServiceFilter`
+  `ServiceTags`, `ServiceTopicPath`. A generator for `ServiceFilter`
 - A default `topic_in_handler()` ("message → function call") on Service
   itself, plus the reverse remote proxy ("function call → message") —
   today both live in Actor and Discovery
 - Every Service should define its own static `ServiceProtocol`
 - Make `Hooks` optional for plain Services
 - Consolidate the Services eventual-consistency cache and the Registrar's
-  ServicesCache; longer term, turn `Services` into a tree ordered by
-  topic-path fields and share subtrees via Eventual Consistency
+  ServicesCache. Longer term, turn `Services` into a tree ordered by
+  topic-path fields and share subtrees through Eventual Consistency
   ("like GraphQL")
-- Move `ServiceImpl2` (referenced in To Do; not present in the source) to
+- Move `ServiceImpl2` (referenced in To Do. Not present in the source) to
   tutorials or examples
 - No unit tests exist for `service.py` (the repository's
   `src/aiko_services/tests/unit/` does not cover Service, Services or the

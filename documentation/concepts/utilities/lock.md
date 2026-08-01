@@ -6,12 +6,12 @@ description: A named, diagnosable wrapper around threading.Lock that
 type: concept
 audience: [developers]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/utilities/lock.py
 related: [design_overview, logger]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Lock utility
@@ -20,13 +20,14 @@ last_updated: 2026-07-05
 
 Source code: [`src/aiko_services/main/utilities/lock.py`](../../../src/aiko_services/main/utilities/lock.py)
 
-The lock utility wraps Python's `threading.Lock` with two additions: a
-*name* for the lock and a *location* string recorded on every acquire, so
-that deadlocks and contention can be diagnosed by log inspection instead
-of debugger archaeology. The Aiko Services event loop, process Service
-table, stream state and connection state are all guarded by these Locks.
+The lock utility wraps Python's `threading.Lock` with two additions. The
+first is a *name* for the lock. The second is a *location* string
+recorded on every acquire. Thus you can diagnose deadlocks and contention
+from the log, and not from a debugger. These Locks guard the Aiko
+Services event loop, the process Service table, the stream state and the
+connection state.
 
-**Why you'd use it**: protect shared state that is mutated from more than
+**Why to use it**: protect shared state that is mutated from more than
 one thread, while keeping a breadcrumb trail:
 
 ```python
@@ -50,7 +51,7 @@ export AIKO_LOG_LEVEL_LOCK=DEBUG   # log every acquire / release / wait
 
 ### Command-line usage
 
-There is no CLI; the module is exercised by every Aiko Services process —
+There is no CLI. the module is exercised by every Aiko Services process —
 the event loop, `process.py`, `stream.py` and `connection.py` all take
 these Locks (and `AIKO_LOG_LEVEL_LOCK=DEBUG` applies to any of them).
 
@@ -95,7 +96,7 @@ class does not (yet) support `with` blocks.
 
 Before blocking, `acquire()` logs (at DEBUG) that the lock is already
 held and by whom — that pre-check is inherently racy and is diagnostic
-only; correctness comes solely from the underlying `threading.Lock`.
+only. Correctness comes solely from the underlying `threading.Lock`.
 
 ### Implementation notes
 
@@ -109,7 +110,7 @@ only; correctness comes solely from the underlying `threading.Lock`.
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
-| `Lock` | Serialise access to a critical section; record and report the holding location; emit DEBUG diagnostics on acquire/release/contention | `threading.Lock` (delegate); [Logger](logger.md) (diagnostics); `event.py`, `process.py`, `stream.py`, `connection.py` (users) |
+| `Lock` | Serialize access to a critical section; record and report the holding location; emit DEBUG diagnostics on acquire/release/contention | `threading.Lock` (delegate); [Logger](logger.md) (diagnostics); `event.py`, `process.py`, `stream.py`, `connection.py` (users) |
 
 ## Current limitations and roadmap
 
@@ -122,8 +123,8 @@ From the source `To Do` list:
 - Not re-entrant, no timeout, no context-manager (`with`) support
 - The `logger` constructor argument is dead code (see Implementation
   notes)
-- No direct unit tests; `tests/unit/test_stream_lock.py` tests Pipeline
-  *stream* locking behaviour built on top of this class
+- No direct unit tests. `tests/unit/test_stream_lock.py` tests Pipeline
+  *stream* locking behavior built on top of this class
 
 ## Related concepts
 

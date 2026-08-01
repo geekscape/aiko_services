@@ -5,13 +5,13 @@ description: How to extend the Aiko Services Dashboard with a custom page
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/dashboard_plugins.py
   - src/aiko_services/main/dashboard.py
 related: [design_overview, dashboard, service, share, registrar]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Dashboard plug-in
@@ -22,22 +22,23 @@ Source code: [`src/aiko_services/main/dashboard_plugins.py`](../../src/aiko_serv
 
 A **Dashboard plug-in** adds a custom page to the Aiko Services
 [Dashboard](dashboard.md) for a particular kind of
-[Service](service.md). When the user selects a Service and presses `S`
-("Show Service page"), the Dashboard looks up the Service's *name* and
-*protocol* in its plug-in registry and switches to the matching page; if
-neither matches, a "Does not have a custom page" pop-up appears.
+[Service](service.md). The user selects a Service and presses `S`
+("Show Service page"). The Dashboard then looks up the Service's *name*
+and *protocol* in its plug-in registry, and switches to the matching
+page. If neither matches, a "Does not have a custom page" pop-up
+appears.
 
 A plug-in is simply a Python module with a `plugins` dictionary mapping a
 Service name or protocol to a subclass of `aiko.ServiceFrame`. The
-built-in module `aiko_services.main.dashboard_plugins` provides one
-example — `RegistrarFrame`, a page for the
-[Registrar](registrar.md) that lists all discovered Service topic paths
+built-in module `aiko_services.main.dashboard_plugins` gives one
+example. That example is `RegistrarFrame`, a page for the
+[Registrar](registrar.md). It lists all discovered Service topic paths
 above a live log tail.
 
-**Why you'd use it**: your Actor has domain state that deserves a richer
-view than the generic variables table — for example a Pipeline's frame
-metrics, an MQTT broker's statistics, or a REPL. Ship a page with your
-application and load it at start-up:
+**Why to use it**: your Actor has domain state that needs a richer view
+than the generic variables table. Examples are a Pipeline's frame
+metrics, an MQTT broker's statistics, and a REPL. Ship a page with your
+application, and load it at start-up:
 
 ```bash
 aiko_dashboard --plugin my_application.dashboard_pages
@@ -49,7 +50,7 @@ aiko_dashboard --plugin my_application.dashboard_pages
 
 ### Command-line usage
 
-Plug-ins have no CLI of their own; they are loaded by `aiko_dashboard`:
+Plug-ins have no CLI of their own. They are loaded by `aiko_dashboard`:
 
 ```bash
 aiko_dashboard [--plugin MODULE]...   # -p MODULE, may be repeated
@@ -66,7 +67,7 @@ aiko_dashboard [--plugin MODULE]...   # -p MODULE, may be repeated
 
 ### Public API
 
-A plug-in module provides two things — one or more `ServiceFrame`
+A plug-in module gives two things — one or more `ServiceFrame`
 subclasses, and a module-level `plugins` dictionary:
 
 ```python
@@ -77,10 +78,10 @@ plugins = {
 }
 ```
 
-The key is matched (in `DashboardFrame._raise_next_scene()`) against the
-selected Service's name first, then against its protocol *short name* —
-the last path component with the version stripped, so protocol
-`…/registrar:0` matches the key `registrar`. The key also becomes the
+`DashboardFrame._raise_next_scene()` matches the key against the
+selected Service's name first, then against its protocol *short name*.
+The short name is the last path component with the version stripped, so
+protocol `…/registrar:0` matches the key `registrar`. The key also becomes the
 `asciimatics` scene name, so the keys `Dashboard` and `Log` are reserved
 by the built-in pages (a plug-in using them would replace those pages).
 
@@ -110,7 +111,7 @@ Two rules from the source worth quoting:
   (`Service: TOPIC_PATH: NAME`) for you, and already handles `?` (help),
   `D` (back to Dashboard) and `x` (exit).
 
-The reusable `LogUI` class provides a ready-made log-tail section
+The reusable `LogUI` class gives a ready-made log-tail section
 (subscribe to the Service's log topic, 128-record ring buffer,
 follow-latest scrolling) — embed it as `RegistrarFrame` does:
 
@@ -179,8 +180,8 @@ Key design points:
   first call, then merges each plug-in module's `plugins` dict —
   later modules can override earlier keys.
 - `run_dashboard()` constructs one Scene per `_PLUGINS` entry, in
-  insertion order. The `Dashboard` entry is first, and after its Scene is
-  created the `DashboardFrame` singleton exists — every subsequent
+  insertion order. The `Dashboard` entry is first. After its Scene is
+  made, the `DashboardFrame` singleton exists. Thus every subsequent
   (plug-in) frame receives it as the `dashboard` constructor argument.
 - Selection state stays in the singleton: a `ServiceFrame` notices a new
   selection by comparing `dashboard.selected_service` with
@@ -193,9 +194,10 @@ Key design points:
 - Plug-in frames are constructed once at start-up (and again after a
   terminal resize), not per selection — treat `__init__()` as widget
   layout only and do per-Service work in `_service_frame_start()`.
-- `LogUI` derives the log topic from the Service topic path by replacing
-  the service id with `0` (`NAMESPACE/HOST/PID/0/log`) — one log page per
-  *process*, with "use correct Service Id" a recorded To Do.
+- `LogUI` derives the log topic from the Service topic path. It replaces
+  the service id with `0` (`NAMESPACE/HOST/PID/0/log`). Thus there is
+  one log page per *process*. "Use correct Service Id" is a recorded To
+  Do.
 - `services_cache_create_singleton()` is shared with the main Dashboard —
   calling it again in a plug-in returns the same cache (the
   `history_limit` argument only takes effect for whoever creates it
@@ -214,13 +216,13 @@ Key design points:
 
 - Plug-in loading failures are silent — a mistyped `--plugin` module name
   simply yields no page.
-- One page per Service *type*; there is no per-instance page state beyond
+- One page per Service *type*. There is no per-instance page state beyond
   the currently selected Service.
 - The Dashboard To Do list envisages plug-ins as the main growth path
   ("Dashboard plug-ins: Metrics for all Services/Actors/Agents/
   Pipelines"), including: a LISP REPL / composable GUI workspace
-  integrating `do_command()` / `do_request()`; a mosquitto (MQTT) metrics
-  and administration page; a Registrar tree viewer; ProcessManager and
+  integrating `do_command()` / `do_request()`. A mosquitto (MQTT) metrics
+  and administration page. A Registrar tree viewer. ProcessManager and
   HyperSpace pages driving their APIs.
 - Writing a custom plug-in is also the recommended fourth debugging
   approach for a Service or Actor (see the `dashboard.py` header notes).
@@ -230,7 +232,7 @@ Key design points:
 - [Design overview](design_overview.md)
 - [Dashboard](dashboard.md) — the host application and its singleton
   frame
-- [Service](service.md) — what a page is shown for; name and protocol
+- [Service](service.md) — what a page is shown for. Name and protocol
   drive plug-in matching
 - [Share](share.md) — the `ECConsumer` handed to
   `_service_frame_start()`

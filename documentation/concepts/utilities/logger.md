@@ -6,12 +6,12 @@ description: Logging for Aiko Services — console and/or MQTT log
 type: concept
 audience: [developers]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/utilities/logger.py
 related: [design_overview, configuration]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Logger utility
@@ -22,13 +22,14 @@ Source code: [`src/aiko_services/main/utilities/logger.py`](../../../src/aiko_se
 
 The logger utility wraps Python's (notoriously unintuitive) `logging`
 package into two pieces: `get_logger()`, a one-call standalone logger
-factory driven by `AIKO_LOG_LEVEL`; and `LoggingHandlerMQTT`, a logging
-handler that publishes log records to an MQTT topic — buffering them in a
-ring buffer until the connection is up, and collapsing repeated messages.
+factory driven by `AIKO_LOG_LEVEL`. And `LoggingHandlerMQTT`, a logging
+handler that publishes log records to an MQTT topic. That handler holds
+records in a ring buffer until the connection is up, and it collapses
+repeated messages.
 Distributed logging over MQTT is what lets the Recorder and Dashboard
 show every process's log stream from anywhere on the network.
 
-**Why you'd use it**: the framework idiom, one logger per module, MQTT
+**Why to use it**: the framework idiom, one logger per module, MQTT
 transport by default:
 
 ```python
@@ -50,7 +51,7 @@ _LOGGER.debug("Diagnostic message")
 
 ### Command-line usage
 
-There is no CLI; behaviour is controlled by environment variables, which
+There is no CLI. behavior is controlled by environment variables, which
 apply to every Aiko Services process:
 
 ```bash
@@ -60,7 +61,7 @@ AIKO_LOG_REPEAT_PERIOD=6     # seconds between repeated-message summaries
 AIKO_LOG_REPEAT_DEPTH=...    # to be implemented
 ```
 
-The MQTT log topic is `{namespace}/{host}/{pid}/{sid}/log`; the Recorder
+The MQTT log topic is `{namespace}/{host}/{pid}/{sid}/log`. The Recorder
 subscribes to `{namespace}/+/+/+/log` to capture them all.
 
 ### Public API
@@ -109,31 +110,31 @@ self.logger.setLevel(log_level_real(item_value))
         │               no     ──► ring buffer (128 records, oldest dropped)
 ```
 
-The handler registers a connection-state handler; when MQTT transport
+The handler registers a connection-state handler. When MQTT transport
 connects, buffered records are drained to the topic in order. Repeated
 records (same message, logger name and level) are suppressed and
-summarised as `Repeated message count: N` at most once per
+summarized as `Repeated message count: N` at most once per
 `AIKO_LOG_REPEAT_PERIOD` seconds.
 
 ### Implementation notes
 
-- This is a low-level module used *by* the framework — keep static
+- This is a low-level module that the framework uses. Keep its static
   dependencies on the framework minimal. `ConnectionState` is imported
-  mid-file, after the standalone functions, to soften the circularity;
+  mid-file, after the standalone functions, to soften the circularity.
   `message/mqtt.py` deliberately cannot use `LoggingHandlerMQTT` to
   diagnose itself.
 - `get_logger()` uppercases the last dotted component of `name` and
   **adds a handler on every call** — calling it twice for the same name
   duplicates output.
 - The `__all__` list exports `get_level_name`, which does not exist (the
-  function is `get_log_level_name`); harmless today because
+  function is `get_log_level_name`). Harmless today because
   `utilities/__init__.py` imports names explicitly.
 
 ### CRC card
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
-| `LoggingHandlerMQTT` | Publish log records over MQTT; console echo (`option="all"`); ring-buffer until connected; suppress and summarise repeats | `aiko.message` (publish), `aiko.connection` (readiness), `logging.Handler` (parent) |
+| `LoggingHandlerMQTT` | Publish log records over MQTT; console echo (`option="all"`); ring-buffer until connected; suppress and summarize repeats | `aiko.message` (publish), `aiko.connection` (readiness), `logging.Handler` (parent) |
 | *functions* `get_logger` et al. | Create configured loggers; translate level names for shared state and the `"_ALL"` propagation convention | `logging`; `process.py` (`aiko.logger()`), `actor.py` / `pipeline.py` (level changes) |
 
 ## Current limitations and roadmap
@@ -142,19 +143,19 @@ From the source `To Do` lists:
 
 - `set_log_level(name, level)` with a registry of all loggers, so one,
   several or all can be changed at once
-- Select debug versus default format on-the-fly from the current level;
-  change `AIKO_LOG_MQTT` on-the-fly via ECProducer
-- Logging to file (chunked by date/time or size); make the logger a
+- Select the debug format or the default format on-the-fly from the
+  current level. Change `AIKO_LOG_MQTT` on-the-fly through ECProducer
+- Logging to file (chunked by date/time or size). Make the logger a
   class, "nothing global!"
 - `AIKO_LOG_REPEAT_DEPTH` (suppressing *sets* of repeating messages) is
   unimplemented
 - `emit()` catches bare `Exception` (marked in-source as hiding problems)
-  and `__del__` is a stub; no unit tests exist for this module
+  and `__del__` is a stub. No unit tests exist for this module
 
 ## Related concepts
 
 - [Configuration](configuration.md) — same `AIKO_*` environment-variable
-  style; supplies namespace/host/pid for the log topic
+  style. Supplies namespace/host/pid for the log topic
 - [Lock](lock.md) — uses this module for its diagnostics
 - [Design overview](../design_overview.md) — Recorder and Dashboard, the
   consumers of MQTT log streams

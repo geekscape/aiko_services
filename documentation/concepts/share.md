@@ -7,13 +7,13 @@ description: Eventually-consistent shared state between Services —
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/share.py
 related: [design_overview, service, actor, registrar, lease, connection,
   dashboard]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Share (Eventual Consistency)
@@ -22,24 +22,25 @@ last_updated: 2026-07-05
 
 Source code: [`src/aiko_services/main/share.py`](../../src/aiko_services/main/share.py)
 
-**Share** is the Aiko Services mechanism for distributed state: a
-[Service](service.md) owns a dictionary (its *share*), an **ECProducer**
-publishes every change to it, and any number of **ECConsumers** — in the
-[Dashboard](dashboard.md), in other Services, on other hosts — hold a
-local replica (*cache*) that converges on the producer's state. "EC"
-stands for *Eventual Consistency*: consumers synchronize with a snapshot,
-then apply incremental add/update/remove messages, protected by a
-[Lease](lease.md) that is automatically extended while the consumer is
+**Share** is the Aiko Services mechanism for distributed state. A
+[Service](service.md) owns a dictionary (its *share*), and an
+**ECProducer** publishes every change to it. Any number of
+**ECConsumers** hold a local replica (*cache*) that converges on the
+producer's state. A consumer runs in the [Dashboard](dashboard.md), in
+another Service, or on another host. "EC" stands for *Eventual
+Consistency*: consumers synchronize with a snapshot, then apply
+incremental add/update/remove messages. A [Lease](lease.md) protects the
+subscription, and it is automatically extended while the consumer is
 alive.
 
 Every [Actor](actor.md) gets a share and an ECProducer automatically
-(`self.share`, `self.ec_producer`), which is why an Actor's `lifecycle`,
+(`self.share`, `self.ec_producer`). Thus an Actor's `lifecycle`,
 `log_level` and any application state appear live in the Dashboard with
-no extra code. [Category](category.md) stores its entries in the share;
-the [Registrar](registrar.md) is observed through the related
+no extra code. [Category](category.md) stores its entries in the share.
+The [Registrar](registrar.md) is observed through the related
 **ServicesCache**, also defined in `share.py`.
 
-**Why you'd use it**: to observe — or remotely change — a Service's live
+**Why to use it**: to observe — or remotely change — a Service's live
 state without polling and without writing any protocol code:
 
 ```python
@@ -58,7 +59,7 @@ self.ec_consumer.add_handler(self.change_handler)
 
 ### Command-line usage
 
-There is no `aiko_share` console script; `share.py` provides two built-in
+There is no `aiko_share` console script. `share.py` gives two built-in
 test commands (run the module directly):
 
 ```bash
@@ -71,10 +72,10 @@ cd src/aiko_services/main
                                             # start an ECConsumer against it
 ```
 
-`ec_test` without arguments creates a producer whose share contains
-`lifecycle`, `log_level`, `source_file` and a nested `items` dictionary;
-with the producer's process id it creates a consumer that replicates and
-logs every change.
+`ec_test` without arguments creates a producer. That producer's share
+contains `lifecycle`, `log_level`, `source_file` and a nested `items`
+dictionary. With the producer's process id, `ec_test` instead creates a
+consumer that replicates and logs every change.
 
 Because the wire protocol is plain S-expressions over MQTT, a producer
 can be exercised directly with the mosquitto tools (from the source
@@ -106,7 +107,7 @@ Logging detail is controlled with `AIKO_LOG_LEVEL_SHARE`
 | `ECProducer(service, share, topic_in=None, topic_out=None)` | Listen for commands on `topic_in` (default: the Service's `topic_control`), publish changes on `topic_out` (default: `topic_state`); adds the `ec=true` tag to the Service |
 | `get(item_name)` | Read an item (dotted path), `None` if absent |
 | `update(item_name, item_value)` | Set an item (creating the path) and notify handlers and lease-holding consumers |
-| `remove(item_name)` | Delete an item and notify |
+| `remove(item_name)` | Remove an item and notify |
 | `add_handler(handler)` / `remove_handler(handler)` | Local change callbacks `handler(command, item_name, item_value)`; on registration the handler is replayed an `"add"` for every existing item |
 
 **ECConsumer** — replicates a producer's share into a local cache:
@@ -130,11 +131,11 @@ Item names use a dotted path with a **maximum depth of two**
 (share RESPONSE_TOPIC LEASE_TIME FILTER)    # snapshot + subscription lease
 ```
 
-`FILTER` is `*` or a list of item-name prefixes, e.g. `(lifecycle
-services)` — an item matches if its name equals a filter entry or starts
-with `ENTRY.`. `LEASE_TIME 0` means either "one-shot snapshot, no lease"
-(if no lease exists for that response topic) or "cancel my lease" (if one
-does); a positive lease time creates or extends the lease.
+`FILTER` is `*` or a list of item-name prefixes, for example `(lifecycle
+services)`. An item matches if its name equals a filter entry, or if it
+starts with `ENTRY.`. `LEASE_TIME 0` means "one-shot snapshot, no lease"
+when no lease exists for that response topic. It means "cancel my lease"
+when one does exist. A positive lease time makes or extends the lease.
 
 Messages *from* the producer:
 
@@ -210,61 +211,61 @@ only occurs when `history_limit > 0`).
 Key design points:
 
 - **Producer-authoritative, consumer-converging.** The share dictionary
-  is the single source of truth; consumers converge via
+  is the single source of truth. Consumers converge through
   snapshot-then-increments. There is no conflict resolution because only
   the producer mutates its share (remote writers go *through* the
   producer's command topic).
 - **Leases bound fan-out.** Every consumer subscription is an
-  [ECLease](lease.md) (a Lease plus the consumer's filter); expired
+  [ECLease](lease.md) (a Lease plus the consumer's filter). Expired
   leases are dropped, so a producer never publishes forever to dead
   consumers. The consumer holds its own auto-extending 300-second Lease
   that re-sends the share request.
 - **Filters cut traffic.** Both the snapshot (`_filter_share()`) and
-  incremental updates (`_filter_compare()` per lease) honour the
+  incremental updates (`_filter_compare()` per lease) honor the
   consumer's item-name filter.
-- **Connection-driven startup.** The consumer only issues its share
-  request once the [Connection](connection.md) state reaches
-  `REGISTRAR`, so shares work reliably across late starts — though see
-  the roadmap for degradation handling.
+- **Connection-driven startup.** The consumer issues its share request
+  only when the [Connection](connection.md) state reaches `REGISTRAR`.
+  Thus shares work reliably across late starts. But refer to the roadmap
+  for degradation handling.
 - ServicesCache predates ECProducer/ECConsumer and duplicates the same
   snapshot-plus-updates pattern against the Registrar's own wire
-  protocol; the stated direction is to reimplement it (and the Registrar)
+  protocol. The stated direction is to reimplement it (and the Registrar)
   on the EC classes.
 
 ### Implementation notes
 
 - **Item paths**: `_ec_parse_item_path()` splits on `.` and enforces the
-  two-level depth limit; `_ec_modify_item()` walks/creates nested
-  dictionaries and applies an update or remove closure;
+  two-level depth limit. `_ec_modify_item()` walks or makes nested
+  dictionaries, and applies an update or remove closure.
   `_flatten_dictionary()` produces `("a.b", value)` pairs for replay and
   snapshots. Improving the share to work recursively beyond two levels
   is on the To Do list.
 - **`ECProducer._producer_handler()`** accepts `add` and `update` as
   synonyms (both upsert). Accepted mutations are echoed verbatim on
-  `topic_out` *and* fanned out per-lease; local `update()`/`remove()`
+  `topic_out` *and* fanned out per-lease. Local `update()`/`remove()`
   calls notify handlers and leases but do **not** echo on `topic_out`.
 - **Payload generation**: `_update_consumers()` formats
   `({command} {item_name} {item_value})` with an f-string — a To Do notes
-  it should use `generate()`; complex `item_value`s (spaces, nested
+  it should use `generate()`. Complex `item_value`s (spaces, nested
   structures) may not round-trip through `parse()` cleanly.
 - **`ECConsumer` cache values are parsed S-expression fragments** —
-  strings and lists — not rich Python objects; consumers needing typed
-  values must convert (`parse_int()` etc.).
+  strings and lists — not rich Python objects. Consumers needing typed
+  values must convert (`parse_int()` and the related functions).
 - **Response-topic construction**: the consumer's `topic_share_in`
   embeds the producer's full control topic beneath the consumer's own
-  topic path, so one consumer Service can hold distinct response topics
-  for many producers and consumer ids.
+  topic path. Thus one consumer Service can hold distinct response
+  topics for many producers and consumer ids.
 - **ServicesCache startup sequence**: on Registrar connection it
-  subscribes to the Registrar's `out` topic and its own
-  `registrar_share` response topic, requests `(history ...)` if a
-  history limit is set, then `(share RESPONSE_TOPIC * * * * *)`;
-  `registrar_share_handler()` counts down `item_count`, then live
-  add/remove flows through `registrar_out_handler()`; `"ready"` is only
-  entered after the Registrar's `(sync ...)` confirmation. On Registrar
-  loss the cache resets to `empty` and the departed Registrar is pushed
-  onto the history ring buffer (4096 entries).
+  subscribes to the Registrar's `out` topic and to its own
+  `registrar_share` response topic. It then requests `(history ...)` if
+  a history limit is set, and then `(share RESPONSE_TOPIC * * * * *)`.
+  `registrar_share_handler()` counts down `item_count`. After that, live
+  add/remove flows through `registrar_out_handler()`. The cache enters
+  `"ready"` only after the Registrar's `(sync ...)` confirmation. On
+  Registrar loss the cache resets to `empty`, and the departed Registrar
+  is pushed onto the history ring buffer (4096 entries).
 - `services_cache_create_singleton()` starts the cache's `run()` on a
-  separate `Thread`; only the instance that started the event loop
+  separate `Thread`. Only the instance that started the event loop
   terminates it.
 
 ### CRC card
@@ -286,22 +287,22 @@ From the source `To Do` lists — highlights:
 - **BUG**: ServicesCache (and EC generally) should handle network
   degradation (ConnectionState changes) and lease expiry
 - **BUG** (noted in `service.py`): `ServicesCache.add_handler()` calls
-  the handler with `("sync", None)` without providing *filtered*
+  the handler with `("sync", None)` without giving *filtered*
   Services
 - An `ECProducerCore` minimal implementation (answers every `(share ...)`
   with `(item_count 0)`, ignores the rest), with `ECProducer` extending it
 - Multiple Actors per Process each wanting their own ECProducer — the
   constructor should optionally take the Service name to disambiguate
-- **Provide unit tests** — the source asks for them explicitly, and no
+- **Give unit tests** — the source asks for them explicitly, and no
   tests for `share.py` exist under `src/aiko_services/tests/`
-- Reimplement ServicesCache using ECProducer/ECConsumer; the Registrar
-  should share identical code; `services_cache_delete()` should become a
+- Reimplement ServicesCache using ECProducer/ECConsumer. The Registrar
+  should share identical code. `services_cache_delete()` should become a
   class method
 - Handle the Registrar being unavailable, stopping and restarting
 - Allow an ECConsumer to change its filter with or without an existing
-  lease; catch `ValueError` from `_ec_remove_item()`/`_ec_update_item()`
+  lease. Catch `ValueError` from `_ec_remove_item()`/`_ec_update_item()`
   in the consumer (currently uncaught)
-- Work recursively beyond the two-level dictionary depth; when a
+- Work recursively beyond the two-level dictionary depth. When a
   subscribed-to dictionary is removed, emit remove messages for its
   components (currently not sent)
 - Use `generate()` for incremental update payloads (values with spaces
@@ -310,9 +311,9 @@ From the source `To Do` lists — highlights:
 ## Related concepts
 
 - [Design overview](design_overview.md)
-- [Service](service.md) — provides the topics, tags and Services collection Share builds on
+- [Service](service.md) — gives the topics, tags and Services collection Share builds on
 - [Actor](actor.md) — every Actor embeds a share and ECProducer
-- [Registrar](registrar.md) — observed via ServicesCache; shares the same snapshot idiom
+- [Registrar](registrar.md) — observed through ServicesCache. Shares the same snapshot idiom
 - [Lease](lease.md) — bounds every consumer subscription
 - [Connection](connection.md) — gates when consumers issue share requests
 - [Dashboard](dashboard.md) — the largest ECConsumer user

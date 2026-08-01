@@ -5,12 +5,12 @@ description: Discover which TCP/UDP ports are in use on this host and find
 type: concept
 audience: [developers]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/utilities/network.py
 related: [design_overview, scheme]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Network utility
@@ -22,10 +22,10 @@ Source code: [`src/aiko_services/main/utilities/network.py`](../../../src/aiko_s
 The network utility answers two local-host questions: *which network
 ports are already in use?* and *what is a free port I can bind?* It is a
 thin layer over `psutil.net_connections()` with no Aiko Services
-dependencies, exported via `utilities/__init__.py` as
+dependencies, exported through `utilities/__init__.py` as
 `get_network_port_free` and `get_network_ports_used`.
 
-**Why you'd use it**: a [DataScheme](../scheme.md) or server component
+**Why to use it**: a [DataScheme](../scheme.md) or server component
 that must bind a listening socket without a hard-coded port. The ZMQ
 DataScheme does exactly this when a `zmq://host:0` URL asks for "any
 free port":
@@ -40,7 +40,7 @@ port = get_network_port_free(port_range)   # e.g. [6502, 6510] or [0, 0]
 
 ### Command-line usage
 
-There is no console script; running the module directly lists every TCP
+There is no console script. Running the module directly lists every TCP
 and UDP port currently in use:
 
 ```bash
@@ -108,30 +108,30 @@ limitations.
 
 - The scan relies on `get_network_ports_used()` returning **sorted**
   lists (it does — both are `sorted(set(...))`).
-- Only TCP sockets in `LISTEN` state count as "used"; a TCP port held by
+- Only TCP sockets in `LISTEN` state count as "used". a TCP port held by
   an established outbound connection is considered free.
-- `psutil.net_connections()` may require elevated privileges on some
-  platforms (notably macOS) to see other processes' sockets; with
+- `psutil.net_connections()` may need elevated privileges on some
+  platforms (notably macOS) to see other processes' sockets. With
   restricted visibility the "free" answer can be optimistic.
 - The `type` parameter name shadows the Python built-in `type` — safe
   here, but keep it in mind when editing.
 
 ### CRC card
 
-The module is purely functions; one row describes the module itself:
+The module is purely functions. One row describes the module itself:
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
-| `network` (module) | Enumerate in-use TCP/UDP ports; find the first free port in a range (with `[0, 0]` meaning the IANA dynamic range) | `psutil` (socket enumeration); [DataScheme](../scheme.md) implementations, e.g. `scheme_zmq.py` |
+| `network` (module) | Enumerate in-use TCP/UDP ports; find the first free port in a range (with `[0, 0]` meaning the IANA dynamic range) | `psutil` (socket enumeration); [DataScheme](../scheme.md) implementations, for example, `scheme_zmq.py` |
 
 ## Current limitations and roadmap
 
 The source has no `To Do` list. Observed limitations:
 
 - **TOCTOU race**: the returned port can be taken by another process
-  before the caller binds it; there is no reserve-and-hand-over option
+  before the caller binds it. There is no reserve-and-hand-over option
 - Returns `None` on exhaustion rather than raising — callers must check
-- No IPv4/IPv6 distinction and no per-interface filtering; all `inet`
+- No IPv4/IPv6 distinction and no per-interface filtering. All `inet`
   connections are pooled
 - No unit tests anywhere in the repository exercise this module
 

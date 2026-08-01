@@ -5,13 +5,13 @@ description: A terminal user interface for observing and controlling every
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/dashboard.py
 related: [design_overview, dashboard_plugin, service, share, registrar,
   connection, recorder]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Dashboard
@@ -22,25 +22,29 @@ Source code: [`src/aiko_services/main/dashboard.py`](../../src/aiko_services/mai
 
 The **Dashboard** is the Aiko Services terminal user interface (TUI) —
 built on the `asciimatics` library — for watching and operating a running
-distributed system. It discovers every [Service](service.md) via the
+distributed system. It discovers every [Service](service.md) through the
 [Registrar](registrar.md), then presents three live sections in one page:
-the current Services, the selected Service's shared variables (via
+the current Services, the selected Service's shared variables (through
 [Share](share.md) — ECProducer / ECConsumer), and a history of terminated
-Services. From the keyboard you can update a Service variable, change a
-Service's log level, tail a Service's log, filter the Service list and
-kill a local Service process.
+Services. From the keyboard you can do these operations:
+
+- Update a Service variable
+- Change a Service's log level
+- Tail a Service's log
+- Filter the Service list
+- Kill a local Service process
 
 The Dashboard is deliberately written *as an application, outside the
-framework core* (`import aiko_services as aiko` — "designed to be external
-to the main framework"), which makes it both the reference consumer of the
-public discovery / shared-state APIs and extensible through
-[Dashboard plug-ins](dashboard_plugin.md) that add custom pages per
-Service protocol.
+framework core* (`import aiko_services as aiko` — "designed to be
+external to the main framework"). Thus it is the reference consumer of
+the public discovery and shared-state APIs. It is also extensible
+through [Dashboard plug-ins](dashboard_plugin.md), which add custom
+pages per Service protocol.
 
-**Why you'd use it**: you have a Registrar plus a handful of Services and
-Pipelines running across several hosts, and want one live view of what is
-up, what each Service's state is, and a way to tweak a variable or log
-level without restarting anything:
+**Why to use it**: you have a Registrar plus a handful of Services and
+Pipelines running across several hosts. You want one live view of what
+is up and what each Service's state is. You also want to change a
+variable or a log level without a restart:
 
 ```bash
 aiko_registrar &          # if not already running
@@ -54,7 +58,7 @@ aiko_dashboard            # full-screen TUI appears
 ### Command-line usage
 
 The console script is `aiko_dashboard` (defined in `pyproject.toml` as
-`aiko_services.main.dashboard:main`); the module can also be run directly
+`aiko_services.main.dashboard:main`). The module can also be run directly
 (`./dashboard.py` in `src/aiko_services/main`).
 
 ```bash
@@ -83,10 +87,10 @@ s      Select Service (toggle)        x      Exit
   `pipeline_element` Services are hidden.
 - `l` opens the log level pop-up: `d/e/i/w` set DEBUG / ERROR / INFO /
   WARNING for the selected Service, `D/E/I/W` set `*_ALL` variants.
-- On the Log page (and plug-in pages), `D` returns to the Dashboard;
-  `Home` / `End` jump to the oldest / latest log record, and scrolling up
-  pauses follow-latest mode.
-- Clipboard copy (`c`) requires the `pyperclip` Python package and, on
+- On the Log page (and plug-in pages), `D` returns to the Dashboard.
+  `Home` and `End` jump to the oldest and the latest log record. To
+  scroll up pauses follow-latest mode.
+- Clipboard copy (`c`) needs the `pyperclip` Python package and, on
   Linux, the `xclip` system package.
 
 Because the TUI owns the terminal, debugging output is separated by file
@@ -106,14 +110,14 @@ The Dashboard has no Aiko Services Interface of its own — it is a client
 of the standard discovery and shared-state protocols. What it *does*
 define is the contract a Service must meet to be fully observable:
 
-| Service provides | Dashboard behaviour |
+| Service gives | Dashboard behavior |
 |------------------|---------------------|
 | Registered with the [Registrar](registrar.md) | Appears in the Services section; terminated Services appear in History |
 | Tag `ec=true` | Dashboard creates an `ECConsumer` on `TOPIC_PATH/control` and shows the Service's shared variables live |
 | Shared variable `log_level` | The `l` pop-up updates it remotely |
 | Log records published to its log topic | The Log page (`L`) tails them |
 
-**Wire protocol.** Updating a variable (the `Enter` dialogue and the log
+**Wire protocol.** Updating a variable (the `Enter` dialog and the log
 level pop-up) publishes a standard [Share](share.md) update command to the
 Service's control topic:
 
@@ -123,7 +127,7 @@ TOPIC_PATH/control  ◄──  (update VARIABLE_NAME VALUE)
 
 Log tailing subscribes to the Service process's log topic — currently
 hard-coded to service id `0` of the process
-(`NAMESPACE/HOST/PID/0/log`); using the correct service id is a
+(`NAMESPACE/HOST/PID/0/log`). Using the correct service id is a
 known To Do.
 
 Selecting a Service is a genuine multi-party exchange:
@@ -170,7 +174,7 @@ Screen.wrapper ──► run_dashboard(screen, start_scene)
 Key design points:
 
 - **Scene-per-page.** Every page is an `asciimatics` Scene holding one
-  Frame; navigation is `raise NextScene(name)`. The `_PLUGINS` dict maps
+  Frame. Navigation is `raise NextScene(name)`. The `_PLUGINS` dict maps
   scene names to Frame classes, seeded with `Dashboard` and `Log` and
   extended by plug-in modules.
 - **Singleton DashboardFrame.** `DashboardFrame.get_singleton()` gives
@@ -178,38 +182,39 @@ Key design points:
   selection state lives in exactly one place.
 - **Pull, not push.** The frame `_update()` runs at roughly 5 Hz
   (`_FRAME_UPDATE_RATE`) and re-renders from the `ServicesCache` and the
-  `ECConsumer`'s dictionary; the [Connection](connection.md) state is
-  polled at roughly 1 Hz rather than via a registered handler (the
-  `add_handler` call is present but commented out) and a pop-up warns when
-  the MQTT server or Registrar is missing.
+  `ECConsumer`'s dictionary. The [Connection](connection.md) state is
+  polled at roughly 1 Hz, not through a registered handler (the
+  `add_handler` call is present but commented out). A pop-up warns when
+  the MQTT server or the Registrar is missing.
 - **One ECConsumer at a time.** Selecting a Service tears down the
   previous `ECConsumer` (`_ec_consumer_reset()`) and creates a new one
   only when the Service carries the `ec=true` tag.
 
 ### Implementation notes
 
-- **Frame naming clash.** `stream.py` defines a `Frame` dataclass;
-  the Dashboard therefore imports
-  `asciimatics.widgets.Frame as asciimatics_Frame` — keep that alias when
-  extending.
+- **Frame naming clash.** `stream.py` defines a `Frame` dataclass. Thus
+  the Dashboard imports
+  `asciimatics.widgets.Frame as asciimatics_Frame`. Keep that alias when
+  you extend the code.
 - **Service records** from the `ServicesCache` are tuples:
   `(topic_path, name, protocol, transport, owner, tags)` — indices matter
   throughout (`service[2]` protocol, `service[3]` transport,
   `service[5]` tags).
 - **Filtering.** `_filter()` tracks the most recent service id `1` entry
   as the "parent" so that PipelineElements (service id > 1 whose parent
-  protocol is `pipeline`) can be hidden as a group; protocols are compared
+  protocol is `pipeline`) can be hidden as a group. Protocols are compared
   by short name with the version stripped (`protocol.split(":")[0]`).
 - **Line wrapping.** `_update_field()` wraps long variable values and log
   records across multiple rows with a two-space hanging indent.
-- **Kill is local only.** `K` parses the process id out of the topic path
-  and runs `kill -9` (or `-2` for `transport == "ray"`) via
-  `subprocess.Popen` on the local host — it does not send a terminate
-  message to remote Services (known limitation, see roadmap).
+- **Kill is local only.** `K` parses the process id out of the topic
+  path. It then runs `kill -9` (or `-2` for `transport == "ray"`)
+  through `subprocess.Popen` on the local host. It does not send a
+  terminate message to remote Services (known limitation, refer to the
+  roadmap).
 - **Resize handling.** `ResizeScreenError` is caught in `main()` and the
-  whole Scene set is rebuilt; event handlers registered by frames are
+  whole Scene set is rebuilt. Event handlers registered by frames are
   currently *not* removed first (known FIX in the To Do list).
-- **Exit cleanup.** `x` / `X` / `Ctrl-C` delete the Services cache
+- **Exit cleanup.** `x` / `X` / `Ctrl-C` erase the Services cache
   singleton (`aiko.services_cache_delete()`) before stopping the
   application.
 
@@ -217,7 +222,7 @@ Key design points:
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
-| `FrameCommon` | Shared frame behaviour: title bar, palette, connection-state pop-up, help/exit key handling, value line-wrapping, `(update …)` publishing | `Connection`, `asciimatics` widgets |
+| `FrameCommon` | Shared frame behavior: title bar, palette, connection-state pop-up, help/exit key handling, value line-wrapping, `(update …)` publishing | `Connection`, `asciimatics` widgets |
 | `DashboardFrame` | Singleton main page: render Services / variables / history; selection, filtering, clipboard, kill, scene navigation | `ServicesCache` ([Registrar](registrar.md)), `ECConsumer` ([Share](share.md)), `FilterPopupMenu`, `LogLevelPopupMenu`, plug-in frames |
 | `ServiceFrame` | Base class for per-Service pages: service title bar, start/stop hooks on selection change, `D` returns to Dashboard | `DashboardFrame` (selection and ECConsumer), [Dashboard plug-ins](dashboard_plugin.md) |
 | `LogUI` | Reusable log-tail widget: subscribe to a Service's log topic, ring buffer (128 records), follow-latest scrolling | `aiko.process` message handlers, host Frame |
@@ -231,7 +236,7 @@ Known bugs recorded in the source To Do list:
 
 - Variables containing whitespace are not displayed at all
 - The ECConsumer is not un-shared on exit, and its lease-extend timer is
-  not terminated; ECProducer lease expiry needs checking
+  not terminated. ECProducer lease expiry needs checking
 - Closing the filter pop-up with `c` leaks the keystroke to the main
   Dashboard, triggering a spurious clipboard copy
 - If the currently selected Service terminates, the variables section is
@@ -240,7 +245,7 @@ Known bugs recorded in the source To Do list:
   should send a terminate message or find the right ProcessManager
 - On resize, recreated frames do not remove their old handlers
 
-Additionally, `FilterPopupMenu` menu items apply filters only via their
+Additionally, `FilterPopupMenu` menu items apply filters only through their
 keyboard shortcuts — selecting a menu item with Enter computes a value and
 discards it (handler body is commented out).
 
@@ -248,14 +253,14 @@ Planned (highlights):
 
 - "Waiting for Registrar" display, and surfacing primary / secondary
   Registrar status from `TOPIC_REGISTRAR_BOOT`
-- More keys: publish to a Service, remote terminate / kill dialogue,
+- More keys: publish to a Service, remote terminate / kill dialog,
   multiple-Service log pages, generic Service page, new-Service creation
-- Show Service uptime / statistics; sort and filter variables; add /
+- Show Service uptime / statistics. Sort and filter variables. Add /
   remove variables from the Dashboard
 - An ArchiveService so History can extend beyond the Registrar's window
   (see [Recorder](recorder.md))
 - A Web browser Dashboard over MQTT / WebSockets
-- An AI REPL analysing Aiko Services logs and MQTT messages
+- An AI REPL analyzing Aiko Services logs and MQTT messages
 
 ## Related concepts
 

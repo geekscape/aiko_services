@@ -6,12 +6,12 @@ description: The S-expression generate()/parse() pair that defines the wire
 type: concept
 audience: [developers]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/utilities/parser.py
 related: [design_overview, service, actor, share, registrar, graph]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Parser utility (S-expressions)
@@ -23,7 +23,7 @@ Source code: [`src/aiko_services/main/utilities/parser.py`](../../../src/aiko_se
 The parser utility implements the **wire format of every Aiko Services
 message**: an S-expression of the shape `(command parameter ...)`.
 `generate()` turns a Python command and parameters into an S-expression
-payload string; `parse()` turns a payload string back into a
+payload string. `parse()` turns a payload string back into a
 `(command, parameters)` pair. The two functions are designed to be each
 other's inverse:
 
@@ -32,14 +32,14 @@ parse(generate(command, parameters)) --> command, parameters
 generate(parse("(s expression)"))    --> "(s expression)"
 ```
 
-Every [Service](../service.md) function call that travels over MQTT — an
-[Actor](../actor.md) command on `topic_in`, a [Registrar](../registrar.md)
-add/remove, an [ECProducer/ECConsumer](../share.md) update — is one of
-these S-expressions. That makes this small module the single most
+Every [Service](../service.md) function call that travels over MQTT is
+one of these S-expressions. Examples are an [Actor](../actor.md) command
+on `topic_in`, a [Registrar](../registrar.md) add/remove, and an
+[ECProducer/ECConsumer](../share.md) update. That makes this small module the single most
 load-bearing utility in Aiko Services: the payload grammar described here
 is the public contract between all processes.
 
-**Why you'd use it**: any time you handle a raw MQTT payload or build one.
+**Why to use it**: any time you handle a raw MQTT payload or build one.
 For example, `ActorImpl._topic_in_handler()` dispatches every incoming
 message with one call:
 
@@ -56,7 +56,7 @@ payload_out = generate("invoke", ["item_1", ["item_2a", "item_2b"]])
 
 ### Command-line usage
 
-There is no console script; running the module directly executes a
+There is no console script. Running the module directly executes a
 round-trip self-test over a range of example payloads:
 
 ```bash
@@ -96,21 +96,22 @@ generate("cmd", ["has space", "", None, ["x", "y"]])
 
 Rendering rules, in order:
 
-- A string containing a delimiter — whitespace, `(`, `)` — or *starting
-  with* `digits:` is emitted as a **canonical S-expression symbol**,
-  prefixed with its byte length: `has space` becomes `9:has space`
+- Two kinds of string become a **canonical S-expression symbol**: a
+  string that contains a delimiter (whitespace, `(`, `)`), and a string
+  that *starts with* `digits:`. The byte length prefixes the symbol, so
+  `has space` becomes `9:has space`
   (see [Canonical S-expressions](https://en.wikipedia.org/wiki/Canonical_S-expressions)).
-- A dict becomes alternating `keyword:` / value tokens; a list or tuple
+- A dict becomes alternating `keyword:` / value tokens. A list or tuple
   becomes a nested `( ... )`.
 - The empty string becomes `""`.
 - `None` becomes the sentinel **`0:`** — a zero-length canonical symbol.
   This is how *None* travels inside S-expressions, and why framework
   CLIs such as the [Category](../category.md) `update` command use `0:`
   to mean "leave unchanged".
-- Everything else (int, float, bool, ...) is emitted via its `str()` form.
+- Everything else (int, float, bool, ...) is emitted through its `str()` form.
 
 **Parsing.** `parse()` scans the payload character by character,
-recursing on `(`, splitting tokens on whitespace, and recognising three
+recursing on `(`, splitting tokens on whitespace, and recognizing three
 special token forms:
 
 - `LENGTH:DATA` — canonical symbol: the next `LENGTH` characters are one
@@ -118,9 +119,9 @@ special token forms:
   `("a b", ["c d"])`. `0:` yields `None`.
 - `'text'` or `"text"` — a quoted string is one token (quotes stripped):
   `parse("('aloha honua')")` → `("aloha honua", [])`. Note that
-  *parse* accepts quoted strings but *generate* never emits them — it
-  always uses the canonical length prefix — so quoted input does not
-  round-trip to identical text (it round-trips to the canonical form).
+  *parse* accepts quoted strings, but *generate* never emits them. It
+  always uses the canonical length prefix. Thus quoted input does not
+  round-trip to identical text. It round-trips to the canonical form.
 - `keyword:` — when the first element of a (sub)list ends with `:`, the
   whole list is converted to a dict by `parse_list_to_dict()`:
 
@@ -139,7 +140,7 @@ parse("(a b: 1 b)")    # ValueError: ... must have pairs of keywords and values
 By default the result is split into **car** (the command, first element)
 and **cdr** (the parameter list). Two keyword arguments change this:
 
-- `car_cdr=False` returns the single flat list, e.g.
+- `car_cdr=False` returns the single flat list, for example
   `parse("(a b)", car_cdr=False)` → `["a", "b"]` — used by
   [Graph](graph.md)`.traverse()` and the Pipeline definition parser.
 - `dictionaries_flag=False` suppresses the list-to-dict conversion,
@@ -150,14 +151,14 @@ type intact. Numbers and booleans are stringified by `generate()` and come
 back as strings from `parse()` — `generate("a", [1])` → `"(a 1)"` →
 `("a", ["1"])`. That is what `parse_int()`, `parse_float()` and
 `parse_number()` are for: tolerant conversions with a default instead of
-an exception, e.g. `StreamEvent` handling in `pipeline.py` and parameter
+an exception, for example, `StreamEvent` handling in `pipeline.py` and parameter
 handling in PipelineElements.
 
-**Limits (implemented behaviour):**
+**Limits (implemented behavior):**
 
 - Only complete lists parse: `parse("abc def")` does not return the bare
   atoms (a plain trailing token is appended, but the documented contract
-  is "doesn't parse plain symbols, i.e anything not in a (list)").
+  is `Doesn't parse plain symbols, i.e anything not in a (list)`).
 - A quoted token containing parentheses fails:
   `parse("(c '(this_is_not_a_list)')")`.
 - `parse("")` and `parse("()")` both return `("", [])` — callers test for
@@ -197,20 +198,20 @@ rather than `generate()` — see the roadmap below.
 Design points:
 
 - **One grammar, three notations.** Plain symbols, quoted strings and
-  canonical `LENGTH:DATA` symbols coexist in the same payload;
-  `generate()` normalises everything it emits to plain-or-canonical, so
-  the canonical form is the *only* escape mechanism on the wire.
+  canonical `LENGTH:DATA` symbols coexist in the same payload.
+  `generate()` normalizes everything that it emits to plain-or-canonical.
+  Thus the canonical form is the *only* escape mechanism on the wire.
 - **The `0:` sentinel is grammar, not convention.** It falls out of the
-  canonical symbol rule (a zero-length symbol has no value), and the
-  whole framework relies on it — e.g. Category/HyperSpace Entry records
+  canonical symbol rule (a zero-length symbol has no value). The whole
+  framework relies on it, for example Category/HyperSpace Entry records
   and "leave unchanged" CLI defaults.
 - **Dictionaries are positional pairs.** `(a: 1 b: 2)` is just a list
-  whose first token ends in `:`; the dict interpretation happens after
+  whose first token ends in `:`. The dict interpretation happens after
   parsing, in `parse_list_to_dict()`, recursively. This keeps the
   scanner simple but is why positional and keyword parameters cannot mix.
 - **car/cdr split at the top.** `parse()` returns
   `(command, parameters)` because virtually every consumer is a message
-  dispatcher; the To Do list plans to invert this so `parse()` returns
+  dispatcher. The To Do list plans to invert this so `parse()` returns
   the plain tree and a new `parse_payload()` does the split.
 
 ### Implementation notes
@@ -225,18 +226,18 @@ Design points:
   which protects data that would otherwise *look like* a length prefix.
 - The empty-string case is handled by emitting a literal ` ""` separator
   quirk in `generate_s_expression()` (the `character = ' ""'`
-  assignment); it round-trips because `RE_STRING` matches `""` as an
+  assignment). It round-trips because `RE_STRING` matches `""` as an
   empty token.
 - `parse_list_to_dict()` validates pairs strictly (even count, string
   keywords, trailing `:`) and raises `ValueError` — callers that handle
   untrusted payloads should be prepared to catch it.
 - `parser_wip*.py` files alongside are work-in-progress scratch versions
-  — ignore them; `parser.py` is the module exported via
+  — ignore them. `parser.py` is the module exported through
   `utilities/__init__.py`.
 
 ### CRC card
 
-The module is purely functions; one row describes the module itself:
+The module is purely functions. One row describes the module itself:
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
@@ -246,22 +247,22 @@ The module is purely functions; one row describes the module itself:
 
 From the source `To Do` list — all planned, none implemented:
 
-- Consolidate `generate(command, parameters)` into `generate(tree)` and
-  the car/cdr split out of `parse()` into a new
-  `parse_payload()` / `generate_payload()` pair, so *any* S-expression
+- Consolidate `generate(command, parameters)` into `generate(tree)`.
+  Move the car/cdr split out of `parse()` into a new
+  `parse_payload()` / `generate_payload()` pair. Then *any* S-expression
   round-trips, not only `(command ...)` lists
-- Provide proper unit tests (there are currently **none** — only the
+- Give proper unit tests (there are currently **none** — only the
   `main()` self-test)
-- AVRO schema and JSON parsing; consider the `sexpdata` and `hy` /
+- AVRO schema and JSON parsing. Consider the `sexpdata` and `hy` /
   `hyrule` Python modules
 - Sweep the code base for hand-assembled payloads that should use
   `generate()` — the header names `process.py`
   (`_add_service_to_registrar()`), `recorder.py`, `share.py`
   (`_update_consumers()`) and `transport/transport_mqtt.py` among others
 
-Known behavioural sharp edges (implemented, but easy to trip over):
-numbers and booleans do not round-trip typed; quoted strings are
-parse-only; quoted tokens cannot contain parentheses; plain symbols
+Known behavioral sharp edges (implemented, but easy to trip over):
+numbers and booleans do not round-trip typed. Quoted strings are
+parse-only. Quoted tokens cannot contain parentheses. Plain symbols
 outside a list are unsupported.
 
 ## Related concepts

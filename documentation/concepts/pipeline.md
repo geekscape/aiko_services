@@ -6,13 +6,13 @@ description: An Actor that executes a graph of PipelineElements, defined by
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/pipeline.py
 related: [design_overview, pipeline_element, parameters, stream, actor,
   category, hook, proxy, registrar, lease, dashboard]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Pipeline
@@ -22,21 +22,22 @@ last_updated: 2026-07-05
 Source code: [`src/aiko_services/main/pipeline.py`](../../src/aiko_services/main/pipeline.py)
 
 A **Pipeline** is an Actor that manages a directed graph of
-[PipelineElements](pipeline_element.md), moving [Streams](stream.md) of
-Frames through the graph — each PipelineElement transforming the frame data
-produced by its predecessors. The graph, the elements and their
+[PipelineElements](pipeline_element.md). It moves [Streams](stream.md) of
+Frames through that graph. Each PipelineElement transforms the frame data
+that its predecessors produced. The graph, the elements and their
 [Parameters](parameters.md) are declared in a **PipelineDefinition** JSON
-file, validated against an Avro schema that is deliberately hard-coded into
-`pipeline.py` so the schema always matches the implementation.
+file. An Avro schema validates that file. The schema is deliberately
+hard-coded into `pipeline.py`, so that it always matches the
+implementation.
 
 A Pipeline **is-a** PipelineElement, so Pipelines compose: a graph node may
 be deployed `local` (a Python class loaded into the same process) or
 `remote` (a proxy for a PipelineElement or an entire Pipeline running in
-another process, discovered via the [Registrar](registrar.md)). The source
+another process, discovered through the [Registrar](registrar.md)). The source
 notes the design intent that a Pipeline is also a
 [Category](category.md) of PipelineElements.
 
-**Why you'd use it**: to build a media, machine-learning or data processing
+**Why to use it**: to build a media, machine-learning or data processing
 application as declarative, distributable building blocks rather than a
 monolith. For example, running a two-element pipeline that generates random
 integers and stops after two frames:
@@ -51,9 +52,9 @@ aiko_dashboard  # select "pe_randomintegers" and watch "random" update
 
 ### Command-line usage
 
-The console script is `aiko_pipeline` (defined in `pyproject.toml`;
-module fallback `python -m aiko_services.main.pipeline` or
-`./pipeline.py`):
+The console script is `aiko_pipeline`, defined in `pyproject.toml`. The
+module fallback is `python -m aiko_services.main.pipeline` or
+`./pipeline.py`:
 
 ```bash
 aiko_pipeline create  [--name PIPELINE_NAME] DEFINITION_PATHNAME
@@ -100,8 +101,8 @@ aiko_pipeline create ../examples/pipeline/pipeline_paths.json -ll debug
 aiko_pipeline update p_paths -s 1 -fd "(in_a: hello)" -gp PE_IN_1
 ```
 
-`list` without `--watch` prints matching Pipelines once (via the Services
-cache) and exits; with `--watch` it shows on-going add/remove actions.
+`list` without `--watch` prints matching Pipelines once (through the Services
+cache) and exits. With `--watch` it shows on-going add/remove actions.
 `destroy` discovers the named Pipeline and invokes `stop()` on it.
 
 Planned but unimplemented CLI commands (from the To Do list):
@@ -184,12 +185,12 @@ Output-to-input **name mapping**: when PE_1 outputs `a` and PE_2 outputs
 The frame data is an S-expression association list of
 `(argument_name: argument_value ...)` pairs — the same form the
 `--frame_data` CLI option takes. Pipeline output is published as
-`(process_frame STREAM_INFO FRAME_DATA)` on the Pipeline's `.../out` topic,
-where `STREAM_INFO` carries `stream_id`, `frame_id` and `state` — unless
-the Stream was created with a `topic_response` (a
-`(process_frame_response STREAM_INFO FRAME_DATA)` message is sent to that
-topic) or a `queue_response` (in-process `queue.Queue`, used by
-`create -sr`).
+`(process_frame STREAM_INFO FRAME_DATA)` on the Pipeline's `.../out`
+topic. `STREAM_INFO` carries `stream_id`, `frame_id` and `state`. Two
+cases send the output elsewhere. A Stream made with a `topic_response`
+receives a `(process_frame_response STREAM_INFO FRAME_DATA)` message on
+that topic. A Stream made with a `queue_response` uses an in-process
+`queue.Queue`, which `create -sr` uses.
 
 **Response round-trip** (`aiko_pipeline update p_local -fd "(b: 0)" -sr`):
 
@@ -227,22 +228,23 @@ CLI client process                     Pipeline "p_local"
 Key design points:
 
 - **Composite deployment.** `_create_pipeline_graph()` loads each `local`
-  element's module and composes an instance in-process; each `remote`
+  element's module and composes an instance in-process. Each `remote`
   element starts life as a `PipelineRemote` placeholder plus a
   `do_discovery()` registration. When the remote Service appears, the
   graph node's element is swapped for a `ServiceRemoteProxy`
-  ([Proxy](proxy.md)); when it vanishes, the placeholder returns and
-  reports `lifecycle` "absent". This realises the To Do design direction:
+  ([Proxy](proxy.md)). When it vanishes, the placeholder returns and
+  reports `lifecycle` "absent". This realizes the To Do design direction:
   *dynamic proxies that default to "absent" until discovered*.
 - **Lifecycle gating.** The Pipeline's `lifecycle` share is "ready" only
-  when every element on the current Graph Path is "ready". Calls to
-  `create_stream()` / `process_frame()` / `destroy_stream()` arriving
-  before readiness are re-posted to the Pipeline's own mailbox with a
-  3-second delay — an unbounded retry noted as a TODO.
+  when every element on the current Graph Path is "ready". A call to
+  `create_stream()`, `process_frame()` or `destroy_stream()` that
+  arrives before readiness is re-posted to the Pipeline's own mailbox
+  with a 3-second delay. The source notes this unbounded retry as a
+  TODO.
 - **Everything through the mailbox.** `create_frame()` does no work
-  itself; it posts a `process_frame` message to `ActorTopic.IN`, so local
-  and remote frame submission follow the identical path and frames are
-  processed one at a time by the event-loop thread.
+  itself. It posts a `process_frame` message to `ActorTopic.IN`. Thus
+  local and remote frame submission follow the identical path, and the
+  event-loop thread processes frames one at a time.
 - **Graph execution order** is computed by `PipelineGraph.get_path()`
   (depth-first with re-ordering so fan-in nodes run after all
   predecessors). `PipelineGraph.validate()` checks — currently loosely,
@@ -250,8 +252,8 @@ Key design points:
   some predecessor output or satisfied by a name mapping.
 - **Hooks.** Three [Hook](hook.md) points wrap execution:
   `pipeline.process_frame:0`, `pipeline.process_element:0` and
-  `pipeline.process_element_post:0`, enabled via `--hooks pf,pe,pep`
-  (`am` adds the Actor message-call hook; `all` enables everything).
+  `pipeline.process_element_post:0`, enabled through `--hooks pf,pe,pep`
+  (`am` adds the Actor message-call hook. `all` enables everything).
 
 ### Implementation notes
 
@@ -262,27 +264,27 @@ Key design points:
   each `_create_frames_generator()` thread. Always use the documented
   `try/finally` pattern when extending these code paths.
 - **Frame execution** (`_process_frame_common()`): pop graph nodes in
-  order; build each element's `inputs` from the Frame's `swag` (applying
-  `map_in` renames); call `element.process_frame(stream, **inputs)`;
-  convert the returned StreamEvent via `_process_stream_event()`; apply
-  `map_out` renames; merge `frame_data_out` into the swag. Per-element
+  order. Build each element's `inputs` from the Frame's `swag` (applying
+  `map_in` renames). Call `element.process_frame(stream, **inputs)`.
+  Convert the returned StreamEvent through `_process_stream_event()`. Apply
+  `map_out` renames. Merge `frame_data_out` into the swag. Per-element
   and whole-pipeline timings are captured into `frame.metrics`
-  (`psutil` memory metrics behind `_METRICS_MEMORY_ENABLE`; a refactor
+  (`psutil` memory metrics behind `_METRICS_MEMORY_ENABLE`. A refactor
   into `utilities/metrics.py` is a TODO).
 - **Remote elements pause the Frame.** Reaching a non-local node sets
   `frame.paused_pe_name`, invokes `process_frame` on the proxy with only
-  `{stream_id, frame_id}` and breaks out of the loop; the eventual
+  `{stream_id, frame_id}` and breaks out of the loop. The eventual
   `process_frame_response()` resumes with
   `pipeline_graph.iterate_after(paused_pe_name, graph_path)`. The resume
   path — and the retention of cached Frames it depends on — is only
   active under the experimental sliding-windows protocol (`--windows` /
-  `_WINDOWS`); in default mode each Frame's cache entry is deleted as
+  `_WINDOWS`). In default mode each Frame's cache entry is erased as
   soon as `process_frame()` completes, and streams are auto-created per
   frame on the remote side.
-- **`PipelineElementLoop`** marks control-flow loop heads: until it
-  returns `StreamEvent.LOOP_END`, the node and the remaining graph are
-  remembered in `stream.variables` ("loop_node" / "loop_graph") and
-  re-queued when the element named by the "loop_boundary" variable
+- **`PipelineElementLoop`** marks control-flow loop heads. The node and
+  the remaining graph are remembered in `stream.variables` ("loop_node"
+  and "loop_graph") until the element returns `StreamEvent.LOOP_END`.
+  They are re-queued when the element named by the "loop_boundary" variable
   completes.
 - **Error containment.** Exceptions in `start_stream()`, `stop_stream()`,
   `process_frame()` and frame generators are caught, logged, and turned
@@ -295,7 +297,7 @@ Key design points:
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `Pipeline` (Interface) | Declare the contract: `create_stream()`, `destroy_stream()`, `process_frame_response()`, `set_parameter(s)()`, `parse_pipeline_definition()` | [PipelineElement](pipeline_element.md), `Actor` (parent Interfaces) |
-| `PipelineImpl` | Parse and validate PipelineDefinitions; build and validate the PipelineGraph; manage Stream leases and thread-local context; execute Frames through the graph with map-in/map-out, metrics and hooks; route responses (queue, topic or `.../out`) | `PipelineGraph`, [Stream](stream.md)/`Frame`, `Lease` ([Lease](lease.md)), `ECProducer` ([Share](share.md)), [Hook](hook.md), [Proxy](proxy.md) via `get_service_proxy()` |
+| `PipelineImpl` | Parse and validate PipelineDefinitions; build and validate the PipelineGraph; manage Stream leases and thread-local context; execute Frames through the graph with map-in/map-out, metrics and hooks; route responses (queue, topic or `.../out`) | `PipelineGraph`, [Stream](stream.md)/`Frame`, `Lease` ([Lease](lease.md)), `ECProducer` ([Share](share.md)), [Hook](hook.md), [Proxy](proxy.md) through `get_service_proxy()` |
 | `PipelineGraph` (Graph) | Hold Nodes and head nodes; compute execution order and Graph Paths; validate element inputs against predecessor outputs and mappings | `Graph`/`Node` utilities |
 | `PipelineRemote` (PipelineElement) | Placeholder for an undiscovered remote element: report `lifecycle` "absent", log errors when invoked | `ServiceRemoteProxy` (its discovered replacement) |
 | `PipelineDefinition` et al (dataclasses) | Typed in-memory form of the JSON definition: elements, deploy `local`/`remote`, service filters | `PipelineDefinitionSchema` (in-line Avro schema) |
@@ -305,27 +307,28 @@ Key design points:
 From the source To Do list — highlights:
 
 - **BUG (noted in source):** `PipelineImpl.create_frame(..., graph_path=None)`
-  doesn't use its `graph_path` parameter at all
-- Define Pipeline outputs explicitly, not just implicitly via element
-  outputs; validate function inputs/outputs against the PipelineDefinition
+  does not use its `graph_path` parameter at all
+- Define Pipeline outputs explicitly, not just implicitly through element
+  outputs. Validate function inputs/outputs against the PipelineDefinition
 - Move `is_local()` out of `pipeline.py` into `actor.py` or (better)
   `service.py`
-- CLI additions: `show`, `get`, `set`; remote
+- CLI additions: `show`, `get`, `set`. Remote
   `update --hooks` support including `remove_hook_handler()`
 - `start_stream()` / `stop_stream()` should return success/failure "swag"
   just like `process_frame()`
 - Lists of sub-graphs for multiple sources of different data types, with
   StateMachine-driven dynamic Graph routing
-- Ensure all shared updates occur via events executed solely by the
-  event-loop thread; proper handling and retry limits for undiscovered
+- Make sure all shared updates occur through events executed solely by the
+  event-loop thread. Proper handling and retry limits for undiscovered
   remote Pipeline proxies
-- Collect `local` / `remote` into a "deployment" configuration structure;
-  a future `ServiceDefinition` / `PipelineElementDefinition` /
-  `PipelineDefinition` hierarchy with service-level agreements
+- Collect `local` / `remote` into a "deployment" configuration
+  structure. Add a future `ServiceDefinition` /
+  `PipelineElementDefinition` / `PipelineDefinition` hierarchy with
+  service-level agreements
 - Pipeline CLI option to act as the LifeCycleManager, recursively creating
   local *and remote* Pipelines / PipelineElements
 - The sliding-windows distributed Stream protocol (`--windows`) is
-  explicitly experimental; StreamState RUN/STOP/ERROR handling for the
+  explicitly experimental. StreamState RUN/STOP/ERROR handling for the
   local and remote cases is still being checked case-by-case
 
 ## Related concepts

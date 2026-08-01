@@ -6,13 +6,13 @@ description: A per-process ladder of connectivity states — from no network
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/connection.py
 related: [design_overview, process, registrar, message, transport, share,
   lifecycle]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Connection
@@ -33,19 +33,19 @@ NONE ─► NETWORK ─► BOOTSTRAP ─► TRANSPORT ─► REGISTRAR
 
 Every process owns exactly one Connection instance
 (`aiko.connection`, created as `ProcessData.connection =
-Connection("process")`). As the [transport](transport.md) connects or
-drops and the [Registrar](registrar.md) is discovered or lost, the process
-moves the state up and down the ladder, and every registered handler is
-notified of each change.
+Connection("process")`). The [transport](transport.md) connects or
+drops, and the [Registrar](registrar.md) is discovered or lost. On each
+of those events the process moves the state up or down the ladder, and
+notifies every registered handler.
 
-This solves a start-up ordering problem that pervades distributed
-systems: components are constructed before the MQTT server is connected or
-the Registrar found, so anything needing those facilities must *wait for a
-state, not a moment*. The Connection is deliberately a low-level mechanism
+This solves a start-up ordering problem common to distributed systems.
+Components are built before the MQTT server is connected, and before the
+Registrar is found. Thus code that needs those facilities must *wait for
+a state, not a moment*. The Connection is deliberately a low-level mechanism
 with no static dependencies on the rest of the framework (only the `Lock`
 utility).
 
-**Why you'd use it**: defer work until the Registrar is available —
+**Why to use it**: defer work until the Registrar is available —
 exactly what the [Share](share.md) `ECConsumer` does:
 
 ```python
@@ -60,12 +60,13 @@ aiko.connection.add_handler(self._connection_state_handler)
 
 ### Command-line usage
 
-Connection has no CLI of its own; every Aiko Services process embeds one.
-Observe it in practice by starting any tool without an MQTT server or
-Registrar running — e.g. `aiko_dashboard` or an example such as
-`src/aiko_services/examples/aloha_honua/aloha_honua_0.py` — which waits at
-`ConnectionState.NONE` / `TRANSPORT` until the infrastructure appears.
-State-change logging is visible via the process logger:
+Connection has no CLI of its own. Every Aiko Services process embeds one.
+To observe it in practice, start any tool without an MQTT server or a
+Registrar running. Examples are `aiko_dashboard` and
+`src/aiko_services/examples/aloha_honua/aloha_honua_0.py`. Each waits at
+`ConnectionState.NONE` or `TRANSPORT` until the infrastructure
+appears.
+State-change logging is visible through the process logger:
 
 ```bash
 AIKO_LOG_LEVEL_PROCESS=DEBUG aiko_dashboard
@@ -122,7 +123,7 @@ an error if invoked while the lock is not held, and logs each state change
 at DEBUG.
 
 There is no wire protocol: Connection is in-process state. Its *inputs*
-arrive over the wire, however — the transport's connect/disconnect
+arrive over the wire — the transport's connect/disconnect
 callbacks and the Registrar's retained
 `(primary found ...)` / `(primary absent)` boot messages (see
 [Registrar](registrar.md)).
@@ -138,7 +139,7 @@ callbacks and the Registrar's retained
        ▼                                        ▼
    ┌───────────────────────────────────────────────────────┐
    │ aiko.connection = Connection("process")   [singleton] │
-   │   lock ─ serialises check-then-update sequences       │
+   │   lock ─ serializes check-then-update sequences       │
    │   connection_state:  NONE → TRANSPORT → REGISTRAR     │
    │   connection_state_handlers: [ ... ]                  │
    └───────────────────────────────────────────────────────┘
@@ -155,13 +156,13 @@ Key design points:
   (`aiko.connection`), shared by all Services in the process.
 - **Ladder, not a set of flags**: ordering lets `is_connected()` express
   "at least this much connectivity", and lets the process degrade
-  gracefully (losing the Registrar drops `REGISTRAR → TRANSPORT`; losing
+  gracefully (losing the Registrar drops `REGISTRAR → TRANSPORT`. Losing
   MQTT drops to `NONE`).
-- **Callers own the transitions**: Connection stores and notifies, but the
-  rules for *when* to move rungs live in [Process](process.md)
-  (`on_mqtt_state()`, `on_registrar()`), which is also why the lock is
-  exposed rather than internalised — the critical section spans the
-  caller's check *and* the update.
+- **Callers own the transitions**. Connection stores and notifies. But
+  the rules for *when* to move rungs live in [Process](process.md)
+  (`on_mqtt_state()`, `on_registrar()`). That is also why the lock is
+  exposed and not internalized: the critical section spans the caller's
+  check *and* the update.
 - **Framework-independent by design**: the module must not acquire static
   dependencies on the framework, so it can underpin bootstrap code.
 
@@ -169,19 +170,19 @@ Key design points:
 
 - `update_state()` notifies handlers synchronously on the calling thread —
   which may be the MQTT thread, not the event-loop thread. Handlers must
-  therefore be thread-aware; the roadmap direction is to route updates
+  therefore be thread-aware. The roadmap direction is to route updates
   through [Event](event.md) loop events instead.
-- `add_handler()` ignores duplicate registrations; `remove_handler()` of
+- `add_handler()` ignores duplicate registrations. `remove_handler()` of
   an unknown handler is a no-op.
 - `ConnectionState.states` deliberately omits `BOOTSTRAP` — no code sets
   it yet — with the consequence that
   `is_connected(ConnectionState.BOOTSTRAP)` raises `ValueError`.
   `NETWORK` is listed but nothing currently sets it either: in practice
   processes move only through `NONE`, `TRANSPORT` and `REGISTRAR`.
-- `process.py` is the only writer: `on_mqtt_state()` sets
-  `NONE`/`TRANSPORT` from the transport callback, and `on_registrar()`
-  raises to `REGISTRAR` on `(primary found ...)` and lowers to
-  `TRANSPORT` on `(primary absent)` — each within
+- `process.py` is the only writer. `on_mqtt_state()` sets
+  `NONE`/`TRANSPORT` from the transport callback. `on_registrar()`
+  raises to `REGISTRAR` on `(primary found ...)`, and lowers to
+  `TRANSPORT` on `(primary absent)`. Each occurs within
   `lock_acquire()` / `lock_release()`.
 
 ### CRC card
@@ -189,17 +190,17 @@ Key design points:
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `ConnectionState` | Name the connectivity rungs; define their order; map state → index for comparisons | `Connection` |
-| `Connection` | Hold the current state; register/notify handlers (immediately on add, then per change); answer `is_connected()` threshold queries; provide the lock for compound updates; log undisciplined updates | `Lock` (utility); Process (`on_mqtt_state()` / `on_registrar()` writers); [Share](share.md), [LifeCycle](lifecycle.md) and [Dashboard](dashboard.md) handlers (readers) |
+| `Connection` | Hold the current state; register/notify handlers (immediately on add, then per change); answer `is_connected()` threshold queries; give the lock for compound updates; log undisciplined updates | `Lock` (utility); Process (`on_mqtt_state()` / `on_registrar()` writers); [Share](share.md), [LifeCycle](lifecycle.md) and [Dashboard](dashboard.md) handlers (readers) |
 
 ## Current limitations and roadmap
 
-- From the source `To Do` list: ensure all updates occur via events
-  (handlers, messages and timers) managed by the [Event](event.md) loop
-  and executed solely by the event-loop thread — today handlers run on
-  whichever thread calls `update_state()`
+- From the source `To Do` list: make sure that all updates occur through
+  events (handlers, messages and timers). The [Event](event.md) loop
+  manages them, and the event-loop thread alone executes them. Today
+  handlers run on whichever thread calls `update_state()`
 - `BOOTSTRAP` is defined but absent from `ConnectionState.states`, and
   `NETWORK` is never set — the lower rungs of the ladder are declared
-  intent, not implemented behaviour; querying `is_connected(BOOTSTRAP)`
+  intent, not implemented behavior. Querying `is_connected(BOOTSTRAP)`
   raises `ValueError`
 - Handler notification has no error isolation: one handler raising
   prevents later handlers from seeing the change

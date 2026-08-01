@@ -5,12 +5,12 @@ description: A minimal fixed-size least-recently-used cache built on
 type: concept
 audience: [developers]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/utilities/lru_cache.py
 related: [design_overview]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # LRUCache utility
@@ -22,11 +22,12 @@ Source code: [`src/aiko_services/main/utilities/lru_cache.py`](../../../src/aiko
 `LRUCache` is a small fixed-capacity key/value cache with
 least-recently-used eviction: when a `put()` pushes the cache past its
 size, the entry that has gone longest without a `get()` or `put()` is
-dropped. Aiko Services uses it wherever "keep the most recent N things"
-is the right memory policy — recent log records in the Recorder, cached
-speech audio, recent frames for Pipeline debugging.
+dropped. Aiko Services uses it where "keep the most recent N things" is
+the correct memory policy. Examples are recent log records in the
+Recorder, cached speech audio, and recent frames for Pipeline
+debugging.
 
-**Why you'd use it**: bound memory while keeping hot entries:
+**Why to use it**: bound memory while keeping hot entries:
 
 ```python
 from aiko_services.main.utilities import LRUCache
@@ -44,7 +45,7 @@ cache.get("key_1")              # "value_1" (now most recently used)
 
 ### Command-line usage
 
-There is no CLI; the module is exercised by `aiko_recorder` (recent log
+There is no CLI. the module is exercised by `aiko_recorder` (recent log
 records) and by Pipelines with frame diagnostics enabled.
 
 ### Public API
@@ -94,15 +95,15 @@ insertion order, refreshed with `move_to_end()` and trimmed with
 
 ## Current limitations and roadmap
 
-The source has no `To Do` list; observed limitations:
+The source has no `To Do` list. Observed limitations:
 
 - A miss returns `None`, indistinguishable from a stored `None` value
 - Not thread-safe — callers sharing a cache across threads must guard it
-  (e.g. with the [Lock](lock.md) utility)
-- Membership tests (`in`) fall back to key iteration (O(n)); no
+  (for example, with the [Lock](lock.md) utility)
+- Membership tests (`in`) fall back to key iteration (O(n)). No
   `__contains__` — and note that `in` does **not** refresh recency
 - No unit tests anywhere in the repository
-- The source usage header shows `import lru_cache`; in practice import
+- The source usage header shows `import lru_cache`. In practice import
   from `aiko_services.main.utilities`
 
 ## Related concepts

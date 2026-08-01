@@ -6,9 +6,9 @@ description: Index of OKF concept documents covering the Aiko Services
 type: index
 audience: [architects, developers, end-users]
 status: draft
-ste: false
+ste: adapted
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Aiko Services: distributed system infrastructure
@@ -22,7 +22,7 @@ Format (OKF) conventions:
 - **YAML front-matter** carrying metadata: title, description, type,
   audience, status, source files and related concepts
 - **Audience-first sections** in every concept document, ordered from
-  broadest to most specialised audience: *Overview*, then
+  broadest to most specialized audience: *Overview*, then
   *For application developers* (Command-line usage, Public API), then
   *For framework developers* (Design, Implementation notes, CRC card)
 - **Explicit cross-links** between related concepts
@@ -68,7 +68,7 @@ How Aiko Services components are assembled from Interfaces —
 | Concept | One-line summary |
 |---------|------------------|
 | [Message](message.md) | The publish/subscribe abstraction — MQTT implementation (connection lifecycle, last-will-and-testament) and the Castaway null implementation |
-| [Transport](transport.md) | The layer above Message that turns remote Services into callable Python objects via dynamic proxies |
+| [Transport](transport.md) | The layer above Message that turns remote Services into callable Python objects through dynamic proxies |
 
 ## Services
 
@@ -122,26 +122,29 @@ The distributed structural model — see the
 - **Architects / evaluators**: [Design overview](design_overview.md), then
   the *Overview* sections of [Service](service.md), [Pipeline](pipeline.md)
   and [HyperSpace](hyperspace.md).
-- **Application developers**: [Service](service.md), [Actor](actor.md) and
-  [Pipeline](pipeline.md) *For application developers* sections first;
-  then [Parameters](parameters.md), [Stream](stream.md),
-  [Data Source / Target](data_source_target.md) for pipeline work, or
-  [HyperSpace](hyperspace.md) and [Category](category.md) for the
-  structural model; [Dashboard](dashboard.md) to observe it all running.
-- **Framework developers**: bottom-up — [Event](event.md),
-  [Process](process.md), [Component](component.md) / [Context](context.md),
-  [Message](message.md), [Service](service.md), [Actor](actor.md),
-  [Share (Eventual Consistency)](share.md), [Registrar](registrar.md) —
-  paying particular attention to the *For framework developers* sections,
-  the [utilities/parser](utilities/parser.md) wire format, and the
+- **Application developers**: read the *For application developers*
+  sections of [Service](service.md), [Actor](actor.md) and
+  [Pipeline](pipeline.md) first. Then read
+  [Parameters](parameters.md), [Stream](stream.md) and
+  [Data Source / Target](data_source_target.md) for pipeline work. For
+  the structural model, read [HyperSpace](hyperspace.md) and
+  [Category](category.md). Read [Dashboard](dashboard.md) to observe it
+  all running.
+- **Framework developers**: read bottom-up — [Event](event.md),
+  [Process](process.md), [Component](component.md) /
+  [Context](context.md), [Message](message.md), [Service](service.md),
+  [Actor](actor.md), [Share (Eventual Consistency)](share.md) and
+  [Registrar](registrar.md). Give particular attention to the *For
+  framework developers* sections, to the
+  [utilities/parser](utilities/parser.md) wire format, and to the
   Composite design pattern described in [Dependency](dependency.md) and
   [Storage](storage.md).
 
 ## Status
 
 These subsystems are under active development (version 0.6). Each document
-distinguishes **implemented** behaviour from **planned / work-in-progress**
-behaviour, based on the source code as of 2026-07-05.
+distinguishes **implemented** behavior from **planned / work-in-progress**
+behavior, based on the source code as of 2026-07-05.
 
 ## Related documentation
 

@@ -6,12 +6,12 @@ description: Dynamic module loading — by file pathname or dotted module
 type: concept
 audience: [developers]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/utilities/importer.py
 related: [design_overview]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Importer utility
@@ -25,11 +25,11 @@ import time: a module descriptor is either a source pathname
 (`directory/file.py`) or an installed dotted module name
 (`package.module`). Loaded modules are cached, so repeated loads of the
 same descriptor return the same module object. This is how Aiko Services
-achieves late binding everywhere — Pipeline definitions, Interface
-default implementations and Dashboard plugins all name their code as
-strings resolved by `load_module()`.
+gets late binding everywhere. Pipeline definitions, Interface default
+implementations and Dashboard plugins all name their code as strings.
+`load_module()` resolves those strings.
 
-**Why you'd use it**: a Pipeline definition file names each
+**Why to use it**: a Pipeline definition file names each
 PipelineElement's module, and the Pipeline loads it on demand:
 
 ```python
@@ -43,7 +43,7 @@ element_class = getattr(module, "ImageReadFile")
 
 ### Command-line usage
 
-There is no CLI; the module is exercised whenever `aiko_pipeline create`
+There is no CLI. the module is exercised whenever `aiko_pipeline create`
 loads the PipelineElements named in a Pipeline definition, and by
 `aiko_dashboard` when loading Service page plugins.
 
@@ -68,10 +68,10 @@ module = load_module(module_name)
 module = load_module(plugin_name) if plugin_name else None
 ```
 
-Set `AIKO_IMPORTER_USE_CURRENT_DIRECTORY` (any non-empty value) to append
-the current working directory to `sys.path` at import time, so dotted
-module names can resolve against modules in the directory where the
-process was started.
+Set `AIKO_IMPORTER_USE_CURRENT_DIRECTORY` to any non-empty value. This
+appends the current working directory to `sys.path` at import time. Thus
+dotted module names resolve against modules in the directory where the
+process started.
 
 ## For framework developers (internals)
 
@@ -92,7 +92,7 @@ absolute path are cached separately.
 ### Implementation notes
 
 - The pathname branch uses the long-deprecated
-  `SourceFileLoader(...).load_module()` API (deprecated in favour of
+  `SourceFileLoader(...).load_module()` API (deprecated in favor of
   `exec_module()` and slated for removal from CPython) — a migration
   hazard when moving to newer Python versions.
 - Every pathname-loaded module is registered in `sys.modules` under the
@@ -100,7 +100,7 @@ absolute path are cached separately.
   `sys.modules` entry. The `MODULES_LOADED` cache keeps the module objects
   themselves distinct, but tooling that inspects `sys.modules` sees only
   the last one.
-- There is no unload/reload support; a changed source file requires a
+- There is no unload/reload support. A changed source file needs a
   process restart.
 
 ### CRC card

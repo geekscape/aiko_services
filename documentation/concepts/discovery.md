@@ -6,13 +6,13 @@ description: Finding and invoking remote Services — ServiceDiscovery handlers
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/discovery.py
 related: [design_overview, process, registrar, service, actor, share,
   proxy, message, transport, pipeline, lifecycle]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Discovery
@@ -22,15 +22,15 @@ last_updated: 2026-07-05
 Source code: [`src/aiko_services/main/discovery.py`](../../src/aiko_services/main/discovery.py)
 
 **Discovery** is how Aiko Services code finds a running
-[Service](service.md) matching a `ServiceFilter` and talks to it without
-knowing in advance where (or whether) it is running. The module provides
-three layers:
+[Service](service.md) that matches a `ServiceFilter`. The code then talks
+to that Service. It does not need to know in advance where the Service
+runs, or whether it runs at all. The module gives three layers:
 
 - **`ServiceDiscovery`** (and its aliases `ActorDiscovery`,
-  `PipelineElementDiscovery`, `PipelineDiscovery`) — register a handler
-  with a `ServiceFilter` against the process-wide `ServicesCache` (see
-  [Share](share.md)), which is fed by the [Registrar](registrar.md), and
-  be called back as matching Services come and go.
+  `PipelineElementDiscovery`, `PipelineDiscovery`). Register a handler
+  with a `ServiceFilter` against the process-wide `ServicesCache` (refer
+  to [Share](share.md)). The [Registrar](registrar.md) feeds that cache.
+  Your handler is then called back as matching Services come and go.
 - **`get_service_proxy()`** — build a dynamic remote [proxy](proxy.md)
   for an Interface: calling a proxy method publishes an S-expression to
   the target's `topic_in`.
@@ -39,7 +39,7 @@ three layers:
   my command (and optionally gather a response, then terminate)*. These
   are the standard pattern behind nearly every Aiko Services CLI tool.
 
-**Why you'd use it**: any time you want "call method X on whichever
+**Why to use it**: any time you want "call method X on whichever
 Service matches this filter" — for example, the way the
 [Category](category.md) CLI adds an entry to a running Category anywhere
 on the network:
@@ -121,7 +121,7 @@ def do_request(service_interface, service_filter,
 
 - `do_discovery()` wraps a `ServiceDiscovery`: on each `"add"` it builds a
   proxy for `service_interface` bound to `{topic_path}/in` and calls
-  `discovery_add_handler(service_details, service)`; on `"remove"` it
+  `discovery_add_handler(service_details, service)`. On `"remove"` it
   calls `discovery_remove_handler(service_details)`.
 - `do_command()` waits for the first match (printing
   `Waiting for {filter summary}` after 0.5 seconds if none found yet),
@@ -136,7 +136,7 @@ def do_request(service_interface, service_filter,
 
 **Remote proxies.** `get_service_proxy(service_topic, protocol_class)`
 reflects over the *public* methods of `protocol_class` (non-underscore
-functions; raises `ValueError` for a string or a class with no public
+functions. Raises `ValueError` for a string or a class with no public
 methods) and returns an object whose methods publish to `service_topic`:
 
 ```python
@@ -144,7 +144,7 @@ service = get_service_proxy(f"{topic_path}/in", Example)
 service.command("hello")     # publishes "(command hello)" to topic_path/in
 ```
 
-Proxies also provide `is_local()` returning `False`. Keyword arguments are
+Proxies also give `is_local()` returning `False`. Keyword arguments are
 supported with the convention `[args[0], kwargs]` — first positional
 argument, then the kwargs dictionary.
 
@@ -225,27 +225,26 @@ Key design points:
   responses) lives in closure variables, not classes.
 - **Duck-typed proxies**: a proxy is built from the *Interface's* public
   method names, so the caller programs against the same contract locally
-  and remotely; the transport is a single one-way MQTT publish per call
+  and remotely. The transport is a single one-way MQTT publish per call
   (no return values — responses are an explicit, separate pattern).
-- The design direction (per the To Do list) is to refactor
-  `ServiceDiscovery` into a proper Interface / Implementation, support
-  multiple simultaneous ServiceFilters, unify with `proxy.py` (used by
-  `actor.py`), and cache remote proxies (LRUCache).
+- The design direction (per the To Do list) has four parts. Refactor
+  `ServiceDiscovery` into a proper Interface / Implementation. Support
+  multiple simultaneous ServiceFilters. Unify it with `proxy.py`, which
+  `actor.py` uses. Cache remote proxies (LRUCache).
 
 ### Implementation notes
 
 - `ServiceDiscovery.__init__()` calls
   `services_cache_create_singleton(service)` — one cache per process,
-  started on its own thread; handlers added while the cache is already
+  started on its own thread. Handlers added while the cache is already
   `loaded` / `ready` receive an immediate `"sync"` callback.
 - `_make_service_proxy()` uses a closure-per-method
   (`_proxy_send_message`) and `generate(method_name, arguments)` from the
   [parser utilities](message.md) to build payloads.
-- `do_command()`'s waiting timer is self-removing; it prints at most one
+- `do_command()`'s waiting timer is self-removing. It prints at most one
   `Waiting for ...` line. Note that the discovery handler is *not*
-  removed after the first match — with `terminate=False` the
-  `command_handler` will run again for every further matching Service
-  that appears.
+  removed after the first match. With `terminate=False`, the
+  `command_handler` runs again for every subsequent matching Service.
 - `do_request()` resets its collector state whenever a new
   `(item_count N)` arrives, and calls `response_handler` when
   `items_received == item_count` — including immediately, for `N == 0`.
@@ -262,7 +261,7 @@ Key design points:
 | `ServiceRemoteProxy` (built by `get_service_proxy()`) | One publish per method call to the target's `topic_in`; `is_local() == False` | `aiko.message` ([Message](message.md)); parser `generate()` |
 | `do_discovery` / `do_command` / `do_request` (functions) | The one-shot discover-invoke(-collect)(-terminate) idioms | `ServiceDiscovery`, `get_service_proxy()`, `event` timers, `aiko.process` |
 | `DiscoveryResponse` (Interface, provisional) | Name the response contract: `item_count()`, `response()` | `Actor` (parent Interface) |
-| `Example` / `ExampleImpl` | CLI test harness Actor: `command()` prints, `request()` responds via a `DiscoveryResponse` proxy | `Actor`, `get_service_proxy()` |
+| `Example` / `ExampleImpl` | CLI test harness Actor: `command()` prints, `request()` responds through a `DiscoveryResponse` proxy | `Actor`, `get_service_proxy()` |
 
 ## Current limitations and roadmap
 
@@ -272,20 +271,20 @@ From the source `To Do` list — highlights:
   forever for discovery, and `do_request()` waits forever for a response
 - `do_request()` used before the Registrar connection is up may need to
   wait on `ConnectionState.REGISTRAR` (marked "Fix" in the source)
-- Promote `DiscoveryResponse` into the public API; handle multiple
-  response items better; replace message-payload parsing with remote
+- Promote `DiscoveryResponse` into the public API. handle multiple
+  response items better. Replace message-payload parsing with remote
   function calls on a `DiscoveryResponse` implementation
 - Consolidate `proxy.py` (used by `actor.py`) with
-  `get_service_proxy()`; make `get_actor_mqtt()` / `make_proxy_mqtt()`
+  `get_service_proxy()`. Make `get_actor_mqtt()` / `make_proxy_mqtt()`
   reusable without re-reflecting public methods (the old
   `get_actor_mqtt()` path in `ServiceDiscovery` is commented out and
   marked broken)
-- Refactor `ServiceDiscovery` into Interface + Implementation; support
-  multiple simultaneous ServiceFilters; add an LRU cache of remote
+- Refactor `ServiceDiscovery` into Interface + Implementation. Support
+  multiple simultaneous ServiceFilters. Add an LRU cache of remote
   proxies
-- Rename the `start` subcommand to `run` and implement `exit`; design
+- Rename the `start` subcommand to `run` and implement `exit`. Design
   a pattern for creating Actors of different transport types (MQTT,
-  ROS2, Ray); replace the `actor=name` tag with proper Service protocol
+  ROS2, Ray). Replace the `actor=name` tag with proper Service protocol
   matching once implemented
 
 ## Related concepts

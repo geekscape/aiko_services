@@ -6,13 +6,13 @@ description: How PipelineElement and Pipeline parameters are declared in
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/pipeline.py
 related: [design_overview, pipeline, pipeline_element, stream, share,
   dashboard]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Parameters
@@ -22,22 +22,22 @@ last_updated: 2026-07-05
 Source code: [`src/aiko_services/main/pipeline.py`](../../src/aiko_services/main/pipeline.py)
 
 **Parameters** are the configuration mechanism for
-[Pipelines](pipeline.md) and [PipelineElements](pipeline_element.md):
-named values that an element reads at run-time with `get_parameter()`,
-layered so that the most specific, most recent source wins. A parameter
-may be declared Pipeline-wide or per-element in the PipelineDefinition
-JSON, overridden for a single [Stream](stream.md) at creation time,
-or updated live through shared state ([Share](share.md)) — from the
-Dashboard, the CLI or another Service — without touching the definition
-file.
+[Pipelines](pipeline.md) and [PipelineElements](pipeline_element.md).
+They are named values that an element reads at run-time with
+`get_parameter()`. They are layered, so that the most specific and most
+recent source wins. You can declare a parameter Pipeline-wide or
+per-element in the PipelineDefinition JSON. You can override it for a
+single [Stream](stream.md) at creation time. You can also update it live
+through shared state ([Share](share.md)), from the Dashboard, the CLI or
+another Service, and never touch the definition file.
 
 Parameters is a concept *currently implemented inside*
-`src/aiko_services/main/pipeline.py` (chiefly
-`PipelineElementImpl.get_parameter()` and `PipelineImpl.set_parameter()`);
+`src/aiko_services/main/pipeline.py`, chiefly
+`PipelineElementImpl.get_parameter()` and `PipelineImpl.set_parameter()`.
 the project intent is to refactor it into its own module — see the
 roadmap below.
 
-**Why you'd use it**: write the element once, tune it everywhere. The
+**Why to use it**: write the element once, tune it everywhere. The
 same `PE_Add` element can add 1 by default, 10 for one deployment, and 2
 for a single Stream:
 
@@ -54,7 +54,7 @@ constant, found = self.get_parameter("constant", default=1)
 
 ### Command-line usage
 
-Parameters has no CLI of its own; it is exercised through the
+Parameters has no CLI of its own. It is exercised through the
 `aiko_pipeline` CLI options:
 
 ```bash
@@ -83,7 +83,7 @@ and `aiko_pipeline set <service_filter> <parameter_name> <value>`.
 ### Public API
 
 Declaration, in the PipelineDefinition JSON — both levels are optional
-and default to `{}`; the Avro schema allows values of type boolean,
+and default to `{}`. The Avro schema allows values of type boolean,
 integer, null or string:
 
 ```json
@@ -173,12 +173,12 @@ dict(parameters), ...)` on the discovered proxy), and share overrides as
 Design points:
 
 - **Definition = defaults, share = live state, stream = invocation
-  scope.** The JSON definition provides immutable defaults; element
+  scope.** The JSON definition gives immutable defaults. Element
   definition parameters are copied into `self.share` at init so they are
-  observable and remotely mutable; Stream parameters exist only for the
+  observable and remotely mutable. Stream parameters exist only for the
   Stream's lifetime and win over everything.
 - **Namespacing by dotted prefix.** `ElementName.parameter` scopes a
-  Stream parameter (or a `set_parameter` call) to one element; bare names
+  Stream parameter (or a `set_parameter` call) to one element. Bare names
   are shared across elements and the Pipeline. There is no registry of
   declared parameter names — spelling mistakes silently fall through to
   the default.
@@ -188,9 +188,9 @@ Design points:
 
 ### Implementation notes
 
-- `get_parameter()` fetches Stream parameters via
+- `get_parameter()` fetches Stream parameters through
   `_get_stream_parameters()`, which relies on the Pipeline's
-  thread-local Stream context (`get_stream()`); outside a
+  thread-local Stream context (`get_stream()`). Outside a
   Stream-processing call path it quietly returns `{}`
   (`AttributeError` is swallowed).
 - When a parameter is found only as a `default`, `found` is deliberately
@@ -199,8 +199,8 @@ Design points:
   when the optional field is absent, at both Pipeline and element level,
   before dataclass construction.
 - `update_pipeline()` (CLI `create` / `update` path): with a
-  `--stream_id`, CLI `-p` pairs become the new Stream's parameters; with
-  no stream id, they are applied via `set_parameters(None, ...)` to
+  `--stream_id`, CLI `-p` pairs become the new Stream's parameters. With
+  no stream id, they are applied through `set_parameters(None, ...)` to
   Pipeline / element shares. Without `-s`, the Pipeline also consults its
   own `_create_stream_` parameter for an id.
 - `PipelineImpl.set_parameter()` writes directly to `share[...]`
@@ -209,7 +209,7 @@ Design points:
 
 ### CRC card
 
-Parameters has no class of its own yet (see roadmap) — behaviour lives on
+Parameters has no class of its own yet (see roadmap) — behavior lives on
 the Pipeline / PipelineElement implementations:
 
 | Class | Responsibilities | Collaborators |
@@ -230,18 +230,18 @@ the Pipeline / PipelineElement implementations:
   with attention to the performance implications.
 - TODO (source): Pipeline-level parameters should also be updatable
   through the same share-override path as element parameters.
-- The Avro schema restricts parameter values to boolean / int / null /
-  string, yet shipped definitions use floats (e.g. `"rate": 1.0` in
-  `examples/pipeline/pipeline_example.json`) — and the schema
-  validation result is not currently enforced (see below), so this
+- The Avro schema restricts parameter values to boolean, int, null and
+  string. But shipped definitions use floats, for example `"rate": 1.0`
+  in `examples/pipeline/pipeline_example.json`. The schema validation
+  result is not currently enforced (refer to the next item), so this
   passes silently.
 - `PipelineDefinitionSchema.validate()`'s boolean return value is
   ignored by `parse_pipeline_definition()` (only exceptions are
   handled), so a definition that fails Avro validation is still
   accepted.
 - No declaration or validation of *which* parameter names an element
-  accepts; `set_parameter()` silently ignores unknown element names;
-  values arriving from the CLI or MQTT are strings, and each element
+  accepts. `set_parameter()` silently ignores unknown element names.
+  Values that arrive from the CLI or MQTT are strings, and each element
   must coerce types itself (`int(...)`, `float(...)`, `.lower() ==
   "true"`).
 - Planned CLI: `get` / `set` parameter commands with Service filters.

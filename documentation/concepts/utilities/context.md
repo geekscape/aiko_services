@@ -5,12 +5,12 @@ description: A minimal process-global holder for the (aiko, message)
 type: concept
 audience: [developers]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/utilities/context.py
 related: [design_overview, context]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Context utility (process-global context)
@@ -19,18 +19,19 @@ last_updated: 2026-07-05
 
 Source code: [`src/aiko_services/main/utilities/context.py`](../../../src/aiko_services/main/utilities/context.py)
 
-The context utility provides `ContextManager`, a tiny holder that makes
-the current process's core framework objects — the `aiko` process data and
-the `message` (MQTT) instance — available globally via `get_context()`.
+The context utility gives `ContextManager`, a tiny holder. It makes the
+current process's core framework objects available globally through
+`get_context()`. Those objects are the `aiko` process data and the
+`message` (MQTT) instance.
 
-**Do not confuse this with `src/aiko_services/main/context.py`** — that is
-a different module, the interface-composition `Context` /
-`ContextService` machinery used by `compose_instance()`, documented
+**Do not confuse this with `src/aiko_services/main/context.py`.** That is
+a different module. It holds the interface-composition `Context` and
+`ContextService` machinery that `compose_instance()` uses, documented
 separately as [Context (interface composition)](../context.md). This
-utility is a *service locator* for two process-wide singletons; the other
+utility is a *service locator* for two process-wide singletons. The other
 is the constructor-argument dataclass system.
 
-**Why you'd use it**: code deep inside a library that needs to publish an
+**Why to use it**: code deep inside a library that needs to publish an
 MQTT message without threading `aiko` / `message` references through every
 call signature:
 
@@ -45,7 +46,7 @@ context.message.publish(topic, payload)
 
 ### Command-line usage
 
-There is no CLI; the module is exercised by every Aiko Services process —
+There is no CLI. the module is exercised by every Aiko Services process —
 `process.py` activates the context during `initialize()`.
 
 ### Public API
@@ -80,7 +81,7 @@ print(context.aiko)
 ```
 
 Note that `__init__()` already calls `activate()`, so the `with` form is
-cosmetic — entering the block does not scope anything, and exiting it does
+cosmetic. To enter the block does not scope anything. To exit it does
 **not** restore any previously active context.
 
 ## For framework developers (internals)
@@ -98,7 +99,7 @@ cosmetic — entering the block does not scope anything, and exiting it does
 ```
 
 A single module-level `_CONTEXT` variable — last `activate()` wins. There
-is exactly one context per process; it is not thread-local (a thread-local
+is exactly one context per process. It is not thread-local (a thread-local
 variant is on the To Do list).
 
 ### CRC card
@@ -106,7 +107,7 @@ variant is on the To Do list).
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `ContextManager` | Hold `(aiko, message)`; install itself as the process-global context on construction or `activate()` | `process.py` (sole creator); `aiko` / `message` singletons |
-| *function* `get_context()` | Return the currently active `ContextManager` (or `None` before initialisation) | Any framework or application code |
+| *function* `get_context()` | Return the currently active `ContextManager` (or `None` before initialization) | Any framework or application code |
 
 ## Current limitations and roadmap
 
@@ -114,7 +115,7 @@ variant is on the To Do list).
   `aiko.process.initialize()` / `run()` — callers must cope
 - `__exit__()` is a no-op: no restoration of a previous context, so nested
   `with ContextManager(...)` blocks do not behave like a stack
-- Not thread-local; the source To Do lists a thread-local context example
+- Not thread-local. The source To Do lists a thread-local context example
 - `get_context()` currently has no callers in the code base — the global
   is written by `process.py` but nothing reads it yet
 - No unit tests (`tests/unit/test_context.py` tests the *other* context

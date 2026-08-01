@@ -6,12 +6,12 @@ description: Environment-driven discovery of the MQTT server, namespace and
 type: concept
 audience: [developers]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/utilities/configuration.py
 related: [design_overview, logger]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Configuration utility
@@ -22,13 +22,13 @@ Source code: [`src/aiko_services/main/utilities/configuration.py`](../../../src/
 
 The configuration utility answers the first questions every Aiko Services
 process asks at start-up: *which MQTT server, which namespace, and who am
-I?* It reads `AIKO_*` environment variables, probes candidate MQTT hosts,
-and derives process identity (hostname, username, PID) — all as plain
-functions with no framework dependencies, so the
+I?* It reads `AIKO_*` environment variables, probes candidate MQTT
+hosts, and derives process identity (hostname, username, PID). All of
+these are plain functions with no framework dependencies. Thus the
 [Process](../design_overview.md) bootstrap and the
 [Logger](logger.md) can use them before anything else exists.
 
-**Why you'd use it**: point a whole terminal session of Aiko Services
+**Why to use it**: point a whole terminal session of Aiko Services
 tools at a different broker and namespace without touching any code:
 
 ```bash
@@ -42,12 +42,12 @@ aiko_registrar    # every topic now starts with "test/"
 
 ### Command-line usage
 
-There is no CLI; the module is exercised indirectly by every Aiko Services
-process at import time — for example `aiko_registrar`, `aiko_dashboard`
-and `aiko_pipeline` all resolve their MQTT server and topic namespace
-through it.
+There is no CLI. Every Aiko Services process exercises the module
+indirectly at import time. For example `aiko_registrar`,
+`aiko_dashboard` and `aiko_pipeline` all resolve their MQTT server and
+topic namespace through it.
 
-Recognised environment variables:
+Recognized environment variables:
 
 ```bash
 AIKO_NAMESPACE=test       # default "aiko"
@@ -110,20 +110,21 @@ Other users include `dashboard.py` (shows "MQTT SERVER UNAVAILABLE"),
 ```
 
 Deliberately dependency-free (stdlib plus [Logger](logger.md)) so it can
-run before the framework initialises. TLS policy: explicit
-`AIKO_MQTT_TLS` wins; otherwise TLS is enabled exactly when a username is
+run before the framework initializes. TLS policy: explicit
+`AIKO_MQTT_TLS` wins. Otherwise TLS is enabled exactly when a username is
 configured.
 
 ### Implementation notes
 
 - **Import-time side effect**: the module computes the UDP-bootstrap
-  `RESPONSE` string at import, which calls `_get_lan_ip_address()` — this
-  may open a UDP socket towards `8.8.8.8` to learn the LAN IP address.
+  `RESPONSE` string at import, and that calls `_get_lan_ip_address()`.
+  This can open a UDP socket toward `8.8.8.8` to learn the LAN IP
+  address.
 - `bootstrap_start()` / `bootstrap_thread()` implement a UDP
   broadcast-request / unicast-reply responder (port 4149) so devices
   without DNS/mDNS can find the MQTT server. It is implemented but not in
   `__all__` and currently has **no callers** in the code base.
-- `_host_server_up()` fails fast on connection-refused; the "timeout
+- `_host_server_up()` fails fast on connection-refused. The "timeout
   after N seconds" warning wording is only accurate for genuinely slow
   hosts.
 
@@ -139,8 +140,8 @@ From the source `To Do` list:
 
 - Replace the hard-coded (empty) `_AIKO_MQTT_HOSTS` list with an
   environment variable
-- Move discovery and bootstrap functions into `message/discovery.py`;
-  implement discovery of the default MQTT hostname and namespace
+- Move discovery and bootstrap functions into `message/discovery.py`.
+  Implement discovery of the default MQTT hostname and namespace
   (including a `Namespace` class)
 - Tests are listed in the header (`unset AIKO_MQTT_HOST`, bad hostname,
   host without a broker) but none exist yet — the module has no unit tests

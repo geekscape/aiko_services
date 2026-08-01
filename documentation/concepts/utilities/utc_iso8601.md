@@ -5,12 +5,12 @@ description: Conversions between epoch seconds, Python datetime, UTC
 type: concept
 audience: [developers]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/utilities/utc_iso8601.py
 related: [design_overview, pipeline, recorder]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # UTC ISO 8601 utility
@@ -26,7 +26,7 @@ strings (`yyyy-mm-ddThh:mm:ss.ssssss+00:00`) and local time. It follows
 the modern timezone-aware idiom — `datetime.now(tz=timezone.utc)` — and
 deliberately avoids the deprecated `utcnow()` / `utcfromtimestamp()`.
 
-**Why you'd use it**: consistent, human-readable timestamps in shared
+**Why to use it**: consistent, human-readable timestamps in shared
 state and diagnostics. [Pipeline](../pipeline.md) stamps its lifecycle
 and frame diagnostics this way:
 
@@ -40,7 +40,7 @@ self.share["lifecycle"] = {
 
 ### Command-line usage
 
-There is no CLI and no `__main__` block; the usage header at the top of
+There is no CLI and no `__main__` block. The usage header at the top of
 the source file doubles as an interactive `python3` session walkthrough.
 
 ### Public API
@@ -70,7 +70,7 @@ Notes on formats:
 
 - `datetime_now_utc_iso()` and `epoch_to_utc_iso()` return **aware** UTC
   strings ending in `+00:00`. (The usage comments in the source show the
-  older offset-less form — the code has since moved on; trust the
+  older offset-less form — the code has since moved on. Trust the
   `+00:00` form.)
 - `local_iso_now()` returns a *space-separated*, second-resolution local
   time (`"yyyy-mm-dd hh:mm:ss"`) — the form used in Pipeline `share[]`
@@ -83,11 +83,11 @@ Notes on formats:
   though the source usage comments claim it works (see limitations).
 
 **Broken (do not use): `utc_iso_since_epoch()`.** It subtracts the naive
-epoch `datetime(1970, 1, 1)` from the parsed datetime, but
-`utc_iso_to_datetime()` only successfully parses *offset-bearing*
-(aware) strings — and Python refuses to subtract naive from aware. So
-every input either fails to parse (naive strings) or fails to subtract
-(aware strings). Use
+epoch `datetime(1970, 1, 1)` from the parsed datetime. But
+`utc_iso_to_datetime()` parses only *offset-bearing* (aware) strings, and
+Python refuses to subtract a naive value from an aware value. Thus every
+input either fails to parse (naive strings) or fails to subtract (aware
+strings). Use
 `utc_iso_to_datetime(s).timestamp()` directly until this is fixed.
 
 ## For framework developers (internals)
@@ -114,7 +114,7 @@ parses all of these forms and is the natural replacement.
 
 ### CRC card
 
-The module is purely functions; one row describes the module itself:
+The module is purely functions. One row describes the module itself:
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
@@ -130,8 +130,8 @@ The source has no `To Do` list. Known defects and gaps (all verified):
   (`datetime(1970, 1, 1, tzinfo=timezone.utc)`) *and* accepting
   offset-less strings, or by delegating to `.timestamp()`
 - `utc_iso_to_datetime()` / `utc_iso_to_local()` reject offset-less
-  timestamps (e.g. `1970-01-01T00:00:01`), contradicting the module's
-  own usage examples; the length-25 heuristic is fragile
+  timestamps (for example, `1970-01-01T00:00:01`), contradicting the module's
+  own usage examples. The length-25 heuristic is fragile
 - The usage header predates timezone-aware output — its expected values
   lack the `+00:00` suffix that is actually produced
 - Consider replacing the whole parse path with

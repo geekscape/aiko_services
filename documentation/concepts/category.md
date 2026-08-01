@@ -5,13 +5,13 @@ description: An Actor that groups Entries — Dependencies and other
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/category.py
 related: [design_overview, dependency, hyperspace, storage, actor,
   service, share, discovery]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Category
@@ -22,16 +22,17 @@ Source code: [`src/aiko_services/main/category.py`](../../src/aiko_services/main
 
 A **Category** is an Actor representing a group of **Entries**, where each
 Entry is either a [Dependency](dependency.md) (a Service reference) or
-another Category. It is the *Container* of the Composite pattern — the
-directory to Dependency's file — and the building block from which
+another Category. It is the *Container* of the Composite pattern, the
+directory to Dependency's file. It is also the building block from which
 [HyperSpace](hyperspace.md) assembles its network graph.
 
-Because a Category **is-a** Dependency, Categories nest arbitrarily. Because
-a Category **is-an** [Actor](actor.md), every Category is independently
-discoverable, remotely operable over MQTT, and its entries are live shared
-state visible in the Aiko Services [Dashboard](dashboard.md).
+Because a Category **is-a** Dependency, Categories nest arbitrarily.
+Because a Category **is-an** [Actor](actor.md), every Category is
+independently discoverable and remotely operable over MQTT. Its entries
+are live shared state, visible in the Aiko Services
+[Dashboard](dashboard.md).
 
-**Why you'd use it**: whenever a component needs to manage a queryable,
+**Why to use it**: whenever a component needs to manage a queryable,
 observable collection of Service references. For example, a fleet of camera
 Services grouped under one name that any host can inspect remotely:
 
@@ -41,15 +42,15 @@ Services grouped under one name that any host can inspect remotely:
 ```
 
 Planned Categories throughout the system include HyperSpace, Registrar,
-LifeCycleManager and WorkSpace — the intent is that "a queryable, observable
-group of Service references" becomes the standard idiom for any component
-that manages a collection.
+LifeCycleManager and WorkSpace. The intent is that "a queryable,
+observable group of Service references" becomes the standard idiom for
+any component that manages a collection.
 
 ## For application developers
 
 ### Command-line usage
 
-There is currently no `aiko_category` console script; run the module
+There is currently no `aiko_category` console script. Run the module
 directly (an entry point is expected to follow the same naming convention as
 the other tools):
 
@@ -85,7 +86,7 @@ Manage Entries:
 ```
 
 Option defaults: `add` defaults ServiceFilter fields to `*` (match
-anything); `update` defaults them to `0:` (meaning *leave unchanged*).
+anything). `update` defaults them to `0:` (meaning *leave unchanged*).
 
 Example session:
 
@@ -112,7 +113,7 @@ Core operations (CRUD on the collection):
 | `add(entry_name, service_filter, lcm_url, storage_url)` | Create a Dependency and store it under `entry_name` (no-op if the name exists) |
 | `list(topic_path_response, entry_name, long_format, ...)` | Publish (or print) Entry records, optionally for a single Entry |
 | `update(entry_name, service, service_filter, lcm_url, storage_url)` | Merge non-null fields into an existing Entry |
-| `remove(entry_name)` | Delete the Entry from the collection |
+| `remove(entry_name)` | Remove the Entry from the collection |
 | `exit()` | Terminate the Category Actor's process |
 
 Creating and using a Category in-process:
@@ -175,13 +176,13 @@ B) Category Entry:      [ LEVEL, ENTRY_NAME,
                           [SERVICE_FILTER, LCM_URL, STORAGE_URL]]
 ```
 
-`LEVEL` is the indentation depth; a *negative* level introduces a nested
+`LEVEL` is the indentation depth. A *negative* level introduces a nested
 Category header when listing recursively (used by HyperSpace and
 StorageFile, which share this record format and printer). A record whose
-first element is the string `text` carries a plain message, e.g.
-`Entry path not found`. In transmitted records the sentinel `0:` stands for
-*None* — S-expression-safe — which is also why the CLI `update` command
-uses `0:` as its "leave unchanged" default.
+first element is the string `text` carries a plain message, for example
+`Entry path not found`. In transmitted records the sentinel `0:` stands
+for *None*, which is S-expression-safe. That is also why the CLI
+`update` command uses `0:` as its "leave unchanged" default.
 
 Printed output comes in two formats:
 
@@ -205,18 +206,20 @@ Name  (ServiceFields)  LifeCycleManager, Storage     # long format (-l)
    └──────────────────────────────────────────────┘
 ```
 
-A Category is the Composite pattern's *Container*, realised as a live
-Actor: the `entries` collection is eventually-consistent shared state, so
-the collection itself is part of the distributed system — observable,
-queryable and remotely mutable — rather than a private data structure.
+A Category is the Composite pattern's *Container*, realized as a live
+Actor. The `entries` collection is eventually-consistent shared state.
+Thus the collection itself is part of the distributed system, and not a
+private data structure. It is observable, queryable and remotely
+mutable.
 
 ### Implementation notes
 
-**Class composition.** `CategoryImpl.__init__()` initializes both parents
-via `context.call_init(self, "Actor", ...)` and
-`context.call_init(self, "Dependency", ...)`, then grabs the Dependency
-implementation with `context.get_implementation("Dependency")` so it can
-delegate `is_type()` and `__repr__()` down the composite chain.
+**Class composition.** `CategoryImpl.__init__()` initializes both
+parents, through `context.call_init(self, "Actor", ...)` and
+`context.call_init(self, "Dependency", ...)`. It then gets the
+Dependency implementation with
+`context.get_implementation("Dependency")`. Thus it can delegate
+`is_type()` and `__repr__()` down the composite chain.
 
 **Entries live in shared state.** Entries are not a private dict — they are
 stored in `self.share["entries"]` and every mutation goes through the
@@ -234,7 +237,7 @@ Consequences worth knowing:
 - The Dependency objects themselves are the values, so `update()` mutates
   the Dependency in place and then republishes it.
 
-**`add()` normalisation rules:**
+**`add()` normalization rules:**
 
 - A `service_filter` arriving as a list/tuple (the MQTT wire form) is
   re-hydrated with `ServiceFilter(*service_filter)`.
@@ -259,7 +262,7 @@ all three present identical output.
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `Category` (Interface) | Declare the collection contract: `add()`, `list()`, `update()`, `remove()`, `exit()`; is-an Actor and is-a Dependency | `Actor`, [Dependency](dependency.md) (parent Interfaces) |
-| `CategoryImpl` | Maintain `entries` / `entries_count` in ECProducer shared state; normalise ServiceFilters on `add()`; merge on `update()`; assemble and print/publish Entry records; provide `list_command()` / `_list_print()` reused by other CLIs | `DependencyImpl` (delegation via `context.get_implementation`); `ECProducer` (shared state); `ServiceFilter` (discovery fields); [HyperSpace](hyperspace.md) and [Storage](storage.md) (record-format co-users) |
+| `CategoryImpl` | Maintain `entries` / `entries_count` in ECProducer shared state; normalize ServiceFilters on `add()`; merge on `update()`; assemble and print/publish Entry records; give `list_command()` / `_list_print()` reused by other CLIs | `DependencyImpl` (delegation through `context.get_implementation`); `ECProducer` (shared state); `ServiceFilter` (discovery fields); [HyperSpace](hyperspace.md) and [Storage](storage.md) (record-format co-users) |
 
 ## Current limitations and roadmap
 
@@ -273,11 +276,12 @@ From the source `To Do` list — highlights:
   rates, totals)
 - `list` filters (by owner, protocol, ...), plus `__repr__`/`__str__`
   refactoring of `list()`
-- A CategoryManager interface for use by HyperSpace et al; Categories that
-  span different HyperSpace roots; self-changing custom Categories;
-  a Queue(Category) with persistence options and a `queue://` DataScheme
-- `owner` field populated automatically; system Categories owned by
-  `aiko`; security (owners, roles, ACLs)
+- A CategoryManager interface for use by HyperSpace and other users.
+  Categories that span different HyperSpace roots. Self-changing custom
+  Categories. A Queue(Category) with persistence options and a
+  `queue://` DataScheme
+- `owner` field populated automatically. System Categories owned by
+  `aiko`. Security (owners, roles, ACLs)
 
 ## Related concepts
 
@@ -285,7 +289,7 @@ From the source `To Do` list — highlights:
 - [Dependency](dependency.md) — what Entries are made of
 - [HyperSpace](hyperspace.md) — root Category, path addressing, persistence
 - [Storage](storage.md) — how Category structures are persisted
-- [Actor](actor.md) — what a Category is-a; mailbox and main-thread model
+- [Actor](actor.md) — what a Category is-a. Mailbox and main-thread model
 - [Share (Eventual Consistency)](share.md) — how entries become observable
   shared state
 - [Service](service.md) — ServiceFilter and the Service fields

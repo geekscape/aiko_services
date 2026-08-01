@@ -1,17 +1,17 @@
 ---
 title: State
 description: A finite state machine wrapper (StateMachineOld) over the
-  Python "transitions" package, providing logged, fail-fast state
+  Python "transitions" package, giving logged, fail-fast state
   transitions for framework components such as the Registrar
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/state.py
 related: [design_overview, registrar, lifecycle, event]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # State
@@ -20,25 +20,25 @@ last_updated: 2026-07-05
 
 Source code: [`src/aiko_services/main/state.py`](../../src/aiko_services/main/state.py)
 
-The **State** module provides `StateMachineOld`, a thin wrapper around the
+The **State** module gives `StateMachineOld`, a thin wrapper around the
 third-party [`transitions`](https://github.com/pytransitions/transitions)
 package. It gives a framework component a simple operational finite state
-machine (FSM): the component supplies a *model* object declaring `states`
-and `transitions`, and drives it with `transition(action, parameters)`
-calls that are logged and fail-fast — any transition failure terminates
-the process.
+machine (FSM). The component supplies a *model* object that declares
+`states` and `transitions`. It drives that model with
+`transition(action, parameters)` calls. Those calls are logged and
+fail-fast: any transition failure stops the process.
 
-The naming convention recommended by the module: name machine states with
-descriptive adjectives that correspond to the transition operations —
-i.e. the past tense of each transitive verb — e.g. `pending`, `running`,
-`success`, `error`.
+The module recommends this naming convention. Name machine states with
+descriptive adjectives that agree with the transition operations. That
+is the past tense of each transitive verb, for example `pending`,
+`running`, `success` and `error`.
 
 Its one current production user is the [Registrar](registrar.md), whose
 primary/secondary election FSM moves through `start → primary_search →
 primary | secondary` as MQTT retained messages reveal (or fail to reveal)
 an existing primary Registrar.
 
-**Why you'd use it**: give a component an explicit, observable lifecycle
+**Why to use it**: give a component an explicit, observable lifecycle
 instead of scattered boolean flags:
 
 ```python
@@ -58,7 +58,7 @@ state_machine.get_state()  # "running"
 
 The trailing "Old" is deliberate: this wrapper is legacy, retained until a
 replacement `state_machine.py` design lands (see roadmap), and the module
-header suggests investigating Behaviour Trees as a longer-term direction.
+header suggests investigating Behavior Trees as a longer-term direction.
 
 ## For application developers
 
@@ -82,7 +82,7 @@ a two-method surface:
 | Operation | Effect |
 |-----------|--------|
 | `StateMachineOld(model)` | Build a `transitions.Machine` from `model.states` and `model.transitions`, initial state `"start"`, `send_event=True` |
-| `transition(action, parameters)` | Dispatch the trigger named `action`; `parameters` is delivered to state-entry callbacks via `event_data.kwargs` |
+| `transition(action, parameters)` | Dispatch the trigger named `action`; `parameters` is delivered to state-entry callbacks through `event_data.kwargs` |
 | `get_state()` | Return the model's current state name |
 
 The model object supplies the FSM declaration and receives callbacks:
@@ -91,7 +91,7 @@ The model object supplies the FSM declaration and receives callbacks:
   be included).
 - `model.transitions` — list of `transitions`-package dictionaries:
   `{"source": ..., "trigger": ..., "dest": ...}`.
-- `on_enter_<state>(event_data)` methods — invoked on entry; retrieve the
+- `on_enter_<state>(event_data)` methods — invoked on entry. Retrieve the
   parameters with `event_data.kwargs.get("parameters", {})` (the machine
   is constructed with `send_event=True`).
 
@@ -136,8 +136,8 @@ the state becomes remotely observable.
 
 Key design points:
 
-- **Model owns behaviour, wrapper owns policy.** All states, transitions
-  and entry actions live in the component's model class; `StateMachineOld`
+- **Model owns behavior, wrapper owns policy.** All states, transitions
+  and entry actions live in the component's model class. `StateMachineOld`
   contributes only logging, exception discipline and the fail-fast exit.
 - **The current state is stored on the model** (`self.model.state`, set by
   the `transitions` package) — the wrapper holds no state of its own.
@@ -151,12 +151,12 @@ Key design points:
 
 ### Implementation notes
 
-- `AIKO_LOG_LEVEL_STATE` (default `INFO`) controls the module logger;
+- `AIKO_LOG_LEVEL_STATE` (default `INFO`) controls the module logger.
   DEBUG shows each transition's before/after state.
-- `transition()` distinguishes an unknown action from a callback bug by
-  searching `model.transitions` for the trigger after catching
-  `AttributeError` — the `transitions` package raises `AttributeError`
-  for undefined triggers.
+- `transition()` tells an unknown action apart from a callback bug. It
+  catches `AttributeError`, then searches `model.transitions` for the
+  trigger. The `transitions` package raises `AttributeError` for
+  undefined triggers.
 - Because the wrapper uses `Machine.dispatch(action, parameters=...)`,
   callbacks must accept `event_data` (the `send_event=True` calling
   convention) — not plain positional arguments.
@@ -166,7 +166,7 @@ Key design points:
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `StateMachineOld` | Construct the `transitions.Machine`; dispatch triggers with logging; classify failures and terminate fatally; report current state | `transitions.Machine` / `MachineError`; the model object supplied by a component |
-| model classes (e.g. Registrar `StateMachineModel`) | Declare `states` and `transitions`; implement `on_enter_*` side-effects | [Registrar](registrar.md); [Event](event.md) timers; ECProducer shared state ([Share](share.md)) |
+| model classes (for example, Registrar `StateMachineModel`) | Declare `states` and `transitions`; implement `on_enter_*` side-effects | [Registrar](registrar.md); [Event](event.md) timers; ECProducer shared state ([Share](share.md)) |
 
 ## Current limitations and roadmap
 
@@ -174,14 +174,14 @@ Key design points:
   [Registrar](registrar.md) source carries the TODO "Implement protocol.py
   and state_machine.py !" — a redesigned state machine module is planned
   but not yet written
-- The module header proposes investigating **Behaviour Trees** as an
+- The module header proposes investigating **Behavior Trees** as an
   alternative to flat FSMs
-- The initial state is hard-coded to `"start"`; models cannot choose
+- The initial state is hard-coded to `"start"`. Models cannot choose
   another
 - Failure handling is all-or-nothing (`SystemExit`) — there is no
   recoverable-error path for callers that could handle a rejected
   transition
-- Only one production user (the Registrar); the planned
+- Only one production user (the Registrar). The planned
   [LifeCycle](lifecycle.md) work is a natural second consumer
 - No unit tests exist for this module (nothing under
   `src/aiko_services/tests/` covers it)

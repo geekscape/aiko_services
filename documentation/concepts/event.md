@@ -6,13 +6,13 @@ description: The cooperative event loop at the heart of every Aiko Services
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/event.py
 related: [design_overview, process, actor, lease, message, service,
   connection]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Event
@@ -21,25 +21,26 @@ last_updated: 2026-07-05
 
 Source code: [`src/aiko_services/main/event.py`](../../src/aiko_services/main/event.py)
 
-The **Event** module (historically titled the *Aiko Engine*) provides the
-cooperative event loop that drives every Aiko Services process. All work in
-a process — incoming [messages](message.md) for an [Actor](actor.md), timer
-callbacks, [Lease](lease.md) expiry, stream frame processing — is delivered
-as a *handler invocation* made by one event-loop thread. This is the
+The **Event** module (historically titled the *Aiko Engine*) gives the
+cooperative event loop that drives every Aiko Services process. One
+event-loop thread delivers all work in a process as a *handler
+invocation*. That work includes incoming [messages](message.md) for an
+[Actor](actor.md), timer callbacks, [Lease](lease.md) expiry and stream
+frame processing. This is the
 concurrency model of the whole framework: instead of application code
 managing threads and locks, handlers are registered with the event loop and
 executed serially by it.
 
 Four kinds of handler are supported:
 
-| Handler kind | Registered via | Invoked when |
+| Handler kind | Registered through | Invoked when |
 |--------------|----------------|--------------|
 | Timer | `add_timer_handler(handler, time_period)` | Every `time_period` seconds |
 | Mailbox | `add_mailbox_handler(handler, name)` | An item is posted with `mailbox_put(name, item)` |
 | Queue | `add_queue_handler(handler, item_types)` | An item of a matching type is posted with `queue_put(item, item_type)` |
 | Flat-out | `add_flatout_handler(handler)` | Every pass of the event loop, as fast as possible |
 
-**Why you'd use it**: run periodic work without spawning threads — for
+**Why to use it**: run periodic work without spawning threads — for
 example, a heartbeat printed once a second while a busy-loop counter runs
 flat-out (this is the module's own usage example):
 
@@ -67,11 +68,11 @@ Most applications never call `event.loop()` directly —
 
 ### Command-line usage
 
-The Event module has no CLI of its own; it is a library that every Aiko
-Services process embeds. It is exercised indirectly by every tool and
-example — e.g. `aiko_registrar`, `aiko_dashboard`, or
-`src/aiko_services/examples/aloha_honua/aloha_honua_0.py` — all of which
-end up blocked inside `event.loop()` via `aiko.process.run()`.
+The Event module has no CLI of its own. It is a library that every Aiko
+Services process embeds. Every tool and example exercises it indirectly,
+for example `aiko_registrar`, `aiko_dashboard` and
+`src/aiko_services/examples/aloha_honua/aloha_honua_0.py`. All of them
+end up blocked inside `event.loop()` through `aiko.process.run()`.
 
 ### Public API
 
@@ -124,7 +125,7 @@ Adding a mailbox name that already exists raises `RuntimeError`, as does
 posting to a mailbox that does not exist. The *first* mailbox added to the
 process gets **priority handling**: whenever it has items pending, draining
 of other mailboxes is interrupted so the priority mailbox is served first.
-[Actors](actor.md) rely on this — each Actor registers one mailbox per
+[Actors](actor.md) rely on this. Each Actor registers one mailbox per
 topic, and every incoming MQTT message is `mailbox_put()` for serial
 processing on the event-loop thread.
 
@@ -142,7 +143,7 @@ def queue_handler(item, item_type):
 The framework itself uses one queue handler (item type `"message"`) to
 move raw MQTT messages from the transport thread onto the event loop
 (see [Process](process.md)). The queue handler mechanism is slated for
-removal in favour of mailboxes (see roadmap).
+removal in favor of mailboxes (see roadmap).
 
 **Flat-out handlers.** `add_flatout_handler(handler)` registers a
 zero-argument function called on every loop pass — for polling-style work
@@ -158,7 +159,7 @@ event.terminate()                        # stop the loop from any thread
 `loop()` returns when `terminate()` is called or — unless
 `loop_when_no_handlers=True` — when the count of registered handlers drops
 to zero. Calling `loop()` while a loop is already running returns
-immediately (a lock-guarded `event_loop_running` flag ensures a single
+immediately (a lock-guarded `event_loop_running` flag makes sure a single
 loop per process). `KeyboardInterrupt` raises
 `SystemExit("KeyboardInterrupt: abort !")`.
 
@@ -191,23 +192,23 @@ Key design points:
 - **Single-threaded execution of handlers** is the framework's core
   concurrency rule: shared state is safe to mutate inside handlers because
   only the event-loop thread runs them. Producers on other threads hand
-  work over via thread-safe `queue.Queue` instances inside `mailbox_put()`
+  work over through thread-safe `queue.Queue` instances inside `mailbox_put()`
   and `queue_put()`.
 - **Timers** live in `EventList`, a singly linked list kept sorted by
-  `time_next`; only the head is ever due. After firing, `update()`
+  `time_next`. Only the head is ever due. After firing, `update()`
   re-schedules the head by adding its period and re-inserts it in order.
   `_timer_counter` caches the time until the head is due, so idle passes
   avoid re-reading the list.
 - **Loop cadence**: each pass sleeps up to 10 ms (`sleep_time = 0.01`),
-  minus time consumed by flat-out handlers — so timers have roughly 10 ms
-  resolution and flat-out handlers run at up to ~100 Hz. (A stale source
-  comment mentions 1 ms / 1,000 Hz.)
+  minus the time that flat-out handlers consume. Thus timers have roughly
+  10 ms resolution, and flat-out handlers run at up to ~100 Hz. (A stale
+  source comment mentions 1 ms / 1,000 Hz.)
 - **One queue item per pass** is processed, while mailboxes are drained
   completely (subject to priority-mailbox pre-emption) — mailboxes are the
-  favoured mechanism.
+  favored mechanism.
 - **Mailbox monitoring**: each `Mailbox` tracks `size` and
-  `high_water_mark`, and computes a warning each time the backlog grows by
-  `increment_warning` (default 4) — the warning `print()` is currently
+  `high_water_mark`. It computes a warning each time the backlog grows by
+  `increment_warning` (default 4). The warning `print()` is currently
   commented out.
 
 ### Implementation notes
@@ -216,13 +217,13 @@ Key design points:
   `time_next` to *now + period* — timers added before the loop starts do
   not fire "in the past".
 - `_handler_count` is a plain module-level integer incremented and
-  decremented by every add/remove function; the loop exits when it reaches
+  decremented by every add/remove function. The loop exits when it reaches
   zero. It is **not** thread-safe (acknowledged bug).
 - `EventList.remove(handler)` matches by handler identity — two timers
   registered with the *same* function are indistinguishable, and removal
   may take the wrong one (acknowledged bug). Use distinct bound methods
   (as `Lease` does) to stay safe.
-- `terminate()` merely clears `event_enabled`; the loop notices on its
+- `terminate()` merely clears `event_enabled`. The loop notices on its
   next pass. Calling `terminate()` *before* `loop()` starts is lost,
   because `loop()` sets `event_enabled = True` on entry (acknowledged
   bug).
@@ -243,21 +244,21 @@ Key design points:
 
 From the source `To Do` list — highlights:
 
-- Remove the queue handler mechanism, replacing usage with mailboxes; more
+- Remove the queue handler mechanism, replacing usage with mailboxes. More
   generally, allow any object to be queued with a specified handler
-- Ensure *all* shared-data updates occur via events executed solely by the
+- Make sure *all* shared-data updates occur through events executed solely by the
   event-loop thread (a rule the rest of the framework is converging on)
-- Known bugs: `remove_timer_handler()` may remove the wrong timer when one
-  function backs several timers (needs per-timer identifiers);
-  `terminate()` before `loop()` is silently lost; `_handler_count` is not
-  thread-safe; `immediate=True` timers do not fire immediately
+- Known bugs: `remove_timer_handler()` may remove the wrong timer when
+  one function backs several timers (it needs per-timer identifiers). A
+  `terminate()` before `loop()` is silently lost. `_handler_count` is not
+  thread-safe. `immediate=True` timers do not fire immediately
 - `add_timer_handler(..., count=N)` auto-expiry and
   `add_mailbox_handler(..., max_size=N)` bounded mailboxes
-- Refactor remaining module functions into an `EventEngine` class; move
-  `_timer_counter` into `EventList`; coalesce the `remove_*_handler()`
-  variants; possibly rename `event.py` to `handler.py`
-- Check timers between every mailbox delivery; make the flat-out cadence
-  configurable; wall-clock monitoring of handler invocation time
+- Refactor remaining module functions into an `EventEngine` class. Move
+  `_timer_counter` into `EventList`. Coalesce the `remove_*_handler()`
+  variants. Possibly rename `event.py` to `handler.py`
+- Check timers between every mailbox delivery. Make the flat-out cadence
+  configurable. Wall-clock monitoring of handler invocation time
 - New event types: GStreamer appsink / appsrc, serial
 - No unit tests yet for the add/remove of the various handler types
 
@@ -271,5 +272,5 @@ From the source `To Do` list — highlights:
 - [Lease](lease.md) — time-limited claims built on timer handlers
 - [Message](message.md) / [Transport](transport.md) — the MQTT thread that
   feeds the event loop from outside
-- [Connection](connection.md) — shares the "updates via events only"
+- [Connection](connection.md) — shares the "updates through events only"
   roadmap direction

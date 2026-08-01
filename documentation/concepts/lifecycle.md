@@ -6,13 +6,13 @@ description: The LifeCycleManager / LifeCycleClient pair — one Actor creates,
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/lifecycle.py
 related: [design_overview, process_manager, lease, share, actor, service,
   registrar, discovery, connection, hyperspace]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # LifeCycle
@@ -22,26 +22,27 @@ last_updated: 2026-07-05
 Source code: [`src/aiko_services/main/lifecycle.py`](../../src/aiko_services/main/lifecycle.py)
 
 **LifeCycle** is the managed create-track-destroy relationship between one
-**LifeCycleManager** and many **LifeCycleClients**. The manager creates
-clients (typically as separate operating system processes via
-[ProcessManager](process_manager.md)), each client *handshakes* back to its
-manager once it is up and registered, and thereafter the manager observes
-each client's shared state — its `lifecycle` variable — through an
-`ECConsumer` (see [Share](share.md)). Every transition is guarded by a
-[Lease](lease.md): a handshake Lease catches clients that never come up, and
-a deletion Lease catches clients that refuse to die.
+**LifeCycleManager** and many **LifeCycleClients**. The manager makes
+clients, usually as separate operating system processes through
+[ProcessManager](process_manager.md). Each client *handshakes* back to
+its manager when it is up and registered. After that, the manager
+observes each client's shared state — its `lifecycle` variable —
+through an `ECConsumer` (refer to [Share](share.md)). A
+[Lease](lease.md) guards every transition. A handshake Lease catches
+clients that never come up. A deletion Lease catches clients that refuse
+to die.
 
 Both roles are **mixin Interfaces**, not standalone Actors: an
 [Actor](actor.md) *incorporates* LifeCycleManager or LifeCycleClient
-alongside its own behaviour. [HyperSpace](hyperspace.md) is designed as a
-LifeCycleManager of Categories; the `LifeCycleManagerTest` /
+alongside its own behavior. [HyperSpace](hyperspace.md) is designed as a
+LifeCycleManager of Categories. The `LifeCycleManagerTest` /
 `LifeCycleClientTest` Actors in the source demonstrate the pattern
 end-to-end.
 
-**Why you'd use it**: whenever one Actor must own a dynamic fleet of worker
-Actors — spin up N workers, know reliably when each is ready (not merely
-forked), watch each worker's state change, and clean up stragglers
-automatically:
+**Why to use it**: when one Actor must own a dynamic fleet of worker
+Actors. It starts N workers, and knows reliably when each is ready, not
+only forked. It watches each worker's state change, and cleans up
+stragglers automatically:
 
 ```bash
 cd src/aiko_services/main
@@ -52,7 +53,7 @@ cd src/aiko_services/main
 
 ### Command-line usage
 
-There is no console script for this concept; the CLI is a test harness for
+There is no console script for this concept. The CLI is a test harness for
 exercising the manager / client pair. Run the module directly:
 
 ```bash
@@ -82,7 +83,7 @@ AIKO_LOG_LEVEL_LIFECYCLE=DEBUG ./lifecycle.py manager 2
 ### Public API
 
 Two public Interfaces, each paired with a private Interface that a concrete
-implementation must fulfil:
+implementation must fulfill:
 
 ```python
 class LifeCycleManager(ServiceProtocolInterface):
@@ -99,17 +100,17 @@ class LifeCycleClient(ServiceProtocolInterface):
         "aiko_services.main.lifecycle.LifeCycleClientImpl")
 ```
 
-`LifeCycleManagerImpl` handles all bookkeeping — client ids, handshake and
-deletion Leases, per-client `ECConsumer`s, shared-state updates — and
-delegates the *mechanism* of creation and deletion to private methods your
-Actor provides (`LifeCycleManagerPrivate`):
+`LifeCycleManagerImpl` handles all bookkeeping: client ids, handshake and
+deletion Leases, per-client `ECConsumer`s, and shared-state updates. It
+delegates the *mechanism* of creation and deletion to private methods
+that your Actor gives (`LifeCycleManagerPrivate`):
 
 | Private method | Your Actor implements |
 |----------------|-----------------------|
-| `_lcm_create_client(client_id, lifecycle_manager_topic, parameters)` | Actually create the client (e.g. `ProcessManager.create()`) |
-| `_lcm_delete_client(client_id, force=False)` | Actually destroy the client (e.g. `ProcessManager.destroy()`) |
+| `_lcm_create_client(client_id, lifecycle_manager_topic, parameters)` | Actually create the client (for example, `ProcessManager.create()`) |
+| `_lcm_delete_client(client_id, force=False)` | Actually destroy the client (for example, `ProcessManager.destroy()`) |
 
-`LifeCycleManagerImpl` itself provides `_lcm_get_clients()`,
+`LifeCycleManagerImpl` itself gives `_lcm_get_clients()`,
 `_lcm_get_handshaking_clients()` (ids created but not yet handshaken) and
 `_lcm_lookup_client_state(client_id, key)` (read a value from a client's
 observed shared state).
@@ -145,7 +146,7 @@ client gone.
 
 On the client side, `LifeCycleClientImpl.__init__(context, client_id,
 lifecycle_manager_topic, ec_producer)` records the manager's topic in
-shared state (`lifecycle_client.lifecycle_manager_topic`) and performs the
+shared state (`lifecycle_client.lifecycle_manager_topic`) and does the
 handshake automatically once the [Connection](connection.md) reaches the
 Registrar state.
 
@@ -213,12 +214,12 @@ Key design points:
   mechanism (ProcessManager, in-process, Ray, ...) is a policy decision
   left to the implementation.
 - **Leases make every transition self-healing**: no reply within the
-  handshake window ⇒ reclaim; no Registrar removal within the deletion
+  handshake window ⇒ reclaim. No Registrar removal within the deletion
   window ⇒ force-kill.
 - **Observation, not polling**: after the handshake the manager consumes
   the client's `ECProducer` state (filter default `"(lifecycle)"`), so
   client state changes stream to the manager — and to the Dashboard.
-- The design direction (per the source To Do) is to generalise this into
+- The design direction (per the source To Do) is to generalize this into
   "one manager Actor creates other client Actors and observes any chosen
   shared variables", and to refactor the handshake out as a reusable
   concept for [discovery](discovery.md).
@@ -230,10 +231,11 @@ Key design points:
   unknown (never-created or already-expired) `client_id` is logged and
   ignored.
 - On handshake completion the manager calls `do_discovery()` with a
-  `NullClass` interface purely to receive the *remove* callback — proxy
-  creation is irrelevant, only Registrar removal notification is wanted.
+  `NullClass` interface, only to receive the *remove* callback. Proxy
+  creation is irrelevant here. Only the Registrar removal notification
+  is wanted.
 - `_lcm_service_remove_handler()` terminates the client's `ECConsumer`,
-  cancels any pending deletion Lease, deletes the
+  cancels any pending deletion Lease, erases the
   `LifeCycleClientDetails`, updates shared state, and notifies the change
   handler with `(client_id, "update", "lifecycle", "absent")`.
 - The per-client shared-state entry
@@ -254,7 +256,7 @@ Key design points:
 | `LifeCycleClient` / `LifeCycleClientPrivate` (Interfaces) | Declare the client contract and its private handlers | `ServiceProtocolInterface`, `Interface` (parents) |
 | `LifeCycleClientImpl` | Record manager topic in shared state; publish `(add_client ...)` handshake once Registrar-connected; watch for manager removal | `ECProducer`, [Connection](connection.md), `do_discovery()` |
 | `LifeCycleClientDetails` | Value object: `client_id`, `topic_path`, `ec_consumer` | — |
-| `LifeCycleManagerTest[Impl]` / `LifeCycleClientTest[Impl]` | End-to-end demonstration Actors used by the CLI; manager spawns clients via ProcessManager | `Actor`, [ProcessManager](process_manager.md) |
+| `LifeCycleManagerTest[Impl]` / `LifeCycleClientTest[Impl]` | End-to-end demonstration Actors used by the CLI; manager spawns clients through ProcessManager | `Actor`, [ProcessManager](process_manager.md) |
 
 ## Current limitations and roadmap
 
@@ -263,23 +265,24 @@ From the source `To Do` lists — highlights:
 - **CRITICAL** (source's own marking): check MQTT message volume — every
   LifeCycleClient currently uses ActorDiscovery / ServicesCache and so
   receives notifications about *every other* Service on the Registrar
-  `/out` topic; the Registrar should support server-side filtering
+  `/out` topic. The Registrar should support server-side filtering
 - **Bugs noted in the source**: `event.py` `remove_timer_handler()` may
-  remove the wrong handler when several timers share one function; neither
+  remove the wrong handler when several timers share one function. Neither
   manager nor client yet handles network degradation
   (ConnectionState changes) or lease expiry gracefully — should the
   manager recreate or terminate clients?
-- `lifecycle_manager.destroy(lifecycle_client_id)` unimplemented; a
+- `lifecycle_manager.destroy(lifecycle_client_id)` unimplemented. A
   client does not yet exit when its manager exits (change handler is a
   no-op `pass`)
 - Performance: LifeCycleClient creation appears delayed / "chunky" on the
-  Dashboard; per-client shared-state updates are costly at scale
+  Dashboard. Per-client shared-state updates are costly at scale
 - Support creating clients in the same process (not only as separate
-  processes); use ProcessManager's `process_exit_handler` to detect
+  processes). Use ProcessManager's `process_exit_handler` to detect
   unexpected client process death
-- Generalise: any manager Actor observing any chosen shared variables (not
-  just `lifecycle`); refactor Handshake into a standalone reusable concept;
-  refactor ProcessManager to provide functionality without being an Actor
+- Generalize: any manager Actor observing any chosen shared variables
+  (not only `lifecycle`). Refactor Handshake into a standalone reusable
+  concept. Refactor ProcessManager to give functionality without being
+  an Actor
 
 ## Related concepts
 

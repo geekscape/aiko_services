@@ -6,13 +6,13 @@ description: The unit of work in a Pipeline — an Actor implementing the
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/pipeline.py
 related: [design_overview, pipeline, parameters, stream, actor, share,
   hook, data_source_target, proxy]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # PipelineElement
@@ -22,21 +22,21 @@ last_updated: 2026-07-05
 Source code: [`src/aiko_services/main/pipeline.py`](../../src/aiko_services/main/pipeline.py)
 
 A **PipelineElement** is the unit of work inside a
-[Pipeline](pipeline.md) graph: an [Actor](actor.md) whose
-`process_frame()` method transforms one Frame of a [Stream](stream.md),
-taking named inputs produced by its predecessor elements and returning
+[Pipeline](pipeline.md) graph. It is an [Actor](actor.md) whose
+`process_frame()` method transforms one Frame of a [Stream](stream.md).
+The method takes named inputs from its predecessor elements, and returns
 named outputs for its successors. The application developer writes only
-the transformation; the framework supplies discovery, remote invocation,
+the transformation. The framework supplies discovery, remote invocation,
 shared state, [Parameters](parameters.md) resolution and Stream lifecycle
 management.
 
 Every PipelineElement declares its `input` and `output` names and types
-in the PipelineDefinition, and may be deployed **local** (its Python
-class loaded into the Pipeline's process) or **remote** (a proxy to an
-element or whole Pipeline running elsewhere) — the element code is
-identical either way.
+in the PipelineDefinition. You can deploy it **local**, with its Python
+class loaded into the Pipeline's process. You can also deploy it
+**remote**, as a proxy to an element or a whole Pipeline that runs
+elsewhere. The element code is identical in both cases.
 
-**Why you'd use it**: to package a step of a data or media application —
+**Why to use it**: to package a step of a data or media application —
 decode, infer, overlay, publish — as a small reusable class. A complete
 element (verbatim from `src/aiko_services/examples/pipeline/elements.py`):
 
@@ -58,7 +58,7 @@ class PE_0(aiko.PipelineElement):
 ### Command-line usage
 
 PipelineElement has no CLI of its own — elements are hosted, exercised
-and parameterised through the `aiko_pipeline` CLI (see
+and parameterized through the `aiko_pipeline` CLI (see
 [Pipeline](pipeline.md)):
 
 ```bash
@@ -101,8 +101,8 @@ The Interface an element developer programs against
 | `is_local()` *(classmethod)* | `True` for in-process elements, `False` for `PipelineRemote` |
 
 **The `process_frame()` contract.** The Pipeline matches the element's
-declared `input` names against the Frame's accumulated data (the *swag*)
-and passes them as keyword arguments — so the Python signature *is* the
+declared `input` names against the Frame's accumulated data (the *swag*).
+It passes them as keyword arguments. Thus the Python signature *is* the
 data contract:
 
 ```python
@@ -135,7 +135,7 @@ def frame_generator(self, stream, frame_id):
 ```
 
 A generator returns either one `{frame_data}` dict or a list of dicts
-(several Frames at once); returning `StreamEvent.NO_FRAME` means "nothing
+(several Frames at once). Returning `StreamEvent.NO_FRAME` means "nothing
 right now, keep running".
 
 **Constructor idiom.** Every element `__init__(self, context)` must call
@@ -143,10 +143,10 @@ right now, keep running".
 preceded by `context.set_protocol(...)`). The
 `ContextPipelineElement` supplies `context.get_definition()` (the
 element's PipelineDefinition entry) and `context.get_pipeline()` (the
-owning Pipeline; `None` when the element *is* the Pipeline).
+owning Pipeline. `None` when the element *is* the Pipeline).
 
 **Wire protocol.** A local element is invoked by an in-process function
-call; a remote element receives the standard Actor S-expression on its
+call. A remote element receives the standard Actor S-expression on its
 `.../in` topic, with the element's declared input names as frame data:
 
 ```
@@ -187,13 +187,13 @@ Pipeline "p_remote"                     Pipeline "p_local" (remote)
 
 - An element carries **two identities**: a graph node (`definition.name`,
   unique within the Pipeline) and an Actor/Service (name, protocol —
-  default `.../pipeline_element:0` — discoverable via the Registrar).
+  default `.../pipeline_element:0` — discoverable through the Registrar).
   Deploy `local` may reuse one class under several node names
-  (`class_name` field), e.g. `PE_5` reusing `PE_4` in
+  (`class_name` field), for example, `PE_5` reusing `PE_4` in
   `pipeline_local.json`.
 - **State placement**: element definition parameters are copied into
   `self.share` at init (so the [Dashboard](dashboard.md) can observe and
-  update them); per-Stream state belongs on the `stream` object or in
+  update them). Per-Stream state belongs on the `stream` object or in
   `stream.variables`, never on `self`, because one element instance
   serves every concurrent Stream.
 - `PipelineElementLoop` is an Interface marker: the Pipeline records the
@@ -205,24 +205,25 @@ Pipeline "p_remote"                     Pipeline "p_local" (remote)
 
 - **`PipelineElementImpl.__init__()`** resolves `is_pipeline`
   (`pipeline is None`), defaults the protocol
-  (`PROTOCOL_PIPELINE` vs `PROTOCOL_ELEMENT`), applies the `log_level`
+  (`PROTOCOL_PIPELINE` compared with `PROTOCOL_ELEMENT`), applies the `log_level`
   parameter over `AIKO_LOG_LEVEL`, records
   `share["source_file"]` and merges `definition.parameters` into
   `self.share` (a TODO notes the Dashboard/ECProducer interaction with a
   nested `share["parameters"]` approach is broken, hence the flat merge).
-- **`create_frame()`** copies the Stream (fresh `Stream` dataclass with
-  the same ids, parameters and response routing) before handing it to
-  `pipeline.create_frame()`, which posts a `process_frame` message to the
-  Pipeline mailbox — element code never runs the graph directly.
+- **`create_frame()`** copies the Stream first. The copy is a fresh
+  `Stream` dataclass with the same ids, parameters and response routing.
+  It then hands the copy to `pipeline.create_frame()`, which posts a
+  `process_frame` message to the Pipeline mailbox. Element code never
+  runs the graph directly.
 - **`_create_frames_generator()`** runs on a daemon `Thread` per
   `create_frames()` call: it enables the Pipeline's thread-local Stream
   context, then loops while `stream.state == StreamState.RUN`, holding
   `stream.lock` around each `frame_generator()` call and
   `_process_stream_event()` dispatch. Back-pressure: when `rate` is
   falsy, it sleeps while the Pipeline's `in` mailbox queue is ≥ 32 deep
-  (50 Hz check); `NO_FRAME` sleeps 0.02 s to avoid a busy loop; a fixed
+  (50 Hz check). `NO_FRAME` sleeps 0.02 s to avoid a busy loop. A fixed
   `rate` uses a period counter against `time.monotonic()` (TODOs note
-  the `rate=0` vs `rate=None` distinction and rate-change handling need
+  the difference between `rate=0` and `rate=None`, and rate-change handling, need
   fixing).
 - **`get_variables()`** is a plain dict-union precedence chain:
   pipeline definition parameters ∪ pipeline share ∪ element definition
@@ -230,8 +231,8 @@ Pipeline "p_remote"                     Pipeline "p_local" (remote)
   (rightmost wins).
 - **`PipelineRemote`** returns `not self.absent` from
   `create_stream()` / `destroy_stream()` / `process_frame()` and logs
-  "invoked when remote Pipeline hasn't been discovered"; discovery swaps
-  the graph node's element for a `ServiceRemoteProxy` and flips
+  `Pipeline hasn't been discovered ... will retry`. Discovery swaps
+  the graph node's element for a `ServiceRemoteProxy`, and moves
   `share["lifecycle"]` between "absent" and "ready".
 
 ### CRC card
@@ -239,7 +240,7 @@ Pipeline "p_remote"                     Pipeline "p_local" (remote)
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `PipelineElement` (Interface) | Declare the element contract: `process_frame()`, `start_stream()`, `stop_stream()`, `create_frame(s)()`, `get_parameter()`, `get_stream()`, `my_id()` | `Actor` (parent Interface) |
-| `PipelineElementImpl` | Initialise from `ContextPipelineElement`; merge definition parameters into share; resolve parameters ([Parameters](parameters.md)); copy-and-submit Frames; run frame-generator threads with locking and back-pressure | [Pipeline](pipeline.md) (owner), [Stream](stream.md)/`Frame`, `ECProducer` ([Share](share.md)), `event` mailboxes |
+| `PipelineElementImpl` | Initialize from `ContextPipelineElement`; merge definition parameters into share; resolve parameters ([Parameters](parameters.md)); copy-and-submit Frames; run frame-generator threads with locking and back-pressure | [Pipeline](pipeline.md) (owner), [Stream](stream.md)/`Frame`, `ECProducer` ([Share](share.md)), `event` mailboxes |
 | `PipelineElementLoop` (Interface) | Mark a control-flow loop head; signal completion with `StreamEvent.LOOP_END` | `PipelineImpl` (loop re-queueing) |
 | `PipelineRemote` | Stand in for an undiscovered remote element: `is_local() == False`, `lifecycle` "absent", log invocations | [Proxy](proxy.md) (`ServiceRemoteProxy` replacement) |
 
@@ -251,23 +252,24 @@ From the source To Do list and in-line TODO/FIX comments:
 - `start_stream()` / `stop_stream()` should return success/failure
   results ("swag") just like `process_frame()`
 - Frame generator `rate` handling: measure time since the last frame for
-  accuracy; resolve `rate=0` (fills the mailbox) vs `rate=None`;
-  throttle generators properly when `rate` is `None`; provide
-  `event.get_mailbox_queue()` with size/throttle support; handle the
-  case where the Pipeline `in` mailbox doesn't exist yet
+  accuracy. Resolve `rate=0` (fills the mailbox) against `rate=None`.
+  Throttle generators correctly when `rate` is `None`. Give
+  `event.get_mailbox_queue()` with size/throttle support. Handle the
+  case where the Pipeline `in` mailbox does not exist yet
 - On generator `StreamEvent.ERROR`, destroy the Stream immediately
   (`graceful=False`) — noted as a FIX
 - During `process_frame()`, stream parameters should be reflected into
   `self.share` like definition parameters (with attention to
   performance)
 - Remote elements: improve Service/ActorDiscovery into a fully dynamic
-  proxy with "absent"/"ready" status; collect `topic_path` etc into a
-  proper `service_filter` structure; better module loading for local
+  proxy with "absent"/"ready" status. Collect `topic_path` and the related
+  fields into a
+  proper `service_filter` structure. Better module loading for local
   elements
 - Reflect on `process_frame()` signatures to *generate*
   `definition.elements` (graph validation work-in-progress)
 - Testing: `src/aiko_services/tests/unit/` covers graph name-mapping
-  (`test_pipeline_graph.py`) and Stream lock/event regressions; there is
+  (`test_pipeline_graph.py`) and Stream lock/event regressions. There is
   no coverage yet of parameters resolution, remote elements or the CLI
 
 ## Related concepts

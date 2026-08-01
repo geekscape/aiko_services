@@ -6,12 +6,12 @@ description: Named extension points created inside the Aiko Services
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/hook.py
 related: [design_overview, component, service, actor, pipeline]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Hook
@@ -22,18 +22,18 @@ Source code: [`src/aiko_services/main/hook.py`](../../src/aiko_services/main/hoo
 
 A **Hook** is a named extension point placed inside the Aiko Services
 framework. The framework creates the Hook and invokes it at an interesting
-moment; a third-party developer attaches one or more *hook handler*
-functions to it and receives the moment's context — the component, its
-logger and a dictionary of live variables — without modifying framework
-source.
+moment. A third-party developer attaches one or more *hook handler*
+functions to it. Each handler then receives the moment's context: the
+component, its logger and a dictionary of live variables. The developer
+changes no framework source.
 
-The division of labour:
+The division of labor:
 
 - **Framework side** — a [component](component.md) composed with the
   `Hooks` Interface calls `self.add_hook(hook_name)` once, then
   `self.run_hook(hook_name, ...)` at the point of interest.
 - **Developer side** — calls
-  `add_hook_handler(hook_name, hook_function)`, providing
+  `add_hook_handler(hook_name, hook_function)`, giving
   `hook_function(hook_name, component, logger, variables, options)`.
 
 Hooks are only supported within the component ([Service](service.md))
@@ -43,7 +43,7 @@ message dispatched and received) and [Pipeline](pipeline.md)
 (`pipeline.process_frame:0`, `pipeline.process_element:0` and its `_post`
 variant — every frame and every element invocation).
 
-**Why you'd use it**: trace exactly which messages an Actor processes,
+**Why to use it**: trace exactly which messages an Actor processes,
 with zero framework changes:
 
 ```python
@@ -54,14 +54,14 @@ actor.add_hook_handler(ACTOR_HOOK_MESSAGE_IN + "0", hook_function)
 ```
 
 A disabled Hook (no handlers) costs about 1 microsecond per `run_hook()`
-call; one handler costs ~14 µs and two ~24 µs — cheap enough to leave
+call. One handler costs ~14 µs and two ~24 µs — cheap enough to leave
 Hooks compiled into hot paths permanently.
 
 ## For application developers
 
 ### Command-line usage
 
-Hooks have no CLI of their own; they are exercised through the components
+Hooks have no CLI of their own. They are exercised through the components
 that define them. The Pipeline CLI attaches diagnostic hook handlers when
 log level is `DEBUG_ALL` (see `pipeline.py` main), and the unit test is
 runnable directly:
@@ -88,11 +88,11 @@ a TODO), so all Services, Actors and Pipelines expose these operations:
 | `add_hook_handler(hook_name, hook_function, hook_options=None)` | developer | Attach a handler; enables the Hook |
 | `remove_hook_handler(hook_name, hook_function, hook_options=None)` | developer | Detach a handler; disables the Hook when none remain |
 | `get_hook(hook_name)` / `get_hooks()` | either | Look up one Hook / the Hook registry |
-| `remove_hook(hook_name)` | framework | Delete the Hook (`RuntimeError` if absent) |
+| `remove_hook(hook_name)` | framework | Remove the Hook (`RuntimeError` if absent) |
 | `set_hook_enabled(hook_name, enabled_flag)` | developer | Force a Hook on or off |
 
 Hook names follow the convention `"component_name.hook_name:version"` —
-bump the version whenever the variables passed to handlers change, e.g.
+bump the version whenever the variables passed to handlers change, for example
 `ACTOR_HOOK_MESSAGE_IN = "actor.message_in:"` plus version `"0"`.
 
 **Framework usage** (from the source header):
@@ -135,7 +135,7 @@ component.add_hook_handler(NAME, DEFAULT_HOOK,
     {"show": ["stream.stream_id", "frame_data"]})
 ```
 
-There is no wire protocol: Hooks are an in-process mechanism; handlers run
+There is no wire protocol: Hooks are an in-process mechanism. Handlers run
 synchronously on the thread that calls `run_hook()` (normally the event
 loop thread).
 
@@ -159,23 +159,24 @@ loop thread).
 Key design points:
 
 - **Process-wide registry.** `HooksImpl.hooks` is a *class* variable, so
-  all components in a process share one Hook namespace — attaching a
-  handler through any component instance affects every instance that runs
-  that Hook. The `component` argument passed to handlers identifies which
+  all components in a process share one Hook namespace. To attach a
+  handler through any component instance affects every instance that
+  runs that Hook. The `component` argument passed to handlers identifies which
   instance actually fired.
 - **Enable/disable is automatic**: a Hook is enabled exactly when it has
   handlers (`hook.enabled = len(hook.handlers) > 0` on both add and
-  remove); `set_hook_enabled()` can override. A disabled Hook makes
+  remove). `set_hook_enabled()` can override. A disabled Hook makes
   `run_hook()` a near-free early return — the basis of the ~1 µs figure.
 - **Handler identity** is `hash(function) + hash(repr(options))`, stored
-  as the `OrderedDict` key — the same function may be attached twice with
-  different options, and removal requires the same function *and* options.
+  as the `OrderedDict` key. Thus you can attach the same function twice
+  with different options. Removal needs the same function *and* the same
+  options.
 - **Lazy variables**: `run_hook()` accepts a dict or a callable returning
-  one; each Hook counts invocations in `Hook.invoked`.
+  one. Each Hook counts invocations in `Hook.invoked`.
 
 ### Implementation notes
 
-- `Hook` and `HookHandler` are dataclasses; `HookHandler.__post_init__`
+- `Hook` and `HookHandler` are dataclasses. `HookHandler.__post_init__`
   computes the hash. Handler insertion order is preserved (`OrderedDict`),
   so handlers fire in the order they were added.
 - `run_hook()` resolves `logger` as `self.logger` if present — components
@@ -185,7 +186,7 @@ Key design points:
   implementation accepts extra parameters (`variables`, `hook_options`) —
   the abstract signatures lag the implementation.
 - The source-header developer example shows a four-argument
-  `hook_function(hook_name, component, logger, variables)`; the actual
+  `hook_function(hook_name, component, logger, variables)`. The actual
   call passes five arguments (adds `options`).
 - `DEFAULT_HOOK`'s `"show"` traversal stores each result under the *last*
   path segment (`show[name] = value`), so two paths ending in the same
@@ -206,14 +207,14 @@ Key design points:
 - From the source `To Do` list: refactor Metrics to use Hooks for
   capturing CPU time "and beyond"
 - Hooks are baked into every Service (`Service(ServiceProtocolInterface,
-  Hooks)`); the stated intent (service.py TODO) is that Service Hooks
-  become optional whilst Actor Hooks stay baked in
+  Hooks)`). The stated intent (service.py TODO) is that Service Hooks
+  become optional while Actor Hooks stay baked in
 - No remote (wire-protocol) management of Hooks yet — handlers can only be
   attached in-process
 - Abstract Interface signatures for `run_hook()` and
   `remove_hook_handler()` need updating to match the implementation
 - Unit test coverage exists (`src/aiko_services/tests/unit/test_hook.py`
-  covers the full add / run / remove lifecycle); `hook_options` and
+  covers the full add / run / remove lifecycle). `hook_options` and
   `DEFAULT_HOOK` filtering are untested
 
 ## Related concepts

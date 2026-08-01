@@ -6,13 +6,13 @@ description: The per-operating-system-process framework singleton — the
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/process.py
 related: [design_overview, event, connection, message, service, actor,
   registrar, discovery, share, process_manager]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Process
@@ -21,23 +21,27 @@ last_updated: 2026-07-05
 
 Source code: [`src/aiko_services/main/process.py`](../../src/aiko_services/main/process.py)
 
-**Process** provides the Aiko Services framework for one operating system
-process. It is the singleton that everything else in a process hangs off:
-it owns the [Message](message.md) connection (MQTT), pumps incoming
-messages onto the [event loop](event.md), tracks the
-[Registrar](registrar.md) via the bootstrap topic, holds the table of
-[Services](service.md) hosted in this process (none, one or many), and
-derives the process-level topic namespace
-(`{namespace}/{host}/{pid}/…`). The module exports the `aiko` global —
-`aiko.process`, `aiko.message`, `aiko.logger`, `aiko.connection` — that
-every other Aiko Services module imports.
+**Process** gives the Aiko Services framework for one operating system
+process. It is the singleton that everything else in a process hangs
+off. It does these tasks:
 
-Do not confuse Process with [ProcessManager](process_manager.md):
-ProcessManager creates and destroys *other* operating system processes;
+- Own the [Message](message.md) connection (MQTT)
+- Pump incoming messages onto the [event loop](event.md)
+- Track the [Registrar](registrar.md) through the bootstrap topic
+- Hold the table of [Services](service.md) hosted in this process (none,
+  one or many)
+- Derive the process-level topic namespace (`{namespace}/{host}/{pid}/…`)
+
+The module exports the `aiko` global, which every other Aiko Services
+module imports: `aiko.process`, `aiko.message`, `aiko.logger` and
+`aiko.connection`.
+
+Do not confuse Process with [ProcessManager](process_manager.md).
+ProcessManager makes and destroys *other* operating system processes.
 Process is the framework runtime *inside* each one.
 
-**Why you'd use it**: every Aiko Services program already does — the last
-line of virtually every application, example and CLI tool is the blocking
+**Why to use it**: every Aiko Services program already does. The last
+line of almost every application, example and CLI tool is the blocking
 call that hands control to the Process event loop:
 
 ```python
@@ -91,18 +95,18 @@ aiko.process.set_registrar_absent_terminate()
 aiko.process.terminate(exit_status=0)
 ```
 
-Key behaviours:
+Key behaviors:
 
 - `run(mqtt_connection_required=False)` lets a process run without an MQTT
   server — this is how unit tests run broker-free. When the connection is
-  required but fails, `initialize()` raises `SystemExit`. Before (or
+  needed but fails, `initialize()` raises `SystemExit`. Before (or
   without) an MQTT connection, `aiko.message` is a
   [Castaway](message.md) null implementation, so publishing never crashes.
 - A message handler returning a truthy value **stops propagation** to the
   remaining handlers for that topic.
-- Handlers for `binary=True` topics receive raw bytes; all other payloads
+- Handlers for `binary=True` topics receive raw bytes. All other payloads
   are UTF-8 decoded.
-- `terminate(exit_status)` stops the event loop; a non-zero status becomes
+- `terminate(exit_status)` stops the event loop. A non-zero status becomes
   `sys.exit(exit_status)` after `run()` unwinds.
 
 **Topic namespace.** ProcessData derives, never configures (see
@@ -117,7 +121,7 @@ Key behaviours:
 ```
 
 **Registrar wire protocol.** Process subscribes to the bootstrap topic and
-reacts to the Registrar's announcements; when Services are registered it
+reacts to the Registrar's announcements. When Services are registered it
 publishes to the Registrar's `in` topic:
 
 ```
@@ -144,10 +148,11 @@ MQTT thread            Process (event loop)              Registrar
     │                        │  registrar_handler_call() per Service
 ```
 
-If the Registrar later announces `(primary absent)`, Connection drops back
-to TRANSPORT, every Service's registrar handler is notified, and — when
-`set_registrar_absent_terminate()` was called (used by tools that cannot
-usefully outlive the Registrar) — the Process terminates with exit status 1.
+If the Registrar later announces `(primary absent)`, Connection drops
+back to TRANSPORT, and every Service's registrar handler is notified.
+When `set_registrar_absent_terminate()` was called, the Process then
+stops with exit status 1. Tools that cannot usefully outlive the
+Registrar use that call.
 
 ## For framework developers (internals)
 
@@ -180,20 +185,20 @@ Design points:
   hands out ascending `service_id`s and derives each Service's topic path
   from the process path — Services are addressable the moment they exist.
 - **The MQTT thread never runs application code.** `on_message()` only does
-  `event.queue_put(message, "message")`; parsing, matching and handler
+  `event.queue_put(message, "message")`. Parsing, matching and handler
   dispatch all happen in `on_message_queue_handler()` on the event-loop
   thread. This is the boundary that makes the single-threaded
   [Actor](actor.md) model work.
 - **Connection is a ladder, not a flag.** MQTT connect lifts
-  [Connection](connection.md) to TRANSPORT; Registrar discovery lifts it to
-  REGISTRAR; components defer work until the rung they need exists.
+  [Connection](connection.md) to TRANSPORT. Registrar discovery lifts it to
+  REGISTRAR. components defer work until the rung they need exists.
 - **Logging works before the framework does.** `AikoLogger` is usable
   before `ProcessImplementation` exists, and routes records to the console
   and/or the process `…/0/log` topic (see [Recorder](recorder.md)).
 
 ### Implementation notes
 
-- `initialize()` is idempotent and is called by `run()`; it installs the
+- `initialize()` is idempotent and is called by `run()`. It installs the
   `"message"` queue handler, subscribes `on_registrar()` to the bootstrap
   topic, constructs the MQTT connection (falling back to Castaway), and
   creates the `ContextManager(aiko, aiko.message)` global.
@@ -205,16 +210,16 @@ Design points:
   Subscriptions are made with the real MQTT semantics, so mismatches
   surface as unmatched (dropped) or over-matched deliveries.
 - **Suspected bug — `remove_message_handler()`**: when the last handler for
-  a topic is removed, the binary-topic branch deletes from
+  a topic is removed, the binary-topic branch erases from
   `_message_handlers_wildcard_topics` (a *list*) instead of
   `_message_handlers_binary_topics`, and `del list[topic]` raises
-  `TypeError`; the wildcard branch has the same list-vs-dict problem
+  `TypeError`. The wildcard branch has the same list-against-dict problem
   (should be `.remove(topic)`).
 - **Suspected bug — Service id reuse**: `remove_service()` decrements
   `service_count`, which `add_service()` uses to mint ids — after
   add, add, remove, the next add reuses a live Service's id and topic path.
 - Exceptions in message handlers are caught, printed and republished to
-  `topic_log` (marked `# REVIEW` in source); a raising handler cannot
+  `topic_log` (marked `# REVIEW` in source). A raising handler cannot
   crash the Process — nor can it be noticed by supervision (an exception
   policy per Service or per Process is a To Do).
 - The source acknowledges: `AikoLogger.logger()` uses Service id 0 rather
@@ -236,18 +241,19 @@ From the source `To Do` list — highlights:
 
 - Watchdog monitoring of framework processes, including detecting
   superfluous duplicate core processes
-- Automatic MQTT reconnection after disconnection; multiple message server
+- Automatic MQTT reconnection after disconnection. Multiple message server
   connections (Federation)
-- Fix `AikoLogger` Service id (always 0 today); improve console/MQTT
+- Fix `AikoLogger` Service id (always 0 today). Improve console/MQTT
   logging to carry the correct Service id (ContextManager?)
-- Ensure `add_service()` / `remove_service()` always update the Registrar;
-  consider moving Registrar-related functions into the Registrar
+- Make sure that `add_service()` and `remove_service()` always update
+  the Registrar. Consider a move of the Registrar-related functions into
+  the Registrar
 - Optional policy when a Service's event/message handler raises: terminate
   the Service or the whole Process
-- Replace global Event functions with a Handler class instance; review
+- Replace global Event functions with a Handler class instance. Review
   event queues for latency and bandwidth (MQTT `on_message()` →
   application handler)
-- Load testing: one Process with 1,000–10,000+ Services; 1,000+ Processes
+- Load testing: one Process with 1,000–10,000+ Services. 1,000+ Processes
   — find the limits
 - Rename `ProcessData` to `ProcessInfo` (naming To Do)
 - No unit tests exist for process.py (message dispatch, topic matching and
@@ -255,11 +261,11 @@ From the source `To Do` list — highlights:
 
 ## Related concepts
 
-- [Event](event.md) — the loop `run()` blocks on; queues and timers
+- [Event](event.md) — the loop `run()` blocks on. Queues and timers
 - [Message](message.md) — the MQTT/Castaway connection Process owns
 - [Connection](connection.md) — the NONE → TRANSPORT → REGISTRAR ladder
 - [Service](service.md) / [Actor](actor.md) — what a Process hosts
-- [Registrar](registrar.md) — discovered via the bootstrap topic;
+- [Registrar](registrar.md) — discovered through the bootstrap topic.
   Services are registered there
 - [Discovery](discovery.md) — builds on the Registrar tracking Process
   maintains

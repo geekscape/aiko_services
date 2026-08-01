@@ -6,13 +6,13 @@ description: Transparent method interception — ProxyAllMethods wraps an
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/proxy.py
 related: [design_overview, component, context, actor, service,
   discovery, transport, message, recorder]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Proxy
@@ -21,20 +21,20 @@ last_updated: 2026-07-05
 
 Source code: [`src/aiko_services/main/proxy.py`](../../src/aiko_services/main/proxy.py)
 
-**Proxy** provides transparent method interception: `ProxyAllMethods`
-wraps any object so that every public method call is routed through a
-single *proxy function*, which can log the call, time it, check access
-— or, most importantly for Aiko Services, turn it into a message posted
-to a remote [Actor](actor.md). It is the Aspect Oriented Programming
-(AOP) seed of the framework, complementing
-[Component](component.md): composition assembles *what* an object does,
-a Proxy intercepts *how its methods are invoked*.
+**Proxy** gives transparent method interception. `ProxyAllMethods` wraps
+any object, so that a single *proxy function* routes every public method
+call. That function can log the call, time it, or check access. Most
+important for Aiko Services, it can turn the call into a message posted
+to a remote [Actor](actor.md). Proxy is the Aspect Oriented Programming
+(AOP) seed of the framework, and it complements
+[Component](component.md). Composition assembles *what* an object does.
+A Proxy intercepts *how its methods are invoked*.
 
 The wrapper is built on the `wrapt` package's `ObjectProxy`
 (dependency pinned as `wrapt~=1.16.0`), so anything not explicitly
 intercepted transparently falls through to the wrapped object.
 
-**Why you'd use it**: to trace every call into a component without
+**Why to use it**: to trace every call into a component without
 touching its code —
 
 ```python
@@ -48,7 +48,7 @@ example_proxy.function_0("value_0", argument_1="value_1")
 
 — or, with `ActorImpl.proxy_post_message` as the proxy function, to
 turn local method calls into Actor mailbox messages (shown as
-"Example 3" in the `actor.py` source header; currently illustrative
+"Example 3" in the `actor.py` source header. Currently illustrative
 rather than the wired-in remote path — see roadmap).
 
 ## For application developers
@@ -56,10 +56,10 @@ rather than the wired-in remote path — see roadmap).
 ### Command-line usage
 
 Proxy has no CLI of its own — it is a library module. The in-module
-`Example` class supports the interactive snippet above; the framework
-behaviour it foreshadows (transparent remote invocation) is exercised
+`Example` class supports the interactive snippet above. The framework
+behavior it foreshadows (transparent remote invocation) is exercised
 through the [discovery](discovery.md) tools and any remote Actor
-example, e.g. `src/aiko_services/examples/aloha_honua/aloha_honua_1.py`.
+example, such as `src/aiko_services/examples/aloha_honua/aloha_honua_1.py`.
 
 ### Public API
 
@@ -83,10 +83,10 @@ def proxy_function(proxy_name, actual_object, actual_function,
     return actual_function(*args, **kwargs)   # or not: e.g. post a message
 ```
 
-`proxy_trace` calls straight through. By contrast,
+`proxy_trace` calls straight through. But
 `ActorImpl.proxy_post_message` (in `actor.py`) *never* calls the target
-directly — it posts `(command, args)` to the Actor's `control` or `in`
-mailbox topic, which is the shape of asynchronous and remote
+directly. It posts `(command, args)` to the Actor's `control` or `in`
+mailbox topic. That is the shape of asynchronous and remote
 invocation:
 
 ```
@@ -100,9 +100,9 @@ invocation:
    │◄────────────────────────────│◄────────────────────────│
 ```
 
-Proxy itself defines no wire protocol; when the proxy function posts
+Proxy itself defines no wire protocol. When the proxy function posts
 messages, the format is the [Actor](actor.md) /
-[message](message.md) command form, e.g. `(aloha Pele)`.
+[message](message.md) command form, for example, `(aloha Pele)`.
 
 ## For framework developers (internals)
 
@@ -125,36 +125,36 @@ Key design points:
 
 - **Interception by instance attribute, not subclassing.** At
   construction, `getmembers(actual_object, attribute_filter)`
-  enumerates the object's bound methods; each public one gets a closure
+  enumerates the object's bound methods. Each public one gets a closure
   set *on the proxy instance*. Attribute lookup finds the closure
   before `wrapt` delegates, so intercepted calls never reach the
   wrapped object unless the proxy function forwards them.
 - **Everything else is transparent.** State access, un-intercepted
-  attributes, `isinstance()` behaviour — all delegate to the wrapped
-  object via `wrapt.ObjectProxy`.
-- **The intercept policy is a plain function**, so the same mechanism
-  serves tracing, timing, security checks and remote invocation — the
-  AOP intercepts listed in the roadmap.
-- **Direction of travel:** the source To Do and `discovery.py` To Do
-  both point at consolidating this module with the hand-rolled
-  lightweight proxies in `discovery.py` (`_make_service_proxy()` /
-  `get_service_proxy()`) and `transport/transport_mqtt.py`
-  (`make_proxy_mqtt()`), which currently build remote-call proxies
+  attributes, `isinstance()` behavior — all delegate to the wrapped
+  object through `wrapt.ObjectProxy`.
+- **The intercept policy is a plain function.** Thus the same mechanism
+  serves tracing, timing, security checks and remote invocation. Those
+  are the AOP intercepts listed in the roadmap.
+- **Direction of travel:** the source To Do and the `discovery.py` To Do
+  both point at one consolidation. This module joins the hand-rolled
+  lightweight proxies in `discovery.py` (`_make_service_proxy()` and
+  `get_service_proxy()`) and in `transport/transport_mqtt.py`
+  (`make_proxy_mqtt()`). Those two currently build remote-call proxies
   without `ProxyAllMethods`.
 
 ### Implementation notes
 
 - Default `attribute_filter=ismethod` intercepts only *bound methods*
-  of the instance; pass a different predicate (e.g. `is_callable`) to
+  of the instance. Pass a different predicate (for example, `is_callable`) to
   widen the net.
 - Default `ignore_prefix="_"` skips private *and* dunder methods —
   which is also what keeps the proxy's own plumbing safe. Pass
   `ignore_prefix=None` to intercept everything the filter matches.
-- Each closure captures `(actual_function, name)` via the
+- Each closure captures `(actual_function, name)` through the
   `make_closure()` factory — the classic loop-variable-capture pitfall
   is deliberately avoided.
-- `__repr__` is overridden to identify the proxy object itself;
-  otherwise `wrapt` would delegate `repr()` to the wrapped object.
+- `__repr__` is overridden to identify the proxy object itself. If it
+  were not, `wrapt` would delegate `repr()` to the wrapped object.
 - `ProxyAllMethods` is exported from `aiko_services.main`, but nothing
   in the live framework call path constructs one today: `actor.py`
   references it only in a commented header example, and the remote
@@ -196,7 +196,7 @@ From the source `To Do` list — highlights (all currently unimplemented):
 ## Related concepts
 
 - [Design overview](design_overview.md)
-- [Component](component.md) — composes behaviour; Proxy intercepts its
+- [Component](component.md) — composes behavior. Proxy intercepts its
   invocation
 - [Context](context.md) — construction data for the composed objects a
   Proxy wraps

@@ -6,13 +6,13 @@ description: The root Category and LifeCycleManager for Categories — a
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/hyperspace.py
 related: [design_overview, category, dependency, storage, process_manager,
   actor, share, discovery, lifecycle]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # HyperSpace
@@ -22,19 +22,19 @@ last_updated: 2026-07-05
 Source code: [`src/aiko_services/main/hyperspace.py`](../../src/aiko_services/main/hyperspace.py)
 
 **HyperSpace** is the root [Category](category.md) and the LifeCycleManager
-of Categories. It composes Categories and [Dependencies](dependency.md) into
-a single unified network graph of distributed Service / Actor / Agent /
-PipelineElement / Pipeline references — a deliberate mash-up of hypermedia,
-directed-network-graph and file-system concepts.
+of Categories. It composes Categories and [Dependencies](dependency.md)
+into one unified network graph. That graph holds distributed Service,
+Actor, Agent, PipelineElement and Pipeline references. It is a deliberate
+mash-up of hypermedia, directed-network-graph and file-system concepts.
 
 If Dependency is the symbolic link and Category is the directory, HyperSpace
-is the mounted file-system: it provides **path addressing**
-(`category_a/category_b/entry_c`), **persistence** (via the
+is the mounted file-system: it gives **path addressing**
+(`category_a/category_b/entry_c`), **persistence** (through the
 [Storage](storage.md) SPI) and **lifecycle management** (Categories are
 created, loaded and destroyed by HyperSpace, and each one is a live
 [Actor](actor.md)).
 
-**Why you'd use it**: to give a distributed system a durable, navigable
+**Why to use it**: to give a distributed system a durable, navigable
 structure that outlives the processes in it. For example, registering a
 model reference under a meaningful path that any host can query, and that
 survives a restart of every Service involved:
@@ -176,10 +176,10 @@ grammar. Invalid or missing paths produce `text` records
 Key design points:
 
 - **Paths, not just names.** Every operation takes an *entry path* like
-  `models/shared/llm_gemma`; HyperSpace traverses its in-memory Categories
+  `models/shared/llm_gemma`. HyperSpace traverses its in-memory Categories
   to find the parent Category and the leaf Entry.
 - **Write-through persistence.** `add()` and `create()` update the
-  in-memory graph *and* the embedded Storage; at startup,
+  in-memory graph *and* the embedded Storage. At startup,
   `_hyperspace_load()` replays Storage back into memory, so the graph
   survives restarts.
 - **Categories are live Actors.** Each Category created through HyperSpace
@@ -193,7 +193,7 @@ Key design points:
 
 ### Implementation notes
 
-**Class structure.** `HyperSpaceImpl` delegates Category behaviour through
+**Class structure.** `HyperSpaceImpl` delegates Category behavior through
 `self.category = context.get_implementation("Category")`, and its shared
 state adds `storage_url` and `metrics` (`created`, `running` Category
 counts) to the Category share. Use
@@ -217,22 +217,22 @@ it does not exist yet. Intermediate components must be existing Categories.
 
 **`add()` and `create()` — the `use_storage` flag.** Both methods carry
 `use_storage=True` by default: they mutate the in-memory graph *and*
-persist via `self.storage` (`storage.add(entry_path, dependency)` /
+persist through `self.storage` (`storage.add(entry_path, dependency)` /
 `storage.create(category_path)`). During startup replay,
 `_hyperspace_load()` calls them with `use_storage=False` so Storage is not
 re-written with its own contents.
 
 - `add(entry_path, service_filter, lcm_url, storage_url, use_storage)` —
-  requires an existing parent Category and (when using storage) no existing
-  Entry of that name. Applies the same ServiceFilter normalisation as
+  needs an existing parent Category and (when using storage) no existing
+  Entry of that name. Applies the same ServiceFilter normalization as
   Category (`"*"` name → entry name).
 - `create(category_path, use_storage)` — walks the path, creating a
   `CategoryImpl` Actor (protocol `CATEGORY_PROTOCOL`, tag `ec=true`) for
-  each missing component, wiring it into the parent's `entries` via
+  each missing component, wiring it into the parent's `entries` through
   ECProducer updates.
 
 **`destroy()` and `remove()`.** `destroy(category_path)` only removes
-**empty** Categories (`entries_count == 0`): it deletes the parent's entry,
+**empty** Categories (`entries_count == 0`): it erases the parent's entry,
 removes the Category Actor's Service registration
 (`aiko.process.remove_service()`), and calls `storage.destroy()`.
 `remove(entry_path)` routes Categories to `_destroy()` and Dependencies to
@@ -246,12 +246,12 @@ an embedded
 — it is a private persistence engine, not a discoverable Storage Service.
 It then calls `storage.list(None, None, False, True, entry_records)` to
 collect the full recursive record list and replays each record:
-negative-level records set the current Category path; positive records are
-re-created via `create(path, use_storage=False)` when the record's protocol
+negative-level records set the current Category path. Positive records are
+re-created through `create(path, use_storage=False)` when the record's protocol
 is `CATEGORY_PROTOCOL`, otherwise `add(path, ..., use_storage=False)`.
 It prints a summary: `Dependencies: N, Categories: M`.
 
-**`list()`.** Resolves the path via `_find_entry()`, then recursively
+**`list()`.** Resolves the path through `_find_entry()`, then recursively
 gathers records using the shared Category record format. Listing a
 Dependency path filters to that single Entry.
 
@@ -274,17 +274,18 @@ HyperSpace itself.
 Highlights from the source `To Do` list:
 
 - Separate HyperSpace and Storage design more cleanly (Categories with
-  different roots; Storage owning Definition/Content)
-- `link` and true unlink-style `remove` at HyperSpace level; recursive
-  `destroy`; `--force` and ownership/ACL checks
+  different roots. Storage owning Definition/Content)
+- `link` and true unlink-style `remove` at HyperSpace level. Recursive
+  `destroy`. `--force` and ownership/ACL checks
 - Registrar as-a HyperSpace: query filters, sort order, pagination, and
   shareable result Categories
 - Leases for lazy Category loading / running / unloading, with
   [ProcessManager](process_manager.md) as the LifeCycleManager completing
   the Service lifecycle state machine
-- Maintain `running` / `active` Category counts; `aiko_hyperspace export`;
-  structure validation; REPL; Dashboard plug-in (tree view)
-- Primary/watchdog HyperSpace per host; unify HyperSpaces across hosts in
+- Maintain `running` / `active` Category counts. Add
+  `aiko_hyperspace export`, structure validation, a REPL and a Dashboard
+  plug-in (tree view)
+- Primary/watchdog HyperSpace per host. Unify HyperSpaces across hosts in
   one namespace
 - Known issue: `do_command()` against a remote proxy fails for `create()`
   (`ServiceRemoteProxy` attribute error) — the CLI works around this by

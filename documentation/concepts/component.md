@@ -6,13 +6,13 @@ description: The composition engine — compose_class() and compose_instance()
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/component.py
 related: [design_overview, context, proxy, service, actor, category,
   dependency, lifecycle, pipeline]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Component
@@ -21,15 +21,15 @@ last_updated: 2026-07-05
 
 Source code: [`src/aiko_services/main/component.py`](../../src/aiko_services/main/component.py)
 
-**Component** provides the machinery for Aiko Services *design by
+**Component** gives the machinery for Aiko Services *design by
 composition of Interfaces*. An **Interface** is a class containing only
 abstract methods — a pure contract. Each Interface registers a *default
-implementation* (a class, or a dotted module path to one) via
-`Interface.default()`. The two functions in this module,
-`compose_class()` and `compose_instance()`, then assemble a concrete
-class at runtime by grafting the implementation methods for every
-Interface in a class's ancestry onto a single dynamically created
-subclass — affectionately called the *FrankensteinClass* in the source.
+implementation* (a class, or a dotted module path to one) through
+`Interface.default()`. This module has two functions,
+`compose_class()` and `compose_instance()`. They assemble a concrete
+class at runtime. They graft the implementation methods for every
+Interface in a class's ancestry onto one dynamically made subclass. The
+source calls that subclass the *FrankensteinClass*.
 
 This is the mechanism by which every [Service](service.md),
 [Actor](actor.md), [Pipeline](pipeline.md) and
@@ -38,10 +38,11 @@ with [Context](context.md), which supplies the `Interface` base class,
 the implementation registry and the single-`context`-argument
 constructor convention.
 
-**Why you'd use it**: to define a component's API as a contract that is
-independent of any one implementation — so the implementation can be
-swapped (per composition, without editing the Interface) for testing,
-for alternative transports, or for application-specific behaviour:
+**Why to use it**: to define a component's API as a contract that is
+independent of any one implementation. Then you can substitute the
+implementation per composition, and you do not edit the Interface. Do
+this for tests, for alternative transports, or for application-specific
+behavior:
 
 ```python
 from abc import abstractmethod
@@ -66,7 +67,7 @@ example = compose_instance(ExampleImpl, init_args)
 example.method_0()
 ```
 
-(The usage comment at the top of the source shows `server_args()`; the
+(The usage comment at the top of the source shows `server_args()`. The
 actual factory in `context.py` is `service_args()` — used here.)
 
 ## For application developers
@@ -92,7 +93,7 @@ __all__ = ["compose_class", "compose_instance"]
 | `compose_instance(impl_seed_class, init_args, impl_overrides=None)` | Call `compose_class()`, record the loaded implementations on `init_args["context"]`, then instantiate: `frankenstein_class(**init_args)` |
 
 - **`impl_seed_class`** is the implementation class you are composing,
-  e.g. `CategoryImpl` or an application class such as `AlohaHonua`. Its
+  for example, `CategoryImpl` or an application class such as `AlohaHonua`. Its
   ancestry (`__mro__`) is a hierarchy of pure Interfaces, each of which
   has (usually) registered a default implementation.
 - **`init_args`** is a dictionary of constructor keyword arguments. It
@@ -110,7 +111,7 @@ frankenstein_class, impls = compose_class(
 ```
 
 Implementation values may be either a class reference or a string
-`"module.path.ClassName"`; strings are loaded lazily with
+`"module.path.ClassName"`. Strings are loaded lazily with
 `load_module()` at composition time, so default implementations can be
 declared without importing them.
 
@@ -148,20 +149,20 @@ class AlohaHonua(aiko.Actor):    # no __init__() required
 
 An explicit `__init__()` anywhere in the seed's ancestry always wins —
 write one whenever the class takes extra constructor arguments or needs
-its own initialization; the synthesized form is purely the boilerplate
+its own initialization. The synthesized form is purely the boilerplate
 case.
 
-If any Interface in the seed class's ancestry has neither a default nor
-an override implementation, `compose_class()` raises
-`ValueError("Unimplemented interfaces: ...")` — the seed class itself is
-exempt from this check (it is the consumer of the contracts, not one of
-them). If a *non*-Interface ancestor (a class with concrete methods)
+An Interface in the seed class's ancestry can have neither a default nor
+an override implementation. Then `compose_class()` raises
+`ValueError("Unimplemented interfaces: ...")`. The seed class itself is
+exempt from this check, because it is the consumer of the contracts, and
+not one of them. If a *non*-Interface ancestor (a class with concrete methods)
 shares its name with a registered implementation, it is skipped with a
 printed warning.
 
 There is no wire protocol: composition is an entirely in-process,
 construction-time mechanism. The composed instance's remote face is
-provided by [Service](service.md) / [Actor](actor.md) and
+given by [Service](service.md) / [Actor](actor.md) and
 [Proxy](proxy.md).
 
 ## For framework developers (internals)
@@ -195,20 +196,20 @@ Key design points:
 
 - **Contract and implementation are decoupled per-Interface, not
   per-class.** A composed class is the union of one implementation per
-  Interface in its ancestry; each can be independently overridden. This
-  is composition *of behaviour into one object* — not delegation to
+  Interface in its ancestry. Each can be independently overridden. This
+  is composition *of behavior into one object* — not delegation to
   held sub-objects — so every grafted method sees the same `self`.
 - **The default registry is global.** `Interface.default()` (defined in
-  [Context](context.md)) writes into a single class-level `Context`
-  shared by *all* Interfaces, so `get_implementations()` on any seed
-  class returns the defaults of every Interface imported so far —
-  hence the filtering step. The source To Do acknowledges this.
+  [Context](context.md)) writes into a single class-level `Context` that
+  *all* Interfaces share. Thus `get_implementations()` on any seed class
+  returns the defaults of every Interface imported so far. That is why
+  the filtering step exists. The source To Do acknowledges this.
 - **One FrankensteinClass per composition.** Each `compose_instance()`
-  call builds a fresh subclass; there is no class cache yet (see
+  call builds a fresh subclass. There is no class cache yet (see
   roadmap).
-- **Initialisation is cooperative, not automatic.** The composed
-  class's `__init__` is the seed class's `__init__`; it is that
-  method's job to chain to parent-Interface implementations via
+- **Initialization is cooperative, not automatic.** The composed
+  class's `__init__` is the seed class's `__init__`. It is that
+  method's job to chain to parent-Interface implementations through
   `context.call_init(self, "Actor", context)` and so on — see
   [Context](context.md) for the diamond-safe once-only semantics.
 
@@ -217,9 +218,9 @@ Key design points:
 **`_add_methods()` grafting rules.** For every non-dunder function of
 every implementation class:
 
-- if the method is absent from the composed class, add it;
-- if it is present but abstract, replace it;
-- if it is present and concrete, leave it alone.
+- If the method is absent from the composed class, add it.
+- If it is present but abstract, replace it.
+- If it is present and concrete, leave it as it is.
 
 This lets the seed class (and any concrete ancestor) override methods
 supplied by an Interface's implementation.
@@ -227,7 +228,7 @@ supplied by an Interface's implementation.
 **Interface detection is heuristic.** `_is_interface()` treats a class
 as an Interface when *all* of its inspectable functions are
 `@abstractmethod`. Note the vacuous case: a class with *no* Python-level
-functions at all (e.g. the marker `ServiceProtocolInterface`, or a class
+functions at all (for example, the marker `ServiceProtocolInterface`, or a class
 whose methods are C-implemented) also qualifies. `ABC`, `Interface`,
 `ServiceProtocolInterface` and `object` are explicitly excluded from
 the "must be implemented" check.
@@ -236,14 +237,14 @@ the "must be implemented" check.
 `_update_abstractmethods()` recomputes `__abstractmethods__` so that
 Python's ABC machinery accepts instantiation. This is a verbatim copy of
 the CPython 3.10 `abc.update_abstractmethods()` (the framework predates
-a Python ≥ 3.10 floor); it can be replaced by the standard-library
+a Python ≥ 3.10 floor). It can be replaced by the standard-library
 function once the minimum supported Python is 3.10+.
 
 **Implementations end up in two places.** `compose_instance()` calls
-`context.set_implementations(implementations_loaded)`, so at
-`__init__()` time the instance can retrieve the implementation *class*
-for any Interface with `context.get_implementation("Dependency")` —
-the delegation idiom used by `CategoryImpl` and others.
+`context.set_implementations(implementations_loaded)`. Thus at
+`__init__()` time the instance can get the implementation *class* for
+any Interface with `context.get_implementation("Dependency")`.
+`CategoryImpl` and other classes use that delegation idiom.
 
 ### CRC card
 
@@ -260,7 +261,7 @@ From the source `To Do` list — highlights:
   working correctly? The Interface-detection heuristic
   (`_is_interface()`) is the likely suspect — see Implementation notes
 - Support composing a class *once* and reusing it to create multiple
-  instances (currently every `compose_instance()` re-composes; note
+  instances (currently every `compose_instance()` re-composes. Note
   also that a `Context` records per-instance `initialized_*` flags, so
   `init_args` must not be reused either — see [Context](context.md))
 - `impl_seed_class.get_implementations()` always picks up *all*
@@ -272,7 +273,7 @@ From the source `To Do` list — highlights:
 - The source header's usage example refers to `server_args()`, which
   does not exist — the actual factory is `service_args()`
 - No unit tests exercise `compose_class()` / `compose_instance()`
-  directly (only `tests/unit/test_context.py` covers the neighbouring
+  directly (only `tests/unit/test_context.py` covers the neighboring
   Context factories)
 
 ## Related concepts

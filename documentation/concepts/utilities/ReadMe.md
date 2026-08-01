@@ -5,10 +5,10 @@ description: Index of the concept documents for the Aiko Services utility
 type: index
 audience: [developers]
 status: work-in-progress
-ste: false
+ste: adapted
 related: [design_overview]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Utilities concepts index
@@ -16,7 +16,7 @@ last_updated: 2026-07-05
 Concept documents for the utility modules in
 `src/aiko_services/main/utilities/` — the dependency-light helpers that
 the rest of the Aiko Services framework is built on. Most are exported
-via `utilities/__init__.py` and imported with
+through `utilities/__init__.py` and imported with
 `from aiko_services.main.utilities import *`.
 
 Part of the [Concepts guide](../ReadMe.md).

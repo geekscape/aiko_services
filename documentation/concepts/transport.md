@@ -6,14 +6,14 @@ description: The layer above Message that turns remote Services into
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/transport/__init__.py
   - src/aiko_services/main/transport/transport_mqtt.py
 related: [design_overview, message, service, actor, proxy, discovery,
   registrar, lifecycle]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Transport
@@ -22,23 +22,25 @@ last_updated: 2026-07-05
 
 Source code: [`src/aiko_services/main/transport/__init__.py`](../../src/aiko_services/main/transport/__init__.py), [`src/aiko_services/main/transport/transport_mqtt.py`](../../src/aiko_services/main/transport/transport_mqtt.py)
 
-The **Transport** layer sits between [Message](message.md) (raw topics
-and payloads) and [Services](service.md) (named, discoverable
-components). Its job is *remote invocation*: given a target Service's
-input topic and the Interface it implements, build a **dynamic proxy**
-whose Python method calls are serialised as S-expressions and published
-over MQTT — so calling a remote [Actor](actor.md) looks exactly like
-calling a local one.
+The **Transport** layer sits between [Message](message.md) and
+[Services](service.md). Message carries raw topics and payloads.
+Services are named, discoverable components. The job of Transport is
+*remote invocation*. Transport takes a target Service's input topic and
+the Interface that it implements. From those it builds a **dynamic
+proxy**. The proxy serializes each Python method call as an
+S-expression, and publishes it over MQTT. Thus a call to a remote
+[Actor](actor.md) looks exactly like a call to a local one.
 
-The `transport` package provides `TransportMQTT` (a minimal Actor whose
-functions are delivered over MQTT), `ActorDiscovery` (find Actors via
-the [Registrar](registrar.md)-fed services cache) and `get_actor_mqtt()`
-(construct a proxy from a topic and an Interface class). The same
-proxy-building idiom appears in `discovery.py` as `get_service_proxy()`,
-which is the version most framework code actually uses — the two are
-slated for consolidation (see the roadmap).
+The `transport` package gives three items. `TransportMQTT` is a minimal
+Actor whose functions are delivered over MQTT. `ActorDiscovery` finds
+Actors through the [Registrar](registrar.md)-fed services cache.
+`get_actor_mqtt()` builds a proxy from a topic and an Interface class.
+The same
+proxy-building idiom appears in `discovery.py` as `get_service_proxy()`.
+That is the version that most framework code uses. The two are planned
+for consolidation (refer to the roadmap).
 
-**Why you'd use it**: to invoke a function on a Service running in
+**Why to use it**: to invoke a function on a Service running in
 another process — on any host — without knowing more than its topic and
 Interface:
 
@@ -56,15 +58,15 @@ ready-made proxy.
 
 ### Command-line usage
 
-Transport has no console script of its own — it is exercised indirectly
-by every tool that invokes a remote Service (`aiko_dashboard`,
-`aiko_hyperspace`, `aiko_pipeline`, ...), and configured by the same
-environment variables as [Message](message.md) (`AIKO_MQTT_HOST`,
+Transport has no console script of its own. Every tool that invokes a
+remote Service exercises it indirectly (`aiko_dashboard`,
+`aiko_hyperspace`, `aiko_pipeline`, ...). The same environment variables
+as [Message](message.md) configure it (`AIKO_MQTT_HOST`,
 `AIKO_MQTT_PORT`, `AIKO_NAMESPACE`, ...).
 
 A manual test harness exists at
 `src/aiko_services/main/transport/test_mqtt.py` (run the module
-directly; it has no `pyproject.toml` entry point and is not a shipped
+directly. It has no `pyproject.toml` entry point and is not a shipped
 tool):
 
 ```bash
@@ -74,9 +76,9 @@ AIKO_LOG_LEVEL=DEBUG ./transport/test_mqtt.py test hello   # remote invoke
 # TODO (unimplemented): test_mqtt.py delete | list [filter]
 ```
 
-`test hello` discovers the running `mqtt_test` Actor via the Registrar,
-invokes `test("hello")` on it remotely, and the Actor republishes
-`(test hello)` on its output topic — observable with
+`test hello` discovers the running `mqtt_test` Actor through the
+Registrar, then invokes `test("hello")` on it remotely. The Actor
+republishes `(test hello)` on its output topic. Observe that with
 `mosquitto_sub -t '#' -v`.
 
 ### Public API
@@ -99,7 +101,7 @@ Proxy construction and discovery:
 | `delete_actor_mqtt(actor)` | Terminate an Actor (calls `actor.terminate()`) |
 | `create_actor_mqtt(...)` | **Unimplemented stub** — planned counterpart to `delete_actor_mqtt()` |
 
-`protocol_class` must be a class reference (not a string); it is
+`protocol_class` must be a class reference (not a string). It is
 introspected with `inspect.getmembers(..., isfunction)`, so the proxy
 exposes *every* public method visible on the class, including inherited
 ones.
@@ -124,7 +126,7 @@ payload: (test hello)
 
 Invocation is **fire-and-forget** — there is no return value. When a
 response is needed, the caller passes its own response topic as an
-argument and subscribes to it; this is the `do_request()` /
+argument and subscribes to it. This is the `do_request()` /
 `(item_count N)` / `(response ...)` idiom described in
 [Category](category.md) and implemented in `discovery.py`.
 
@@ -143,10 +145,10 @@ Client process             MQTT server        Target Service process
      │                          │                       │ test("hello") runs
 ```
 
-On the target side the [Actor](actor.md) machinery does the receiving:
-the process queues the raw message onto the event loop, the Actor's
+On the target side the [Actor](actor.md) machinery does the receiving.
+The process queues the raw message onto the event loop. The Actor's
 `_topic_in_handler()` parses the S-expression and posts it to the
-Actor's mailbox, and the mailbox handler finally calls the local method
+Actor's mailbox. The mailbox handler then calls the local method
 — "message becomes function call".
 
 ## For framework developers (internals)
@@ -168,21 +170,22 @@ Actor's mailbox, and the mailbox handler finally calls the local method
 Key design points:
 
 - **Proxy pattern over messaging.** `make_proxy_mqtt()` builds a plain
-  object and attaches one closure per public method name; each closure
-  serialises its arguments and publishes. No code generation, no
+  object and attaches one closure per public method name. Each closure
+  serializes its arguments and publishes. No code generation, no
   schema — the Interface class *is* the contract, shared by both sides.
-- **Symmetry with local calls.** Because a received message is parsed
-  and dispatched through the same Actor mailbox as a local
-  `_post_message()`, callers cannot tell (and should not care) whether
-  an implementation is local or remote — the same design goal as
+- **Symmetry with local calls.** A received message is parsed and
+  dispatched through the same Actor mailbox as a local
+  `_post_message()`. Thus callers cannot tell whether an implementation
+  is local or remote, and they do not need to know. This is the same
+  design goal as
   [Proxy](proxy.md).
 - **Discovery is separate from invocation.** `ActorDiscovery` only
-  tracks *which* Services exist (via the services cache fed by the
-  Registrar); turning a discovered `topic_path` into a proxy is a
+  tracks *which* Services exist (through the services cache fed by the
+  Registrar). Turning a discovered `topic_path` into a proxy is a
   distinct step. The `do_discovery()` / `do_command()` / `do_request()`
   helpers in `discovery.py` compose the two.
 - **Transport pluggability is the intent.** The To Do list plans Ray and
-  ROS2 transports alongside MQTT; `TransportMQTT` naming a transport in
+  ROS2 transports alongside MQTT. `TransportMQTT` naming a transport in
   its type is the first step of that design direction.
 
 ### Implementation notes
@@ -196,7 +199,7 @@ Key design points:
   `discovery.py`'s `ServiceDiscovery` / `ActorDiscovery` /
   `get_service_proxy()` / `_make_service_proxy()`. Note that
   `aiko_services.main/__init__.py` re-exports the **`discovery.py`**
-  versions; the transport package is *not* imported by
+  versions. The transport package is *not* imported by
   `main/__init__.py` at all — its only importer is `lifecycle.py`
   (whose uses are currently commented out). New code should prefer the
   `discovery.py` API.
@@ -217,9 +220,9 @@ Key design points:
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `TransportMQTT` (Interface) | Declare an Actor whose functions are delivered over MQTT | `Actor` (parent Interface) |
-| `TransportMQTTImpl` | Initialise as an Actor; `terminate()` stops the Actor | [Actor](actor.md) machinery (`context.call_init`) |
-| `ServiceDiscovery` / `ActorDiscovery` | Track matching Services/Actors via the shared services cache; notify handlers on add/remove/sync | Services cache ([Share](share.md)); [Registrar](registrar.md); `ServiceFilter` |
-| `ServiceRemoteProxy` (built by `make_proxy_mqtt()`) | One closure per public method: serialise arguments with `generate()` and publish to the target `in` topic | [Message](message.md) (`aiko.message.publish`); `utilities.parser` |
+| `TransportMQTTImpl` | Initialize as an Actor; `terminate()` stops the Actor | [Actor](actor.md) machinery (`context.call_init`) |
+| `ServiceDiscovery` / `ActorDiscovery` | Track matching Services/Actors through the shared services cache; notify handlers on add/remove/sync | Services cache ([Share](share.md)); [Registrar](registrar.md); `ServiceFilter` |
+| `ServiceRemoteProxy` (built by `make_proxy_mqtt()`) | One closure per public method: serialize arguments with `generate()` and publish to the target `in` topic | [Message](message.md) (`aiko.message.publish`); `utilities.parser` |
 
 ## Current limitations and roadmap
 
@@ -230,29 +233,29 @@ From the source `To Do` lists — highlights:
   `MQTTActorTest`).
 - Design and implement further transports: Ray, ROS2 and more.
 - Complete `create_actor_mqtt()` (currently an empty stub) and
-  `delete_actor_mqtt()`; wrap them in a CLI / TUI as handy tools for
+  `delete_actor_mqtt()`. Wrap them in a CLI / TUI as handy tools for
   finding Services.
 - Fix `ActorDiscovery.get_actor_mqtt(name)` (deliberately raising
   "Broken") by matching on `ServiceFields.name` rather than the
   `actor=name` tag.
 - Consolidate with `discovery.py`: move `ServiceDiscovery` /
-  `ActorDiscovery` to `registrar.py`, `share.py` or `actor.py`; make the
+  `ActorDiscovery` to `registrar.py`, `share.py` or `actor.py`. Make the
   proxy builders re-usable (swap the target topic without
-  re-introspecting the Interface); refactor `ServiceDiscovery` into an
+  re-introspecting the Interface). Refactor `ServiceDiscovery` into an
   Interface plus Implementation supporting multiple simultaneous
   ServiceFilters.
 - Once Service protocol matching is properly implemented, match Actors
-  via protocol (`.../actor:0`) instead of tags.
+  through protocol (`.../actor:0`) instead of tags.
 - `test_mqtt.py delete` and `test_mqtt.py list [filter]` are
-  unimplemented; there is no `pyproject.toml` entry point for the test
+  unimplemented. There is no `pyproject.toml` entry point for the test
   harness and no automated tests for this package.
 
 ## Related concepts
 
 - [Design overview](design_overview.md)
 - [Message](message.md) — the pub/sub layer Transport publishes through
-- [Service](service.md) — the things being invoked; topic conventions
-- [Actor](actor.md) — receives invocations via mailbox dispatch
+- [Service](service.md) — the things being invoked. Topic conventions
+- [Actor](actor.md) — receives invocations through mailbox dispatch
 - [Proxy](proxy.md) — the local/remote transparency idiom
 - [Discovery](discovery.md) — `do_command()` / `do_request()` compose
   discovery with Transport proxies

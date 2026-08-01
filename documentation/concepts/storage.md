@@ -6,14 +6,14 @@ description: The persistence SPI for Categories and Dependencies, and
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/storage/storage.py
   - src/aiko_services/main/storage/storage_file.py
 related: [design_overview, dependency, category, hyperspace,
   process_manager, actor, share, discovery]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Storage
@@ -29,17 +29,17 @@ process restarts. **StorageFile** is the current implementation, mapping the
 Composite pattern directly onto the file-system: a Dependency becomes a
 *file*, a Category a *directory*, and every named Entry a *symbolic link*.
 
-StorageFile is unusual among Aiko Services components in that it runs two
-ways: as a **distributed [Actor](actor.md)** (a Storage Service operated
-over MQTT) and as a **standalone library in bootstrap mode** — the same
-commands working
-directly against the local file-system with no Services running. Bootstrap
-mode exists because you cannot use a distributed Storage Service to
-bootstrap Storage itself.
+StorageFile is unusual among Aiko Services components, because it runs
+two ways. The first is as a **distributed [Actor](actor.md)**, a Storage
+Service operated over MQTT. The second is as a **standalone library in
+bootstrap mode**. In bootstrap mode the same commands work directly
+against the local file-system, with no Services running. Bootstrap mode
+exists because you cannot use a distributed Storage Service to bootstrap
+Storage itself.
 
-**Why you'd use it**: directly, to initialize and inspect the persistent
-structure beneath a HyperSpace host — most applications go through
-HyperSpace and only meet Storage when bootstrapping or debugging:
+**Why to use it**: directly, to initialize and inspect the persistent
+structure beneath a HyperSpace host. Most applications go through
+HyperSpace, and meet Storage only during bootstrap or debugging:
 
 ```bash
 aiko_storage_file initialize      # prepare a fresh host
@@ -52,7 +52,7 @@ aiko_storage_file dump -b         # see exactly what is on disk
 
 `aiko_storage_file` (preferred) or `./storage_file.py`. Every data command
 takes `--bootstrap / -b` (operate standalone on the local file-system, no
-Storage Service required) and `--storage_name / -sn` (target Service name,
+Storage Service needed) and `--storage_name / -sn` (target Service name,
 default: local hostname).
 
 Lifecycle:
@@ -150,11 +150,11 @@ aiko.process.run()
 [Category](category.md) for the full grammar):
 `[level, entry_name, [service_filter, lcm_url, storage_url]]`, with
 `[-level, path]` headers for recursion into directories. Directory entries
-are reported with `CATEGORY_PROTOCOL`; files with protocol `*`. Records are
+are reported with `CATEGORY_PROTOCOL`. Files with protocol `*`. Records are
 delivered one of three ways: published to `topic_path_response`
 (`(item_count N)` / `(response …)`), appended to a caller-supplied
 `entry_records` list (how HyperSpace loads at startup), or pretty-printed
-via `CategoryImpl._list_publish()`.
+through `CategoryImpl._list_publish()`.
 
 ## For framework developers (internals)
 
@@ -168,7 +168,7 @@ The Composite pattern mapped onto the file-system:
 | Category | Container (and also a Component) | a *directory* of Entries, referenced by a symbolic link |
 | Entry | either of the above | a *symbolic link* at a human-readable path |
 
-`initialize` prepares a working directory; subsequent operations build a
+`initialize` prepares a working directory. Subsequent operations build a
 structure like this:
 
 ```
@@ -194,7 +194,7 @@ Key mechanisms:
 - **UID-addressed storage.** Every Category/Dependency gets a 12-hex-digit
   UID, split into six 2-character path segments (`ab/cd/ef/01/23/45`) to
   keep directories shallow. UIDs are random
-  (`sha256(os.urandom(16))`) by default; set `STORAGE_RANDOM_UID=False`
+  (`sha256(os.urandom(16))`) by default. Set `STORAGE_RANDOM_UID=False`
   for predictable incrementing UIDs when debugging (persisted in
   `uid_counter`).
 - **Names are symbolic links.** The human-readable namespace is a layer of
@@ -202,15 +202,15 @@ Key mechanisms:
   a *graph*: `link` creates additional names for the same storage target,
   like hard-link aliasing.
 - **`.root` anchoring.** All links are expressed relative to a `.root`
-  symlink (at the root, and inside every Category directory pointing back
-  up), so the whole tree remains valid regardless of where it is mounted
-  or how deep the referring directory is.
+  symlink. That symlink is at the root, and inside every Category
+  directory it points back up. Thus the whole tree stays valid at any
+  mount point, and at any depth of the referring directory.
 - **`tracked_paths`.** An append-only-ish registry of created storage
   paths, used for collision avoidance and (eventually) validation.
 - **Reference-counted destruction.** `destroy(entry_name)` unlinks the
-  named symlink; only if *no other symlink in the tree* still resolves to
-  the same storage target is the target itself deleted (recursively for
-  directories) and empty parent directories cleaned up.
+  named symlink. The target itself is erased only when *no other symlink
+  in the tree* still resolves to it. That erasure is recursive for
+  directories, and it also cleans up empty parent directories.
 
 ### Implementation notes
 
@@ -225,14 +225,14 @@ storage = StorageFileImpl.create_storage(
 
 - As a **Service**, StorageFile registers with protocol
   `…/storage:0`, tags `ec=true`, and shares `storage_url` and
-  `uid_counter` via [ECProducer](share.md).
+  `uid_counter` through [ECProducer](share.md).
 - **Embedded**: HyperSpace creates one with `register_service=False` as its
   private persistence engine.
 - **Bootstrap CLI**: each subcommand with `-b` constructs a throwaway
   instance and calls the method directly.
 
 `_check_root_symbolic_link()` guards commands that need an initialized
-root; the CLI converts the failure into
+root. The CLI converts the failure into
 *"Consider running `aiko_storage_file initialize`"*.
 
 **Operation notes:**
@@ -241,7 +241,7 @@ root; the CLI converts the failure into
   `DEPENDENCY_NAME -> .root/_hyperspace_/<uid path>` and tracks the path.
   Storing the Dependency payload (ServiceFilter, LifeCycleManager URL,
   Storage URL) is still TODO — today the file is empty and `list`
-  synthesises a wildcard ServiceFilter.
+  synthesizes a wildcard ServiceFilter.
 - `create()` additionally plants the internal `.root` back-link inside the
   new directory, computed with `os.path.relpath`.
 - `link()` validates the existing target resolves inside the storage area,
@@ -256,11 +256,11 @@ root; the CLI converts the failure into
   semantics are TODO.
 - `update()` is **unimplemented** (prints a placeholder).
 
-**Semantics still being worked through.** The header flags that the add /
-create / destroy / remove semantics — and whether `tracked_paths` should
-become true reference counting — are under active review. Treat destructive
-operations as provisional. Structure validation (dead links, tracked-path
-consistency, content checks) is planned.
+**Semantics still under review.** The header flags two open questions.
+The first is the add / create / destroy / remove semantics. The second
+is whether `tracked_paths` must become true reference counting. Treat
+destructive operations as provisional. Structure validation (dead links,
+tracked-path consistency, content checks) is planned.
 
 ### CRC card
 
@@ -274,17 +274,18 @@ consistency, content checks) is planned.
 Highlights from the source `To Do` lists:
 
 - Default storage directory rename `_hyperspace_` → `_storage_`
-  (HyperSpace then passes `_hyperspace_` explicitly via `storage_url`)
+  (HyperSpace then passes `_hyperspace_` explicitly through `storage_url`)
 - Store and load the actual Dependency payload (ServiceFilter,
   LifeCycleManager URL, Storage URL) — needed by LifeCycleManager,
   HyperSpace and ProcessManager
-- Implement `update`; make `remove` unlink-only; `destroy --recursive`;
-  `list -c` (entry counts), `-u` (UIDs), recursion limits
-- REPL; structure validation (tracked paths, dead links, contents,
+- Implement `update`. Make `remove` unlink-only. Add `destroy
+  --recursive`, `list -c` (entry counts), `-u` (UIDs) and recursion
+  limits
+- REPL. structure validation (tracked paths, dead links, contents,
   comparison against a known-good copy)
 - File-system event integration (`FileSystemEventPatternMatch` in
   `scheme_file.py`) so HyperSpace/ProcessManager can react to storage
-  changes; a read-only bootstrap API for ProcessManager
+  changes. A read-only bootstrap API for ProcessManager
 - Database (SQLite3) and ValKey/Redis distributed implementations
 
 ## Related concepts

@@ -5,13 +5,13 @@ description: Create, list and destroy operating system processes in a
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/process_manager.py
 related: [design_overview, hyperspace, dependency, storage, actor, share,
   lifecycle]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # ProcessManager
@@ -20,16 +20,15 @@ last_updated: 2026-07-05
 
 Source code: [`src/aiko_services/main/process_manager.py`](../../src/aiko_services/main/process_manager.py)
 
-**ProcessManager** is an [Actor](actor.md) that creates, lists and destroys
-operating system processes on its host — the muscle behind the structural
-model:
-where [HyperSpace](hyperspace.md) says *what should exist* and a
-[Dependency](dependency.md)'s `lifecycle_manager_url` says *who runs it*,
-ProcessManager is the component that actually launches and reaps OS
+**ProcessManager** is an [Actor](actor.md) that makes, lists and destroys
+operating system processes on its host. It is the muscle behind the
+structural model. [HyperSpace](hyperspace.md) says *what must exist*, and
+a [Dependency](dependency.md)'s `lifecycle_manager_url` says *who runs
+it*. ProcessManager is the component that launches and reaps the OS
 processes. It is analogous to the Unix `init` process (pid 1): typically
 one per host, named after the hostname, supervising everything beneath it.
 
-**Why you'd use it**: because it is a distributed Actor, any authorised
+**Why to use it**: because it is a distributed Actor, any authorized
 client anywhere in the namespace can start a process on any host with one
 command:
 
@@ -121,8 +120,8 @@ process_manager = compose_instance(ProcessManagerImpl, init_args)
 aiko.process.run()
 ```
 
-A custom `process_exit_handler(uid)` may be passed via `init_args` to react
-to child exits (relaunch policies, notifications, …); the default logs UID,
+A custom `process_exit_handler(uid)` may be passed through `init_args` to react
+to child exits (relaunch policies, notifications, …). The default logs UID,
 PID, command and return code on exit.
 
 **Wire protocol.** `list()` follows the standard response idiom on the
@@ -155,7 +154,7 @@ A **definition file** (JSON array of command strings) can pre-populate the
 process table at startup — the `init`-style "boot this host" use case.
 ProcessManager registers *itself* in its own table as UID `000000`
 (self-aware 🤔), wrapped in a `ProcessCurrent` shim so uniform bookkeeping
-applies; it is protected from `destroy()`.
+applies. It is protected from `destroy()`.
 
 The design direction (see roadmap) is **ProcessManager as-a
 [LifeCycleManager](lifecycle.md) as-a Category**: driving the full Service
@@ -176,7 +175,7 @@ time, so no locking is needed. `_run()` is a daemon *reaper thread* that:
   `self._post_message(ActorTopic.IN, "_remove", [zombies])`.
 
 `_remove()` (on the main thread) fires the `process_exit_handler` for each
-exited UID, deletes the table entries and updates `metrics.running`. The
+exited UID, erases the table entries and updates `metrics.running`. The
 poll interval is 1 second (`_PROCESS_POLL_TIME`).
 
 Follow the same rule in any extension: post to the main thread rather than
@@ -185,19 +184,21 @@ touching `self.processes` from another thread.
 **Process creation details:**
 
 - Commands ending in `.py` / `.sh` run as given. Any other command is
-  first resolved as a *Python module name* via
-  `importlib.util.find_spec()`; if found, the module's file path is
+  first resolved as a *Python module name* through
+  `importlib.util.find_spec()`. If found, the module's file path is
   executed instead — so `aiko_process create my_package.my_module` works
   without knowing the installation path.
-- `Popen(command_line, bufsize=0, shell=False)` — no shell interpretation;
-  to use shell features, invoke the shell explicitly
-  (`/bin/sh -c "…"`, see the command-line examples above).
-- Duplicate UIDs are rejected with a warning (process not started);
-  `FileNotFoundError` and other exceptions are logged, not raised.
+- `Popen(command_line, bufsize=0, shell=False)` does no shell
+  interpretation. To use shell features, invoke the shell explicitly
+  (`/bin/sh -c "…"`, refer to the command-line examples above).
+- Duplicate UIDs are rejected with a warning, and the process does not
+  start. `FileNotFoundError` and other exceptions are logged, not
+  raised.
 
 **Shared state.** `self.share` publishes `lifecycle`, `log_level`,
-`source_file`, `definition_pathname`, `watchdog` and `metrics` (`created`
-and `running`, both including ProcessManager itself 😅) via
+`source_file`, `definition_pathname`, `watchdog` and `metrics`. The
+`metrics` value holds `created` and `running`, and both include
+ProcessManager itself 😅. Publication is through
 [ECProducer](share.md) — so the [Dashboard](dashboard.md) sees the process
 population of every host in real time.
 
@@ -206,34 +207,35 @@ population of every host in real time.
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `ProcessManager` (Interface) | Declare the process-table contract: `create()`, `list()`, `destroy()`, `dump()`, `exit()`; is-an Actor | `Actor` (parent Interface) |
-| `ProcessManagerImpl` | Maintain the `uid → (command_line, Popen)` table; launch via `Popen` with module-name resolution; reap exits on the reaper thread and marshal them back to the main thread; publish metrics via ECProducer; load definition files; graceful `exit()` escalation (SIGTERM → SIGKILL) | `ProcessCurrent` (self-entry shim); `ECProducer` (shared state); [HyperSpace](hyperspace.md) / [Storage](storage.md) (planned lifecycle-driving structure); [Dependency](dependency.md) (`lifecycle_manager_url` target) |
+| `ProcessManagerImpl` | Maintain the `uid → (command_line, Popen)` table; launch through `Popen` with module-name resolution; reap exits on the reaper thread and marshal them back to the main thread; publish metrics through ECProducer; load definition files; graceful `exit()` escalation (SIGTERM → SIGKILL) | `ProcessCurrent` (self-entry shim); `ECProducer` (shared state); [HyperSpace](hyperspace.md) / [Storage](storage.md) (planned lifecycle-driving structure); [Dependency](dependency.md) (`lifecycle_manager_url` target) |
 | `ProcessCurrent` | Present the ProcessManager's own OS process with the same interface as a `Popen` child, so UID `000000` gets uniform bookkeeping | `ProcessManagerImpl` (sole user) |
 
 ## Current limitations and roadmap
 
 Highlights from the source `To Do` list:
 
-- Refactor ProcessManager to provide functionality without being an Actor
-  (then update LifeCycleManager accordingly); ProcessManager as-a
+- Refactor ProcessManager to give functionality without being an Actor
+  (then update LifeCycleManager accordingly). ProcessManager as-a
   LifeCycleManager as-a Category, using the HyperSpace API and
   [Storage](storage.md) SPI
 - The HyperSpace-path lifecycle verbs (`enable/disable/start/status/stop`)
-  and disambiguating CLI `create` vs `start`, `destroy` vs `stop`
+  and disambiguating CLI `create` from `start`, and `destroy` from `stop`
 - The `--watchdog` flag is recorded in shared state, but primary/watchdog
-  monitor-and-relaunch behaviour is still to come; likewise "one primary
+  monitor-and-relaunch behavior is still to come. Likewise "one primary
   ProcessManager per host" enforcement and cross-host unification
-- Capture child stdout/stderr; relaunch failed processes (with back-off);
-  auto-scaling workers; scheduled (crontab-style) lifecycle changes
+- Capture child stdout/stderr. Relaunch failed processes (with
+  back-off). Add auto-scaling workers. Add scheduled (crontab-style)
+  lifecycle changes
 - Process `owner` field, `destroy --force`, system processes owned by
-  `aiko`; runtime and resource-usage metrics (psutil); process events to
+  `aiko`. Runtime and resource-usage metrics (psutil). Process events to
   Dashboard / time-series databases (OpenTelemetry schema)
-- Windows testing; integration with systemd / launchd / task scheduler
+- Windows testing. Integration with systemd / launchd / task scheduler
 
 ## Related concepts
 
 - [Design overview](design_overview.md)
 - [Dependency](dependency.md) — `lifecycle_manager_url` points here
-- [HyperSpace](hyperspace.md) — the structure ProcessManager will realise
+- [HyperSpace](hyperspace.md) — the structure ProcessManager will realize
 - [Storage](storage.md) — future read-only bootstrap source
 - [LifeCycle](lifecycle.md) — the manager/client pattern ProcessManager is
   slated to implement

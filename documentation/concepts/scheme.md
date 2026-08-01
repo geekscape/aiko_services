@@ -5,13 +5,13 @@ description: The pluggable mapping from URL schemes such as file: or zmq:
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/scheme.py
 related: [design_overview, data_source_target, pipeline, pipeline_element,
   stream, parameters]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # DataScheme
@@ -25,12 +25,13 @@ A **DataScheme** turns the *scheme* part of a URL — `file:`, `tty:`,
 It is the plug-in half of the
 [DataSource / DataTarget](data_source_target.md) design: the
 PipelineElement decides *when* frames start and stop, the DataScheme
-decides *how* bytes at a location become frames (and vice versa). Each
+decides *how* bytes at a location become frames, and how frames become
+bytes. Each
 scheme registers itself in a class-level lookup table, and each
 [Stream](stream.md) gets its own DataScheme instance, so scheme state is
 naturally per-Stream.
 
-**Why you'd use it**: the same [Pipeline](pipeline.md) definition can read
+**Why to use it**: the same [Pipeline](pipeline.md) definition can read
 from files today and a network socket tomorrow by changing only a URL
 parameter — no PipelineElement code changes:
 
@@ -46,10 +47,10 @@ aiko_pipeline create pipelines/text_zmq_pipeline_0.json -s 1 -sr  \
 
 ### Command-line usage
 
-DataScheme has no CLI of its own — it is exercised through
-`aiko_pipeline`, whose `-p` (Pipeline parameters) and `-sp` (Stream
-parameters) options set the `data_sources` / `data_targets` URLs that
-select a scheme, as shown above. See
+DataScheme has no CLI of its own. `aiko_pipeline` exercises it. The
+`-p` (Pipeline parameters) and `-sp` (Stream parameters) options of that
+tool set the `data_sources` and `data_targets` URLs, which select a
+scheme, as shown above. Refer to
 [DataSource / DataTarget](data_source_target.md) for worked sessions.
 
 ### Public API
@@ -86,7 +87,7 @@ class DataScheme:
 | `contains_all(source, match)` | Helper: true when every character of `match` appears in `source` — used to detect `{}` templates in paths |
 
 A DataScheme instance is constructed with the owning PipelineElement and
-keeps `self.pipeline_element` and `self.share`; per-Stream state belongs
+keeps `self.pipeline_element` and `self.share`. Per-Stream state belongs
 in `stream.variables`, not on `self` beyond that.
 
 **Registered schemes** (each module registers at import time):
@@ -143,7 +144,7 @@ DataScheme.LOOKUP ── "file" ─► DataSchemeFile
 Key design points:
 
 - **Registry, not enumeration.** `LOOKUP` is a plain class-level dict
-  populated by import side-effects; a Pipeline only supports the schemes
+  populated by import side-effects. A Pipeline only supports the schemes
   whose modules it has imported (the media / gstreamer element modules do
   this when they are loaded as PipelineElement definitions).
 - **Instance per Stream.** The owning
@@ -161,14 +162,14 @@ Key design points:
 
 - `DataScheme` is a plain Python base class, **not** an Aiko Services
   Interface / Component — there is no `Interface.default()` binding and
-  no remote proxy; schemes are always in-process with their
+  no remote proxy. Schemes are always in-process with their
   PipelineElement.
-- `create_sources()` is decorated `@abstractmethod`, but `DataScheme`
-  does not inherit from `abc.ABC`, so instantiation is not actually
-  blocked and the method has a default body returning
-  `(StreamEvent.OKAY, {})`. Treat it as abstract by convention.
+- `create_sources()` is decorated `@abstractmethod`. But `DataScheme`
+  does not inherit from `abc.ABC`, so instantiation is not blocked. The
+  method has a default body that returns `(StreamEvent.OKAY, {})`. Treat
+  it as abstract by convention.
 - `parse_data_url_path()` / `parse_data_url_scheme()` are the original
-  names; `parse_url_path()` / `parse_url_scheme()` are the aliases to
+  names. `parse_url_path()` / `parse_url_scheme()` are the aliases to
   prefer.
 - Duplicate registration raises `RuntimeError` — safe under normal module
   caching, but reloading a scheme module (or two modules claiming the
@@ -179,7 +180,7 @@ Key design points:
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `DataScheme` (base) | Own the scheme registry (`LOOKUP`, `add_data_scheme()`); define the per-Stream lifecycle contract (`create_sources()` / `create_targets()` / `destroy_*()`); parse URLs | [DataSource / DataTarget](data_source_target.md) (instantiation and lifecycle), [Stream](stream.md) (per-Stream state) |
-| `DataSchemeFile` (exemplar) | Resolve `file:` paths — single file, directory, `{}` glob template; choose `create_frame()` vs `create_frames()`; batch via `data_batch_size`; pace via `rate` | `DataScheme`, [PipelineElement](pipeline_element.md) (`create_frame(s)`, `get_parameter()`) |
+| `DataSchemeFile` (exemplar) | Resolve `file:` paths — single file, directory, `{}` glob template; choose `create_frame()` vs `create_frames()`; batch through `data_batch_size`; pace through `rate` | `DataScheme`, [PipelineElement](pipeline_element.md) (`create_frame(s)`, `get_parameter()`) |
 
 ## Current limitations and roadmap
 
@@ -188,8 +189,8 @@ From the source To Do lists:
 - Replace the hand-rolled parsing with `urllib.parse.urlparse()` —
   gaining `scheme`, `netloc`, `path`, `query`, `fragment`, `hostname`
   and `port`
-- Provide `parse_url()` returning `scheme`, `authority` and `path`
-  separately; `parse_url_path()` currently returns authority and path
+- Give `parse_url()` returning `scheme`, `authority` and `path`
+  separately. `parse_url_path()` currently returns authority and path
   combined ("Should only return path")
 - `DataSchemeFile`: `paths.append((path, None))` — the `None` should
   probably be a `file_id`

@@ -6,12 +6,12 @@ description: Host and process introspection helpers — path splitting
 type: concept
 audience: [developers]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/utilities/system.py
 related: [design_overview, hyperspace, metrics]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # System utility
@@ -24,10 +24,10 @@ The system utility is a small grab-bag of host and process introspection
 helpers with no Aiko Services dependencies: a combined
 dirname/basename path splitter, process (RSS/VMS) and host virtual-memory
 usage readings, and cross-platform system uptime. All functions are
-exported via `utilities/__init__.py`.
+exported through `utilities/__init__.py`.
 
-**Why you'd use it**: quick diagnostics without reaching for `psutil`
-directly, and normalised path splitting for HyperSpace-style paths:
+**Why to use it**: quick diagnostics without reaching for `psutil`
+directly, and normalized path splitting for HyperSpace-style paths:
 
 ```python
 from aiko_services.main.utilities import *
@@ -41,7 +41,7 @@ print_memory_used("Frame 42: ")
 
 ### Command-line usage
 
-There is no console script; running the module directly prints uptime and
+There is no console script. Running the module directly prints uptime and
 both memory readings:
 
 ```bash
@@ -82,7 +82,7 @@ from aiko_services.main.utilities import dir_base_name, get_hostname
 ```
 
 **Memory functions** — each accepts a unit (`"Kb"`, `"Mb"`, `"Gb"`,
-`"Tb"`, binary powers of two; any other value raises `ValueError`) and
+`"Tb"`, binary powers of two. Any other value raises `ValueError`) and
 runs `gc.collect()` first so readings reflect reachable memory:
 
 ```python
@@ -116,18 +116,18 @@ and the standard library, so it can be imported very early. The
 
 ### Implementation notes
 
-- `_get_scale(unit)` is the shared unit table; it returns
+- `_get_scale(unit)` is the shared unit table. It returns
   `(scale, spelled_out_unit)` — the same table the broken
   [metrics](metrics.md) module duplicates.
 - `dir_base_name()` is by-hand rather than `os.path.split()` so
-  behaviour is identical across platforms and matches HyperSpace path
-  semantics (e.g. `("/", "name")` for `"/name"`).
-- `get_uptime()` on macOS shells out twice (`sysctl`, `date`); it is not
+  behavior is identical across platforms and matches HyperSpace path
+  semantics (for example, `("/", "name")` for `"/name"`).
+- `get_uptime()` on macOS shells out twice (`sysctl`, `date`). It is not
   suitable for tight loops.
 
 ### CRC card
 
-The module is purely functions; one row describes the module itself:
+The module is purely functions. One row describes the module itself:
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
@@ -139,7 +139,7 @@ The source `To Do` list is empty ("None, yet !"). Observed limitations:
 
 - `get_uptime()` swallows all exceptions into an `"Error: ..."` return
   value — callers cannot distinguish failure programmatically
-- Memory readings only; no CPU, disk or per-thread statistics — the
+- Memory readings only. No CPU, disk or per-thread statistics — the
   [metrics](metrics.md) roadmap is the intended home for richer
   telemetry
 - No unit tests anywhere in the repository exercise this module

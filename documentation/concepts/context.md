@@ -6,13 +6,13 @@ description: The single constructor argument for composed components — a
 type: concept
 audience: [architects, developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/context.py
 related: [design_overview, component, proxy, service, actor,
   pipeline, pipeline_element, parameters]
 version: "0.6"
-last_updated: 2026-07-05
+last_updated: 2026-08-01
 ---
 
 # Context
@@ -23,25 +23,25 @@ Source code: [`src/aiko_services/main/context.py`](../../src/aiko_services/main/
 
 A **Context** is the single argument passed to every composed
 component's constructor. It is an extensible dataclass that bundles the
-common variable fields — name, implementations, parameters, protocol,
-tags, transport, and (for Pipelines) definitions — so that
-`__init__(self, context)` stays stable as the framework evolves,
-protecting application code from constructor-signature churn.
+common variable fields: name, implementations, parameters, protocol,
+tags, transport, and definitions for Pipelines. Thus
+`__init__(self, context)` stays stable as the framework evolves, and
+application code is protected from constructor-signature churn.
 
-The same module also defines the **`Interface`** base class — the root
-of every Aiko Services contract — and its class-level
+The same module also defines the **`Interface`** base class, the root of
+every Aiko Services contract. It also defines the class-level
 default-implementation registry (`Interface.default()`), which the
 [Component](component.md) composition engine consumes. Context and
 Component are two halves of one mechanism: Component builds the
-composed class; Context carries its construction data and drives
-once-only cooperative initialisation via `call_init()`.
+composed class. Context carries its construction data and drives
+once-only cooperative initialization through `call_init()`.
 
 Do not confuse this module with
 `src/aiko_services/main/utilities/context.py`, whose `ContextManager` /
 `get_context()` hold the process-wide `aiko` and `message` references —
 a different concept documented separately.
 
-**Why you'd use it**: every component you write starts with a Context.
+**Why to use it**: every component you write starts with a Context.
 The `*_args()` factories create one wrapped in an `init_args`
 dictionary, ready for `compose_instance()`:
 
@@ -62,7 +62,7 @@ aiko.process.run()
 ### Command-line usage
 
 Context has no CLI of its own — it is a construction-time data
-structure. It is exercised by every example and tool; the unit test can
+structure. It is exercised by every example and tool. The unit test can
 be run directly:
 
 ```bash
@@ -88,7 +88,7 @@ Accessors: `get_name()`, `get_parameters()`, `get_protocol()`,
 `get_graph_path()`.
 
 **The `init_args` factories** — each returns `{"context": <Context>}`,
-ready for `compose_instance()`; add further constructor keyword
+ready for `compose_instance()`. Add further constructor keyword
 arguments as extra dictionary entries:
 
 ```python
@@ -100,18 +100,18 @@ pipeline_element_args(..., definition=None, pipeline=None)
 pipeline_args(..., definition_pathname=None, graph_path=None)
 ```
 
-Defaults (applied in `__post_init__` when a field is `None`):
+Defaults, applied in `__post_init__` when a field is `None`, are
 `parameters={}`, `protocol="*"`, `tags=[]`, `transport="mqtt"`,
-`definition=""`, `definition_pathname=""`. Each context receives its
-*own copy* of the mutable defaults (2026-07-13 fix) — `add_tags()` on
-one Service can never pollute another context's tags. The Service
-`name` must be a non-empty string or `ValueError` is raised;
+`definition=""` and `definition_pathname=""`. Each context receives its
+*own copy* of the mutable defaults (2026-07-13 fix). Thus `add_tags()`
+on one Service can never pollute another context's tags. The Service
+`name` must be a non-empty string, or `ValueError` is raised.
 `ContextPipelineElement` lower-cases the name.
 
 When a composed class declares no `__init__()` of its own, the
-cooperative constructor is synthesized at composition time — including
-`set_protocol()` from an optional `PROTOCOL` class attribute — see
-[Component](component.md) (ADR-021).
+cooperative constructor is synthesized at composition time. That
+includes `set_protocol()` from an optional `PROTOCOL` class attribute.
+Refer to [Component](component.md) (ADR-021).
 
 **Composition support** — the methods the
 [Component](component.md) machinery and composed `__init__()` methods
@@ -142,7 +142,7 @@ class ServiceProtocolInterface(Interface):
 ```
 
 `Interface.default("Actor", "aiko_services.main.actor.ActorImpl")` is
-the idiom every Interface uses to bind its default implementation; the
+the idiom every Interface uses to bind its default implementation. The
 binding runs at class-definition (import) time, so importing
 `aiko_services.main` populates the registry for the whole framework.
 Note that `Interface.context` is a *single shared* Context — the
@@ -151,7 +151,7 @@ registry is global across all Interfaces (see
 
 There is no wire protocol: Context is purely in-process. The `protocol`
 *field* it carries is the [Service](service.md) protocol identifier
-used for discovery — data, not behaviour.
+used for discovery — data, not behavior.
 
 ## For framework developers (internals)
 
@@ -171,23 +171,24 @@ used for discovery — data, not behaviour.
           └─ ActorImpl.__init__(self, context)
                └─ context.call_init(self, "Service", context, ...)
                     └─ ServiceImpl.__init__(self, context)
-   (each implementation initialised exactly once)
+   (each implementation initialized exactly once)
 ```
 
 Key design points:
 
 - **One argument, forever.** Constructors take `(self, context)` plus
-  optional keyword arguments; new framework fields are added to the
+  optional keyword arguments. New framework fields are added to the
   Context dataclasses, not to constructor signatures.
-- **Cooperative diamond-safe initialisation.** `call_init()` calls the
-  implementation class's `__init__` as an *unbound* function with the
-  composed instance as `self` — all state lands on the one object —
-  and records `initialized_<Name>` on the Context so diamonds in the
-  Interface hierarchy (e.g. Category → Actor → Service and
-  Category → Dependency) initialise each implementation exactly once.
+- **Cooperative diamond-safe initialization.** `call_init()` calls the
+  implementation class's `__init__` as an *unbound* function, with the
+  composed instance as `self`. Thus all state lands on the one object.
+  It also records `initialized_<Name>` on the Context. Thus diamonds in
+  the Interface hierarchy initialize each implementation exactly once.
+  Examples of such diamonds are Category → Actor → Service, and
+  Category → Dependency.
 - **Two registries, two lifetimes.** The class-level
   `Interface.context` holds *default* bindings (name → class or dotted
-  path, process-wide); the per-instance Context holds the *loaded*
+  path, process-wide). The per-instance Context holds the *loaded*
   implementation classes actually chosen for that composition
   (installed by `compose_instance()`).
 
@@ -199,10 +200,10 @@ Key design points:
   second `compose_instance()` would make `call_init()` silently skip
   the `__init__` chain. Create fresh `*_args()` per instance.
 - `get_implementation(name)` returns the implementation *class* (not an
-  instance); callers such as `CategoryImpl` use it to delegate, e.g.
+  instance). Callers such as `CategoryImpl` use it to delegate, for example
   `context.get_implementation("Dependency").is_type(self, ...)`.
-- `__post_init__` normalises `None` fields to the module defaults and
-  validates the Service name; subclasses chain with
+- `__post_init__` normalizes `None` fields to the module defaults and
+  validates the Service name. Subclasses chain with
   `super().__post_init__()`.
 - `__all__` in this module is written as a *set* literal, not a list —
   functional for `import *`, but unordered and unconventional.
@@ -211,7 +212,7 @@ Key design points:
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
-| `Context` (dataclass) | Carry `name` and implementations; drive once-only cooperative init via `call_init()`; per-instance implementation lookup | [Component](component.md) (`compose_instance()` installs implementations); every composed `__init__()` |
+| `Context` (dataclass) | Carry `name` and implementations; drive once-only cooperative init through `call_init()`; per-instance implementation lookup | [Component](component.md) (`compose_instance()` installs implementations); every composed `__init__()` |
 | `ContextService` / `ContextPipelineElement` / `ContextPipeline` | Extend Context with Service, PipelineElement and Pipeline fields; validate and default them in `__post_init__` | [Service](service.md), [Actor](actor.md), [Pipeline element](pipeline_element.md), [Pipeline](pipeline.md) |
 | `Interface` (ABC) | Root of all contracts; hold the shared default-implementation registry; `default()` / `get_implementations()` | All Interface hierarchies; [Component](component.md) (registry consumer) |
 | `ServiceProtocolInterface` | Marker: "this Interface represents an Aiko Services Service implementing a protocol" | [Service](service.md); excluded from Component's implemented-check |
@@ -224,18 +225,18 @@ From the source `To Do` list — highlights:
 - **FIX:** `service_args()` should include `owner`
   (needed by `hyperspace.py:run_command()`) and `register_service`
   (needed by `storage_file.py`)
-- Provide `get_parameter()` / `set_parameter()` (reusing existing code),
+- Give `get_parameter()` / `set_parameter()` (reusing existing code),
   and `add_tags()` / `remove_tags()` — with tags possibly becoming a
   dictionary internally
 - Use `__file__` instead of `__name__` (with a `__file__` → `__name__`
   helper) to avoid `"__main__."` implementation paths
 - Consider `protocol` revision versus source-code file version, with a
   convenience function to create source-code versions automatically
-- Provide custom `__repr__()` / `__str__()`
+- Give custom `__repr__()` / `__str__()`
 - Test coverage: `tests/unit/test_context.py` covers only
-  `actor_args()`; its own To Do lists checking all `*_args()`
+  `actor_args()`. Its own To Do lists checking all `*_args()`
   convenience functions and using each `init_args` to create instances
-  via composition
+  through composition
 
 ## Related concepts
 
