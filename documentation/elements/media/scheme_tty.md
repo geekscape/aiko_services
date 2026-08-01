@@ -5,13 +5,13 @@ description: The tty DataScheme — line-oriented interactive terminal input
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/media/scheme_tty.py
 related: [scheme, data_source_target, pipeline_element, stream, parameters,
   text_io, scheme_file, scheme_zmq]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # DataSchemeTTY
@@ -23,12 +23,12 @@ last_updated: 2026-07-06
 interactive terminal into a
 [DataSource](../../concepts/data_source_target.md) (each line typed
 becomes a record) and, nominally, a DataTarget (elements print
-directly). It is what makes a REPL-style Pipeline possible — the
-`TextReadTTY` / `TextWriteTTY` elements in [text_io](text_io.md) build
-a small command interpreter (help, history, exit) on top of it.
+directly). It makes a REPL-style Pipeline possible. The `TextReadTTY`
+and `TextWriteTTY` elements in [text_io](text_io.md) build a small
+command interpreter on top of it, with help, history and exit.
 
-**Why you'd use it**: interactively drive any text-processing Pipeline
-from the keyboard — the same graph that reads files reads your typing
+**Why to use it**: to drive any text-processing Pipeline interactively
+from the keyboard. The same graph that reads files reads your typing
 when the URL changes to `tty://`:
 
 ```bash
@@ -54,7 +54,7 @@ aiko_pipeline create pipelines/text_tty_pipeline_0.json -s 1
 `TextReadTTY → TextTransform → TextWriteTTY → TextOutput` with
 `data_sources: (tty://)`, `data_targets: (tty://)` and
 `tty_prompt: "# "`. In the running pipeline, type `/?` for help and
-`/x` to exit (commands are `TextReadTTY` behaviour — see
+`/x` to exit (commands are `TextReadTTY` behavior — see
 [text_io](text_io.md)).
 
 ### Public API
@@ -67,7 +67,7 @@ data_sources: "(tty://)"
 data_targets: "(tty://)"
 ```
 
-Parameters read by the scheme (via the owning element — see
+Parameters read by the scheme (through the owning element — see
 [Parameters](../../concepts/parameters.md)):
 
 | Parameter | Default | Meaning |
@@ -75,23 +75,23 @@ Parameters read by the scheme (via the owning element — see
 | `rate` | 20.0 | Polls per second of the input queue (frame-generator pacing) |
 | `tty_prompt` | `"> "` | Prompt printed before the first input line |
 
-Source behaviour (`create_sources()`):
+Source behavior (`create_sources()`):
 
 - Starts a daemon thread that loops on blocking `input()`, pushing each
-  line into an internal queue; end-of-input (Ctrl-D / `EOFError`)
+  line into an internal queue. End-of-input (Ctrl-D / `EOFError`)
   pushes a `None` sentinel.
 - The frame generator polls the queue at `rate` Hz: a queued line
   yields `{"records": [line]}` — **one line per frame**, delivered to
-  the owning element's `process_frame(stream, records)`; an empty queue
-  returns `StreamEvent.NO_FRAME`; the `None` sentinel returns
+  the owning element's `process_frame(stream, records)`. An empty queue
+  returns `StreamEvent.NO_FRAME`. The `None` sentinel returns
   `StreamEvent.STOP` (`"All frames generated"`), ending the Stream —
   with `_destroy_stream_exit_` set (as in `text_tty_pipeline_0.json`),
   Ctrl-D exits the Pipeline cleanly.
 - The prompt is printed once, prefixed `000:` (the line-number style
   that `TextWriteTTY` then maintains).
 
-Target behaviour: `create_targets()` is a no-op — output elements
-simply `print()`; there are no `target_*` stream variables for this
+Target behavior: `create_targets()` is a no-op — output elements
+simply `print()`. There are no `target_*` stream variables for this
 scheme.
 
 Registration (module import side-effect):
@@ -118,16 +118,16 @@ aiko.DataScheme.add_data_scheme("tty", DataSchemeTTY)
   generators must not — so the scheme owns a reader thread plus a
   queue, and the generator only ever polls. The same
   thread-plus-queue shape appears in [scheme_zmq](scheme_zmq.md).
-- Scheme state (`queue`, `terminate`) lives on `self` rather than in
-  `stream.variables` — acceptable here because one DataScheme instance
-  exists per [Stream](../../concepts/stream.md), and a process has only
-  one terminal anyway.
+- Scheme state (`queue`, `terminate`) lives on `self`, and not in
+  `stream.variables`. This is acceptable here, because one DataScheme
+  instance exists per [Stream](../../concepts/stream.md), and a process
+  has only one terminal.
 
 ### Implementation notes
 
 - `destroy_sources()` sets `self.terminate`, but the reader thread is
   usually blocked inside `input()` and only observes the flag after one
-  more line (or EOF); being a daemon thread, it cannot prevent process
+  more line (or EOF). Being a daemon thread, it cannot prevent process
   exit.
 - The initial prompt hard-codes the `000:` history-count prefix,
   duplicating `TextWriteTTY`'s prompt format — change both together.
@@ -145,7 +145,7 @@ aiko.DataScheme.add_data_scheme("tty", DataSchemeTTY)
 
 From the source To Do list — **planned**, not implemented:
 
-- Character-per-record option, e.g. `tty://mode=raw` (see the
+- Character-per-record option, for example, `tty://mode=raw` (see the
   commented-out raw-mode sketch)
 - `TextReadTTY` parameter `tty_history: N` — maximum command lines
   kept, `N=0` (default) meaning no history. Note
@@ -154,9 +154,10 @@ From the source To Do list — **planned**, not implemented:
 - Prompt `{}` template that inserts the current history length,
   replacing the hard-coded `000:` prefix
 
-Also note: output via this scheme is plain `print()` — interleaving
-with log output on the same terminal is unmanaged, so run TTY
-pipelines with MQTT logging (the default) rather than console logging.
+Also note that output through this scheme is plain `print()`. Nothing
+manages the interleave with log output on the same terminal. Thus run
+TTY pipelines with MQTT logging (the default), and not with console
+logging.
 
 ## Related concepts
 
@@ -166,7 +167,7 @@ pipelines with MQTT logging (the default) rather than console logging.
   elements that instantiate this scheme per Stream
 - [PipelineElement](../../concepts/pipeline_element.md) —
   `create_frames()` pacing
-- [Stream](../../concepts/stream.md) — lifecycle; EOF maps to a
+- [Stream](../../concepts/stream.md) — lifecycle. EOF maps to a
   graceful `STOP`
 - [Parameters](../../concepts/parameters.md) — `rate`, `tty_prompt`
 - [text_io](text_io.md) — `TextReadTTY` / `TextWriteTTY`, the command

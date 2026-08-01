@@ -5,13 +5,13 @@ description: A dormant Pipeline_2020-era script for assembling image files
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/media/images_to_video.py
   - src/aiko_services/elements/media/pipelines/images_to_video_pipeline.json
 related: [pipeline, pipeline_element, image_io, video_io, video_example]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Images-to-video script (legacy)
@@ -24,7 +24,7 @@ pipeline — `ImageReadFile → VideoWriteFile` — as a Python list of
 dicts, intended to assemble numbered image files
 (`z_input/image_{:06d}.jpg`) into a video (`z_output.mp4` at
 29.97 fps). Its `__main__` block is entirely commented out, so
-executing it does nothing; the `Pipeline_2020` class it targeted no
+executing it does nothing. The `Pipeline_2020` class it targeted no
 longer exists.
 
 Its *job* is alive and well, done declaratively: the committed
@@ -35,7 +35,7 @@ wires the modern `ImageReadFile` ([image_io](image_io.md)) into
 [Pipeline](../../concepts/pipeline.md) engine. This document exists to
 mark the file's status and point to the replacement.
 
-**Why you'd use it**: you wouldn't — use the JSON pipeline:
+**Why to use it**: you would not — use the JSON pipeline:
 
 ```bash
 cd src/aiko_services/elements/media
@@ -64,10 +64,10 @@ aiko_pipeline create pipelines/images_to_video_pipeline.json -s 1
 aiko_pipeline create pipelines/video_to_images_pipeline.json -s 1
 ```
 
-Note: `VideoWriteFile` requires NumPy images
-([video_io](video_io.md)); the pipeline JSON's element parameter
-intended for this is spelled `"MEDIA_TYPE": "numpy"` — parameter names
-are lower-case (`media_type`), so as committed the conversion parameter
+Note: `VideoWriteFile` needs NumPy images
+([video_io](video_io.md)). The pipeline JSON spells the element
+parameter for this as `"MEDIA_TYPE": "numpy"`. But parameter names are
+lower-case (`media_type`). Thus, as committed, the conversion parameter
 does not take effect (see Current limitations and roadmap).
 
 ### Public API
@@ -108,10 +108,11 @@ S-expression `graph`, typed `input`/`output` declarations and
   `__main__` block is commented out, and the element module paths and
   parameter names are obsolete. Candidate for deletion once the
   team is satisfied nothing references it.
-- In the replacement `images_to_video_pipeline.json` (as currently in
-  the working tree), `ImageReadFile`'s conversion parameter is spelled
-  `"MEDIA_TYPE"` — upper-case, so `get_parameter("media_type")` will
-  not find it and images stay PIL, which `VideoWriteFile` rejects
+- In the replacement `images_to_video_pipeline.json`, as currently in
+  the working tree, the conversion parameter of `ImageReadFile` is
+  spelled `"MEDIA_TYPE"`. That is upper-case, so
+  `get_parameter("media_type")` does not find it. Thus images stay PIL,
+  which `VideoWriteFile` rejects
   (`"Image media_type must be a numpy array"`). Correcting the key to
   `media_type` (value `numpy`) makes the pipeline work end-to-end.
 

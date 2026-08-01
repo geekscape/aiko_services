@@ -6,37 +6,38 @@ description: Control-flow PipelineElements — the Loop element repeats a
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/control/elements.py
   - src/aiko_services/elements/control/pipelines/factorial_pipeline.json
 related: [pipeline_element, pipeline, parameters, stream]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Control elements
 
 ## Overview
 
-The control elements module provides
+The control elements module gives
 [PipelineElements](../../concepts/pipeline_element.md) that alter the
 control flow of a [Pipeline](../../concepts/pipeline.md) graph. It
 currently contains one element, **Loop**, which implements the
-`PipelineElementLoop` Interface: the graph section between the Loop
-element and a named *boundary* element is executed repeatedly — within a
-single Frame — until a condition evaluated against the Frame's swag
-becomes false.
+`PipelineElementLoop` Interface. Loop executes the graph section between
+itself and a named *boundary* element repeatedly, within a single Frame.
+It stops when a condition evaluated against the Frame's swag becomes
+false.
 
-Loop's `define`, `condition` and `expression`
-[parameters](../../concepts/parameters.md) are S-expressions evaluated by
-the expression helpers in the sibling
-[utility elements](../utilities/elements.md) module
-(`evaluate_define()` / `evaluate_condition()`), so a Pipeline can express
-simple iterative computation — initialise variables, test, update —
+The `define`, `condition` and `expression`
+[parameters](../../concepts/parameters.md) of Loop are S-expressions. The
+expression helpers in the sibling
+[utility elements](../utilities/elements.md) module evaluate them
+(`evaluate_define()` and `evaluate_condition()`). Thus a Pipeline can
+express simple iterative computation — initialize variables, test,
+update —
 without writing a new Python element.
 
-**Why you'd use it**: to repeat a tool or sub-graph until a data-driven
+**Why to use it**: to repeat a tool or sub-graph until a data-driven
 condition is met — retry-until-success, iterate-until-converged. The
 committed example computes a factorial by looping over a mock tool
 element:
@@ -51,7 +52,7 @@ aiko_pipeline create pipelines/factorial_pipeline.json -ll debug_all -fd "()"
 
 ### Command-line usage
 
-Control elements have no CLI of their own; they are hosted by the
+Control elements have no CLI of their own. They are hosted by the
 `aiko_pipeline` CLI (see [Pipeline](../../concepts/pipeline.md)). From
 the usage header of `elements.py`:
 
@@ -61,12 +62,12 @@ aiko_pipeline create pipelines/factorial_pipeline.json -ll debug_all  \
                                                        -fd "()"
 ```
 
-`factorial_pipeline.json` declares `_create_stream_` and
-`_destroy_stream_exit_` Pipeline parameters, so the Pipeline creates
-Stream `"1"` at start-up and the process exits when that Stream is
-destroyed — the `-fd "()"` empty Frame triggers one run of the graph.
+`factorial_pipeline.json` declares the `_create_stream_` and
+`_destroy_stream_exit_` Pipeline parameters. Thus the Pipeline makes
+Stream `"1"` at start-up, and the process exits when that Stream is
+destroyed. The `-fd "()"` empty Frame triggers one run of the graph.
 
-The loop behaviour is configured entirely through element parameters in
+The loop behavior is configured entirely through element parameters in
 the PipelineDefinition:
 
 ```json
@@ -91,16 +92,16 @@ from aiko_services.elements.control.elements import Loop   # __all__
 | Parameter | Default | Meaning |
 |-----------|---------|---------|
 | `boundary` | `""` | Name of the last graph element inside the loop body, written `LOOP_END_ELEMENT[:NEXT_ELEMENT]` — only the part before `:` is used (see limitations) |
-| `define` | *(optional)* | S-expression `((name expression) ...)` — evaluated once per [Stream](../../concepts/stream.md), on the first `process_frame()`, to initialise swag entries |
-| `condition` | **required** | S-expression `((expression) ...)` — every expression must be truthy for the loop to continue; a missing parameter returns `StreamEvent.ERROR` |
+| `define` | *(optional)* | S-expression `((name expression) ...)` — evaluated once per [Stream](../../concepts/stream.md), on the first `process_frame()`, to initialize swag entries |
+| `condition` | **needed** | S-expression `((expression) ...)` — every expression must be truthy for the loop to continue; a missing parameter returns `StreamEvent.ERROR` |
 | `expression` | *(optional)* | S-expression `((name expression) ...)` — evaluated on each iteration *while the condition holds*, updating swag entries |
 
-Frame contract: `input: []` / `output: []` — Loop reads and writes the
-Frame's swag directly (`stream.frames[stream.frame_id].swag`) rather
-than through declared inputs and outputs, so any swag name is available
-to its expressions.
+Frame contract: `input: []` and `output: []`. Loop reads and writes the
+Frame's swag directly (`stream.frames[stream.frame_id].swag`). It does
+not use declared inputs and outputs. Thus any swag name is available to
+its expressions.
 
-`process_frame(stream)` behaviour per invocation:
+`process_frame(stream)` behavior per invocation:
 
 1. First call for a Stream (detected by
    `stream.variables["loop_boundary"]` being unset): record the
@@ -168,12 +169,12 @@ Frame ()                     swag
   is recorded, so `define` runs exactly once per Stream.
 - Parameters are parsed with
   `aiko_services.main.utilities.parse(..., car_cdr=False)` on every
-  invocation; `condition` is re-parsed and re-evaluated each iteration
+  invocation. `condition` is re-parsed and re-evaluated each iteration
   (the parsed structure is mutated in place by the evaluators, so
-  re-parsing is required).
-- Case sensitivity is asymmetric in the Pipeline machinery: the
-  boundary-element comparison during looping lowercases the boundary
-  (element Actor names are lowercased by the framework), but the
+  re-parsing is needed).
+- Case sensitivity is asymmetric in the Pipeline machinery. During
+  looping, the boundary-element comparison lowercases the boundary,
+  because the framework lowercases element Actor names. But the
   `LOOP_END` path passes the boundary verbatim to
   `pipeline_graph.iterate_after()`, which matches graph node names in
   their original definition case. In practice the `boundary` parameter
@@ -184,7 +185,7 @@ Frame ()                     swag
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
-| `Loop` | Initialise loop state per [Stream](../../concepts/stream.md) (`loop_boundary`, `define`); evaluate `condition` / `expression` [parameters](../../concepts/parameters.md) against the Frame swag; return `StreamEvent.OKAY` (continue) or `StreamEvent.LOOP_END` (finish) | `PipelineElementLoop` ([PipelineElement](../../concepts/pipeline_element.md) Interface marker); `PipelineImpl` loop re-queueing ([Pipeline](../../concepts/pipeline.md)); `evaluate_condition()` / `evaluate_define()` ([utility elements](../utilities/elements.md)); `parse()` (S-expression parser) |
+| `Loop` | Initialize loop state per [Stream](../../concepts/stream.md) (`loop_boundary`, `define`); evaluate `condition` / `expression` [parameters](../../concepts/parameters.md) against the Frame swag; return `StreamEvent.OKAY` (continue) or `StreamEvent.LOOP_END` (finish) | `PipelineElementLoop` ([PipelineElement](../../concepts/pipeline_element.md) Interface marker); `PipelineImpl` loop re-queueing ([Pipeline](../../concepts/pipeline.md)); `evaluate_condition()` / `evaluate_define()` ([utility elements](../utilities/elements.md)); `parse()` (S-expression parser) |
 
 ## Current limitations and roadmap
 
@@ -193,11 +194,11 @@ From the source To Do list:
 - Log debug output for the `define`, `condition` and `expression`
   parameter evaluations.
 
-Additional observed limitations (implemented behaviour, not yet in the
+Additional observed limitations (implemented behavior, not yet in the
 To Do list):
 
 - Only the first `:`-separated component of `boundary` is used by the
-  Pipeline loop machinery; the `NEXT_ELEMENT` part (e.g. `:Inspect` in
+  Pipeline loop machinery. The `NEXT_ELEMENT` part (for example, `:Inspect` in
   `factorial_pipeline.json`) is documentation only.
 - One loop per Stream: `loop_boundary`, `loop_node` and `loop_graph` are
   single slots in `stream.variables`, so nested or multiple sequential
@@ -211,7 +212,7 @@ To Do list):
 ## Related concepts
 
 - [PipelineElement](../../concepts/pipeline_element.md) — the contract
-  Loop implements; `PipelineElementLoop` and `StreamEvent.LOOP_END`
+  Loop implements. `PipelineElementLoop` and `StreamEvent.LOOP_END`
 - [Pipeline](../../concepts/pipeline.md) — hosts the loop re-queueing
   machinery
 - [Parameters](../../concepts/parameters.md) — how `boundary` / `define`

@@ -6,12 +6,12 @@ description: Index of the media PipelineElement concept documents — text,
 type: index
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/media
 related: [pipeline_element, data_source_target, scheme, pipeline]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Media PipelineElements index

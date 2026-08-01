@@ -6,7 +6,7 @@ description: PipelineElements (current DataSource / DataTarget style) that
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/gstreamer/rtsp_io.py
   - src/aiko_services/elements/gstreamer/pipelines/rtsp_pipeline_0.json
@@ -14,22 +14,22 @@ source:
 related: [data_source_target, scheme, pipeline_element, pipeline, stream,
   parameters, scheme_rtsp, utilities, video_reader]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # VideoReadRTSP and VideoWriteRTSP
 
 ## Overview
 
-`rtsp_io.py` provides the RTSP PipelineElements in the **current**
-Aiko Services style — subclasses of
-[DataSource / DataTarget](../../concepts/data_source_target.md) whose
-actual network I/O is delegated to the `rtsp:` /
-[DataScheme](../../concepts/scheme.md) implemented by
-[scheme_rtsp](scheme_rtsp.md):
+`rtsp_io.py` gives the RTSP PipelineElements in the **current**
+Aiko Services style. They are subclasses of
+[DataSource / DataTarget](../../concepts/data_source_target.md). They
+delegate their network I/O to the `rtsp:`
+[DataScheme](../../concepts/scheme.md), which
+[scheme_rtsp](scheme_rtsp.md) implements:
 
 - **`VideoReadRTSP`** — an RTSP *client* DataSource: connects to an RTSP
-  server (typically a network camera), decodes H.264 video via GStreamer
+  server (typically a network camera), decodes H.264 video through GStreamer
   and emits one image per Frame into the
   [Pipeline](../../concepts/pipeline.md). Implemented and exercised by the
   two committed PipelineDefinitions (`rtsp_pipeline_0.json`,
@@ -38,7 +38,7 @@ actual network I/O is delegated to the `rtsp:` /
   frames produced by the Pipeline to RTSP clients. Currently a
   **non-functional stub** (see Current limitations and roadmap).
 
-**Why you'd use it**: point a Pipeline at a security camera and process
+**Why to use it**: point a Pipeline at a security camera and process
 its live video with ordinary
 [PipelineElements](../../concepts/pipeline_element.md) — display, record,
 infer — without any camera-specific code:
@@ -52,7 +52,7 @@ aiko_pipeline create pipelines/rtsp_pipeline_0.json -s 1 \
 
 ### Command-line usage
 
-These elements have no CLI of their own — they are hosted via
+These elements have no CLI of their own — they are hosted through
 `aiko_pipeline` (see [Pipeline](../../concepts/pipeline.md)). From the
 source usage header (run from
 `src/aiko_services/elements/gstreamer/`):
@@ -82,18 +82,18 @@ Both definitions carry placeholder camera credentials
 
 **`VideoReadRTSP(aiko.DataSource)`** — protocol `video_read_rtsp:0`.
 
-Parameters (resolved via
-[Parameters](../../concepts/parameters.md); most are consumed by
+Parameters (resolved through
+[Parameters](../../concepts/parameters.md). Most are consumed by
 [DataSchemeRTSP](scheme_rtsp.md) during `start_stream()`):
 
-| Parameter | Required | Meaning |
+| Parameter | Needed | Meaning |
 |-----------|----------|---------|
 | `data_sources` | yes | RTSP server URL (single entry) — see URL forms below |
-| `frame_rate` | yes | Frames per second as a GStreamer fraction, e.g. `"25/1"` |
-| `resolution` | yes | `"WIDTHxHEIGHT"`, e.g. `"640x480"` |
+| `frame_rate` | yes | Frames per second as a GStreamer fraction, for example, `"25/1"` |
+| `resolution` | yes | `"WIDTHxHEIGHT"`, for example, `"640x480"` |
 | `format` | no | Pixel format, default `"RGB"` (from [utilities](utilities.md) `get_format()`) |
-| `data_batch_size` | no | Accepted but not yet honoured — always one image per Frame (scheme To Do) |
-| `media_type` | no | If set, `process_frame()` converts images via `convert_images()` (e.g. to PIL) |
+| `data_batch_size` | no | Accepted but not yet honored — always one image per Frame (scheme To Do) |
+| `media_type` | no | If set, `process_frame()` converts images through `convert_images()` (for example, to PIL) |
 
 URL forms (from the `scheme_rtsp.py` header — the `data_sources` list
 should contain a single entry):
@@ -115,14 +115,14 @@ pass-through: it logs the timestamp, optionally converts the images per
 Stream lifecycle is entirely inherited from
 [DataSource](../../concepts/data_source_target.md): `start_stream()`
 selects `DataSchemeRTSP` from the URL scheme and calls
-`create_sources()`; `stop_stream()` calls `destroy_sources()`.
+`create_sources()`. `stop_stream()` calls `destroy_sources()`.
 
-**`VideoWriteRTSP(aiko.DataTarget)`** — protocol `video_write_rtsp:0`;
-parameter `data_targets` names the RTSP server details. **Stub only**:
-`process_frame(stream, images)` serialises each image with
-`image_to_bytes()` but the actual send is commented out — and
-`image_to_bytes` is not imported by this module (see roadmap), so the
-method would raise `NameError` if invoked. `VideoWriteRTSP` is also
+**`VideoWriteRTSP(aiko.DataTarget)`** has protocol
+`video_write_rtsp:0`. Its `data_targets` parameter names the RTSP server
+details. It is a **stub only**. `process_frame(stream, images)`
+serializes each image with `image_to_bytes()`, but the send is commented
+out. This module does not import `image_to_bytes` (refer to the
+roadmap), so the method would raise `NameError` if it were invoked. `VideoWriteRTSP` is also
 excluded from the module's `__all__` and from the package
 `__init__.py` exports.
 
@@ -141,13 +141,13 @@ excluded from the module's `__all__` and from the package
 
 - **Thin element, fat scheme.** All GStreamer work — pipeline
   construction, H.264 decode, pacing, timestamps — lives in
-  [DataSchemeRTSP](scheme_rtsp.md); the element contributes only the
+  [DataSchemeRTSP](scheme_rtsp.md). The element contributes only the
   optional `media_type` conversion. This is the intended division of
-  labour of the [DataSource / DataTarget](../../concepts/data_source_target.md)
+  labor of the [DataSource / DataTarget](../../concepts/data_source_target.md)
   design (element = what the data means, scheme = how to reach it).
 - **Timestamps as Stream variables.** Frame capture times travel in
   `stream.variables["timestamps"]` rather than in the swag, so downstream
-  recorders (e.g. `VideoWriteFiles`) can name files by capture time.
+  recorders (for example, `VideoWriteFiles`) can name files by capture time.
   `process_frame()` uses negative sentinel values (`-3.0` missing,
   `-4.0` falsy) when no timestamp is available.
 - The header comments note both classes "only support Streams with"
@@ -157,11 +157,11 @@ excluded from the module's `__all__` and from the package
 
 - `process_frame()` contains a commented-out
   `print_memory_used(...)` probe — RTSP streams are long-running and
-  memory growth has evidently been watched here; see the
+  memory growth has evidently been watched here. See the
   `buffer.map()` leak note in [video_reader](video_reader.md).
 - `VideoWriteRTSP.process_frame()` hard-codes `media_type = "image"`
   with a TODO considering `"image/zip"`, and a commented
-  `"image:length:content"` record framing; the commented send targets
+  `"image:length:content"` record framing. The commented send targets
   `stream.variables["target_zmq_socket"]` — a leftover from the ZMQ
   DataScheme this stub was adapted from.
 
@@ -170,24 +170,27 @@ excluded from the module's `__all__` and from the package
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `VideoReadRTSP` | DataSource PipelineElement: declare protocol `video_read_rtsp:0`; optionally convert images per `media_type`; forward `{"images": …}`; surface capture timestamps from Stream variables | [DataSource](../../concepts/data_source_target.md) (lifecycle), [DataSchemeRTSP](scheme_rtsp.md) (I/O), [Stream](../../concepts/stream.md) (`variables["timestamps"]`), `convert_images` (`aiko_services.elements.media`) |
-| `VideoWriteRTSP` (stub) | DataTarget PipelineElement intended to push frames to an RTSP server; currently serialise-and-drop | [DataTarget](../../concepts/data_source_target.md), [DataSchemeRTSP](scheme_rtsp.md) (`create_targets()` — also incomplete) |
+| `VideoWriteRTSP` (stub) | DataTarget PipelineElement intended to push frames to an RTSP server; currently serialize-and-drop | [DataTarget](../../concepts/data_source_target.md), [DataSchemeRTSP](scheme_rtsp.md) (`create_targets()` — also incomplete) |
 
 ## Current limitations and roadmap
 
 From the source To Do list and the state of the code:
 
-- **`VideoWriteRTSP` is not functional**: the send is commented out;
-  `image_to_bytes` is used but not imported (would `NameError`); the
-  class is not exported via `__all__` or the package `__init__.py`; and
-  the scheme side (`DataSchemeRTSP.create_targets()`) is itself broken —
-  see [scheme_rtsp](scheme_rtsp.md).
-- Planned: a device-discovery PipelineElement using avahi-browse /
-  zeroconf feeding a Device Registrar — static configuration for device
-  types (ESP32, Host, Robot), dynamically created Actors per device,
-  starting with network cameras (Dahua, HikVision).
+- **`VideoWriteRTSP` is not functional.** Four faults apply:
+    - The send is commented out
+    - `image_to_bytes` is used but not imported, which gives a
+      `NameError`
+    - The class is not exported through `__all__`, nor through the
+      package `__init__.py`
+    - The scheme side (`DataSchemeRTSP.create_targets()`) is itself
+      broken — refer to [scheme_rtsp](scheme_rtsp.md)
+- Planned: a device-discovery PipelineElement that uses avahi-browse or
+  zeroconf, and feeds a Device Registrar. It gets static configuration
+  for device types (ESP32, Host, Robot), and it makes Actors dynamically
+  for each device. Network cameras (Dahua, HikVision) come first.
 - Design question recorded in the header: should a "VideoRTSPStore"
   (RTSP in, video files out) be a DataSource in its own right?
-- `data_batch_size` accepted but not honoured (one image per Frame).
+- `data_batch_size` accepted but not honored (one image per Frame).
 
 ## Related concepts
 
@@ -199,12 +202,12 @@ From the source To Do list and the state of the code:
   these elements
 - [PipelineElement](../../concepts/pipeline_element.md) — the element
   contract (`process_frame()`, StreamEvents)
-- [Pipeline](../../concepts/pipeline.md) — hosts the elements;
+- [Pipeline](../../concepts/pipeline.md) — hosts the elements. The
   `aiko_pipeline` CLI
 - [Stream](../../concepts/stream.md) — lifecycle and per-Stream variables
 - [Parameters](../../concepts/parameters.md) — how `data_sources`,
-  `resolution` etc. are supplied
-- [utilities](utilities.md) — GStreamer initialisation and codec
+  `resolution` and the other parameters are supplied
+- [utilities](utilities.md) — GStreamer initialization and codec
   selection helpers
 - [video_reader](video_reader.md) — the legacy `VideoReader` reused by
   the RTSP DataScheme

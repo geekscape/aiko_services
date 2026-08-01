@@ -6,12 +6,12 @@ description: A dormant Pipeline_2020-era demonstration of a branching
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/media/video_example.py
 related: [pipeline, pipeline_element, video_io, image_io, images_to_video]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Video example script (legacy)
@@ -20,22 +20,23 @@ last_updated: 2026-07-06
 
 `video_example.py` is a **dormant legacy script** from the
 `Pipeline_2020` generation of the framework. It sketches a
-seven-element video-processing pipeline — read a video, annotate
-frames along one of two branches chosen by a `StateMachine`
-(`start` / `alternate` states), overlay, display, resize, and re-encode
-— declared as a Python list of dicts. Its `__main__` block (including
+seven-element video-processing pipeline, declared as a Python list of
+dicts. That pipeline reads a video, then annotates frames along one of
+two branches. A `StateMachine` chooses the branch (`start` and
+`alternate` states). The pipeline then overlays, displays, resizes and
+re-encodes. Its `__main__` block (including
 the `StateMachine` wiring and an `event.add_timer_handler()` test) is
-entirely commented out; the `Pipeline_2020` class, the
+entirely commented out. The `Pipeline_2020` class, the
 `ImageAnnotate1` / `ImageAnnotate2` elements and the module paths it
 references no longer exist.
 
 Two ideas in it remain interesting and are noted on modern roadmaps:
 **state-dependent successors** (a per-element `successors` dict keyed
-by state — cf. Graph Path selection in the current
+by state. Compare that with Graph Path selection in the current
 [Pipeline](../../concepts/pipeline.md)) and a **windowed video player
 interface** (`run()` / `pause()` / `step()`).
 
-**Why you'd use it**: you wouldn't — the working equivalents are the
+**Why to use it**: you would not — the working equivalents are the
 committed PipelineDefinitions:
 
 ```bash
@@ -72,7 +73,7 @@ have no modern JSON equivalent yet:
   here) that would trigger a state change at a given frame
 
 The elements named (`ImageAnnotate1`, `ImageAnnotate2`) do not exist in
-[image_io](image_io.md); `VideoShow` window parameters appear here as
+[image_io](image_io.md). `VideoShow` window parameters appear here as
 `window_location` / `window_title` where the modern element uses
 `position` / `title` ([video_io](video_io.md)).
 
@@ -93,7 +94,7 @@ idea came from:
 ```
 
 The modern engine expresses static graphs in the JSON `graph`
-S-expression and selects sub-graphs with Graph Paths (`-gp`); dynamic,
+S-expression and selects sub-graphs with Graph Paths (`-gp`). Dynamic,
 state-driven branch switching as sketched here has no direct
 replacement yet.
 
@@ -109,15 +110,15 @@ replacement yet.
 The script is dead code, and its own To Do list is effectively a
 feature wish-list for the modern elements:
 
-- Turn it into an Aiko Services Service; CLI `--pause` (display first
-  frame and pause); a player interface — `frame_rate()`, `run()`,
+- Turn it into an Aiko Services Service. CLI `--pause` (display first
+  frame and pause). A player interface — `frame_rate()`, `run()`,
   `pause()`, `step(±frame_count)`
 - Video overlay of `frame_id` and statistics (now an
   `ImageOverlay` TODO — see [image_io](image_io.md))
 - `timer_test()` handler driving `state_action` state changes
 - try/except around the OpenCV import with a simple message (now done
-  via `_CV2_IMPORTED` guards in the modern modules); split into
-  `video_opencv.py` / `video_scikit.py` / `video_gstreamer.py`; ensure
+  through `_CV2_IMPORTED` guards in the modern modules). Split into
+  `video_opencv.py` / `video_scikit.py` / `video_gstreamer.py`. Make sure
   the OpenCV path uses asyncio and does not block
 
 Candidate for deletion once the state-keyed `successors` and player

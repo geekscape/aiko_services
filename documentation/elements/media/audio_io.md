@@ -6,13 +6,13 @@ description: PipelineElements for audio frames — a pass-through AudioOutput,
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/media/audio_io.py
 related: [pipeline_element, data_source_target, scheme, stream, parameters,
   scheme_file, video_io, text_io]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Audio I/O elements
@@ -32,13 +32,14 @@ largely **work-in-progress scaffolding**. What exists today:
   from `VideoReadFile` ([video_io](video_io.md)) and not yet converted
   to real audio decoding (it still opens files with
   `open_video_capture()` and its iterator body is commented out).
-- A large **disabled** (string-quoted) legacy suite — `PE_AudioFilter`,
+- A large **disabled** (string-quoted) legacy suite: `PE_AudioFilter`,
   `PE_AudioResampler`, `PE_FFT`, `PE_GraphXY`, `PE_MicrophonePA`,
-  `PE_MicrophoneSD`, `PE_Speaker` — a microphone → FFT → spectrum-graph
-  / speaker chain from an earlier framework generation, kept as
-  reference for the planned Speech-To-Text / Text-To-Speech refactor.
+  `PE_MicrophoneSD` and `PE_Speaker`. This is a microphone → FFT →
+  spectrum-graph / speaker chain from an earlier framework generation.
+  It is kept as a reference for the planned Speech-To-Text /
+  Text-To-Speech refactor.
 
-**Why you'd (eventually) use it**: the intended shape mirrors the other
+**Why to use it (eventually)**: the intended shape mirrors the other
 media families — `data_sources file:...mp3` in, transforms, and
 `data_targets` out:
 
@@ -78,7 +79,7 @@ aiko_pipeline create pipelines/audio_pipeline_0.json -s 1  \
 ```
 
 (The header also references an `AudioResample` element and an
-`AudioWriteFile` element — neither exists yet; `AudioWriteFile` appears
+`AudioWriteFile` element — neither exists yet. `AudioWriteFile` appears
 commented out in the module `__all__`.)
 
 The disabled legacy suite documents its own usage:
@@ -95,23 +96,23 @@ Implemented classes:
 | Class | Kind | Inputs → Outputs | Parameters |
 |-------|------|------------------|------------|
 | `AudioOutput` | pass-through | `audio_samples` → `audio_samples` | (none) |
-| `AudioReadFile` | DataSource (scaffold) | `images` → `images` *(sic — still video-shaped)* | `data_sources` (`file:` URL, required), `rate` |
+| `AudioReadFile` | DataSource (scaffold) | `images` → `images` *(sic — still video-shaped)* | `data_sources` (`file:` URL, needed), `rate` |
 
 Service protocols: `audio_output:0`, `audio_read_file:0`.
 
-`AudioReadFile`'s documented intent: individual audio files, a
-directory of audio files with an optional filename filter, and
-(TODO) archives — with `data_sources` as the read path and an
-`audio_id` format variable, mirroring `TextReadFile` /
-`ImageReadFile` / `VideoReadFile`. Its **current** behaviour does not
+The documented intent of `AudioReadFile` covers three inputs:
+individual audio files, a directory of audio files with an optional
+filename filter, and (TODO) archives. It uses `data_sources` as the read
+path, and an `audio_id` format variable. This mirrors `TextReadFile`,
+`ImageReadFile` and `VideoReadFile`. Its **current** behavior does not
 match that intent (see Implementation notes) — treat this element as
 not yet usable.
 
-Disabled legacy classes (inside the module's quoted block; **not
+Disabled legacy classes (inside the module's quoted block. **not
 importable**): `PE_AudioFilter` (amplitude/frequency band-pass on FFT
 output), `PE_AudioResampler` (consolidate spectrum into 8 bands and
 publish LED drawing commands over MQTT), `PE_FFT` (NumPy FFT →
-`amplitudes` / `frequencies`), `PE_GraphXY` (pygal spectrum plot via
+`amplitudes` / `frequencies`), `PE_GraphXY` (pygal spectrum plot through
 OpenCV window), `PE_MicrophonePA` (PyAudio capture),
 `PE_MicrophoneSD` (sounddevice capture with a remotely callable
 `mute(duration)`), `PE_Speaker` (sounddevice playback that mutes the
@@ -136,15 +137,15 @@ discovered microphone while speaking).
                                  PE_Speaker (playback + mic mute)
 ```
 
-- The module reserves the file-family slot for audio; the real design
-  decision — which decode library replaces the `open_video_capture()`
-  placeholder, and whether formats are `.mp3` / `.ogg` / `.wav` — is
-  still open (module To Do).
+- The module reserves the file-family slot for audio. The real design
+  decision is still open (module To Do). It has two parts: which decode
+  library replaces the `open_video_capture()` placeholder, and whether
+  the formats are `.mp3`, `.ogg` or `.wav`.
 - The legacy microphone elements predate the
   [Stream](../../concepts/stream.md)-centric DataSource design: they
   open hardware in `__init__()`, spawn their own daemon threads and
   push frames with `create_frame()` — exactly what
-  `start_stream()` / frame generators now standardise. They are kept
+  `start_stream()` / frame generators now standardize. They are kept
   as the source material for the planned Speech-To-Text /
   Text-To-Speech refactor.
 
@@ -158,22 +159,22 @@ unfinished clone from `VideoReadFile`):
   passes `images` through — the frame data is still named for video.
 - `audio_frame_iterator()` has its body commented out and executes a
   bare `yield` in an infinite loop — every "audio sample" is `None`.
-- `start_stream()` does **not** initialise
-  `stream.variables["audio_capture"]` (the line is commented out), so
-  `stop_stream()` raises `KeyError` if the Stream stops before a file
-  was opened, and would raise `AttributeError` on a `None` capture —
-  compare `VideoReadFile.stop_stream()`, which guards both.
+- `start_stream()` does **not** initialize
+  `stream.variables["audio_capture"]`, because the line is commented
+  out. Thus `stop_stream()` raises `KeyError` if the Stream stops before
+  a file was opened. It would also raise `AttributeError` on a `None`
+  capture. Compare `VideoReadFile.stop_stream()`, which guards both.
 - The optional-import guards are placeholders: `_XXX_IMPORTED` guards a
   commented-out `import xxx`, awaiting a real audio dependency.
 - `audio_io.py` imports `open_video_capture` from
-  `aiko_services.elements.media` (its own package `__init__`); this
+  `aiko_services.elements.media` (its own package `__init__`). This
   works only because `audio_io` is imported last in that `__init__` —
   an import-order fragility worth knowing before reordering.
-- In the disabled suite: `PE_Speaker.process_frame()` references
+- In the disabled suite, `PE_Speaker.process_frame()` references
   `self._microphone_topic_path`, which is never assigned
-  (`self._microphone_service` is), and several `return` statements
-  split tuples across lines in a way that would be a syntax error if
-  the block were ever un-quoted verbatim.
+  (`self._microphone_service` is). Also, several `return` statements
+  split tuples across lines. That would be a syntax error if the block
+  were un-quoted verbatim.
 
 ### CRC card
 
@@ -181,24 +182,24 @@ unfinished clone from `VideoReadFile`):
 |-------|------------------|---------------|
 | `AudioOutput` | Pass audio samples through as the Pipeline response tail | [PipelineElement](../../concepts/pipeline_element.md) |
 | `AudioReadFile` (scaffold) | *Intended*: iterate audio files from `data_sources`, emit audio-sample frames | [DataSource](../../concepts/data_source_target.md), [DataSchemeFile](scheme_file.md), `open_video_capture()` ([video_io](video_io.md) — placeholder), [Stream](../../concepts/stream.md) |
-| `PE_Microphone*`, `PE_FFT`, `PE_AudioFilter`, `PE_AudioResampler`, `PE_GraphXY`, `PE_Speaker` (disabled) | Legacy capture → FFT → visualise/playback chain; reference for refactor | [PipelineElement](../../concepts/pipeline_element.md) (old idioms), `ECProducer`, MQTT publishing |
+| `PE_Microphone*`, `PE_FFT`, `PE_AudioFilter`, `PE_AudioResampler`, `PE_GraphXY`, `PE_Speaker` (disabled) | Legacy capture → FFT → visualize/playback chain; reference for refactor | [PipelineElement](../../concepts/pipeline_element.md) (old idioms), `ECProducer`, MQTT publishing |
 
 ## Current limitations and roadmap
 
 - **No working audio DataSource/DataTarget yet** — `AudioReadFile` is a
   scaffold and `AudioWriteFile` does not exist (commented out of
-  `__all__`); `src/aiko_services/elements/media/__init__.py` imports
+  `__all__`). `src/aiko_services/elements/media/__init__.py` imports
   only `AudioOutput`.
 - **No committed audio PipelineDefinition** — the usage header's
   `pipelines/audio_pipeline_0.json` (and the `AudioResample` element it
-  parameterises) are yet to be written.
+  parameterizes) are yet to be written.
 - Module To Do list: decide supported formats (`.mp3`, `.ogg`,
   `.wav`?), and refactor the Speech-To-Text / Text-To-Speech
   PipelineElements out of the disabled legacy suite.
-- Legacy-suite To Dos (recorded in the quoted block): ensure Registrar
-  interaction occurs before flooding the Pipeline; move
-  `PE_Microphone*` `__init__()` hardware setup into `start_stream()`;
-  promote the many module-level literals (sample rates, chunk sizes,
+- Legacy-suite To Dos, recorded in the quoted block: make sure that
+  Registrar interaction occurs before the Pipeline is flooded. Move the
+  `PE_Microphone*` `__init__()` hardware setup into `start_stream()`.
+  Promote the many module-level literals (sample rates, chunk sizes,
   band counts) into [Parameters](../../concepts/parameters.md) and
   shared state.
 

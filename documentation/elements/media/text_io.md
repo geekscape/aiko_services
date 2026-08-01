@@ -5,7 +5,7 @@ description: PipelineElements that read, transform, sample and write frames
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/media/text_io.py
   - src/aiko_services/elements/media/pipelines/text_pipeline_0.json
@@ -18,7 +18,7 @@ source:
 related: [pipeline_element, data_source_target, scheme, stream, parameters,
   scheme_file, scheme_tty, scheme_zmq, image_io, video_io]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Text I/O elements
@@ -29,18 +29,18 @@ The **text I/O elements** are the simplest complete family of media
 [PipelineElements](../../concepts/pipeline_element.md) in Aiko Services:
 sources that read text (from files, an interactive terminal or a ZeroMQ
 socket), transforms that change or sample it, and targets that write it
-back out. Because text needs no optional native libraries, this module is
-the best starting point for learning the
+back out. Text needs no optional native libraries. Thus this module is
+the best start point to learn the
 [DataSource / DataTarget](../../concepts/data_source_target.md) and
-[DataScheme](../../concepts/scheme.md) design — the image and video
+[DataScheme](../../concepts/scheme.md) design. The image and video
 families ([image_io](image_io.md), [video_io](video_io.md)) follow the
 same shape.
 
-The frame data convention is `texts: [str]` — every element consumes
-and/or produces a *list* of text strings per frame, so
-`data_batch_size > 1` and multi-record ZeroMQ frames "just work".
+The frame data convention is `texts: [str]`. Every element consumes or
+produces a *list* of text strings per frame. Thus `data_batch_size > 1`
+and multi-record ZeroMQ frames work without extra code.
 
-**Why you'd use it**: transform a directory of text files, changing only
+**Why to use it**: transform a directory of text files, changing only
 URL parameters to switch between file, terminal and network transports:
 
 ```bash
@@ -56,12 +56,12 @@ aiko_pipeline create pipelines/text_pipeline_0.json -s 1 \
 
 ### Command-line usage
 
-All commands run from `src/aiko_services/elements/media` via the
-`aiko_pipeline` CLI. Common options: `-s 1` creates Stream 1, `-sr`
-shows the Pipeline response, `-ll debug` raises the log level,
-`-gt 10` sets the Stream frame-receive grace time (seconds) and
+All commands run from `src/aiko_services/elements/media` through the
+`aiko_pipeline` CLI. These are the common options. `-s 1` makes
+Stream 1. `-sr` shows the Pipeline response. `-ll debug` raises the log
+level. `-gt 10` sets the Stream frame-receive grace time in seconds.
 `-p ELEMENT.name value` sets element parameters (`-sp` is deprecated
-in favour of `-p`).
+in favor of `-p`).
 
 File pipelines (from the `text_io.py` usage header):
 
@@ -88,7 +88,7 @@ aiko_pipeline create pipelines/text_pipeline_0.json -s 1 \
 ```
 
 Drop-frame tests — `TextSample` locally, then split across two processes
-with a remote element (start `text_pipeline_3.json` first; see
+with a remote element (start `text_pipeline_3.json` first. See
 [PipelineElement](../../concepts/pipeline_element.md) for remote
 deployment):
 
@@ -125,19 +125,19 @@ aiko_pipeline create pipelines/text_zmq_pipeline_1.json -s 1 -sr  \
 
 ### Public API
 
-Every class is a PipelineElement; sources extend `aiko.DataSource`,
+Every class is a PipelineElement. Sources extend `aiko.DataSource`,
 targets extend `aiko.DataTarget`, transforms extend
 `aiko.PipelineElement` directly. Frame data types below use the
 PipelineDefinition notation.
 
 | Class | Kind | Inputs → Outputs | Parameters |
 |-------|------|------------------|------------|
-| `TextReadFile` | DataSource | `paths: [Path]` → `texts: [str]` | `data_sources` (`file:` URL, required), `data_batch_size` (default 1), `rate` |
+| `TextReadFile` | DataSource | `paths: [Path]` → `texts: [str]` | `data_sources` (`file:` URL, needed), `data_batch_size` (default 1), `rate` |
 | `TextReadTTY` | DataSource | `records: [str]` → `texts: [str]` | `data_sources` (`tty://`), `tty_prompt` (default `"> "`), `rate` (default 20.0) |
 | `TextReadZMQ` | DataSource | `records: [bytes]` → `texts: [str]` | `data_sources` (`zmq://host:port_range`), `data_batch_size` |
 | `TextSample` | transform | `texts: [str]` → `texts: [str]` | `sample_rate` (default 1): keep frames where `frame_id % sample_rate == 0`, else `DROP_FRAME` |
-| `TextTransform` | transform | `texts: [str]` → `texts: [str]` | `transform` (**required**): `lowercase`, `none`, `titlecase`, `uppercase` |
-| `TextWriteFile` | DataTarget | `texts: [str]` → (none) | `data_targets` (`file:` URL, required) |
+| `TextTransform` | transform | `texts: [str]` → `texts: [str]` | `transform` (**needed**): `lowercase`, `none`, `titlecase`, `uppercase` |
+| `TextWriteFile` | DataTarget | `texts: [str]` → (none) | `data_targets` (`file:` URL, needed) |
 | `TextWriteTTY` | DataTarget | `texts: [str]` → (none) | `data_targets` (`tty://`), `tty_prompt` (default `"> "`) |
 | `TextWriteZMQ` | DataTarget | `texts: [str]` → (none) | `data_targets` (`zmq://host:port`) |
 | `TextOutput` | pass-through | `texts: [str]` → `texts: [str]` | (none) — placed last so the Pipeline response carries the processed text |
@@ -158,15 +158,15 @@ zmq://0.0.0.0:6502            ZeroMQ bind / connect  (scheme_zmq.md)
 zmq://*:6502-6510             bind: any port in range (sources only)
 ```
 
-**Stream lifecycle behaviour:**
+**Stream lifecycle behavior:**
 
 - `TextReadFile.process_frame(stream, paths)` reads each `Path` whole —
-  one file becomes one string; a read failure returns
+  one file becomes one string. A read failure returns
   `StreamEvent.ERROR` with a `diagnostic`. End of files stops the Stream
   (`StreamEvent.STOP` from the scheme's frame generator).
 - `TextWriteFile.start_stream()` opens `target_path` once when the URL
   is *not* a `{}` template (all frames append to one file, no separators
-  added); with a template each text is written to its own formatted
+  added). With a template each text is written to its own formatted
   path (`target_file_id` increments per text). `stop_stream()` closes
   the single file.
 - `TextReadTTY.start_stream()` installs a small command interpreter over
@@ -174,13 +174,13 @@ zmq://*:6502-6510             bind: any port in range (sources only)
   `/h` list history, `/h N` re-execute line N, `/x` exit (raises
   `SystemExit`). Non-command lines are appended to
   `stream.variables["tty_command_lines"]` and emitted as `texts`.
-- `TextWriteTTY.process_frame()` prints each text, then reprints the
-  prompt as `NNN:PROMPT` where `NNN` is the history length — it reads
-  `stream.variables["tty_command_lines"]`, so it only works downstream
-  of `TextReadTTY` in the same Stream.
-- `TextReadZMQ` decodes each received `bytes` record with `.decode()`;
-  `TextWriteZMQ` sends `text.encode()` — one ZeroMQ message per text
-  string, out-of-band from MQTT.
+- `TextWriteTTY.process_frame()` prints each text. It then prints the
+  prompt again as `NNN:PROMPT`, where `NNN` is the history length. It
+  reads `stream.variables["tty_command_lines"]`. Thus it works only
+  downstream of `TextReadTTY` in the same Stream.
+- `TextReadZMQ` decodes each received `bytes` record with `.decode()`.
+  `TextWriteZMQ` sends `text.encode()`. That is one ZeroMQ message per
+  text string, out-of-band from MQTT.
 
 `TextOutput` exists so that `aiko_pipeline ... -sr` (show response) can
 display the final `texts` — Pipeline output is taken from the last
@@ -220,7 +220,7 @@ element's declared `output`.
 
 ### Implementation notes
 
-- `TextTransform` treats `transform: none` as an identity optimisation
+- `TextTransform` treats `transform: none` as an identity optimization
   (no per-string calls). An unknown transform or a missing `transform`
   parameter is a Stream `ERROR`, not a silent pass-through.
 - `TextReadTTY._parse_command_line()` implements the `//` escape as
@@ -229,12 +229,12 @@ element's declared `output`.
   (returning `None`) should probably `DROP_FRAME` instead of emitting an
   empty `texts` list.
 - `TextWriteFile` in non-template mode writes `f"{text}"` with **no**
-  record separator; streaming/CR-LF record options are on the To Do
+  record separator. Streaming/CR-LF record options are on the To Do
   list.
 - `TextReadTTY` and `TextWriteTTY` are **not** listed in the module
   `__all__` nor imported by
   `src/aiko_services/elements/media/__init__.py` — they are only
-  reachable via the PipelineDefinition `deploy.local.module` loader
+  reachable through the PipelineDefinition `deploy.local.module` loader
   (as `text_tty_pipeline_0.json` does).
 
 ### CRC card
@@ -248,7 +248,7 @@ element's declared `output`.
 | `TextTransform` | Apply case transform selected by `transform` parameter | [PipelineElement](../../concepts/pipeline_element.md), [Parameters](../../concepts/parameters.md) |
 | `TextWriteFile` | Write texts to one file or per-text template paths; manage file handle over the Stream lifecycle | [DataTarget](../../concepts/data_source_target.md), [DataSchemeFile](scheme_file.md) |
 | `TextWriteTTY` | Print texts and re-issue the numbered prompt | [DataTarget](../../concepts/data_source_target.md), [DataSchemeTTY](scheme_tty.md), `TextReadTTY` (shared `tty_command_lines`) |
-| `TextWriteZMQ` | Send each text as a ZeroMQ message via `stream.variables["target_zmq_socket"]` | [DataTarget](../../concepts/data_source_target.md), [DataSchemeZMQ](scheme_zmq.md) |
+| `TextWriteZMQ` | Send each text as a ZeroMQ message through `stream.variables["target_zmq_socket"]` | [DataTarget](../../concepts/data_source_target.md), [DataSchemeZMQ](scheme_zmq.md) |
 | `TextOutput` | Pass `texts` through as the Pipeline response tail | [PipelineElement](../../concepts/pipeline_element.md) |
 
 ## Current limitations and roadmap
@@ -256,12 +256,12 @@ element's declared `output`.
 From the source To Do list — all **planned**, not implemented:
 
 - ZeroMQ as a full remote-PipelineElement transport: send `content`
-  out-of-band via ZeroMQ, compared with the default in-band MQTT remote
-- Media-type encoding for text records, e.g. `text:length:content` or
+  out-of-band through ZeroMQ, compared with the default in-band MQTT remote
+- Media-type encoding for text records, for example, `text:length:content` or
   `text/zip:length:content` (commented stubs exist in `TextReadZMQ` /
   `TextWriteZMQ`)
-- `TextReadFile(s)` / `TextWriteFile(s)`: per-line records (streaming);
-  CR/LF, JSON, XML, CSV formats
+- `TextReadFile(s)` and `TextWriteFile(s)`: per-line records
+  (streaming), and the CR/LF, JSON, XML and CSV formats
 - `TextFilter` (line/word/character counts) and richer `TextTransform`
   operations (`strip()`, …)
 - `TextSample` by text count within `texts`, rather than by frame
@@ -277,7 +277,7 @@ From the source To Do list — all **planned**, not implemented:
   every class here implements
 - [DataSource / DataTarget](../../concepts/data_source_target.md) — base
   classes for the read/write elements
-- [DataScheme](../../concepts/scheme.md) — URL-scheme plug-ins; see
+- [DataScheme](../../concepts/scheme.md) — URL-scheme plug-ins. See
   [scheme_file](scheme_file.md), [scheme_tty](scheme_tty.md),
   [scheme_zmq](scheme_zmq.md)
 - [Stream](../../concepts/stream.md) — lifecycle and `stream.variables`

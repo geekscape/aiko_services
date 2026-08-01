@@ -1,45 +1,45 @@
 ---
 title: Observe elements
 description: Observability PipelineElements — Inspect writes selected
-  Frame swag values to log, file or stdout; Metrics reports per-element
+  Frame swag values to log, file or stdout. Metrics reports per-element
   and whole-Pipeline timing and memory figures
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/observe/elements.py
   - src/aiko_services/elements/observe/pipelines/pipeline_observe.json
 related: [pipeline_element, pipeline, parameters, stream, dashboard]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Observe elements
 
 ## Overview
 
-The observe elements module provides two
+The observe elements module gives two
 [PipelineElements](../../concepts/pipeline_element.md) for watching a
 running [Pipeline](../../concepts/pipeline.md) from inside the graph:
 
 - **Inspect** — prints selected (or all) values from the Frame's swag to
-  the log, a file or stdout; the in-graph equivalent of a debugger watch
+  the log, a file or stdout. The in-graph equivalent of a debugger watch
   window.
 - **Metrics** — reports the per-element `*_time` / `*_memory` figures and
   whole-Pipeline timing collected in each Frame's `metrics` dictionary
-  (see [Stream](../../concepts/stream.md)); conventionally placed at the
+  (see [Stream](../../concepts/stream.md)). Conventionally placed at the
   end of a graph, where it also forwards declared outputs so child
   Pipeline responses reach the parent Pipeline.
 
 Both are pure observers: they never modify the swag, and both pass
-through the values named in their `output` definition (via the
+through the values named in their `output` definition (through the
 `all_outputs()` helper from
 [utility elements](../utilities/elements.md)).
 
-**Why you'd use it**: to see what a Pipeline is actually doing — values
-flowing between elements and where the time goes — without adding print
-statements to element code:
+**Why to use it**: to see what a Pipeline does. It shows the values
+between elements, and where the time goes. You add no print statements
+to element code:
 
 ```bash
 cd src/aiko_services/elements/observe
@@ -53,8 +53,8 @@ aiko_pipeline create pipelines/pipeline_observe.json -ll debug -fd "(b: 0)"
 
 ### Command-line usage
 
-Observe elements have no CLI of their own; they are hosted and
-parameterised through the `aiko_pipeline` CLI. From the usage header of
+Observe elements have no CLI of their own. They are hosted and
+parameterized through the `aiko_pipeline` CLI. From the usage header of
 `elements.py`:
 
 ```bash
@@ -88,13 +88,13 @@ from aiko_services.elements.observe import Inspect, Metrics
 | Parameter | Default | Meaning |
 |-----------|---------|---------|
 | `enable` | `True` | Truthy → inspect this Frame; falsy → pass through only |
-| `inspect` | *(all swag names)* | S-expression list of swag names to show, e.g. `(factorial)`; `(*)` (or omitting the parameter) means every name in the swag |
+| `inspect` | *(all swag names)* | S-expression list of swag names to show, for example, `(factorial)`; `(*)` (or omitting the parameter) means every name in the swag |
 | `target` | `"log"` | `log` (logger, info level), `print` (stdout) or `file:PATH` (append to PATH); anything else returns `StreamEvent.ERROR` |
 
-- Frame contract: `input: []`; `output` declares any swag names to
+- Frame contract: `input: []`. `output` declares any swag names to
   forward (commonly `[]`). Missing swag names are shown as `None`.
 - Output line format: `NAME<stream_id:frame_id> name: value` (one line
-  per name, via `my_id()`).
+  per name, through `my_id()`).
 - Stream lifecycle: for `file:` targets the file handle is opened once
   per Stream (kept in `stream.variables["inspect_file"]`, append mode,
   flushed each Frame) and closed by `stop_stream()`.
@@ -106,10 +106,10 @@ from aiko_services.elements.observe import Inspect, Metrics
 | `enable` | `True` | Truthy → report; falsy → pass through only |
 | `rate` | `1` | Report every `rate`-th Frame (`frame_id % rate == 0`) |
 
-- Frame contract: `input: []`; `output` may name any value produced
-  earlier in the graph — the source comments note that Metrics typically
-  appears at the end of a Pipeline graph so that child Pipeline
-  responses can be returned to the parent Pipeline, e.g.
+- Frame contract: `input: []`. `output` may name any value that the
+  graph produced earlier. The source comments note that Metrics usually
+  appears at the end of a Pipeline graph. Thus a child Pipeline can
+  return responses to the parent Pipeline, for example
   `"output": [{ "name": "i", "type": "int" }]`.
 - Reported per Frame, at debug level, from `frame.metrics`:
   `ELEMENT_time` (milliseconds) and `ELEMENT_memory` (Mb, when the
@@ -141,24 +141,24 @@ from aiko_services.elements.observe import Inspect, Metrics
 - Per-Stream state (the Inspect output file handle) lives in
   `stream.variables`, per the PipelineElement rule that one instance
   serves every concurrent Stream.
-- Metrics is a consumer of the timing/memory capture performed by
+- Metrics is a consumer of the timing/memory capture done by
   `PipelineImpl` (`_process_metrics_start()` /
-  `_process_metrics_capture()`); it adds no instrumentation of its own.
+  `_process_metrics_capture()`). It adds no instrumentation of its own.
 
 ### Implementation notes
 
 - Parameter coercion: `enable` is used as a raw truthy value. A CLI or
   MQTT override arrives as a *string*, and the string `"false"` is
-  truthy — so `-p Inspect.enable false` does **not** disable Inspect;
-  only a definition-level `"enable": false` (JSON boolean) does.
+  truthy. Thus `-p Inspect.enable false` does **not** disable Inspect.
+  Only a definition-level `"enable": false` (JSON boolean) does.
   Similarly `rate` is used directly in `frame_id % rate`: a string value
   raises `TypeError` and `rate = 0` raises `ZeroDivisionError`.
 - Inspect validates `target` inside the per-name loop, so with an
   invalid target it returns `StreamEvent.ERROR` on the first name after
-  doing no output; the diagnostic text says `'file'` where the accepted
+  doing no output. The diagnostic text says `'file'` where the accepted
   form is the `file:PATH` prefix.
 - `Inspect.stop_stream()` closes the file handle but does not remove it
-  from `stream.variables`; harmless today because the Stream is being
+  from `stream.variables`. Harmless today because the Stream is being
   destroyed.
 
 ### CRC card
@@ -172,7 +172,7 @@ from aiko_services.elements.observe import Inspect, Metrics
 
 From the source To Do list (all Metrics):
 
-- Make Metrics visible to the Aiko Services Dashboard via `self.share[]`
+- Make Metrics visible to the Aiko Services Dashboard through `self.share[]`
   (see [Dashboard](../../concepts/dashboard.md))
 - Store Metrics to file (JSON, CSV), SQLite, InfluxDB
 - Add run-time average calculation
@@ -180,7 +180,7 @@ From the source To Do list (all Metrics):
 Additional observed limitations:
 
 - No type coercion of CLI/MQTT parameter overrides: string `"false"`
-  does not disable `enable`; string or zero `rate` values raise
+  does not disable `enable`. String or zero `rate` values raise
   exceptions (see Implementation notes).
 - Metrics output is debug-level logging only — nothing is retained,
   shared or aggregated yet (hence the To Do list above).
@@ -198,7 +198,7 @@ Additional observed limitations:
   `stream.variables`
 - [Dashboard](../../concepts/dashboard.md) — planned destination for
   shared Metrics state
-- [Utility elements](../utilities/elements.md) — `all_outputs()` helper;
-  the Expression element pairs naturally with Inspect
+- [Utility elements](../utilities/elements.md) — the `all_outputs()`
+  helper. The Expression element pairs naturally with Inspect
 - [Control elements](../control/elements.md) — the factorial example
   uses Inspect after its loop

@@ -6,34 +6,38 @@ description: Legacy GStreamer wrapper that reads H.264 video from an RTSP
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/gstreamer/video_stream_reader.py
 related: [video_reader, video_stream_writer, video_example, utilities,
   scheme_rtsp, rtsp_io]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # VideoStreamReader
 
 ## Overview
 
-**`VideoStreamReader`** is a **legacy** (pre-PipelineElement) wrapper
-that receives H.264 video from the network — either an **RTSP** source
-(e.g. a security camera, via `rtspsrc`) or a raw **RTP over UDP** stream
-(via `udpsrc`, pairing with [VideoStreamWriter](video_stream_writer.md))
-— and delivers decoded numpy frames through the shared
+**`VideoStreamReader`** is a **legacy** (pre-PipelineElement) wrapper. It
+receives H.264 video from the network, from one of two sources:
+
+- An **RTSP** source, for example a security camera, through `rtspsrc`
+- A raw **RTP over UDP** stream, through `udpsrc`, which pairs with
+  [VideoStreamWriter](video_stream_writer.md)
+
+It delivers decoded numpy frames through the shared
 [VideoReader](video_reader.md) queue contract.
 
 It is the only module in the family that builds its GStreamer pipeline
-**element-by-element** (`ElementFactory.make()` + explicit links,
-including dynamic pad handling for `rtspsrc`) rather than
-`Gst.parse_launch()` — the direction the writers' To Do lists point to.
+**element-by-element**. It uses `ElementFactory.make()` and explicit
+links, and it handles dynamic pads for `rtspsrc`. It does not use
+`Gst.parse_launch()`, which is the direction that the To Do lists of the
+writers point to.
 The current-style RTSP path is [DataSchemeRTSP](scheme_rtsp.md) beneath
 [VideoReadRTSP](rtsp_io.md).
 
-**Why you'd use it**: legacy-style network capture, e.g. the input half
+**Why to use it**: legacy-style network capture, for example, the input half
 of a [video_example](video_example.md) run:
 
 ```python
@@ -47,7 +51,7 @@ frame = reader.read_frame(0.01)
 
 ### Command-line usage
 
-No `__main__` of its own — exercised via the
+No `__main__` of its own — exercised through the
 [video_example](video_example.md) CLI (`-is`, and `--RTP` to select raw
 RTP):
 
@@ -77,13 +81,13 @@ class VideoStreamReader:
 - `rtp=True`: raw RTP receiver — `udpsrc` on `input_port` with caps
   `application/x-rtp, media=video, clock-rate=90000,
   encoding-name=H264` (`input_hostname` is unused in this mode).
-- `framerate` (e.g. `"30/1"`, `"25/1"`, `"4/1"`) is optional; when given
+- `framerate` (for example, `"30/1"`, `"25/1"`, `"4/1"`) is optional. When given
   it is added to the appsink caps alongside `format=RGB`, `width`,
   `height`.
 - `read_frame(timeout)` / `queue_size()` delegate to
   [VideoReader](video_reader.md): frame dicts
   `{"type": "image", "id": n, "image": ndarray, "timestamp": unix_time}`
-  and `{"type": "EOS"}`; `timeout=None` is non-blocking.
+  and `{"type": "EOS"}`. `timeout=None` is non-blocking.
 - `GStreamerError` is raised if the pipeline cannot be created, linked
   or set playing.
 
@@ -105,10 +109,10 @@ class VideoStreamReader:
 ```
 
 - **Hand-built pipeline.** Elements are created with
-  `ElementFactory.make()`, added to a `Gst.Pipeline`, and linked via a
+  `ElementFactory.make()`, added to a `Gst.Pipeline`, and linked through a
   `link_element()` helper. `rtspsrc` has dynamic source pads, so the
   source→depayloader link is deferred to a `pad-added` signal handler
-  (`on_dynamic_pad()`); `udpsrc` links statically. This is the pattern
+  (`on_dynamic_pad()`). `udpsrc` links statically. This is the pattern
   the writers' "replace `parse_launch()`" To Dos aim for.
 - Decode chain and caps mirror [DataSchemeRTSP](scheme_rtsp.md)'s
   launch string — the two implementations are siblings across the
@@ -116,19 +120,19 @@ class VideoStreamReader:
 
 ### Implementation notes
 
-- **`link_element()` error path is broken**: on link failure it raises
-  `GStreamerError` with a message formatted from `element1` /
-  `element2`, names that do not exist (parameters are `source_name`,
-  `source`, `target_name`, `target`) — so a real link failure raises
-  `NameError` instead of the intended diagnostic.
+- **`link_element()` error path is broken.** On link failure it raises
+  `GStreamerError` with a message formatted from `element1` and
+  `element2`. Those names do not exist, because the parameters are
+  `source_name`, `source`, `target_name` and `target`. Thus a real link
+  failure raises `NameError` instead of the intended diagnostic.
 - **`on_dynamic_pad()` failure path is also broken**: it calls
   `pipeline_link_error("source", "depay")`, which is not defined
   anywhere in the package — again a `NameError` if the RTSP pad link
   fails. (A commented line shows an older direct `pad.link()`
   approach.)
 - `on_dynamic_pad()` links `self.source` to `self.depay` on *every*
-  pad-added signal; an RTSP source offering audio + video pads would
-  trigger a second (failing) link attempt.
+  pad-added signal. An RTSP source offering audio + video pads would
+  trigger a second link try, which fails.
 - The intermediate elements (`parser`, `decoder`, `convert`,
   `videorate`, `sink`) are locals, while `source` / `depay` are
   attributes only because the dynamic-pad callback needs them.
@@ -146,20 +150,20 @@ From the source To Do list:
 - Constructor `Queue maxsize` parameter
 - Ultimately, start "paused" and tell the video sender to start
 - Should do `video_capture.release()` — needs thread termination first
-- Optimisation: option to request BGR images directly, avoiding
+- Optimization: option to request BGR images directly, avoiding
   RGB→BGR conversion for OpenCV consumers
 
 Additional observed gaps:
 
 - **Hard-wired credential template** (`USERNAME:PASSWORD` in
-  `url_template`) — RTSP authentication requires editing the source;
-  URL/credentials should be constructor parameters (compare the full
-  `rtsp://user:pass@host/...` URLs accepted by
-  [scheme_rtsp](scheme_rtsp.md))
+  `url_template`). RTSP authentication needs an edit of the source. The
+  URL and the credentials must become constructor parameters. Compare
+  the full `rtsp://user:pass@host/...` URLs that
+  [scheme_rtsp](scheme_rtsp.md) accepts
 - Both link-failure paths raise `NameError` instead of
   `GStreamerError` (see Implementation notes)
-- H.264 only; no stop/release passthrough (inherited from
-  [VideoReader](video_reader.md)); no test coverage
+- H.264 only. No stop/release passthrough (inherited from
+  [VideoReader](video_reader.md)). No test coverage
 
 ## Related concepts
 
@@ -172,5 +176,5 @@ Additional observed gaps:
 - [scheme_rtsp](scheme_rtsp.md) — the current-style RTSP client
   (DataScheme) that supersedes the RTSP mode
 - [rtsp_io](rtsp_io.md) — the PipelineElements above that scheme
-- [utilities](utilities.md) — GStreamer initialisation, decoder and
+- [utilities](utilities.md) — GStreamer initialization, decoder and
   format helpers

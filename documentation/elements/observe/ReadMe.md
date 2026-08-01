@@ -5,15 +5,15 @@ description: Index of OKF documents for the observability PipelineElements
 type: index
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Aiko Services: observe elements
 
 OKF documentation for `src/aiko_services/elements/observe/` — the
-PipelineElements that provide observability from inside a Pipeline
+PipelineElements that give observability from inside a Pipeline
 graph. One document per source module, following the structure defined
 in the constitution's OKF Concepts documentation template
 (`documentation/constitution/t_00_OkfConceptTemplate.md`).
@@ -25,7 +25,7 @@ in the constitution's OKF Concepts documentation template
 | [Observe elements](elements.md) | `src/aiko_services/elements/observe/elements.py` | `Inspect` writes selected Frame swag values to log, file or stdout; `Metrics` reports per-element and whole-Pipeline timing and memory figures |
 
 Package exports (`__init__.py`): `Inspect`, `Metrics` — imported from
-`.elements`; its To Do list is currently empty ("None, yet !").
+`.elements`. Its To Do list is currently empty ("None, yet !").
 
 ## Example PipelineDefinitions
 

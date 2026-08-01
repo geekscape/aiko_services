@@ -1,45 +1,47 @@
 ---
 title: Utility elements
 description: The Expression PipelineElement and the expression-evaluation
-  helpers — define, delete and rename Frame swag values from S-expression
-  parameters, plus the all_outputs() pass-through helper
+  helpers — the define, delete and rename commands change Frame swag values
+  from S-expression parameters, plus the all_outputs() pass-through helper
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/utilities/elements.py
   - src/aiko_services/elements/utilities/pipelines/pipeline_expression.json
 related: [pipeline_element, pipeline, parameters, stream]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Utility elements
 
 ## Overview
 
-The utility elements module provides the **Expression**
+The utility elements module gives the **Expression**
 [PipelineElement](../../concepts/pipeline_element.md) and the expression
 evaluator behind it. Expression modifies the Frame's swag — the
 accumulated `process_frame()` input and output arguments (see
 [Stream](../../concepts/stream.md)) — driven entirely by
-[parameters](../../concepts/parameters.md), via three commands:
+[parameters](../../concepts/parameters.md), through three commands:
 
 - `define` — set swag values from expressions: `"((a 0) (b b+1.0))"`
 - `delete` — remove swag values: `"(s)"`
 - `rename` — rename swag values: `"((b c))"`
 
-The module also exports the evaluator functions — `evaluate()`,
-`evaluate_condition()`, `evaluate_define()` — reused by the
-[control elements](../control/elements.md) Loop element, and the
-`all_outputs()` helper used by pass-through elements (Expression itself
-and the [observe elements](../observe/elements.md)) to forward their
-declared outputs from the swag.
+The module also exports the evaluator functions `evaluate()`,
+`evaluate_condition()` and `evaluate_define()`. The Loop element of the
+[control elements](../control/elements.md) reuses them. The module also
+exports the `all_outputs()` helper. Pass-through elements use that
+helper to forward their declared outputs from the swag. Expression
+itself and the [observe elements](../observe/elements.md) are such
+elements.
 
-**Why you'd use it**: to adapt data between elements — inject constants,
-compute derived values, drop or rename fields so one element's outputs
-match the next element's inputs — without writing a new Python element:
+**Why to use it**: to adapt data between elements, and to write no new
+Python element. It injects constants, computes derived values, and drops
+or renames fields. Thus one element's outputs match the next element's
+inputs:
 
 ```bash
 cd src/aiko_services/elements/utilities
@@ -52,7 +54,7 @@ aiko_pipeline create pipelines/pipeline_expression.json -fd "()" -ll debug
 
 ### Command-line usage
 
-Utility elements have no CLI of their own; they are hosted by the
+Utility elements have no CLI of their own. They are hosted by the
 `aiko_pipeline` CLI (see [Pipeline](../../concepts/pipeline.md)). From
 the usage header of `elements.py`:
 
@@ -84,13 +86,13 @@ from aiko_services.elements.utilities import (
 | `delete` | *(optional)* | `"(argument_0 argument_1 ...)"` — remove each named value from the swag (missing names ignored) |
 | `rename` | *(optional)* | `"((from_0 to_0) (from_1 to_1) ...)"` — rename swag entries (missing names ignored) |
 
-- Frame contract: `input: []`; `output` declares the swag names the
-  element forwards (via `all_outputs()`), with their types — e.g. in
+- Frame contract: `input: []`. `output` declares the swag names the
+  element forwards (through `all_outputs()`), with their types — for example, in
   `pipeline_expression.json`, `Expression_1` outputs
   `a: int`, `c: float`, `d: dict`, `l: [int]`.
 - Commands are applied in the fixed order `define`, `delete`, `rename`
   each Frame, regardless of parameter order.
-- Returns `StreamEvent.OKAY` with the declared outputs; a declared
+- Returns `StreamEvent.OKAY` with the declared outputs. A declared
   output name absent from the swag raises `KeyError` (no graceful
   diagnostic yet).
 
@@ -104,13 +106,13 @@ operator:   + - * / < <= > >=
 
 Evaluation rules of `evaluate(expression, arguments)`:
 
-- An argument (swag) name evaluates to its current value; bare digits
-  become `int` / `float`; quoted or identifier-like text becomes a
-  string; `[...]` literals become Python lists.
-- Binary operators split on the first operator found; `+` also
+- An argument (swag) name evaluates to its current value. Bare digits
+  become `int` / `float`. Quoted or identifier-like text becomes a
+  string. `[...]` literals become Python lists.
+- Binary operators split on the first operator found. `+` also
   concatenates lists, and mixed number/string `+` concatenates as a
   string. Division by zero raises `ValueError`.
-- Anything unrecognised is returned unchanged as a string (there is no
+- Anything unrecognized is returned unchanged as a string (there is no
   error for a malformed expression).
 - Note: the `>` and `<=` operators are currently unreliable — see
   Current limitations and roadmap.
@@ -124,10 +126,10 @@ Evaluation rules of `evaluate(expression, arguments)`:
 | `evaluate_condition(expressions, swag, logger=None)` | Evaluate a parsed list of single-expression lists; `True` only if every result is truthy (used by Loop's `condition`) |
 | `evaluate_define(expressions, swag, logger=None, name="Define")` | Evaluate a parsed list of `(name expression)` pairs and assign the results into the swag |
 
-`evaluate_condition()` and `evaluate_define()` take the *parsed* form —
-callers first apply `aiko_services.main.utilities.parse(text,
-car_cdr=False)` — and mutate the parsed structure in place, so parse
-freshly on each use.
+`evaluate_condition()` and `evaluate_define()` take the *parsed* form.
+Callers first apply `aiko_services.main.utilities.parse(text,
+car_cdr=False)`. Both functions mutate the parsed structure in place, so
+parse it again on each use.
 
 ## For framework developers (internals)
 
@@ -146,13 +148,13 @@ freshly on each use.
 - Expression is a *data-shaping* element: like Loop and Inspect it
   declares `input: []` and works on
   `stream.frames[stream.frame_id].swag` directly, so it can touch any
-  value in the Frame without graph rewiring; the `output` list is the
+  value in the Frame without graph rewiring. The `output` list is the
   only declared contract.
-- The evaluator is a small recursive-descent interpreter over strings:
-  no AST, no operator precedence — the *first* operator matched by a
-  regular expression splits the string, and each side is evaluated
-  recursively, with `parse_number()` (from
-  `aiko_services.main.utilities`) coercing operands to numbers where
+- The evaluator is a small recursive-descent interpreter over strings.
+  It has no AST and no operator precedence. The *first* operator that a
+  regular expression matches splits the string. Each side is then
+  evaluated recursively. `parse_number()` (from
+  `aiko_services.main.utilities`) coerces operands to numbers where
   possible.
 - Keeping the evaluator as module functions (not methods) is deliberate:
   the [control elements](../control/elements.md) Loop reuses
@@ -163,14 +165,14 @@ freshly on each use.
 
 - The operator regular expression is
   `(\+|\-|\*|/|\<|\<=|/>|\>=)`. Because alternation is first-match,
-  `\<` shadows `\<=` (the `=` leaks into the right operand), and plain
-  `>` only appears in the (suspect) `/>` alternative — so `<` , `>=`,
-  and the arithmetic operators work, while `<=` and bare `>` do not.
+  `\<` shadows `\<=`, and the `=` leaks into the right operand. Plain
+  `>` appears only in the suspect `/>` alternative. Thus `<`, `>=` and
+  the arithmetic operators work, while `<=` and bare `>` do not.
   `/>` looks like a typo for `\>`.
 - List literals are converted with Python `eval()` — do not feed
   Expression parameters from untrusted input until this is replaced.
 - Operator matching uses `re.search` over the whole expression, so
-  operand strings containing `-`, `/`, etc. (dates, paths) will be
+  operand strings that contain `-`, `/` and other operators (dates, paths) will be
   split as arithmetic.
 - `evaluate_condition()` returns `all(results)`, so an empty or
   non-list `expressions` value is vacuously `True` — a Loop `condition`
@@ -191,25 +193,25 @@ freshly on each use.
 From the source To Do list:
 
 - Expression evaluation support for dictionary or list access
-  (`variable[1]`, `variable[index]`) — requires parser improvement for
+  (`variable[1]`, `variable[index]`) — needs parser improvement for
   `list[index]`
-- An extensible list of functions, e.g. `random()`, stack `push()` /
-  `pop()` — requires parser improvement for function calls
-- Common system calls, e.g. `/proc`, filesystem, network
-- Update Pipeline Stream Event → State; implement a StateMachine
+- An extensible list of functions, for example, `random()`, stack `push()` /
+  `pop()` — needs parser improvement for function calls
+- Common system calls, for example, `/proc`, filesystem, network
+- Update Pipeline Stream Event → State. Implement a StateMachine
 - Alter Pipeline Graph control flow: conditionals
 
-Additional observed limitations (implemented behaviour):
+Additional observed limitations (implemented behavior):
 
 - Operator gaps: `<=` and bare `>` do not evaluate correctly (regular
   expression alternation order and the suspect `/>` alternative — see
-  Implementation notes); the grammar comment advertises all of
+  Implementation notes). The grammar comment advertises all of
   `< <= > >=`.
 - `__all__` typo `"evaluate_conition"` breaks wildcard imports.
 - `eval()` on `[...]` literals is an arbitrary-code-execution risk for
   untrusted PipelineDefinitions or live parameter updates.
 - Malformed expressions fall through silently as strings (the
-  `ValueError` raise is commented out); there is no expression
+  `ValueError` raise is commented out). There is no expression
   validation at Pipeline start-up.
 - `all_outputs()` raises a bare `KeyError` when a declared output is
   missing from the swag.
@@ -220,7 +222,7 @@ Additional observed limitations (implemented behaviour):
 
 - [PipelineElement](../../concepts/pipeline_element.md) — the contract
   Expression implements
-- [Pipeline](../../concepts/pipeline.md) — hosts the graph; planned
+- [Pipeline](../../concepts/pipeline.md) — hosts the graph. Planned
   control-flow conditionals would land here
 - [Parameters](../../concepts/parameters.md) — how `define` / `delete` /
   `rename` are declared, overridden and resolved

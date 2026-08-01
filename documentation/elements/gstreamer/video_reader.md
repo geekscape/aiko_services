@@ -6,13 +6,13 @@ description: Legacy core GStreamer appsink wrapper — runs a given GStreamer
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/gstreamer/video_reader.py
 related: [utilities, video_camera_reader, video_file_reader,
   video_stream_reader, scheme_rtsp, rtsp_io, pipeline_element]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # VideoReader
@@ -20,11 +20,11 @@ last_updated: 2026-07-06
 ## Overview
 
 **`VideoReader`** is the core of the **legacy** (pre-PipelineElement)
-GStreamer wrapper family: given an already-constructed GStreamer
-pipeline and its `appsink`, it sets the pipeline playing, services the
-GStreamer bus on a daemon thread, and converts each appsink sample into
-a Python frame dictionary on an internal queue that callers poll with
-`read_frame()`.
+GStreamer wrapper family. It takes an already-constructed GStreamer
+pipeline and its `appsink`. It then sets the pipeline playing, and
+services the GStreamer bus on a daemon thread. It converts each appsink
+sample into a Python frame dictionary on an internal queue. Callers poll
+that queue with `read_frame()`.
 
 Every reading wrapper delegates to it —
 [VideoCameraReader](video_camera_reader.md) (V4L2 camera),
@@ -34,7 +34,7 @@ so does the *current-style* [DataSchemeRTSP](scheme_rtsp.md): this is
 where the legacy and
 [PipelineElement](../../concepts/pipeline_element.md) worlds meet.
 
-**Why you'd use it**: to add a new GStreamer *source* without redoing
+**Why to use it**: to add a new GStreamer *source* without redoing
 appsink plumbing — build a pipeline ending in
 `... ! appsink name=sink`, hand both to `VideoReader`, then poll:
 
@@ -49,8 +49,8 @@ frame = reader.read_frame(0.01)   # {"type": "image", "image": ndarray, ...}
 
 ### Command-line usage
 
-None — `VideoReader` is a library class. It is exercised indirectly via
-[video_example](video_example.md) (legacy CLI) and via `aiko_pipeline`
+None — `VideoReader` is a library class. It is exercised indirectly through
+[video_example](video_example.md) (legacy CLI) and through `aiko_pipeline`
 with the RTSP PipelineDefinitions (see [rtsp_io](rtsp_io.md)).
 
 ### Public API
@@ -65,7 +65,7 @@ class VideoReader:
 ```
 
 Constructor contract: `pipeline` is a GStreamer pipeline whose `sink`
-element is an `appsink`; the constructor enables `emit-signals`,
+element is an `appsink`. The constructor enables `emit-signals`,
 connects `new-sample`, and sets the pipeline to PLAYING — raising
 `GStreamerError` (from [utilities](utilities.md)) if that fails.
 
@@ -77,9 +77,10 @@ Frame dictionaries produced on the internal `Queue(maxsize=30)`:
 {"type": "EOS"}                                       # end of stream
 ```
 
-`read_frame(timeout)` semantics follow `Queue.get()`: `timeout=None`
-means *non-blocking* (`block=False`) and returns `None` when empty;
-a numeric timeout blocks up to that many seconds, then returns `None`.
+The semantics of `read_frame(timeout)` follow `Queue.get()`.
+`timeout=None` means *non-blocking* (`block=False`), and it returns
+`None` when the queue is empty. A numeric timeout blocks for at most
+that many seconds, then returns `None`.
 Note this inverts the usual convention where `None` means "block
 forever".
 
@@ -107,44 +108,44 @@ does **not** set the pipeline state to NULL (see roadmap).
 ```
 
 - **Single-slot handoff, deliberate frame dropping.** The appsink
-  callback overwrites `self.image`; the bus thread drains it into the
+  callback overwrites `self.image`. The bus thread drains it into the
   queue at ~1 kHz. If the consumer falls behind, intermediate images are
   silently replaced — the source To Do proposes an image ring-buffer
   queue with a bounded length (and optionally a lossless mode).
-- **GStreamer initialised at import.** The module runs
+- **GStreamer initialized at import.** The module runs
   `Gst = gst_initialise()` at module level, so importing
   `aiko_services.elements.gstreamer` (whose `__init__.py` imports this
-  module) initialises GStreamer as a side effect.
+  module) initializes GStreamer as a side effect.
 - Frame `id` is a local counter starting at 1, not a GStreamer
-  timestamp; capture time is wall-clock `time.time()` taken in the
+  timestamp. Capture time is wall-clock `time.time()` taken in the
   callback (buffer `pts`/`dts` access is present but commented out).
 
 ### Implementation notes
 
-- `sample_image()` uses `buffer.map(Gst.MapFlags.READ)` /
-  `buffer.unmap()` rather than `buffer.extract_dup()` — the source
-  comments call out the memory leak common in on-line examples, and the
-  `.copy()` of the numpy view (~400 µs) is what makes the buffer safe to
+- `sample_image()` uses `buffer.map(Gst.MapFlags.READ)` and
+  `buffer.unmap()`, and not `buffer.extract_dup()`. The source comments
+  identify the memory leak that is common in on-line examples. The
+  `.copy()` of the numpy view (~400 µs) makes the buffer safe to
   unmap.
-- The single-slot handoff between the two threads is unlocked: `image`
-  and `timestamp` are written by the callback and read/cleared by the
-  bus thread. After queuing, the bus thread sets `self.timestamp = None`
-  — a frame whose image arrives between the two writes can pair an image
-  with a `None` timestamp (downstream sentinels in
-  [scheme_rtsp](scheme_rtsp.md) / [rtsp_io](rtsp_io.md) exist partly for
-  this).
-- Bus `ERROR` and `EOS` both `break` the thread loop; `ERROR` prints
+- The single-slot handoff between the two threads is unlocked. The
+  callback writes `image` and `timestamp`, and the bus thread reads and
+  clears them. After it queues a frame, the bus thread sets
+  `self.timestamp = None`. Thus a frame whose image arrives between the
+  two writes can pair an image with a `None` timestamp. The downstream
+  sentinels in [scheme_rtsp](scheme_rtsp.md) and
+  [rtsp_io](rtsp_io.md) exist partly for this.
+- Bus `ERROR` and `EOS` both `break` the thread loop. `ERROR` prints
   the diagnostic but enqueues nothing, so a consumer blocked in
   `read_frame(timeout)` simply times out — there is no error frame type.
 - `gst_to_opencv()` builds the `np.ndarray` from the mapped buffer using
-  the caps' width/height, hard-coding 3 channels and `uint8`; the caps
+  the caps' width/height, hard-coding 3 channels and `uint8`. The caps
   `format` value is read but unused.
 
 ### CRC card
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
-| `VideoReader` | Set a supplied pipeline playing; convert appsink samples to timestamped numpy frame dicts; service the GStreamer bus (ERROR / EOS / STATE_CHANGED); buffer frames in a bounded queue; expose `read_frame()` / `queue_size()` / `stop()` | `Gst` via [utilities](utilities.md) `gst_initialise()`; `GStreamerError`; wrapped by [VideoCameraReader](video_camera_reader.md), [VideoFileReader](video_file_reader.md), [VideoStreamReader](video_stream_reader.md) and [DataSchemeRTSP](scheme_rtsp.md) |
+| `VideoReader` | Set a supplied pipeline playing; convert appsink samples to timestamped numpy frame dicts; service the GStreamer bus (ERROR / EOS / STATE_CHANGED); buffer frames in a bounded queue; expose `read_frame()` / `queue_size()` / `stop()` | `Gst` through [utilities](utilities.md) `gst_initialise()`; `GStreamerError`; wrapped by [VideoCameraReader](video_camera_reader.md), [VideoFileReader](video_file_reader.md), [VideoStreamReader](video_stream_reader.md) and [DataSchemeRTSP](scheme_rtsp.md) |
 
 ## Current limitations and roadmap
 
@@ -153,16 +154,16 @@ From the source To Do list:
 - Replace the single `self.image` slot with an image queue: bounded
   ring buffer to cap memory, with an optional lossless "image queue"
   mode so no images are dropped
-- When the pipeline cannot reach the playing state, extract and report
-  the underlying GStreamer problem in the diagnostic, and have the
-  command-line utilities catch and report it
+- When the pipeline cannot reach the playing state, extract the
+  GStreamer problem and report it in the diagnostic. The command-line
+  utilities must then catch it and report it
 
 Additional observed gaps:
 
 - `stop()` does not set the pipeline to `Gst.State.NULL` or join the
   thread — GStreamer resources are only released at process exit
 - Bus-thread diagnostics go to `print()`, not a logger
-- Un-synchronised image/timestamp handoff (see Implementation notes)
+- Un-synchronized image/timestamp handoff (see Implementation notes)
 - `read_frame(timeout=None)` being non-blocking is an easy misuse trap
 
 ## Related concepts

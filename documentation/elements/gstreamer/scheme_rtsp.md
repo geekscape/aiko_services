@@ -6,13 +6,13 @@ description: The rtsp URL DataScheme — a GStreamer-based RTSP client
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/gstreamer/scheme_rtsp.py
 related: [scheme, data_source_target, pipeline_element, stream, parameters,
   rtsp_io, video_reader, utilities]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # DataSchemeRTSP
@@ -20,21 +20,22 @@ last_updated: 2026-07-06
 ## Overview
 
 **`DataSchemeRTSP`** is the [DataScheme](../../concepts/scheme.md)
-registered for the `rtsp` URL scheme. When a
+registered for the `rtsp` URL scheme. A
 [DataSource or DataTarget](../../concepts/data_source_target.md) element
-— in practice [VideoReadRTSP / VideoWriteRTSP](rtsp_io.md) — receives a
-`data_sources` / `data_targets` URL beginning `rtsp://`, this class is
-instantiated per [Stream](../../concepts/stream.md) and does the actual
+can receive a `data_sources` or `data_targets` URL that starts with
+`rtsp://`. In practice that element is
+[VideoReadRTSP or VideoWriteRTSP](rtsp_io.md). This class is then
+instantiated per [Stream](../../concepts/stream.md), and it does the
 GStreamer work: building the decode pipeline, pulling images off the
-appsink via the legacy [VideoReader](video_reader.md) wrapper, and
+appsink through the legacy [VideoReader](video_reader.md) wrapper, and
 feeding them to the Pipeline as Frames.
 
-The *source* side (RTSP client) is **implemented**; the *target* side
-(RTSP server, via GstRtspServer) is **work-in-progress and currently
+The *source* side (RTSP client) is **implemented**. The *target* side
+(RTSP server, through GstRtspServer) is **work-in-progress and currently
 broken** — most of its body is commented out (see Current limitations
 and roadmap).
 
-**Why you'd use it**: you don't use it directly — you write an ordinary
+**Why to use it**: you do not use it directly — you write an ordinary
 `rtsp://` URL and the scheme registry does the rest:
 
 ```bash
@@ -47,16 +48,16 @@ aiko_pipeline create pipelines/rtsp_pipeline_0.json -s 1 \
 
 ### Command-line usage
 
-DataSchemeRTSP has no CLI of its own — it is selected by the URL scheme
-of the `data_sources` / `data_targets` parameter passed through
-`aiko_pipeline`, as shown above and in [rtsp_io](rtsp_io.md). The module
-registers itself at import time:
+DataSchemeRTSP has no CLI of its own. The URL scheme of the
+`data_sources` or `data_targets` parameter selects it. That parameter
+passes through `aiko_pipeline`, as shown above and in
+[rtsp_io](rtsp_io.md). The module registers itself at import time:
 
 ```python
 aiko.DataScheme.add_data_scheme("rtsp", DataSchemeRTSP)
 ```
 
-so the scheme is available whenever `rtsp_io.py` (which imports it via
+so the scheme is available whenever `rtsp_io.py` (which imports it through
 the package) is loaded as a PipelineElement module.
 
 ### Public API
@@ -71,15 +72,15 @@ contain a single entry":
 ```
 
 Parameters read from the owning
-[PipelineElement](../../concepts/pipeline_element.md) via
+[PipelineElement](../../concepts/pipeline_element.md) through
 `get_parameter()` (see [Parameters](../../concepts/parameters.md)):
 
-| Parameter | Required | Meaning |
+| Parameter | Needed | Meaning |
 |-----------|----------|---------|
-| `frame_rate` | yes | GStreamer fraction, e.g. `"30/1"`; missing → `StreamEvent.ERROR` with diagnostic `Must provide "frame_rate" parameter` |
+| `frame_rate` | yes | GStreamer fraction, for example, `"30/1"`; missing → `StreamEvent.ERROR` with diagnostic `Must provide "frame_rate" parameter` |
 | `resolution` | yes | `"1280x720"` string (or `(width, height)` tuple); missing → `StreamEvent.ERROR` |
 | `format` | no | Appsink pixel format; default `get_format()` = `"RGB"` (see [utilities](utilities.md)) |
-| `data_batch_size` | no | Read by the frame generator but **not yet honoured** — always one image per Frame |
+| `data_batch_size` | no | Read by the frame generator but **not yet honored** — always one image per Frame |
 
 Stream lifecycle (the [DataScheme](../../concepts/scheme.md) contract):
 
@@ -91,10 +92,10 @@ Stream lifecycle (the [DataScheme](../../concepts/scheme.md) contract):
 | `create_targets(stream, data_targets)` | **broken** | Parses parameters, then raises `NameError` (see roadmap) |
 | `destroy_targets(stream)` | not implemented | Returns `StreamEvent.ERROR` with diagnostic `DataSchemeRTSP does not implement destroy_targets()` |
 
-Frames delivered to the element's `process_frame()` carry
-`images` — a list (currently always length 1) of numpy `uint8`
-height x width x 3 arrays — and the capture Unix time in
-`stream.variables["timestamps"]` (a one-element list).
+Frames delivered to the element's `process_frame()` carry `images`.
+That is a list, currently always of length 1, of numpy `uint8`
+height x width x 3 arrays. The frames also carry the capture Unix time
+in `stream.variables["timestamps"]`, which is a one-element list.
 
 ## For framework developers (internals)
 
@@ -127,7 +128,7 @@ Key design points:
   (`videorate` + `framerate=`), so `frame_rate` is enforced by
   GStreamer, not by the frame generator.
 - **Per-Stream instance.** As with every DataScheme, an instance is
-  created per Stream by the owning element's `start_stream()`; instance
+  created per Stream by the owning element's `start_stream()`. Instance
   state (`video_reader`, `terminate`) is therefore per-Stream.
 
 ### Implementation notes
@@ -135,17 +136,17 @@ Key design points:
 - `create_sources()` overrides the base signature with
   `use_create_frame=False` as its default (the base class default is
   `True`) and ignores both `frame_generator` and `use_create_frame`,
-  always installing its own generator via `create_frames(..., rate=0.0)`.
-  Note the known framework issue with `rate=0` vs `rate=None`
+  always installing its own generator through `create_frames(..., rate=0.0)`.
+  Note the known framework issue with `rate=0` compared with `rate=None`
   (see [PipelineElement](../../concepts/pipeline_element.md) roadmap).
 - `self.queue = queue.Queue()` is created in `create_sources()` but
   never used — buffering happens inside `VideoReader`. Likewise
   `from threading import Thread` is only needed by the commented-out
   server code.
-- `frame_generator()` computes a normalised local `timestamp`
+- `frame_generator()` computes a normalized local `timestamp`
   (`-1.0` missing, `-2.0` non-float) but then stores the *raw*
   `frame["timestamp"]` into `stream.variables["timestamps"]` — the
-  normalised value is dead code; the sentinel handling actually applied
+  normalized value is dead code. The sentinel handling actually applied
   downstream is the one in `VideoReadRTSP.process_frame()`.
 - `create_targets()` sets `self.share["rtsp_url"]` (as does
   `create_sources()`), making the URL observable in the element's
@@ -155,13 +156,13 @@ Key design points:
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
-| `DataSchemeRTSP` | Register for `rtsp:`; build the GStreamer RTSP client pipeline and caps from parameters; generate `{"images": …}` Frames with capture timestamps; tear down on `destroy_sources()`; (planned) run a GstRtspServer for targets | [DataScheme](../../concepts/scheme.md) (base contract, registry), [DataSource / DataTarget](../../concepts/data_source_target.md) via [rtsp_io](rtsp_io.md) (owning elements), [VideoReader](video_reader.md) (appsink wrapper), [utilities](utilities.md) (`gst_initialise()`, `get_format()`, `get_h264_decoder()`), [Stream](../../concepts/stream.md) (`variables`) |
+| `DataSchemeRTSP` | Register for `rtsp:`; build the GStreamer RTSP client pipeline and caps from parameters; generate `{"images": …}` Frames with capture timestamps; tear down on `destroy_sources()`; (planned) run a GstRtspServer for targets | [DataScheme](../../concepts/scheme.md) (base contract, registry), [DataSource / DataTarget](../../concepts/data_source_target.md) through [rtsp_io](rtsp_io.md) (owning elements), [VideoReader](video_reader.md) (appsink wrapper), [utilities](utilities.md) (`gst_initialise()`, `get_format()`, `get_h264_decoder()`), [Stream](../../concepts/stream.md) (`variables`) |
 
 ## Current limitations and roadmap
 
 From the source To Do list:
 
-- Enable GStreamer appsink properties to be set via `get_parameter()`
+- Enable GStreamer appsink properties to be set through `get_parameter()`
 - Support `data_batch_size`, so a Frame may contain multiple images
 
 State of the code (honest digest):
@@ -169,15 +170,16 @@ State of the code (honest digest):
 - **`create_targets()` is broken as written**: it references `port`,
   `fps_n`, `fps_d` and `fps_float`, whose computations are commented out
   (a stray `rtsp_port = 9554` is assigned but unused), so it raises
-  `NameError` before constructing the server. The bulk of the intended
-  implementation — `RTSPMediaFactory` media-configure wiring, appsrc
-  push thread, frame consumer, and the matching `destroy_targets()`
-  clean-up — exists only inside two large triple-quoted string literals
-  in the class body. RTSP *serving* should be considered design-stage.
+  `NameError` before it constructs the server. Most of the intended
+  implementation exists only inside two large triple-quoted string
+  literals in the class body. That code covers the `RTSPMediaFactory`
+  media-configure wiring, the appsrc push thread, the frame consumer,
+  and the matching `destroy_targets()` clean-up. Treat RTSP *serving* as
+  design-stage.
 - `destroy_targets()` deliberately returns `StreamEvent.ERROR`
   ("does not implement").
 - Only one URL per `data_sources` list is used (`data_sources[0]`).
-- H.264 only (`rtph264depay ! h264parse`); no H.265/AAC paths.
+- H.264 only (`rtph264depay ! h264parse`). No H.265/AAC paths.
 - The `format` parameter is documented in the header as
   "TODO: document other options" — only `"RGB"` is exercised.
 

@@ -6,9 +6,9 @@ description: Index of OKF concept documents for the PipelineElement library
 type: index
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Aiko Services: PipelineElements documentation
@@ -21,11 +21,12 @@ mirroring the source layout. Each package index also maps the committed
 example PipelineDefinitions to the documents covering the elements they
 exercise.
 
-These documents build on the [Concepts guide](../concepts/ReadMe.md) —
-in particular [PipelineElement](../concepts/pipeline_element.md),
+These documents build on the [Concepts guide](../concepts/ReadMe.md),
+and in particular on these five documents:
+[PipelineElement](../concepts/pipeline_element.md),
 [Parameters](../concepts/parameters.md), [Stream](../concepts/stream.md),
 [Data Source / Target](../concepts/data_source_target.md) and
-[Scheme](../concepts/scheme.md) — and follow the same
+[Scheme](../concepts/scheme.md). They follow the same
 audience-first template
 (`documentation/constitution/t_00_OkfConceptTemplate.md`).
 
@@ -37,7 +38,7 @@ audience-first template
 | [gstreamer/](gstreamer/ReadMe.md) | RTSP PipelineElements and the `rtsp` DataScheme (current style), plus the legacy GStreamer video reader/writer wrapper classes |
 | [media/](media/ReadMe.md) | The largest family — text, image, video, webcam and audio elements, the `file` / `tty` / `zmq` DataSchemes, and twenty example PipelineDefinitions |
 | [observe/](observe/ReadMe.md) | Observability elements — Inspect (log/file/stdout taps on Frame data) and Metrics (per-element timing and memory) |
-| [utilities/](utilities/ReadMe.md) | The Expression element and S-expression evaluation helpers for defining, deleting and renaming Frame data values |
+| [utilities/](utilities/ReadMe.md) | The Expression element and S-expression evaluation helpers for the `define`, `delete` and `rename` commands on Frame data values |
 
 ## Reading paths
 
@@ -51,16 +52,17 @@ audience-first template
 - **Writing a new PipelineElement**: read
   [PipelineElement](../concepts/pipeline_element.md) and
   [Data Source / Target](../concepts/data_source_target.md) first, then
-  copy the closest element here; [observe/](observe/ReadMe.md) and
+  copy the closest element here. [observe/](observe/ReadMe.md) and
   [utilities/](utilities/ReadMe.md) show the smallest complete examples.
 
 ## Status
 
-The element library is under active development (version 0.6) and of
-mixed maturity: some modules are current DataSource / DataTarget style,
-some are legacy wrappers or dormant Pipeline_2020-era scripts — each
-document states which, and separates implemented behaviour from
-planned / work-in-progress, based on the source code as of 2026-07-06.
+The element library is under active development (version 0.6), and its
+maturity is mixed. Some modules are current DataSource / DataTarget
+style. Others are legacy wrappers or dormant Pipeline_2020-era scripts.
+Each document states which of these applies. Each document also
+separates implemented behavior from planned or work-in-progress
+behavior, based on the source code as of 2026-07-06.
 
 ## Related documentation
 

@@ -6,13 +6,13 @@ description: Legacy stand-alone command-line demonstration that copies video
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/gstreamer/video_example.py
 related: [utilities, video_file_reader, video_file_writer,
   video_stream_reader, video_stream_writer, video_reader]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # video_example CLI
@@ -24,9 +24,10 @@ harness for the pre-PipelineElement GStreamer wrapper family. It wires
 one *reader* ([VideoFileReader](video_file_reader.md) or
 [VideoStreamReader](video_stream_reader.md)) to one *writer*
 ([VideoFileWriter](video_file_writer.md) or
-[VideoStreamWriter](video_stream_writer.md)) and pumps frames between
-them with [utilities](utilities.md) `process_video()` — optionally
-displaying the video locally and overlaying the frame id via OpenCV.
+[VideoStreamWriter](video_stream_writer.md)). It then pumps frames
+between them with the `process_video()` function of
+[utilities](utilities.md). Optionally it also displays the video
+locally, and overlays the frame id through OpenCV.
 
 It is a plain script with an `argparse` `__main__` — no
 [Pipeline](../../concepts/pipeline.md), no Actor, no MQTT. The
@@ -34,7 +35,7 @@ current-style equivalent of what it demonstrates is an `aiko_pipeline`
 PipelineDefinition such as `pipelines/rtsp_pipeline_1.json`
 (see [rtsp_io](rtsp_io.md)).
 
-**Why you'd use it**: a quick end-to-end check that GStreamer, the
+**Why to use it**: a quick end-to-end check that GStreamer, the
 platform codecs and a camera/network path all work, before involving
 the Aiko Services framework:
 
@@ -76,12 +77,12 @@ Options:
 | `-of` / `--output_filename` | Video output file |
 | `-os` / `--output_stream` | Video output `hostname:port` (RTP/UDP) |
 | `-r` / `--resolution` | Two values: width height |
-| `-f` / `--framerate` | GStreamer fraction, e.g. `30/1` |
+| `-f` / `--framerate` | GStreamer fraction, for example, `30/1` |
 | `-cv` / `--opencv` | Display locally and overlay the frame id (press `q` to quit) |
 | `--RTP` | Input stream uses RTP (`udpsrc`) instead of the default RTSP |
 
 Exactly one input (`-if` xor `-is`) and one output (`-of` xor `-os`)
-must be given; otherwise the script prints a usage message and exits
+must be given. Otherwise the script prints a usage message and exits
 with status -1. A worked camera-to-host session from the header:
 
 ```bash
@@ -97,7 +98,7 @@ camera before RTSP input will authenticate.
 
 ### Public API
 
-None — the module defines no classes or functions; everything is inside
+None — the module defines no classes or functions. Everything is inside
 `if __name__ == "__main__":`. Its "API" is the reader/writer queue
 contract it demonstrates:
 
@@ -146,14 +147,14 @@ that it *defines* the informal legacy contract — any object with
 From the source To Do list:
 
 - **Turn this into a CI test!** — currently the only executable
-  exercise of the legacy wrapper family, and it requires a human (and
+  exercise of the legacy wrapper family, and it needs a human (and
   often a camera)
 
 Additional observed gaps:
 
 - `GStreamerError` handling "needs better diagnostic" (source TODO)
-- No graceful termination: `process_video()` only exits via the OpenCV
-  `q` key (with `-cv`) or process kill; EOS handling with `-cv` hits
+- No graceful termination: `process_video()` only exits through the OpenCV
+  `q` key (with `-cv`) or process kill. EOS handling with `-cv` hits
   the `KeyError` noted in [utilities](utilities.md)
 - RTSP input credentials are hard-wired in
   [video_stream_reader](video_stream_reader.md), not options here

@@ -6,7 +6,7 @@ description: Index of the OKF concept documents for
 type: index
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/gstreamer/__init__.py
 related: [rtsp_io, scheme_rtsp, utilities, video_reader,
@@ -14,7 +14,7 @@ related: [rtsp_io, scheme_rtsp, utilities, video_reader,
   video_stream_reader, video_stream_writer, data_source_target, scheme,
   pipeline_element]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # GStreamer elements index
@@ -44,7 +44,7 @@ One OKF concept document per Python module:
 | [video_example](video_example.md) | `video_example.py` | legacy | Stand-alone CLI copying video between file and network endpoints, optional OpenCV display |
 | [video_file_reader](video_file_reader.md) | `video_file_reader.py` | legacy | `VideoFileReader` — MP4/QuickTime H.264 file decode to numpy frames |
 | [video_file_writer](video_file_writer.md) | `video_file_writer.py` | legacy | `VideoFileWriter` — queued frames encoded to an H.264 file (output geometry currently hard-wired) |
-| [video_stream_reader](video_stream_reader.md) | `video_stream_reader.py` | legacy | `VideoStreamReader` — RTSP or RTP/UDP receive via a hand-built (non `parse_launch`) pipeline |
+| [video_stream_reader](video_stream_reader.md) | `video_stream_reader.py` | legacy | `VideoStreamReader` — RTSP or RTP/UDP receive through a hand-built (non `parse_launch`) pipeline |
 | [video_stream_writer](video_stream_writer.md) | `video_stream_writer.py` | legacy | `VideoStreamWriter` — queued frames encoded and sent as RTP/UDP, or to RTMP |
 
 ## Example PipelineDefinitions
@@ -74,7 +74,7 @@ re-exports:
   `VideoFileWriter`, `VideoStreamReader`, `VideoStreamWriter`,
   `VideoReadRTSP`, `DataSchemeRTSP`
 
-Notes: importing the package initialises GStreamer as a side effect
+Notes: importing the package initializes GStreamer as a side effect
 (module-level `gst_initialise()` in `video_reader.py`), and registers
 the `rtsp` scheme in `DataScheme.LOOKUP` (import side effect of
 `scheme_rtsp.py`). `VideoWriteRTSP` (the stub in `rtsp_io.py`) is *not*

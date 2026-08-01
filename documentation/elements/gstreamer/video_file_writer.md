@@ -5,44 +5,44 @@ description: Legacy GStreamer wrapper that encodes queued numpy image frames
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/gstreamer/video_file_writer.py
 related: [video_reader, video_file_reader, video_stream_writer,
   video_example, utilities, data_source_target]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # VideoFileWriter
 
 ## Overview
 
-**`VideoFileWriter`** is a **legacy** (pre-PipelineElement) wrapper that
-accepts frame dictionaries on a bounded queue and encodes them to an
-H.264 video file — the *write* mirror of
-[VideoFileReader](video_file_reader.md), sharing the same frame-dict
-contract as [VideoReader](video_reader.md). The current-style
+**`VideoFileWriter`** is a **legacy** (pre-PipelineElement) wrapper. It
+accepts frame dictionaries on a bounded queue, and encodes them to an
+H.264 video file. It is the *write* mirror of
+[VideoFileReader](video_file_reader.md), and it shares the frame-dict
+contract of [VideoReader](video_reader.md). The current-style
 equivalent is `VideoWriteFile(s)` in
 `src/aiko_services/elements/media/video_io.py`, exercised by
 `pipelines/rtsp_pipeline_1.json` (see [rtsp_io](rtsp_io.md)).
 
-**Why you'd use it**: as the output half of a legacy wrapper chain,
-e.g. recording a network camera via the
+**Why to use it**: as the output half of a legacy wrapper chain,
+for example, recording a network camera through the
 [video_example](video_example.md) CLI:
 
 ```python
 from aiko_services.elements.gstreamer import VideoFileWriter
 writer = VideoFileWriter("out.mp4", 640, 480, "25/1")
 writer.write_frame({"type": "image", "id": 1, "image": ndarray})
-writer.write_frame({"type": "EOS"})   # finalise the file
+writer.write_frame({"type": "EOS"})   # finalize the file
 ```
 
 ## For application developers
 
 ### Command-line usage
 
-No `__main__` of its own — exercised via the
+No `__main__` of its own — exercised through the
 [video_example](video_example.md) CLI:
 
 ```bash
@@ -60,16 +60,17 @@ class VideoFileWriter:
 ```
 
 - Constructor arguments describe the **incoming** frames: `width`,
-  `height`, `framerate` (GStreamer fraction string, e.g. `"25/1"`) set
+  `height`, `framerate` (GStreamer fraction string, for example, `"25/1"`) set
   the appsrc caps, together with format `RGB` from
   [utilities](utilities.md) `get_format()`.
-- `write_frame(frame)` accepts the family frame dicts:
-  `{"type": "image", "image": ndarray, ...}` is encoded and written;
-  `{"type": "EOS"}` emits GStreamer end-of-stream, finalising the file
-  (essential — an MP4 without EOS finalisation may be unplayable).
+- `write_frame(frame)` accepts the family frame dicts.
+  `{"type": "image", "image": ndarray, ...}` is encoded and written.
+  `{"type": "EOS"}` emits GStreamer end-of-stream, and finalizes the
+  file. This is essential, because an MP4 without EOS finalization can
+  be unplayable.
   The internal `Queue(maxsize=30)` applies back-pressure by blocking
   the caller.
-- There is no `close()`/`join()`; send the EOS frame, and note the
+- There is no `close()`/`join()`. Send the EOS frame, and note the
   encoder thread is a daemon (see Implementation notes).
 
 **Caveat — output geometry is currently hard-wired**: the encode
@@ -94,9 +95,9 @@ of the constructor arguments (see Current limitations and roadmap).
 
 - Same producer/consumer shape as
   [VideoStreamWriter](video_stream_writer.md): a bounded queue decouples
-  the caller from GStreamer; timestamps come from
+  the caller from GStreamer. Timestamps come from
   `do-timestamp=True` rather than from the frame dicts.
-- `splitmuxsink` is used as the muxer/sink; the commented-out options
+- `splitmuxsink` is used as the muxer/sink. The commented-out options
   (`location={}_%03d.mp4`, `max-files`, `max-size-bytes`,
   `max-size-time`) show the intended direction — time/size-based file
   splitting, which the current-style `VideoWriteFiles` element does at
@@ -108,7 +109,7 @@ of the constructor arguments (see Current limitations and roadmap).
 
 - The `gst_launch_command` template contains two `{}` placeholders
   (encoder, filename) and is formatted with
-  `utilities.get_h264_encoder()` and `filename`; note
+  `utilities.get_h264_encoder()` and `filename`. Note
   `get_h264_encoder_options()` is *not* applied here (unlike
   [VideoStreamWriter](video_stream_writer.md)), so Linux `x264enc` runs
   with default latency/threading options.
@@ -116,7 +117,7 @@ of the constructor arguments (see Current limitations and roadmap).
   "1280x768, 512x288, 256x144" — presumably why 1280x768 was chosen for
   the hard-wired scale.
 - The encoder thread is `daemon=True` and loops forever on
-  `queue.get()`; after EOS it keeps consuming (an image after EOS would
+  `queue.get()`. After EOS it keeps consuming (an image after EOS would
   be pushed into a stopped stream). Process exit while frames are
   buffered can truncate the file.
 - The Python 2 `Queue` import fallback (`sys.version_info`) is dead
@@ -126,7 +127,7 @@ of the constructor arguments (see Current limitations and roadmap).
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
-| `VideoFileWriter` | Accept frame dicts on a bounded queue; convert images to `Gst.Buffer` and push through appsrc; encode H.264 and write via `splitmuxsink`; finalise on EOS | [utilities](utilities.md) (`gst_initialise()`, `get_h264_encoder()`, `get_format()`), `Gst` `parse_launch()` / appsrc; fed by [VideoReader](video_reader.md)-family readers via [video_example](video_example.md) `process_video()` |
+| `VideoFileWriter` | Accept frame dicts on a bounded queue; convert images to `Gst.Buffer` and push through appsrc; encode H.264 and write through `splitmuxsink`; finalize on EOS | [utilities](utilities.md) (`gst_initialise()`, `get_h264_encoder()`, `get_format()`), `Gst` `parse_launch()` / appsrc; fed by [VideoReader](video_reader.md)-family readers through [video_example](video_example.md) `process_video()` |
 
 ## Current limitations and roadmap
 
@@ -141,14 +142,14 @@ Additional observed gaps:
   the constructor's `width`/`height`/`framerate`, which only shape the
   appsrc input caps — output geometry should follow the constructor
 - No clean shutdown: no `close()`, daemon thread, possible truncation
-  on exit; no error reporting from the encode pipeline (bus is never
+  on exit. No error reporting from the encode pipeline (bus is never
   read)
 - `splitmuxsink` splitting options are commented out — single-file
   output only
 - Encoder options helper not applied (Linux latency/threading defaults)
 - Long-term: superseded by the current-style `VideoWriteFile(s)`
   [DataTarget](../../concepts/data_source_target.md) for application
-  use; this wrapper remains the GStreamer-encoding path
+  use. This wrapper remains the GStreamer-encoding path
 
 ## Related concepts
 

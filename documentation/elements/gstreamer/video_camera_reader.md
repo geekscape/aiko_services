@@ -5,13 +5,13 @@ description: Legacy GStreamer wrapper that reads video frames from a Linux
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/gstreamer/video_camera_reader.py
 related: [video_reader, utilities, video_example, data_source_target,
   pipeline_element]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # VideoCameraReader
@@ -20,15 +20,15 @@ last_updated: 2026-07-06
 
 **`VideoCameraReader`** is a **legacy** (pre-PipelineElement) wrapper
 that captures video from a local Linux camera device (`/dev/video*`,
-via GStreamer `v4l2src`), delivering frames through the shared
+through GStreamer `v4l2src`), delivering frames through the shared
 [VideoReader](video_reader.md) queue contract. It is *not* a
 [PipelineElement](../../concepts/pipeline_element.md) — the
 current-style equivalent for cameras is `VideoReadWebcam` in
-`src/aiko_services/elements/media/webcam_io.py` (OpenCV-based; a
-`webcam://` [DataScheme](../../concepts/scheme.md) is on that module's
-roadmap).
+`src/aiko_services/elements/media/webcam_io.py`, which uses OpenCV. A
+`webcam://` [DataScheme](../../concepts/scheme.md) is on the roadmap of
+that module.
 
-**Why you'd use it**: quick programmatic access to a V4L2 camera as
+**Why to use it**: quick programmatic access to a V4L2 camera as
 numpy frames when working in the legacy wrapper style:
 
 ```python
@@ -69,9 +69,9 @@ class VideoCameraReader:
 - `read_frame(timeout)` / `queue_size()` delegate straight to the
   VideoReader queue: frame dicts are
   `{"type": "image", "id": n, "image": ndarray, "timestamp": unix_time}`
-  and `{"type": "EOS"}`; `timeout=None` is non-blocking.
+  and `{"type": "EOS"}`. `timeout=None` is non-blocking.
 
-Fixed behaviour to be aware of (all hard-wired in the launch string):
+Fixed behavior to be aware of (all hard-wired in the launch string):
 
 - **Horizontal mirror** (`videoflip video-direction=horiz`) — selfie
   orientation, always on
@@ -96,20 +96,21 @@ into `self.video_reader.stop()`.
 ```
 
 A thin Facade over [VideoReader](video_reader.md): the entire class is
-pipeline construction; buffering, threading and bus handling are
+pipeline construction. Buffering, threading and bus handling are
 inherited from the shared wrapper. It follows the same shape as
 [VideoFileReader](video_file_reader.md) — validate the source path,
 `parse_launch()` a source-specific pipeline, set appsink caps, delegate.
 
 ### Implementation notes
 
-- The module uses the two-space indentation of the original legacy code
-  and references `utilities.get_format()` via the package namespace —
-  this works because `from aiko_services.elements.gstreamer import *`
-  picks up the `utilities` submodule attribute bound by the package
-  `__init__.py` imports (the package defines no `__all__`).
-- `Gst` is obtained per-constructor via `gst_initialise()`, although
-  importing the package has already initialised GStreamer (module-level
+- The module uses the two-space indentation of the original legacy
+  code. It references `utilities.get_format()` through the package
+  namespace. This works because
+  `from aiko_services.elements.gstreamer import *` picks up the
+  `utilities` submodule attribute, which the package `__init__.py`
+  imports bind (the package defines no `__all__`).
+- Each constructor gets `Gst` through `gst_initialise()`, although
+  importing the package has already initialized GStreamer (module-level
   call in `video_reader.py`).
 
 ### CRC card
@@ -122,7 +123,7 @@ inherited from the shared wrapper. It follows the same shape as
 
 From the source To Do list:
 
-- Support Mac OS X camera sources (`v4l2src` is Linux-only; Mac OS X
+- Support Mac OS X camera sources (`v4l2src` is Linux-only. Mac OS X
   would need `avfvideosrc`)
 
 Additional observed gaps:
@@ -140,7 +141,7 @@ Additional observed gaps:
 
 - [video_reader](video_reader.md) — the shared appsink wrapper this
   class delegates to
-- [utilities](utilities.md) — GStreamer initialisation and format
+- [utilities](utilities.md) — GStreamer initialization and format
   helpers
 - [video_file_reader](video_file_reader.md),
   [video_stream_reader](video_stream_reader.md) — sibling legacy readers

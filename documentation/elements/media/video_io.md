@@ -5,7 +5,7 @@ description: PipelineElements that decode video files into image frames,
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/media/video_io.py
   - src/aiko_services/elements/media/pipelines/video_pipeline_0.json
@@ -15,7 +15,7 @@ source:
 related: [pipeline_element, data_source_target, scheme, stream, parameters,
   scheme_file, image_io, webcam_io, images_to_video, video_example]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Video I/O elements
@@ -23,10 +23,10 @@ last_updated: 2026-07-06
 ## Overview
 
 The **video I/O elements** move video through an Aiko Services
-[Pipeline](../../concepts/pipeline.md) one image frame at a time:
-`VideoReadFile` decodes video files into `images: [image]` frame data
-(NumPy RGB arrays via OpenCV), `VideoSample` drops frames,
-`VideoShow` displays them in an OpenCV window, and `VideoWriteFile` /
+[Pipeline](../../concepts/pipeline.md) one image frame at a time.
+`VideoReadFile` decodes video files into `images: [image]` frame data,
+which are NumPy RGB arrays through OpenCV. `VideoSample` drops frames.
+`VideoShow` displays them in an OpenCV window. `VideoWriteFile` and
 `VideoWriteFiles` encode images back into video files. Because the
 frame data is the same `images` convention used by
 [image_io](image_io.md) and [webcam_io](webcam_io.md), image transforms
@@ -36,7 +36,7 @@ The module also exports `open_video_capture()`, the platform-aware
 `cv2.VideoCapture` factory used by both video-file decoding and the
 webcam element.
 
-**Why you'd use it**: process a video file frame-by-frame — resize,
+**Why to use it**: process a video file frame-by-frame — resize,
 display, re-encode — with the graph in JSON and the file locations as
 URL parameters:
 
@@ -101,10 +101,10 @@ process when `system_exit` is true).
 
 | Class | Kind | Inputs → Outputs | Parameters |
 |-------|------|------------------|------------|
-| `VideoReadFile` | DataSource | `images: [image]` → `images: [image]` | `data_sources` (`file:` URL, required), `rate`, `media_type` (`numpy` \| `pil`), `data_batch_size` (accepted, not yet honoured) |
+| `VideoReadFile` | DataSource | `images: [image]` → `images: [image]` | `data_sources` (`file:` URL, needed), `rate`, `media_type` (`numpy` \| `pil`), `data_batch_size` (accepted, not yet honored) |
 | `VideoSample` | transform | `images` → `images` | `sample_rate` (default 1): keep frames where `frame_id % sample_rate == 0`, else `DROP_FRAME` |
 | `VideoShow` | sink (display) | `images` → (none) | `title` (default `"Video"`), `position` (default `"1280:0"`, applied on frame 0), `system_exit` (default `false`) |
-| `VideoWriteFile` | DataTarget | `images` → (none) | `data_targets` (`file:` URL, required), `format` (default `"MP4V"`), `frame_rate` (default 30.0), `resolution` (default: first image's size) |
+| `VideoWriteFile` | DataTarget | `images` → (none) | `data_targets` (`file:` URL, needed), `format` (default `"MP4V"`), `frame_rate` (default 30.0), `resolution` (default: first image's size) |
 | `VideoWriteFiles` | sink (rolling files) | `images` → (none) | `video_name` (default `"data_out"`), `directory` and `pathname` templates, `video_file_duration` (minutes, default 1), `frame_rate` (default 4.0), `resolution` (default `"640x480"`), `minute_range` (default `"*"`) |
 | `VideoOutput` | pass-through | `images` → `images` | (none) — response tail |
 
@@ -120,15 +120,15 @@ open_video_capture(camera_id=0)  # -> cv2.VideoCapture
 
 selects the platform camera API (`CAP_AVFOUNDATION` on macOS,
 `CAP_V4L2` on Linux, `CAP_MSMF` on Windows), falling back to
-auto-select; it accepts a file pathname string equally well and is also
+auto-select. It accepts a file pathname string equally well and is also
 used by [webcam_io](webcam_io.md) and `audio_io` ([audio_io](audio_io.md)).
 
 **URL forms**: `file:path.mp4` or `file:dir/in_{}.mp4` (glob template)
-via [scheme_file](scheme_file.md).
+through [scheme_file](scheme_file.md).
 
-**Stream lifecycle behaviour:**
+**Stream lifecycle behavior:**
 
-- `VideoReadFile.start_stream()` initialises
+- `VideoReadFile.start_stream()` initializes
   `stream.variables["video_capture"]` / `["video_frame_generator"]` and
   passes its own `frame_generator` to the scheme with
   `use_create_frame=False` — a video always needs the generator thread.
@@ -136,25 +136,25 @@ via [scheme_file](scheme_file.md).
   opens each video with `open_video_capture()`, and yields **one image
   per Pipeline frame** (`{"images": [image_rgb]}`), converting BGR to
   RGB. End of the last file returns `StreamEvent.STOP`
-  (`"End of video file(s)"`); an unopenable file returns
+  (`"End of video file(s)"`). An unopenable file returns
   `StreamEvent.ERROR`.
 - `VideoReadFile.process_frame()` sets
   `stream.variables["timestamps"]` (currently a hard-coded 25 fps clock)
   and applies optional `media_type` conversion.
 - `VideoWriteFile.start_stream()` resolves the target path (a `{}`
-  template is formatted once with `target_file_id`, not per frame); the
-  `cv2.VideoWriter` is created lazily on the first
-  `process_frame()`, using the first image's resolution unless
-  `resolution` is set. Images **must be NumPy arrays** — a PIL image
-  produces `StreamEvent.ERROR` (`"Image media_type must be a numpy
-  array"`); use `media_type: numpy` on the source or an `ImageConvert`
-  element ([image_io](image_io.md)). `stop_stream()` releases the
-  writer, finalising the file.
-- `VideoWriteFiles` is a continuous-recording sink (not a DataTarget):
-  it writes date/time-structured rolling files
-  (`data_out/YYYY/MM/DD/HH/MMm_SSs.mp4` by default), starts a new file
-  every `video_file_duration` minutes, only records inside
-  `minute_range` (e.g. `"00-15"`), and publishes the current
+  template is formatted once with `target_file_id`, not per frame). The
+  `cv2.VideoWriter` is made lazily on the first `process_frame()`. It
+  uses the first image's resolution, unless `resolution` is set. Images
+  **must be NumPy arrays**. A PIL image produces `StreamEvent.ERROR`
+  (`"Image media_type must be a numpy array"`). Use `media_type: numpy`
+  on the source, or an `ImageConvert` element
+  ([image_io](image_io.md)). `stop_stream()` releases the writer, and
+  finalizes the file.
+- `VideoWriteFiles` is a continuous-recording sink, and not a
+  DataTarget. It writes date/time-structured rolling files
+  (`data_out/YYYY/MM/DD/HH/MMm_SSs.mp4` by default). It starts a new
+  file every `video_file_duration` minutes. It records only inside
+  `minute_range` (for example, `"00-15"`). It also publishes the current
   `video_pathname` to shared state for the Aiko Services Dashboard.
 
 ## For framework developers (internals)
@@ -177,14 +177,14 @@ via [scheme_file](scheme_file.md).
 
 - **Two-level generator.** `VideoReadFile.frame_generator()` composes
   the scheme's *path* iterator with a per-video *image* iterator
-  (`video_frame_iterator()`), both held in `stream.variables` — the
-  canonical example of a DataSource overriding the scheme's default
-  frame generator (the
+  (`video_frame_iterator()`). `stream.variables` holds both. This is the
+  canonical example of a DataSource that overrides the scheme's default
+  frame generator. The
   [DataSource / DataTarget](../../concepts/data_source_target.md)
-  roadmap notes this pattern should be generalised).
+  roadmap notes that this pattern must become general.
 - **Lazy writer creation.** `VideoWriteFile` cannot size the encoder
-  until it has seen an image, so writer creation happens in
-  `process_frame()`, not `start_stream()` — per-Stream state
+  until it has seen an image. Thus it makes the writer in
+  `process_frame()`, and not in `start_stream()`. The per-Stream state
   (`video_writer`, `video_path`) lives in `stream.variables`.
 - **Wall-clock file rotation.** `VideoWriteFiles` keys rotation off
   `datetime.now().minute`, deliberately trading frame-accurate file
@@ -197,14 +197,14 @@ via [scheme_file](scheme_file.md).
   `cv2.destroyAllWindows()` is never invoked by the framework. Window
   clean-up currently relies on process exit.
 - Codec notes from the source: list codecs with
-  `cv2.VideoWriter(..., fourcc=-1)`; `.avi` → `XVID`; `.mp4` → `MP4V`,
-  `DIVX`, `H264`, `X264`; Linux supports `DIVX XVID MJPG X264 WMV1
+  `cv2.VideoWriter(..., fourcc=-1)`. `.avi` → `XVID`. `.mp4` → `MP4V`,
+  `DIVX`, `H264`, `X264`. Linux supports `DIVX XVID MJPG X264 WMV1
   WMV2`, Windows `DIVX`.
 - `VideoWriteFile._create_video_writer()` creates parent directories
   (`mkdir(parents=True)`) before writing.
 - `VideoWriteFiles.process_frame()` re-reads `minute_range` every frame
   (and mirrors it into `self.share`), so recording windows can be
-  changed live via shared state; it writes only `images[0]` per frame.
+  changed live through shared state. It writes only `images[0]` per frame.
 - `_CV2_IMPORTED` / `_NUMPY_IMPORTED` guards exist but are not yet
   checked at use sites (same gap as [image_io](image_io.md)).
 
@@ -230,13 +230,13 @@ From the source To Do list — **planned**, not implemented:
   `timestamps` stream variable (currently hard-coded 1/25 s)
 - Implement `data_batch_size` in `VideoReadFile.frame_generator()`
   (parameter is accepted but each frame carries exactly one image)
-- `start_frame` / `stop_frame` parameters; `VideoSample` by image count
+- `start_frame` / `stop_frame` parameters. `VideoSample` by image count
   rather than frame count, with a shared `video_sample()` helper
 - Read video properties (`CAP_PROP_FRAME_WIDTH/HEIGHT/COUNT/FPS`) from
   the capture rather than assuming them
-- Typed DataSources (URL + media type, e.g. `mp4`); metrics (frame
-  rates); video windowing (multi-frame batches for ML, e.g. gesture
-  analysis); CPU–GPU batch transfer efficiency
+- Typed DataSources (URL + media type, for example, `mp4`). Metrics (frame
+  rates). Video windowing (multi-frame batches for ML, for example, Gesture
+  analysis). CPU–GPU batch transfer efficiency
 - `VideoShow` GUI work: missing `cv2.imshow()` icons, trackbars,
   tkinter integration — and moving clean-up into a real
   `stop_stream()` (see Implementation notes)
@@ -248,7 +248,7 @@ From the source To Do list — **planned**, not implemented:
 - [PipelineElement](../../concepts/pipeline_element.md) — the contract
   every class here implements
 - [DataSource / DataTarget](../../concepts/data_source_target.md) —
-  base classes; `VideoReadFile` is the motivating case for the planned
+  base classes. `VideoReadFile` is the motivating case for the planned
   frame-generator refactor
 - [DataScheme](../../concepts/scheme.md) / [scheme_file](scheme_file.md)
   — `file:` URL resolution and path iteration

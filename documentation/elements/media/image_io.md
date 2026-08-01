@@ -5,7 +5,7 @@ description: PipelineElements that read, convert, resize, overlay and write
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/media/image_io.py
   - src/aiko_services/elements/media/pipelines/image_pipeline_0.json
@@ -17,7 +17,7 @@ source:
 related: [pipeline_element, data_source_target, scheme, stream, parameters,
   scheme_file, scheme_zmq, text_io, video_io, webcam_io]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Image I/O elements
@@ -25,23 +25,23 @@ last_updated: 2026-07-06
 ## Overview
 
 The **image I/O elements** carry still images through an Aiko Services
-[Pipeline](../../concepts/pipeline.md): sources that read image files or
-receive images over ZeroMQ, transforms that convert, resize, crop and
-overlay, and targets that write image files or send images over ZeroMQ.
-The frame data convention is `images: [image]`, where an image may be a
-PIL `Image.Image` or a NumPy `ndarray` — the module provides conversion
-helpers and an `ImageConvert` element so a
+[Pipeline](../../concepts/pipeline.md). The sources read image files, or
+receive images over ZeroMQ. The transforms convert, resize, crop and
+overlay. The targets write image files, or send images over ZeroMQ.
+The frame data convention is `images: [image]`. An image is a PIL
+`Image.Image` or a NumPy `ndarray`. The module gives conversion helpers
+and an `ImageConvert` element. Thus a
 [PipelineDefinition](../../concepts/pipeline.md) can pick the
 representation each stage needs.
 
 This family follows the same
 [DataSource / DataTarget](../../concepts/data_source_target.md) +
 [DataScheme](../../concepts/scheme.md) design as
-[text_io](text_io.md); the video elements ([video_io](video_io.md),
+[text_io](text_io.md). The video elements ([video_io](video_io.md),
 [webcam_io](webcam_io.md)) produce the same `images` frame data, so
 image transforms slot into video pipelines unchanged.
 
-**Why you'd use it**: batch-process a directory of images, or stream a
+**Why to use it**: batch-process a directory of images, or stream a
 webcam between hosts, with the wiring in JSON and the locations as URL
 parameters:
 
@@ -132,15 +132,15 @@ PipelineElement classes:
 
 | Class | Kind | Inputs → Outputs | Parameters |
 |-------|------|------------------|------------|
-| `ImageReadFile` | DataSource | `paths: [Path]` → `images: [image]` | `data_sources` (`file:` URL, required), `data_batch_size` (default 1), `rate`, `media_type` (`numpy` \| `pil`, default: PIL as loaded) |
+| `ImageReadFile` | DataSource | `paths: [Path]` → `images: [image]` | `data_sources` (`file:` URL, needed), `data_batch_size` (default 1), `rate`, `media_type` (`numpy` \| `pil`, default: PIL as loaded) |
 | `ImageReadZMQ` | DataSource | `records: [bytes]` → `images: [image]` | `data_sources` (`zmq://host:port_range`), `data_batch_size`, `media_type` (accepts `image/pil` form), `compressed` (default `false`: zlib-decompress each record) |
 | `ImageConvert` | transform | `images` → `images` | `media_type` (`numpy` \| `pil`; unset = pass through) |
 | `ImageResize` | transform | `images` → `images` | `resolution` `"WxH"` (unset = pass through); handles PIL and NumPy |
 | `ImageTransform` | transform | `images` → `images` | `resolution` `"WxH"` — currently a duplicate of `ImageResize` (see roadmap) |
-| `ImageSquareCenterCrop` | transform | `images` → `images` | (none) — centre-crop to the shortest side, PIL or NumPy |
+| `ImageSquareCenterCrop` | transform | `images` → `images` | (none) — center-crop to the shortest side, PIL or NumPy |
 | `ImageOverlay` | transform | `images`, `overlay` → `images` | (none yet) — draw `overlay["rectangles"]` and `overlay["objects"]` name/confidence labels (OpenCV) |
 | `ImageOverlayFilter` | transform | `overlay` → `overlay` | `deny` (list of names, default `[]`), `threshold` (default 0.0) — drop overlay objects by name or low confidence |
-| `ImageWriteFile` | DataTarget | `images` → (none) | `data_targets` (`file:` URL, required); `{}` template formats `target_file_id` per image |
+| `ImageWriteFile` | DataTarget | `images` → (none) | `data_targets` (`file:` URL, needed); `{}` template formats `target_file_id` per image |
 | `ImageWriteZMQ` | DataTarget | `images` → (none) | `data_targets` (`zmq://host:port`), `compressed` (default `false`: zlib-compress) |
 | `ImageOutput` | pass-through | `images` → `images` | (none) — response tail |
 
@@ -150,11 +150,11 @@ Service protocols: `image_read_file:0`, `image_read_zmq:0`,
 `image_overlay_filter:0`, `image_write_file:0`, `image_write_zmq:0`,
 `image_output:0`.
 
-**URL forms**: `file:path`, `file:dir/in_{}.jpeg` (glob template) via
-[scheme_file](scheme_file.md); `zmq://host:port[-port]` via
+**URL forms**: `file:path`, `file:dir/in_{}.jpeg` (glob template) through
+[scheme_file](scheme_file.md). `zmq://host:port[-port]` through
 [scheme_zmq](scheme_zmq.md).
 
-**Stream lifecycle behaviour:**
+**Stream lifecycle behavior:**
 
 - `ImageReadFile.process_frame(stream, paths)` opens each path with PIL,
   optionally converts per `media_type`, and sets
@@ -163,9 +163,9 @@ Service protocols: `image_read_file:0`, `image_read_zmq:0`,
 - `ImageReadZMQ` wire format: one ZeroMQ message per image, the raw
   JPEG/PNG bytes from `image_to_bytes()`, optionally zlib-compressed
   when `compressed` is true on both ends (`image_zmq_pipeline_0.json`
-  documents `media_type: "image/pil"`; the element takes the subtype
+  documents `media_type: "image/pil"`. The element takes the subtype
   after `/`).
-- `ImageWriteFile` converts to PIL before `image.save(path)`; a
+- `ImageWriteFile` converts to PIL before `image.save(path)`. A
   non-template `data_targets` overwrites the same path each frame, a
   `{}` template writes `out_00.jpeg`, `out_01.jpeg`, … per image.
 - `ImageOverlay` expects `overlay` frame data shaped
@@ -196,24 +196,24 @@ Service protocols: `image_read_file:0`, `image_read_zmq:0`,
 
 - **Dual image representation.** Elements accept PIL or NumPy where
   practical (`ImageResize`, `ImageSquareCenterCrop`,
-  `convert_image_to_pil()` in `ImageWriteFile`); OpenCV-based elements
-  (`ImageOverlay`) require NumPy. `ImageConvert` (or a source's
-  `media_type` parameter) normalises the representation at the point it
-  matters — e.g. `images_to_video_pipeline.json` needs NumPy before
+  `convert_image_to_pil()` in `ImageWriteFile`). OpenCV-based elements
+  (`ImageOverlay`) need NumPy. `ImageConvert` (or a source's
+  `media_type` parameter) normalizes the representation at the point it
+  matters — for example, `images_to_video_pipeline.json` needs NumPy before
   `VideoWriteFile`.
-- **Optional native dependencies.** `cv2` and `numpy` imports are
-  guarded (`_CV2_IMPORTED`, `_NUMPY_IMPORTED`) so the module imports
-  without them, but the guards are not yet checked at use sites (TODOs
-  in source) — using an OpenCV-dependent element without `cv2` fails at
+- **Optional native dependencies.** The `cv2` and `numpy` imports are
+  guarded (`_CV2_IMPORTED`, `_NUMPY_IMPORTED`), so the module imports
+  without them. But the use sites do not check the guards yet (TODOs in
+  the source). Thus an OpenCV-dependent element without `cv2` fails at
   `process_frame()` time.
-- The colour convention across the media elements is **RGB** in frame
-  data; OpenCV elements convert to BGR internally and back.
+- The color convention across the media elements is **RGB** in frame
+  data. OpenCV elements convert to BGR internally and back.
 
 ### Implementation notes
 
 - `ImageOverlay` hard-codes style (`color`, `font`, `font_scale`,
   `thickness`, `threshold`) on `self` — safe only because they are
-  read-only per frame; TODOs plan to expose them as
+  read-only per frame. TODOs plan to expose them as
   [Parameters](../../concepts/parameters.md).
 - `ImageWriteFile` returns the placeholder diagnostic
   `"UNKNOWN IMAGE TYPE"` (marked `TODO: FIX ME !`) when
@@ -221,9 +221,9 @@ Service protocols: `image_read_file:0`, `image_read_zmq:0`,
 - `ImageReadZMQ` and `ImageWriteZMQ` contain commented-out stubs for a
   planned `image:length:content` record header (media-type framing).
 - `ImageTransform` is byte-for-byte the same resize logic as
-  `ImageResize`; `image_io.py` `__all__` exports it but
+  `ImageResize`. `image_io.py` `__all__` exports it but
   `src/aiko_services/elements/media/__init__.py` does not import it —
-  it is only loadable via `deploy.local.module`.
+  it is only loadable through `deploy.local.module`.
 
 ### CRC card
 
@@ -233,10 +233,10 @@ Service protocols: `image_read_file:0`, `image_read_zmq:0`,
 | `ImageReadZMQ` | Decode (optionally decompress) received image records | [DataSource](../../concepts/data_source_target.md), [DataSchemeZMQ](scheme_zmq.md) |
 | `ImageConvert` | Convert images between PIL and NumPy per `media_type` | [PipelineElement](../../concepts/pipeline_element.md) |
 | `ImageResize` / `ImageTransform` | Resize to `resolution` (PIL or NumPy backends) | [PipelineElement](../../concepts/pipeline_element.md), [Parameters](../../concepts/parameters.md) |
-| `ImageSquareCenterCrop` | Centre-crop to square (helper `square_center_crop()`) | [PipelineElement](../../concepts/pipeline_element.md) |
+| `ImageSquareCenterCrop` | Center-crop to square (helper `square_center_crop()`) | [PipelineElement](../../concepts/pipeline_element.md) |
 | `ImageOverlay` | Draw rectangles and labels from `overlay` onto images (OpenCV) | [PipelineElement](../../concepts/pipeline_element.md) |
 | `ImageOverlayFilter` | Filter `overlay` objects by `deny` list and confidence `threshold` | [PipelineElement](../../concepts/pipeline_element.md), [Parameters](../../concepts/parameters.md) |
-| `ImageWriteFile` | Save images via PIL to path / `{}` template | [DataTarget](../../concepts/data_source_target.md), [DataSchemeFile](scheme_file.md) |
+| `ImageWriteFile` | Save images through PIL to path / `{}` template | [DataTarget](../../concepts/data_source_target.md), [DataSchemeFile](scheme_file.md) |
 | `ImageWriteZMQ` | Encode (optionally compress) and send image records | [DataTarget](../../concepts/data_source_target.md), [DataSchemeZMQ](scheme_zmq.md) |
 | `ImageOutput` | Pass `images` through as the Pipeline response tail | [PipelineElement](../../concepts/pipeline_element.md) |
 
@@ -249,20 +249,20 @@ From the source To Do list — **planned**, not implemented:
   encoding metadata
 - Consolidate the multiple `media_pipeline_?.json` files using Graph
   Paths
-- `ImageResize`: scale factors (`{"scale": "1/3"}`) and single-dimension
-  resolutions; combine `ImageResize` and `ImageSquareCenterCrop` (and
-  the duplicate `ImageTransform`) into one element with parameters;
-  interpolation quality/speed parameter (`INTER_AREA` / `INTER_CUBIC` /
-  `INTER_LINEAR`)
+- `ImageResize`: scale factors (`{"scale": "1/3"}`) and
+  single-dimension resolutions. Combine `ImageResize`,
+  `ImageSquareCenterCrop` and the duplicate `ImageTransform` into one
+  element with parameters. Add an interpolation quality/speed parameter
+  (`INTER_AREA`, `INTER_CUBIC` or `INTER_LINEAR`)
 - Refactor the optional `cv2` / `numpy` import guards into a common
   function shared with [video_io](video_io.md), and actually check the
   guards at use sites
 - Stream-close semantics: decide what closes a Stream when all
   `data_sources` are consumed and it is not the default Stream
-- A Stream parameter selecting the output NumPy format; `ImageReadFile`
-  accepting typed DataSources (URL + media type); metrics (frame rates)
+- A Stream parameter selecting the output NumPy format. `ImageReadFile`
+  accepting typed DataSources (URL + media type). Metrics (frame rates)
 - Archive (`tgz`, `zip`) DataSources with filename filters
-- `ImageOverlay`: colours, fonts, camera name, date/time, FPS, ellipses,
+- `ImageOverlay`: colors, fonts, camera name, date/time, FPS, ellipses,
   lines, masks, polygons, pose figures, metrics — all still TODO
 - Hard-coded 25 fps `timestamps` in `ImageReadFile` / `ImageReadZMQ`
   needs a configurable frame rate (shared issue with
@@ -274,7 +274,7 @@ From the source To Do list — **planned**, not implemented:
   every class here implements
 - [DataSource / DataTarget](../../concepts/data_source_target.md) — base
   classes for the read/write elements
-- [DataScheme](../../concepts/scheme.md) — URL plug-ins; see
+- [DataScheme](../../concepts/scheme.md) — URL plug-ins. See
   [scheme_file](scheme_file.md) and [scheme_zmq](scheme_zmq.md)
 - [Stream](../../concepts/stream.md) — lifecycle and `stream.variables`
 - [Parameters](../../concepts/parameters.md) — how `-p` values reach

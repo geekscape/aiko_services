@@ -5,13 +5,13 @@ description: The zmq DataScheme — out-of-band record transport between
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/media/scheme_zmq.py
 related: [scheme, data_source_target, pipeline_element, stream, parameters,
   text_io, image_io, scheme_file, scheme_tty]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # DataSchemeZMQ
@@ -23,16 +23,16 @@ last_updated: 2026-07-06
 of `bytes` records between processes over ZeroMQ, **out-of-band** from
 the MQTT control plane. A
 [DataTarget](../../concepts/data_source_target.md) end (`TextWriteZMQ`,
-`ImageWriteZMQ`) is a PUSH client that connects; a DataSource end
-(`TextReadZMQ`, `ImageReadZMQ`) is a PULL server that binds — so bulk
-media bypasses the MQTT broker entirely while the Pipelines remain
+`ImageWriteZMQ`) is a PUSH client that connects. A DataSource end
+(`TextReadZMQ`, `ImageReadZMQ`) is a PULL server that binds. Thus bulk
+media does not go through the MQTT broker, and the Pipelines stay
 ordinary Aiko Services.
 
 This is the current answer to "stream a webcam or text feed between
 hosts": pair a writer pipeline on one machine with a reader pipeline on
 another, and only the `zmq://` URLs change.
 
-**Why you'd use it**: connect two Pipelines across the network with two
+**Why to use it**: connect two Pipelines across the network with two
 URL parameters:
 
 ```bash
@@ -52,7 +52,7 @@ aiko_pipeline create pipelines/text_zmq_pipeline_1.json -s 1 -sr  \
 `DataSchemeZMQ` has no CLI of its own — it is selected by `zmq://` URLs
 on ZMQ-suffixed elements. Worked sessions live in
 [text_io](text_io.md) (text records) and [image_io](image_io.md)
-(image records, optional zlib compression); the webcam-to-network
+(image records, optional zlib compression). The webcam-to-network
 pipeline is in [webcam_io](webcam_io.md):
 
 ```bash
@@ -79,7 +79,7 @@ without timing the Stream out while the client starts.
 URL forms (from the source header) — each list should contain a single
 entry.
 
-`data_sources` (**server bind**, incoming); `port_range` may be a
+`data_sources` (**server bind**, incoming). `port_range` may be a
 single port or a range:
 
 ```
@@ -111,23 +111,23 @@ Parameters read by the scheme:
 |-----------|---------|---------|
 | `data_batch_size` | 1 | Maximum records grouped per frame (source side) |
 
-Source behaviour: a PULL socket is bound (`RCVTIMEO` 1 s), a daemon
-thread receives payloads into a queue, and the frame generator drains
+Source behavior: a PULL socket is bound (`RCVTIMEO` 1 s), and a daemon
+thread receives payloads into a queue. The frame generator then drains
 up to `data_batch_size` queued records into
-`{"records": [bytes, ...]}` — the owning element's
+`{"records": [bytes, ...]}`. The owning element's
 `process_frame(stream, records)` decodes them. An empty queue returns
-`StreamEvent.NO_FRAME`; the Stream never self-stops (a network source
+`StreamEvent.NO_FRAME`. The Stream never self-stops (a network source
 has no natural end — use `-gt`, `-s` Stream management or Ctrl-C).
 
-Target behaviour: a PUSH socket connects and is stored in
-`stream.variables["target_zmq_socket"]`; the DataTarget element calls
+Target behavior: a PUSH socket connects and is stored in
+`stream.variables["target_zmq_socket"]`. The DataTarget element calls
 `.send(record)` per record in its own `process_frame()`.
 
 **Wire format**: one ZeroMQ message per record — raw `bytes` with no
-framing, no acknowledgement (PUSH/PULL is unidirectional and buffers
+framing, no acknowledgment (PUSH/PULL is unidirectional and buffers
 while the peer is absent). Content encoding belongs to the element
 pair: UTF-8 text for `Text*ZMQ`, JPEG/PNG bytes (optionally
-zlib-compressed) for `Image*ZMQ`; `text:length:content`-style headers
+zlib-compressed) for `Image*ZMQ`. `text:length:content`-style headers
 are planned, not implemented.
 
 Registration (module import side-effect):
@@ -153,15 +153,15 @@ aiko.DataScheme.add_data_scheme("zmq", DataSchemeZMQ)
                                          {"records": [...]} | NO_FRAME
 ```
 
-- **Server = source, client = target.** The data *consumer* binds and
-  the *producer* connects — matching the deployment reality that the
-  processing host is the stable endpoint and camera/feeder clients come
+- **Server = source, client = target.** The data *consumer* binds, and
+  the *producer* connects. This agrees with the deployment reality: the
+  processing host is the stable endpoint, and camera/feeder clients come
   and go.
 - **Same thread-plus-queue shape as [scheme_tty](scheme_tty.md)**: the
-  blocking `recv()` lives on a daemon thread; the frame generator only
+  blocking `recv()` lives on a daemon thread. The frame generator only
   polls. `RCVTIMEO` keeps the thread responsive to `terminate`.
 - **Port ranges for fleet deployment.** `_parse_zmq_url()` expands
-  `host:port_range`; when a genuine range is given on the source side,
+  `host:port_range`. When a genuine range is given on the source side,
   `get_network_port_free()` (from `aiko_services.main.utilities`) picks
   a free port, and `share["zmq_url"]` advertises the result.
 
@@ -171,16 +171,16 @@ aiko.DataScheme.add_data_scheme("zmq", DataSchemeZMQ)
   `use_create_frame=False` — a socket source always needs the
   generator thread.
 - A single `*` or `0` port on the source side maps to port `0` in the
-  bind URL (only proper ranges go through `get_network_port_free()`) —
-  ZeroMQ's handling of `tcp://host:0` is what you get; prefer an
-  explicit range.
+  bind URL. Only proper ranges go through `get_network_port_free()`.
+  Thus you get the ZeroMQ handling of `tcp://host:0`. Prefer an explicit
+  range.
 - Socket lifecycle: `destroy_sources()` sets `terminate` and the reader
-  thread's `finally:` closes socket and context; `destroy_targets()`
-  closes directly (`_zmq_destroy()` is idempotent via `None` checks).
+  thread's `finally:` closes socket and context. `destroy_targets()`
+  closes directly (`_zmq_destroy()` is idempotent through `None` checks).
   `bind()` / `connect()` exception handling is a marked TODO — a port
   already in use currently raises out of `start_stream()`.
 - Scheme state (`zmq_context`, `zmq_socket`, `queue`, `terminate`)
-  lives on `self`; safe because one scheme instance exists per
+  lives on `self`. Safe because one scheme instance exists per
   [Stream](../../concepts/stream.md).
 
 ### CRC card
@@ -201,8 +201,8 @@ From the source To Do list — **planned**, not implemented:
   transport, out-of-band alternative to in-band MQTT
 
 Known sharp edges (see Implementation notes): no `bind()`/`connect()`
-exception handling; single `*` port becomes literal port `0`; no
-delivery acknowledgement — PUSH buffers silently while the server is
+exception handling. Single `*` port becomes literal port `0`. No
+delivery acknowledgment — PUSH buffers silently while the server is
 down.
 
 ## Related concepts
@@ -213,8 +213,8 @@ down.
   elements that instantiate this scheme per Stream
 - [PipelineElement](../../concepts/pipeline_element.md) —
   `create_frames()` and the frame contract
-- [Stream](../../concepts/stream.md) — scope of the scheme instance;
-  `-gt` grace time on network sources
+- [Stream](../../concepts/stream.md) — scope of the scheme instance.
+  The `-gt` grace time on network sources
 - [Parameters](../../concepts/parameters.md) — `data_sources`,
   `data_targets`, `data_batch_size`
 - [text_io](text_io.md), [image_io](image_io.md),

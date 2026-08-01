@@ -5,31 +5,32 @@ description: Mock and NoOp — minimal PipelineElements for scaffolding,
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/media/elements.py
 related: [pipeline_element, pipeline, parameters, stream, text_io]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # General-purpose media elements
 
 ## Overview
 
-`elements.py` provides the two smallest useful
+`elements.py` gives the two smallest useful
 [PipelineElements](../../concepts/pipeline_element.md) in
 Aiko Services: **`Mock`** and **`NoOp`**. Both take no frame inputs, produce
 no frame outputs, and always return `StreamEvent.OKAY` — their value is
-structural. Use them to stand in for an element you have not written
-yet, to keep a [Pipeline](../../concepts/pipeline.md) graph shape valid
-while developing, or to verify that Frames flow through a graph at all.
+structural. Use them for three purposes. They stand in for an element
+that you have not written yet. They keep a
+[Pipeline](../../concepts/pipeline.md) graph shape valid during
+development. They also verify that Frames flow through a graph at all.
 
 `Mock` additionally logs its identity and an optional `label`
-parameter at debug level, making it a cheap trace point; `NoOp` does
+parameter at debug level, making it a cheap trace point. `NoOp` does
 nothing whatsoever.
 
-**Why you'd use it**: rough out a PipelineDefinition before the real
+**Why to use it**: rough out a PipelineDefinition before the real
 elements exist, and watch the Frames flow:
 
 ```json
@@ -76,7 +77,7 @@ Service protocols: `mock:0`, `noop:0`.
 Both elements return `StreamEvent.OKAY, {}` from `process_frame()` and
 use the default `start_stream()` / `stop_stream()` — they are
 Stream-lifecycle-neutral and safe anywhere in a graph. Because they
-declare no inputs, the Pipeline passes them no frame data; because they
+declare no inputs, the Pipeline passes them no frame data. Because they
 return an empty dict, the Frame's accumulated data (the swag) passes
 through them unchanged for successor elements.
 
@@ -114,7 +115,7 @@ authors.
 
 From the source To Do list — **planned**, not implemented:
 
-- Improve `Mock` towards `Code` and/or `LISP`: a `code` parameter such
+- Improve `Mock` toward `Code` and/or `LISP`: a `code` parameter such
   as `"{output} = {input} + {increment}"`, turning the placeholder into
   a small expression-evaluating element.
 

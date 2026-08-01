@@ -5,9 +5,9 @@ description: Index of OKF documents for the control-flow PipelineElements
 type: index
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # Aiko Services: control elements
@@ -25,7 +25,7 @@ Concepts documentation template
 | [Control elements](elements.md) | `src/aiko_services/elements/control/elements.py` | The `Loop` element (`PipelineElementLoop`) — repeats a graph section until an S-expression condition over the Frame swag becomes false |
 
 Note: the package currently has no `__init__.py`, so there are no
-package-level exports; `elements.py` declares `__all__ = ["Loop"]`.
+package-level exports. `elements.py` declares `__all__ = ["Loop"]`.
 
 ## Example PipelineDefinitions
 

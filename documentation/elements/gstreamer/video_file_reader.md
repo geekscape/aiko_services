@@ -5,13 +5,13 @@ description: Legacy GStreamer wrapper that reads H.264 video frames from an
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
-ste: false
+ste: adapted
 source:
   - src/aiko_services/elements/gstreamer/video_file_reader.py
 related: [video_reader, video_file_writer, video_example, utilities,
   data_source_target, scheme]
 version: "0.6"
-last_updated: 2026-07-06
+last_updated: 2026-08-01
 ---
 
 # VideoFileReader
@@ -19,7 +19,7 @@ last_updated: 2026-07-06
 ## Overview
 
 **`VideoFileReader`** is a **legacy** (pre-PipelineElement) wrapper that
-decodes an H.264 video file (MP4/QuickTime container, via GStreamer
+decodes an H.264 video file (MP4/QuickTime container, through GStreamer
 `qtdemux`) into numpy image frames, delivered through the shared
 [VideoReader](video_reader.md) queue contract. The current-style
 equivalent is `VideoReadFile` in
@@ -27,8 +27,8 @@ equivalent is `VideoReadFile` in
 [DataSource](../../concepts/data_source_target.md) driven by
 `file:` URLs.
 
-**Why you'd use it**: pull decoded frames from a video file in the
-legacy wrapper style, e.g. as the input half of the
+**Why to use it**: pull decoded frames from a video file in the
+legacy wrapper style, for example, as the input half of the
 [video_example](video_example.md) CLI:
 
 ```python
@@ -52,7 +52,7 @@ gst-launch-1.0 filesrc location=../football_test_1.mp4 ! qtdemux ! \
 
 ### Command-line usage
 
-No `__main__` of its own — exercised via the
+No `__main__` of its own — exercised through the
 [video_example](video_example.md) CLI:
 
 ```bash
@@ -79,11 +79,11 @@ class VideoFileReader:
 - `read_frame(timeout)` / `queue_size()` delegate to the VideoReader
   queue: frames are
   `{"type": "image", "id": n, "image": ndarray, "timestamp": unix_time}`
-  followed by `{"type": "EOS"}` at end of file; `timeout=None` is
+  followed by `{"type": "EOS"}` at end of file. `timeout=None` is
   non-blocking.
 
 Contract limits: MP4/QuickTime containers with H.264 video only
-(`qtdemux` + the platform H.264 decoder); no framerate in the caps, so
+(`qtdemux` + the platform H.264 decoder). No framerate in the caps, so
 frames are decoded as fast as the consumer drains the bounded queue
 (30 frames) — pacing is the consumer's job.
 
@@ -119,16 +119,16 @@ The source To Do list is empty ("None, yet"). Observed gaps:
 
 - Container/codec support is fixed at MP4/QuickTime + H.264 (no
   `decodebin` fallback for other formats)
-- Width/height are requested via caps, but there is no `videoscale`
-  element in the pipeline — a file whose native resolution differs may
-  fail to negotiate rather than be scaled
-- No `stop()` passthrough; no resource release before process exit
+- Width/height are requested through caps. But the pipeline has no
+  `videoscale` element. Thus a file with a different native resolution
+  can fail to negotiate, and it is not scaled
+- No `stop()` passthrough. No resource release before process exit
   (inherited from [VideoReader](video_reader.md))
-- No test coverage; only manual exercise via
+- No test coverage. Only manual exercise through
   [video_example](video_example.md)
 - Long-term, file reading is served by the current-style `VideoReadFile`
   ([DataSource](../../concepts/data_source_target.md) + `file:`
-  [DataScheme](../../concepts/scheme.md)); this wrapper remains for the
+  [DataScheme](../../concepts/scheme.md)). This wrapper remains for the
   legacy path and GStreamer-specific decoding
 
 ## Related concepts
