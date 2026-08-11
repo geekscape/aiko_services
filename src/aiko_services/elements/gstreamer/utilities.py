@@ -88,12 +88,11 @@ def process_video(video_reader, video_writer):
 
         if cv2:
           image = cv2.cvtColor(frame["image"], cv2.COLOR_RGB2BGR)
+          image = cv2.putText(
+            image.copy(), str(frame["id"]), (100, 100),
+            cv2.FONT_HERSHEY_SIMPLEX, 2, (255,255,255), 2, cv2.LINE_AA)
           cv2.imshow("Video", image)
           if cv2.waitKey(1) & 0xff == ord('q'): break
-
-          frame["image"] = cv2.putText(
-            frame["image"], str(frame["id"]), (100, 400),
-            cv2.FONT_HERSHEY_SIMPLEX, 2, (255,255,255), 2, cv2.LINE_AA)
 
       video_writer.write_frame(frame)
 
