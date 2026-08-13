@@ -52,6 +52,10 @@
 # * BUG: If there are multiple secondaries, when the primary fails, then all
 #        secondaries end up being primaries :(
 #
+# * FIX: Update public methods to match Category Interface ...
+#        Rename service_add() --> add(), service_remove() --> remove()
+#        Consider services_share() as a synonym for list() ?
+#
 # * Consider whether the Registrar should be an Actor instead of a Service ?
 #
 # * Secondary Registrar subscribe to primary Registrar and update "self.history"

@@ -6,6 +6,15 @@ Distributed system framework supporting
 [**Media streaming**](https://en.wikipedia.org/wiki/Streaming_media) and
 [**AIoT**](https://en.wikipedia.org/wiki/Artificial_intelligence_of_things)
 
+<pre style="font-family: Monaco, monospace; font-size: 14px; line-height: 1.5;
+    color: #39ff14; background-color: #000000; padding: 20px;
+    border-radius: 5px;">
+(aiko services (loop
+    (perceiving :is believing)
+    (acting :manifests reality))
+    :computing reinvented)
+</pre>
+
 # Features
 
 - Supports multi-nodal Machine Learning streaming pipelines ... that span from edge (embedded) devices all the way through to the data centre servers and back again
