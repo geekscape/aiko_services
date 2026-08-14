@@ -9,9 +9,10 @@ status: work-in-progress
 ste: adapted
 source:
   - src/aiko_services/main/utilities/parser.py
-related: [design_overview, service, actor, share, registrar, graph]
+related: [design_overview, service, actor, share, registrar, graph,
+  ../../adr/ADR-002_SExpressionWireEncoding, ../../z_hy_assessment]
 version: "0.6"
-last_updated: 2026-08-01
+last_updated: 2026-08-14
 ---
 
 # Parser utility (S-expressions)
@@ -254,7 +255,15 @@ From the source `To Do` list — all planned, none implemented:
 - Give proper unit tests (there are currently **none** — only the
   `main()` self-test)
 - AVRO schema and JSON parsing. Consider the `sexpdata` and `hy` /
-  `hyrule` Python modules
+  `hyrule` Python modules — **narrowed 2026-08-14**: as helpers *beside*
+  this module, never as a replacement for it. The wire grammar is
+  canonical S-expressions, fixed by
+  [ADR-002](../../adr/ADR-002_SExpressionWireEncoding.md), with a second
+  implementation in MicroPython (`aiko_engine_mp`) that the ADR cites as
+  its existence proof. Hy's reader is a different grammar. To adopt it as
+  the codec would change the wire format and break that proof. Hy models
+  belong inside the e_05 operator shell and nowhere else. Evidence:
+  [z_hy_assessment](../../z_hy_assessment.md)
 - Sweep the code base for hand-assembled payloads that should use
   `generate()` — the header names `process.py`
   (`_add_service_to_registrar()`), `recorder.py`, `share.py`
