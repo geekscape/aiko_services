@@ -108,5 +108,10 @@ exclude = [
 [tool.hatch.envs.default]
 pytest = "^8.0"
 
+[tool.pytest.ini_options]
+testpaths = [
+    "src/aiko_services/tests"
+]
+
 [tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}"
+test = "pytest {args}"
