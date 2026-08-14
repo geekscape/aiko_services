@@ -51,6 +51,7 @@
 # - Test using OpenAI ChatGPT-4o
 # - Set LLM parameter "seed"
 
+import os
 import time
 from typing import Tuple
 
@@ -93,29 +94,41 @@ class PE_COQUI_TTS(aiko.PipelineElement):
 
 # --------------------------------------------------------------------------- #
 
-def llm_load(llm_type, model_name=LLM_MODEL_NAME):
-    llm = None
+def llm_load(*llm_types, model_name=LLM_MODEL_NAME):
+    for llm_type in llm_types:
+        try:
+            if llm_type == "openai":
+                from openai import OpenAIError
+                from langchain_openai import ChatOpenAI
+                OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+                OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL")
+                return ChatOpenAI(
+                    model=model_name,
+                    temperature=LLM_TEMPERATURE,
+                    base_url=OPENAI_BASE_URL,
+                    api_key=OPENAI_API_KEY,
+                )
+            elif llm_type == "ollama":
+                from langchain_ollama import OllamaLLM
+                OLLAMA_HOST = os.environ.get("OLLAMA_HOST")
+                return OllamaLLM(
+                    model=model_name,
+                    temperature=LLM_TEMPERATURE,
+                    base_url=OLLAMA_HOST,
+                )
+            else:
+                raise ImportError("Unknown model")
+        except (ImportError, OpenAIError):
+            continue
 
-    if llm_type == "openai":
-        from langchain_openai import ChatOpenAI
-        OPENAI_API_KEY = "..."
-        llm = ChatOpenAI()  # parameter: openai_api_key=OPENAI_API_KEY
-
-    if llm_type == "ollama":
-        from langchain_ollama import OllamaLLM
-        llm = OllamaLLM(model=model_name, temperature=LLM_TEMPERATURE)
-
-    if not llm:
-        raise SystemExit(f"Unknown llm_type: {llm_type}")
-
-    return llm
+    raise SystemExit(f"FATAL: Could not load LLM, tried: {llm_types}")
 
 # --------------------------------------------------------------------------- #
 
-def llm_chain(llm_type, text, detections=""):
+def llm_chain(llm_types, text, detections=""):
 #   text = "/Users/andyg/Desktop/astra_bunnings.jpeg describe image"
 
-    llm = llm_load(llm_type)
+    llm = llm_load(*llm_types)
 
     output_parser = StrOutputParser()
 
@@ -241,10 +254,11 @@ class LLM(aiko.PipelineElement):
             #           detections = ""
 
                 self.logger.info(f"Input: {text}")
+                llm_types = ("openai", "ollama")
                 try:
-                    response = llm_chain("ollama", text, detections)
+                    response = llm_chain(llm_types, text, detections)
                 except ConnectError as connect_error:
-                    response = "#### Error: Can't connect to Ollama server ####"
+                    response = f"#### Error: Can't connect to server, tried {llm_types} ####"
             else:
                 response = text
 
