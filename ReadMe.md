@@ -1,19 +1,22 @@
 # Aiko Services
 
-Distributed system framework supporting
-[**Machine Learning**](https://en.wikipedia.org/wiki/Machine_learning),
-[**Robotics**](https://en.wikipedia.org/wiki/Robotics),
-[**Media streaming**](https://en.wikipedia.org/wiki/Streaming_media) and
-[**AIoT**](https://en.wikipedia.org/wiki/Artificial_intelligence_of_things)
-
 <pre style="font-family: Monaco, monospace; font-size: 14px; line-height: 1.5;
     color: #39ff14; background-color: #000000; padding: 20px;
     border-radius: 5px;">
 (aiko services (loop
-    (perceiving :is believing)
-    (acting :manifests reality))
-    :computing reinvented)
+     (perceive   :self :reality)
+     (understand :self :reality)
+     (transform  :self :reality)))
 </pre>
+
+Aiko Services is a reflective distributed computing framework for systems that
+perceive, understand and transform physical reality and themselves.</br>
+Designed for diverse domains, including
+[**A.I / Machine Learning**](https://en.wikipedia.org/wiki/Machine_learning),
+[**Robotics**](https://en.wikipedia.org/wiki/Robotics),
+[**Media streaming**](https://en.wikipedia.org/wiki/Streaming_media) and
+[**AIoT**](https://en.wikipedia.org/wiki/Artificial_intelligence_of_things)
+... with batteries included !
 
 # Features
 
