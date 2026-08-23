@@ -113,6 +113,7 @@ celerybeat.pid
 
 # Environments
 .env
+.hatch
 .venv
 env/
 venv*/
