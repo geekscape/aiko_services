@@ -67,7 +67,6 @@ dependencies = [
 # sounddevice = ["sounddevice~=0.5.0"]
 
 [project.scripts]
-# aiko = "aiko_services.main.cli:main"
 aiko_dashboard = "aiko_services.main.dashboard:main"
 aiko_hyperspace = "aiko_services.main.hyperspace:main"
 aiko_pipeline = "aiko_services.main.pipeline:main"
