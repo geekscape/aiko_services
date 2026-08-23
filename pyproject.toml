@@ -43,14 +43,16 @@ dependencies = [
     "Pillow~=10.4.0",
     "psutil~=6.0.0",
     "pyperclip~=1.9.0",
-    "pytest~=8.3.4",
     "pyzmq~=26.2.0",
     "requests~=2.32.3",
     "transitions~=0.9.2",
     "wrapt~=1.16.0"
 ]
 
-# [project.optional-dependencies]
+[project.optional-dependencies]
+test = [
+    "pytest",
+]
 # opencv-python = ["opencv-python~=4.10.0.84"]
 # opencv-contrib-python = ["opencv-contrib-python~=4.10.0.84"]
 # linux = ["PyAudio~=0.2.14"]
@@ -106,6 +108,7 @@ exclude = [
 ]
 
 [tool.hatch.envs.default]
+features = ["test"]
 pytest = "^8.0"
 
 [tool.hatch.envs.default.scripts]
