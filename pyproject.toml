@@ -14,7 +14,8 @@ keywords = [
     "internet of things", "machine learning", "media", "robotics"
 ]
 
-licence-files = ["LICENCE"]
+license = "Apache-2.0"
+license-files = ["LICENCE"]
 
 # See: https://pypi.org/classifiers
 classifiers = [
@@ -25,7 +26,6 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
     "Operating System :: Unix",
@@ -87,7 +87,8 @@ video = ["opencv-python>=4.10"]
 # Unit and integration tests
 test = [
     "pytest~=8.3.4",
-    "pytest-cov~=7.1"
+    "pytest-cov~=7.1",
+    "validate-pyproject[all]"
 ]
 # opencv-python = ["opencv-python~=4.10.0.84"]
 # opencv-contrib-python = ["opencv-contrib-python~=4.10.0.84"]
@@ -110,8 +111,6 @@ aiko_store_forward = "aiko_services.main.store_forward.store_forward:main"
 aiko_supervisor = "aiko_services.main.daemon_supervisor.cli:main"
 aiko_whisplay = "aiko_services.actors.whisplay.cli:main"
 
-[tool.hatch]
-
 # [tool.pyrefly]
 # project-includes = ["**/*"]
 # project-excludes = [
@@ -121,7 +120,7 @@ aiko_whisplay = "aiko_services.actors.whisplay.cli:main"
 # ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build]
@@ -157,11 +156,14 @@ features = ["test"]
 # The coverage flags belong to this script and not to "addopts", so that a
 # bare "pytest" run stays quick and quiet, and so that a run of another
 # test directory does not overwrite the unit-test report
-test = """
-pytest --cov --no-cov-on-fail --cov-report=term-missing \
---cov-report=html {args:src/aiko_services/tests/unit} \
-&& echo Coverage report written to 'coverage/index.html'\
-"""
+test = [
+    """
+    pytest --cov --no-cov-on-fail --cov-report=term-missing \
+    --cov-report=html {args:src/aiko_services/tests/unit} \
+    && echo Coverage report written to 'coverage/index.html'\
+    """,
+    "validate-pyproject pyproject.toml",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["src/aiko_services/tests/unit"]
