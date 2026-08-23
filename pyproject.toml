@@ -179,24 +179,33 @@ exclude = [
     ".git",
     ".hatch",
     "__pycache__",
+    "src/aiko_services/archive",
+    "src/aiko_services/examples",
 ]
 
 [tool.ruff.lint]
-select = ["B", "C9", "D", "E", "F", "I", "S", "W"]
+select = ["B", "C9", "E", "F", "I", "S", "W"]
+# TODO(nic): light up docstring checks
+# select = ["B", "C9", "D", "E", "F", "I", "S", "W"]
 ignore = [
     "B905", # Allow `zip()` without an explicit `strict=` parameter
     "D10", # ignore missing docstrings (for now)
     "D202", # No blank lines allowed after function docstring
     "D203", # Allow One Blank Line Before Class
     "D213", # Allow "Multi-line docstring summary should start at the second line"
+    "D301", # Allow backslashes in docstrings (used by Click)
     "D418", # Allow @overload funcs to contain docstrings
     "F403", # Allow star imports (for now)
     "F405", # Allow undefined locals when star imports used (for now)
     "S101", # Allow use of `assert`, pytest doesn't do much without it
-    "S110", # Allow try/except/pass
+    "S603", # Allow subprocess w/o "shell=True"
 ]
 mccabe.max-complexity = 13
 
 [tool.ruff.lint.per-file-ignores]
 # Ignore `F401` (unused imports) in all `__init__.py` files
 "__init__.py" = ["F401"]
+# These modules rely on a lazy-load anti-pattern that prevents their imports from being sorted alphabetically
+"src/aiko_services/main/__init__.py" = ["E402", "I001"]
+"src/aiko_services/main/message/__init__.py" = ["E402", "I001"]
+"src/aiko_services/elements/media/__init__.py" = ["E402", "I001"]
