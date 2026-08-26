@@ -1,0 +1,25 @@
+# .constitution-guard — staged-path denylist enforced by the pre-commit guard.
+# One fnmatch glob per line ('*' crosses '/'). Amending this file is a
+# constitutional change (goes through the gate). Seeded at E1 Phase 1.
+
+# Private/future material never enters the public repository
+future/*
+
+# Secrets and personal files (z_* is also .gitignore'd; belt and braces)
+z_*
+documentation/z_*
+_aiko_setup.sh
+_aiko_setup.txt
+
+# Backups and tool residue
+*_backup/*
+documentation/constitution_backup/*
+documentation_backup/*
+ReadMe.md.saved
+.gitignore_LATEST
+.aider.chat.history.md
+*.tgz
+
+# Personal utilities and stubs pending decision
+documentation/tools/6a8a3cb3*.json
+documentation/tools/chatgpt_json_to_markdown.py

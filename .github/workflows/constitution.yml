@@ -1,0 +1,44 @@
+# Constitutional gates — stage-1 (schema/containment) checks of the
+# documentary gate, run on every change to governed paths.
+name: constitution
+
+on:
+  push:
+    paths:
+      - "constitution/**"
+      - "documentation/**"
+      - "Agents.md"
+      - ".constitution-guard"
+  pull_request:
+    paths:
+      - "constitution/**"
+      - "documentation/**"
+      - "Agents.md"
+      - ".constitution-guard"
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Self-containment (no references to privately maintained material)
+        run: |
+          python3 documentation/tools/check_self_containment.py \
+            --future-stems documentation/tools/constitution_stems.txt \
+            constitution/ Agents.md documentation/ReadMe.md
+
+      - name: STE lint (declarations are earned, not claimed)
+        run: |
+          status=0
+          for f in constitution/*.md constitution/adr/*.md; do
+            if head -20 "$f" | grep -qE '^ste: (full|adapted)'; then
+              out=$(python3 documentation/tools/asd_ste100_lint.py "$f")
+              echo "$out"
+              if ! echo "$out" | grep -qE 'L=0 S=0 B=0 W=0 X=0 C=0 F=0'; then
+                echo "::error file=$f::STE declaration not earned"
+                status=1
+              fi
+            fi
+          done
+          exit $status

@@ -1,0 +1,11 @@
+# Constitutional paths require project-lead review on every pull request.
+# Combined with branch protection ("require review from Code Owners"),
+# this is the mechanical form of the governance rule that every
+# constitution change needs project-lead approval.
+
+/constitution/            @geekscape
+/.constitution-guard      @geekscape
+/Agents.md                @geekscape
+/CLAUDE.md                @geekscape
+/documentation/ReadMe.md  @geekscape
+/.github/                 @geekscape

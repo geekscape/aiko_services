@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HyperSpace &amp; ProcessManager</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper: #f5f5f5; --color-ink: #2d3142; --color-muted: #4f5d75; --color-soft: #7a8399;
+      --font-sans: 'Geist', system-ui, sans-serif;
+      --font-serif: 'Instrument Serif', serif;
+      --font-mono: 'Geist Mono', ui-monospace, monospace;
+    }
+    body { font-family: var(--font-sans); background: var(--color-paper); color: var(--color-ink);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 3rem 2rem; }
+    .frame { max-width: 1240px; width: 100%; }
+    .eyebrow { font-family: var(--font-mono); font-size: 0.66rem; font-weight: 500;
+      letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-muted); margin-bottom: 0.5rem; }
+    h1 { font-family: var(--font-serif); font-size: 2rem; font-weight: 400;
+      letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 0.5rem; }
+    .subtitle { font-size: 0.9rem; line-height: 1.5; color: var(--color-muted);
+      max-width: 74ch; margin-bottom: 1.5rem; }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    footer { margin-top: 1.5rem; padding-top: 0.75rem; border-top: 1px solid rgba(45,49,66,0.12);
+      font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.06em; color: var(--color-soft); }
+    @media print { body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Architecture · Aiko Services v0.6 · faithful</p>
+    <h1>HyperSpace &amp; ProcessManager</h1>
+    <p class="subtitle">A Composite pattern all the way down: a <em>Dependency</em> is a leaf, a
+      <em>Category</em> is a container that is also a Dependency, and <em>HyperSpace</em> is a Category
+      that spans a whole graph. On disk that becomes a symlink tree over a content-addressed store.
+      The LifeCycleManager seam is drawn dashed — the design intends
+      HyperSpace and ProcessManager to be LifeCycleManagers, but neither is wired to it in v0.6.</p>
+
+    <svg viewBox="0 0 1120 792" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="aiko-hs-title aiko-hs-desc">
+      <title id="aiko-hs-title">HyperSpace and ProcessManager</title>
+      <desc id="aiko-hs-desc">Deep-dive architecture of the Aiko Services HyperSpace and ProcessManager subsystems. A runtime foundation of Process, Interface composition, Service, Actor, eventually-consistent shared state, ServiceFilter and Registrar supports a Composite entry model in which Category is both an Actor and a Dependency, and HyperSpace extends Category; entry paths are resolved by _find_entry(). ProcessManager manages OS processes from a JSON definition using a daemon poll thread and a ProcessCurrent self-entry. The LifeCycleManager and LifeCycleClient seam is drawn dashed because neither ProcessManager nor HyperSpace is wired to it yet. HyperSpace binds StorageFileImpl directly rather than through the Storage SPI, writing a symlink tree over a content-addressed store indexed by tracked_paths.</desc>
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+        <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+      </defs>
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+      <rect x="40" y="40" width="1040" height="128" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <rect x="64" y="44" width="112" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="72" y="53" fill="rgba(45,49,66,0.40)" font-size="7" font-family="'Geist Mono', monospace" letter-spacing="0.14em">RUNTIME FOUNDATION</text>
+      <rect x="40" y="232" width="336" height="248" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <rect x="64" y="236" width="128" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="72" y="245" fill="rgba(45,49,66,0.40)" font-size="7" font-family="'Geist Mono', monospace" letter-spacing="0.14em">COMPOSITE ENTRY MODEL</text>
+      <rect x="416" y="232" width="664" height="248" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <rect x="440" y="236" width="136" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="448" y="245" fill="rgba(45,49,66,0.40)" font-size="7" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LIFECYCLE &amp; PROCESS</text>
+      <rect x="40" y="544" width="1040" height="128" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <rect x="64" y="548" width="204" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="72" y="557" fill="rgba(45,49,66,0.40)" font-size="7" font-family="'Geist Mono', monospace" letter-spacing="0.14em">STORAGE SPI · ON-DISK REPRESENTATION</text>
+      <line x1="272" y1="152" x2="272" y2="264" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="280" y="204" width="56" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="308" y="213" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">COMPOSES</text>
+      <path d="M 508,264 V 216 Q 508,208 516,208 H 552 Q 560,208 560,200 V 152" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="516" y="188" width="36" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="534" y="197" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">IS-A</text>
+      <line x1="232" y1="304" x2="184" y2="304" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="192" y="284" width="36" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="210" y="293" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">IS-A</text>
+      <line x1="292" y1="384" x2="292" y2="344" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="300" y="360" width="36" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="318" y="369" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">IS-A</text>
+      <line x1="232" y1="424" x2="184" y2="424" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="188" y="404" width="40" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="208" y="413" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">FINDS</text>
+      <line x1="352" y1="424" x2="440" y2="424" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <rect x="372" y="404" width="52" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="398" y="413" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">PLANNED</text>
+      <path d="M 508,344 V 356 Q 508,364 516,364 H 528 Q 536,364 536,372 V 384" fill="none" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+      <path d="M 292,464 V 512 Q 292,520 284,520 H 136 Q 128,520 128,528 V 576" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="300" y="492" width="80" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="340" y="501" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">CONCRETE IMPL</text>
+      <line x1="192" y1="616" x2="240" y2="616" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="200" y="596" width="36" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="218" y="605" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">IMPL</text>
+      <line x1="392" y1="616" x2="440" y2="616" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <rect x="396" y="596" width="40" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="416" y="605" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">WRITES</text>
+      <rect x="64" y="72" width="128" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="64" y="72" width="128" height="80" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="72" y="80" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="86" y="89" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CORE</text>
+      <text x="128" y="114" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Process</text>
+      <text x="128" y="130" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">singleton bootstrap</text>
+      <text x="128" y="144" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">event loop</text>
+      <rect x="208" y="72" width="128" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="208" y="72" width="128" height="80" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="216" y="80" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="230" y="89" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CORE</text>
+      <text x="272" y="114" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Interface</text>
+      <text x="272" y="130" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">compose_instance()</text>
+      <text x="272" y="144" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">impl registry · MRO</text>
+      <rect x="352" y="72" width="128" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="352" y="72" width="128" height="80" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="360" y="80" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="376" y="89" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">IFACE</text>
+      <text x="416" y="114" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Service</text>
+      <text x="416" y="130" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">ServiceFields</text>
+      <text x="416" y="144" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">topics · tags</text>
+      <rect x="496" y="72" width="128" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="496" y="72" width="128" height="80" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="504" y="80" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="520" y="89" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">IFACE</text>
+      <text x="560" y="114" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Actor</text>
+      <text x="560" y="130" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">mailbox dispatch</text>
+      <text x="560" y="144" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">message → method</text>
+      <rect x="640" y="72" width="128" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="640" y="72" width="128" height="80" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="648" y="80" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="664" y="89" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">IFACE</text>
+      <text x="704" y="114" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">EC state</text>
+      <text x="704" y="130" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">ECProducer/Consumer</text>
+      <text x="704" y="144" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">self.share</text>
+      <rect x="784" y="72" width="128" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="784" y="72" width="128" height="80" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="792" y="80" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="808" y="89" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CLASS</text>
+      <text x="848" y="114" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">ServiceFilter</text>
+      <text x="848" y="130" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">protocol · name</text>
+      <text x="848" y="144" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">tags · owner</text>
+      <rect x="928" y="72" width="128" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="928" y="72" width="128" height="80" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="936" y="80" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="952" y="89" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">ACTOR</text>
+      <text x="992" y="114" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Registrar</text>
+      <text x="992" y="130" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Service · discovery</text>
+      <text x="992" y="144" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">primary/secondary</text>
+      <rect x="64" y="264" width="120" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="64" y="264" width="120" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="72" y="272" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="88" y="281" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">IFACE</text>
+      <text x="124" y="306" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Dependency</text>
+      <text x="124" y="322" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Interface · leaf</text>
+      <text x="124" y="336" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">get_type()</text>
+      <rect x="232" y="264" width="120" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="232" y="264" width="120" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="240" y="272" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="256" y="281" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">ACTOR</text>
+      <text x="292" y="306" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Category</text>
+      <text x="292" y="322" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Actor + Dependency</text>
+      <text x="292" y="336" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">add/list/remove</text>
+      <rect x="64" y="384" width="120" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="64" y="384" width="120" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="72" y="392" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="86" y="401" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CODE</text>
+      <text x="124" y="426" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Entry path</text>
+      <text x="124" y="442" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">_find_entry()</text>
+      <text x="124" y="456" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">a/b/entry_c</text>
+      <rect x="232" y="384" width="120" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="232" y="384" width="120" height="80" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <rect x="240" y="392" width="32" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.40)" stroke-width="0.8"/>
+      <text x="256" y="401" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">ACTOR</text>
+      <text x="292" y="426" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">HyperSpace</text>
+      <text x="292" y="442" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Category + Actor</text>
+      <text x="292" y="456" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">create/destroy</text>
+      <rect x="440" y="264" width="136" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="440" y="264" width="136" height="80" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <rect x="448" y="272" width="32" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,0.40)" stroke-width="0.8"/>
+      <text x="464" y="281" fill="#eb6c36" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">ACTOR</text>
+      <text x="508" y="306" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">ProcessManager</text>
+      <text x="508" y="322" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">create · destroy</text>
+      <text x="508" y="336" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">list · dump · exit</text>
+      <rect x="600" y="264" width="136" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="600" y="264" width="136" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="608" y="272" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="624" y="281" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CLASS</text>
+      <text x="668" y="306" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">ProcessCurrent</text>
+      <text x="668" y="322" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">poll() · wait()</text>
+      <text x="668" y="336" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">self uid 000000</text>
+      <rect x="760" y="264" width="136" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="760" y="264" width="136" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="768" y="272" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="782" y="281" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CODE</text>
+      <text x="828" y="306" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">_run() thread</text>
+      <text x="828" y="322" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">daemon · 1.0s poll</text>
+      <text x="828" y="336" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">copies iterators</text>
+      <rect x="920" y="264" width="136" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="920" y="264" width="136" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="928" y="272" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="942" y="281" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DATA</text>
+      <text x="988" y="306" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Definition JSON</text>
+      <text x="988" y="322" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">command list</text>
+      <text x="988" y="336" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">--watchdog</text>
+      <rect x="440" y="384" width="192" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="440" y="384" width="192" height="80" rx="6" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+      <rect x="448" y="392" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="464" y="401" fill="rgba(45,49,66,0.45)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">IFACE</text>
+      <text x="536" y="426" fill="rgba(45,49,66,0.55)" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">LifeCycleManager</text>
+      <text x="536" y="442" fill="rgba(45,49,66,0.40)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">lcm_create_client()</text>
+      <text x="536" y="456" fill="rgba(45,49,66,0.40)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">not wired to PM / HS</text>
+      <rect x="652" y="384" width="192" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="652" y="384" width="192" height="80" rx="6" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+      <rect x="660" y="392" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="676" y="401" fill="rgba(45,49,66,0.45)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">IFACE</text>
+      <text x="748" y="426" fill="rgba(45,49,66,0.55)" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">LifeCycleClient</text>
+      <text x="748" y="442" fill="rgba(45,49,66,0.40)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">+ ...ClientPrivate</text>
+      <text x="748" y="456" fill="rgba(45,49,66,0.40)" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">handshake protocol</text>
+      <rect x="864" y="384" width="192" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="864" y="384" width="192" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="872" y="392" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="888" y="401" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CLASS</text>
+      <text x="960" y="426" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Lease</text>
+      <text x="960" y="442" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">handshake 30s</text>
+      <text x="960" y="456" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">deletion 30s</text>
+      <rect x="64" y="576" width="128" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="64" y="576" width="128" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="72" y="584" width="32" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="88" y="593" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">IFACE</text>
+      <text x="128" y="618" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Storage</text>
+      <text x="128" y="634" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">SPI · Actor</text>
+      <text x="128" y="648" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">add/create/link</text>
+      <rect x="240" y="576" width="152" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="240" y="576" width="152" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="248" y="584" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="262" y="593" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">IMPL</text>
+      <text x="316" y="618" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">StorageFileImpl</text>
+      <text x="316" y="634" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">default impl</text>
+      <text x="316" y="648" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Composite pattern</text>
+      <rect x="440" y="576" width="136" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="440" y="576" width="136" height="80" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="448" y="584" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="462" y="593" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DISK</text>
+      <text x="508" y="618" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Symlink tree</text>
+      <text x="508" y="634" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Category = directory</text>
+      <text x="508" y="648" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Dependency = file</text>
+      <rect x="600" y="576" width="136" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="600" y="576" width="136" height="80" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="608" y="584" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="622" y="593" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DISK</text>
+      <text x="668" y="618" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Content store</text>
+      <text x="668" y="634" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">_hyperspace_/ac/76</text>
+      <text x="668" y="648" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">UID → 2-char dirs</text>
+      <rect x="760" y="576" width="136" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="760" y="576" width="136" height="80" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="768" y="584" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="782" y="593" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DISK</text>
+      <text x="828" y="618" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">tracked_paths</text>
+      <text x="828" y="634" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">entry index</text>
+      <text x="828" y="648" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">structure validation</text>
+      <rect x="920" y="576" width="136" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="920" y="576" width="136" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="928" y="584" width="24" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,0.40)" stroke-width="0.8"/>
+      <text x="940" y="593" fill="rgba(45,49,66,0.80)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CLI</text>
+      <text x="988" y="618" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">CLI · bootstrap</text>
+      <text x="988" y="634" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">aiko_hyperspace</text>
+      <text x="988" y="648" fill="#7a8399" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">-b: no Actor</text>
+      <line x1="40" y1="712" x2="1080" y2="712" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="40" y="742" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+      <rect x="140" y="732" width="12" height="12" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+      <text x="160" y="742" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Focal · subject</text>
+      <rect x="340" y="732" width="12" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="360" y="742" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Interface · Actor</text>
+      <rect x="560" y="732" width="12" height="12" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+      <text x="580" y="742" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Runtime / on-disk</text>
+      <rect x="780" y="732" width="12" height="12" rx="2" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="3,2"/>
+      <text x="800" y="742" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Planned · not wired</text>
+      <line x1="980" y1="740" x2="1012" y2="740" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <text x="1024" y="742" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">is-a / uses</text>
+    </svg>
+
+    <footer>Aiko Services v0.6 · verified against source · 24 nodes · print-a4-landscape · diagram-design</footer>
+  </div>
+</body>
+</html>
