@@ -68,6 +68,7 @@
 from abc import abstractmethod
 import click
 from inspect import getmembers, isfunction
+import weakref
 
 from aiko_services.main import *
 from aiko_services.main.utilities import *
@@ -75,6 +76,7 @@ from aiko_services.main.utilities import *
 __all__ = [
     "ServiceDiscovery", "ActorDiscovery",
     "PipelineElementDiscovery", "PipelineDiscovery",
+    "ServiceUnavailable",
     "do_command", "do_discovery", "do_request", "get_service_proxy"
 ]
 
@@ -141,6 +143,29 @@ class PipelineDiscovery(PipelineElementDiscovery):
 # def delete_actor_mqtt(actor):
 #   actor.terminate()
 
+class ServiceUnavailable(RuntimeError):
+    """A remote Service proxy was used after discovery removed the Service"""
+
+# Proxies made by do_discovery(), keyed by Service topic path.  Discovery
+# already learns when a Service goes away.  Without this the proxy does not
+# find out, so its publishes go to a topic with no subscriber and the caller
+# sees success.
+
+_service_proxies = {}   # key: Service topic path, value: WeakSet of proxies
+
+def _track_service_proxy(service_topic_path, service_proxy):
+    service_proxies = _service_proxies.get(service_topic_path)
+    if service_proxies is None:
+        service_proxies = weakref.WeakSet()
+        _service_proxies[service_topic_path] = service_proxies
+    service_proxies.add(service_proxy)
+
+def _remove_service_proxies(service_topic_path):
+    service_proxies = _service_proxies.pop(service_topic_path, None)
+    if service_proxies:
+        for service_proxy in service_proxies:
+            service_proxy._available = False
+
 def _get_public_method_names(protocol_class):
     if isinstance(protocol_class, str):
         raise ValueError(
@@ -156,25 +181,37 @@ def _get_public_method_names(protocol_class):
 
 def _make_service_proxy(target_topic_in, public_method_names):
     class ServiceRemoteProxy():
+        def is_available(self):
+            return self._available
+
         def is_local(self):
             return False
 
     def _proxy_send_message(method_name):
         def closure(*args, **kwargs):
+            if not service_remote_proxy._available:
+                raise ServiceUnavailable(
+                    f'Service "{target_topic_in}" was removed: '
+                    f'"{method_name}()" not sent')
             arguments = args if not kwargs else [args[0], kwargs]
             payload = generate(method_name, arguments)
             aiko.message.publish(target_topic_in, payload)
         return closure
 
     service_remote_proxy = ServiceRemoteProxy()
+    service_remote_proxy._available = True
     for method_name in public_method_names:
         setattr(service_remote_proxy,
             method_name, _proxy_send_message(method_name))
     return service_remote_proxy
 
-def get_service_proxy(service_topic, protocol_class):
+def get_service_proxy(service_topic, protocol_class,
+    service_topic_path=None):
+
     public_methods = _get_public_method_names(protocol_class)
     service_proxy = _make_service_proxy(service_topic, public_methods)
+    if service_topic_path:
+        _track_service_proxy(service_topic_path, service_proxy)
     return service_proxy
 
 # --------------------------------------------------------------------------- #
@@ -186,10 +223,12 @@ def do_discovery(
     def service_discovery_handler(command, service_details):
         if command == "add":
             topic_path = f"{service_details[0]}/in"
-            service = get_service_proxy(topic_path, service_interface)
+            service = get_service_proxy(topic_path, service_interface,
+                service_topic_path=service_details[0])
             if discovery_add_handler:
                 discovery_add_handler(service_details, service)
         elif command == "remove":
+            _remove_service_proxies(service_details[0])
             if discovery_remove_handler:
                 discovery_remove_handler(service_details)
 

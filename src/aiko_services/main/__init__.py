@@ -67,6 +67,7 @@ from .actor import (
 from .discovery import (
     ServiceDiscovery, ActorDiscovery,
     PipelineElementDiscovery, PipelineDiscovery,
+    ServiceUnavailable,
     do_command, do_discovery, do_request, get_service_proxy
 )
 
