@@ -95,7 +95,7 @@ python3 -m venv venv      # Once only
 source venv/bin/activate  # Each terminal session
 pip install -U pip        # Install latest pip
 pip install -U hatch      # Install latest Hatch build and package manager
-# hatch test              # Run local tests (to be completed)
+hatch run test            # Run the unit test suite (no MQTT server required)
 hatch build               # Build Aiko Services package: dist/*.whl and dist/*.tar.gz
 ```
 

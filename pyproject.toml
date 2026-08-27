@@ -3,7 +3,7 @@ name = "aiko_services"
 version = "0.7"
 readme = "ReadMe.md"
 description = "Distributed embedded service framework for A.I and robotics"
-requires-python = ">=3.9.0,<=3.14.6"
+requires-python = ">=3.9.0,<3.15"
 
 authors = [
     {name = "Andy Gelme", email = "geekscape@gmail.com"}
@@ -105,8 +105,8 @@ exclude = [
     "venv*"
 ]
 
-[tool.hatch.envs.default]
-pytest = "^8.0"
-
 [tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}"
+test = "pytest {args:src/aiko_services/tests/unit}"
+
+[tool.pytest.ini_options]
+testpaths = ["src/aiko_services/tests/unit"]
