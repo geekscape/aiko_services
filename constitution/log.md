@@ -6,6 +6,16 @@ Every substantive change appends an entry under its date heading
 This journal begins at the constitution's first public release. The
 pre-publication history is maintained privately.
 
+## 2026-09-02
+
+- **Update** — [g_01_ReleaseProcessGuide.md](g_01_ReleaseProcessGuide.md):
+  v0.8 release learnings — hardened test baseline [hatch run test, pytest
+  pinned to the unit suite], CI matrix Python 3.9–3.14 plus tag-push runs,
+  per-release documentation artifacts, concrete announcement channels, a
+  "scope frozen" checklist item, and the v0.8 sharp edges. Prepared
+  2026-08-28 by the v0.8 release session; promoted from the private
+  pending queue after the matrix itself went live on master.
+
 ## 2026-09-01
 
 - **Creation** — [adr/ADR-003_UidAddressSpaces.md](adr/ADR-003_UidAddressSpaces.md):

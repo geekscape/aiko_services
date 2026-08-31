@@ -9,7 +9,7 @@ audience: [project-lead, ai-coding-agents]
 status: operational
 ste: adapted
 related: [g_03_AgentContext, e_06_TestingStrategy]
-last_updated: 2026-07-31
+last_updated: 2026-09-02
 ---
 
 # Aiko Services: Release Process Guide
@@ -52,19 +52,35 @@ post-release. Never "fix" the original.
 Test *before* touching versions, tags or packages — everything after this
 step assumes the code being released works.
 
-- Run the unit test suite on the primary development Python version, and
-  confirm GitHub Actions Continuous Integration (Python *flake8* critical
-  checks) is green on `master`
-- Aiko Services supports Python 3.9.7 through 3.14.2 (see
-  `pyproject.toml`). Spot-check the oldest and the newest supported versions
-  when the release touches the runtime core
+- Run the unit test suite: `hatch run test`, or a bare `pytest`. Both
+  are pinned to `src/aiko_services/tests/unit` by the
+  `[tool.pytest.ini_options] testpaths` setting in `pyproject.toml`
+  (hardened in the v0.8 cycle). The 25 tests need no MQTT broker
+- Confirm GitHub Actions Continuous Integration is green on `master`.
+  CI runs the *flake8* critical checks and the unit tests on Python 3.9
+  through 3.14. CI runs on each push, each pull request and each `v*`
+  tag push
+- Aiko Services supports Python 3.9 through 3.14 (see `requires-python`
+  in `pyproject.toml`). Spot-check the oldest and the newest supported
+  versions locally when the release touches the runtime core — the CI
+  matrix then repeats that check permanently
 - Manually exercise the core distributed system: `mosquitto`,
   `aiko_registrar`, `aiko_dashboard` (`scripts/system_start.sh`), the
   `examples/aloha_honua/` Actors and a representative Pipeline
 - Formal release test gates (conformance traces, golden traces) are being
   defined in [Testing Strategy](e_06_TestingStrategy.md). As those land,
-  they become mandatory here.  `hatch test` in the top-level `ReadMe.md`
-  remains "to be completed"
+  they become mandatory here
+
+**Sharp edges** (v0.8 cycle) ...
+
+- Do not pin `requires-python` to an exact patch version. The bound
+  `<=3.14.6` made `pip install` refuse Python 3.14.7. Use an open bound,
+  for example `>=3.9.0,<3.15`
+- The pinned binary dependencies (Pillow 10.4, pyzmq 26.2, psutil 6.0,
+  wrapt 1.16) publish no Python 3.14 wheels. A source build of pyzmq
+  fails on 3.14. The pins therefore split on environment markers in
+  `pyproject.toml`: Python 3.9–3.13 keep the tested pins, and Python
+  3.14 installs the first wheel-bearing releases
 
 ---
 
@@ -78,14 +94,24 @@ writing the release notes (the notes then describe a finished release).
   [PipelineElements guide](../elements/ReadMe.md),
   [examples guide](../examples/ReadMe.md) and the top-level `ReadMe.md`
   (Features, Documentation, Examples sections)
-- Append the change to the [directory update log](../log.md) in the same
-  change, per the standing rule
+- Standing artifacts from the v0.8 cycle onward, updated each release:
+  the `documentation/ReadMe.md` "how to read this documentation" index,
+  `documentation/whats_new.md` (short, announcement-friendly — the
+  canonical source for step 8), `documentation/getting_started.md` and
+  the exported diagrams under `documentation/diagrams/`
+- Links in the top-level `ReadMe.md` that must render on the PyPI
+  project page must be absolute GitHub URLs. PyPI renders the ReadMe
+  from the uploaded package metadata, so relative links break there
+- Append each constitution-tree change to the
+  [constitution journal](log.md) in the same change, per the standing
+  rule
 - Fold release-process lessons into *this* guide and the top-level
   `ReadMe.md` "Installing for package maintainers" section
-- Note: the public constitution tree (`constitution/`) is tracked and
-  ships with the release. The private constitution is maintained in its
-  own repository and is never part of a public release. The
-  `.constitution-guard` denylist and the guard hooks enforce the boundary
+- Note: the constitution is the tracked, public, top-level
+  `constitution/` tree (public since 2026-08-27). A constitution change
+  is a move through the governance ceremony
+  ([tutorial](../documentation/tutorials/using_the_public_constitution.md)),
+  never a routine release edit
 
 ---
 
@@ -308,7 +334,8 @@ AI + ML + Robotics community that the new release has been published.
 - Community: the AI + Machine Learning + Robotics community channels
   where Aiko Services participates
 
-**Announcement content** (draft from the release notes) ...
+**Announcement content** (draft it from `documentation/whats_new.md`,
+the short form of the release notes) ...
 
 - Version, release date and a one-sentence positioning line
 - Two or three headline features (from `### Features`), plus any
@@ -323,8 +350,12 @@ channels are adopted ...
 | Channel | How | Status |
 |---------|-----|--------|
 | GitHub Release page | Automatic notification to release watchers (step 7) | operational |
-| Known downstream projects | Direct message / issue to each dependent repository | operational |
-| Social media (for example LinkedIn, Mastodon, X) | Post the announcement content | per release, project lead |
+| Known downstream projects (Aiko Engine, Aiko Chat, ...) | Direct message / issue to each dependent repository, with the breaking-change note | operational |
+| AI + ML + Robots (Melbourne) | Organizer announcement to members through [Meetup](https://www.meetup.com/ai-ml-robots/), a discussion post, an agenda slot at the next monthly meet-up, and a news item with tutorial / Colab links on [ai-ml-robots.github.io](https://ai-ml-robots.github.io/) | operational |
+| Machine Learning & AI Meetup (Melbourne) | Discussion post through [Meetup](https://www.meetup.com/machine-learning-ai-meetup/), or contact the organizers; offer a lightning talk | per release, project lead |
+| MLAI AUS | Email `hi@mlai.au` for the [mlai.au](https://mlai.au/) site and newsletter; their [Meetup](https://www.meetup.com/mlai-aus/) and LinkedIn; offer a talk or a workshop at a StartSpace co-working day | per release, project lead |
+| Social media (LinkedIn, Mastodon, X) | Post the short announcement variant | per release, project lead |
+| World-wide developer channels (Reddit r/Python, r/robotics, r/MachineLearning; Hacker News "Show HN"; discuss.python.org *Projects*) | Post the per-channel variant. Link `documentation/getting_started.md` and the Colab notebook as the newcomer landing content | per release, project lead |
 | Community meet-ups and conferences (for example Everything Open, PyCon AU, microPython meet-up Melbourne) | Mention at the next relevant session | opportunistic |
 | Mailing list / chat (Discord, Slack, ...) | To be established | placeholder |
 
@@ -359,8 +390,11 @@ GitHub does not change the PyPI page of a version already published.
 
 ## 11. Release checklist
 
-1. [ ] Tests pass: unit tests locally, GitHub Actions CI green on
-       `master`, core examples exercised manually
+0. [ ] Scope frozen: the project lead declares the release content on
+       `master` complete. The freeze date becomes the release date target
+1. [ ] Tests pass: `hatch run test` (25 unit tests, no broker) locally,
+       GitHub Actions CI green on `master` across Python 3.9–3.14, core
+       examples exercised manually
 2. [ ] Documentation updated for shipping features: `concepts/`,
        `elements/`, `examples/` guides and the top-level `ReadMe.md`.
        `constitution/log.md` entry appended
@@ -374,7 +408,8 @@ GitHub does not change the PyPI page of a version already published.
 6. [ ] `version` updated in `pyproject.toml` (Hatch uses this one)
 7. [ ] Committed and pushed (push is manual, by the project lead)
 8. [ ] Annotated tag `vX.Y` on the commit that contains *both* version
-       bumps. The tag message date agrees with `__id__`. The tag is pushed
+       bumps. The tag message date agrees with `__id__`. The tag is
+       pushed, and the tag push produces its own green CI run
 9. [ ] Fresh `git clone`, then `hatch build`
 10. [ ] Wheel verified: well under 1 MB, source only
 11. [ ] Published with `hatch publish dist/` using `__token__` + API token
