@@ -11,6 +11,13 @@ documentation/z_*
 _aiko_setup.sh
 _aiko_setup.txt
 
+# Personal notes, case variants, any depth (mirrors the .gitignore rule
+# committed in the same change as this amendment)
+[zZ]_*
+*/[zZ]_*
+[zZ][zZ]*_*
+*/[zZ][zZ]*_*
+
 # Backups and tool residue
 *_backup/*
 documentation/constitution_backup/*

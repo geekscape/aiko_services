@@ -1,3 +1,8 @@
+# Personal working notes, any depth (z_/Z_ prefix; multi-z prefixes
+# carry an underscore somewhere, e.g. ZZ_*, zz_notes, ZZZZZ_*)
+[zZ]_*
+[zZ][zZ]*_*
+
 data_out/
 
 # Tools

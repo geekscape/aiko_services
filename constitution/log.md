@@ -6,6 +6,15 @@ Every substantive change appends an entry under its date heading
 This journal begins at the constitution's first public release. The
 pre-publication history is maintained privately.
 
+## 2026-09-01
+
+- **Update** — .constitution-guard: added the personal-note case-variant
+  patterns [zZ]_* and [zZ][zZ]*_*, at top level and at depth, and the
+  matching ignore rules are committed in the same change [.gitignore].
+  The multi-z form deliberately needs an underscore, so ordinary files
+  that merely start with "zz" are never swept up. Evidence: ZZ-prefixed
+  personal notes found uncovered by the 2026-08-31 cleanup.
+
 ## 2026-08-31
 
 - **Creation** — [diagrams/ReadMe.md](diagrams/ReadMe.md): index for the
