@@ -110,8 +110,9 @@ gate that earns every declaration.
 
 - [ADR registry](adr/ReadMe.md) — Architectural Decision Records
   (`ADR-NNN_ClearName.md`). The registry owns the numbers.
-- [Diagrams](diagrams/) — architecture overview, architecture detail and
-  HyperSpace structure (standalone HTML).
+- [Diagrams](diagrams/ReadMe.md) — architecture overview, architecture
+  detail and HyperSpace structure, with rendered-view links (GitHub shows
+  raw HTML source, so use the View links there).
 - [Public journal](log.md) — the dated journal of changes to this tree.
   Every substantive change appends an entry.
 - [Documentation reading guide](../documentation/ReadMe.md) — the

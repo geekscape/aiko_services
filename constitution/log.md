@@ -6,6 +6,13 @@ Every substantive change appends an entry under its date heading
 This journal begins at the constitution's first public release. The
 pre-publication history is maintained privately.
 
+## 2026-08-31
+
+- **Creation** — [diagrams/ReadMe.md](diagrams/ReadMe.md): index for the
+  three architecture diagrams with rendered-view links, because GitHub
+  shows raw HTML source rather than the diagram output. The Related
+  section of [ReadMe.md](ReadMe.md) now points at it.
+
 ## 2026-08-27
 
 - **Creation** — the constitution goes public. The governance corpus moved

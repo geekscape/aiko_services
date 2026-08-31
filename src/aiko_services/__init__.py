@@ -1,7 +1,7 @@
 import aiko_services.main
 
 __version__ = "0.8-dev"
-__id__ = "2026-08-15_a"
+__id__ = "2026-08-31_a"
 
 from aiko_services.main import *
 aiko.id = __id__        # aiko = main.process.ProcessData
