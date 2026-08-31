@@ -8,6 +8,11 @@ pre-publication history is maintained privately.
 
 ## 2026-09-01
 
+- **Creation** — [adr/ADR-003_UidAddressSpaces.md](adr/ADR-003_UidAddressSpaces.md):
+  HyperSpace/Storage UID address-space allocation — 48-bit MAC-style
+  spaces, class-octet / identity-octets split, space-fill extension
+  embedding rule. Number claimed from the registry in the same change;
+  shared specification with the CRC-cards session.
 - **Update** — .constitution-guard: added the personal-note case-variant
   patterns [zZ]_* and [zZ][zZ]*_*, at top level and at depth, and the
   matching ignore rules are committed in the same change [.gitignore].

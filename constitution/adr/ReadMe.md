@@ -8,7 +8,7 @@ audience: [project-lead, architects, developers, ai-coding-agents]
 status: operational
 ste: adapted
 related: [../p_01_PrinciplesGovernance, ../p_00_DesignPrinciples]
-last_updated: 2026-08-27
+last_updated: 2026-09-01
 ---
 
 # Aiko Services Architectural Decision Records
@@ -38,7 +38,7 @@ deferral promotion, retirement). Use one for any decision worth a durable ration
 |-----|-----------------|--------|------------|
 | 001 | *(released 2026-07-13 — was only a placeholder series-anchor citation, never written; number retired unused)* | released | — |
 | [002](ADR-002_SExpressionWireEncoding.md) | S-expressions over JSON/protobuf (wire encoding rationale) | normative (founding decision; backfill record written 2026-07-13) | s_00_Specifications §1.1 |
-| 003 | — | free | |
+| [003](ADR-003_UidAddressSpaces.md) | HyperSpace/Storage UID address-space allocation — 48-bit MAC-style spaces [leading nibble 0 = Aiko Services development, f = Aiko Services future, 1–e third parties], class-octet / identity-octets split, space-fill extension embedding | normative (accepted 2026-09-01) | Storage UID mode 3 rollout — shared specification with the CRC-cards session |
 | 004 | — | free | |
 | 005 | — | free | |
 | 006 | Agent in the interface chain; thin-interface constraint; cognition boundary rule | claimed | e_03_FirstClassAgents T1 |
