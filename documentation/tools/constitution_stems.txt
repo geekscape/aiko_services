@@ -1,0 +1,36 @@
+# Public self-containment stems — regression guard for the constitution.
+# Prefix forms only: a match means a public document references privately
+# maintained material. Sanctioned references carry an inline
+# "future-ref-ok: reason" marker. Maintained with .constitution-guard;
+# amending this file is a constitutional change.
+
+ADR-017
+ADR-018
+ADR-019
+ADR-020
+e_01_
+e_02_
+e_04_
+e_05_
+e_07_
+e_08_
+e_09_
+e_10_
+e_11_
+g_00_
+g_05_
+g_06_
+s_06_
+s_07_
+s_08_
+s_09_
+s_10_
+a_01_
+a_02_
+a_03_
+a_04_
+a_05_
+a_06_
+t_04_
+potential/
+documentation/z_

@@ -3,7 +3,7 @@
 <pre style="font-family: Monaco, monospace; font-size: 14px; line-height: 1.5;
     color: #39ff14; background-color: #000000; padding: 20px;
     border-radius: 5px;">
-(aiko services (loop
+(aiko_services (loop
      (perceive   :self :reality)
      (understand :self :reality)
      (transform  :self :reality)))
@@ -39,10 +39,13 @@ the [Aiko Dashboard](src/aiko_services/main/dashboard.py)
 
 # Documentation
 
-- [Design overview](documentation/concepts/design_overview.md)
+- [Quick start guide](documentation/quick_start_guide.md) 🚀
+- [Tutorials](documentation/tutorials/ReadMe.md)
 - [Concepts guide](documentation/concepts/ReadMe.md) 👀
+- [Design overview](documentation/concepts/design_overview.md)
 - [Pipeline](/documentation/concepts/pipeline.md) and [PipelineElements guide](documentation/elements/ReadMe.md)
 - [Examples reference](documentation/examples/ReadMe.md)
+- [Constitution for A.I Coding Assistants](constitution/ReadMe.md) 🤖
 - [Release notes](documentation/release_notes.md)
 
 Uses the [Open Knowledge Format](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) ... and so the documentation is immediately useable by your favorite A.I coding assistant 🤖
@@ -115,7 +118,7 @@ HATCH_INDEX_USER=__token__ HATCH_INDEX_AUTH=pypi-YOUR_API_TOKEN  \
   hatch publish dist/   # Publish Aiko Services package to PyPI
 ```
 
-# Quick start
+# Getting started
 
 After [**installing**](#Installation) *(above)*, choose whether to use a public MQTT server ... or to install and run your own MQTT server
 
