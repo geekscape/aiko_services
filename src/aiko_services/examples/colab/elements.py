@@ -50,7 +50,7 @@ class ConvertDetections(aiko.PipelineElement):
         message = ""
         for object in overlay["objects"]:
             delimiter = "," if message else ""
-            message += f"{delimiter}{object["name"]}"  # object["confidence"]
+            message += f"{delimiter}{object['name']}"  # object["confidence"]
         return aiko.StreamEvent.OKAY, {"message": message}
 
 # --------------------------------------------------------------------------- #
