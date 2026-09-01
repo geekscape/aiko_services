@@ -5,7 +5,7 @@ type: guide
 audience: [developers, ai-coding-agents]
 status: operational
 ste: adapted
-last_updated: 2026-08-31
+last_updated: 2026-09-01
 ---
 
 # Working on Aiko Services — code, law, and the game (a tutorial)
@@ -121,18 +121,38 @@ CI gates. Every move has the same skeleton:
 
 > **propose → check → ratify → enact → journal**
 
+On GitHub, that skeleton is **four operator actions**. The journal rides
+inside the proposal commit, and the CHECK stage runs by itself:
+
+| # | Action | Command | Ceremony stage |
+|---|--------|---------|----------------|
+| 1 | Publish the branch | `git push origin <branch>` | PROPOSE |
+| 2 | Open the proposal | `gh pr create -R geekscape/aiko_services --title "Proposal: …"` | PROPOSE — mints the ledger number; the gates start |
+| 3 | Approve | a review approval on the PR, by the project lead | RATIFY |
+| 4 | Merge | `gh pr merge <PR#> --merge --delete-branch` | ENACT |
+
+**Enactment is always a true merge commit.** Squash and rebase are
+switched off in the repository settings, so the platform enforces this.
+History is never rewritten: the commits that were reviewed land on
+master unchanged. The merge commit itself is the ratifier's enactment
+record, and it carries the ledger number in its message. Two useful
+consequences: `git log --first-parent master` reads the history as the
+ledger, one enactment per step, and `git bisect --first-parent` walks
+moves, never branch internals.
+
 **Worked example — the smallest real queued move** (docket item 23:
-add `ZZ*` case-variants to the denylist):
+add the personal-note case-variants to the denylist):
 
 ```bash
 # 1. PROPOSE — a branch and the change:
 git checkout -b yourname/proposal-guard-zz-variants
-$EDITOR .constitution-guard          # add the [Zz][Zz]* patterns
+$EDITOR .constitution-guard          # add the [zZ]_* and [zZ][zZ]*_* patterns
 
 # 2. JOURNAL — every substantive rulebook change logs itself, same commit:
 $EDITOR constitution/log.md          # add under a "## 2026-MM-DD" heading:
-#   - **Update** — .constitution-guard: added [Zz][Zz]* case-variant
-#     patterns so the denylist matches the working-tree ignore rule.
+#   - **Update** — .constitution-guard: added the personal-note
+#     case-variant patterns [zZ]_* and [zZ][zZ]*_*, so the denylist
+#     matches the working-tree ignore rule.
 
 # 3. Run the gates locally (optional but polite — CI runs them anyway):
 python3 documentation/tools/check_self_containment.py \
@@ -141,11 +161,15 @@ python3 documentation/tools/check_self_containment.py \
 
 # 4. Commit (explicit file list!) and open the PR, titled as a proposal:
 git add .constitution-guard constitution/log.md
-git commit -m "Proposal: denylist case-variant patterns [Zz][Zz]*"
+git commit -m "Proposal: personal-note denylist case-variant patterns"
 git push origin yourname/proposal-guard-zz-variants
-gh pr create --title "Proposal: denylist case-variant patterns" \
-             --body "Adds [Zz][Zz]* to .constitution-guard. Evidence: five
-ZZZZZ*-prefixed personal notes found uncovered on 2026-08-31."
+gh pr create -R geekscape/aiko_services \
+             --title "Proposal: personal-note denylist case-variant patterns" \
+             --body "Adds [zZ]_* and [zZ][zZ]*_* to .constitution-guard.
+Evidence: ZZ-prefixed personal notes found uncovered on 2026-08-31."
+
+# 5. ENACT (the project lead, after ratification) — always a merge commit:
+gh pr merge <PR#> --merge --delete-branch
 ```
 
 **Then GitHub takes over — the constitutional steps:**
@@ -157,7 +181,10 @@ ZZZZZ*-prefixed personal notes found uncovered on 2026-08-31."
    ratification (Code Owners rule). A PR author can never approve their
    own PR. So the lead merging their own proposal uses the visible admin
    allowance — on the record, in the PR timeline.
-7. **ENACT** — the merge *is* the enactment. GitHub's PR number is the
+7. **ENACT** — the merge *is* the enactment:
+   `gh pr merge <PR#> --merge --delete-branch`. Always a true merge
+   commit — squash and rebase are switched off in the repository
+   settings, so history is never rewritten. GitHub's PR number is the
    proposal's number in the ledger, adopted or not, forever.
 
 That is a complete Nomic move: the rules changed *by* the rules. Five
@@ -210,7 +237,7 @@ you can ignore this section entirely.
 | Writing docs for shipped behavior | A | None |
 | Blocked by a principle | B1 | Comply and continue — or escalate to a Lane C amendment proposal |
 | Recording a durable design decision | B2 | Claim ADR number + file + journal entry, in your code PR |
-| Changing anything in `constitution/`, the denylist, `Agents.md`, or the gates | **C** | Proposal PR + registry rows + journal entry → gates → lead ratifies → merge |
+| Changing anything in `constitution/`, the denylist, `Agents.md`, or the gates | **C** | Proposal PR + registry rows + journal entry → gates → lead ratifies → merge commit |
 
 ## Mini-glossary
 
@@ -219,6 +246,9 @@ you can ignore this section entirely.
   the ceremony): self-containment + STE lint.
 - **Ratify** — the project lead's review approval. Nothing becomes law
   without it.
+- **Enact** — the merge itself, always a true merge commit
+  (`gh pr merge --merge` — squash and rebase are switched off). The PR
+  number is the proposal's ledger number forever.
 - **Journal** — `constitution/log.md`. Every rulebook change writes one
   dated line about itself, in the same commit.
 - **Registry** — the table that owns identifier numbers (ADRs,
