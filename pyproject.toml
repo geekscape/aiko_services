@@ -14,7 +14,8 @@ keywords = [
     "internet of things", "machine learning", "media", "robotics"
 ]
 
-licence-files = ["LICENCE"]
+license = "Apache-2.0"
+license-files = ["LICENCE"]
 
 # See: https://pypi.org/classifiers
 classifiers = [
@@ -25,7 +26,6 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
     "Operating System :: Unix",
@@ -35,10 +35,10 @@ classifiers = [
 ]
 
 dependencies = [
-    "asciimatics~=1.15.0",
-    "avro~=1.12.0",
-    "avro-validator~=1.2.1",
-    "click~=8.1.7",
+    "asciimatics>=1.15.0",
+    "avro>=1.12.0",
+    "avro-validator>=1.2.1",
+    "click>=8.1.7",
     "numpy>=1.26.4",
     "paho-mqtt>=1.6.1,<2.0.0",
     # Pinned binary deps: the versions below 3.14 are the long-tested
@@ -59,7 +59,10 @@ dependencies = [
     "wrapt>=1.17.3; python_version >= '3.14'"
 ]
 
-# [project.optional-dependencies]
+[project.optional-dependencies]
+test = [
+    "validate-pyproject"
+]
 # opencv-python = ["opencv-python~=4.10.0.84"]
 # opencv-contrib-python = ["opencv-contrib-python~=4.10.0.84"]
 # linux = ["PyAudio~=0.2.14"]
@@ -75,8 +78,6 @@ aiko_process = "aiko_services.main.process_manager:main"
 aiko_registrar = "aiko_services.main.registrar:main"
 aiko_storage_file = "aiko_services.main.storage.storage_file:main"
 
-[tool.hatch]
-
 # [tool.pyrefly]
 # project-includes = ["**/*"]
 # project-excludes = [
@@ -86,7 +87,7 @@ aiko_storage_file = "aiko_services.main.storage.storage_file:main"
 # ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build]
@@ -114,8 +115,14 @@ exclude = [
     "venv*"
 ]
 
+[tool.hatch.envs.default]
+features = ["test"]
+
 [tool.hatch.envs.default.scripts]
-test = "pytest {args:src/aiko_services/tests/unit}"
+test = [
+    "pytest {args:src/aiko_services/tests/unit}",
+    "validate-pyproject pyproject.toml",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["src/aiko_services/tests/unit"]
