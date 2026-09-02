@@ -493,7 +493,7 @@ class PipelineElementImpl(PipelineElement):
             period_counter = 0
             start_time = time.monotonic()
 
-            while stream.state == StreamState.RUN:
+            while True:
             # TODO: 2024-12-11: Throttle "frame_generator" when "rate" is None
             # TODO: Create "event.py:get_mailbox_queue()", "size" and "throttle"
                 if not rate or rate == 0:
@@ -517,7 +517,7 @@ class PipelineElementImpl(PipelineElement):
 
                 stream.set_state(self.pipeline._process_stream_event(
                     self.name, stream, stream_event, frame_data))
-                if stream.state == StreamState.ERROR:
+                if stream.state in (StreamState.ERROR, StreamState.STOP):
                     break
 
                 if stream.state == StreamState.RUN and frame_data:
