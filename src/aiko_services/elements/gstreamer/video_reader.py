@@ -14,10 +14,7 @@ import sys
 from threading import Thread
 import time
 
-if sys.version_info >= (3,0):
-  from queue import Queue, Empty
-else:
-  from Queue import Queue, Empty
+from queue import Queue, Empty
 
 from aiko_services.elements.gstreamer import *
 
