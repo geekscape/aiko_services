@@ -36,7 +36,7 @@ part of the governance tooling that is public.
 ## asd_ste100_lint.py — the verification gate
 
 ```bash
-python3 documentation/tools/asd_ste100_lint.py documentation/constitution/*.md
+python3 documentation/tools/asd_ste100_lint.py constitution/*.md
 ```
 
 Each line of the report gives one file and seven counts:
@@ -138,8 +138,8 @@ in review, do not "fix" them:
 ## asd_ste100_fix.py — the mechanical pass
 
 ```bash
-python3 documentation/tools/asd_ste100_fix.py documentation/constitution/*.md    # dry run
-python3 documentation/tools/asd_ste100_fix.py --write documentation/constitution/*.md
+python3 documentation/tools/asd_ste100_fix.py constitution/*.md    # dry run
+python3 documentation/tools/asd_ste100_fix.py --write constitution/*.md
 git diff documentation/                                                     # review
 ```
 

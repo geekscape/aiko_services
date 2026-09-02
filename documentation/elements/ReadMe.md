@@ -28,7 +28,7 @@ and in particular on these five documents:
 [Data Source / Target](../concepts/data_source_target.md) and
 [Scheme](../concepts/scheme.md). They follow the same
 audience-first template
-(`documentation/constitution/t_00_OkfConceptTemplate.md`).
+(`constitution/t_00_OkfConceptTemplate.md`).
 
 ## Packages
 

@@ -29,7 +29,7 @@ Format (OKF) conventions:
 
 The full section structure and writing guidance is defined in the
 constitution's OKF Concepts documentation template
-(`documentation/constitution/t_00_OkfConceptTemplate.md`).
+(`constitution/t_00_OkfConceptTemplate.md`).
 
 ## Start here
 

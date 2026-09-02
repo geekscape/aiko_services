@@ -17,7 +17,7 @@ OKF documentation for `src/aiko_services/elements/utilities/` — the
 general-purpose PipelineElements and shared helpers used across the
 element packages. One document per source module, following the
 structure defined in the constitution's OKF Concepts documentation
-template (`documentation/constitution/t_00_OkfConceptTemplate.md`).
+template (`constitution/t_00_OkfConceptTemplate.md`).
 
 ## Module documents
 

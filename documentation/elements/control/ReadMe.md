@@ -16,7 +16,7 @@ OKF documentation for `src/aiko_services/elements/control/` — the
 PipelineElements that alter Pipeline graph control flow. One document per
 source module, following the structure defined in the constitution's OKF
 Concepts documentation template
-(`documentation/constitution/t_00_OkfConceptTemplate.md`).
+(`constitution/t_00_OkfConceptTemplate.md`).
 
 ## Module documents
 

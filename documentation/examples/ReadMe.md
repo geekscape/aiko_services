@@ -30,7 +30,7 @@ committed HyperSpace data tree with its own source `ReadMe.md`.
 
 These documents follow the same audience-first template as the
 Concepts and PipelineElements documentation
-(`documentation/constitution/t_00_OkfConceptTemplate.md`).
+(`constitution/t_00_OkfConceptTemplate.md`).
 
 ## Packages
 
