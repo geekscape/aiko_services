@@ -58,11 +58,9 @@ audience-first template
 ## Status
 
 The element library is under active development (version 0.6), and its
-maturity is mixed. Some modules are current DataSource / DataTarget
-style. Others are legacy wrappers or dormant Pipeline_2020-era scripts.
-Each document states which of these applies. Each document also
-separates implemented behavior from planned or work-in-progress
-behavior, based on the source code as of 2026-07-06.
+maturity is mixed.
+Each document separates implemented behavior from planned or
+work-in-progress behavior, based on the source code as of 2026-07-06.
 
 ## Related documentation
 
