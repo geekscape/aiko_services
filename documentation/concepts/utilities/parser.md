@@ -12,7 +12,7 @@ source:
 related: [design_overview, service, actor, share, registrar, graph,
   ../../adr/ADR-002_SExpressionWireEncoding, ../../z_hy_assessment]
 version: "0.6"
-last_updated: 2026-08-14
+last_updated: 2026-09-01
 ---
 
 # Parser utility (S-expressions)
@@ -99,9 +99,14 @@ Rendering rules, in order:
 
 - Two kinds of string become a **canonical S-expression symbol**: a
   string that contains a delimiter (whitespace, `(`, `)`), and a string
-  that *starts with* `digits:`. The byte length prefixes the symbol, so
-  `has space` becomes `9:has space`
-  (see [Canonical S-expressions](https://en.wikipedia.org/wiki/Canonical_S-expressions)).
+  that *starts with* `digits:`. The count of Unicode code points prefixes
+  the symbol, so `has space` becomes `9:has space`. Python `len()` gives
+  that count.
+  [Canonical S-expressions](https://en.wikipedia.org/wiki/Canonical_S-expressions)
+  count octets. The two counts agree for ASCII text. They do not agree for
+  other text. `a 😀 b` is 5 code points and 8 octets, thus `generate()`
+  writes `5:a 😀 b`. An implementation that counts octets breaks the frame
+  of every non-ASCII symbol.
 - A dict becomes alternating `keyword:` / value tokens. A list or tuple
   becomes a nested `( ... )`.
 - The empty string becomes `""`.
