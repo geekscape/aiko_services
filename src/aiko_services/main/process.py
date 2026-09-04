@@ -144,7 +144,8 @@ class ProcessImplementation(ProcessData):
     def __init__(self):
         self.initialized = False
         self.running = False  # TODO: Replace with StateMachine (see actor.py)
-        self.service_count = 0
+        self.service_count = 0    # live count: goes up and down
+        self._service_id_last = 0  # monotonic: only ever goes up
 
         self._exit_status = 0
         self._message_handlers = {}
@@ -257,7 +258,13 @@ class ProcessImplementation(ProcessData):
         try:
             self._services_lock.acquire("add_service()")
             self.service_count += 1
-            service.service_id = self.service_count
+            # Allocate from the monotonic counter, never from "service_count".
+            # "service_count" is decremented by remove_service(), so using it as
+            # the allocator reissues the id of a Service that is still live once
+            # a non-last Service has been removed: the new Service overwrites the
+            # previous holder in "_services" and the two share a topic_path
+            self._service_id_last += 1
+            service.service_id = self._service_id_last
             service.topic_path = aiko.get_topic_path(service.service_id)
             self._services[service.service_id] = service
         finally:
