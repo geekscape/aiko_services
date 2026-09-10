@@ -26,25 +26,28 @@ HEADER = """{ "version": 0, "name": "p_test", "runtime": "python",
 
 GRAPHS = [
 #### GRAPH 0 #### Helpful milestone ####
-""" "graph": ["(A B (a_out_0: b_in_0 a_out_1: b_in_1) Terminate)"], """,
+""" "graph": ["(A_ B (a_out_0: b_in_0 a_out_1: b_in_1) Terminate)"], """,
 #### GRAPH 1 #### Helpful milestone ####
-""" "graph": ["(A B (a_out_0: b_in_0 a_out_1: b_in_1) C Terminate)"], """,
+""" "graph": ["(A_ B (a_out_0: b_in_0 a_out_1: b_in_1) C Terminate)"], """,
 #### GRAPH 2 #### Helpful milestone ####
-""" "graph": ["(A B (a_out_0: b_in_0 a_out_1: b_in_1) C (a_out_0: c_in_0 b_out_0: c_in_1 a_out_1: c_in_2) Terminate)"], """,
+""" "graph": ["(A_ B (a_out_0: b_in_0 a_out_1: b_in_1) C (a_out_0: c_in_0 b_out_0: c_in_1 a_out_1: c_in_2) Terminate)"], """,
 #### GRAPH 3 #### Helpful milestone ####
-""" "graph": ["(A B (A.a_out_0: b_in_0 A.a_out_1: b_in_1) Terminate)"], """,
+""" "graph": ["(A_ B (A_.a_out_0: b_in_0 A_.a_out_1: b_in_1) Terminate)"], """,
 #### GRAPH 4 #### Final test ####
-""" "graph": ["(A B (A.a_out_0: b_in_0 A.a_out_1: b_in_1) C (A.a_out_0: c_in_0 B.b_out_0: c_in_1 A.a_out_1: c_in_2) Terminate)"], """
+""" "graph": ["(A_ B (A_.a_out_0: b_in_0 A_.a_out_1: b_in_1) C (A_.a_out_0: c_in_0 B.b_out_0: c_in_1 A_.a_out_1: c_in_2) Terminate)"], """
 ]
 
 ELEMENTS = """
   "elements": [
-    { "name":   "A",
+    { "name":   "A_",
       "input":  [],
       "output": [{ "name": "a_out_0", "type": "int" },
                  { "name": "a_out_1", "type": "int" }],
       "deploy": {
-        "local": { "module": "aiko_services.tests.unit.test_pipeline_graph" }
+        "local": {
+          "class_name": "A",
+          "module": "aiko_services.tests.unit.test_pipeline_graph"
+        }
       }
     },
     { "name":   "B",
@@ -112,4 +115,3 @@ def test_graph_name_mapping():
 
         pipeline_definition = HEADER + GRAPHS[graph_index] + ELEMENTS
         do_create_pipeline(pipeline_definition)
-        break
