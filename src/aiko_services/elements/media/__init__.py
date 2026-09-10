@@ -6,6 +6,10 @@
 
 from .scheme_file import DataSchemeFile
 
+from .scheme_synth import (
+    DataSchemeSynthetic, parse_synth_url, render_text_frame
+)
+
 from .scheme_tty import DataSchemeTTY
 
 from .scheme_zmq import DataSchemeZMQ
@@ -30,6 +34,8 @@ from .video_io import (
     VideoOutput, VideoReadFile, VideoSample, VideoShow,
     VideoWriteFile, VideoWriteFiles, open_video_capture
 )
+
+from .synthetic_io import SyntheticVideoRead
 
 from .webcam_io import VideoReadWebcam
 

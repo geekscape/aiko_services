@@ -11,7 +11,7 @@ source:
 related: [design_overview, data_source_target, pipeline, pipeline_element,
   stream, parameters]
 version: "0.6"
-last_updated: 2026-08-01
+last_updated: 2026-09-10
 ---
 
 # DataScheme
@@ -97,6 +97,7 @@ in `stream.variables`, not on `self` beyond that.
 | `file` | `DataSchemeFile` | `src/aiko_services/elements/media/scheme_file.py` |
 | `tty` | `DataSchemeTTY` | `src/aiko_services/elements/media/scheme_tty.py` |
 | `zmq` | `DataSchemeZMQ` | `src/aiko_services/elements/media/scheme_zmq.py` |
+| `synth` | `DataSchemeSynthetic` | `src/aiko_services/elements/media/scheme_synth.py` |
 | `rtsp` | `DataSchemeRTSP` | `src/aiko_services/elements/gstreamer/scheme_rtsp.py` |
 | `colab` | `DataSchemeColab` | `src/aiko_services/examples/colab/scheme_colab.py` |
 
@@ -108,8 +109,13 @@ camera by parameter instead.)
 ```
 scheme:path                    file:data_in/in_00.txt
 scheme://authority/path        zmq://0.0.0.0:6502
+scheme://kind/pattern?options  synth://video/plain?width=1280&height=720
 path                           data_in/in_00.txt   (scheme defaults to file)
 ```
+
+The `synth` scheme parses its URL with `urllib.parse`: the authority is
+the data kind, the path is the pattern and the query holds the options
+(see [Synthetic DataScheme](../elements/media/scheme_synth.md)).
 
 The `file` scheme additionally treats `{}` in a path as a template /
 filename filter: `file:data_in/in_{}.txt` reads every matching file in

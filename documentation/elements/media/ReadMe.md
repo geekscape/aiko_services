@@ -1,8 +1,9 @@
 ---
 title: Media PipelineElements index
 description: Index of the media PipelineElement concept documents — text,
-  image, video, webcam and audio element families, the file / tty / zmq
-  DataSchemes — and the committed example PipelineDefinitions
+  image, video, webcam, synthetic and audio element families, the file /
+  synth / tty / zmq DataSchemes — and the committed example
+  PipelineDefinitions
 type: index
 audience: [developers, end-users]
 status: work-in-progress
@@ -10,8 +11,8 @@ ste: adapted
 source:
   - src/aiko_services/elements/media
 related: [pipeline_element, data_source_target, scheme, pipeline]
-version: "0.6"
-last_updated: 2026-08-01
+version: "0.8-dev"
+last_updated: 2026-09-10
 ---
 
 # Media PipelineElements index
@@ -34,8 +35,10 @@ Navigation: [elements index](../ReadMe.md) ·
 | [image_io](image_io.md) | Image sources, transforms (convert / resize / crop / overlay) and targets — files or ZeroMQ, PIL or NumPy |
 | [images_to_video](images_to_video.md) | Legacy Pipeline_2020 script for images → video; superseded by `images_to_video_pipeline.json` |
 | [scheme_file](scheme_file.md) | `file:` DataScheme — files, directories and `{}` glob/format templates; the default scheme |
+| [scheme_synth](scheme_synth.md) | `synth://` DataScheme — synthesized video frames with the frame id and a timestamp, no camera; an extensible kind/pattern URL grammar |
 | [scheme_tty](scheme_tty.md) | `tty://` DataScheme — line-oriented interactive terminal input/output |
 | [scheme_zmq](scheme_zmq.md) | `zmq://` DataScheme — out-of-band record transport over ZeroMQ PUSH/PULL |
+| [synthetic_io](synthetic_io.md) | `SyntheticVideoRead` — camera-less video DataSource built on the `synth://` scheme |
 | [text_io](text_io.md) | Text sources, transforms and targets — files, terminal REPL or ZeroMQ; the exemplar element family |
 | [video_example](video_example.md) | Legacy Pipeline_2020 branching-video demonstration with a StateMachine; dormant |
 | [video_io](video_io.md) | Video file decode / sample / display / encode elements, plus `open_video_capture()` |
@@ -43,7 +46,7 @@ Navigation: [elements index](../ReadMe.md) ·
 
 ## Example PipelineDefinitions
 
-The twenty git-committed PipelineDefinitions under
+The twenty-two git-committed PipelineDefinitions under
 `src/aiko_services/elements/media/pipelines/` — each module document's
 Command-line usage section shows `aiko_pipeline create` invocations for
 the pipelines it covers.
@@ -55,6 +58,8 @@ the pipelines it covers.
 | `image_zmq_pipeline_0.json` | [image_io](image_io.md), [scheme_zmq](scheme_zmq.md), [video_io](video_io.md) | ZeroMQ server: receive image records → resize → display |
 | `image_zmq_pipeline_1.json` | [image_io](image_io.md), [scheme_zmq](scheme_zmq.md) | ZeroMQ client: read JPEGs → resize → send image records |
 | `images_to_video_pipeline.json` | [image_io](image_io.md), [video_io](video_io.md), [images_to_video](images_to_video.md) | Assemble JPEG frames into an MP4 (MP4V, 30 fps) |
+| `synthetic_pipeline_0.json` | [synthetic_io](synthetic_io.md), [scheme_synth](scheme_synth.md), [control elements](../control/elements.md), [image_io](image_io.md), [video_io](video_io.md) | Synthesized frames → `CaptureLimit` (10 s) → resize → display |
+| `synthetic_pipeline_1.json` | [synthetic_io](synthetic_io.md), [scheme_synth](scheme_synth.md), [control elements](../control/elements.md), [video_io](video_io.md) | Synthesized frames → `CaptureLimit` (10 s) → record MP4 |
 | `text_pipeline_0.json` | [text_io](text_io.md), [scheme_file](scheme_file.md) | Read text files → case transform → write text files |
 | `text_pipeline_1.json` | [text_io](text_io.md) | Drop-frame test: `TextSample` keeps every 2nd frame (local) |
 | `text_pipeline_2.json` | [text_io](text_io.md) | Drop-frame test with `TextSample` deployed **remote** (pairs with `text_pipeline_3.json`) |
@@ -78,7 +83,9 @@ the pipelines it covers.
 2. [scheme_tty](scheme_tty.md) and [scheme_zmq](scheme_zmq.md) — how a
    URL swaps the transport
 3. [image_io](image_io.md) → [video_io](video_io.md) →
-   [webcam_io](webcam_io.md) — the media families proper
+   [webcam_io](webcam_io.md) — the media families proper. Start with
+   [synthetic_io](synthetic_io.md) and [scheme_synth](scheme_synth.md)
+   when no camera is available
 4. [elements](elements.md), [audio_io](audio_io.md),
    [images_to_video](images_to_video.md),
    [video_example](video_example.md) — placeholders, work-in-progress

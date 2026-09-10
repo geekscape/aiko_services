@@ -1,0 +1,56 @@
+{
+  "version": 0,
+  "name":    "p_synthetic_0",
+  "runtime": "python",
+
+  "#": "No camera: synthetic frames shown half-size for 10 s, or until 'x'",
+
+  "graph": ["(SyntheticVideoRead CaptureLimit ImageResize VideoShow)"],
+
+  "parameters": {
+    "_create_stream_":       "1",
+    "_destroy_stream_exit_": "1",
+    "resolution":            "960x540"
+  },
+
+  "elements": [
+    { "name":   "SyntheticVideoRead",
+      "parameters": {
+        "data_sources": "(synth://video/plain?width=1920&height=1080)",
+        "rate": 15.0
+      },
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.synthetic_io"}
+      }
+    },
+    { "name":   "CaptureLimit",
+      "parameters": {"duration": 10.0},  "#": "seconds, or e.g '10m'",
+      "input":  [],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.control.elements"}
+      }
+    },
+    { "name":   "ImageResize",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    },
+    { "name":   "VideoShow",
+      "parameters": {
+        "title":       "Synthetic video",
+        "position":    "0:0",
+        "system_exit": false
+      },  "#": "system_exit false: 'x' returns STOP, a graceful destroy",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    }
+  ]
+}
