@@ -1,0 +1,46 @@
+{
+  "version": 0,
+  "name":    "p_synthetic_1",
+  "runtime": "python",
+
+  "#": "No camera: synthetic frames recorded for 10 s to data_out/synthetic_0.mp4",
+
+  "graph": ["(SyntheticVideoRead CaptureLimit VideoWriteFile)"],
+
+  "parameters": {
+    "_create_stream_":       "1",
+    "_destroy_stream_exit_": "1",
+    "rate":                  15.0,  "#": "rate and frame_rate must match",
+    "frame_rate":            15.0
+  },
+
+  "elements": [
+    { "name":   "SyntheticVideoRead",
+      "parameters": {"data_sources": "(synth://)"},  "#": "all defaults",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.synthetic_io"}
+      }
+    },
+    { "name":   "CaptureLimit",
+      "parameters": {"duration": 10.0},  "#": "seconds, or e.g '10m'",
+      "input":  [],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.control.elements"}
+      }
+    },
+    { "name":   "VideoWriteFile",
+      "parameters": {
+        "data_targets": "(file:data_out/synthetic_0.mp4)",
+        "format":       "mp4v"
+      },  "#": "mp4v: the tag OpenCV uses for MP4 ('MP4V' logs a warning)",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    }
+  ]
+}

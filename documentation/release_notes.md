@@ -66,6 +66,30 @@ sections are.
   Dashboard available to each Service.  To construct one, use
   *compose_instance(ECCacheImpl, ec_cache_args(service, service_filter))*
 
+* New PipelineElements.  *SyntheticVideoRead* (*elements/media/
+  synthetic_io.py*) is a DataSource that synthesizes video frames without
+  a camera.  Each frame shows the *frame_id* as large text and a UTC
+  timestamp below it.  Thus a person can check the frame order and the
+  frame rate by eye, or in a recording.  *CaptureLimit* (*elements/
+  control/elements.py*) stops a Stream when a bound is reached.  The
+  bounds are *frame_count* Frames, *duration* seconds of wall-clock time
+  (a unit suffix is accepted, for example *10m*), *run_time* seconds of
+  media time, and an S-expression *condition* that becomes false.  The
+  first bound that fires wins.  It is medium-neutral: the bounding Frame passes through with
+  *StreamEvent.STOP*, and later queued Frames are dropped.  Two example
+  PipelineDefinitions, *synthetic_pipeline_0.json* (display) and
+  *synthetic_pipeline_1.json* (record to MP4), run without hardware.  The
+  *control* package now has an *__init__.py*
+
+* New DataScheme *synth* (*elements/media/scheme_synth.py*).  The URL
+  grammar is *synth://kind/pattern?option=value*, parsed with
+  *urllib.parse*, so more kinds and patterns can follow.  *(synth://)*
+  selects *video/plain* at 1920x1080 with the frame id and the timestamp
+  in white on black.  The options are *width*, *height*, *text*, *color*
+  and *background*.  The renderer uses Pillow only, so OpenCV is not
+  needed.  This scheme is about data provenance and is unrelated to the
+  *Mock* placeholder PipelineElement in *elements/media/elements.py*
+
 * The Registrar Interface now declares its public API — *service_add()*,
   *service_remove()*, *services_share()* and *services_history()* — as
   real, documented methods that *RegistrarImpl* implements.  The wire
@@ -141,6 +165,18 @@ remote callers are unaffected.  For Python code:
   construction, the deprecated-form shim and *ECCache*.  New
   *test_registrar.py* covers the promoted Registrar API and wire
   delegation
+
+* New *test_scheme_synth.py* pins the pure *render_text_frame()* and
+  *parse_synth_url()* helpers and the option validation.  New
+  *test_capture_limit.py* runs a three element Pipeline
+  (*SyntheticVideoRead*, *CaptureLimit* and an in-process image sink)
+  without a broker, once for each of the four bounds.
+  *do_create_pipeline()* now accepts *stream_id*, *frame_data* and
+  *parameters*, so a test can start a frame generator without a first
+  Frame.  The new *do_compose_pipeline()* returns the Pipeline without
+  running it.
+  These tests skip when OpenCV is absent, because *video_io.py* needs
+  *cv2* at import time
 
 ### Bug Fixes
 

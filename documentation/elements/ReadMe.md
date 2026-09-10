@@ -7,8 +7,8 @@ type: index
 audience: [developers, end-users]
 status: draft
 ste: adapted
-version: "0.6"
-last_updated: 2026-08-01
+version: "0.8-dev"
+last_updated: 2026-09-10
 ---
 
 # Aiko Services: PipelineElements documentation
@@ -34,9 +34,9 @@ audience-first template
 
 | Package | Contents |
 |---------|----------|
-| [control/](control/ReadMe.md) | Control-flow elements — the Loop element repeating a graph section until an S-expression condition becomes false |
+| [control/](control/ReadMe.md) | Control-flow elements — the Loop element repeating a graph section until an S-expression condition becomes false, and the CaptureLimit element stopping a Stream after a frame count, a duration, a media run time or a condition |
 | [gstreamer/](gstreamer/ReadMe.md) | RTSP PipelineElements and the `rtsp` DataScheme (current style), plus the legacy GStreamer video reader/writer wrapper classes |
-| [media/](media/ReadMe.md) | The largest family — text, image, video, webcam and audio elements, the `file` / `tty` / `zmq` DataSchemes, and twenty example PipelineDefinitions |
+| [media/](media/ReadMe.md) | The largest family — text, image, video, webcam, synthetic and audio elements, the `file` / `synth` / `tty` / `zmq` DataSchemes, and twenty-two example PipelineDefinitions |
 | [observe/](observe/ReadMe.md) | Observability elements — Inspect (log/file/stdout taps on Frame data) and Metrics (per-element timing and memory) |
 | [utilities/](utilities/ReadMe.md) | The Expression element and S-expression evaluation helpers for the `define`, `delete` and `rename` commands on Frame data values |
 
@@ -46,7 +46,8 @@ audience-first template
   (Mock and NoOp) and [media/text_io.md](media/text_io.md), driven by the
   example PipelineDefinitions in the [media index](media/ReadMe.md).
 - **Working with cameras and video**:
-  [media/webcam_io.md](media/webcam_io.md),
+  [media/synthetic_io.md](media/synthetic_io.md) when no camera is
+  available, then [media/webcam_io.md](media/webcam_io.md),
   [media/video_io.md](media/video_io.md), then
   [gstreamer/rtsp_io.md](gstreamer/rtsp_io.md) for network cameras.
 - **Writing a new PipelineElement**: read
