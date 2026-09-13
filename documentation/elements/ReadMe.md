@@ -36,7 +36,7 @@ audience-first template
 |---------|----------|
 | [control/](control/ReadMe.md) | Control-flow elements — the Loop element repeating a graph section until an S-expression condition becomes false, and the CaptureLimit element stopping a Stream after a frame count, a duration, a media run time or a condition |
 | [gstreamer/](gstreamer/ReadMe.md) | RTSP PipelineElements and the `rtsp` DataScheme (current style), plus the legacy GStreamer video reader/writer wrapper classes |
-| [media/](media/ReadMe.md) | The largest family — text, image, video, webcam, synthetic and audio elements, the `file` / `synth` / `tty` / `zmq` DataSchemes, and twenty-two example PipelineDefinitions |
+| [media/](media/ReadMe.md) | The largest family — text, image, video, webcam, synthetic, store / forward and audio elements, the `file` / `synth` / `store_forward` / `tty` / `zmq` DataSchemes, and twenty-three example PipelineDefinitions |
 | [observe/](observe/ReadMe.md) | Observability elements — Inspect (log/file/stdout taps on Frame data) and Metrics (per-element timing and memory) |
 | [utilities/](utilities/ReadMe.md) | The Expression element and S-expression evaluation helpers for the `define`, `delete` and `rename` commands on Frame data values |
 

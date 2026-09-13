@@ -83,6 +83,7 @@ The distributed component model: discoverable, message-addressable units.
 | [Registrar](registrar.md) | The Service discovery hub — live directory, add/remove streams, share/history queries, primary election |
 | [Discovery](discovery.md) | Finding and invoking remote Services — ServiceDiscovery, remote proxies, do_discovery / do_command / do_request |
 | [Recorder](recorder.md) | A Service that ring-buffers log topics and republishes them as shared state for the Dashboard |
+| [StoreForward](store_forward.md) | The SegmentStoreForward Actor — custody of segments (files) for a peer host across an unreliable link, delivered with sha256 verification and resume, through a pluggable StoreForwardMessage layer |
 
 ## Pipelines
 
