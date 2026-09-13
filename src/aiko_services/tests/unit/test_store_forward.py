@@ -498,7 +498,7 @@ STATE_TOKENS = [
     "failed_sha256", "failed_http_404", "rejected_path", "rejected_missing",
     "rejected_size", "rejected_role", "rejected_busy",
     "receiving", "ok", "up", "down", "unknown", "2048/5000", "1725400000",
-    "http://server.local:8080", "/Users/someone/st/in",
+    "http://server.local:8080", "/Users/someone/store_forward/in",
     "up@2026-09-13T01:02:03Z", "2026-09-13T01:02:03Z",
     "failed_timeout/0123abcd@2026-09-13T01:02:03Z", "rejected_command/-@2026-09-13T01:02:03Z",
     "no_poll_4s", "ConnectionError", "edge_polling", "startup"

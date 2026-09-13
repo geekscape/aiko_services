@@ -25,12 +25,14 @@
 #   Each host: mosquitto and aiko_registrar with AIKO_MQTT_HOST=localhost
 #   Server host: pip install flask
 #
-#   aiko_store_forward server --inbox ~/st/in --outbox ~/st/out  \
+#   aiko_store_forward server  \
+#       --inbox ~/store_forward/in --outbox ~/store_forward/out  \
 #       [--http_port_range 8080-8089] [--advertise_host HOST]
-#   aiko_store_forward edge --inbox ~/st/in --outbox ~/st/out  \
+#   aiko_store_forward edge  \
+#       --inbox ~/store_forward/in --outbox ~/store_forward/out  \
 #       --server_url http://HOST:8080
 #
-#   cp segment.mp4 ~/st/out     # either host: arrives in the peer's inbox
+#   cp segment.mp4 ~/store_forward/out   # either host: to the peer's inbox
 #
 # Wire commands (one-way, no return values) ...
 #   (send_segment SEGMENT_ID NAME)
@@ -109,8 +111,8 @@ PROTOCOL_TYPE = "store_forward"
 ACTOR_TYPE = "segment_store_forward"
 PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/{PROTOCOL_TYPE}:{_VERSION}"
 
-STATE_LIMIT = 3                # last segments kept per store_forwards / received /
-                               # progress table: oldest evicted
+STATE_LIMIT = 3                # last segments kept per store_forwards /
+                               # received / progress table: oldest evicted
 BOOKKEEPING_LIMIT = 64         # ids remembered for sizes, names, sha256
 SENT_NAMES_LIMIT = 1024        # outbox names already sent: drop oldest
 SENT_DIRECTORY = ".sent"       # under the outbox: acknowledged segments
@@ -158,7 +160,8 @@ class SegmentStoreForward(aiko.Actor):
     characters, chosen by the sender
     """
     aiko.Interface.default("SegmentStoreForward",
-        "aiko_services.main.store_forward.store_forward.SegmentStoreForwardImpl")
+        "aiko_services.main.store_forward.store_forward."
+        "SegmentStoreForwardImpl")
 
     @abstractmethod
     def send_segment(self, segment_id, name):
@@ -270,7 +273,8 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         self.logger.info(f"{self.message.role} {context.name}: {endpoint}")
         self.logger.info(f"inbox: {self.inbox}")
         self.logger.info(f"outbox: {self.outbox} (scan every "
-            f"{self.outbox_period} s, sent segments move to {SENT_DIRECTORY}/)")
+            f"{self.outbox_period} s, sent segments move to "
+            f"{SENT_DIRECTORY}/)")
         print(f"MQTT topic: {self.topic_in}")
 
     # Wire commands (event-loop thread) ------------------------------------- #
@@ -279,7 +283,8 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         if not valid_segment_id(segment_id):
             return self._reject_command(
                 f"send_segment: bad id {segment_id!r} (hex, 8-32 chars)")
-        if segment_id in self._jobs or segment_id in self.share["store_forwards"]:
+        if segment_id in self._jobs  \
+            or segment_id in self.share["store_forwards"]:
             return                                     # idempotent
         _remember(self._names, segment_id, str(name))
         path = resolve_within(self.outbox, name)
@@ -364,8 +369,8 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
     # Message layer hand-off (event-loop thread) ---------------------------- #
 
     def _store_forward_event(self, segment_id, event, detail):
-        """Posted by _message_event() from message-layer threads.  Reachable from
-        the local bus too, so every argument is validated"""
+        """Posted by _message_event() from message-layer threads.
+        Reachable from the local bus too, so every argument is validated"""
 
         self.last_event_thread = threading.get_ident()
         if not isinstance(event, str) or not isinstance(detail, str):
@@ -380,7 +385,9 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         name = self._names.get(segment_id, "?")
 
         if event in STORE_FORWARD_EVENTS:
-            state = f"failed_http_{detail}" if event == "failed_http" else event
+            state = event
+            if event == "failed_http":
+                state = f"failed_http_{detail}"
             self._set_store_forward(segment_id, state, detail)
             if event in ("offered", "done") and valid_sha256(detail):
                 _remember(self._sha256, segment_id, detail)
@@ -453,7 +460,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             self.logger.warning(f"/out queue full: {detail} commands dropped")
         elif event == "rejected_command":
             self._add_metric("rejected_commands", 1)
-            if not detail.startswith("local:"):  # local ones are logged already
+            if not detail.startswith("local:"):  # local ones already logged
                 self.logger.warning(
                     f"peer rejected or dropped a command: {detail}")
 
@@ -545,12 +552,14 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         depth, oldest, size_total = 0, None, 0
         for entry in entries:
             name = entry.name
-            if name.startswith(".") or not entry.is_file(follow_symlinks=False):
+            if name.startswith(".")  \
+                or not entry.is_file(follow_symlinks=False):
                 continue
             stat = entry.stat(follow_symlinks=False)
             depth += 1                       # in the outbox: not delivered yet
             size_total += stat.st_size
-            oldest = stat.st_mtime if oldest is None else min(oldest, stat.st_mtime)
+            oldest = stat.st_mtime if oldest is None  \
+                else min(oldest, stat.st_mtime)
             if name in self._sent_names:
                 continue
             if name in self._retry_after:
@@ -670,8 +679,8 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
                 os.replace(source, target)
         except OSError as os_error:
             self.logger.warning(
-                f"store_forward {segment_id} {name}: move to {SENT_DIRECTORY}/ "
-                f"failed: {os_error}")
+                f"store_forward {segment_id} {name}: move to "
+                f"{SENT_DIRECTORY}/ failed: {os_error}")
         self._sent_names.pop(name, None)
         self._retry_backoff.pop(name, None)             # delivered: reset
         self._retry_after.pop(name, None)
@@ -686,10 +695,12 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         if state.startswith(_FAILED_PREFIXES):
             self._note_error(state, segment_id)
             self.logger.warning(
-                f"store_forward {segment_id} {name}: {state} {detail}".rstrip())
+                f"store_forward {segment_id} {name}: {state} {detail}"
+                .rstrip())
         elif state in _LOG_INFO_STATES:
             self.logger.info(
-                f"store_forward {segment_id} {name}: {state} {detail}".rstrip())
+                f"store_forward {segment_id} {name}: {state} {detail}"
+                .rstrip())
         else:
             self.logger.debug(f"store_forward {segment_id} {name}: {state}")
 
@@ -783,7 +794,8 @@ def main():
 
 @main.command(help="Run the server host Actor and its HTTP routes")
 @_common_options
-@click.option("--http_port_range", "-pr", default="8080-8089", show_default=True,
+@click.option("--http_port_range", "-pr", default="8080-8089",
+    show_default=True,
     help="TCP port or FIRST-LAST range to bind (Aiko Services ZMQ uses 6502)")
 @click.option("--bind", "-b", default="0.0.0.0", show_default=True,
     help="Interface address to bind")

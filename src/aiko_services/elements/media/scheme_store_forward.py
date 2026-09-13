@@ -17,9 +17,11 @@ _PREFIX_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 # --------------------------------------------------------------------------- #
 # parameter: "data_targets" names the outbox directory that a
 #            SegmentStoreForward Actor (main/store_forward) watches
-# - "(store_forward://data_out/outbox)"   relative to the working directory
-# - "(store_forward:///home/pi/st/out)"   absolute path (three slashes)
-# - "(store_forward://~/st/out)"          home-relative path
+# - "(store_forward://data_out/outbox)"            relative to the working
+#                                                   directory
+# - "(store_forward:///home/pi/store_forward/out)"  absolute path (three
+#                                                   slashes)
+# - "(store_forward://~/store_forward/out)"         home-relative path
 #
 # parameter: "segment_prefix" first part of every segment file name
 #            (default "segment"): <prefix>_<UTC>_<nnnnnn>.mp4

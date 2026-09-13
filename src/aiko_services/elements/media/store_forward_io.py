@@ -3,19 +3,22 @@
 # cd src/aiko_services/elements/media
 #
 # Terminal 1: the recipient host, a server-role SegmentStoreForward Actor
-#   mkdir -p ~/st/in ~/st/out
-#   aiko_store_forward server --inbox ~/st/in --outbox ~/st/out
+#   mkdir -p ~/store_forward/in ~/store_forward/out
+#   aiko_store_forward server  \
+#       --inbox ~/store_forward/in --outbox ~/store_forward/out
 #
 # Terminal 2: the sending host, an edge-role Actor watching the outbox
-#   mkdir -p ~/st/in ~/st/out data_out/outbox
-#   aiko_store_forward edge --inbox ~/st/in --outbox data_out/outbox  \
+#   mkdir -p ~/store_forward/in data_out/outbox
+#   aiko_store_forward edge  \
+#       --inbox ~/store_forward/in --outbox data_out/outbox  \
 #       --server_url http://localhost:8080
 #
 # Terminal 3: a Pipeline writing 10 s video segments into that outbox
 #   aiko_pipeline create pipelines/store_forward_pipeline_0.json -s 1
 #
 #   aiko_pipeline create pipelines/store_forward_pipeline_0.json -s 1  \
-#     -p VideoWriteStoreForward.data_targets "(store_forward://~/st/out)"  \
+#     -p VideoWriteStoreForward.data_targets  \
+#        "(store_forward://~/store_forward/out)"  \
 #     -p VideoWriteStoreForward.segment_seconds 5 -p CaptureLimit.duration 20
 #
 # To Do
@@ -143,14 +146,15 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
             return super().stop_stream(stream, stream_id)
         return aiko.StreamEvent.OKAY, {}
 
-    # Segment files ---------------------------------------------------------- #
+    # Segment files -------------------------------------------------------- #
 
     def _open_segment(self, stream, image):
         outbox = stream.variables["target_outbox"]
         prefix = stream.variables["target_prefix"]
         stream.variables["target_segment_id"] += 1
         stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-        name = f"{prefix}_{stamp}_{stream.variables['target_segment_id']:06d}.mp4"
+        segment_id = stream.variables["target_segment_id"]
+        name = f"{prefix}_{stamp}_{segment_id:06d}.mp4"
         if not valid_segment_name(name):        # cannot happen: prefix checked
             diagnostic = f'segment name "{name}" rejected'
             return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
@@ -199,7 +203,8 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
         size = os.path.getsize(final_path)
         self._segments_written += 1
         now = utc_now()
-        self.ec_producer.update("segments_written", str(self._segments_written))
+        self.ec_producer.update(
+            "segments_written", str(self._segments_written))
         self.ec_producer.update("last_segment_utc", now)
         self.ec_producer.update("segment", "-")
         self.logger.info(

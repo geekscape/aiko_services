@@ -33,7 +33,7 @@ process, takes custody of them:
 
 ```bash
 aiko_pipeline create pipelines/store_forward_pipeline_0.json -s 1  \
-    -p VideoWriteStoreForward.data_targets "(store_forward://~/st/out)"
+    -p VideoWriteStoreForward.data_targets "(store_forward://~/store_forward/out)"
 ```
 
 ## For application developers
@@ -49,10 +49,10 @@ in the PipelineDefinition:
 -p VideoWriteStoreForward.data_targets "(store_forward://data_out/outbox)"
 
 # Absolute: three slashes
--p VideoWriteStoreForward.data_targets "(store_forward:///home/pi/st/out)"
+-p VideoWriteStoreForward.data_targets "(store_forward:///home/pi/store_forward/out)"
 
 # Home-relative
--p VideoWriteStoreForward.data_targets "(store_forward://~/st/out)"
+-p VideoWriteStoreForward.data_targets "(store_forward://~/store_forward/out)"
 
 # File name prefix (default "segment")
 -p VideoWriteStoreForward.segment_prefix cam0
@@ -81,14 +81,14 @@ the element's share. A missing directory or a bad prefix returns
 ### Design
 
 ```
- "(store_forward://~/st/out)"
+ "(store_forward://~/store_forward/out)"
         │ parse_url_path()  expanduser()  realpath()
         ▼
  stream.variables: target_outbox, target_prefix, target_segment_id
         │
         ▼
- VideoWriteStoreForward  ──►  ~/st/out/.segment_<UTC>_000001.mp4  (open)
-                              ~/st/out/segment_<UTC>_000001.mp4   (closed)
+ VideoWriteStoreForward  ──►  ~/store_forward/out/.segment_<UTC>_000001.mp4  (open)
+                              ~/store_forward/out/segment_<UTC>_000001.mp4   (closed)
                                        │ SegmentStoreForward Actor watcher
                                        ▼ forwarded to the peer host
 ```

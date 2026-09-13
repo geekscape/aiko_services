@@ -1,5 +1,5 @@
-# Aiko Services: StoreForward HTTP message layer (Flask server, requests client)
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Aiko Services: StoreForward HTTP message layer (Flask, requests)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 # One Flask web server runs on the server host (role "server").  The edge
 # host (role "edge") is always the HTTP client, so only the edge host needs
@@ -100,7 +100,8 @@ def _describe(exception, limit=160):
     OS error where there is one, e.g "ConnectionError: Connection refused" """
 
     cause = exception
-    while getattr(cause, "__cause__", None) or getattr(cause, "__context__", None):
+    while getattr(cause, "__cause__", None)  \
+        or getattr(cause, "__context__", None):
         cause = cause.__cause__ or cause.__context__
     text = str(cause) or str(exception)
     text = re.sub(r"<[^>]*>", "", text).strip(" :")   # drop object reprs
@@ -181,13 +182,13 @@ class StoreForwardMessageHTTPServer(StoreForwardMessage):
         self._out_dropped = 0
         self._offers: Dict[str, _Offer] = {}
         self._incoming: Dict[str, _Incoming] = {}
-        self._in_times = deque()               # POST /in timestamps (rate limit)
+        self._in_times = deque()               # POST /in times (rate limit)
 
         self._jobs = queue.Queue(maxsize=JOB_QUEUE_SIZE)
         self.port = None
         self.endpoint = None
 
-    # StoreForwardMessage interface ----------------------------------------------------- #
+    # StoreForwardMessage interface ---------------------------------------- #
 
     def start(self, on_command, on_event):
         if not _FLASK_IMPORTED:
@@ -472,7 +473,8 @@ class StoreForwardMessageHTTPServer(StoreForwardMessage):
             report = incoming.chunks % PROGRESS_EVERY_CHUNKS == 0  \
                 or offset == incoming.size
         if report:
-            self._event(segment_id, PROGRESS_EVENT, f"{offset}/{incoming.size}")
+            self._event(
+                segment_id, PROGRESS_EVENT, f"{offset}/{incoming.size}")
         return self._offset_response(offset, 204)
 
     def _data_complete(self, segment_id):
@@ -531,15 +533,16 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
         self._after = 0                        # /out cursor
         self._link_up = None                   # unknown until the first poll
 
-    # StoreForwardMessage interface ----------------------------------------------------- #
+    # StoreForwardMessage interface ---------------------------------------- #
 
     def start(self, on_command, on_event):
         self._on_command = on_command
         self._on_event = on_event
         os.makedirs(os.path.join(self.inbox, PARTIAL_DIRECTORY), exist_ok=True)
-        for name, target in (("store_forward_http_poller", self._poller),
-                             ("store_forward_http_jobs", self._job_worker),
-                             ("store_forward_http_commands", self._command_worker)):
+        for name, target in (
+            ("store_forward_http_poller", self._poller),
+            ("store_forward_http_jobs", self._job_worker),
+            ("store_forward_http_commands", self._command_worker)):
             thread = threading.Thread(target=target, daemon=True, name=name)
             thread.start()
             self._threads.append(thread)
@@ -623,7 +626,8 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
                         if self._on_command:
                             result = self._on_command(payload)
                             if result != "accepted":
-                                self._event(LINK_ID, "rejected_command", result)
+                                self._event(
+                                    LINK_ID, "rejected_command", result)
             except (requests.RequestException, ValueError) as exception:
                 self._set_link(False, type(exception).__name__,
                     f"GET {self._url('/out')}: {_describe(exception)}")

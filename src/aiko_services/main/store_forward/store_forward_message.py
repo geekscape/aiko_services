@@ -5,8 +5,8 @@
 # above the framework's publish / subscribe "aiko.Message" (message/): an
 # HTTP implementation is built on Flask and requests, a later MQTT push
 # implementation on aiko.message.publish() and Actor "/in" topics.  It is
-# named "StoreForwardMessage" (MQTT, HTTP, ZMQ, ...) rather than "Transport", which is
-# the OSI name for the TCP / UDP layer.
+# named "StoreForwardMessage" (MQTT, HTTP, ZMQ, ...) rather than
+# "Transport", which is the OSI name for the TCP / UDP layer.
 #
 # This module has no other Aiko Services import, so implementations can be
 # tested without an event loop or an MQTT server.  The SegmentStoreForward
@@ -63,7 +63,7 @@ JOB_QUEUE_SIZE = 16                   # send / fetch jobs: drop-newest
 COMMAND_QUEUE_SIZE = 64               # outgoing "(command ...)": drop-newest
 OUT_QUEUE_SIZE = 256                  # server "/out" items: drop-newest
 CONNECT_DEADLINE = 60.0               # seconds to first successful request
-IDLE_TIMEOUT = 120.0                  # seconds before an idle upload is evicted
+IDLE_TIMEOUT = 120.0                  # seconds until an idle upload is evicted
 PROGRESS_EVERY_CHUNKS = 8             # rate limit for progress events
 PARTIAL_DIRECTORY = ".partial"        # under the inbox: resumable parts
 MIN_RATE_BYTES_PER_SECOND = 50 * 1024 # sizes the overall transfer deadline

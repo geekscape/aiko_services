@@ -46,10 +46,10 @@ server complete, in order of no importance, without an operator. Two
 commands give that:
 
 ```bash
-aiko_store_forward server --inbox ~/st/in --outbox ~/st/out   # site host
-aiko_store_forward edge --inbox ~/st/in --outbox ~/st/out  \
+aiko_store_forward server --inbox ~/store_forward/in --outbox ~/store_forward/out   # site host
+aiko_store_forward edge --inbox ~/store_forward/in --outbox ~/store_forward/out  \
     --server_url http://site.local:8080                       # forklift
-cp segment.mp4 ~/st/out                # arrives in the site host's inbox
+cp segment.mp4 ~/store_forward/out                # arrives in the site host's inbox
 ```
 
 ## For application developers

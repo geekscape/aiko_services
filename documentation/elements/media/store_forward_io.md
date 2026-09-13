@@ -55,8 +55,8 @@ Three processes on the sending host and one on the receiving host. The
 receiving host runs the server-role Actor:
 
 ```bash
-mkdir -p ~/st/in ~/st/out
-aiko_store_forward server --inbox ~/st/in --outbox ~/st/out
+mkdir -p ~/store_forward/in ~/store_forward/out
+aiko_store_forward server --inbox ~/store_forward/in --outbox ~/store_forward/out
 ```
 
 The sending host runs the edge-role Actor watching an outbox, then the
@@ -64,8 +64,8 @@ Pipeline writing into that outbox:
 
 ```bash
 cd src/aiko_services/elements/media
-mkdir -p ~/st/in data_out/outbox
-aiko_store_forward edge --inbox ~/st/in --outbox data_out/outbox  \
+mkdir -p ~/store_forward/in data_out/outbox
+aiko_store_forward edge --inbox ~/store_forward/in --outbox data_out/outbox  \
     --server_url http://RECEIVER:8080
 
 # Synthetic frames for 30 s, written as 10 s segments (the definition)
@@ -73,7 +73,7 @@ aiko_pipeline create pipelines/store_forward_pipeline_0.json -s 1
 
 # Another outbox, 5 s segments, 20 s in total
 aiko_pipeline create pipelines/store_forward_pipeline_0.json -s 1  \
-    -p VideoWriteStoreForward.data_targets "(store_forward://~/st/out)"  \
+    -p VideoWriteStoreForward.data_targets "(store_forward://~/store_forward/out)"  \
     -p VideoWriteStoreForward.segment_seconds 5 -p CaptureLimit.duration 20
 
 # Segments of 45 frames each
