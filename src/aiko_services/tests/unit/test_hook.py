@@ -49,6 +49,9 @@ class HookTest(aiko.Actor):  # primarily acts as a Framework component
         self.remove_hook(HOOK_NAME)                              # by framework
         assert len(hooks) == hook_count_base
 
+        # Remove this zero-period timer: the event loop is process-global,
+        # so a leftover timer would terminate the next test's loop at once
+        aiko.event.remove_timer_handler(self.hook_check)
         aiko.process.terminate()  # TODO: Improve Aiko Services Process exit
 
     def hook_handler(self, name, component, logger, variables, options):

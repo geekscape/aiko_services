@@ -1,0 +1,3 @@
+# Integration tests: real sockets on 127.0.0.1, run explicitly ...
+#
+#   pytest src/aiko_services/tests/integration
