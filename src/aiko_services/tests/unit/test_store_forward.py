@@ -337,6 +337,87 @@ def test_network_ladder_raise_only(tmp_path):
     finally:
         connection.connection_state = initial_state
 
+def _queue_via_scan(actor):
+    actor._outbox_scan()                                    # first sighting
+    actor._outbox_scan()                                    # stable: send
+
+def test_retry_after_failed_send(tmp_path):
+    """A failed send is not stuck: after a back-off the watcher re-sends
+    the same outbox file with a fresh id and counts the retry"""
+
+    actor, message, _, outbox = make_actor(tmp_path)
+    write_segment(str(outbox), "seg.txt")
+    _queue_via_scan(actor)
+    first_id = message.jobs[0].segment_id
+    actor._store_forward_event(first_id, "failed_timeout", "")
+    assert "seg.txt" not in actor._sent_names
+    assert actor._retry_after["seg.txt"] > time.monotonic()
+    _queue_via_scan(actor)                                  # backing off
+    assert len(message.jobs) == 1
+
+    actor._retry_after["seg.txt"] = 0                       # back-off over
+    _queue_via_scan(actor)
+    assert len(message.jobs) == 2
+    assert message.jobs[1].segment_id != first_id
+    assert actor.share["metrics"]["retries"] == "1"
+    assert actor._retry_backoff["seg.txt"] == 60.0          # doubles next time
+    actor._store_forward_event(message.jobs[1].segment_id, "failed_http", "503")
+    assert actor._retry_backoff["seg.txt"] == 120.0
+
+    actor._retry_after["seg.txt"] = 0
+    _queue_via_scan(actor)
+    actor._store_forward_event(message.jobs[2].segment_id, "done", SHA)
+    assert "seg.txt" not in actor._retry_backoff            # delivered: reset
+    assert os.path.exists(os.path.join(str(outbox), SENT_DIRECTORY, "seg.txt"))
+
+def test_rejected_busy_retries(tmp_path):
+    actor, message, _, outbox = make_actor(tmp_path, accept=False)
+    write_segment(str(outbox), "seg.txt")
+    _queue_via_scan(actor)
+    assert list(actor.share["store_forwards"].values()) == ["rejected_busy"]
+    assert "seg.txt" in actor._retry_after
+    message.accept = True
+    actor._retry_after["seg.txt"] = 0
+    _queue_via_scan(actor)
+    assert message.jobs[-1].name == "seg.txt"
+    assert actor.share["metrics"]["retries"] == "1"
+
+def test_offer_not_acked_is_reoffered(tmp_path):
+    """Server role: an offer the edge never acknowledged is withdrawn
+    after RETRY_AFTER_S and re-offered with a fresh id"""
+
+    from aiko_services.main.store_forward.store_forward import RETRY_AFTER_S
+    actor, message, _, outbox = make_actor(tmp_path, role="server")
+    write_segment(str(outbox), "seg.txt")
+    _queue_via_scan(actor)
+    first_id = message.jobs[0].segment_id
+    actor._store_forward_event(first_id, "offered", SHA)
+    actor._offered_at[first_id] -= RETRY_AFTER_S + 1
+    actor._outbox_scan()
+    assert message.cancelled == [first_id]                  # withdrawn
+    assert "seg.txt" in actor._retry_after
+    actor._retry_after["seg.txt"] = 0
+    _queue_via_scan(actor)
+    assert len(message.jobs) == 2 and message.jobs[1].segment_id != first_id
+    assert actor.share["metrics"]["retries"] == "1"
+
+def test_stale_partial_sweep(tmp_path):
+    from aiko_services.main.store_forward.store_forward_message import (
+        PARTIAL_DIRECTORY
+    )
+    actor, _, inbox, _ = make_actor(tmp_path)
+    partial = inbox / PARTIAL_DIRECTORY
+    partial.mkdir()
+    for stem, age in (("aaaa1111", 100), ("bbbb2222", 5)):
+        for suffix in (".part", ".meta"):
+            path = partial / f"{stem}{suffix}"
+            path.write_text("x")
+            os.utime(path, (time.time() - age, time.time() - age))
+    actor.partial_max_age = 10
+    actor._sweep_partial(time.monotonic(), force=True)
+    assert sorted(p.name for p in partial.iterdir()) ==  \
+        ["bbbb2222.meta", "bbbb2222.part"]
+
 def test_cancel_sets_job_event(tmp_path):
     actor, message, _, outbox = make_actor(tmp_path)
     write_segment(str(outbox), "notes.txt")

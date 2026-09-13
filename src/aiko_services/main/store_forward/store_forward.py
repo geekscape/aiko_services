@@ -93,7 +93,7 @@ from aiko_services import __version__
 from aiko_services.main.store_forward.store_forward_message import (
     CHUNK_SIZE, LINK_EVENTS, LINK_ID, MAX_SEGMENT_SIZE, NAME_EVENT,
     PROGRESS_EVENT, RECEIVED_EVENTS, RESUME_EVENT, STORE_FORWARD_EVENTS,
-    FetchJob, SendJob,
+    PARTIAL_DIRECTORY, FetchJob, SendJob,
     resolve_within, utc_now, valid_segment_name, valid_sha256,
     valid_segment_id
 )
@@ -115,6 +115,12 @@ BOOKKEEPING_LIMIT = 64         # ids remembered for sizes, names, sha256
 SENT_NAMES_LIMIT = 1024        # outbox names already sent: drop oldest
 SENT_DIRECTORY = ".sent"       # under the outbox: acknowledged segments
 LINK_TIMEOUT = 10.0            # server: seconds without an Edge poll -> down
+RETRY_AFTER_S = 600.0          # server: re-offer a segment not acked by then
+RETRY_BACKOFF_MIN_S = 60.0     # first re-send delay after a failure ...
+RETRY_BACKOFF_MAX_S = 3600.0   # ... doubling up to this (P4: eventual)
+PARTIAL_MAX_AGE_S = 86400.0    # inbox/.partial parts older than this go
+SWEEP_PERIOD_S = 60.0          # how often the partial sweep runs
+_RETRY_STATES = ("failed_", "rejected_busy")  # send outcomes that retry
 
 _FAILED_PREFIXES = ("failed_", "rejected_")
 _LOG_INFO_STATES = {"queued", "offered", "done", "acked", "cancelled"}
@@ -210,6 +216,8 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         self.outbox = os.path.realpath(parameters["outbox"])
         self.outbox_period = float(parameters.get("outbox_period", 2.0))
         self.link_timeout = float(parameters.get("link_timeout", LINK_TIMEOUT))
+        self.partial_max_age = float(
+            parameters.get("partial_max_age", PARTIAL_MAX_AGE_S))
         self.loop_thread = threading.get_ident()      # asserted by tests
         self.last_event_thread = None                  # asserted by tests
 
@@ -220,6 +228,10 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         self._sent_names = {}      # outbox name -> segment_id (bounded)
         self._pending_outbox = {}  # outbox name -> (size, mtime) seen once
         self._warned_names = set() # outbox names already reported as bad
+        self._retry_after = {}     # outbox name -> monotonic time to re-send
+        self._retry_backoff = {}   # outbox name -> current back-off seconds
+        self._offered_at = {}      # segment_id -> monotonic time offered
+        self._last_sweep = 0.0     # monotonic time of the last partial sweep
         self._link = "unknown"
         self._last_poll = None     # monotonic time of the last Edge poll
         self._metrics = {
@@ -283,6 +295,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
                 f"{size} B exceeds {MAX_SEGMENT_SIZE} B")
         job = SendJob(segment_id, name, path, size)
         if not self.message.send_segment(job):
+            self._schedule_retry(segment_id, "rejected_busy")
             return self._reject_store_forward(segment_id, "rejected_busy",
                 "send queue full")
         self._jobs[segment_id] = job
@@ -371,15 +384,20 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             self._set_store_forward(segment_id, state, detail)
             if event in ("offered", "done") and valid_sha256(detail):
                 _remember(self._sha256, segment_id, detail)
+            if event == "offered":
+                self._offered_at[segment_id] = time.monotonic()
             if event == "done":
                 self._add_metric("sent_bytes", self._sizes.get(segment_id, 0))
                 if isinstance(self._jobs.get(segment_id), SendJob):
                     self._move_to_sent(segment_id)
             if state.startswith(_FAILED_PREFIXES):
                 self._add_metric("failures", 1)
+            if state.startswith(_RETRY_STATES):
+                self._schedule_retry(segment_id, state)
             if state.startswith(_FAILED_PREFIXES)  \
                 or state in ("done", "acked", "cancelled"):
                 self._jobs.pop(segment_id, None)
+                self._offered_at.pop(segment_id, None)
         elif event in RECEIVED_EVENTS:
             state = _RECEIVED_STATES[event]
             self._set_state("received", segment_id, state)
@@ -523,6 +541,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             return
         seen = set()
         now = time.time()
+        now_monotonic = time.monotonic()
         depth, oldest, size_total = 0, None, 0
         for entry in entries:
             name = entry.name
@@ -534,6 +553,10 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             oldest = stat.st_mtime if oldest is None else min(oldest, stat.st_mtime)
             if name in self._sent_names:
                 continue
+            if name in self._retry_after:
+                if now_monotonic < self._retry_after[name]:
+                    continue                 # still backing off
+                del self._retry_after[name]
             if not valid_segment_name(name):
                 if name not in self._warned_names:
                     self._warned_names.add(name)
@@ -545,6 +568,10 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             if self._pending_outbox.get(name) == signature:  # stable: send
                 del self._pending_outbox[name]
                 segment_id = uuid.uuid4().hex[:12]
+                if name in self._retry_backoff:
+                    self._add_metric("retries", 1)
+                    self.logger.info(
+                        f"retry {name}: re-sending as {segment_id}")
                 self._remember_sent(name, segment_id)
                 self.send_segment(segment_id, name)
             else:
@@ -554,6 +581,64 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
                 del self._pending_outbox[name]
         self._publish_queue(depth, 0 if oldest is None else int(now - oldest),
             size_total)
+        self._retry_stale_offers(now_monotonic)
+        self._sweep_partial(now_monotonic)
+
+    # Retry and sweep: nothing stays stuck, nothing grows without bound --- #
+
+    def _schedule_retry(self, segment_id, state):
+        """A send that failed, or an offer never acknowledged, returns to
+        the outbox watcher after a doubling back-off with a fresh id"""
+
+        job = self._jobs.get(segment_id)
+        name = job.name if isinstance(job, SendJob) else None
+        if not name:
+            for sent_name, sent_id in self._sent_names.items():
+                if sent_id == segment_id:
+                    name = sent_name
+        if not name or not os.path.isfile(os.path.join(self.outbox, name)):
+            return                           # nothing left to re-send
+        backoff = self._retry_backoff.get(name, RETRY_BACKOFF_MIN_S / 2)
+        backoff = min(backoff * 2, RETRY_BACKOFF_MAX_S)
+        self._retry_backoff[name] = backoff
+        self._retry_after[name] = time.monotonic() + backoff
+        self._sent_names.pop(name, None)
+        self.logger.warning(f"store_forward {segment_id} {name}: {state}, "
+            f"re-send in {int(backoff)} s")
+
+    def _retry_stale_offers(self, now_monotonic):
+        """Server role: an offer the edge host never fetched and
+        acknowledged within RETRY_AFTER_S is withdrawn and re-offered"""
+
+        for segment_id, offered_at in list(self._offered_at.items()):
+            if now_monotonic - offered_at < RETRY_AFTER_S:
+                continue
+            del self._offered_at[segment_id]
+            self.message.cancel(segment_id)              # withdraw the offer
+            self._schedule_retry(segment_id, "offer_not_acked")
+            self._jobs.pop(segment_id, None)
+
+    def _sweep_partial(self, now_monotonic, force=False):
+        """Both roles: remove inbox/.partial parts older than
+        partial_max_age so a peer that never returns cannot fill the disk"""
+
+        if not force and now_monotonic - self._last_sweep < SWEEP_PERIOD_S:
+            return
+        self._last_sweep = now_monotonic
+        directory = os.path.join(self.inbox, PARTIAL_DIRECTORY)
+        try:
+            entries = list(os.scandir(directory))
+        except OSError:
+            return
+        cutoff = time.time() - self.partial_max_age
+        for entry in entries:
+            try:
+                if entry.is_file(follow_symlinks=False)  \
+                    and entry.stat(follow_symlinks=False).st_mtime < cutoff:
+                    os.remove(entry.path)
+                    self.logger.info(f"swept stale partial {entry.name}")
+            except OSError as os_error:
+                self.logger.warning(f"sweep {entry.name}: {os_error}")
 
     def _publish_queue(self, depth, oldest_s, size_total):
         """queue.* only when changed; sampled_utc on every scan"""
@@ -588,6 +673,8 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
                 f"store_forward {segment_id} {name}: move to {SENT_DIRECTORY}/ "
                 f"failed: {os_error}")
         self._sent_names.pop(name, None)
+        self._retry_backoff.pop(name, None)             # delivered: reset
+        self._retry_after.pop(name, None)
 
     # Shared state: bounded tables and counters ---------------------------- #
 
@@ -647,10 +734,13 @@ def _port_range(text):
         raise click.BadParameter(f'"{text}" must be PORT or FIRST-LAST')
     return first, last
 
-def _run(name, role, message, inbox, outbox, outbox_period, link_timeout):
+def _run(name, role, message, inbox, outbox, outbox_period, link_timeout,
+    partial_max_age):
+
     parameters = {
         "message": message, "inbox": inbox, "outbox": outbox,
-        "outbox_period": outbox_period, "link_timeout": link_timeout
+        "outbox_period": outbox_period, "link_timeout": link_timeout,
+        "partial_max_age": partial_max_age
     }
     init_args = aiko.actor_args(name,
         parameters=parameters, protocol=PROTOCOL, tags=[f"role={role}"])
@@ -674,7 +764,10 @@ def _common_options(function):
         click.option("--outbox_period", "-op", default=2.0, show_default=True,
             help="Seconds between outbox scans (0 disables)"),
         click.option("--chunk_size", "-cs", default=CHUNK_SIZE,
-            show_default=True, help="Bytes per HTTP chunk")
+            show_default=True, help="Bytes per HTTP chunk"),
+        click.option("--partial_max_age", "-pa", default=PARTIAL_MAX_AGE_S,
+            show_default=True,
+            help="Seconds before a stale inbox/.partial part is removed")
     ]
     for option in reversed(options):
         function = option(function)
@@ -699,7 +792,7 @@ def main():
 @click.option("--link_timeout", "-lt", default=LINK_TIMEOUT, show_default=True,
     help="Seconds without an edge host poll before link is down")
 
-def server(name, inbox, outbox, outbox_period, chunk_size,
+def server(name, inbox, outbox, outbox_period, chunk_size, partial_max_age,
     http_port_range, bind, advertise_host, link_timeout):
 
     from aiko_services.main.store_forward.store_forward_http import (
@@ -709,7 +802,7 @@ def server(name, inbox, outbox, outbox_period, chunk_size,
         port_range=_port_range(http_port_range),
         advertise_host=advertise_host, chunk_size=chunk_size)
     _run(_default_name(name, "server"), "server", message,
-        inbox, outbox, outbox_period, link_timeout)
+        inbox, outbox, outbox_period, link_timeout, partial_max_age)
 
 @main.command(help="Run the edge host Actor, polling the server host")
 @_common_options
@@ -718,7 +811,7 @@ def server(name, inbox, outbox, outbox_period, chunk_size,
 @click.option("--poll_period", "-pp", default=2.0, show_default=True,
     help="Seconds between /out polls")
 
-def edge(name, inbox, outbox, outbox_period, chunk_size,
+def edge(name, inbox, outbox, outbox_period, chunk_size, partial_max_age,
     server_url, poll_period):
 
     from aiko_services.main.store_forward.store_forward_http import (
@@ -727,7 +820,7 @@ def edge(name, inbox, outbox, outbox_period, chunk_size,
     message = StoreForwardMessageHTTPClient(server_url, inbox, outbox,
         poll_period=poll_period, chunk_size=chunk_size)
     _run(_default_name(name, "edge"), "edge", message,
-        inbox, outbox, outbox_period, LINK_TIMEOUT)
+        inbox, outbox, outbox_period, LINK_TIMEOUT, partial_max_age)
 
 if __name__ == "__main__":
     main()
