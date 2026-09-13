@@ -39,6 +39,7 @@ import os
 import queue
 import re
 import threading
+import time
 from typing import Callable, Optional
 
 __all__ = [
@@ -49,7 +50,7 @@ __all__ = [
     "STORE_FORWARD_EVENTS", "RECEIVED_EVENTS", "LINK_EVENTS",
     "FetchJob", "StoreForwardMessage", "SendJob",
     "resolve_within", "sha256_file", "store_forward_deadline", "try_put",
-    "valid_sha256", "valid_segment_name", "valid_segment_id"
+    "utc_now", "valid_sha256", "valid_segment_name", "valid_segment_id"
 ]
 
 # --------------------------------------------------------------------------- #
@@ -135,6 +136,12 @@ def store_forward_deadline(size) -> float:
     never faster than MIN_RATE_BYTES_PER_SECOND"""
 
     return max(120.0, float(size) / MIN_RATE_BYTES_PER_SECOND)
+
+def utc_now() -> str:
+    """ISO 8601 UTC to the second with a "Z" suffix, one S-expression token,
+    e.g "2026-09-13T01:02:03Z" (the Aiko Fleet / Host contract form)"""
+
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 def try_put(bounded_queue, item) -> bool:
     """Drop-newest put: False when the bounded queue is full"""

@@ -41,18 +41,31 @@
 #
 # Shared state (observe via aiko_dashboard) ...
 #   role, inbox, outbox, http_endpoint | server_url
-#   link            up@TIME | down@TIME | unknown
+#   link            up@UTC | down@UTC | unknown  (ISO 8601 "Z" to the second)
 #                   edge host: from the /out poll
 #                   server host: from edge host activity, down after
 #                   --link_timeout seconds without a poll
-#   peer.last_poll  server host: time of the last /out poll
+#   link_cause      one token: server_reachable, edge_polling, no_poll_<n>s,
+#                   ConnectionError, ReadTimeout, http_<code>
+#   link_changed_utc  when "link" last changed
+#   last_error      <state>/<segment id or ->@UTC of the latest failure
+#   queue.depth queue.oldest_s queue.bytes  segments in the outbox not yet
+#                   delivered (waiting, queued and in flight)
+#   sampled_utc     when queue.* were last refreshed (every outbox scan)
+#   peer.last_poll  server host: UTC of the last /out poll
 #   store_forwards.<id>  queued|hashing|offered|connecting|sending|fetching|
 #                   verifying|done|acked|cancelled|failed_*|rejected_*
 #   received.<id>   receiving|verifying|ok|failed_sha256|failed_timeout
 #   progress.<id>   <bytes>/<size>
 #                   (each table keeps the last STATE_LIMIT segments)
 #   metrics.*       sent_bytes received_bytes resumes failures
-#                   rejected_commands out_dropped
+#                   rejected_commands out_dropped link_downs retries
+#
+# Connection ladder: the link sensor drives aiko.process.connection with a
+# raise-only guard.  Link up sets ConnectionState.NETWORK only from NONE;
+# link down lowers to NONE only from exactly NETWORK; the ladder is never
+# touched at or above TRANSPORT (an MQTT connection to a local broker means
+# the ladder mirrors the broker, not this link).
 #
 # Protocol: store_forward:0
 #
@@ -65,6 +78,7 @@
 
 from abc import abstractmethod
 import os
+import re
 import sys
 import threading
 import time
@@ -80,7 +94,8 @@ from aiko_services.main.store_forward.store_forward_message import (
     CHUNK_SIZE, LINK_EVENTS, LINK_ID, MAX_SEGMENT_SIZE, NAME_EVENT,
     PROGRESS_EVENT, RECEIVED_EVENTS, RESUME_EVENT, STORE_FORWARD_EVENTS,
     FetchJob, SendJob,
-    resolve_within, valid_segment_name, valid_sha256, valid_segment_id
+    resolve_within, utc_now, valid_segment_name, valid_sha256,
+    valid_segment_id
 )
 
 __all__ = [
@@ -112,8 +127,12 @@ _RECEIVED_STATES = {           # Message event -> received.<id>
     "received_failed_timeout": "failed_timeout"
 }
 
-def _stamp():
-    return time.strftime("%Y-%m-%dT%H:%M:%S")
+def _token(text, limit=32):
+    """Reduce free text to one share-safe token, e.g "no poll for 4 s" ->
+    "no_poll_for_4_s"; never starts with digits followed by a colon"""
+
+    token = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(text)).strip("_")[:limit]
+    return token or "-"
 
 def _remember(table, key, value, limit=BOOKKEEPING_LIMIT):
     table[key] = value
@@ -205,14 +224,21 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         self._last_poll = None     # monotonic time of the last Edge poll
         self._metrics = {
             "sent_bytes": 0, "received_bytes": 0, "resumes": 0,
-            "failures": 0, "rejected_commands": 0, "out_dropped": 0
+            "failures": 0, "rejected_commands": 0, "out_dropped": 0,
+            "link_downs": 0, "retries": 0
         }
+        self._queue_state = None   # last published (depth, oldest_s, bytes)
         self.share.update({                            # initial snapshot
             "source_file": f"v{_VERSION}⇒ {__file__}",
             "role": self.message.role,
             "inbox": self.inbox,
             "outbox": self.outbox,
             "link": "unknown",
+            "link_cause": "startup",
+            "link_changed_utc": utc_now(),
+            "last_error": "-",
+            "queue": {"depth": "0", "oldest_s": "0", "bytes": "0"},
+            "sampled_utc": utc_now(),
             "store_forwards": {}, "received": {}, "progress": {},
             "metrics": dict(self._metrics)
         })
@@ -371,6 +397,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
                         "acknowledge not queued (command queue full)")
             elif event.startswith("received_failed"):
                 self._add_metric("failures", 1)
+                self._note_error(state, segment_id)
                 self.logger.warning(
                     f"received {segment_id} {name}: {state} {detail}")
             elif event == "receiving" and detail.startswith("0/"):
@@ -389,10 +416,11 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
                 f"_store_forward_event {segment_id}: unknown event {event!r}")
 
     def _link_event(self, event, detail):
+        cause, _, text = detail.partition(" ")    # "cause free text ..."
         if event == "link_up":
-            self._set_link("up", detail or "server host reachable")
+            self._set_link("up", cause or "server_reachable", text)
         elif event == "link_down":
-            self._set_link("down", detail or "server host unreachable")
+            self._set_link("down", cause or "unreachable", text)
         elif event == "peer_poll":
             self._last_poll = time.monotonic()
             self.ec_producer.update("peer.last_poll", detail)
@@ -400,7 +428,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
                 self.ec_producer.update("out_queue_depth",
                     str(self.message.out_queue_depth()))
             if self._link != "up":
-                self._set_link("up", "edge host polling /out")
+                self._set_link("up", "edge_polling", "edge host polling /out")
         elif event == "out_dropped":
             self._metrics["out_dropped"] = int(detail)
             self.ec_producer.update("metrics.out_dropped", detail)
@@ -418,18 +446,46 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             return
         idle = time.monotonic() - self._last_poll
         if idle > self.link_timeout:
-            self._set_link("down",
+            self._set_link("down", f"no_poll_{int(idle)}s",
                 f"no poll from the edge host for {int(idle)} s")
 
-    def _set_link(self, state, reason):
+    def _set_link(self, state, cause, text=""):
+        """Publish a link change with its cause and time, count link
+        downs, then drive the Connection ladder (raise-only guard)"""
+
         if state == self._link:
             return
         self._link = state
-        self.ec_producer.update("link", f"{state}@{_stamp()}")
+        now = utc_now()
+        cause = _token(cause)
+        self.ec_producer.update("link", f"{state}@{now}")
+        self.ec_producer.update("link_cause", cause)
+        self.ec_producer.update("link_changed_utc", now)
+        reason = f"{cause} {text}".strip()
         if state == "up":
             self.logger.info(f"link up: {reason}")
         else:
+            self._add_metric("link_downs", 1)
             self.logger.warning(f"link down: {reason}")
+        self._drive_network(state == "up")
+
+    def _drive_network(self, up):
+        """Raise-only guard on aiko.process.connection: NONE -> NETWORK when
+        the link comes up, NETWORK -> NONE when it goes down, never any
+        change at or above TRANSPORT (a broker connection outranks this
+        sensor).  Runs on the event-loop thread under the Connection lock"""
+
+        connection = aiko.process.connection
+        try:
+            connection.lock_acquire("SegmentStoreForwardImpl._set_link()")
+            state = connection.get_state()
+            if up and state == aiko.ConnectionState.NONE:
+                connection.update_state(
+                    aiko.ConnectionState.NETWORK, self.logger)
+            elif not up and state == aiko.ConnectionState.NETWORK:
+                connection.update_state(aiko.ConnectionState.NONE, self.logger)
+        finally:
+            connection.lock_release()
 
     # Callbacks invoked on Message threads: post, never touch state -------- #
 
@@ -466,10 +522,16 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             self.logger.warning(f"outbox scan failed: {os_error}")
             return
         seen = set()
+        now = time.time()
+        depth, oldest, size_total = 0, None, 0
         for entry in entries:
             name = entry.name
             if name.startswith(".") or not entry.is_file(follow_symlinks=False):
                 continue
+            stat = entry.stat(follow_symlinks=False)
+            depth += 1                       # in the outbox: not delivered yet
+            size_total += stat.st_size
+            oldest = stat.st_mtime if oldest is None else min(oldest, stat.st_mtime)
             if name in self._sent_names:
                 continue
             if not valid_segment_name(name):
@@ -478,7 +540,6 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
                     self.logger.warning(f"outbox: ignoring {name!r}, names "
                         "must match [A-Za-z0-9_-][A-Za-z0-9._-]{0,127}")
                 continue
-            stat = entry.stat(follow_symlinks=False)
             signature = (stat.st_size, stat.st_mtime_ns)
             seen.add(name)
             if self._pending_outbox.get(name) == signature:  # stable: send
@@ -491,6 +552,19 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         for name in list(self._pending_outbox):
             if name not in seen:
                 del self._pending_outbox[name]
+        self._publish_queue(depth, 0 if oldest is None else int(now - oldest),
+            size_total)
+
+    def _publish_queue(self, depth, oldest_s, size_total):
+        """queue.* only when changed; sampled_utc on every scan"""
+
+        state = (depth, oldest_s, size_total)
+        if state != self._queue_state:
+            self._queue_state = state
+            self.ec_producer.update("queue.depth", str(depth))
+            self.ec_producer.update("queue.oldest_s", str(oldest_s))
+            self.ec_producer.update("queue.bytes", str(size_total))
+        self.ec_producer.update("sampled_utc", utc_now())
 
     def _remember_sent(self, name, segment_id):
         _remember(self._sent_names, name, segment_id, SENT_NAMES_LIMIT)
@@ -523,6 +597,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         if valid_sha256(detail):
             detail = f"sha256 {detail[:12]}"
         if state.startswith(_FAILED_PREFIXES):
+            self._note_error(state, segment_id)
             self.logger.warning(
                 f"store_forward {segment_id} {name}: {state} {detail}".rstrip())
         elif state in _LOG_INFO_STATES:
@@ -549,6 +624,14 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
     def _reject_command(self, diagnostic):
         self.logger.warning(diagnostic)
         self._add_metric("rejected_commands", 1)
+        self._note_error("rejected_command")
+
+    def _note_error(self, state, segment_id="-"):
+        """last_error: one token "<state>/<segment id or ->@<utc>"; the
+        diagnosable free text goes to the WARNING log"""
+
+        self.ec_producer.update("last_error",
+            f"{_token(state)}/{segment_id}@{utc_now()}")
 
 # --------------------------------------------------------------------------- #
 

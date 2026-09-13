@@ -64,7 +64,7 @@ from aiko_services.main.store_forward.store_forward_message import (
     JOB_QUEUE_SIZE, LINK_ID, MAX_INCOMING, MAX_SEGMENT_SIZE, OUT_QUEUE_SIZE,
     NAME_EVENT, PARTIAL_DIRECTORY, PROGRESS_EVENT, PROGRESS_EVERY_CHUNKS,
     RESUME_EVENT,
-    FetchJob, StoreForwardMessage, SendJob,
+    FetchJob, StoreForwardMessage, SendJob, utc_now,
     resolve_within, sha256_file, store_forward_deadline, try_put,
     valid_segment_name, valid_sha256, valid_segment_id
 )
@@ -374,7 +374,7 @@ class StoreForwardMessageHTTPServer(StoreForwardMessage):
                 self._out_items.popleft()
             items = [{"seq": seq, "payload": payload}
                      for seq, payload in self._out_items]
-        self._event(LINK_ID, "peer_poll", str(int(time.time())))
+        self._event(LINK_ID, "peer_poll", utc_now())
         return jsonify({"items": items})
 
     def _data_create(self, segment_id):
@@ -572,9 +572,13 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
     def _url(self, path):
         return f"{self.server_url}{path}"
 
-    def _set_link(self, up, detail=""):
+    def _set_link(self, up, cause="", text=""):
+        """Report a link change once: "cause" is a single token for share
+        (e.g ConnectionError), "text" the diagnosable detail for the log"""
+
         if self._link_up != up:
             self._link_up = up
+            detail = f"{cause} {text}".strip()
             self._event(LINK_ID, "link_up" if up else "link_down", detail)
 
     def _retry(self, deadline, cancel, function):
@@ -590,7 +594,8 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
             try:
                 return function()
             except (requests.ConnectionError, requests.Timeout) as exception:
-                self._set_link(False, _describe(exception))
+                self._set_link(False, type(exception).__name__,
+                    _describe(exception))
                 if time.monotonic() + backoff > deadline:
                     raise _Deadline()
                 self._stop.wait(backoff)
@@ -608,7 +613,7 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
                     raise requests.ConnectionError(
                         f"/out HTTP {response.status_code}")
                 items = response.json().get("items", [])
-                self._set_link(True)
+                self._set_link(True, "server_reachable")
                 backoff = self.poll_period
                 for item in items:
                     seq = int(item.get("seq", 0))
@@ -620,8 +625,8 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
                             if result != "accepted":
                                 self._event(LINK_ID, "rejected_command", result)
             except (requests.RequestException, ValueError) as exception:
-                self._set_link(False, f"GET {self._url('/out')}: "
-                    f"{_describe(exception)}")
+                self._set_link(False, type(exception).__name__,
+                    f"GET {self._url('/out')}: {_describe(exception)}")
                 backoff = min(backoff * 2.0, _BACKOFF_MAX)
             self._stop.wait(backoff)
 
@@ -643,7 +648,7 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
                     self._event(LINK_ID, "rejected_command",
                         str(response.status_code))
                 else:
-                    self._set_link(True)
+                    self._set_link(True, "server_reachable")
             except (_Deadline, _Cancelled):
                 self._event(LINK_ID, "rejected_command", "deadline")
 
@@ -684,7 +689,7 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
                 timeout=_TIMEOUTS))
         if response.status_code not in (200, 201):
             raise _HttpStatus(response.status_code)
-        self._set_link(True)
+        self._set_link(True, "server_reachable")
         offset = int(response.headers.get("Upload-Offset", "0"))
         if offset:
             self._event(segment_id, RESUME_EVENT, str(offset))
@@ -772,7 +777,7 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
                 mode = "ab"
             else:
                 raise _HttpStatus(response.status_code)
-            self._set_link(True)
+            self._set_link(True, "server_reachable")
             try:
                 with open(part_path, mode) as file:
                     for chunk in response.iter_content(self.chunk_size):
@@ -785,7 +790,8 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
                             self._event(segment_id, PROGRESS_EVENT,
                                 f"{offset}/{job.size}")
             except (requests.ConnectionError, requests.Timeout) as exception:
-                self._set_link(False, _describe(exception))
+                self._set_link(False, type(exception).__name__,
+                    _describe(exception))
                 self._event(segment_id, RESUME_EVENT, str(offset))
                 if time.monotonic() > deadline:
                     raise _Deadline()

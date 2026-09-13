@@ -9,6 +9,7 @@
 
 import hashlib
 import os
+import re
 import threading
 import time
 import uuid
@@ -26,6 +27,7 @@ from aiko_services.main.store_forward.store_forward import (
 )
 
 GOOD_ID = "0123abcd"
+UTC_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 OTHER_ID = "89abcdef"
 SHA = "a" * 64
 
@@ -225,12 +227,18 @@ def test_received_events_send_acknowledge(tmp_path):
 def test_link_events_and_bad_events(tmp_path):
     actor, _, _, _ = make_actor(tmp_path)
     actor._store_forward_event("-", "link_up", "")
-    assert actor.share["link"].startswith("up@20")          # up@ISO-time
-    actor._store_forward_event("-", "link_down", "ConnectionError: refused")
+    assert re.match(r"^up@\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$", actor.share["link"])
+    assert actor.share["link_cause"] == "server_reachable"
+    assert UTC_RE.match(actor.share["link_changed_utc"])
+    actor._store_forward_event("-", "link_down",
+        "ConnectionError GET http://h:1/out: [Errno 61] refused")
     assert actor.share["link"].startswith("down@20")
-    actor._store_forward_event("-", "peer_poll", "1725400000")
-    assert actor.share["peer"]["last_poll"] == "1725400000"
+    assert actor.share["link_cause"] == "ConnectionError"   # first token
+    assert actor.share["metrics"]["link_downs"] == "1"
+    actor._store_forward_event("-", "peer_poll", "2026-09-13T01:02:03Z")
+    assert actor.share["peer"]["last_poll"] == "2026-09-13T01:02:03Z"
     assert actor.share["link"].startswith("up@")            # poll -> up
+    assert actor.share["link_cause"] == "edge_polling"
     actor._store_forward_event("-", "rejected_command", "403")
     assert actor.share["metrics"]["rejected_commands"] == "1"
     assert actor.last_event_thread == threading.get_ident()
@@ -259,6 +267,7 @@ def test_server_link_from_edge_polls_and_timeout(tmp_path):
     actor._last_poll = time.monotonic() - 100
     actor._link_check()
     assert actor.share["link"].startswith("down@")
+    assert actor.share["link_cause"] == "no_poll_100s"
     actor._store_forward_event("-", "peer_poll", "1725400100") # poll again: up
     assert actor.share["link"].startswith("up@")
 
@@ -270,6 +279,63 @@ def test_state_tables_keep_last_three(tmp_path):
     assert list(actor.share["progress"]) == ["00000002", "00000003", "00000004"]
     actor._store_forward_event("00000002", "progress", "9/9")   # existing: no evict
     assert list(actor.share["progress"]) == ["00000002", "00000003", "00000004"]
+
+def test_last_error_token(tmp_path):
+    actor, _, _, outbox = make_actor(tmp_path)
+    assert actor.share["last_error"] == "-"
+    actor.send_segment(GOOD_ID, "missing.txt")
+    assert re.match(r"^rejected_missing/0123abcd@\d{4}-.*Z$",
+        actor.share["last_error"])
+    actor._store_forward_event(OTHER_ID, "received_failed_sha256", SHA)
+    assert actor.share["last_error"].startswith("failed_sha256/89abcdef@")
+    actor._store_forward_event("bad id", "done", "x")
+    assert actor.share["last_error"].startswith("rejected_command/-@")
+
+def test_queue_and_sampled(tmp_path):
+    actor, message, _, outbox = make_actor(tmp_path)
+    assert actor.share["queue"] == {"depth": "0", "oldest_s": "0", "bytes": "0"}
+    for name, size in (("a.txt", 100), ("b.txt", 200), ("c.txt", 300)):
+        write_segment(str(outbox), name, size)
+    old = os.path.join(str(outbox), "a.txt")
+    os.utime(old, (time.time() - 90, time.time() - 90))
+    write_segment(str(outbox), ".hidden", 999)              # ignored
+    actor._outbox_scan()                                    # first sighting
+    assert actor.share["queue"]["depth"] == "3"
+    assert actor.share["queue"]["bytes"] == "600"
+    assert 89 <= int(actor.share["queue"]["oldest_s"]) <= 92
+    assert UTC_RE.match(actor.share["sampled_utc"])
+    actor._outbox_scan()                                    # stable: queued
+    assert len(message.jobs) == 3
+    assert actor.share["queue"]["depth"] == "3"             # still in outbox
+    actor._store_forward_event(message.jobs[0].segment_id, "done", SHA)
+    actor._outbox_scan()                                    # moved to .sent
+    assert actor.share["queue"]["depth"] == "2"
+
+def test_network_ladder_raise_only(tmp_path):
+    """Link up raises the process Connection from NONE to NETWORK and link
+    down lowers it back; at or above TRANSPORT the sensor never touches it"""
+
+    actor, _, _, _ = make_actor(tmp_path)
+    connection = aiko.process.connection
+    # The Connection is process-global and other tests may leave it at
+    # any rung; position it directly rather than through update_state(),
+    # whose handlers (MQTT logging) need a broker this test does not have
+    initial_state = connection.get_state()
+    connection.connection_state = aiko.ConnectionState.NONE
+    try:
+        actor._store_forward_event("-", "link_up", "")
+        assert connection.get_state() == aiko.ConnectionState.NETWORK
+        actor._store_forward_event("-", "link_down", "ConnectionError x")
+        assert connection.get_state() == aiko.ConnectionState.NONE
+
+        connection.connection_state = aiko.ConnectionState.TRANSPORT
+        actor._store_forward_event("-", "link_up", "")
+        assert connection.get_state() == aiko.ConnectionState.TRANSPORT
+        actor._store_forward_event("-", "link_down", "ReadTimeout x")
+        assert connection.get_state() == aiko.ConnectionState.TRANSPORT
+        assert actor.share["link"].startswith("down@")     # share still moves
+    finally:
+        connection.connection_state = initial_state
 
 def test_cancel_sets_job_event(tmp_path):
     actor, message, _, outbox = make_actor(tmp_path)
@@ -351,7 +417,10 @@ STATE_TOKENS = [
     "failed_sha256", "failed_http_404", "rejected_path", "rejected_missing",
     "rejected_size", "rejected_role", "rejected_busy",
     "receiving", "ok", "up", "down", "unknown", "2048/5000", "1725400000",
-    "http://server.local:8080", "/Users/someone/st/in"
+    "http://server.local:8080", "/Users/someone/st/in",
+    "up@2026-09-13T01:02:03Z", "2026-09-13T01:02:03Z",
+    "failed_timeout/0123abcd@2026-09-13T01:02:03Z", "rejected_command/-@2026-09-13T01:02:03Z",
+    "no_poll_4s", "ConnectionError", "edge_polling", "startup"
 ]
 
 def test_state_tokens_round_trip():
