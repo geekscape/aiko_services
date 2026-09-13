@@ -12,7 +12,7 @@ source:
 related: [utilities, video_camera_reader, video_file_reader,
   video_stream_reader, scheme_rtsp, rtsp_io, pipeline_element]
 version: "0.6"
-last_updated: 2026-08-01
+last_updated: 2026-09-14
 ---
 
 # VideoReader
@@ -62,6 +62,8 @@ class VideoReader:
     def queue_size(self): ...                # internal Queue depth
     def stop(self): ...                      # terminate the bus thread
     def gst_to_opencv(self, buffer_data, caps): ...  # ndarray view helper
+
+def caps_size(caps, index=0): ...  # (width, height) of a caps structure
 ```
 
 Constructor contract: `pipeline` is a GStreamer pipeline whose `sink`
@@ -139,7 +141,11 @@ does **not** set the pipeline state to NULL (see roadmap).
   `read_frame(timeout)` simply times out — there is no error frame type.
 - `gst_to_opencv()` builds the `np.ndarray` from the mapped buffer using
   the caps' width/height, hard-coding 3 channels and `uint8`. The caps
-  `format` value is read but unused.
+  `format` value is not read.
+- `caps_size()` reads that width and height across gst-python versions.
+  Before 1.26 and from 1.28, `Caps.get_structure()` returns a
+  `Gst.Structure`. In 1.26 it returns a `StructureWrapper` context
+  manager, and the values must be read inside a `with` block.
 
 ### CRC card
 

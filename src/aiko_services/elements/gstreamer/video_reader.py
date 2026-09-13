@@ -27,6 +27,17 @@ __all__ = ["VideoReader"]
 
 Gst = gst_initialise()
 
+def caps_size(caps, index=0):
+  """Width and height of the caps structure "index", across gst-python
+  versions: before 1.26 and from 1.28 Caps.get_structure() returns a
+  Gst.Structure, in 1.26 it returns a StructureWrapper context manager"""
+
+  structure = caps.get_structure(index)
+  if isinstance(structure, Gst.Structure):
+    return structure.get_value("width"), structure.get_value("height")
+  with structure as structure:                       # gst-python 1.26.x
+    return structure.get_value("width"), structure.get_value("height")
+
 class VideoReader:
   def __init__(self, pipeline, sink):
     self.pipeline  = pipeline
@@ -89,9 +100,7 @@ class VideoReader:
     self._t.start()
 
   def gst_to_opencv(self, buffer_data, caps):
-#   format = caps.get_structure(0).get_value("format")
-    width  = caps.get_structure(0).get_value("width")
-    height = caps.get_structure(0).get_value("height")
+    width, height = caps_size(caps)
     image = np.ndarray((height, width, 3), buffer=buffer_data, dtype=np.uint8)
     return image
 

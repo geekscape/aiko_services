@@ -197,6 +197,13 @@ remote callers are unaffected.  For Python code:
   (the seed class is the consumer of the Interface contracts, never one
   of them)
 
+* *VideoReader* now reads the caps width and height with the new
+  *caps_size()* helper, which supports gst-python 1.26.  In that release
+  *Caps.get_structure()* returns a context manager.  Thus the previous
+  direct *get_value()* call failed on the first frame of each GStreamer
+  reader, for example *VideoReadRTSP*, with *AttributeError:
+  'StructureWrapper' object has no attribute 'get_value'*
+
 ---
 
 ## Release Notes v0.7
