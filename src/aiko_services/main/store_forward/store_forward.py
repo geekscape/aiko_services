@@ -30,7 +30,8 @@
 #       [--http_port_range 8080-8089] [--advertise_host HOST]
 #   aiko_store_forward edge  \
 #       --inbox ~/store_forward/in --outbox ~/store_forward/out  \
-#       --server_url http://HOST:8080
+#       --server_host HOST [--server_port 8080]   # IP address or host name
+#       | --server_url http://HOST:8080
 #
 #   cp segment.mp4 ~/store_forward/out   # either host: to the peer's inbox
 #
@@ -84,6 +85,7 @@ import re
 import sys
 import threading
 import time
+from urllib.parse import urlsplit
 import uuid
 
 import click
@@ -733,6 +735,39 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
 
 # --------------------------------------------------------------------------- #
 
+DEFAULT_SERVER_PORT = 8080
+
+def server_endpoint(server_url=None, server_host=None,
+    server_port=DEFAULT_SERVER_PORT):
+    """The edge host's server endpoint URL from --server_url or from
+    --server_host [--server_port].  --server_url wins when both are given.
+    A URL without a scheme is taken as HOST[:PORT]; a missing port is
+    DEFAULT_SERVER_PORT.  A bare IPv6 host address gets its brackets"""
+
+    if server_url and server_url.strip():
+        url = server_url.strip()
+        if "://" not in url:
+            url = f"http://{url}"
+        url = url.rstrip("/")
+        parsed = urlsplit(url)
+        if not parsed.hostname:
+            raise click.BadParameter(
+                f'"{server_url}" must be http://HOST[:PORT]',
+                param_hint="--server_url")
+        if parsed.port is None:
+            host = parsed.hostname
+            if ":" in host:
+                host = f"[{host}]"
+            url = f"{parsed.scheme}://{host}:{DEFAULT_SERVER_PORT}"
+        return url
+    if server_host and server_host.strip():
+        host = server_host.strip()
+        if ":" in host and not host.startswith("["):    # bare IPv6 address
+            host = f"[{host}]"
+        return f"http://{host}:{int(server_port)}"
+    raise click.UsageError("edge: give --server_host HOST (IP address or "
+        "host name) or --server_url http://HOST:PORT")
+
 def _port_range(text):
     tokens = text.split("-")
     if len(tokens) == 1:
@@ -818,14 +853,21 @@ def server(name, inbox, outbox, outbox_period, chunk_size, partial_max_age,
 
 @main.command(help="Run the edge host Actor, polling the server host")
 @_common_options
-@click.option("--server_url", "-su", required=True,
-    help="server host endpoint, e.g http://HOST:8080")
+@click.option("--server_host", "-sh", default=None,
+    help="server host IP address or host name (when .local names do not "
+         "resolve, give the IP address)")
+@click.option("--server_port", "-sp", default=DEFAULT_SERVER_PORT,
+    show_default=True, help="server host HTTP port, with --server_host")
+@click.option("--server_url", "-su", default=None,
+    help="server host endpoint, e.g http://HOST:8080 (alternative to "
+         "--server_host, wins when both are given)")
 @click.option("--poll_period", "-pp", default=2.0, show_default=True,
     help="Seconds between /out polls")
 
 def edge(name, inbox, outbox, outbox_period, chunk_size, partial_max_age,
-    server_url, poll_period):
+    server_host, server_port, server_url, poll_period):
 
+    server_url = server_endpoint(server_url, server_host, server_port)
     from aiko_services.main.store_forward.store_forward_http import (
         StoreForwardMessageHTTPClient
     )

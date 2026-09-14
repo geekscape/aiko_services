@@ -15,7 +15,7 @@ source:
 related: [design_overview, actor, share, connection, data_source_target,
   scheme, dashboard]
 version: "0.8-dev"
-last_updated: 2026-09-13
+last_updated: 2026-09-14
 ---
 
 # StoreForward
@@ -48,7 +48,7 @@ commands give that:
 ```bash
 aiko_store_forward server --inbox ~/store_forward/in --outbox ~/store_forward/out   # site host
 aiko_store_forward edge --inbox ~/store_forward/in --outbox ~/store_forward/out  \
-    --server_url http://site.local:8080                       # forklift
+    --server_host site.local                                  # forklift
 cp segment.mp4 ~/store_forward/out                # arrives in the site host's inbox
 ```
 
@@ -66,9 +66,15 @@ aiko_store_forward server --inbox DIR --outbox DIR  \
     [--http_port_range 8080-8089] [--bind 0.0.0.0] [--advertise_host HOST]  \
     [--link_timeout 10] [--outbox_period 2] [--partial_max_age 86400]
 
-aiko_store_forward edge --inbox DIR --outbox DIR --server_url URL  \
+aiko_store_forward edge --inbox DIR --outbox DIR  \
+    --server_host HOST [--server_port 8080] | --server_url URL  \
     [--poll_period 2] [--outbox_period 2] [--partial_max_age 86400]
 ```
+
+`--server_host` takes the server host's IP address or host name. Give
+the IP address on a network where `.local` names do not resolve.
+`--server_url` is the alternative for a full endpoint, for example an
+`https://` one, and wins when both are given.
 
 Sending is triggered by a file in the outbox: the Actor scans the outbox
 every `--outbox_period` seconds, waits until the size and time of the
@@ -260,8 +266,9 @@ integration tests on `127.0.0.1` that need Flask.
 
 Limitations:
 
-- No discovery: the edge host is configured with `--server_url`, a
-  deliberate P5 exception while no Registrar spans the two hosts.
+- No discovery: the edge host is configured with `--server_host` or
+  `--server_url`, a deliberate P5 exception while no Registrar spans the
+  two hosts.
 - No Aiko Services traffic crosses the link. `/in` and `/out` carry the
   S-expressions instead, with a latency of one poll period downward.
 - HTTP is plain and unauthenticated. LAN only until TLS or capabilities

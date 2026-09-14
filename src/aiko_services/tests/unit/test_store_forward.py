@@ -22,8 +22,9 @@ from aiko_services.main.utilities import generate, parse
 from aiko_services.main.store_forward import store_forward_message
 from aiko_services.main.store_forward.store_forward_message import FetchJob, SendJob
 from aiko_services.main.store_forward.store_forward import (
-    ALLOWED_COMMANDS, PROTOCOL, SENT_DIRECTORY, STATE_LIMIT,
-    SegmentStoreForwardImpl
+    ALLOWED_COMMANDS, DEFAULT_SERVER_PORT, PROTOCOL, SENT_DIRECTORY,
+    STATE_LIMIT, SegmentStoreForwardImpl, main as store_forward_main,
+    server_endpoint
 )
 
 GOOD_ID = "0123abcd"
@@ -535,3 +536,46 @@ def test_allowed_commands_seeded_from_interface():
     assert ALLOWED_COMMANDS == frozenset(
         {"send_segment", "fetch_segment", "acknowledge", "cancel", "forget"})
     assert "_store_forward_event" not in ALLOWED_COMMANDS
+
+# CLI: the server endpoint from --server_host / --server_port / --server_url
+
+def test_server_endpoint_from_host_and_port():
+    assert server_endpoint(server_host="10.0.0.5")  \
+        == f"http://10.0.0.5:{DEFAULT_SERVER_PORT}"
+    assert server_endpoint(server_host="site.local", server_port=8081)  \
+        == "http://site.local:8081"
+    assert server_endpoint(server_host=" 10.0.0.5 ", server_port="8082")  \
+        == "http://10.0.0.5:8082"                       # a string port
+    assert server_endpoint(server_host="fd00::7", server_port=8080)  \
+        == "http://[fd00::7]:8080"                       # bare IPv6 address
+
+def test_server_endpoint_from_url():
+    assert server_endpoint("http://site.local:8080/")  \
+        == "http://site.local:8080"                      # trailing slash
+    assert server_endpoint("10.0.0.5")  \
+        == f"http://10.0.0.5:{DEFAULT_SERVER_PORT}"      # no scheme, no port
+    assert server_endpoint("10.0.0.5:9000") == "http://10.0.0.5:9000"
+    assert server_endpoint("https://site.local")  \
+        == f"https://site.local:{DEFAULT_SERVER_PORT}"   # scheme kept
+    assert server_endpoint("http://a:8080", "b", 9000) == "http://a:8080"
+
+def test_server_endpoint_boundary():
+    import click
+    with pytest.raises(click.UsageError):
+        server_endpoint()                                # neither given
+    with pytest.raises(click.UsageError):
+        server_endpoint(" ", " ")                        # blank both
+    with pytest.raises(click.BadParameter):
+        server_endpoint("http://")                       # no host
+
+def test_edge_command_needs_a_server(tmp_path):
+    """Neither --server_host nor --server_url: usage error before any
+    Actor, thread or HTTP client is created"""
+
+    from click.testing import CliRunner
+    inbox, outbox = tmp_path / "in", tmp_path / "out"
+    inbox.mkdir(); outbox.mkdir()
+    result = CliRunner().invoke(store_forward_main,
+        ["edge", "--inbox", str(inbox), "--outbox", str(outbox)])
+    assert result.exit_code == 2
+    assert "--server_host" in result.output
