@@ -20,7 +20,9 @@ import aiko_services as aiko
 from aiko_services.main.utilities import generate, parse
 
 from aiko_services.main.store_forward import store_forward_message
-from aiko_services.main.store_forward.store_forward_message import FetchJob, SendJob
+from aiko_services.main.store_forward.store_forward_message import (
+    PARTIAL_DIRECTORY, FetchJob, SendJob
+)
 from aiko_services.main.store_forward.store_forward import (
     ALLOWED_COMMANDS, DEFAULT_SERVER_PORT, PROTOCOL, SENT_DIRECTORY,
     STATE_LIMIT, SegmentStoreForwardImpl, main as store_forward_main,
@@ -73,7 +75,9 @@ class FakeMessage(store_forward_message.StoreForwardMessage):
 
 _actor_count = [0]
 
-def make_actor(tmp_path, role="edge", accept=True, outbox_period=0):
+def make_actor(tmp_path, role="edge", accept=True, outbox_period=0,
+    partial_directory=None):
+
     inbox = tmp_path / "in"
     outbox = tmp_path / "out"
     inbox.mkdir(parents=True)
@@ -81,6 +85,8 @@ def make_actor(tmp_path, role="edge", accept=True, outbox_period=0):
     message = FakeMessage(role, accept)
     parameters = {"message": message, "inbox": str(inbox),
                   "outbox": str(outbox), "outbox_period": outbox_period}
+    if partial_directory:
+        parameters["partial_directory"] = str(partial_directory)
     _actor_count[0] += 1
     init_args = aiko.actor_args(f"st_test_{_actor_count[0]}",
         parameters=parameters, protocol=PROTOCOL, tags=[f"role={role}"])
@@ -104,6 +110,9 @@ def test_initial_share(tmp_path):
     assert actor.share["link"] == "unknown"
     assert message.on_command and message.on_event
     assert os.path.isdir(os.path.join(str(outbox), SENT_DIRECTORY))
+    assert actor.share["partial_directory"]  \
+        == os.path.join(actor.share["inbox"], PARTIAL_DIRECTORY)  # default
+    assert os.path.isdir(actor.share["partial_directory"])
 
 def test_send_segment_boundary(tmp_path):
     actor, message, inbox, outbox = make_actor(tmp_path)
@@ -224,6 +233,11 @@ def test_received_events_send_acknowledge(tmp_path):
     actor._store_forward_event(OTHER_ID, "received_failed_sha256", SHA)
     assert actor.share["received"][OTHER_ID] == "failed_sha256"
     assert actor.share["metrics"]["failures"] == "1"
+
+    actor._store_forward_event(OTHER_ID, "received_failed_store", "ENOSPC")
+    assert actor.share["received"][OTHER_ID] == "failed_store"
+    assert actor.share["metrics"]["failures"] == "2"
+    assert actor.share["last_error"].startswith(f"failed_store/{OTHER_ID}@")
 
 def test_link_events_and_bad_events(tmp_path):
     actor, _, _, _ = make_actor(tmp_path)
@@ -402,22 +416,53 @@ def test_offer_not_acked_is_reoffered(tmp_path):
     assert len(message.jobs) == 2 and message.jobs[1].segment_id != first_id
     assert actor.share["metrics"]["retries"] == "1"
 
-def test_stale_partial_sweep(tmp_path):
-    from aiko_services.main.store_forward.store_forward_message import (
-        PARTIAL_DIRECTORY
-    )
-    actor, _, inbox, _ = make_actor(tmp_path)
-    partial = inbox / PARTIAL_DIRECTORY
-    partial.mkdir()
+def _seed_parts(partial):
+    """Two id pairs, 100 s and 5 s old, and an old file that is not a part"""
+
     for stem, age in (("aaaa1111", 100), ("bbbb2222", 5)):
         for suffix in (".part", ".meta"):
             path = partial / f"{stem}{suffix}"
             path.write_text("x")
             os.utime(path, (time.time() - age, time.time() - age))
+    notes = partial / "notes.txt"
+    notes.write_text("keep")
+    os.utime(notes, (time.time() - 100, time.time() - 100))
+
+def test_stale_partial_sweep(tmp_path):
+    actor, _, inbox, _ = make_actor(tmp_path)
+    partial = inbox / PARTIAL_DIRECTORY           # created by the Actor
+    _seed_parts(partial)
     actor.partial_max_age = 10
     actor._sweep_partial(time.monotonic(), force=True)
     assert sorted(p.name for p in partial.iterdir()) ==  \
-        ["bbbb2222.meta", "bbbb2222.part"]
+        ["bbbb2222.meta", "bbbb2222.part", "notes.txt"]  # parts only
+
+def test_stale_partial_sweep_separate_directory(tmp_path):
+    partial = tmp_path / "state" / "parts"
+    actor, _, inbox, _ = make_actor(tmp_path, partial_directory=partial)
+    assert actor.share["partial_directory"] == os.path.realpath(partial)
+    assert partial.is_dir()
+    assert os.listdir(inbox) == []                # nothing hidden in it
+    _seed_parts(partial)
+    actor.partial_max_age = 10
+    actor._sweep_partial(time.monotonic(), force=True)
+    assert sorted(p.name for p in partial.iterdir()) ==  \
+        ["bbbb2222.meta", "bbbb2222.part", "notes.txt"]
+    assert os.listdir(inbox) == []
+
+def test_partial_directory_option_and_guard(tmp_path):
+    from click.testing import CliRunner
+    inbox, outbox = tmp_path / "in", tmp_path / "out"
+    inbox.mkdir(); outbox.mkdir()
+    runner = CliRunner()
+    for command in ("server", "edge"):
+        result = runner.invoke(store_forward_main, [command, "--help"])
+        assert "--partial_directory" in result.output, command
+    result = runner.invoke(store_forward_main,
+        ["edge", "--inbox", str(inbox), "--outbox", str(outbox),
+         "--server_host", "h", "--partial_directory", str(outbox)])
+    assert result.exit_code == 2                  # refused before starting
+    assert "--partial_directory" in result.output
 
 def test_cancel_sets_job_event(tmp_path):
     actor, message, _, outbox = make_actor(tmp_path)

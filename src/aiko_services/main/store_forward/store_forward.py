@@ -27,11 +27,12 @@
 #
 #   aiko_store_forward server  \
 #       --inbox ~/store_forward/in --outbox ~/store_forward/out  \
-#       [--http_port_range 8080-8089] [--advertise_host HOST]
+#       [--http_port_range 8080-8089] [--advertise_host HOST]  \
+#       [--partial_directory DIR]     # parts, default <inbox>/.partial
 #   aiko_store_forward edge  \
 #       --inbox ~/store_forward/in --outbox ~/store_forward/out  \
 #       --server_host HOST [--server_port 8080]   # IP address or host name
-#       | --server_url http://HOST:8080
+#       | --server_url http://HOST:8080  [--partial_directory DIR]
 #
 #   cp segment.mp4 ~/store_forward/out   # either host: to the peer's inbox
 #
@@ -43,7 +44,7 @@
 #   (forget SEGMENT_ID)
 #
 # Shared state (observe via aiko_dashboard) ...
-#   role, inbox, outbox, http_endpoint | server_url
+#   role, inbox, outbox, partial_directory, http_endpoint | server_url
 #   link            up@UTC | down@UTC | unknown  (ISO 8601 "Z" to the second)
 #                   edge host: from the /out poll
 #                   server host: from edge host activity, down after
@@ -58,7 +59,8 @@
 #   peer.last_poll  server host: UTC of the last /out poll
 #   store_forwards.<id>  queued|hashing|offered|connecting|sending|fetching|
 #                   verifying|done|acked|cancelled|failed_*|rejected_*
-#   received.<id>   receiving|verifying|ok|failed_sha256|failed_timeout
+#   received.<id>   receiving|verifying|ok|failed_sha256|failed_timeout|
+#                   failed_store (the inbox refused the file)
 #   progress.<id>   <bytes>/<size>
 #                   (each table keeps the last STATE_LIMIT segments)
 #   metrics.*       sent_bytes received_bytes resumes failures
@@ -97,7 +99,7 @@ from aiko_services import __version__
 from aiko_services.main.store_forward.store_forward_message import (
     CHUNK_SIZE, LINK_EVENTS, LINK_ID, MAX_SEGMENT_SIZE, NAME_EVENT,
     PROGRESS_EVENT, RECEIVED_EVENTS, RESUME_EVENT, STORE_FORWARD_EVENTS,
-    PARTIAL_DIRECTORY, FetchJob, SendJob,
+    FetchJob, SendJob, partial_path,
     resolve_within, utc_now, valid_segment_name, valid_sha256,
     valid_segment_id
 )
@@ -122,7 +124,7 @@ LINK_TIMEOUT = 10.0            # server: seconds without an Edge poll -> down
 RETRY_AFTER_S = 600.0          # server: re-offer a segment not acked by then
 RETRY_BACKOFF_MIN_S = 60.0     # first re-send delay after a failure ...
 RETRY_BACKOFF_MAX_S = 3600.0   # ... doubling up to this (P4: eventual)
-PARTIAL_MAX_AGE_S = 86400.0    # inbox/.partial parts older than this go
+PARTIAL_MAX_AGE_S = 86400.0    # .part / .meta older than this are swept
 SWEEP_PERIOD_S = 60.0          # how often the partial sweep runs
 _RETRY_STATES = ("failed_", "rejected_busy")  # send outcomes that retry
 
@@ -134,7 +136,8 @@ _RECEIVED_STATES = {           # Message event -> received.<id>
     "received_verifying": "verifying",
     "received_ok": "ok",
     "received_failed_sha256": "failed_sha256",
-    "received_failed_timeout": "failed_timeout"
+    "received_failed_timeout": "failed_timeout",
+    "received_failed_store": "failed_store"
 }
 
 def _token(text, limit=32):
@@ -219,6 +222,8 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         self.message = parameters["message"]           # StoreForwardMessage
         self.inbox = os.path.realpath(parameters["inbox"])
         self.outbox = os.path.realpath(parameters["outbox"])
+        self.partial_directory = partial_path(
+            self.inbox, parameters.get("partial_directory"))
         self.outbox_period = float(parameters.get("outbox_period", 2.0))
         self.link_timeout = float(parameters.get("link_timeout", LINK_TIMEOUT))
         self.partial_max_age = float(
@@ -250,6 +255,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             "role": self.message.role,
             "inbox": self.inbox,
             "outbox": self.outbox,
+            "partial_directory": self.partial_directory,
             "link": "unknown",
             "link_cause": "startup",
             "link_changed_utc": utc_now(),
@@ -261,6 +267,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         })
 
         os.makedirs(os.path.join(self.outbox, SENT_DIRECTORY), exist_ok=True)
+        os.makedirs(self.partial_directory, exist_ok=True)
         endpoint = self.message.start(self._http_command, self._message_event)
         endpoint_key = "http_endpoint"  \
             if self.message.role == "server" else "server_url"
@@ -274,6 +281,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
 
         self.logger.info(f"{self.message.role} {context.name}: {endpoint}")
         self.logger.info(f"inbox: {self.inbox}")
+        self.logger.info(f"partial: {self.partial_directory}")
         self.logger.info(f"outbox: {self.outbox} (scan every "
             f"{self.outbox_period} s, sent segments move to "
             f"{SENT_DIRECTORY}/)")
@@ -630,19 +638,22 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             self._jobs.pop(segment_id, None)
 
     def _sweep_partial(self, now_monotonic, force=False):
-        """Both roles: remove inbox/.partial parts older than
-        partial_max_age so a peer that never returns cannot fill the disk"""
+        """Both roles: remove .part and .meta files older than
+        partial_max_age from the partial directory, so a peer that never
+        returns cannot fill the disk.  Other files there are left alone:
+        the directory is configurable and may be shared"""
 
         if not force and now_monotonic - self._last_sweep < SWEEP_PERIOD_S:
             return
         self._last_sweep = now_monotonic
-        directory = os.path.join(self.inbox, PARTIAL_DIRECTORY)
         try:
-            entries = list(os.scandir(directory))
+            entries = list(os.scandir(self.partial_directory))
         except OSError:
             return
         cutoff = time.time() - self.partial_max_age
         for entry in entries:
+            if not entry.name.endswith((".part", ".meta")):
+                continue
             try:
                 if entry.is_file(follow_symlinks=False)  \
                     and entry.stat(follow_symlinks=False).st_mtime < cutoff:
@@ -780,13 +791,25 @@ def _port_range(text):
         raise click.BadParameter(f'"{text}" must be PORT or FIRST-LAST')
     return first, last
 
+def _check_partial_directory(inbox, outbox, partial_directory):
+    """The partial directory must not be the inbox or the outbox: parts
+    there would be sent as segments, or be seen by the inbox's reader"""
+
+    partial = partial_path(inbox, partial_directory)
+    for option, directory in (("--inbox", inbox), ("--outbox", outbox)):
+        if partial == os.path.realpath(directory):
+            raise click.BadParameter(
+                f"must not be the {option} directory {partial}",
+                param_hint="--partial_directory")
+
 def _run(name, role, message, inbox, outbox, outbox_period, link_timeout,
-    partial_max_age):
+    partial_max_age, partial_directory=None):
 
     parameters = {
         "message": message, "inbox": inbox, "outbox": outbox,
         "outbox_period": outbox_period, "link_timeout": link_timeout,
-        "partial_max_age": partial_max_age
+        "partial_max_age": partial_max_age,
+        "partial_directory": partial_directory
     }
     init_args = aiko.actor_args(name,
         parameters=parameters, protocol=PROTOCOL, tags=[f"role={role}"])
@@ -807,13 +830,19 @@ def _common_options(function):
         click.option("--outbox", "-o", required=True,
             type=click.Path(exists=True, file_okay=False),
             help="Directory watched for segments to send"),
+        click.option("--partial_directory", "-pd", default=None,
+            type=click.Path(file_okay=False),
+            help="Directory for resumable parts and .meta sidecars "
+                 "(default: <inbox>/.partial); set it when another "
+                 "application reads the inbox"),
         click.option("--outbox_period", "-op", default=2.0, show_default=True,
             help="Seconds between outbox scans (0 disables)"),
         click.option("--chunk_size", "-cs", default=CHUNK_SIZE,
             show_default=True, help="Bytes per HTTP chunk"),
         click.option("--partial_max_age", "-pa", default=PARTIAL_MAX_AGE_S,
             show_default=True,
-            help="Seconds before a stale inbox/.partial part is removed")
+            help="Seconds before a stale part is swept from the partial "
+                 "directory")
     ]
     for option in reversed(options):
         function = option(function)
@@ -839,17 +868,20 @@ def main():
 @click.option("--link_timeout", "-lt", default=LINK_TIMEOUT, show_default=True,
     help="Seconds without an edge host poll before link is down")
 
-def server(name, inbox, outbox, outbox_period, chunk_size, partial_max_age,
-    http_port_range, bind, advertise_host, link_timeout):
+def server(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
+    partial_max_age, http_port_range, bind, advertise_host, link_timeout):
 
+    _check_partial_directory(inbox, outbox, partial_directory)
     from aiko_services.main.store_forward.store_forward_http import (
         StoreForwardMessageHTTPServer
     )
     message = StoreForwardMessageHTTPServer(inbox, outbox, bind=bind,
         port_range=_port_range(http_port_range),
-        advertise_host=advertise_host, chunk_size=chunk_size)
+        advertise_host=advertise_host, chunk_size=chunk_size,
+        partial_directory=partial_directory)
     _run(_default_name(name, "server"), "server", message,
-        inbox, outbox, outbox_period, link_timeout, partial_max_age)
+        inbox, outbox, outbox_period, link_timeout, partial_max_age,
+        partial_directory)
 
 @main.command(help="Run the edge host Actor, polling the server host")
 @_common_options
@@ -864,17 +896,20 @@ def server(name, inbox, outbox, outbox_period, chunk_size, partial_max_age,
 @click.option("--poll_period", "-pp", default=2.0, show_default=True,
     help="Seconds between /out polls")
 
-def edge(name, inbox, outbox, outbox_period, chunk_size, partial_max_age,
-    server_host, server_port, server_url, poll_period):
+def edge(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
+    partial_max_age, server_host, server_port, server_url, poll_period):
 
+    _check_partial_directory(inbox, outbox, partial_directory)
     server_url = server_endpoint(server_url, server_host, server_port)
     from aiko_services.main.store_forward.store_forward_http import (
         StoreForwardMessageHTTPClient
     )
     message = StoreForwardMessageHTTPClient(server_url, inbox, outbox,
-        poll_period=poll_period, chunk_size=chunk_size)
+        poll_period=poll_period, chunk_size=chunk_size,
+        partial_directory=partial_directory)
     _run(_default_name(name, "edge"), "edge", message,
-        inbox, outbox, outbox_period, LINK_TIMEOUT, partial_max_age)
+        inbox, outbox, outbox_period, LINK_TIMEOUT, partial_max_age,
+        partial_directory)
 
 if __name__ == "__main__":
     main()

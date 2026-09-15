@@ -14,7 +14,7 @@ source:
 related: [pipeline_element, data_source_target, scheme, stream, parameters,
   share, store_forward, scheme_store_forward, synthetic_io, video_io]
 version: "0.8-dev"
-last_updated: 2026-09-13
+last_updated: 2026-09-15
 ---
 
 # StoreForward video segment writer
@@ -119,12 +119,13 @@ Element definition:
 | `frame_rate` | `15.0` | Encoded frames per second. Keep equal to the source `rate` |
 | `format` | `mp4v` | OpenCV fourcc tag |
 | `resolution` | first frame | `WxH`, otherwise the shape of the first frame of each segment |
-| `segment_prefix` | `segment` | File name prefix, read by the scheme |
+| `segment_prefix` | none | Optional file name prefix, `[A-Za-z0-9_-]`, up to 32 characters, read by the scheme |
 
 Parameters arrive as strings from the command line and are coerced.
-Segment files are named `<prefix>_<UTC>_<nnnnnn>.mp4`, for example
-`segment_20260913T010203Z_000001.mp4`, a name the Actor accepts. The
-counter restarts at 1 for every Stream.
+A segment file is named by the UTC time the segment opened, when its
+first frame arrived, to the microsecond: `2026-09-15_03-00-07-413882.mp4`.
+With a prefix the name is `cam0_2026-09-15_03-00-07-413882.mp4`. The
+names sort in time order and the Actor accepts them. There is no counter.
 
 Share: `outbox`, `segment` (the open segment, `-` between segments),
 `segments_written`, `frames_written`, `last_segment_utc`.
@@ -183,8 +184,8 @@ too. A segment with no frames leaves no file.
 - The element does not announce a closed segment to the Actor. The
   watcher's scan period adds up to two scans of latency.
 - A `VideoReadStoreForward` DataSource for the receiving host is planned.
-- Segment names carry the UTC time of opening, not the capture time of
-  the first frame.
+- Segment names carry the UTC time the first frame reached the element,
+  not the camera's capture time of that frame.
 
 ## Related concepts
 

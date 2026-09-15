@@ -15,7 +15,7 @@ source:
 related: [design_overview, actor, share, connection, data_source_target,
   scheme, dashboard]
 version: "0.8-dev"
-last_updated: 2026-09-14
+last_updated: 2026-09-15
 ---
 
 # StoreForward
@@ -62,11 +62,11 @@ mosquitto and `aiko_registrar` with `AIKO_MQTT_HOST=localhost`
 (`pip install flask`). The edge host needs only the core dependencies.
 
 ```bash
-aiko_store_forward server --inbox DIR --outbox DIR  \
+aiko_store_forward server --inbox DIR --outbox DIR [--partial_directory DIR]  \
     [--http_port_range 8080-8089] [--bind 0.0.0.0] [--advertise_host HOST]  \
     [--link_timeout 10] [--outbox_period 2] [--partial_max_age 86400]
 
-aiko_store_forward edge --inbox DIR --outbox DIR  \
+aiko_store_forward edge --inbox DIR --outbox DIR [--partial_directory DIR]  \
     --server_host HOST [--server_port 8080] | --server_url URL  \
     [--poll_period 2] [--outbox_period 2] [--partial_max_age 86400]
 ```
@@ -75,6 +75,15 @@ aiko_store_forward edge --inbox DIR --outbox DIR  \
 the IP address on a network where `.local` names do not resolve.
 `--server_url` is the alternative for a full endpoint, for example an
 `https://` one, and wins when both are given.
+
+`--partial_directory` names the directory that holds the resumable parts
+and their `.meta` sidecars. The default is `.partial` under the inbox.
+Set it when another application reads the inbox, for example a recording
+store, so that nothing hidden lives there. It must not be the inbox or
+the outbox. It may be on another file system than the inbox. Then the
+final move copies each verified part through a dot-prefixed temporary
+file in the inbox and renames it. So a segment still appears complete, at
+once.
 
 Sending is triggered by a file in the outbox: the Actor scans the outbox
 every `--outbox_period` seconds, waits until the size and time of the
@@ -116,11 +125,11 @@ are observed in `share`, never returned:
 
 | Item | Content |
 |------|---------|
-| `role`, `inbox`, `outbox`, `http_endpoint` or `server_url` | Configuration |
+| `role`, `inbox`, `outbox`, `partial_directory`, `http_endpoint` or `server_url` | Configuration |
 | `link` | `up@UTC` or `down@UTC`, stamped when it last changed. Edge: from the poll. Server: from edge activity, down after `--link_timeout` seconds without a poll |
 | `link_cause`, `link_changed_utc` | One token (`server_reachable`, `edge_polling`, `no_poll_<n>s`, `ConnectionError`, ...) and the time |
 | `store_forwards.<id>` | Sender side: `queued`, `hashing`, `offered`, `connecting`, `sending`, `fetching`, `verifying`, `done`, `acked`, `cancelled`, `failed_*`, `rejected_*` |
-| `received.<id>` | Receiver side: `receiving`, `verifying`, `ok`, `failed_sha256`, `failed_timeout` |
+| `received.<id>` | Receiver side: `receiving`, `verifying`, `ok`, `failed_sha256`, `failed_timeout`, `failed_store` (the inbox refused the final move) |
 | `progress.<id>` | `<bytes>/<size>` |
 | `last_error` | `<state>/<segment id or ->@UTC` of the latest failure |
 | `queue.depth`, `queue.oldest_s`, `queue.bytes`, `sampled_utc` | Segments in the outbox not yet delivered, refreshed by every scan |
@@ -136,9 +145,10 @@ suffix, one token. Values are single tokens because the incremental
 **Delivery rules.** A send that fails (`failed_*` or `rejected_busy`)
 returns to the outbox watcher after a doubling back-off from 60 s to
 3600 s. The watcher then re-sends it with a fresh id. An offer the edge
-did not acknowledge within 600 s is withdrawn and re-offered. Both roles remove
-partial files older than `--partial_max_age` seconds. So nothing stays
-stuck and nothing grows without bound.
+did not acknowledge within 600 s is withdrawn and re-offered. Both roles
+remove `.part` and `.meta` files older than `--partial_max_age` seconds
+from the partial directory. So nothing stays stuck and nothing grows
+without bound.
 
 **HTTP protocol** (server role). Upload is a minimal subset of the tus
 resumable upload protocol, download uses HTTP `Range`:
@@ -150,13 +160,15 @@ resumable upload protocol, download uses HTTP `Range`:
 | `POST /data/<id>` | Create an upload `{name, size, sha256}`: 201 with `Upload-Offset` (the resume point) |
 | `HEAD /data/<id>` | `Upload-Offset` of an upload, or `Content-Length` and `X-Sha256` of an offered download |
 | `PATCH /data/<id>` | Append one chunk at `Upload-Offset`: 204, or 409 with the true offset |
-| `POST /data/<id>/complete` | Verify the sha256 and move the file into the inbox: 200 or 422 |
+| `POST /data/<id>/complete` | Verify the sha256 and move the file into the inbox: 200, 422 (sha256 mismatch) or 507 (the inbox refused the file, for example no space or no permission) |
 | `GET /data/<id>` | Download an offered segment, `Range` honored |
 | `GET /health` | `{"role": "server", "version": "v0", "package": ...}`; `v0` is the route contract |
 
 Only the edge host opens connections. The `/in` and `/out` routes carry
 `(command ...)` S-expressions between the two Actors. Only the abstract
-methods of the Interface may be dispatched from them (P12).
+methods of the Interface may be dispatched from them (P12). On 422 or 507
+the server discards the part. The sender re-sends the segment after its
+back-off with a fresh id.
 
 Edge host to server host, an upload:
 
@@ -191,10 +203,11 @@ Three layers, one process per host:
  │   watcher: size stable        │ hands SendJob / FetchJob to the layer
  │   (send_segment ID NAME)      │ below, receives events on its mailbox
  │ .sent/notes.txt ◄── done      │
- inbox/                         StoreForwardMessage (ABC, no framework import)
- │ .partial/<id>.part ◄── bytes    │ start(on_command, on_event) -> endpoint
- │ .partial/<id>.meta {sha256}     │ send_segment(job)  fetch_segment(job)
- │ notes.txt ◄── os.replace        │ send_command(sexpr)  cancel(id)  stop()
+ partial/ (default inbox/.partial)  StoreForwardMessage (ABC, no framework import)
+ │ <id>.part ◄── bytes             │ start(on_command, on_event) -> endpoint
+ │ <id>.meta {name, size, sha256}  │ send_segment(job)  fetch_segment(job)
+ inbox/                           │ send_command(sexpr)  cancel(id)  stop()
+ │ notes.txt ◄── os.replace / copy │
                                  StoreForwardMessageHTTPServer | ...HTTPClient
                                    Flask routes / requests session, threads
 ```
@@ -216,9 +229,11 @@ resolves any attribute. Thus its arguments are validated as untrusted too.
 
 Directories are the durable state. A `.part` file and its `.meta` sidecar
 survive a process restart on either side, which is what makes resume
-possible after a server restart. The in-memory tables (offers, the `/out`
-cursor, pending acknowledgments) do not survive a restart. The retry
-rules above cover the gaps.
+possible after a server restart. The partial directory can live away
+from the inbox, on another file system. The final move falls back to a
+copy when `os.replace()` reports `EXDEV`. The in-memory tables
+(offers, the `/out` cursor, pending acknowledgments) do not survive a
+restart. The retry rules above cover the gaps.
 
 **Connection ladder.** The link sensor drives `aiko.process.connection`
 with a raise-only guard. Link up sets `ConnectionState.NETWORK` only from
@@ -248,6 +263,10 @@ connected. See [Connection](connection.md).
   as a TODO in its header.
 - `last_error` and `link_cause` are single tokens by construction:
   non-token characters become `_` and the text is cut at 32 characters.
+- The cross-file-system move copies the part to `.<name>.part` in the
+  inbox, calls `fsync`, then renames it. The temporary file is removed on
+  every failure and the caller discards the part. The sweep removes only
+  `.part` and `.meta` files, because the directory is configurable.
 
 ### CRC card
 

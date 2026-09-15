@@ -49,7 +49,8 @@ __all__ = [
     "LINK_ID", "NAME_EVENT", "PROGRESS_EVENT", "RESUME_EVENT",
     "STORE_FORWARD_EVENTS", "RECEIVED_EVENTS", "LINK_EVENTS",
     "FetchJob", "StoreForwardMessage", "SendJob",
-    "resolve_within", "sha256_file", "store_forward_deadline", "try_put",
+    "partial_path", "resolve_within", "sha256_file",
+    "store_forward_deadline", "try_put",
     "utc_now", "valid_sha256", "valid_segment_name", "valid_segment_id"
 ]
 
@@ -65,7 +66,7 @@ OUT_QUEUE_SIZE = 256                  # server "/out" items: drop-newest
 CONNECT_DEADLINE = 60.0               # seconds to first successful request
 IDLE_TIMEOUT = 120.0                  # seconds until an idle upload is evicted
 PROGRESS_EVERY_CHUNKS = 8             # rate limit for progress events
-PARTIAL_DIRECTORY = ".partial"        # under the inbox: resumable parts
+PARTIAL_DIRECTORY = ".partial"        # default, under the inbox: parts
 MIN_RATE_BYTES_PER_SECOND = 50 * 1024 # sizes the overall transfer deadline
 
 LINK_ID = "-"                         # segment_id for link-level events
@@ -80,7 +81,8 @@ STORE_FORWARD_EVENTS = {                   # -> store_forwards.<id>
 }
 RECEIVED_EVENTS = {                   # -> received.<id>
     "receiving", "received_verifying", "received_ok",
-    "received_failed_sha256", "received_failed_timeout"
+    "received_failed_sha256", "received_failed_timeout",
+    "received_failed_store"
 }
 LINK_EVENTS = {                       # segment_id == LINK_ID
     "link_up", "link_down", "peer_poll", "out_dropped", "rejected_command"
@@ -120,6 +122,16 @@ def resolve_within(directory, name) -> Optional[str]:
     except ValueError:  # different drives (Windows) or mixed absolute paths
         return None
     return path
+
+def partial_path(inbox, partial_directory=None) -> str:
+    """Real path of the directory of resumable parts and .meta sidecars:
+    partial_directory when given, else PARTIAL_DIRECTORY under the inbox.
+    The message layer and the Actor both resolve it here, so the share,
+    the sweep and the part paths agree"""
+
+    if partial_directory:
+        return os.path.realpath(os.path.expanduser(str(partial_directory)))
+    return os.path.join(os.path.realpath(inbox), PARTIAL_DIRECTORY)
 
 def sha256_file(path, chunk_size=1024 * 1024) -> str:
     digest = hashlib.sha256()

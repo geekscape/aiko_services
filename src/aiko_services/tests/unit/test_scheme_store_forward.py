@@ -45,8 +45,8 @@ def test_url_path_forms(tmp_path):
         assert scheme.create_targets(stream, [url])[0]  \
             == aiko.StreamEvent.OKAY, url
         assert stream.variables["target_outbox"] == os.path.realpath(outbox)
-        assert stream.variables["target_prefix"] == "segment"
-        assert stream.variables["target_segment_id"] == 0
+        assert stream.variables["target_prefix"] == ""    # default: none
+        assert "target_segment_id" not in stream.variables
 
 def test_home_relative_url(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -66,10 +66,18 @@ def test_boundary_errors(tmp_path):
     assert event == aiko.StreamEvent.ERROR
     assert "not a directory" in detail["diagnostic"]
 
-    scheme = DataSchemeStoreForward(_StubElement({"segment_prefix": "a b"}))
-    event, detail = scheme.create_targets(stream, [f"store_forward://{tmp_path}"])
-    assert event == aiko.StreamEvent.ERROR
-    assert "segment_prefix" in detail["diagnostic"]
+    for prefix in ("a b", "x" * 33):
+        scheme = DataSchemeStoreForward(
+            _StubElement({"segment_prefix": prefix}))
+        event, detail = scheme.create_targets(
+            stream, [f"store_forward://{tmp_path}"])
+        assert event == aiko.StreamEvent.ERROR, prefix
+        assert "segment_prefix" in detail["diagnostic"]
+
+    scheme = DataSchemeStoreForward(_StubElement({"segment_prefix": ""}))
+    event, _ = scheme.create_targets(stream, [f"store_forward://{tmp_path}"])
+    assert event == aiko.StreamEvent.OKAY          # explicit "": no prefix
+    assert stream.variables["target_prefix"] == ""
 
     event, detail = scheme.create_sources(stream, ["store_forward://x"])
     assert event == aiko.StreamEvent.ERROR      # target-only scheme

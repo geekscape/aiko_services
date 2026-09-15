@@ -12,7 +12,7 @@ source:
 related: [scheme, data_source_target, store_forward, store_forward_io,
   scheme_file]
 version: "0.8-dev"
-last_updated: 2026-09-13
+last_updated: 2026-09-15
 ---
 
 # StoreForward DataScheme
@@ -54,7 +54,7 @@ in the PipelineDefinition:
 # Home-relative
 -p VideoWriteStoreForward.data_targets "(store_forward://~/store_forward/out)"
 
-# File name prefix (default "segment")
+# Optional file name prefix (default: none)
 -p VideoWriteStoreForward.segment_prefix cam0
 ```
 
@@ -69,11 +69,11 @@ aiko.DataScheme.add_data_scheme("store_forward", DataSchemeStoreForward)
 ```
 
 `create_targets()` resolves the URL path (with `~` expanded) and checks
-that it is an existing, writable directory. It validates the
-`segment_prefix` parameter against `[A-Za-z0-9_-]{1,32}`. Then it sets
-three Stream variables for the element: `target_outbox`, `target_prefix`
-and `target_segment_id` (a counter starting at 0). It publishes `outbox` in
-the element's share. A missing directory or a bad prefix returns
+that it is an existing, writable directory. It validates the optional
+`segment_prefix` parameter against `[A-Za-z0-9_-]{0,32}`. The default is
+empty, no prefix. Then it sets two Stream variables for the element:
+`target_outbox` and `target_prefix`. It publishes `outbox` in the
+element's share. A missing directory or a bad prefix returns
 `StreamEvent.ERROR` with a diagnostic.
 
 ## For framework developers (internals)
@@ -84,11 +84,11 @@ the element's share. A missing directory or a bad prefix returns
  "(store_forward://~/store_forward/out)"
         │ parse_url_path()  expanduser()  realpath()
         ▼
- stream.variables: target_outbox, target_prefix, target_segment_id
+ stream.variables: target_outbox, target_prefix
         │
         ▼
- VideoWriteStoreForward  ──►  ~/store_forward/out/.segment_<UTC>_000001.mp4  (open)
-                              ~/store_forward/out/segment_<UTC>_000001.mp4   (closed)
+ VideoWriteStoreForward  ──►  ~/store_forward/out/.2026-09-15_03-00-07-413882.mp4  (open)
+                              ~/store_forward/out/2026-09-15_03-00-07-413882.mp4   (closed)
                                        │ SegmentStoreForward Actor watcher
                                        ▼ forwarded to the peer host
 ```
@@ -106,7 +106,8 @@ the element closes its own writer in `stop_stream()`.
   imported. `store_forward_io.py` imports the scheme module as well, so a
   PipelineDefinition that deploys only the element still finds the scheme.
 - The prefix rule keeps every segment name inside the Actor's file name
-  rule `[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}`.
+  rule `[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}`. An empty prefix gives a name
+  that starts with a digit, which the rule accepts.
 
 ### CRC card
 

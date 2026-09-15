@@ -27,6 +27,7 @@
 # - Announce each closed segment to the Actor with "(send_segment ...)"
 # - VideoReadStoreForward: a DataSource reading segments from an inbox
 
+from datetime import datetime, timezone
 import os
 import time
 from typing import Tuple
@@ -39,7 +40,7 @@ from aiko_services.main.store_forward.store_forward_message import (
 )
 import aiko_services.elements.media.scheme_store_forward  # "store_forward://"
 
-__all__ = ["VideoWriteStoreForward"]
+__all__ = ["VideoWriteStoreForward", "segment_file_name"]
 
 _CV2_IMPORTED = False
 try:
@@ -56,6 +57,15 @@ DEFAULT_FRAME_RATE = 15.0       # must match the source "rate"
 DEFAULT_SEGMENT_SECONDS = 10.0  # close a segment after this many seconds
 DEFAULT_SEGMENT_FRAMES = 0      # or after this many frames (0: unused)
 
+def segment_file_name(prefix="", now=None):
+    """Segment file name from the UTC open time to the microsecond, one
+    token that sorts in time order: "2026-09-15_03-00-07-413882.mp4", or
+    "<prefix>_2026-09-15_03-00-07-413882.mp4" with a prefix"""
+
+    now = now or datetime.now(timezone.utc)
+    stamp = now.strftime("%Y-%m-%d_%H-%M-%S-%f")
+    return f"{prefix}_{stamp}.mp4" if prefix else f"{stamp}.mp4"
+
 # --------------------------------------------------------------------------- #
 # VideoWriteStoreForward is a DataTarget at the end of a video Pipeline.  It
 # groups the "[image]" frames it receives into video segments (MP4 files)
@@ -68,10 +78,12 @@ DEFAULT_SEGMENT_FRAMES = 0      # or after this many frames (0: unused)
 # parameter: "frame_rate"       encoded frames per second (15.0)
 # parameter: "format"           OpenCV fourcc tag ("mp4v")
 # parameter: "resolution"       "WxH", default: the first frame's shape
-# parameter: "segment_prefix"   file name prefix ("segment"), see the scheme
+# parameter: "segment_prefix"   optional file name prefix (""), see the scheme
 #
-# Segment file: <prefix>_<UTC>_<nnnnnn>.mp4, e.g
-# segment_20260913T010203Z_000001.mp4, a name the Actor accepts.  Frames
+# Segment file: the UTC time the segment opened (its first frame arrived),
+# to the microsecond, e.g 2026-09-15_03-00-07-413882.mp4, or with a prefix
+# cam0_2026-09-15_03-00-07-413882.mp4: names sort in time order and the
+# Actor accepts them.  Frames
 # are NumPy uint8 HxWx3 RGB (converted to BGR for OpenCV).  The open
 # segment is a dot-prefixed temporary file that the Actor's watcher
 # ignores; it is renamed into place when it closes, on the last frame of a
@@ -150,11 +162,7 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
 
     def _open_segment(self, stream, image):
         outbox = stream.variables["target_outbox"]
-        prefix = stream.variables["target_prefix"]
-        stream.variables["target_segment_id"] += 1
-        stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-        segment_id = stream.variables["target_segment_id"]
-        name = f"{prefix}_{stamp}_{segment_id:06d}.mp4"
+        name = segment_file_name(stream.variables["target_prefix"])
         if not valid_segment_name(name):        # cannot happen: prefix checked
             diagnostic = f'segment name "{name}" rejected'
             return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}

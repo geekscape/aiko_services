@@ -21,6 +21,7 @@
 # ~~~~~
 # - None, yet !
 
+from datetime import datetime, timezone
 import os
 import re
 
@@ -32,10 +33,12 @@ import cv2
 from aiko_services.main.store_forward.store_forward_message import (
     valid_segment_name
 )
+from aiko_services.elements.media.store_forward_io import segment_file_name
 from aiko_services.tests.unit import do_create_pipeline
 from aiko_services.tests.unit.image_sink import do_results_initialize
 
-SEGMENT_NAME_RE = re.compile(r"^segment_\d{8}T\d{6}Z_\d{6}\.mp4$")
+SEGMENT_NAME_RE = re.compile(
+    r"^(cam0_)?\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d-\d{6}\.mp4$")
 
 PIPELINE_DEFINITION = """{
   "version": 0, "name": "p_test_store_forward_io", "runtime": "python",
@@ -60,6 +63,7 @@ PIPELINE_DEFINITION = """{
     { "name":   "VideoWriteStoreForward",
       "parameters": {
         "data_targets":    "(store_forward://OUTBOX)",
+        "segment_prefix":  "PREFIX",
         "segment_frames":  SEGMENT_FRAMES,
         "segment_seconds": SEGMENT_SECONDS
       },
@@ -85,10 +89,11 @@ def _frame_count(path):
         capture.release()
     return count, (width, height)
 
-def _run(outbox, frame_count, segment_frames, segment_seconds):
+def _run(outbox, frame_count, segment_frames, segment_seconds, prefix=""):
     results = do_results_initialize()
     definition = PIPELINE_DEFINITION  \
         .replace("OUTBOX", str(outbox))  \
+        .replace("PREFIX", prefix)  \
         .replace("FRAME_COUNT", str(frame_count))  \
         .replace("SEGMENT_FRAMES", str(segment_frames))  \
         .replace("SEGMENT_SECONDS", str(segment_seconds))
@@ -104,13 +109,23 @@ def _run(outbox, frame_count, segment_frames, segment_seconds):
     return results, names
 
 def test_segments_by_frame_count(tmp_path):
-    results, names = _run(tmp_path, 7, 3, 0)
+    results, names = _run(tmp_path, 7, 3, 0, prefix="cam0")
     assert results["frame_ids"] == list(range(7))
     assert len(names) == 3
     counts = [_frame_count(tmp_path / name) for name in names]
-    assert [count for count, _ in counts] == [3, 3, 1]
+    assert [count for count, _ in counts] == [3, 3, 1]  # sorted: time order
     assert all(size == (64, 48) for _, size in counts)
-    assert [name[-10:-4] for name in names] == ["000001", "000002", "000003"]
+    assert all(name.startswith("cam0_") for name in names)
+
+def test_segment_file_name():
+    now = datetime(2026, 9, 15, 3, 0, 7, 413882, tzinfo=timezone.utc)
+    assert segment_file_name(now=now) == "2026-09-15_03-00-07-413882.mp4"
+    assert segment_file_name("cam0", now)  \
+        == "cam0_2026-09-15_03-00-07-413882.mp4"
+    assert valid_segment_name(segment_file_name("cam0", now))
+    assert SEGMENT_NAME_RE.match(segment_file_name())        # now, UTC
+    later = now.replace(microsecond=413883)
+    assert segment_file_name(now=now) < segment_file_name(now=later)
 
 def test_segments_by_seconds(tmp_path):
     results, names = _run(tmp_path, 7, 0, 0.45)

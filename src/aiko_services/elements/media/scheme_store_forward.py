@@ -12,7 +12,7 @@ import aiko_services as aiko
 
 __all__ = ["DataSchemeStoreForward"]
 
-_PREFIX_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+_PREFIX_RE = re.compile(r"^[A-Za-z0-9_-]{0,32}$")   # "": no prefix
 
 # --------------------------------------------------------------------------- #
 # parameter: "data_targets" names the outbox directory that a
@@ -23,8 +23,8 @@ _PREFIX_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 #                                                   slashes)
 # - "(store_forward://~/store_forward/out)"         home-relative path
 #
-# parameter: "segment_prefix" first part of every segment file name
-#            (default "segment"): <prefix>_<UTC>_<nnnnnn>.mp4
+# parameter: "segment_prefix" optional first part of every segment file
+#            name (default "", none): [<prefix>_]<UTC open time>.mp4
 #
 # A target-only scheme: the DataTarget element (store_forward_io.py) writes
 # each segment to a dot-prefixed temporary file in the outbox, which the
@@ -48,16 +48,15 @@ class DataSchemeStoreForward(aiko.DataScheme):
             diagnostic = f'store_forward outbox "{path}" is not writable'
             return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
-        prefix, _ = self.pipeline_element.get_parameter(
-            "segment_prefix", "segment")
-        prefix = str(prefix)
+        prefix, _ = self.pipeline_element.get_parameter("segment_prefix", "")
+        prefix = "" if prefix is None else str(prefix)
         if not _PREFIX_RE.match(prefix):
-            diagnostic = f'segment_prefix "{prefix}" must be [A-Za-z0-9_-]'
+            diagnostic =  \
+                f'segment_prefix "{prefix}" must be [A-Za-z0-9_-], 32 max'
             return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
         stream.variables["target_outbox"] = path
         stream.variables["target_prefix"] = prefix
-        stream.variables["target_segment_id"] = 0
         ec_producer = getattr(self.pipeline_element, "ec_producer", None)
         if ec_producer:
             ec_producer.update("outbox", path)
