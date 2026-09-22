@@ -66,6 +66,33 @@ sections are.
   Dashboard available to each Service.  To construct one, use
   *compose_instance(ECCacheImpl, ec_cache_args(service, service_filter))*
 
+* New *elements/cameras* package: machine-vision cameras as DataSources,
+  one DataScheme per camera SDK.  Thus a PipelineDefinition selects the
+  camera by its DataSource element and *data_sources* URL alone.
+  *VideoReadDepthAI* (*elements/cameras/depthai_io.py*) reads Luxonis OAK
+  cameras through the DepthAI v3 SDK.  *VideoReadGigE*
+  (*elements/cameras/gigev_io.py*) reads GenICam GigE Vision cameras
+  through IDS peak, or through Aravis as an experimental backend.  Both
+  accept *resolution* (default *1920x1080*, or *native*) and
+  *frame_rate* (default *25.0*, or a fraction such as *25/1*).  Both
+  publish *state*, *frames*, *measured_fps*, *last_error* and the
+  camera's own *sensor.\** values to the dashboard.  The GigE camera adds
+  *backend*, *trigger*, *exposure_us* and *gain*.  Its *exposure_us* and
+  *gain* are writable on the dashboard while the camera runs.  Every
+  module imports without its SDK and reports a diagnostic when the scheme
+  is used.  New *ImageDewarp* (*elements/cameras/image_dewarp.py*)
+  undistorts each image with an OpenCV calibration read from
+  *calibration_path*.  Three example PipelineDefinitions use placeholder
+  URLs that discover the first camera
+
+* New DataSchemes *depthai* (*elements/cameras/scheme_depthai.py*) and
+  *gigev* (*elements/cameras/scheme_gigev.py*), on the shared
+  *DataSchemeCamera* base (*elements/cameras/scheme_camera.py*).  A
+  capture failure returns *StreamEvent.STOP*, so the Stream ends on the
+  main event thread.  Each capture is bounded by a timeout, so the
+  Stream can always be destroyed.  The camera SDKs are the new optional
+  dependencies *depthai* and *ids_peak* (Linux only) in *pyproject.toml*
+
 * New PipelineElements.  *SyntheticVideoRead* (*elements/media/
   synthetic_io.py*) is a DataSource that synthesizes video frames without
   a camera.  Each frame shows the *frame_id* as large text and a UTC
@@ -165,6 +192,20 @@ remote callers are unaffected.  For Python code:
   construction, the deprecated-form shim and *ECCache*.  New
   *test_registrar.py* covers the promoted Registrar API and wire
   delegation
+
+* Unit test baseline raised from 97 to 140 tests.  New *test_camera.py*
+  pins the camera helpers and proves that the cameras package imports
+  with no camera SDK and no OpenCV.  New *test_scheme_depthai.py* and
+  *test_scheme_gigev.py* drive the two camera schemes with a fake camera
+  (*fake_camera.py*): the URL forms, the parameter coercion, the
+  diagnostics, the warm-up, the timeout and stop paths and the writable
+  keys.  New *test_depthai_io.py* and *test_gigev_io.py* run an
+  in-process Pipeline with that fake.  New *test_image_dewarp.py* shows
+  that an identity calibration is a pass-through.  New
+  *test_cameras_pipeline_definitions.py* parses the three example
+  PipelineDefinitions and resolves each deployed class.  Two new
+  integration tests need a camera and an environment variable,
+  *AIKO_TEST_DEPTHAI* or *AIKO_TEST_GIGEV*, and skip otherwise
 
 * New *test_scheme_synth.py* pins the pure *render_text_frame()* and
   *parse_synth_url()* helpers and the option validation.  New
