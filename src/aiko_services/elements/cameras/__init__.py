@@ -29,6 +29,8 @@ from .scheme_depthai import DataSchemeDepthAI
 
 from .scheme_gigev import DataSchemeGigE, select_backend
 
+from .image_dewarp import Dewarper, ImageDewarp, load_calibration
+
 from .depthai_io import VideoReadDepthAI
 
 from .gigev_io import VideoReadGigE
