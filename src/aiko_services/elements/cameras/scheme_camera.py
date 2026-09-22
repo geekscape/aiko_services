@@ -82,6 +82,7 @@ class DataSchemeCamera(aiko.DataScheme):
         self.rate_meter = camera.RateMeter()
         self._pending = {}
         self._pending_lock = threading.Lock()
+        self._publishing = False       # ECProducer re-enters the handlers
         self._timer_armed = False
         self._handler_armed = False
 
@@ -327,9 +328,15 @@ class DataSchemeCamera(aiko.DataScheme):
     # Shared state --------------------------------------------------------- #
 
     def _publish(self, key, value):
-        """Event-loop thread only"""
+        """Event-loop thread only.  ECProducer.update() calls every
+        handler, this scheme's included, so the handler ignores updates
+        that originate here"""
 
-        self.pipeline_element.ec_producer.update(key, str(value))
+        self._publishing = True
+        try:
+            self.pipeline_element.ec_producer.update(key, str(value))
+        finally:
+            self._publishing = False
 
     def _pend(self, key, value):
         """Any thread: published by the next _publish_handler()"""
@@ -357,7 +364,7 @@ class DataSchemeCamera(aiko.DataScheme):
         return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
     def _ec_producer_change_handler(self, command, item_name, item_value):
-        if command != "update":
+        if command != "update" or self._publishing:
             return
         try:
             if item_name == "capture_timeout":

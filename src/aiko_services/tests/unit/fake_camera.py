@@ -114,6 +114,8 @@ class StubProducer:
     def update(self, item_name, item_value):
         self.share[item_name] = item_value
         self.updates.append((item_name, item_value))
+        for handler in list(self.handlers):      # as ECProducerImpl does
+            handler("update", item_name, item_value)
 
     def send(self, item_name, item_value):
         """A dashboard "(update ...)" reaching the handlers"""
