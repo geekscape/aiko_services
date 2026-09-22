@@ -1,9 +1,9 @@
 ---
 title: Media PipelineElements index
 description: Index of the media PipelineElement concept documents — text,
-  image, video, webcam, synthetic and audio element families, the file /
-  synth / tty / zmq DataSchemes — and the committed example
-  PipelineDefinitions
+  image, video, webcam, synthetic, store / forward and audio element
+  families, the file / synth / store_forward / tty / zmq DataSchemes — and
+  the committed example PipelineDefinitions
 type: index
 audience: [developers, end-users]
 status: work-in-progress
@@ -12,7 +12,7 @@ source:
   - src/aiko_services/elements/media
 related: [pipeline_element, data_source_target, scheme, pipeline]
 version: "0.8-dev"
-last_updated: 2026-09-10
+last_updated: 2026-09-13
 ---
 
 # Media PipelineElements index
@@ -35,9 +35,11 @@ Navigation: [elements index](../ReadMe.md) ·
 | [image_io](image_io.md) | Image sources, transforms (convert / resize / crop / overlay) and targets — files or ZeroMQ, PIL or NumPy |
 | [images_to_video](images_to_video.md) | Legacy Pipeline_2020 script for images → video; superseded by `images_to_video_pipeline.json` |
 | [scheme_file](scheme_file.md) | `file:` DataScheme — files, directories and `{}` glob/format templates; the default scheme |
+| [scheme_store_forward](scheme_store_forward.md) | `store_forward://` DataScheme — target-only; names the outbox that a SegmentStoreForward Actor watches, so a Pipeline hands finished segments to the store / forward custodian |
 | [scheme_synth](scheme_synth.md) | `synth://` DataScheme — synthesized video frames with the frame id and a timestamp, no camera; an extensible kind/pattern URL grammar |
 | [scheme_tty](scheme_tty.md) | `tty://` DataScheme — line-oriented interactive terminal input/output |
 | [scheme_zmq](scheme_zmq.md) | `zmq://` DataScheme — out-of-band record transport over ZeroMQ PUSH/PULL |
+| [store_forward_io](store_forward_io.md) | `VideoWriteStoreForward` — DataTarget that groups frames into MP4 segments and writes each closed one into a store / forward outbox |
 | [synthetic_io](synthetic_io.md) | `SyntheticVideoRead` — camera-less video DataSource built on the `synth://` scheme |
 | [text_io](text_io.md) | Text sources, transforms and targets — files, terminal REPL or ZeroMQ; the exemplar element family |
 | [video_example](video_example.md) | Legacy Pipeline_2020 branching-video demonstration with a StateMachine; dormant |
@@ -46,7 +48,7 @@ Navigation: [elements index](../ReadMe.md) ·
 
 ## Example PipelineDefinitions
 
-The twenty-two git-committed PipelineDefinitions under
+The twenty-three git-committed PipelineDefinitions under
 `src/aiko_services/elements/media/pipelines/` — each module document's
 Command-line usage section shows `aiko_pipeline create` invocations for
 the pipelines it covers.
@@ -58,6 +60,7 @@ the pipelines it covers.
 | `image_zmq_pipeline_0.json` | [image_io](image_io.md), [scheme_zmq](scheme_zmq.md), [video_io](video_io.md) | ZeroMQ server: receive image records → resize → display |
 | `image_zmq_pipeline_1.json` | [image_io](image_io.md), [scheme_zmq](scheme_zmq.md) | ZeroMQ client: read JPEGs → resize → send image records |
 | `images_to_video_pipeline.json` | [image_io](image_io.md), [video_io](video_io.md), [images_to_video](images_to_video.md) | Assemble JPEG frames into an MP4 (MP4V, 30 fps) |
+| `store_forward_pipeline_0.json` | [store_forward_io](store_forward_io.md), [scheme_store_forward](scheme_store_forward.md), [synthetic_io](synthetic_io.md), [control elements](../control/elements.md) | Synthesized frames → `CaptureLimit` (30 s) → 10 s MP4 segments into a store / forward outbox |
 | `synthetic_pipeline_0.json` | [synthetic_io](synthetic_io.md), [scheme_synth](scheme_synth.md), [control elements](../control/elements.md), [image_io](image_io.md), [video_io](video_io.md) | Synthesized frames → `CaptureLimit` (10 s) → resize → display |
 | `synthetic_pipeline_1.json` | [synthetic_io](synthetic_io.md), [scheme_synth](scheme_synth.md), [control elements](../control/elements.md), [video_io](video_io.md) | Synthesized frames → `CaptureLimit` (10 s) → record MP4 |
 | `text_pipeline_0.json` | [text_io](text_io.md), [scheme_file](scheme_file.md) | Read text files → case transform → write text files |
@@ -85,7 +88,10 @@ the pipelines it covers.
 3. [image_io](image_io.md) → [video_io](video_io.md) →
    [webcam_io](webcam_io.md) — the media families proper. Start with
    [synthetic_io](synthetic_io.md) and [scheme_synth](scheme_synth.md)
-   when no camera is available
+   when no camera is available. Then
+   [store_forward_io](store_forward_io.md) and
+   [scheme_store_forward](scheme_store_forward.md) to hand segments to
+   the [StoreForward](../../concepts/store_forward.md) custodian
 4. [elements](elements.md), [audio_io](audio_io.md),
    [images_to_video](images_to_video.md),
    [video_example](video_example.md) — placeholders, work-in-progress

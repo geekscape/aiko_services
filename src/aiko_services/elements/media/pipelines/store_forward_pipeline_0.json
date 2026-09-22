@@ -1,0 +1,51 @@
+{
+  "version": 0,
+  "name":    "p_store_forward_0",
+  "runtime": "python",
+
+  "#": "No camera: synthetic frames for 30 s, written as 10 s MP4 segments",
+  "#": "into an outbox that a SegmentStoreForward Actor forwards, e.g",
+  "#": "aiko_store_forward edge --outbox data_out/outbox --server_url ...",
+
+  "graph": ["(SyntheticVideoRead CaptureLimit VideoWriteStoreForward)"],
+
+  "parameters": {
+    "_create_stream_":       "1",
+    "_destroy_stream_exit_": "1",
+    "rate":                  15.0,  "#": "rate and frame_rate must match",
+    "frame_rate":            15.0
+  },
+
+  "elements": [
+    { "name":   "SyntheticVideoRead",
+      "parameters": {
+        "data_sources": "(synth://video/plain?width=640&height=360)"
+      },
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.synthetic_io"}
+      }
+    },
+    { "name":   "CaptureLimit",
+      "parameters": {"duration": 30.0},  "#": "seconds, or e.g '10m'",
+      "input":  [],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.control.elements"}
+      }
+    },
+    { "name":   "VideoWriteStoreForward",
+      "parameters": {
+        "data_targets":    "(store_forward://data_out/outbox)",
+        "segment_seconds": 10.0,
+        "format":          "mp4v"
+      },  "#": "mp4v: the tag OpenCV uses for MP4 ('MP4V' logs a warning)",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.store_forward_io"}
+      }
+    }
+  ]
+}
