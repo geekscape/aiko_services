@@ -15,6 +15,7 @@
 # can deliver a frame or two more before the process ends
 
 import os
+import time
 
 import pytest
 pytest.importorskip("cv2",
@@ -60,11 +61,17 @@ PIPELINE_DEFINITION = """{
 }
 """
 
+DISCOVERY_WAIT_S = 30.0     # a closed device is absent while it reboots
+
 def _url():
     if ADDRESS != "1":
         return f"depthai://{ADDRESS}"
-    if not depthai.Device.getAllAvailableDevices():
-        pytest.skip("AIKO_TEST_DEPTHAI is set, but no OAK camera was found")
+    deadline = time.monotonic() + DISCOVERY_WAIT_S
+    while not depthai.Device.getAllAvailableDevices():
+        if time.monotonic() >= deadline:
+            pytest.skip("AIKO_TEST_DEPTHAI is set, but no OAK camera was "
+                        f"found within {DISCOVERY_WAIT_S} s")
+        time.sleep(1.0)
     return "depthai://"
 
 def test_open_capture_close_three_times():
