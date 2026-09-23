@@ -119,9 +119,9 @@ with the install line before any device access.
 
 ### Implementation notes
 
-- The default settle of 30 frames is a bound, not a delay. At 25 fps a
-  bright scene converges in a fraction of a second. At 2 fps in a dark
-  scene the bound is 15 seconds, and `settled` shows the progress.
+- The default settle of 30 frames is a bound, not a delay. At 8 fps a
+  bright scene converges in a second or two. At 2 fps in a dark scene
+  the bound is 15 seconds, and `settled` shows the progress.
 - The scheme lives in `scheme_depthai.py` and the device in
   `camera_oak_d.py`, so a second DepthAI device class, for example a
   stereo pair, would share the scheme.

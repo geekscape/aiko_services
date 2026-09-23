@@ -51,7 +51,7 @@ aiko_pipeline create pipelines/depthai_pipeline_0.json -s 1   # view live
 All commands run from `src/aiko_services/elements/cameras`.
 
 ```bash
-# The first OAK camera on the network: 1920x1080 at 25 fps, 10 s or "x"
+# The first OAK camera on the network: 1920x1080 at 8 fps, 10 s or "x"
 aiko_pipeline create pipelines/depthai_pipeline_0.json -s 1
 
 # One camera, by IP address or device id
@@ -78,7 +78,7 @@ for some seconds, so `open()` retries the boot for up to 30 seconds.
 
 | Class | Kind | Inputs → Outputs | Parameters |
 |-------|------|------------------|------------|
-| `VideoReadDepthAI` | DataSource | `images: [image]` → `images: [image]` | `data_sources` (`(depthai://)` or `(depthai://<address>)`), `resolution` (`1920x1080`), `frame_rate` (`25.0`), `settle` (`30`), `aux_stream` (`true`), `resize_mode`, `rate`, `capture_timeout`, `log_frames`, `media_type` |
+| `VideoReadDepthAI` | DataSource | `images: [image]` → `images: [image]` | `data_sources` (`(depthai://)` or `(depthai://<address>)`), `resolution` (`1920x1080`), `frame_rate` (`8.0`), `settle` (`30`), `aux_stream` (`true`), `resize_mode`, `rate`, `capture_timeout`, `log_frames`, `media_type` |
 
 Service protocol: `video_read_depthai:0`.
 

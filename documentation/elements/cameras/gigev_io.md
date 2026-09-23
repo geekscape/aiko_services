@@ -53,7 +53,7 @@ aiko_pipeline create pipelines/gigev_pipeline_0.json -s 1     # view live
 All commands run from `src/aiko_services/elements/cameras`.
 
 ```bash
-# The first camera found: 1920x1080 at 25 fps, exposure by auto-expose
+# The first camera found: 1920x1080 at 8 fps, exposure by auto-expose
 aiko_pipeline create pipelines/gigev_pipeline_0.json -s 1
 
 # One camera, by a substring of its name, key or serial number
@@ -83,7 +83,7 @@ per second need a NIC MTU of 9000 and a larger receive buffer.
 
 | Class | Kind | Inputs → Outputs | Parameters |
 |-------|------|------------------|------------|
-| `VideoReadGigE` | DataSource | `images: [image]` → `images: [image]` | `data_sources` (`(gigev://)` or `(gigev://<address>)`), `backend` (`auto`), `resolution` (`1920x1080`), `frame_rate` (`25.0`), `trigger` (`auto`), `exposure_us` (`auto`), `gain`, `settle` (`2`), `resize_mode`, `rate`, `capture_timeout`, `log_frames`, `media_type` |
+| `VideoReadGigE` | DataSource | `images: [image]` → `images: [image]` | `data_sources` (`(gigev://)` or `(gigev://<address>)`), `backend` (`auto`), `resolution` (`1920x1080`), `frame_rate` (`8.0`), `trigger` (`auto`), `exposure_us` (`auto`), `gain`, `settle` (`2`), `resize_mode`, `rate`, `capture_timeout`, `log_frames`, `media_type` |
 
 Service protocol: `video_read_gigev:0`.
 

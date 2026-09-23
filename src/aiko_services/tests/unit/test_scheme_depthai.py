@@ -97,7 +97,7 @@ def test_defaults_and_rate(fake):
     assert event == aiko.StreamEvent.OKAY
     instance = fake.INSTANCES[-1]
     assert instance._resolution == (1920, 1080)
-    assert instance._frame_rate == 25.0
+    assert instance._frame_rate == 8.0
     assert element.share["settle"] == "30"
     assert element.share["aux_stream"] == "true"
     assert element.share["capture_timeout"] == "1.0"

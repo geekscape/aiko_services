@@ -4,7 +4,7 @@
   "runtime": "python",
 
   "#": ["Luxonis OAK camera (depthai://): discover it on the local network,",
-        "read 1920x1080 at 25 fps, show it for 10 s (or press 'x').",
+        "read 1920x1080 at 8 fps, show it for 10 s (or press 'x').",
         "One camera: -p VideoReadDepthAI.data_sources '(depthai://<address>)'",
         "The camera's own resolution is the element parameter; the",
         "Pipeline-level resolution is the ImageResize target"],
@@ -22,7 +22,7 @@
       "parameters": {
         "data_sources": "(depthai://)",
         "resolution":   "1920x1080",
-        "frame_rate":   25.0,
+        "frame_rate":   8.0,
         "settle":       "30"
       },
       "input":  [{"name": "images", "type": "[image]"}],

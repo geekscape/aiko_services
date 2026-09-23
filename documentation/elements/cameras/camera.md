@@ -95,7 +95,8 @@ The pure helpers, each raising `ValueError` with the parameter name:
 | `share_token(text)`, `utc_now()` | One share token; ISO 8601 UTC to the second with a `Z` |
 
 Constants: `NATIVE_RESOLUTION` (4000x3000, both supported sensors),
-`DEFAULT_RESOLUTION` (`1920x1080`), `DEFAULT_FRAME_RATE` (25.0),
+`DEFAULT_RESOLUTION` (`1920x1080`), `DEFAULT_FRAME_RATE` (8.0, until
+higher rates are proven on each camera and link),
 `CAPTURE_TIMEOUT_S` (1.0) and `CAPTURE_TIMEOUT_LIMIT` (10).
 
 ## For framework developers (internals)

@@ -10,7 +10,7 @@
 # parameter, so it can be given at the command line with "-p"
 #
 # parameter: "resolution"      "WxH" (default "1920x1080"), "native" / "full"
-# parameter: "frame_rate"      frames per second, 25.0 default, "25/1" form
+# parameter: "frame_rate"      frames per second, 8.0 default, "25/1" form
 #                              accepted ("fps" is a deprecated alias)
 # parameter: "rate"            delivery throttle (create_frames), default
 #                              none: the camera paces the Stream

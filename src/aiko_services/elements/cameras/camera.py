@@ -12,7 +12,8 @@
 #                sensor's own size.  A camera delivers the nearest size it
 #                can and publishes the actual size to share
 # - frame_rate:  frames per second as 25, "25", "25.0" or a fraction "25/1"
-#                (the VideoReadRTSP form), default 25.0
+#                (the VideoReadRTSP form), default 8.0 until higher
+#                rates are proven on each camera and link
 # - settle:      frames discarded while the camera converges after start,
 #                as a count ("30") or a time ("3s"), 0 or "none": no wait
 # - resize_mode: "crop" (keep the aspect ratio, crop the sensor),
@@ -48,7 +49,7 @@ NATIVE_RESOLUTION = (4000, 3000)   # both supported sensors deliver this
 NATIVE_NAMES = ("native", "full")
 RESIZE_MODES = ("crop", "letterbox", "stretch")
 DEFAULT_RESOLUTION = "1920x1080"
-DEFAULT_FRAME_RATE = 25.0
+DEFAULT_FRAME_RATE = 8.0           # until higher rates are proven
 CAPTURE_TIMEOUT_S = 1.0            # bounded: destroy_stream() needs the lock
 CAPTURE_TIMEOUT_LIMIT = 10         # consecutive timeouts before STOP
 

@@ -74,7 +74,8 @@ sections are.
   (*elements/cameras/gigev_io.py*) reads GenICam GigE Vision cameras
   through IDS peak, or through Aravis as an experimental backend.  Both
   accept *resolution* (default *1920x1080*, or *native*) and
-  *frame_rate* (default *25.0*, or a fraction such as *25/1*).  Both
+  *frame_rate* (default *8.0* until higher rates are proven, or a
+  fraction such as *25/1*).  Both
   publish *state*, *frames*, *measured_fps*, *last_error* and the
   camera's own *sensor.\** values to the dashboard.  The GigE camera adds
   *backend*, *trigger*, *exposure_us* and *gain*.  Its *exposure_us* and

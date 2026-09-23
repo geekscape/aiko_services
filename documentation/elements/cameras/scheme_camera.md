@@ -79,7 +79,7 @@ Parameters common to every camera scheme:
 | Parameter | Default | Meaning |
 |-----------|---------|---------|
 | `resolution` | `1920x1080` | `WxH`, or `native` / `full` for the sensor's own size. The camera delivers the nearest size it can and reports the actual size as `sensor.resolution` |
-| `frame_rate` | `25.0` | Frames per second: a number, or a fraction such as `25/1`, the `VideoReadRTSP` form. `fps` is a deprecated alias |
+| `frame_rate` | `8.0` | Frames per second: a number, or a fraction such as `25/1`, the `VideoReadRTSP` form. The default stays low until higher rates are proven on each camera and link. `fps` is a deprecated alias |
 | `rate` | none | A delivery throttle for `create_frames()`. By default the camera paces the Stream |
 | `resize_mode` | `crop` | For a scaled output: `crop` keeps the aspect ratio, `letterbox` pads, `stretch` does not keep it |
 | `settle` | the subclass's | Frames discarded while the camera converges after start, as a count or a time such as `3s` |

@@ -4,7 +4,7 @@
   "runtime": "python",
 
   "#": ["GigE Vision camera (gigev://) through IDS peak, or Aravis as the",
-        "experimental backend: the first camera found, 1920x1080 at 25 fps,",
+        "experimental backend: the first camera found, 1920x1080 at 8 fps,",
         "shown for 10 s (or press 'x').  The exposure is set by the highlight",
         "auto-expose before the first frame; fix it instead with",
         "-p VideoReadGigE.exposure_us 20000 -p VideoReadGigE.gain 2.0",
@@ -24,7 +24,7 @@
         "data_sources": "(gigev://)",
         "backend":      "auto",
         "resolution":   "1920x1080",
-        "frame_rate":   25.0
+        "frame_rate":   8.0
       },
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [{"name": "images", "type": "[image]"}],
