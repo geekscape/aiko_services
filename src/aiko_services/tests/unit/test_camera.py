@@ -173,36 +173,112 @@ def test_no_site_literals():
             with open(path) as file:
                 assert not forbidden.search(file.read()), name
 
-def test_oak_open_retries_while_the_device_reboots(monkeypatch):
-    """dai.Device() raises X_LINK_DEVICE_NOT_FOUND twice, then returns"""
+class FakeClock:
+    """time.monotonic() that advances only through time.sleep()"""
 
-    from aiko_services.elements.cameras import camera_oak_d
+    def __init__(self):
+        self.now = 1000.0
+        self.slept = 0.0
 
-    class FakeDai:
-        calls = 0
+    def monotonic(self):
+        return self.now
 
-        class DeviceInfo:
-            def __init__(self, address):
-                self.address = address
+    def sleep(self, seconds):
+        self.now += seconds
+        self.slept += seconds
 
-        @classmethod
-        def Device(cls, info=None):
-            cls.calls += 1
-            if cls.calls < 3:
+class FakeInfo:
+    def __init__(self, name, device_id, state):
+        self.name = name
+        self.device_id = device_id
+        self.state = type("State", (), {"name": state})()
+
+    def getDeviceId(self):
+        return self.device_id
+
+class FakeDai:
+    """depthai with a scripted discovery: DISCOVERED is popped per poll,
+    the last entry repeats.  Device() fails FAIL_CONNECTS times first"""
+
+    DISCOVERED = []
+    FAIL_CONNECTS = 0
+    polls = 0
+    connects = []
+
+    class DeviceInfo:
+        def __init__(self, address):
+            self.name = address
+
+    class Device:
+        def __init__(self, info):
+            FakeDai.connects.append(info)
+            if len(FakeDai.connects) <= FakeDai.FAIL_CONNECTS:
                 raise RuntimeError("Failed to find device after booting, "
                                    "error message: X_LINK_DEVICE_NOT_FOUND")
-            return ("device", info.address if info else None)
+            self.name = info.name
 
+        @staticmethod
+        def getAllAvailableDevices():
+            FakeDai.polls += 1
+            if len(FakeDai.DISCOVERED) > 1:
+                return FakeDai.DISCOVERED.pop(0)
+            return FakeDai.DISCOVERED[0] if FakeDai.DISCOVERED else []
+
+@pytest.fixture
+def fake_dai(monkeypatch):
+    from aiko_services.elements.cameras import camera_oak_d
+    FakeDai.DISCOVERED = []
+    FakeDai.FAIL_CONNECTS = 0
+    FakeDai.polls = 0
+    FakeDai.connects = []
+    clock = FakeClock()
     monkeypatch.setattr(camera_oak_d, "dai", FakeDai)
-    monkeypatch.setattr(camera_oak_d.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(camera_oak_d, "time", clock)
+    return camera_oak_d, clock
+
+READY = "X_LINK_BOOTLOADER"
+BUSY = "X_LINK_BOOTED"           # another process holds it, or a teardown
+
+def test_oak_open_waits_for_discovery_after_a_reboot(fake_dai):
+    """Absent for 10 s, then listed as ready: one connection, to the
+    discovered DeviceInfo, never during the absence"""
+
+    camera_oak_d, clock = fake_dai
+    ready = FakeInfo("192.0.2.7", "id-7", READY)
+    FakeDai.DISCOVERED = [[]] * 10 + [[ready]]
     oak = camera_oak_d.OakDCamera(address="192.0.2.7")
-    assert oak._boot_device() == ("device", "192.0.2.7")
-    assert FakeDai.calls == 3
-    monkeypatch.setattr(camera_oak_d, "OPEN_RETRY_S", 0.0)  # no time left
-    FakeDai.calls = 0
-    with pytest.raises(RuntimeError, match="X_LINK_DEVICE_NOT_FOUND"):
-        oak._boot_device()
-    assert FakeDai.calls == 1
+    device = oak._boot_device()
+    assert device.name == "192.0.2.7"
+    assert FakeDai.connects == [ready]                 # the discovered one
+    assert FakeDai.polls == 11 and clock.slept == 10.0
+
+def test_oak_open_ignores_busy_and_other_devices(fake_dai):
+    """A device held by another process, or a different address, is not
+    ready; with no address the first ready device is taken"""
+
+    camera_oak_d, clock = fake_dai
+    busy = FakeInfo("192.0.2.7", "id-7", BUSY)
+    other = FakeInfo("192.0.2.8", "id-8", READY)
+    FakeDai.DISCOVERED = [[busy, other]] * 3 + [[FakeInfo("x", "id-7", READY)]]
+    oak = camera_oak_d.OakDCamera(address="id-7")       # device id form
+    assert oak._boot_device().name == "x"
+    assert clock.slept == 3.0
+    FakeDai.DISCOVERED = [[busy, other]]
+    assert camera_oak_d.OakDCamera()._boot_device().name == "192.0.2.8"
+
+def test_oak_open_connects_directly_to_an_undiscoverable_address(fake_dai):
+    """Never listed: after DISCOVERY_GRACE_S the address is connected
+    directly, with the exception retry; no address just gives up"""
+
+    camera_oak_d, clock = fake_dai
+    FakeDai.FAIL_CONNECTS = 2
+    oak = camera_oak_d.OakDCamera(address="198.51.100.9")
+    assert oak._boot_device().name == "198.51.100.9"
+    assert len(FakeDai.connects) == 3
+    assert clock.slept == camera_oak_d.DISCOVERY_GRACE_S + 2.0
+    with pytest.raises(RuntimeError, match=r"\(any\) not ready within"):
+        camera_oak_d.OakDCamera()._boot_device()
+    assert len(FakeDai.connects) == 3                   # never attempted
 
 def test_scheme_registered_once():
     import aiko_services as aiko

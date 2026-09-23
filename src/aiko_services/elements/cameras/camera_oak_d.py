@@ -27,8 +27,15 @@
 #   process, otherwise discovery silently finds nothing
 # - A second active interface (Wi-Fi) can break discovery
 #   (X_LINK_DEVICE_NOT_FOUND): turn it off, or use depthai://<address>
-# - The device reboots when its handle closes and is not discoverable
-#   again for some seconds: open() retries the boot for OPEN_RETRY_S
+# - The device reboots when its handle closes: it leaves discovery within
+#   half a second and returns 8 to 13 seconds later in the bootloader
+#   state.  A connection attempt in that window raises
+#   X_LINK_DEVICE_NOT_FOUND at best and crashes the process (a null
+#   dereference inside the SDK) at worst.  So open() connects only to a
+#   device that discovery reports in a ready state (READY_STATES), and
+#   waits up to OPEN_RETRY_S for it.  An explicit address that discovery
+#   never lists (a routed subnet) is connected directly after
+#   DISCOVERY_GRACE_S, which is past the reboot window on purpose
 #
 # To Do
 # ~~~~~
@@ -59,8 +66,12 @@ AUX_RESOLUTION = (640, 480)     # the 3A accelerator stream ...
 AUX_FRAME_RATE = 10.0           # ... and its rate
 QUEUE_MAX_SIZE = 2              # 18 MB per 12 MP NV12 frame: keep it tiny
 OUTPUT_TYPE = "NV12"            # dai.ImgFrame.Type name: link bandwidth
-OPEN_RETRY_S = 30.0             # a closed device reboots: wait for it ...
-OPEN_RETRY_PERIOD_S = 1.0       # ... trying this often
+OPEN_RETRY_S = 30.0             # a closed device reboots for 8 to 13 s
+OPEN_RETRY_PERIOD_S = 1.0       # discovery polled this often meanwhile
+DISCOVERY_GRACE_S = 20.0        # past the reboot window: then an explicit
+                                # address connects directly, undiscovered
+READY_STATES = ("X_LINK_BOOTLOADER", "X_LINK_UNBOOTED",
+                "X_LINK_FLASH_BOOTED", "X_LINK_GATE")
 _NOT_FOUND = ("X_LINK_DEVICE_NOT_FOUND", "Failed to find device")
 _RESIZE_MODES = {"crop": "CROP", "letterbox": "LETTERBOX",
                  "stretch": "STRETCH"}
@@ -122,15 +133,34 @@ class OakDCamera(camera.Camera):
         self._frame_rate = frame_rate
 
     def _boot_device(self):
-        """dai.Device for the address (or the first found), retried while
-        the device is not discoverable: a device that just closed reboots
-        and comes back after some seconds"""
+        """dai.Device for the address (or the first found), connected
+        only once discovery reports it in a ready state: a device that
+        just closed reboots and is absent from discovery for 8 to 13 s,
+        and a connection attempt meanwhile can crash the process"""
 
-        deadline = time.monotonic() + OPEN_RETRY_S
+        started = time.monotonic()
+        deadline = started + OPEN_RETRY_S
+        waiting = False
         while True:
+            info = self._discover()
+            if info is None:
+                direct = self.address  \
+                    and time.monotonic() >= started + DISCOVERY_GRACE_S
+                if not direct:
+                    if time.monotonic() >= deadline:
+                        raise RuntimeError(
+                            f"OAK camera {self.address or '(any)'} not "
+                            f"ready within {OPEN_RETRY_S} s: not found, "
+                            "or in use by another process")
+                    if not waiting:
+                        self._log("info", "OAK camera not ready yet "
+                                  "(rebooting after a close?), waiting")
+                        waiting = True
+                    time.sleep(OPEN_RETRY_PERIOD_S)
+                    continue
+                info = dai.DeviceInfo(self.address)   # not discoverable
             try:
-                return dai.Device(dai.DeviceInfo(self.address))  \
-                    if self.address else dai.Device()
+                return dai.Device(info)
             except RuntimeError as runtime_error:
                 not_found = any(text in str(runtime_error)
                                 for text in _NOT_FOUND)
@@ -139,6 +169,19 @@ class OakDCamera(camera.Camera):
                 self._log("info", "OAK camera not found yet (rebooting "
                           "after a close?), retrying")
                 time.sleep(OPEN_RETRY_PERIOD_S)
+
+    def _discover(self):
+        """The dai.DeviceInfo for the address (or the first device) that
+        discovery reports in a ready state, else None"""
+
+        for info in dai.Device.getAllAvailableDevices():
+            if self.address and self.address not in (
+                    info.name, info.getDeviceId()):
+                continue
+            state = getattr(info.state, "name", str(info.state))
+            if state in READY_STATES:
+                return info
+        return None
 
     def capture(self, timeout_s=camera.CAPTURE_TIMEOUT_S):
         """Returns (numpy uint8 HxWx3 RGB image, metadata dict)"""
