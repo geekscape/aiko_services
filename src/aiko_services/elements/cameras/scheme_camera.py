@@ -46,6 +46,10 @@
 #
 # To Do
 # ~~~~~
+# - Capture on a dedicated thread into a bounded host queue: the
+#   Pipeline holds the Stream lock while an element processes a
+#   frame, so a slow element (an encoder) stops the capture and the
+#   device queue overflows.  A host queue would absorb the jitter
 # - "data_batch_size" > 1
 # - Device-clock timestamps
 

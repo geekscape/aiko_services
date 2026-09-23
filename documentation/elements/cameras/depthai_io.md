@@ -69,6 +69,14 @@ aiko_pipeline create pipelines/depthai_pipeline_2.json -s 1  \
 aiko_pipeline create pipelines/depthai_pipeline_1.json -s 1
 ```
 
+The recording example writes H.264 (`format` `avc1`), not the MPEG-4
+`mp4v` of the media examples. On an embedded ARM computer `mp4v` takes
+111 ms per 1920x1080 frame and `avc1` 35 ms. The Pipeline holds the
+Stream lock while an element processes a frame. So the camera is not
+read during the encode, and the device queue drops what arrives
+meanwhile. With `mp4v` a 30 s recording at 8 fps held 162 frames
+instead of 240. Keep the encode under the frame period.
+
 Network notes for the PoE models: discovery uses UDP port 11491 on the
 same subnet, and data flows on TCP 11490. Without DHCP the camera falls
 back to a link-local address, so give the host interface one too. On

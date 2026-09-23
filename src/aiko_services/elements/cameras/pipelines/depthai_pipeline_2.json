@@ -41,9 +41,12 @@
     { "name":   "VideoWriteFile",
       "parameters": {
         "data_targets": "(file:data_out/depthai_0.mp4)",
-        "format":       "mp4v",
+        "format":       "avc1",
         "frame_rate":   8.0
-      },  "#": "frame_rate must match the camera's; mp4v: OpenCV's MP4 tag",
+      },  "#": ["frame_rate must match the camera's.  avc1 (H.264) encodes",
+                "a 1080p frame three times faster than mp4v: 35 ms against",
+                "111 ms on an embedded ARM computer, where mp4v cannot keep",
+                "up with 8 fps"],
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [],
       "deploy": {
