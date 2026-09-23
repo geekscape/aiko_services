@@ -131,6 +131,13 @@ class StorageFileImpl(Storage):
             ECProducerImpl, ec_producer_args(self, self.share))
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
+    @property
+    def tracked_paths(self):
+        try:
+            return set(Path(_TRACKED_PATHNAME).read_text().splitlines())
+        except FileNotFoundError:
+            return set()
+
     def _ec_producer_change_handler(self, command, item_name, item_value):
         if item_name == "log_level":
             self.logger.setLevel(str(item_value).upper())
@@ -470,10 +477,7 @@ class StorageFileImpl(Storage):
 
     def _create_unique_path(self):
         storage_path = Path(_STORAGE_FILENAME)
-        existing_paths = set()
-        if Path(_TRACKED_PATHNAME).exists():
-            existing_paths.update(
-                Path(_TRACKED_PATHNAME).read_text().splitlines())
+        existing_paths = self.tracked_paths
         while True:
             uid = self._generate_uid()
             path_parts = [uid[i:i+2] for i in range(0, len(uid), 2)]
@@ -510,26 +514,24 @@ class StorageFileImpl(Storage):
     def _relative_path(self, target_path, start_path):
         return os.path.relpath(target_path, start=start_path)
 
-    # Track a created storage path
-
     def _track_path(self, path):
+        """ Track a created storage path. """
         relative_path = self._normalize_path(path)
-        Path(_TRACKED_PATHNAME).parent.mkdir(parents=True, exist_ok=True)
-        with open(_TRACKED_PATHNAME, "a+") as tracked_paths_file:
-            tracked_paths_file.seek(0)
-            tracked_paths = tracked_paths_file.read().splitlines()
-            if relative_path not in tracked_paths:
-                tracked_paths_file.write(relative_path + "\n")
-
-    # Untrack a removed storage path
+        self._emit_tracked_paths(self.tracked_paths | {relative_path})
 
     def _untrack_path(self, path):
+        """ Untrack a removed storage path. """
         relative_path = self._normalize_path(path)
-        tracked_path = Path(_TRACKED_PATHNAME)
-        if tracked_path.is_file():
-            tracked_paths = tracked_path.read_text().splitlines()
-            tracked_path.write_text(
-                "\n".join(tp for tp in tracked_paths if tp != relative_path))
+        self._emit_tracked_paths(self.tracked_paths - {relative_path})
+
+    def _emit_tracked_paths(self, contents):
+        """ Write out tracked_paths, or unlink if it's empty. """
+        tracked_paths_file = Path(_TRACKED_PATHNAME)
+        if not contents:
+            tracked_paths_file.unlink(missing_ok=True)
+        else:
+            tracked_paths_file.parent.mkdir(parents=True, exist_ok=True)
+            tracked_paths_file.write_text("\n".join(contents))
 
 # --------------------------------------------------------------------------- #
 # Storage file-system based: CLI for Bootstrap commands
