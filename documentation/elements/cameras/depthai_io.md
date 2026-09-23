@@ -32,8 +32,7 @@ the shared state. The element is thin, as `VideoReadRTSP` and
 The device layer `camera_oak_d.py` delivers a scaled output of any size
 from the ISP, or the sensor's native 4000x3000. An auxiliary 640x480
 stream keeps the sensor busy, so auto-focus and auto-exposure converge
-about four times faster. It is skipped when the main output is that
-size or smaller, because two identical outputs crashed the SDK.
+about four times faster.
 
 **Why to use it**: put an OAK camera into any video Pipeline by changing
 one element:

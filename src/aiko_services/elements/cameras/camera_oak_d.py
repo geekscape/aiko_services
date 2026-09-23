@@ -16,8 +16,7 @@
 # 640x480 @ 10 fps stream keeps the sensor pipeline busy so the loops
 # converge about four times faster in wall-clock time; the DataScheme
 # discards frames until "lens_position" and "iso_sensitivity" settle.
-# The auxiliary stream is skipped when the main output is that size or
-# smaller: two identical outputs of one Camera node crashed the SDK
+# A main output of the auxiliary size and rate alongside it is fine
 #
 # PoE notes
 # ~~~~~~~~~
@@ -102,8 +101,8 @@ class OakDCamera(camera.Camera):
         self.pipeline = dai.Pipeline(self.device)
         node = self.pipeline.create(dai.node.Camera).build(
             dai.CameraBoardSocket.CAM_A)
-        if self.aux_stream and self._aux_stream_useful():
-            self.aux_queue = node.requestOutput(   # self-overwriting queue
+        if self.aux_stream:      # self-overwriting queue, no draining needed
+            self.aux_queue = node.requestOutput(
                 AUX_RESOLUTION, fps=AUX_FRAME_RATE).createOutputQueue(
                 maxSize=1, blocking=False)
         output_type = getattr(dai.ImgFrame.Type, OUTPUT_TYPE)
@@ -140,16 +139,6 @@ class OakDCamera(camera.Camera):
                 self._log("info", "OAK camera not found yet (rebooting "
                           "after a close?), retrying")
                 time.sleep(OPEN_RETRY_PERIOD_S)
-
-    def _aux_stream_useful(self):
-        """Not when the main output is the auxiliary size or smaller: it
-        keeps the sensor busy by itself, and a second identical output of
-        one Camera node crashed the SDK"""
-
-        if self._resolution is None:
-            return True
-        width, height = self._resolution
-        return width > AUX_RESOLUTION[0] or height > AUX_RESOLUTION[1]
 
     def capture(self, timeout_s=camera.CAPTURE_TIMEOUT_S):
         """Returns (numpy uint8 HxWx3 RGB image, metadata dict)"""

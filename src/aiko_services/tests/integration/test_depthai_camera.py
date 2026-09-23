@@ -8,6 +8,11 @@
 # "1" discovers the first camera (same subnet, UDP 11491; on macOS grant
 # Local Network permission to the process and turn Wi-Fi off), an address
 # selects one.  Without the variable, or without a camera, the tests skip
+#
+# The Pipeline test asserts the first three frames only: a capture in
+# flight when CaptureLimit stops the Stream is posted after the stop and
+# re-creates the Stream (framework behaviour, reported), so a real camera
+# can deliver a frame or two more before the process ends
 
 import os
 
@@ -33,7 +38,8 @@ PIPELINE_DEFINITION = """{
     { "name":   "VideoReadDepthAI",
       "parameters": {
         "data_sources": "(URL)",
-        "resolution": "1280x720", "frame_rate": 10.0, "settle": "2s"
+        "resolution": "1280x720", "frame_rate": 30.0, "rate": 10.0,
+        "settle": "2s"
       },
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [{"name": "images", "type": "[image]"}],
@@ -82,5 +88,5 @@ def test_pipeline_delivers_frames():
                        frame_data=None)
     assert not results["watchdog"], "no frames within 60 s"
     assert results["stopped"]
-    assert results["frame_ids"] == [0, 1, 2]
-    assert results["shapes"] == [(720, 1280, 3)] * 3
+    assert results["frame_ids"][:3] == [0, 1, 2]     # strays may follow
+    assert all(shape == (720, 1280, 3) for shape in results["shapes"])
