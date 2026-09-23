@@ -151,12 +151,12 @@ class StorageFileImpl(Storage):
     def add(self, dependency_name, dependency=None):
         path = Path(self._create_unique_path())
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.touch()
         try:
             Path(dependency_name).symlink_to(f"{_ROOT_FILENAME}/{path}")
-            self._track_path(path)
+            path.touch()
         except FileExistsError:
             print(f'Error: "{dependency_name}" already exists', file=sys.stderr)
+        self._track_path(path)
 
     # Create category (directory)
     #
