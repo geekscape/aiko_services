@@ -28,6 +28,8 @@
 #   process, otherwise discovery silently finds nothing
 # - A second active interface (Wi-Fi) can break discovery
 #   (X_LINK_DEVICE_NOT_FOUND): turn it off, or use depthai://<address>
+# - The device reboots when its handle closes and is not discoverable
+#   again for some seconds: open() retries the boot for OPEN_RETRY_S
 #
 # To Do
 # ~~~~~
@@ -35,6 +37,7 @@
 # - Convert NV12 to RGB in one step to save the BGR -> RGB copy
 
 from datetime import timedelta
+import time
 
 from aiko_services.elements.cameras import camera
 
@@ -57,6 +60,9 @@ AUX_RESOLUTION = (640, 480)     # the 3A accelerator stream ...
 AUX_FRAME_RATE = 10.0           # ... and its rate
 QUEUE_MAX_SIZE = 2              # 18 MB per 12 MP NV12 frame: keep it tiny
 OUTPUT_TYPE = "NV12"            # dai.ImgFrame.Type name: link bandwidth
+OPEN_RETRY_S = 30.0             # a closed device reboots: wait for it ...
+OPEN_RETRY_PERIOD_S = 1.0       # ... trying this often
+_NOT_FOUND = ("X_LINK_DEVICE_NOT_FOUND", "Failed to find device")
 _RESIZE_MODES = {"crop": "CROP", "letterbox": "LETTERBOX",
                  "stretch": "STRETCH"}
 
@@ -92,8 +98,7 @@ class OakDCamera(camera.Camera):
         if frame_rate < MIN_FRAME_RATE:
             self._log("warning", f"OAK frame_rate {frame_rate} is below "
                       f"the sensor minimum {MIN_FRAME_RATE}")
-        self.device = dai.Device(dai.DeviceInfo(self.address))  \
-            if self.address else dai.Device()
+        self.device = self._boot_device()
         self.pipeline = dai.Pipeline(self.device)
         node = self.pipeline.create(dai.node.Camera).build(
             dai.CameraBoardSocket.CAM_A)
@@ -116,6 +121,25 @@ class OakDCamera(camera.Camera):
             maxSize=QUEUE_MAX_SIZE, blocking=False)
         self.pipeline.start()
         self._frame_rate = frame_rate
+
+    def _boot_device(self):
+        """dai.Device for the address (or the first found), retried while
+        the device is not discoverable: a device that just closed reboots
+        and comes back after some seconds"""
+
+        deadline = time.monotonic() + OPEN_RETRY_S
+        while True:
+            try:
+                return dai.Device(dai.DeviceInfo(self.address))  \
+                    if self.address else dai.Device()
+            except RuntimeError as runtime_error:
+                not_found = any(text in str(runtime_error)
+                                for text in _NOT_FOUND)
+                if not not_found or time.monotonic() >= deadline:
+                    raise
+                self._log("info", "OAK camera not found yet (rebooting "
+                          "after a close?), retrying")
+                time.sleep(OPEN_RETRY_PERIOD_S)
 
     def _aux_stream_useful(self):
         """Not when the main output is the auxiliary size or smaller: it

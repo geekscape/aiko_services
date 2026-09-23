@@ -72,6 +72,8 @@ same subnet, and data flows on TCP 11490. Without DHCP the camera falls
 back to a link-local address, so give the host interface one too. On
 macOS, grant Local Network permission to the process. A second active
 interface can break discovery, so turn Wi-Fi off, or give the address.
+A device reboots when its handle closes and is not discoverable again
+for some seconds, so `open()` retries the boot for up to 30 seconds.
 
 ### Public API
 

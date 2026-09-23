@@ -173,6 +173,37 @@ def test_no_site_literals():
             with open(path) as file:
                 assert not forbidden.search(file.read()), name
 
+def test_oak_open_retries_while_the_device_reboots(monkeypatch):
+    """dai.Device() raises X_LINK_DEVICE_NOT_FOUND twice, then returns"""
+
+    from aiko_services.elements.cameras import camera_oak_d
+
+    class FakeDai:
+        calls = 0
+
+        class DeviceInfo:
+            def __init__(self, address):
+                self.address = address
+
+        @classmethod
+        def Device(cls, info=None):
+            cls.calls += 1
+            if cls.calls < 3:
+                raise RuntimeError("Failed to find device after booting, "
+                                   "error message: X_LINK_DEVICE_NOT_FOUND")
+            return ("device", info.address if info else None)
+
+    monkeypatch.setattr(camera_oak_d, "dai", FakeDai)
+    monkeypatch.setattr(camera_oak_d.time, "sleep", lambda seconds: None)
+    oak = camera_oak_d.OakDCamera(address="192.0.2.7")
+    assert oak._boot_device() == ("device", "192.0.2.7")
+    assert FakeDai.calls == 3
+    monkeypatch.setattr(camera_oak_d, "OPEN_RETRY_S", 0.0)  # no time left
+    FakeDai.calls = 0
+    with pytest.raises(RuntimeError, match="X_LINK_DEVICE_NOT_FOUND"):
+        oak._boot_device()
+    assert FakeDai.calls == 1
+
 def test_scheme_registered_once():
     import aiko_services as aiko
     module = importlib.import_module(
