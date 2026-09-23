@@ -11,6 +11,7 @@ source:
   - src/aiko_services/elements/cameras/camera_oak_d.py
   - src/aiko_services/elements/cameras/pipelines/depthai_pipeline_0.json
   - src/aiko_services/elements/cameras/pipelines/depthai_pipeline_1.json
+  - src/aiko_services/elements/cameras/pipelines/depthai_pipeline_2.json
 related: [scheme_depthai, scheme_camera, camera, image_dewarp,
   data_source_target, pipeline_element, scheme, parameters, share]
 version: "0.8-dev"
@@ -58,9 +59,11 @@ aiko_pipeline create pipelines/depthai_pipeline_0.json -s 1
 aiko_pipeline create pipelines/depthai_pipeline_0.json -s 1  \
   -p VideoReadDepthAI.data_sources "(depthai://<camera-address>)"
 
-# The video regime of a store / forward Pipeline: 1080p at 8 fps
-aiko_pipeline create pipelines/depthai_pipeline_0.json -s 1  \
-  -p VideoReadDepthAI.frame_rate 8 -p CaptureLimit.duration 10m
+# The video regime of a store / forward Pipeline: 1080p at 8 fps for
+# 30 s into data_out/depthai_0.mp4, with no display (a headless host)
+aiko_pipeline create pipelines/depthai_pipeline_2.json -s 1
+aiko_pipeline create pipelines/depthai_pipeline_2.json -s 1  \
+  -p CaptureLimit.duration 10m
 
 # Stills: native 4000x3000 at 2 fps, dewarped, three PNG files
 aiko_pipeline create pipelines/depthai_pipeline_1.json -s 1

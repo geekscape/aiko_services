@@ -27,9 +27,10 @@ PIPELINES = os.path.join(os.path.dirname(cameras.__file__), "pipelines")
 DEFINITIONS = sorted(name for name in os.listdir(PIPELINES)
                      if name.endswith(".json"))
 
-def test_three_definitions_are_committed():
+def test_four_definitions_are_committed():
     assert DEFINITIONS == ["depthai_pipeline_0.json",
-                           "depthai_pipeline_1.json", "gigev_pipeline_0.json"]
+                           "depthai_pipeline_1.json",
+                           "depthai_pipeline_2.json", "gigev_pipeline_0.json"]
 
 @pytest.mark.parametrize("name", DEFINITIONS)
 def test_definition_parses_and_deploys(name):

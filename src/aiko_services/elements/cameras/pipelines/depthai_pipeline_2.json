@@ -1,0 +1,54 @@
+{
+  "version": 0,
+  "name":    "p_depthai_2",
+  "runtime": "python",
+
+  "#": ["Luxonis OAK camera (depthai://) recorded, no display needed:",
+        "1920x1080 at 8 fps for 30 s into data_out/depthai_0.mp4, the video",
+        "regime of a store / forward Pipeline.  The auxiliary 3A stream stays",
+        "off (aux_stream auto) beside a scaled output.  Longer recording:",
+        "-p CaptureLimit.duration 10m"],
+
+  "graph": ["(VideoReadDepthAI CaptureLimit VideoWriteFile)"],
+
+  "parameters": {
+    "_create_stream_":       "1",
+    "_destroy_stream_exit_": "1"
+  },
+
+  "elements": [
+    { "name":   "VideoReadDepthAI",
+      "parameters": {
+        "data_sources": "(depthai://)",
+        "resolution":   "1920x1080",
+        "frame_rate":   8.0,
+        "settle":       "30"
+      },
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.cameras.depthai_io"}
+      }
+    },
+    { "name":   "CaptureLimit",
+      "parameters": {"duration": 30.0},  "#": "seconds, or e.g '10m'",
+      "input":  [],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.control.elements"}
+      }
+    },
+    { "name":   "VideoWriteFile",
+      "parameters": {
+        "data_targets": "(file:data_out/depthai_0.mp4)",
+        "format":       "mp4v",
+        "frame_rate":   8.0
+      },  "#": "frame_rate must match the camera's; mp4v: OpenCV's MP4 tag",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    }
+  ]
+}
