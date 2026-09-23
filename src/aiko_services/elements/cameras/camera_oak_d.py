@@ -40,6 +40,15 @@
 #   waits up to OPEN_RETRY_S for it.  An explicit address that discovery
 #   never lists (a routed subnet) is connected directly after
 #   DISCOVERY_GRACE_S, which is past the reboot window on purpose
+# - The reboot is the device's watchdog (4 s, no longer fed once the
+#   host closes the link; Pipeline.stop() closes the Device itself).
+#   Occasionally the firmware hangs in its exit path instead (100 % CPU,
+#   nothing sent) and the watchdog stores a crash dump, which the SDK
+#   reports at close as "Device ... has crashed" with a 14 KB archive
+#   under ~/.cache/depthai/crashdumps.  Every segment was written before
+#   it, the reboot follows anyway, and open() waits for it: harmless.
+#   Seen once in a dozen closes with depthai 3.10.0 (RVC2 firmware
+#   40f5e0b8, bootloader 0.0.29), to be reported upstream if it recurs
 #
 # To Do
 # ~~~~~

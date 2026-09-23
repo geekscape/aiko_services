@@ -90,6 +90,14 @@ ready, and waits up to 30 seconds for it. An address that discovery
 never lists, on a routed subnet, is connected directly after 20
 seconds, past the reboot window.
 
+The reboot is the device's own watchdog, which the host stops feeding
+when it closes the link. Now and then the firmware hangs in its exit
+path instead, and the watchdog stores a crash dump. The SDK then reports
+the crash at close and saves a small archive under its cache directory.
+Every frame was delivered before that point and the
+reboot follows anyway, so the run is not affected. Seen once in a dozen
+closes with SDK 3.10.0.
+
 ### Public API
 
 | Class | Kind | Inputs → Outputs | Parameters |
