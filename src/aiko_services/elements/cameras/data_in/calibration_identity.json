@@ -1,0 +1,9 @@
+{
+  "#": ["A zero-distortion placeholder for ImageDewarp: a pass-through.",
+        "Replace it with the calibration of your camera and lens, from",
+        "cv2.calibrateCamera() or the device's own factory data"],
+  "camera_matrix": [[1920.0, 0.0, 959.5], [0.0, 1920.0, 539.5], [0.0, 0.0, 1.0]],
+  "dist_coeffs": [0.0, 0.0, 0.0, 0.0, 0.0],
+  "image_size": [1920, 1080],
+  "source": "identity"
+}

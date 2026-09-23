@@ -1,0 +1,63 @@
+{
+  "version": 0,
+  "name":    "p_depthai_1",
+  "runtime": "python",
+
+  "#": ["Luxonis OAK camera (depthai://) stills: the sensor's native",
+        "4000x3000 at 2 fps, undistorted with a lens calibration, three",
+        "frames written as PNG files into data_out/.  The calibration here",
+        "is the zero-distortion placeholder: replace it with your camera's",
+        "-p ImageDewarp.calibration_path <calibration>.json"],
+
+  "graph": ["(VideoReadDepthAI ImageDewarp CaptureLimit ImageWriteFile)"],
+
+  "parameters": {
+    "_create_stream_":       "1",
+    "_destroy_stream_exit_": "1"
+  },
+
+  "elements": [
+    { "name":   "VideoReadDepthAI",
+      "parameters": {
+        "data_sources": "(depthai://)",
+        "resolution":   "native",
+        "frame_rate":   2.0,
+        "settle":       "30",  "#": "auto-focus and exposure converge first"
+      },
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.cameras.depthai_io"}
+      }
+    },
+    { "name":   "ImageDewarp",
+      "parameters": {
+        "calibration_path": "data_in/calibration_identity.json",
+        "alpha":            0.0
+      },
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.cameras.image_dewarp"}
+      }
+    },
+    { "name":   "CaptureLimit",
+      "parameters": {"frame_count": 3},
+      "input":  [],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.control.elements"}
+      }
+    },
+    { "name":   "ImageWriteFile",
+      "parameters": {
+        "data_targets": "(file:data_out/depthai_{:03d}.png)"
+      },
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.image_io"}
+      }
+    }
+  ]
+}
