@@ -6,6 +6,11 @@
 # which is NATIVE_RESOLUTION here.  A scaled output of any smaller size
 # comes from the ISP with the requested resize mode
 #
+# Frames are requested as NV12 and converted to RGB on the host.  NV12 is
+# 1.5 bytes per pixel against 3 for BGR888i: 1920x1080 at 25 fps is then
+# 78 MB/s, which a gigabit PoE link carries, where BGR888i (155 MB/s)
+# backs up the device's output buffers until its firmware crashes
+#
 # Auto-focus models: the first frames after open() are out of focus and
 # under- or over-exposed while the 3A loops converge.  The auxiliary
 # 640x480 @ 10 fps stream keeps the sensor pipeline busy so the loops
@@ -25,7 +30,7 @@
 # To Do
 # ~~~~~
 # - Manual exposure and ISO through the Camera control queue
-# - RGB888i output with getFrame() to save the BGR -> RGB copy
+# - Convert NV12 to RGB in one step to save the BGR -> RGB copy
 
 from datetime import timedelta
 
@@ -48,7 +53,8 @@ NATIVE_RESOLUTION = camera.NATIVE_RESOLUTION
 MIN_FRAME_RATE = 1.42           # the sensor configuration's minimum
 AUX_RESOLUTION = (640, 480)     # the 3A accelerator stream ...
 AUX_FRAME_RATE = 10.0           # ... and its rate
-QUEUE_MAX_SIZE = 2              # 36 MB per 12 MP frame: keep the queue tiny
+QUEUE_MAX_SIZE = 2              # 18 MB per 12 MP NV12 frame: keep it tiny
+OUTPUT_TYPE = "NV12"            # dai.ImgFrame.Type name: link bandwidth
 _RESIZE_MODES = {"crop": "CROP", "letterbox": "LETTERBOX",
                  "stretch": "STRETCH"}
 
@@ -93,17 +99,17 @@ class OakDCamera(camera.Camera):
             self.aux_queue = node.requestOutput(
                 AUX_RESOLUTION, fps=AUX_FRAME_RATE).createOutputQueue(
                 maxSize=1, blocking=False)
+        output_type = getattr(dai.ImgFrame.Type, OUTPUT_TYPE)
         if self._resolution is None  \
             or tuple(self._resolution) == NATIVE_RESOLUTION:
             output = node.requestFullResolutionOutput(
-                type=dai.ImgFrame.Type.BGR888i, fps=frame_rate,
+                type=output_type, fps=frame_rate,
                 useHighestResolution=True)  # else capped below 4000x3000
         else:
             resize_mode = getattr(
                 dai.ImgResizeMode, _RESIZE_MODES[self.resize_mode])
             output = node.requestOutput(tuple(self._resolution),
-                type=dai.ImgFrame.Type.BGR888i, resizeMode=resize_mode,
-                fps=frame_rate)
+                type=output_type, resizeMode=resize_mode, fps=frame_rate)
         self.queue = output.createOutputQueue(
             maxSize=QUEUE_MAX_SIZE, blocking=False)
         self.pipeline.start()
@@ -123,11 +129,11 @@ class OakDCamera(camera.Camera):
         if frame is None:
             raise camera.CaptureTimeout(
                 f"OAK camera: no frame within {timeout_s} s")
-        image_bgr = frame.getCvFrame()
-        image_rgb = image_bgr[..., ::-1].copy()  # BGR888i --> RGB
+        image_bgr = frame.getCvFrame()            # NV12 --> BGR, on the host
+        image_rgb = image_bgr[..., ::-1].copy()   # BGR --> RGB
         self._resolution = (image_rgb.shape[1], image_rgb.shape[0])
 
-        metadata = {"pixel_format": "BGR888i"}
+        metadata = {"pixel_format": OUTPUT_TYPE}
         for name, getter in [
                 ("exposure_us", frame.getExposureTime),
                 ("iso_sensitivity", frame.getSensitivity),

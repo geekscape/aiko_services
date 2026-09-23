@@ -117,7 +117,11 @@ each frame: `exposure_us`, `iso_sensitivity`, `lens_position` and
   `requestOutput()` of that size with the resize mode. `native` or
   `full` is `requestFullResolutionOutput()` with the highest resolution
   flag, without which the output is capped below 4000x3000.
-- **Small non-blocking queues.** A 12 megapixel frame is 36 MB. The
+- **NV12 on the link.** Frames are requested as NV12, 1.5 bytes per
+  pixel, and converted on the host. A `BGR888i` request at 1920x1080 and
+  25 fps is 155 MB/s, more than a gigabit PoE link carries, and the
+  device crashed under it. NV12 halves that twice.
+- **Small non-blocking queues.** A 12 megapixel NV12 frame is 18 MB. The
   output queue holds two frames and drops the oldest.
 - **Bounded capture.** `queue.get(timedelta)` returns `None` on timeout,
   which becomes `CaptureTimeout`, so the Stream can always be destroyed.
@@ -126,9 +130,9 @@ each frame: `exposure_us`, `iso_sensitivity`, `lens_position` and
 
 - `depthai` is a guarded import. `OakDCamera.available()` is false
   without it, and the scheme reports the install line as a diagnostic.
-- Frames arrive as `BGR888i` and are flipped to RGB with a copy. An RGB
-  output type with `getFrame()` would save the copy and is on the To Do
-  list.
+- `getCvFrame()` converts NV12 to BGR on the host, and a second copy
+  flips it to RGB. A one-step conversion to RGB would save the copy and
+  is on the To Do list.
 - The element pre-populates only status keys in share, never a parameter
   name. The framework reads share before the element parameter of the
   same name, so a placeholder value there would replace the parameter.
@@ -146,7 +150,7 @@ From the source To Do list:
 
 - Manual exposure and ISO through the camera control queue, which would
   make `exposure_us` writable as it is for the GigE camera
-- `RGB888i` output to save the BGR to RGB copy
+- A one-step NV12 to RGB conversion, to save the BGR to RGB copy
 - Stereo depth and IMU outputs as further Frame data
 
 Known limits: the scaled output path was designed from the SDK
