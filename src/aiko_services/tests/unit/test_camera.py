@@ -239,6 +239,13 @@ def fake_dai(monkeypatch):
 READY = "X_LINK_BOOTLOADER"
 BUSY = "X_LINK_BOOTED"           # another process holds it, or a teardown
 
+def test_oak_aux_stream_default_is_native_only():
+    from aiko_services.elements.cameras.camera_oak_d import (
+        NATIVE_RESOLUTION, aux_stream_default)
+    assert aux_stream_default(None) and aux_stream_default(NATIVE_RESOLUTION)
+    assert not aux_stream_default((1920, 1080))
+    assert not aux_stream_default((640, 480))
+
 def test_oak_open_waits_for_discovery_after_a_reboot(fake_dai):
     """Absent for 10 s, then listed as ready: one connection, to the
     discovered DeviceInfo, never during the absence"""

@@ -86,7 +86,7 @@ def ensure_gentl_path():
 
 class IdsPeakCamera(camera.Camera):
     def __init__(self, address=None, resolution=None, frame_rate=None,
-        resize_mode="crop", trigger="off", aux_stream=True, logger=None):
+        resize_mode="crop", trigger="off", aux_stream=None, logger=None):
 
         super().__init__(address, resolution, frame_rate, resize_mode,
                          trigger, aux_stream, logger)

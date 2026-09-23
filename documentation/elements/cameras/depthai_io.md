@@ -30,9 +30,9 @@ the shared state. The element is thin, as `VideoReadRTSP` and
 `SyntheticVideoRead` are.
 
 The device layer `camera_oak_d.py` delivers a scaled output of any size
-from the ISP, or the sensor's native 4000x3000. An auxiliary 640x480
-stream keeps the sensor busy, so auto-focus and auto-exposure converge
-about four times faster.
+from the ISP, or the sensor's native 4000x3000. For the native output
+an auxiliary 640x480 stream keeps the sensor busy, so auto-focus and
+auto-exposure converge about four times faster.
 
 **Why to use it**: put an OAK camera into any video Pipeline by changing
 one element:
@@ -83,7 +83,7 @@ seconds, past the reboot window.
 
 | Class | Kind | Inputs → Outputs | Parameters |
 |-------|------|------------------|------------|
-| `VideoReadDepthAI` | DataSource | `images: [image]` → `images: [image]` | `data_sources` (`(depthai://)` or `(depthai://<address>)`), `resolution` (`1920x1080`), `frame_rate` (`8.0`), `settle` (`30`), `aux_stream` (`true`), `resize_mode`, `rate`, `capture_timeout`, `log_frames`, `media_type` |
+| `VideoReadDepthAI` | DataSource | `images: [image]` → `images: [image]` | `data_sources` (`(depthai://)` or `(depthai://<address>)`), `resolution` (`1920x1080`), `frame_rate` (`8.0`), `settle` (`30`), `aux_stream` (`auto`), `resize_mode`, `rate`, `capture_timeout`, `log_frames`, `media_type` |
 
 Service protocol: `video_read_depthai:0`.
 

@@ -71,7 +71,7 @@ class Camera:
     generator thread against setters called from the event-loop thread"""
 
     def __init__(self, address=None, resolution=None, frame_rate=None,
-        resize_mode="crop", trigger="off", aux_stream=True, logger=None):
+        resize_mode="crop", trigger="off", aux_stream=None, logger=None):
 
         self.address = address          # None: the first camera found
         self._resolution = resolution   # (w, h) or None: native

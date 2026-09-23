@@ -16,7 +16,11 @@
 # 640x480 @ 10 fps stream keeps the sensor pipeline busy so the loops
 # converge about four times faster in wall-clock time; the DataScheme
 # discards frames until "lens_position" and "iso_sensitivity" settle.
-# A main output of the auxiliary size and rate alongside it is fine
+# The auxiliary stream is on by default for the native output only
+# (aux_stream None: auto).  Beside a 1920x1080 output at 8 fps the
+# device delivered one frame and then nothing, while 1280x720 at 8 fps,
+# 1920x1080 at 10 fps and 1920x1080 at 8 fps without it all ran at the
+# requested rate.  A scaled output runs the sensor fast enough anyway
 #
 # PoE notes
 # ~~~~~~~~~
@@ -47,7 +51,8 @@ import time
 
 from aiko_services.elements.cameras import camera
 
-__all__ = ["DEPTHAI_DIAGNOSTIC", "DEPTHAI_IMPORTED", "OakDCamera"]
+__all__ = ["DEPTHAI_DIAGNOSTIC", "DEPTHAI_IMPORTED", "OakDCamera",
+           "aux_stream_default"]
 
 DEPTHAI_IMPORTED = False
 DEPTHAI_DIAGNOSTIC = ""
@@ -78,9 +83,15 @@ _RESIZE_MODES = {"crop": "CROP", "letterbox": "LETTERBOX",
 
 # --------------------------------------------------------------------------- #
 
+def aux_stream_default(resolution):
+    """The auxiliary 3A stream is on by default for the native output
+    only: the proven combination, and the one that needs it"""
+
+    return resolution is None or tuple(resolution) == NATIVE_RESOLUTION
+
 class OakDCamera(camera.Camera):
     def __init__(self, address=None, resolution=None, frame_rate=None,
-        resize_mode="crop", trigger="off", aux_stream=True, logger=None):
+        resize_mode="crop", trigger="off", aux_stream=None, logger=None):
 
         super().__init__(address, resolution, frame_rate, resize_mode,
                          trigger, aux_stream, logger)
@@ -88,6 +99,8 @@ class OakDCamera(camera.Camera):
         self.pipeline = None
         self.queue = None
         self.aux_queue = None
+        if self.aux_stream is None:                    # auto
+            self.aux_stream = aux_stream_default(self._resolution)
 
     @classmethod
     def available(cls) -> bool:

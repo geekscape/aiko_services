@@ -59,8 +59,8 @@ The scheme has no command line of its own. The
 # Faster start when the scene is bright and still: fewer settle frames
 -p VideoReadDepthAI.settle 5
 
-# No auxiliary stream (slower 3A convergence, less traffic)
--p VideoReadDepthAI.aux_stream false
+# The auxiliary 3A stream beside a scaled output (off by default there)
+-p VideoReadDepthAI.aux_stream true
 ```
 
 ### Public API
@@ -77,7 +77,7 @@ Parameters, in addition to the [common ones](scheme_camera.md):
 | Parameter | Default | Meaning |
 |-----------|---------|---------|
 | `settle` | `30` | The upper bound on frames discarded while the 3A loops converge. The wait ends early once `lens_position` is engaged and stable and `iso_sensitivity` is stable, over three frames |
-| `aux_stream` | `true` | The 640x480 stream at 10 fps that keeps the sensor pipeline busy, so the 3A loops converge about four times faster |
+| `aux_stream` | `auto` | The 640x480 stream at 10 fps that keeps the sensor pipeline busy, so the 3A loops converge about four times faster. `auto` is `true` for the native output only, where the sensor runs slowly. Beside a 1920x1080 output at 8 fps it stalls the device after one frame |
 
 Shared state adds `aux_stream` and the `sensor.*` values of the camera:
 `exposure_us`, `iso_sensitivity`, `lens_position` and

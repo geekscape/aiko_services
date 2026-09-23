@@ -99,7 +99,7 @@ def test_defaults_and_rate(fake):
     assert instance._resolution == (1920, 1080)
     assert instance._frame_rate == 8.0
     assert element.share["settle"] == "30"
-    assert element.share["aux_stream"] == "true"
+    assert element.share["aux_stream"] == "false"     # auto: not native
     assert element.share["capture_timeout"] == "1.0"
     assert element.share["state"] == "settling"
     assert element.share["settled"] == "waiting"
@@ -110,6 +110,25 @@ def test_defaults_and_rate(fake):
     assert fake.INSTANCES[-1]._frame_rate == 2.0    # deprecated alias
     assert element.create_frames_calls[0][1] == 5.0  # delivery throttle
     stop(scheme, stream)
+
+def test_aux_stream_auto(fake):
+    """auto is true for the native output only; true and false override"""
+
+    for parameters, expected in (({"resolution": "native"}, True),
+                                 ({"resolution": "1920x1080"}, False),
+                                 ({"resolution": "1920x1080",
+                                   "aux_stream": "true"}, True),
+                                 ({"resolution": "native",
+                                   "aux_stream": "false"}, False)):
+        parameters["settle"] = 0
+        scheme, element, stream, event, _ = start(parameters)
+        assert event == aiko.StreamEvent.OKAY, parameters
+        assert fake.INSTANCES[-1].aux_stream is expected, parameters
+        assert element.share["aux_stream"] == str(expected).lower()
+        stop(scheme, stream)
+    _, _, _, event, detail = start({"aux_stream": "maybe"})
+    assert event == aiko.StreamEvent.ERROR
+    assert "aux_stream" in detail["diagnostic"]
 
 def test_native_resolution(fake):
     scheme, element, stream, event, _ = start({"resolution": "native",

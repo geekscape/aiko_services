@@ -11,8 +11,11 @@
 #                          focus, exposure, white balance) need them; the
 #                          wait ends early once lens_position and
 #                          iso_sensitivity are stable
-# parameter: "aux_stream"  true: the 640x480 @ 10 fps stream that makes
-#                          the 3A loops converge about four times faster
+# parameter: "aux_stream"  the 640x480 @ 10 fps stream that makes the
+#                          3A loops converge about four times faster:
+#                          "auto" (default) is true for the native output
+#                          only, else "true" or "false".  Beside a
+#                          1920x1080 output at 8 fps it stalls the device
 #
 # Shared state adds: aux_stream, sensor.iso_sensitivity,
 #   sensor.lens_position, sensor.color_temperature_k
@@ -27,6 +30,7 @@
 import aiko_services as aiko
 from aiko_services.elements.cameras import camera
 from aiko_services.elements.cameras.camera_oak_d import OakDCamera  # seam
+from aiko_services.elements.cameras.camera_oak_d import aux_stream_default
 from aiko_services.elements.cameras.scheme_camera import DataSchemeCamera
 
 __all__ = ["DataSchemeDepthAI"]
@@ -48,9 +52,12 @@ class DataSchemeDepthAI(DataSchemeCamera):
         return camera_class
 
     def _extra_settings(self, settings):
-        settings["aux_stream"] = camera.parse_bool(
-            self.pipeline_element.get_parameter("aux_stream", True)[0],
-            "aux_stream")
+        value = self.pipeline_element.get_parameter("aux_stream", "auto")[0]
+        if str(value).strip().lower() == "auto":
+            settings["aux_stream"] = aux_stream_default(
+                settings["resolution"])
+        else:
+            settings["aux_stream"] = camera.parse_bool(value, "aux_stream")
 
     def _start_warm_up(self, settings):
         self.settle = camera.SettleMonitor(settings["settle"])
