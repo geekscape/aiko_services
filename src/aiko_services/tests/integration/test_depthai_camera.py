@@ -33,7 +33,7 @@ PIPELINE_DEFINITION = """{
     { "name":   "VideoReadDepthAI",
       "parameters": {
         "data_sources": "(URL)",
-        "resolution": "640x480", "frame_rate": 10.0, "settle": "2s"
+        "resolution": "1280x720", "frame_rate": 10.0, "settle": "2s"
       },
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [{"name": "images", "type": "[image]"}],
@@ -65,12 +65,13 @@ def test_open_capture_close_three_times():
     address = None if ADDRESS == "1" else ADDRESS
     _url()
     for _ in range(3):
-        camera = OakDCamera(address=address, resolution=(640, 480),
+        camera = OakDCamera(address=address, resolution=(1280, 720),
                             frame_rate=10.0)
         camera.open()
         try:
             image, metadata = camera.capture(timeout_s=10.0)
-            assert image.shape == (480, 640, 3) and image.dtype.name == "uint8"
+            assert image.shape == (720, 1280, 3)
+            assert image.dtype.name == "uint8"
             assert "exposure_us" in metadata
         finally:
             camera.close()
@@ -82,4 +83,4 @@ def test_pipeline_delivers_frames():
     assert not results["watchdog"], "no frames within 60 s"
     assert results["stopped"]
     assert results["frame_ids"] == [0, 1, 2]
-    assert results["shapes"] == [(480, 640, 3)] * 3
+    assert results["shapes"] == [(720, 1280, 3)] * 3
