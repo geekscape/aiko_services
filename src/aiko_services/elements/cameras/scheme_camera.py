@@ -42,7 +42,11 @@
 # Threads: create_sources() / destroy_sources() and the share handler run
 # on the event-loop thread and publish directly.  frame_generator() runs
 # on the frame generator thread and never touches share: it records into a
-# pending dictionary that an event-loop timer publishes once a second
+# pending dictionary that an event-loop timer publishes once a second.
+# A process abort (KeyboardInterrupt in the event loop) exits without
+# destroying the Streams, and a generator thread blocked inside the SDK
+# when the interpreter finalizes aborts the process (C++ terminate), so
+# an atexit hook closes the camera first
 #
 # To Do
 # ~~~~~
@@ -53,6 +57,7 @@
 # - "data_batch_size" > 1
 # - Device-clock timestamps
 
+import atexit
 import threading
 import time
 
@@ -89,6 +94,7 @@ class DataSchemeCamera(aiko.DataScheme):
         self._publishing = False       # ECProducer re-enters the handlers
         self._timer_armed = False
         self._handler_armed = False
+        self._atexit_armed = False
 
     # Subclass hooks ------------------------------------------------------- #
 
@@ -220,6 +226,8 @@ class DataSchemeCamera(aiko.DataScheme):
             f"at {settings['frame_rate']} fps, settle <= "
             f"{settings['settle']} frames")
 
+        atexit.register(self._close_at_exit)
+        self._atexit_armed = True
         aiko.add_timer_handler(self._publish_handler, PUBLISH_PERIOD_S)
         self._timer_armed = True
         pipeline_element.ec_producer.add_handler(
@@ -231,6 +239,9 @@ class DataSchemeCamera(aiko.DataScheme):
 
     def destroy_sources(self, stream):
         self.stopped = True             # frame_generator() returns STOP next
+        if self._atexit_armed:
+            atexit.unregister(self._close_at_exit)
+            self._atexit_armed = False
         if self._timer_armed:
             aiko.remove_timer_handler(self._publish_handler)
             self._timer_armed = False
@@ -247,6 +258,18 @@ class DataSchemeCamera(aiko.DataScheme):
             self.camera = None
         self._publish_handler()         # flush what the generator recorded
         self._publish("state", "stopped")
+
+    def _close_at_exit(self):
+        """Process abort: close the camera so no thread is blocked inside
+        the SDK while the interpreter finalizes.  No logging, no share"""
+
+        self.stopped = True
+        camera_instance, self.camera = self.camera, None
+        if camera_instance:
+            try:
+                camera_instance.close()
+            except Exception:
+                pass
 
     # Frame generator (frame generator thread) ------------------------------ #
 

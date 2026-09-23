@@ -123,6 +123,10 @@ starts with. The base's writable keys are `capture_timeout` and
   frame is delivered as `{"images": [image]}` with a timestamp.
 - `destroy_sources()` stops the generator, removes the timer and the
   share handler, closes the camera and publishes `state stopped`.
+- A process abort (a keyboard interrupt in the event loop) exits without
+  destroying the Streams. An `atexit` hook, registered while the camera
+  is open, closes it first. Without it a generator thread blocked inside
+  the SDK when the interpreter finalizes aborts the process.
 
 ## For framework developers (internals)
 

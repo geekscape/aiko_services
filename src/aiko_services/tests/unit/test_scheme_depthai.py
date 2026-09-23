@@ -16,6 +16,7 @@ import pytest
 
 import aiko_services as aiko
 from aiko_services.elements.cameras import camera
+from aiko_services.elements.cameras import scheme_camera
 from aiko_services.elements.cameras import scheme_depthai
 from aiko_services.elements.cameras.scheme_depthai import DataSchemeDepthAI
 from aiko_services.tests.unit.fake_camera import (
@@ -26,10 +27,24 @@ ADDRESS = "192.0.2.10"        # RFC 5737 documentation address
 
 # --------------------------------------------------------------------------- #
 
+class FakeAtexit:
+    """atexit with the registered callables visible"""
+
+    def __init__(self):
+        self.handlers = []
+
+    def register(self, handler):
+        self.handlers.append(handler)
+
+    def unregister(self, handler):
+        self.handlers = [h for h in self.handlers if h != handler]
+
 @pytest.fixture
 def fake(monkeypatch):
     do_fake_initialize()
     monkeypatch.setattr(scheme_depthai, "OakDCamera", FakeCamera)
+    FakeCamera.ATEXIT = FakeAtexit()
+    monkeypatch.setattr(scheme_camera, "atexit", FakeCamera.ATEXIT)
     yield FakeCamera
     do_fake_initialize()
 
@@ -47,6 +62,7 @@ def start(parameters=None, url="depthai://"):
 def stop(scheme, stream):
     scheme.destroy_sources(stream)
     assert not scheme._timer_armed and not scheme._handler_armed
+    assert FakeCamera.ATEXIT.handlers == []          # unregistered
 
 # --------------------------------------------------------------------------- #
 
@@ -235,6 +251,22 @@ def test_destroy_then_generator_stops(fake):
     frame_event, detail = scheme.frame_generator(stream, 0)
     assert frame_event == aiko.StreamEvent.STOP
     assert "destroyed" in detail["diagnostic"]
+
+def test_process_abort_closes_the_camera(fake):
+    """The atexit hook, registered while the camera is open, closes it
+    and stops the generator; it is harmless twice and after destroy"""
+
+    scheme, element, stream, event, _ = start({"settle": 0})
+    assert event == aiko.StreamEvent.OKAY
+    handlers = fake.ATEXIT.handlers
+    assert handlers == [scheme._close_at_exit]
+    instance = fake.INSTANCES[-1]
+    handlers[0]()                                    # what SystemExit does
+    assert instance.closed and scheme.camera is None and scheme.stopped
+    assert scheme.frame_generator(stream, 0)[0] == aiko.StreamEvent.STOP
+    handlers[0]()                                    # idempotent
+    stop(scheme, stream)                             # still clean
+    scheme._close_at_exit()                          # after destroy: no-op
 
 def test_writable_keys(fake):
     scheme, element, stream, event, _ = start({"settle": 0})
