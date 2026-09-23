@@ -39,8 +39,8 @@
       "parameters": {
         "data_targets":    "(store_forward://data_out/outbox)",
         "segment_seconds": 10.0,
-        "format":          "mp4v"
-      },  "#": "mp4v: the tag OpenCV uses for MP4 ('MP4V' logs a warning)",
+        "format":          "avc1"
+      },  "#": "avc1: H.264 in MP4, three times cheaper to encode than mp4v",
       "input":  [{"name": "images", "type": "[image]"}],
       "output": [],
       "deploy": {

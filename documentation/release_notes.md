@@ -86,6 +86,14 @@ sections are.
   *calibration_path*.  Three example PipelineDefinitions use placeholder
   URLs that discover the first camera
 
+* *VideoWriteStoreForward* defaults are now *format* *avc1* (H.264 in
+  MP4) and *frame_rate* *8.0*.  Measured on an embedded ARM computer,
+  OpenCV's *mp4v* takes 111 ms per 1920x1080 frame and *avc1* 35 ms.
+  The Pipeline holds the Stream lock while a frame is encoded, so the
+  source is not read meanwhile.  A slow encode thus loses frames at the
+  source.  *store_forward_pipeline_0.json* and the cameras' recording
+  example *depthai_pipeline_2.json* encode *avc1*
+
 * New DataSchemes *depthai* (*elements/cameras/scheme_depthai.py*) and
   *gigev* (*elements/cameras/scheme_gigev.py*), on the shared
   *DataSchemeCamera* base (*elements/cameras/scheme_camera.py*).  A

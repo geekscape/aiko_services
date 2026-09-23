@@ -101,7 +101,7 @@ Element definition:
   "parameters": {
     "data_targets":    "(store_forward://data_out/outbox)",
     "segment_seconds": 10.0,
-    "format":          "mp4v"
+    "format":          "avc1"
   },
   "input":  [{"name": "images", "type": "[image]"}],
   "output": [],
@@ -116,8 +116,8 @@ Element definition:
 | `data_targets` | must be set | `(store_forward://OUTBOX)`, see the [scheme](scheme_store_forward.md) |
 | `segment_seconds` | `10.0` | Close a segment after this many seconds (0: unused) |
 | `segment_frames` | `0` | Or after this many frames (0: unused). Either bound closes the segment |
-| `frame_rate` | `15.0` | Encoded frames per second. Keep equal to the source `rate` |
-| `format` | `mp4v` | OpenCV fourcc tag |
+| `frame_rate` | `8.0` | Encoded frames per second. Keep equal to the source `rate` |
+| `format` | `avc1` | OpenCV fourcc tag. `avc1` is H.264 in MP4. On an embedded ARM computer it encodes a 1920x1080 frame in 35 ms, where `mp4v` takes 111 ms. The Pipeline holds the Stream lock during the encode, so a slow encode also stops the source, and frames are lost |
 | `resolution` | first frame | `WxH`, otherwise the shape of the first frame of each segment |
 | `segment_prefix` | none | Optional file name prefix, `[A-Za-z0-9_-]`, up to 32 characters, read by the scheme |
 
@@ -179,7 +179,7 @@ too. A segment with no frames leaves no file.
 
 ## Current limitations and roadmap
 
-- Segments are plain MP4 (`mp4v`). Fragmented MP4, so a partially
+- Segments are plain MP4 (H.264). Fragmented MP4, so a partially
   received segment plays, is planned.
 - The element does not announce a closed segment to the Actor. The
   watcher's scan period adds up to two scans of latency.
