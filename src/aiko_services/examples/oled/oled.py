@@ -70,6 +70,8 @@ import threading
 import time
 import traceback
 
+import textwrap
+
 import click
 
 import aiko_services as aiko
@@ -962,12 +964,23 @@ def _display_hint(bus):
 def main(ctx, name, timeout):
     """OLED Actor: run it, or send commands to the running one
 
+    An SSD1306 128x64 OLED as an Aiko Services Actor (protocol oled:0): a
+    status display for a headless host, a canvas any client draws on with
+    the same S-expressions as the aiko_engine_mp OLED, settings the Aiko
+    Dashboard reads and writes, and applets (games, drawings, a clock, eyes,
+    a demo) that run on the display.  Without the panel, a desktop window,
+    the terminal or a PNG file emulates it.
+
     \b
-    export AIKO_MQTT_HOST=localhost
-    aiko_oled run -a 0x3C                # the OLED, or an emulation on a desktop
-    aiko_oled text 0 0 hello             # from another terminal or host
-    aiko_oled -n w3029f1 set contrast 64 # another host's Actor; the Dashboard too
-    aiko_oled -t 2 exit
+    export AIKO_MQTT_HOST=localhost       # the broker; aiko_registrar must run
+    aiko_oled run -a 0x3C                 # the OLED, or emulated on a desktop
+    aiko_oled text 0 0 hello              # from another terminal: the bottom row
+    aiko_oled log Hello from nomad        # scrolls; the status applet shows it
+    aiko_oled set contrast 64             # a setting: the Dashboard edits it too
+    aiko_oled applet pong                 # an applet; applet -l lists them
+    aiko_oled keys                        # an interactive console
+    aiko_oled -n w3029f1 -t 3 applet eyes # another host's Actor, 3 s to find it
+    aiko_oled exit
     """
 
     ctx.obj = {"name": name, "timeout": timeout}
@@ -1003,7 +1016,36 @@ def main(ctx, name, timeout):
 
 def run_command(options, output, address, bus, applet, font_size, title,
     color, png, standalone, strict):
-    """Run the OLED Actor (foreground; append & or use aiko_process create)"""
+    """Run the OLED Actor in the foreground (append & for the background, or
+    start it with "aiko_process create")
+
+    \b
+    The display (-o):
+      oled      the SSD1306 over I2C: -a address (0x3C, or 0x3D with SA0
+                high), -b bus; needs "pip install luma.oled"
+      window    an emulated OLED in a pygame window, 5x with pixel gaps;
+                Esc closes it, keys work as in "aiko_oled keys"
+      terminal  half-block characters, 128x34 (Braille dots when smaller)
+      png       the latest frame in a PNG file (--png, at most once a second)
+      none      no display: the Actor still runs (shared state, applets)
+      auto      oled when /dev/i2c-N exists, else window on a desktop with
+                pygame, else terminal
+
+    \b
+    At start the Actor shows --applet (status: IP address, uptime, CPU and
+    memory, disk and load, network, temperature, the newest log line) under
+    the title row: the Actor's name (-n, default the hostname; --title TEXT
+    with _ for spaces, or off), the annunciators L (log lines not yet
+    shown), M (connected to the broker) and R (registered), and the clock.
+    -fs is the text font (5x7, or a TrueType size 6..64); -c colours an
+    emulated display, e.g. -c 'yellow navy'.
+
+    \b
+    --standalone runs without an MQTT broker: the status display still
+    works.  --strict exits when the display can't be opened, instead of
+    reporting "device absent" and retrying every 10 s.  Ctrl-C, SIGTERM,
+    "(exit)" and "aiko_oled exit" all blank the display on the way out.
+    """
 
     name = options["name"] or get_hostname()
     if output == "terminal":  # console logging would scribble on the picture
@@ -1035,7 +1077,12 @@ def run_command(options, output, address, bus, applet, font_size, title,
 @click.pass_obj
 
 def exit_command(options, every):
-    """Blank the display and terminate the OLED Actor"""
+    """Blank the display and terminate the OLED Actor
+
+    The Actor named with -n (default: the local hostname).  -n '*' with
+    --all exits every OLED Actor on the broker.  Exit status 1 after -t
+    seconds when no Actor answers.  The same as "(exit)" on the in topic.
+    """
 
     if options["name"] == "*" and not every:
         raise click.BadParameter("-n '*' would exit every OLED Actor: add --all")
@@ -1045,7 +1092,13 @@ def exit_command(options, every):
 @click.pass_obj
 
 def list_command(options):
-    """List the running OLED Actors (all, or -n NAME): name, topic path, tags"""
+    """List the running OLED Actors: name, topic path, tags
+
+    Every oled:0 Actor on the broker (or the one named with -n), collected
+    for -t seconds through the Registrar.  Exit status 1 when none is found:
+    check AIKO_MQTT_HOST, that aiko_registrar runs, and for a stale retained
+    Registrar announcement (see the test guide).
+    """
 
     name, timeout = options["name"] or "*", options["timeout"]
     found = []
@@ -1071,7 +1124,12 @@ def list_command(options):
 @click.pass_obj
 
 def clear_command(options):
-    """Erase the canvas"""
+    """Erase the canvas (the title row stays)
+
+    Drawing commands (clear, text, pixels, line) stop a running applet so
+    that the canvas shows; "aiko_oled applet status" brings the status
+    display back.  The same as "(clear)" or aiko_engine_mp's "(oled:clear)".
+    """
 
     _remote(OLED, options, lambda oled: oled.clear())
 
@@ -1081,7 +1139,14 @@ def clear_command(options):
 @click.pass_obj
 
 def log_command(options, words):
-    """Scroll the canvas up and write WORDS on the bottom row"""
+    """Scroll the canvas up one text row and write WORDS on the bottom row
+
+    The line is also kept (the last eight) for the status applet, which
+    shows the newest, and the log applet, which shows them all; until one
+    of them shows it, the title row's L annunciator is on (shared state
+    log_pending).  A running applet keeps running.  At most 128 characters.
+    The same as "(log WORDS ...)" or aiko_engine_mp's "(oled:log ...)".
+    """
 
     _remote(OLED, options, lambda oled: oled.log(*words))
 
@@ -1093,7 +1158,15 @@ def log_command(options, words):
 @click.pass_obj
 
 def text_command(options, x, y, words):
-    """Write WORDS with the text cell's bottom-left at X Y (origin bottom-left)"""
+    """Write WORDS on the canvas with the text cell's bottom-left at X Y
+
+    X is 0..127 left to right and Y 0..63 bottom to top, as on the
+    aiko_engine_mp OLED: "text 0 0 hello" is the bottom row, "text 0 8 ..."
+    the row above with the 5x7 font (8 pixel rows, 21 characters across).
+    The font is the "font" setting.  Quote a word that starts with digits
+    and a colon ("12:30").  Stops a running applet so the canvas shows.
+    The same as "(text X Y WORDS ...)" or "(oled:text ...)".
+    """
 
     _remote(OLED, options, lambda oled: oled.text(x, y, *words))
 
@@ -1103,7 +1176,12 @@ def text_command(options, x, y, words):
 @click.pass_obj
 
 def pixels_command(options, coordinates):
-    """Light pixels: X Y pairs, origin bottom-left"""
+    """Light pixels at X Y pairs, origin bottom-left
+
+    X 0..127, Y 0..63; at most 256 pairs; all or nothing when a coordinate
+    is out of range.  The same as "(pixels X Y X Y ...)" or "(oled:pixels
+    ...)"; one pixel is "(pixel X Y)".
+    """
 
     if len(coordinates) % 2 or len(coordinates) > 2 * PIXEL_PAIRS_MAXIMUM:
         raise click.BadParameter(
@@ -1119,7 +1197,10 @@ def pixels_command(options, coordinates):
 @click.pass_obj
 
 def line_command(options, x0, y0, x1, y1):
-    """Draw a line from X0 Y0 to X1 Y1 (origin bottom-left)"""
+    """Draw a line from X0 Y0 to X1 Y1, origin bottom-left
+
+    The same as "(line X0 Y0 X1 Y1)" (not in aiko_engine_mp).
+    """
 
     _remote(OLED, options, lambda oled: oled.line(x0, y0, x1, y1))
 
@@ -1130,12 +1211,25 @@ def line_command(options, x0, y0, x1, y1):
 @click.pass_obj
 
 def set_command(options, key, value):
-    """Change a setting: the shared state that the Dashboard also edits
+    """Change a setting: shared state that the Aiko Dashboard also edits
+
+    Sends "(update KEY VALUE)" on the Actor's control topic, exactly what
+    the Dashboard does when a variable is edited.  A bad value is rejected
+    (last_error tells why) and the value in force is published again.
+    Values are single tokens: _ stands for a space in a title.
 
     \b
-    contrast 0..255   invert on|off   power on|off   all_on on|off
-    title WORDS_WITH_UNDERSCORES|off   font 5x7|6..64   speed 0.1..10
-    blank_after SECONDS (0: never)   applet NAME[,ARG,...]
+    KEY          VALUE                     MEANING
+    applet       NAME[,ARG,...] | none     run an applet, or show the canvas
+    contrast     0..255                    brightness
+    invert       on | off                  inverse video
+    power        on | off                  display sleep (blank)
+    all_on       on | off                  every pixel lit: a hardware test
+    title        TEXT | on | off           the title row; off: the whole panel
+    font         5x7 | 6..64               the font: 5x7 bitmap, or TrueType size
+    speed        0.1..10                   multiplies every applet's frame rate
+    blank_after  SECONDS (0: never)        sleep the display after inactivity;
+                                           any command wakes it
     """
 
     if any(character.isspace() for character in value):
@@ -1182,7 +1276,10 @@ def applet_command(options, list_applets, applet_name, arguments):
 @click.pass_obj
 
 def stop_command(options):
-    """Stop the running applet: the canvas is shown"""
+    """Stop the running applet: the canvas is shown again
+
+    The same as "aiko_oled applet none" or "(applet none)".
+    """
 
     _remote(OLEDApplets, options, lambda oled: oled.applet("none"))
 
@@ -1212,10 +1309,105 @@ def keys_command(options):
 @click.pass_obj
 
 def key_command(options, key_name, state):
-    """Send a key to the running applet: up, down, left, right or a character"""
+    """Send a key to the running applet
+
+    KEY_NAME is up, down, left, right or one character; STATE is tap (held
+    briefly, the default), down or up.  forklift_game: left and right
+    drive, up and down lift; help: right and left turn the pages.  The
+    same as "(key NAME [STATE])"; "aiko_oled keys" sends these from the
+    keyboard.
+    """
 
     _remote(OLEDApplets, options,
         lambda oled: oled.key(key_name, state))
+
+# --------------------------------------------------------------------------- #
+# Reference text for --help, made from the same tables the code uses
+
+def _block(lines):
+    return "\b\n" + "\n".join(lines)
+
+def _applets_reference():
+    width = max(len(name) for name in APPLETS)
+    lines = ["Applets  (aiko_oled applet NAME [WORDS ...] [key=value ...]; -l lists them)"]
+    for name, applet_class in sorted(APPLETS.items()):
+        options = " ".join(f"{option}=" for option in applet_class.OPTIONS)
+        text = applet_class.summary + (f"  [{options}]" if options else "")
+        lines += textwrap.wrap(text, width=75, initial_indent=f"  {name:{width}}  ",
+                               subsequent_indent=" " * (width + 4))
+    return _block(lines)
+
+_SETTINGS_REFERENCE = _block([
+    "Settings  (aiko_oled set KEY VALUE, or (update KEY VALUE) on the control",
+    "           topic; the Aiko Dashboard edits them; a bad value converges back)",
+    "  applet       NAME[,ARG,...] | none   contrast     0..255",
+    "  invert       on | off                power        on | off",
+    "  all_on       on | off                title        TEXT | on | off",
+    "  font         5x7 | 6..64             speed        0.1..10",
+    "  blank_after  SECONDS (0: never)",
+])
+_STATE_REFERENCE = _block([
+    "Shared state  (aiko_dashboard, or (share TOPIC SECONDS *) on control)",
+    "  backend device size origin connection applets applet applet_detail fps",
+    "  speed font contrast invert power all_on title blank_after heartbeat",
+    "  last_error log_count log_pending metrics.commands metrics.rejected",
+    "  metrics.frames metrics.frame_ms metrics.errors",
+])
+_WIRE_REFERENCE = _block([
+    "Wire commands on the in topic  (mosquitto_pub -t TOPIC/in -m '...')",
+    "  origin bottom-left; the aiko_engine_mp names in brackets",
+    "  (clear)                  [(oled:clear)]    erase the canvas",
+    "  (log WORDS ...)          [(oled:log ..)]   scroll up, write the bottom row",
+    "  (pixel X Y)              [(oled:pixel ..)] light a pixel",
+    "  (pixels X Y X Y ...)     [(oled:pixels .)] at most 256 pairs",
+    "  (line X0 Y0 X1 Y1)                         draw a line",
+    "  (text X Y WORDS ...)     [(oled:text ..)]  text with its bottom-left at X Y",
+    "  (exit)                                     blank the display and terminate",
+    "  (applet NAME [ARGS ...])                   run an applet; none: the canvas",
+    "  (key NAME [tap|down|up])                   a key for the running applet",
+    "  Anything else is rejected (last_error, metrics.rejected).",
+])
+
+def _preset_text(commands):
+    words = []
+    for command in commands:
+        if command[0] == "update":
+            words.append(f"{command[1]} {command[2]}")
+        else:
+            words.append(" ".join(command[1]))
+    return " ".join(words)
+
+def _keys_reference():
+    from aiko_services.examples.oled.console import PRESETS  # (imports this module)
+    lines = ["Keys in \"aiko_oled keys\"  (the same key again: the next preset)"]
+    for key, presets in PRESETS.items():
+        text = " | ".join(_preset_text(preset) for preset in presets)
+        lines += textwrap.wrap(text, width=75, initial_indent=f"  {key}  ",
+                               subsequent_indent="     ")
+    lines += [
+        "  arrows  (key left|right|up|down) for the applet: the forklift game, help",
+        "  0-9     speed: 0 fastest (x4), 4 normal, 9 slowest   f  the next font size",
+        "  T title on/off   i invert   o power   a all pixels on   + - contrast by 16",
+        "  c clear the canvas   R reset the settings and show status   ? the keys",
+        "  x q  quit the console   X  exit the OLED Actor (then y to confirm)",
+    ]
+    return _block(lines)
+
+def _reference():
+    return "\n\n".join([_applets_reference(), _SETTINGS_REFERENCE, _STATE_REFERENCE,
+                        _WIRE_REFERENCE, _keys_reference()])
+
+main.epilog = _reference()
+main.commands["applet"].help = (
+    "Run an applet on the display, replacing the running one; ARGS are words and\n"
+    "key=value options.  \"none\" shows the canvas; --list lists the applets without\n"
+    "an Actor.  Every applet is deterministic for a seed= (no clocks, only frame\n"
+    "counts); \"set speed\" changes their pace.\n\n" + _applets_reference())
+main.commands["keys"].help = (
+    "Interactive console for the running OLED Actor: keys typed here become wire\n"
+    "commands and settings, and a status line follows the Actor's shared state.\n"
+    "Needs a terminal.  x or q quits the console; the Actor keeps running.\n\n"
+    + _keys_reference())
 
 if __name__ == "__main__":
     main()

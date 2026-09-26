@@ -55,7 +55,11 @@ the subcommand: `-n NAME` names the Actor, the one to run or the one to
 command (default: the local hostname), and `-t SECONDS` is how long to
 wait for it (default 5; for `list`, how long to collect).  `run` starts
 the Actor in the foreground; every other subcommand discovers the running
-Actor by name and protocol and sends it one command.
+Actor by name and protocol and sends it one command.  `aiko_oled --help`
+ends with a reference made from the code's own tables — the applets and
+their options, the settings, the shared state keys, the wire commands and
+the console keys with their preset cycles — and every subcommand's
+`--help` explains it in full.
 
 | Subcommand | Arguments and options | What it does |
 |------------|----------------------|--------------|

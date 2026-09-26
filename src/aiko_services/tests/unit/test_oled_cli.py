@@ -50,11 +50,24 @@ def invoke(*args):
 # --------------------------------------------------------------------------- #
 
 def test_help_for_every_subcommand():
-    assert invoke("--help").exit_code == 0
+    result = invoke("--help")
+    assert result.exit_code == 0
+    for heading in ("Applets", "Settings", "Shared state", "Wire commands", "Keys in"):
+        assert heading in result.output, heading
+    flat = " ".join(result.output.split())                 # wrapped lines joined
+    for text in ("forklift_game", "blank_after", "log_pending", "(oled:text",
+                 "pong | asteroids | invaders | games", "font 10 text Hello!"):
+        assert text in flat, text
+    assert all(len(line) <= 80 for line in result.output.splitlines())  # click wraps at 80
     for name in SUBCOMMANDS:
         result = invoke(name, "--help")
         assert result.exit_code == 0, name
         assert name in result.output
+        assert all(len(line) <= 80 for line in result.output.splitlines()), name
+    assert "forklift_game" in invoke("applet", "--help").output
+    assert "arrows" in invoke("keys", "--help").output
+    assert "hardware test" in invoke("set", "--help").output
+    assert "Braille" in invoke("run", "--help").output
 
 @pytest.mark.parametrize("args", [
     ("text", "a", "b", "hello"),
