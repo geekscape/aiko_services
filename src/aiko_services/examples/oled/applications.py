@@ -18,27 +18,41 @@
 #                     and the last (log ...) lines.  The default, and the
 #                     main purpose of the Actor: a display for headless hosts
 #   help              the wire commands and settings, on the display
+#   pattern           the test pattern: shifted, missing or stretched rows show
+#   text [WORDS]      the words centred; without words a screen full of digits
+#   blink [rate=2]    the panel's power off and on: a hardware test
+#   demo [random=on] [count=N] [seed=N]
+#                     a tour of the applications and settings, a few seconds
+#                     each, at random or the fixed TOUR
+#   games.py: pong asteroids invaders games forklift forklift_game
+#   drawings.py: draw
 #
 # Not part of the Interface composition pattern (see ADR-022): plain
 # presentation classes owned by the Actor, not Services.
 #
 # To Do
 # ~~~~~
-# - Phase 2: pattern, text, blink, games, forklift, draw, demo
+# - None, yet !
 
 from datetime import datetime
+import itertools
+import math
 import os
 import random
 import socket
 import time
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
-from aiko_services.examples.oled.graphics import HEIGHT, WIDTH, stamp
+from aiko_services.examples.oled.graphics import (
+    HEIGHT, INK, WIDTH, blank, paste_centred, pixels, stamp,
+)
 
 __all__ = [
-    "APPLICATIONS", "OPTION_LENGTH_MAXIMUM", "Application", "ApplicationDone",
-    "HelpApplication", "Host", "StatusApplication", "parse_application_args",
+    "APPLICATIONS", "OPTION_LENGTH_MAXIMUM", "TOUR", "Application",
+    "ApplicationDone", "BlinkApplication", "DemoApplication", "HelpApplication",
+    "Host", "PatternApplication", "StatusApplication", "TextApplication",
+    "parse_application_args", "pattern_image", "random_steps",
 ]
 
 OPTION_LENGTH_MAXIMUM = 64  # characters per word or option value (P9 bound)
@@ -84,6 +98,11 @@ class Host:
     def status(self, token):
         """Tell observers what the application is doing (share
         "application_detail"); one token, no spaces"""
+
+    def setting(self, name):
+        """The current value of a setting, e.g. setting("font")"""
+
+        return None
 
     def control(self, name, value):
         """Change a display setting, e.g. control("power", "off")"""
@@ -283,7 +302,263 @@ class HelpApplication(Application):
     def step(self):
         return self.write_lines(self.LINES)
 
-APPLICATIONS = {
-    StatusApplication.name: StatusApplication,
-    HelpApplication.name: HelpApplication,
-}
+# --------------------------------------------------------------------------- #
+
+def pattern_image(font):
+    """The test pattern: a border on all four edges; ruler ticks every 8
+    pixels (longer every 32) along the top and left; corner-to-corner
+    diagonals; a circle; blocks of even rows only and odd rows only (left),
+    a solid block and a 1-pixel checkerboard (right); "centre" in the middle"""
+
+    image = blank()
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, WIDTH - 1, HEIGHT - 1), outline=INK)
+    for x in range(8, WIDTH, 8):
+        draw.line((x, 1, x, 4 if x % 32 == 0 else 2), fill=INK)
+    for y in range(8, HEIGHT, 8):
+        draw.line((1, y, 4 if y % 32 == 0 else 2, y), fill=INK)
+    draw.line((0, 0, WIDTH - 1, HEIGHT - 1), fill=INK)
+    draw.line((0, HEIGHT - 1, WIDTH - 1, 0), fill=INK)
+    draw.ellipse((40, 8, 87, 55), outline=INK)
+    blocks = [
+        (8, 18, lambda x, y: y % 2 == 0),
+        (8, 34, lambda x, y: y % 2 == 1),
+        (104, 18, lambda x, y: True),
+        (104, 34, lambda x, y: (x + y) % 2 == 0),
+    ]
+    for left, top, lit in blocks:
+        image.paste(pixels(lit).crop((left, top, left + 16, top + 12)), (left, top))
+    paste_centred(image, "centre", font)
+    return image
+
+def digits_image(font):
+    """A screen full of digits: each row counts 0123456789012... across every
+    column, starting one digit later than the row above"""
+
+    image = blank()
+    font = font.mono()
+    digits = [font.render_line(str(digit)) for digit in range(10)]
+    _, top, _, bottom = font.render("0123456789").getbbox()
+    digits = [digit.crop((0, top - font.top, digit.width, bottom - font.top))
+              for digit in digits]
+    cell = 6 if font.truetype is None else round(font.truetype.getlength("0"))
+    pitch = bottom - top + 1
+    for row in range(math.ceil(HEIGHT / pitch)):
+        for column in range(math.ceil(WIDTH / cell)):
+            stamp(image, digits[(row + column) % 10], column * cell, row * pitch)
+    return image
+
+class StillApplication(Application):
+    """One picture, drawn again only when the font changes"""
+
+    fps = 2
+
+    def __init__(self, host, words=(), options=None):
+        super().__init__(host, words, options)
+        self._font = None
+
+    def picture(self):
+        return self.frame()
+
+    def step(self):
+        if self._font is self.host.font:
+            return None
+        self._font = self.host.font
+        return self.picture()
+
+class PatternApplication(StillApplication):
+    """The test pattern, to check a panel for shifted, missing, stretched or
+    interleaved rows and columns"""
+
+    name = "pattern"
+    description = "pattern"
+
+    def picture(self):
+        return pattern_image(self.host.font)
+
+class TextApplication(StillApplication):
+    """WORDS centred in the current font, or without words the screen full
+    of digits"""
+
+    name = "text"
+
+    def __init__(self, host, words=(), options=None):
+        super().__init__(host, words, options)
+        self.description = "message" if self.words else "digits"
+
+    def picture(self):
+        if not self.words:
+            return digits_image(self.host.font)
+        frame = self.frame()
+        paste_centred(frame, " ".join(self.words), self.host.font)
+        return frame
+
+class BlinkApplication(Application):
+    """The panel's power switched off and on, "rate" times a second, over
+    the test pattern: a hardware test.  Stopping it leaves the power on"""
+
+    name = "blink"
+    fps = 2
+    OPTIONS = {"rate": float}
+    description = "blink"
+
+    def __init__(self, host, words=(), options=None):
+        super().__init__(host, words, options)
+        self.fps = max(0.5, min(10.0, self.options.get("rate", 2.0)))
+        self._on = True
+        self._shown = False
+
+    def step(self):
+        self._on = not self._on
+        self.host.control("power", "on" if self._on else "off")
+        if self._shown:
+            return None
+        self._shown = True
+        return pattern_image(self.host.font)
+
+    def stop(self):
+        self.host.control("power", "on")
+
+# The fixed tour: (seconds, application, arguments, settings for the step)
+TOUR = [
+    (3, "blink", ["rate=4"], {}),
+    (4, "pattern", [], {}),
+    (3, "pattern", [], {"invert": "on"}),
+    (3, "pattern", [], {"contrast": "16"}),
+    (4, "text", [], {}),
+    (4, "text", [], {"font": "10"}),
+    (3, "text", ["Hello!"], {"font": "20"}),
+    (5, "status", [], {}),
+    (4, "status", [], {"font": "12"}),
+    (13, "draw", ["subject=forklift", "count=1", "hold=3"], {}),
+    (8, "draw", ["shade=off", "speed=4", "count=1", "hold=2"], {}),
+    (13, "draw", ["style=hatch", "count=1", "hold=3"], {}),
+    (10, "pong", [], {}),
+    (10, "asteroids", [], {}),
+    (10, "invaders", [], {}),
+    (25, "forklift", [], {}),
+]
+
+def random_steps(rng):
+    """Endless demo steps like those in TOUR, chosen at random; never the
+    same kind twice in a row"""
+
+    def font():
+        return {"font": rng.choice(["5x7", "10", "12", "16"])}
+
+    def seed():
+        return [f"seed={rng.randrange(1000000)}"]
+
+    def screen():
+        return rng.choice([
+            (3, "pattern", [], {"invert": "on"}),
+            (3, "blink", [f"rate={rng.choice('248')}"], {}),
+            (3, "pattern", [], {"contrast": rng.choice(["8", "64", "160"])}),
+        ])
+
+    def draw():
+        speed = rng.choice((4, 6, 8))
+        options = rng.choice([[], ["shade=off"], [f"style={rng.choice(('outline', 'hatch', 'stipple'))}"]])
+        subject = [f"subject={rng.choice(('house', 'tree', 'pine', 'cat', 'dog', 'bicycle', 'flower', 'forklift'))}"]  \
+            if rng.random() < 0.5 else []
+        return (speed + 5, "draw", ["count=1", f"speed={speed}", "hold=3", *options, *subject, *seed()], {})
+
+    makers = [
+        screen,
+        lambda: (4, "pattern", [], font()),
+        lambda: (4, "text", [], font()),
+        lambda: (3, "text", [rng.choice(["Hello!", "SSD1306", "128x64", "OLED", "Pi 4B"])],
+                 {"font": rng.choice(["10", "16", "24"])}),
+        lambda: (5, "status", [f"rate={rng.choice('124')}"], font()),
+        draw,
+        lambda: (10, rng.choice(["pong", "asteroids", "invaders"]), seed(), font()),
+        lambda: (25, "forklift", seed(), font()),
+    ]
+    previous = None
+    while True:
+        maker = rng.choice([maker for maker in makers if maker is not previous])
+        previous = maker
+        yield maker()
+
+class DemoApplication(Application):
+    """A tour of the applications and settings, a few seconds each: at
+    random (default) or the fixed TOUR ("random=off"); "count" steps, 0 for
+    ever.  Settings a step changes are put back after it"""
+
+    name = "demo"
+    fps = 30
+    OPTIONS = {"random": lambda text: text not in ("off", "false", "0", "no"),
+               "count": int, "seed": int}
+    description = "demo"
+
+    def __init__(self, host, words=(), options=None):
+        super().__init__(host, words, options)
+        rng = host.rng if "seed" not in self.options  \
+            else random.Random(self.options["seed"])
+        steps = random_steps(rng) if self.options.get("random", True)  \
+            else itertools.cycle(TOUR)
+        count = self.options.get("count", 0)
+        self._steps = itertools.islice(steps, count) if count else steps
+        self._sub = None
+        self._saved = {}
+        self._left = 0
+
+    @property
+    def wants_title(self):
+        return self._sub.wants_title if self._sub else False
+
+    def _restore(self):
+        if self._sub is not None:
+            self._sub.stop()
+            self._sub = None
+        for key, value in self._saved.items():
+            if value is not None:
+                self.host.control(key, value)
+        self._saved = {}
+
+    def _next_step(self):
+        self._restore()
+        while True:
+            seconds, name, args, settings = next(self._steps)  # StopIteration: done
+            application_class = APPLICATIONS.get(name)
+            if application_class is None:
+                continue
+            try:
+                words, options = parse_application_args(args, application_class.OPTIONS)
+                self._sub = application_class(self.host, words, options)
+                break
+            except ValueError:
+                continue
+        for key, value in settings.items():
+            self._saved.setdefault(key, self.host.setting(key))
+            self.host.control(key, value)
+        self._left = round(seconds * self.fps)
+        self._every = max(1, round(self.fps / max(self._sub.fps, 0.001)))
+        self._tick = 0
+        self.description = f"demo_{name}"
+        self.host.status(self.description)
+
+    def step(self):
+        if self._sub is None or self._left <= 0:
+            try:
+                self._next_step()
+            except StopIteration:
+                self._restore()
+                raise ApplicationDone
+            return self._sub.step()
+        self._left -= 1
+        self._tick += 1
+        if self._tick % self._every:
+            return None
+        try:
+            return self._sub.step()
+        except ApplicationDone:
+            self._left = 0
+            return None
+
+    def stop(self):
+        self._restore()
+
+APPLICATIONS = {application.name: application for application in (
+    StatusApplication, HelpApplication, PatternApplication, TextApplication,
+    BlinkApplication, DemoApplication)}

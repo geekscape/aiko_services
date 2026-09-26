@@ -67,6 +67,7 @@ name and protocol and sends it one command.
 | `set KEY VALUE` | `-n`, `-t` | `(update KEY VALUE)` on the Actor's control topic, exactly what the Dashboard does |
 | `application NAME [ARGS...]` | `-n`, `-t` | `(application NAME ARGS ...)`; `stop` is `(application none)` |
 | `key NAME [tap\|down\|up]` | `-n`, `-t` | `(key NAME STATE)` for the running application |
+| `keys` | `-n`, `-t` | Interactive console: letters switch applications (the same letter again: its next options), arrows send keys, digits set the speed, `f` `i` `o` `a` `+` `-` change settings, `R` resets, `x` quits, `X` exits the Actor; a status line follows the shared state |
 
 Every remote subcommand gives up with exit status 1 after `-t` seconds
 when no Actor answers (the framework's `do_command()` would wait for
@@ -136,10 +137,26 @@ one-way; outcomes are observed in the shared state.  Coordinates: x
 | `application(name, *args)` | `(application NAME [WORDS ...] [key=value ...])` | Run an application, replacing the running one; `none` shows the canvas |
 | `key(name, state="tap")` | `(key NAME [tap\|down\|up])` | A key for the running application |
 
-Applications: `status` (`rate=SECONDS`, default 1), `help`; more in the
-next phase.  Drawing on the canvas stops a running application, so that
-the drawing is seen; `log` does not, because the status application shows
-the log lines itself.  Anything else on the `in` topic — including the
+**Applications** (`(application NAME [WORDS ...] [key=value ...])`):
+
+| Name | Options | What it shows |
+|------|---------|---------------|
+| `status` | `rate=` updates per second (1) | The host's status; the default |
+| `help` | | The wire commands and settings |
+| `pattern` | | The test pattern for a panel: border, ruler ticks, diagonals, a circle, even and odd row blocks, a checkerboard, "centre" |
+| `text [WORDS]` | | The words centred; without words a screen full of digits |
+| `blink` | `rate=` changes per second (2) | The panel's power off and on: a hardware test |
+| `pong`, `asteroids`, `invaders` | `seed=` | Self-playing classics |
+| `games` | `duration=` seconds each (20), `seed=` | The three games in turn |
+| `forklift` | `duration=` seconds (0: for ever), `seed=` | A forklift moving a pallet between the ground and a racking bay |
+| `forklift_game` | `seed=` | The forklift game: `(key left\|right\|up\|down)` drive and lift; put the pallet where the top line says |
+| `draw` | `subject=`, `style=outline\|hatch\|stipple`, `shade=on\|off`, `speed=` seconds per drawing (8), `hold=` (3), `count=` (0: for ever), `seed=` | Pencil-sketched cartoon scenes |
+| `demo` | `random=on\|off`, `count=`, `seed=` | A tour of the applications and settings, a few seconds each |
+
+Every application is deterministic for a given `seed=`: no application
+uses a clock, only frame counts.  Drawing on the canvas stops a running
+application, so that the drawing is seen; `log` does not, because the
+status application shows the log lines itself.  Anything else on the `in` topic — including the
 framework's `(run)` — is rejected: the Actor dispatches only the
 methods of its Interfaces, plus `(stop)` and `(set_log_level LEVEL)`.
 
@@ -245,13 +262,14 @@ published again, so an observer converges back.
 | `Font` | 5x7 bitmap or TrueType glyph rendering, cell metrics | Pillow |
 | `Display` and backends | Show a frame; contrast, invert, power, all-on; window events; blank on close | luma.oled, pygame, the terminal, Pillow |
 | `Application`, `Host` | A source of frames and what it may use of the Actor | `OLEDImpl` |
+| `StatusApplication`, `PatternApplication`, `TextApplication`, `BlinkApplication`, `HelpApplication`, `DemoApplication` | The built-in applications; the demo runs the others in turn and restores the settings it changed | `Host`, `APPLICATIONS` |
+| `games.py`: `pong`, `asteroids`, `invaders`, `forklift_work`, `ForkliftGame` | Frame generators and the forklift game's pallet physics, counted in frames | `Host` |
+| `drawings.py`: `SUBJECTS`, `scene_strokes`, `sketch_frames`, `DrawApplication` | Cartoon subjects, stroke planning, the pencil sketch as a frame generator | `Host` |
+| `KeysConsole` (console.py) | Keys typed in a terminal become wire commands and settings updates; an ECConsumer shows the shared state | `aiko.do_discovery`, `ECConsumerImpl` |
 | `main` (click) | `run`, and discovery-plus-one-command subcommands with a timeout | `aiko.do_command`, `aiko.do_discovery` |
 
 ## Current limitations and roadmap
 
-- Applications: pattern, text, blink, the games, the forklift, drawings
-  and the demo from `oled_test.py`, and an `aiko_oled keys` console — the
-  next phase.
 - The status sampling (psutil) runs on the event-loop thread: well under
   5 ms on a Raspberry Pi 4.  If a host proves slow, move it to a worker
   that posts the readings to the mailbox.

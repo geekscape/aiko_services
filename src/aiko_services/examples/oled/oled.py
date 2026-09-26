@@ -17,6 +17,7 @@
 #   aiko_oled clear | log WORDS | text X Y WORDS | pixels X Y ... | line X0 Y0 X1 Y1
 #   aiko_oled set KEY VALUE          # contrast 128, invert on, title Aiko, font 10 ...
 #   aiko_oled application NAME [ARGS ...] | stop | key NAME [tap|down|up]
+#   aiko_oled keys                   # interactive console: see console.py
 #
 #   mosquitto_pub -t $TOPIC_IN -m "(oled:text 0 0 hello)"     # aiko_engine_mp style
 #   mosquitto_pub -t $TOPIC_IN -m "(text 0 8 second row)"
@@ -55,7 +56,6 @@
 #
 # To Do
 # ~~~~~
-# - Phase 2: games, forklift, drawings, demo, "aiko_oled keys" console
 # - Dashboard plug-in; convergence with aiko_engine_mp (protocol oled:0)
 # - Promote into src/aiko_services/main/oled/ (then aiko_oled ships in the wheel)
 
@@ -77,6 +77,7 @@ from aiko_services.main.utilities import get_hostname, parse
 from aiko_services.examples.oled.applications import (
     APPLICATIONS, ApplicationDone, Host, parse_application_args,
 )
+from aiko_services.examples.oled import drawings, games  # noqa: F401 (they register applications)
 from aiko_services.examples.oled.display import (
     ADDRESSES, OUTPUTS, DisplayNotFound, NullDisplay, choose_display,
     parse_colors, scan_i2c,
@@ -305,8 +306,11 @@ class _Host(Host):
     def status(self, token):
         self._actor.ec_producer.update("application_detail", _token(token))
 
+    def setting(self, name):
+        return self._actor.share.get(name)
+
     def control(self, name, value):
-        if name in ("contrast", "invert", "power", "all_on"):
+        if name in ("contrast", "invert", "power", "all_on", "font", "speed"):
             self._actor._setters[name](str(value))
 
 class OLEDImpl(OLED, OLEDApplications):
@@ -1137,6 +1141,23 @@ def stop_command(name, timeout):
     """Stop the running application: the canvas is shown"""
 
     _remote(OLEDApplications, name, timeout, lambda oled: oled.application("none"))
+
+@main.command(name="keys")
+@_remote_options
+
+def keys_command(name, timeout):
+    """Interactive console: keys switch applications and settings, arrows play
+
+    \b
+    s status  p pattern  t text  d draw  g games  F forklift game  A forklift
+    D demo  b blink  h help (the same key again: the next options)
+    arrows: keys for the application   0-9 speed (4 normal)   f next font
+    i invert  o power  a all pixels on  +/- contrast  c clear  R reset
+    ? this list   x or q quit the console   X exit the OLED Actor
+    """
+
+    from aiko_services.examples.oled.console import KeysConsole  # (imports this module)
+    KeysConsole(name, timeout).run()
 
 @main.command(name="key", no_args_is_help=True)
 @_remote_options

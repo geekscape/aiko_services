@@ -16,7 +16,7 @@ from aiko_services.examples.oled.display import FakeDisplay
 from aiko_services.examples.oled.oled import _service_filter, main
 
 SUBCOMMANDS = ("run", "exit", "list", "clear", "log", "text", "pixels", "line",
-               "set", "application", "stop", "key")
+               "set", "application", "stop", "key", "keys")
 
 class RecordingProxy:
     """Stands in for the discovered OLED Actor's proxy"""
@@ -147,3 +147,36 @@ def test_run_strict_reports_a_missing_display(monkeypatch):
     assert result.exit_code == 1
     assert "fake display told to fail" in result.output
     assert "0x3D" in result.output
+
+# --------------------------------------------------------------------------- #
+# The keys console
+
+from aiko_services.examples.oled.console import key_command  # noqa: E402
+
+def test_keys_console_map():
+    state = {"turns": {}, "current": None, "settings": {}}
+    assert key_command("left", state) == ("key", ("left", "tap"))
+    assert key_command("s", state) == ("application", ("status",))
+    assert key_command("s", state) == ("application", ("status", "rate=4"))
+    assert key_command("s", state) == ("application", ("status",))
+    assert key_command("p", state) == ("application", ("pattern",))
+    assert key_command("d", state) == ("application", ("draw",))
+    assert key_command("d", state) == ("application", ("draw", "shade=off"))
+    assert key_command("0", state) == ("update", "speed", "4")
+    assert key_command("4", state) == ("update", "speed", "1")
+    assert key_command("9", state) == ("update", "speed", "0.177")
+    assert key_command("f", state) == ("update", "font", "8")
+    state["settings"]["font"] = "24"
+    assert key_command("f", state) == ("update", "font", "5x7")
+    assert key_command("i", state) == ("update", "invert", "on")
+    state["settings"]["invert"] = "on"
+    assert key_command("i", state) == ("update", "invert", "off")
+    assert key_command("o", state) == ("update", "power", "off")
+    assert key_command("-", state) == ("update", "contrast", "239")
+    assert key_command("+", state) == ("update", "contrast", "255")
+    assert key_command("c", state) == ("clear", ())
+    assert key_command("z", state) is None
+
+def test_keys_needs_a_terminal():
+    result = invoke("keys")
+    assert result.exit_code == 2 and "terminal" in result.output

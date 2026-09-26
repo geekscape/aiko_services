@@ -42,6 +42,8 @@ From another terminal or host on the same broker:
     aiko_oled text 0 0 hello      # origin bottom-left: the bottom row
     aiko_oled log Hello from nomad
     aiko_oled set contrast 64     # settings are shared state: the Dashboard edits them too
+    aiko_oled application pong    # or draw, forklift_game, demo ...
+    aiko_oled keys                # interactive: letters, arrows, digits
     aiko_oled list
     aiko_oled exit
 
@@ -56,6 +58,9 @@ aiko_engine_mp style, with `mosquitto_pub` on the Actor's `in` topic:
 | `oled.py` | The `OLED` and `OLEDApplications` Interfaces, `OLEDImpl` and the `aiko_oled` command line |
 | `display.py` | Display backends: SSD1306 (luma.oled), pygame window, terminal, PNG, none, fake |
 | `graphics.py` | 5x7 font, image helpers, the bottom-left `Canvas`, the title row |
-| `applications.py` | Applications: sources of frames the Actor runs — `status` (the default), `help` |
+| `applications.py` | Applications: sources of frames the Actor runs — `status` (the default), `help`, `pattern`, `text`, `blink`, `demo` |
+| `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` (arrow keys over the wire) |
+| `drawings.py` | `draw`: pencil-sketched cartoon scenes |
+| `console.py` | `aiko_oled keys`: an interactive console for the running Actor |
 | `aiko_oled.service` | systemd unit for a Raspberry Pi: the display comes up with the host |
 | `oled_test.py` | The original standalone spike (click, no Aiko Services): kept unchanged for reference |

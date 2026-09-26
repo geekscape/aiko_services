@@ -151,7 +151,7 @@ def test_status_is_the_default_application(monkeypatch):
     actor, display = make_actor()
     try:
         assert actor.share["application"] == "status"
-        assert actor.share["applications"] == "help,status"
+        assert set(actor.share["applications"].split(",")) == set(APPLICATIONS)
         assert actor.share["title"] == actor.name
         actor.log("boot", "ok")                           # log keeps status running
         assert actor.share["application"] == "status"
@@ -212,3 +212,175 @@ def test_slow_display_does_not_block_the_event_loop(monkeypatch):
         assert actor.share["application"] == "none"       # text stopped it
     finally:
         actor._shutdown()
+
+# --------------------------------------------------------------------------- #
+# Phase 2: pattern, text, blink, demo, games, forklift, drawings
+
+from aiko_services.examples.oled.applications import (  # noqa: E402
+    TOUR, BlinkApplication, DemoApplication, PatternApplication, TextApplication,
+    parse_application_args, random_steps,
+)
+from aiko_services.examples.oled.drawings import (  # noqa: E402
+    DrawApplication, erase_frames, scene, scene_strokes, sketch_frames,
+)
+from aiko_services.examples.oled.games import (  # noqa: E402
+    FORKS_CARRY, GROUND, ForkliftApplication, ForkliftGameApplication,
+    GamesApplication,
+)
+from aiko_services.examples.oled.applications import ApplicationDone  # noqa: E402
+import random  # noqa: E402
+
+class RecordingHost(StubHost):
+    """A host that records settings changes and answers setting()"""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.settings = {"invert": "off", "contrast": "255", "font": "5x7", "power": "on"}
+        self.controls = []
+        self.statuses = []
+        self.held = set()
+
+    def setting(self, name):
+        return self.settings.get(name)
+
+    def control(self, name, value):
+        self.controls.append((name, value))
+        self.settings[name] = value
+
+    def status(self, token):
+        self.statuses.append(token)
+
+    def keys_held(self):
+        return self.held
+
+def frames_of(application, count):
+    return [application.step() for _ in range(count)]
+
+def test_registry_has_every_application():
+    assert set(APPLICATIONS) == {"status", "help", "pattern", "text", "blink", "demo",
+        "pong", "asteroids", "invaders", "games", "forklift", "forklift_game", "draw"}
+
+@pytest.mark.parametrize("name", ["pong", "asteroids", "invaders", "forklift", "forklift_game"])
+def test_games_are_deterministic_with_a_seed(name):
+    host = RecordingHost()
+    first = [frame.tobytes() for frame in frames_of(APPLICATIONS[name](host, [], {"seed": 1}), 100)]
+    again = [frame.tobytes() for frame in frames_of(APPLICATIONS[name](host, [], {"seed": 1}), 100)]
+    other = [frame.tobytes() for frame in frames_of(APPLICATIONS[name](host, [], {"seed": 2}), 100)]
+    assert first == again and first != other
+    assert all(len(frame) == WIDTH * HEIGHT // 8 for frame in first)
+
+def test_games_take_turns():
+    host = RecordingHost()
+    games = GamesApplication(host, [], {"seed": 1, "duration": 1})
+    assert games.description == "pong"
+    frames_of(games, 31)
+    assert games.description == "asteroids"
+    frames_of(games, 30)
+    assert games.description == "invaders"
+
+def test_forklift_duration_ends_the_application():
+    host = RecordingHost()
+    forklift = ForkliftApplication(host, [], {"seed": 1, "duration": 0.1})
+    frames_of(forklift, 3)
+    with pytest.raises(ApplicationDone):
+        forklift.step()
+    assert host.statuses[0].startswith(("ground_to_bay_", "bay_"))
+
+def test_forklift_game_keys_move_the_forklift():
+    host = RecordingHost()
+    game = ForkliftGameApplication(host, [], {"seed": 1}).game
+    x, forks = game.x, game.forks
+    host.held = {"right"}
+    for _ in range(5):
+        game.step(host.keys_held())
+    assert round(game.x - x, 1) == 7.0 and game.forks == forks
+    host.held = {"up"}
+    for _ in range(5):
+        game.step(host.keys_held())
+    assert game.forks == forks - 5
+    assert host.statuses[0].startswith("to_")
+
+def test_forklift_game_places_a_pallet_on_bay_1():
+    host = RecordingHost()
+    game = ForkliftGameApplication(host, [], {"seed": 1}).game
+    game.pallet, game.x, game.forks, game.target = [50.0, GROUND - 1], 0.0, FORKS_CARRY, "bay 1"
+    for keys, count in (({"down"}, 10), ({"right"}, 30), ({"up"}, 20), ({"right"}, 60),
+                        ({"down"}, 30), ({"left"}, 20)):
+        for _ in range(count):
+            game.step(keys)
+    assert game.placed == 1 and game.broken == 0
+    assert any(status.startswith("placed_1") for status in host.statuses)
+    assert game.frame().size == (WIDTH, HEIGHT)
+
+def test_sketch_frames_count_and_the_finished_drawing():
+    rng = random.Random(1)
+    names, shapes = scene(rng, ["house"], "outline")
+    strokes = scene_strokes(shapes, "outline", rng)
+    frames = list(sketch_frames(strokes, 40))
+    assert 36 <= len(frames) <= 44
+    finished = frames[-1]
+    assert lit_rows(finished) and len(lit_rows(finished)) > 30
+    erased = list(erase_frames(finished))
+    assert lit_rows(erased[-1]) == []
+
+def test_draw_application_sequence_and_options():
+    host = RecordingHost()
+    draw = DrawApplication(host, [], {"seed": 3, "count": 1, "speed": 1, "hold": 0.5})
+    frames = []
+    with pytest.raises(ApplicationDone):
+        while True:
+            frames.append(draw.step())
+    images = [frame for frame in frames if frame is not None]
+    assert 18 <= len(images) <= 24 and frames.count(None) == 10
+    assert host.statuses and host.statuses[0].endswith(("_outline", "_hatch", "_stipple"))
+    for bad in (["subject=nosuch"], ["style=bold"], ["shade=maybe"]):
+        with pytest.raises(ValueError):
+            parse_application_args(bad, DrawApplication.OPTIONS)
+
+def test_pattern_and_text_redraw_only_when_the_font_changes():
+    host = RecordingHost()
+    pattern = PatternApplication(host)
+    assert pattern.step() is not None and pattern.step() is None
+    host.font = Font(10)
+    assert pattern.step() is not None
+    text = TextApplication(host, ["Hi"])
+    frame = text.step()
+    assert text.description == "message" and 0 < len(lit_rows(frame)) < 20
+    digits = TextApplication(host)
+    assert digits.description == "digits" and len(lit_rows(digits.step())) > 40
+
+def test_blink_toggles_the_power_and_restores_it():
+    host = RecordingHost()
+    blink = BlinkApplication(host, [], {"rate": 4})
+    assert blink.fps == 4
+    assert blink.step() is not None and host.controls[-1] == ("power", "off")
+    assert blink.step() is None and host.controls[-1] == ("power", "on")
+    blink.stop()
+    assert host.controls[-1] == ("power", "on")
+
+def test_demo_tour_runs_steps_and_restores_settings():
+    host = RecordingHost()
+    _, options = parse_application_args(["random=off", "count=3"], DemoApplication.OPTIONS)
+    assert options == {"random": False, "count": 3}
+    demo = DemoApplication(host, [], options)
+    seen, subs = [], []
+    with pytest.raises(ApplicationDone):
+        for _ in range(400):
+            demo.step()
+            if not subs or subs[-1] is not demo._sub:
+                subs.append(demo._sub)
+                seen.append(demo.description)
+    assert seen == ["demo_blink", "demo_pattern", "demo_pattern"]
+    assert type(subs[0]).name == "blink" and type(subs[2]).name == "pattern"
+    assert ("invert", "on") in host.controls               # the third step's setting
+    assert host.controls[-1] == ("invert", "off")          # put back at the end
+    assert host.settings["power"] == "on"                  # blink stopped cleanly
+
+def test_random_steps_are_valid_applications():
+    steps = list(__import__("itertools").islice(random_steps(random.Random(1)), 40))
+    for seconds, name, args, settings in steps:
+        assert seconds > 0 and name in APPLICATIONS
+        parse_application_args(args, APPLICATIONS[name].OPTIONS)
+        assert set(settings) <= {"font", "invert", "contrast"}
+    assert len({name for _, name, _, _ in steps}) >= 5
+    assert all(name in APPLICATIONS for _, name, _, _ in TOUR)
