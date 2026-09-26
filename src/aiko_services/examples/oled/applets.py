@@ -18,7 +18,8 @@
 #                     and the last (log ...) lines.  The default, and the
 #                     main purpose of the Actor: a display for headless hosts
 #   log               the last eight (log ...) lines; clears the "L" annunciator
-#   help              the wire commands and settings, on the display
+#   help [page=N] [hold=8]
+#                     help pages: console keys, Dashboard variables, LISP
 #   pattern           the test pattern: shifted, missing or stretched rows show
 #   text [WORDS]      the words centred; without words a screen full of digits
 #   blink [rate=2]    the panel's power off and on: a hardware test
@@ -326,26 +327,104 @@ class LogApplet(Applet):
         return self.write_lines(lines[-rows:])
 
 class HelpApplet(Applet):
-    """The wire commands and settings, on the display"""
+    """Help on the display, in pages that fit it: the keys of the console
+    (applets, then actions), the Dashboard settings and state, and the LISP
+    wire commands.  The pages turn every "hold" seconds, or "page=N" holds
+    one; the arrow keys turn them too"""
 
     name = "help"
-    fps = 0.2
+    fps = 2
     wants_title = True
-    description = "help"
-    summary = "The wire commands and settings, on the display"
-    LINES = [
-        "(text X Y WORDS)",
-        "(log WORDS)",
-        "(pixels X Y ...)",
-        "(clear) (exit)",
-        "(applet NAME) -l list",
-        "set contrast|invert",
-        "set title on|off|TEXT",
-        "aiko_oled --help",
+    OPTIONS = {"page": int, "hold": float}
+    summary = "Help pages: console keys, Dashboard variables, LISP commands"
+    PAGES = [  # (heading, up to six lines of 21 characters)
+        ("Keys: applets", [
+            "s status l log h help",
+            "p pattern t text",
+            "b blink d draw",
+            "g games D demo",
+            "A forklift C clock",
+            "F fork.game e eyes",
+        ]),
+        ("Keys: actions", [
+            "arrows: applet keys",
+            "0-9 speed  f font",
+            "T title  i invert",
+            "o power  a all_on",
+            "+/- contrast  c clear",
+            "R reset x quit X exit",
+        ]),
+        ("Dashboard: set", [
+            "applet  contrast",
+            "invert  power  all_on",
+            "title  font  speed",
+            "blank_after",
+            "(update KEY VALUE)",
+            "on the control topic",
+        ]),
+        ("Dashboard: state", [
+            "backend device size",
+            "connection applets",
+            "applet_detail fps",
+            "heartbeat last_error",
+            "log_count log_pending",
+            "metrics.commands ...",
+        ]),
+        ("LISP on topic/in", [
+            "(text X Y WORDS)",
+            "(log WORDS) (clear)",
+            "(pixel X Y) (pixels)",
+            "(line X0 Y0 X1 Y1)",
+            "(applet NAME ARGS)",
+            "(key NAME) (exit)",
+        ]),
+        ("LISP: notes", [
+            "(oled:text)=(text)",
+            "origin bottom-left",
+            "y=0 is the bottom row",
+            "aiko_oled set KEY VAL",
+            "aiko_oled applet -l",
+            "mosquitto_pub -t T/in",
+        ]),
     ]
 
+    def __init__(self, host, words=(), options=None):
+        super().__init__(host, words, options)
+        pages = len(self.PAGES)
+        self.page = max(1, min(pages, self.options.get("page", 1))) - 1
+        self.auto = "page" not in self.options
+        self.hold = max(1.0, self.options.get("hold", 8.0))
+        self._left = round(self.hold * self.fps)
+        self._shown = None
+        self._describe()
+
+    def _describe(self):
+        self.description = f"help_{self.page + 1}_of_{len(self.PAGES)}"
+        self.host.status(self.description)
+
+    def turn(self, pages):
+        self.page = (self.page + pages) % len(self.PAGES)
+        self._left = round(self.hold * self.fps)
+        self._describe()
+
+    def key(self, name, state):
+        if state != "up" and name in ("right", "down", " "):
+            self.turn(1)
+        elif state != "up" and name in ("left", "up"):
+            self.turn(-1)
+
     def step(self):
-        return self.write_lines(self.LINES)
+        if self.auto:
+            self._left -= 1
+            if self._left <= 0:
+                self.turn(1)
+        shown = (self.page, self.host.font)
+        if shown == self._shown:
+            return None
+        self._shown = shown
+        heading, lines = self.PAGES[self.page]
+        heading = f"{heading:16.16s} {self.page + 1}/{len(self.PAGES)}"
+        return self.write_lines([heading] + lines)
 
 # --------------------------------------------------------------------------- #
 

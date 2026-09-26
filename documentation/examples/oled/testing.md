@@ -56,7 +56,7 @@ Two deployment traps to know about:
       sudo systemctl restart mosquitto
 
   Then, on the desktop, `export AIKO_MQTT_HOST=SBC_HOSTNAME` and use the
-  Actor's name: `aiko_oled list`, `aiko_oled keys -n SBC_HOSTNAME`.
+  Actor's name: `aiko_oled list`, `aiko_oled -n SBC_HOSTNAME keys`.
 
 ## 2. Unit tests and lint
 
@@ -92,7 +92,8 @@ Note the topic path: the steps below use `$TOPIC` for
 
 ## 4. The command line
 
-Terminal 2 (same host):
+Terminal 2 (same host; to command an Actor with another name or on
+another host, put `-n NAME` before the subcommand):
 
 | Step | Command | Expect |
 |------|---------|--------|
@@ -117,7 +118,7 @@ Terminal 2 (same host):
 | 4.16 | `aiko_oled stop` | The canvas (from 4.7) is shown again |
 | 4.17 | `aiko_oled set bogus 1` | Usage error, exit status 2 (the key is checked locally) |
 | 4.18 | `aiko_oled exit` | The display blanks, the Actor process ends, exit status 0 |
-| 4.19 | `aiko_oled exit -t 2` (nothing running) | `Timeout after 2 s: no OLED Actor named HOST`, exit status 1 |
+| 4.19 | `aiko_oled -t 2 exit` (nothing running) | `Timeout after 2 s: no OLED Actor named HOST`, exit status 1 |
 
 Start the Actor again (step 3) before continuing.
 
@@ -190,7 +191,9 @@ token: no spaces.
     aiko_oled applet text Hello lead   # the words centred
     aiko_oled applet blink rate=4      # the power off and on four times a second (stop with the next applet)
     aiko_oled applet log               # the last eight (log ...) lines, oldest first
-    aiko_oled applet help              # the wire commands on the display
+    aiko_oled applet help              # help pages turning every 8 s; page=2 holds one
+    aiko_oled applet clock             # the clock face; title=on keeps the title row
+    aiko_oled applet eyes              # the eyes; emotion=angry holds one; blink=off
     aiko_oled applet asteroids seed=1  # the same game every time with the same seed
     aiko_oled applet games duration=10 # pong, asteroids and invaders in turn
     aiko_oled applet forklift          # the forklift moves the pallet by itself
@@ -224,6 +227,9 @@ follows the shared state.  Then type, without Enter:
 | `+`, `-` | Contrast up and down by 16 |
 | `c` | Clear the canvas |
 | `l` | The log lines |
+| `h`, again, again | The help pages, one per press |
+| `C` | The clock face |
+| `e`, then `e` again | The eyes, then held at `happy` (and on through the emotions) |
 | `T` | The title row off, then on again |
 | `s` | The status display |
 | `R` | Reset the settings and show the status display |

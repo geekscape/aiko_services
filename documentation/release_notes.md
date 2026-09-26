@@ -41,7 +41,8 @@ sections are.
   for example *(oled:text 0 0 hello)*.  Its settings are shared state that
   the Dashboard edits.  The *aiko_oled* command runs the Actor or sends it
   one command, and *aiko_oled keys* is an interactive console.  Applets
-  run on the display: games, a forklift, pencil drawings and a demo tour.
+  run on the display: games, a forklift, pencil drawings, a clock face,
+  animated eyes and a demo tour.
   Without the panel, a desktop window, the terminal or a PNG file emulates
   it.  See *documentation/examples/oled/ReadMe.md*
 * Classes may now omit the *__init__()* method entirely when they need no

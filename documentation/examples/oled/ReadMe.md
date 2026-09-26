@@ -45,6 +45,7 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 | `applets.py` | The `Applet` base class and registry; `status` (the default), `log`, `help`, `pattern`, `text`, `blink`, `demo` |
 | `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` |
 | `drawings.py` | `draw`: pencil-sketched cartoon scenes |
+| `faces.py` | `clock`: an analog clock face; `eyes`: animated eyes with emotions |
 | `console.py` | `aiko_oled keys`: the interactive console |
 | `aiko_oled.service` | systemd unit for a Raspberry Pi |
 | `oled_test.py` | The original standalone spike, kept unchanged for reference |

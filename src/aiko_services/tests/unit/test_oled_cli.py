@@ -70,7 +70,7 @@ def test_help_for_every_subcommand():
     ("run", "-fs", "5"),
     ("run", "-c", "a b c"),
     ("run", "-o", "holodeck"),
-    ("exit", "-n", "*"),
+    ("-n", "*", "exit"),
 ])
 def test_bad_arguments_are_rejected(args):
     result = invoke(*args)
@@ -92,7 +92,7 @@ def test_remote_commands_send_the_wire_command(remote):
     assert invoke("stop").exit_code == 0
     assert invoke("key", "left").exit_code == 0
     assert invoke("key", "x", "down").exit_code == 0
-    assert invoke("exit", "-n", "pi").exit_code == 0
+    assert invoke("-n", "pi", "exit").exit_code == 0
     assert remote.calls == [
         ("text", (0, 8, "hello", "world")),
         ("clear", ()),
@@ -133,7 +133,7 @@ def test_run_composes_the_actor_and_blanks_on_exit(monkeypatch):
     monkeypatch.setattr(oled_module, "choose_display", lambda *args: display)
     monkeypatch.setattr(aiko.process, "run",
         lambda *args, **kwargs: (_ for _ in ()).throw(SystemExit(0)))
-    result = invoke("run", "-o", "none", "--standalone", "-n", "oled_cli_test",
+    result = invoke("-n", "oled_cli_test", "run", "-o", "none", "--standalone",
                     "--title", "off")
     assert result.exit_code == 0, result.output
     assert "oled_cli_test" in result.output
@@ -143,7 +143,7 @@ def test_run_strict_reports_a_missing_display(monkeypatch):
     display = FakeDisplay(fail_open=True)
     monkeypatch.setattr(oled_module, "choose_display", lambda *args: display)
     monkeypatch.setattr(oled_module, "scan_i2c", lambda *args: [0x3D])
-    result = invoke("run", "-o", "none", "--strict", "-n", "oled_cli_strict")
+    result = invoke("-n", "oled_cli_strict", "run", "-o", "none", "--strict")
     assert result.exit_code == 1
     assert "fake display told to fail" in result.output
     assert "0x3D" in result.output
@@ -176,6 +176,10 @@ def test_keys_console_map():
     assert key_command("+", state) == ("update", "contrast", "255")
     assert key_command("c", state) == ("clear", ())
     assert key_command("l", state) == ("applet", ("log",))
+    assert key_command("C", state) == ("applet", ("clock",))
+    assert key_command("e", state) == ("applet", ("eyes",))
+    assert key_command("h", state) == ("applet", ("help", "page=1"))
+    assert key_command("h", state) == ("applet", ("help", "page=2"))
     assert key_command("T", state) == ("update", "title", "off")
     state["settings"]["title"] = "off"
     assert key_command("T", state) == ("update", "title", "on")

@@ -49,7 +49,7 @@ From another terminal or host on the same broker:
     aiko_oled exit
 
 From another host, point `AIKO_MQTT_HOST` at the SBC's broker and name
-the Actor: `aiko_oled keys -n HOSTNAME`.  The SBC's mosquitto must listen
+the Actor: `aiko_oled -n HOSTNAME keys`.  The SBC's mosquitto must listen
 on every interface (`listener 1883 0.0.0.0` and `allow_anonymous true` in
 `/etc/mosquitto/conf.d/aiko.conf`; the Debian default is 127.0.0.1 only).
 
@@ -67,6 +67,7 @@ aiko_engine_mp style, with `mosquitto_pub` on the Actor's `in` topic:
 | `applets.py` | Applets: sources of frames the Actor runs — `status` (the default), `log`, `help`, `pattern`, `text`, `blink`, `demo` |
 | `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` (arrow keys over the wire) |
 | `drawings.py` | `draw`: pencil-sketched cartoon scenes |
+| `faces.py` | `clock`: an analog clock face; `eyes`: animated eyes showing emotions |
 | `console.py` | `aiko_oled keys`: an interactive console for the running Actor |
 | `aiko_oled.service` | systemd unit for a Raspberry Pi: the display comes up with the host |
 | `oled_test.py` | The original standalone spike (click, no Aiko Services): kept unchanged for reference |

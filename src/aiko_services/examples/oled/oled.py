@@ -12,6 +12,7 @@
 # Usage
 # ~~~~~
 #   export AIKO_MQTT_HOST=localhost
+#   aiko_oled [-n NAME] [-t SECONDS] SUBCOMMAND ...   (-n: the Actor to run or command)
 #   aiko_oled run [-o oled -a 0x3C] [--applet status] [--standalone]
 #   aiko_oled exit | list
 #   aiko_oled clear | log WORDS | text X Y WORDS | pixels X Y ... | line X0 Y0 X1 Y1
@@ -77,7 +78,7 @@ from aiko_services.main.utilities import get_hostname, parse
 from aiko_services.examples.oled.applets import (
     APPLETS, AppletDone, Host, parse_applet_args,
 )
-from aiko_services.examples.oled import drawings, games  # noqa: F401 (they register applets)
+from aiko_services.examples.oled import drawings, faces, games  # noqa: F401 (they register applets)
 from aiko_services.examples.oled.display import (
     ADDRESSES, OUTPUTS, DisplayNotFound, NullDisplay, choose_display,
     parse_colors, scan_i2c,
@@ -909,20 +910,15 @@ def _start_timeout(seconds, what):
 
     aiko.event.add_timer_handler(timed_out, seconds)
 
-def _remote(interface, name, timeout, command_handler):
-    """Discover the OLED Actor and invoke one command on it"""
+def _remote(interface, options, command_handler):
+    """Discover the OLED Actor named in the group options (-n, -t) and
+    invoke one command on it"""
 
+    name, timeout = options["name"], options["timeout"]
     _start_timeout(timeout, f"no OLED Actor named {name or get_hostname()}")
     aiko.do_command(interface, _service_filter(name), command_handler,
         terminate=True)
     aiko.process.run()
-
-def _remote_options(command):
-    command = click.option("--timeout", "-t", type=float, default=TIMEOUT,
-        show_default=True, help="Seconds to wait for the OLED Actor")(command)
-    command = click.option("--name", "-n", type=str, default=None,
-        help="OLED Actor name, default is the local hostname")(command)
-    return command
 
 def _parse_address(ctx, param, value):
     try:
@@ -956,21 +952,27 @@ def _display_hint(bus):
         + ": check the wiring and that I2C is enabled")
 
 @click.group()
+@click.option("--name", "-n", type=str, default=None,
+    help="The OLED Actor: the one to run, or the one to command  "
+         "[default: the local hostname]")
+@click.option("--timeout", "-t", type=float, default=TIMEOUT, show_default=True,
+    help="Seconds to wait for the OLED Actor (for list: to collect them)")
+@click.pass_context
 
-def main():
+def main(ctx, name, timeout):
     """OLED Actor: run it, or send commands to the running one
 
     \b
     export AIKO_MQTT_HOST=localhost
     aiko_oled run -a 0x3C                # the OLED, or an emulation on a desktop
     aiko_oled text 0 0 hello             # from another terminal or host
-    aiko_oled set contrast 64            # settings are shared state (Dashboard too)
-    aiko_oled exit
+    aiko_oled -n w3029f1 set contrast 64 # another host's Actor; the Dashboard too
+    aiko_oled -t 2 exit
     """
 
+    ctx.obj = {"name": name, "timeout": timeout}
+
 @main.command(name="run")
-@click.option("--name", "-n", type=str, default=None,
-    help="OLED Actor name, default is the local hostname")
 @click.option("--output", "-o", type=click.Choice(OUTPUTS), default="auto",
     show_default=True,
     help="oled: the SSD1306 over I2C; window (pygame), terminal, png: "
@@ -997,11 +999,13 @@ def main():
 @click.option("--strict", is_flag=True,
     help="Exit when the display can't be opened, instead of retrying")
 
-def run_command(name, output, address, bus, applet, font_size, title,
+@click.pass_obj
+
+def run_command(options, output, address, bus, applet, font_size, title,
     color, png, standalone, strict):
     """Run the OLED Actor (foreground; append & or use aiko_process create)"""
 
-    name = name or get_hostname()
+    name = options["name"] or get_hostname()
     if output == "terminal":  # console logging would scribble on the picture
         os.environ.setdefault("AIKO_LOG_MQTT", "true")
     display = choose_display(output, address, bus, png, color)
@@ -1026,24 +1030,24 @@ def run_command(name, output, address, bus, applet, font_size, title,
             actor._shutdown()
 
 @main.command(name="exit")
-@_remote_options
 @click.option("--all", "every", is_flag=True,
-    help="Allow --name '*': exit every OLED Actor")
+    help="Allow -n '*': exit every OLED Actor")
+@click.pass_obj
 
-def exit_command(name, timeout, every):
+def exit_command(options, every):
     """Blank the display and terminate the OLED Actor"""
 
-    if name == "*" and not every:
-        raise click.BadParameter("--name '*' would exit every OLED Actor: add --all")
-    _remote(OLED, name, timeout, lambda oled: oled.exit())
+    if options["name"] == "*" and not every:
+        raise click.BadParameter("-n '*' would exit every OLED Actor: add --all")
+    _remote(OLED, options, lambda oled: oled.exit())
 
 @main.command(name="list")
-@click.option("--timeout", "-t", type=float, default=2.0, show_default=True,
-    help="Seconds to collect the running OLED Actors")
+@click.pass_obj
 
-def list_command(timeout):
-    """List the running OLED Actors: name, topic path, tags"""
+def list_command(options):
+    """List the running OLED Actors (all, or -n NAME): name, topic path, tags"""
 
+    name, timeout = options["name"] or "*", options["timeout"]
     found = []
 
     def add_handler(service_details, service):
@@ -1058,68 +1062,74 @@ def list_command(timeout):
         aiko.process.terminate(0 if found else 1)
 
     aiko.do_discovery(OLED,
-        aiko.ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"), add_handler)
+        aiko.ServiceFilter("*", name, PROTOCOL, "*", "*", "*"), add_handler)
     aiko.event.add_timer_handler(done, timeout)
     aiko.process.run()
 
 @main.command(name="clear")
-@_remote_options
 
-def clear_command(name, timeout):
+@click.pass_obj
+
+def clear_command(options):
     """Erase the canvas"""
 
-    _remote(OLED, name, timeout, lambda oled: oled.clear())
+    _remote(OLED, options, lambda oled: oled.clear())
 
 @main.command(name="log", no_args_is_help=True)
-@_remote_options
 @click.argument("words", nargs=-1, required=True)
 
-def log_command(name, timeout, words):
+@click.pass_obj
+
+def log_command(options, words):
     """Scroll the canvas up and write WORDS on the bottom row"""
 
-    _remote(OLED, name, timeout, lambda oled: oled.log(*words))
+    _remote(OLED, options, lambda oled: oled.log(*words))
 
 @main.command(name="text", no_args_is_help=True)
-@_remote_options
 @click.argument("x", type=click.IntRange(0, WIDTH - 1))
 @click.argument("y", type=click.IntRange(0, HEIGHT - 1))
 @click.argument("words", nargs=-1, required=True)
 
-def text_command(name, timeout, x, y, words):
+@click.pass_obj
+
+def text_command(options, x, y, words):
     """Write WORDS with the text cell's bottom-left at X Y (origin bottom-left)"""
 
-    _remote(OLED, name, timeout, lambda oled: oled.text(x, y, *words))
+    _remote(OLED, options, lambda oled: oled.text(x, y, *words))
 
 @main.command(name="pixels", no_args_is_help=True)
-@_remote_options
 @click.argument("coordinates", nargs=-1, type=int, required=True)
 
-def pixels_command(name, timeout, coordinates):
+@click.pass_obj
+
+def pixels_command(options, coordinates):
     """Light pixels: X Y pairs, origin bottom-left"""
 
     if len(coordinates) % 2 or len(coordinates) > 2 * PIXEL_PAIRS_MAXIMUM:
         raise click.BadParameter(
             f"give X Y pairs, at most {PIXEL_PAIRS_MAXIMUM} of them")
-    _remote(OLED, name, timeout, lambda oled: oled.pixels(*coordinates))
+    _remote(OLED, options, lambda oled: oled.pixels(*coordinates))
 
 @main.command(name="line", no_args_is_help=True)
-@_remote_options
 @click.argument("x0", type=click.IntRange(0, WIDTH - 1))
 @click.argument("y0", type=click.IntRange(0, HEIGHT - 1))
 @click.argument("x1", type=click.IntRange(0, WIDTH - 1))
 @click.argument("y1", type=click.IntRange(0, HEIGHT - 1))
 
-def line_command(name, timeout, x0, y0, x1, y1):
+@click.pass_obj
+
+def line_command(options, x0, y0, x1, y1):
     """Draw a line from X0 Y0 to X1 Y1 (origin bottom-left)"""
 
-    _remote(OLED, name, timeout, lambda oled: oled.line(x0, y0, x1, y1))
+    _remote(OLED, options, lambda oled: oled.line(x0, y0, x1, y1))
 
 @main.command(name="set", no_args_is_help=True)
-@_remote_options
 @click.argument("key", type=click.Choice(SETTINGS))
 @click.argument("value")
 
-def set_command(name, timeout, key, value):
+@click.pass_obj
+
+def set_command(options, key, value):
     """Change a setting: the shared state that the Dashboard also edits
 
     \b
@@ -1130,6 +1140,7 @@ def set_command(name, timeout, key, value):
 
     if any(character.isspace() for character in value):
         raise click.BadParameter("no spaces in a value: use _ instead")
+    name, timeout = options["name"], options["timeout"]
     what = f"no OLED Actor named {name or get_hostname()}"
 
     def add_handler(service_details, service):
@@ -1143,13 +1154,14 @@ def set_command(name, timeout, key, value):
     aiko.process.run()
 
 @main.command(name="applet")
-@_remote_options
 @click.option("--list", "-l", "list_applets", is_flag=True,
     help="List the applets and their options, without an Actor")
 @click.argument("applet_name", required=False)
 @click.argument("arguments", nargs=-1)
 
-def applet_command(name, timeout, list_applets, applet_name, arguments):
+@click.pass_obj
+
+def applet_command(options, list_applets, applet_name, arguments):
     """Run an applet, e.g. status, pong seed=1; none shows the canvas"""
 
     if list_applets:
@@ -1162,43 +1174,47 @@ def applet_command(name, timeout, list_applets, applet_name, arguments):
         return
     if not applet_name:
         raise click.UsageError("give an applet name, or --list")
-    _remote(OLEDApplets, name, timeout,
+    _remote(OLEDApplets, options,
         lambda oled: oled.applet(applet_name, *arguments))
 
 @main.command(name="stop")
-@_remote_options
 
-def stop_command(name, timeout):
+@click.pass_obj
+
+def stop_command(options):
     """Stop the running applet: the canvas is shown"""
 
-    _remote(OLEDApplets, name, timeout, lambda oled: oled.applet("none"))
+    _remote(OLEDApplets, options, lambda oled: oled.applet("none"))
 
 @main.command(name="keys")
-@_remote_options
 
-def keys_command(name, timeout):
+@click.pass_obj
+
+def keys_command(options):
     """Interactive console: keys switch applets and settings, arrows play
 
     \b
     s status  l log  p pattern  t text  d draw  g games  F forklift game
-    A forklift  D demo  b blink  h help (the same key again: the next options)
+    A forklift  D demo  b blink  C clock  e eyes  h help (again: the next page)
+    (the same applet key again: its next options)
     arrows: keys for the applet   0-9 speed (4 normal)   f next font  T title
     i invert  o power  a all pixels on  +/- contrast  c clear  R reset
     ? this list   x or q quit the console   X exit the OLED Actor
     """
 
     from aiko_services.examples.oled.console import KeysConsole  # (imports this module)
-    KeysConsole(name, timeout).run()
+    KeysConsole(options["name"], options["timeout"]).run()
 
 @main.command(name="key", no_args_is_help=True)
-@_remote_options
 @click.argument("key_name")
 @click.argument("state", type=click.Choice(KEY_STATES), default="tap")
 
-def key_command(name, timeout, key_name, state):
+@click.pass_obj
+
+def key_command(options, key_name, state):
     """Send a key to the running applet: up, down, left, right or a character"""
 
-    _remote(OLEDApplets, name, timeout,
+    _remote(OLEDApplets, options,
         lambda oled: oled.key(key_name, state))
 
 if __name__ == "__main__":

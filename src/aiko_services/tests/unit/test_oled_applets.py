@@ -277,7 +277,8 @@ def frames_of(applet, count):
 
 def test_registry_has_every_applet():
     assert set(APPLETS) == {"status", "log", "help", "pattern", "text", "blink", "demo",
-        "pong", "asteroids", "invaders", "games", "forklift", "forklift_game", "draw"}
+        "clock", "eyes", "pong", "asteroids", "invaders", "games", "forklift",
+        "forklift_game", "draw"}
 
 @pytest.mark.parametrize("name", ["pong", "asteroids", "invaders", "forklift", "forklift_game"])
 def test_games_are_deterministic_with_a_seed(name):
@@ -403,3 +404,67 @@ def test_random_steps_are_valid_applets():
         assert set(settings) <= {"font", "invert", "contrast"}
     assert len({name for _, name, _, _ in steps}) >= 5
     assert all(name in APPLETS for _, name, _, _ in TOUR)
+
+# --------------------------------------------------------------------------- #
+# Help pages, the clock face, the eyes
+
+from datetime import datetime  # noqa: E402
+from aiko_services.examples.oled.applets import HelpApplet  # noqa: E402
+from aiko_services.examples.oled.faces import EMOTIONS, ClockApplet, EyesApplet  # noqa: E402
+
+def test_help_pages_fit_the_display_and_turn():
+    assert len(HelpApplet.PAGES) == 6
+    for heading, lines in HelpApplet.PAGES:
+        assert len(heading) <= 16 and 1 <= len(lines) <= 6
+        assert all(len(line) <= 21 for line in lines), heading
+    host = RecordingHost()
+    fixed = HelpApplet(host, [], {"page": 3})
+    assert fixed.description == "help_3_of_6"
+    assert fixed.step() is not None and fixed.step() is None
+    fixed.key("right", "tap")
+    assert fixed.description == "help_4_of_6" and fixed.step() is not None
+    fixed.key("left", "tap")
+    assert fixed.description == "help_3_of_6"
+    auto = HelpApplet(host, [], {"hold": 1})
+    assert auto.description == "help_1_of_6"
+    frames = [auto.step() for _ in range(3)]
+    assert auto.description == "help_2_of_6"
+    assert frames[1] is not None and frames[2] is None      # turned on step 2
+    assert min(lit_rows(frames[0])) == 8                  # below the title row
+
+def test_clock_face():
+    host = RecordingHost()
+    clock = ClockApplet(host)
+    assert not clock.wants_title
+    face = clock.face(datetime(2026, 9, 26, 10, 10, 30))
+    rows = lit_rows(face)
+    assert face.size == (WIDTH, HEIGHT) and rows[0] <= 1 and rows[-1] >= 62
+    assert face.tobytes() != clock.face(datetime(2026, 9, 26, 10, 10, 31)).tobytes()
+    still = ClockApplet(host, [], {"seconds": False})
+    assert still.face(datetime(2026, 9, 26, 10, 10, 30)).tobytes()  \
+        == still.face(datetime(2026, 9, 26, 10, 10, 31)).tobytes()
+    titled = ClockApplet(host, [], {"title": True})
+    assert titled.wants_title and min(lit_rows(titled.face(datetime(2026, 1, 1)))) >= 8
+    assert clock.step() is not None and clock.step() is None   # once a second
+
+def test_eyes_are_deterministic_and_emotional():
+    host = RecordingHost()
+    first = [frame.tobytes() for frame in frames_of(EyesApplet(host, [], {"seed": 1}), 100)]
+    again = [frame.tobytes() for frame in frames_of(EyesApplet(host, [], {"seed": 1}), 100)]
+    assert first == again
+    host = RecordingHost()
+    eyes = EyesApplet(host, [], {"seed": 4})
+    frames = frames_of(eyes, 400)
+    assert len(set(host.statuses)) >= 3 and set(host.statuses) <= set(EMOTIONS)
+    lit = [lit_count(frame) for frame in frames]
+    assert min(lit) < 0.6 * max(lit)                       # a blink or a squint
+    fixed_host = RecordingHost()
+    angry = EyesApplet(fixed_host, [], {"seed": 4, "emotion": "angry", "blink": False})
+    frames_of(angry, 200)
+    assert fixed_host.statuses == ["angry"] and angry.description == "angry"
+    with pytest.raises(ValueError):
+        parse_applet_args(["emotion=grumpy"], EyesApplet.OPTIONS)
+    assert {"clock", "eyes", "help"} <= set(APPLETS)
+
+def lit_count(image):
+    return sum(1 for y in range(image.height) for x in range(image.width) if image.getpixel((x, y)))

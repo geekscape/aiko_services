@@ -12,7 +12,7 @@
 # Keys
 # ~~~~
 #   s status  l log  p pattern  t text  d draw  g games  F forklift game
-#   A forklift  D demo  b blink  h help
+#   A forklift  D demo  b blink  C clock  e eyes  h help (again: next page)
 #   arrows: (key left|right|up|down)   0-9 speed (0 fastest, 4 normal, 9 slowest)
 #   f next font   T title on/off   i invert   o power   a all pixels on
 #   + - contrast
@@ -44,7 +44,7 @@ __all__ = ["KEY_APPLETS", "PRESETS", "Keyboard", "KeysConsole", "key_command"]
 ARROWS = {"A": "up", "B": "down", "C": "right", "D": "left"}  # the terminal's codes
 KEY_APPLETS = {"s": "status", "l": "log", "p": "pattern", "t": "text",
                "d": "draw", "g": "games", "F": "forklift_game", "A": "forklift",
-               "D": "demo", "b": "blink", "h": "help"}
+               "D": "demo", "b": "blink", "h": "help", "C": "clock", "e": "eyes"}
 PRESETS = {  # the same key again: the next argument list
     "status": [[], ["rate=4"]],
     "pattern": [[]],
@@ -56,8 +56,11 @@ PRESETS = {  # the same key again: the next argument list
     "forklift": [[]],
     "demo": [[], ["random=off"]],
     "blink": [[], ["rate=8"]],
-    "help": [[]],
+    "help": [[f"page={page}"] for page in range(1, 7)],  # h again: the next page
     "log": [[]],
+    "clock": [[], ["title=on"], ["seconds=off"]],
+    "eyes": [[], ["emotion=happy"], ["emotion=angry"], ["emotion=surprised"],
+             ["emotion=sleepy"], ["emotion=suspicious"], ["emotion=loving"]],
 }
 RESET = {"contrast": "255", "invert": "off", "power": "on", "all_on": "off",
          "font": "5x7", "speed": "1"}
@@ -244,7 +247,8 @@ class KeysConsole:
     def _help():
         return "\r\n".join([
             "s status  l log  p pattern  t text  d draw  g games  F forklift game",
-            "A forklift  D demo  b blink  h help   (the same key again: the next options)",
+            "A forklift  D demo  b blink  C clock  e eyes  h help (again: the next page)",
+            "(the same applet key again: its next options)",
             "arrows: keys for the applet   0-9 speed (4 normal)   f next font   T title",
             "i invert  o power  a all on  + - contrast  c clear  R reset",
             "? this list   x q quit the console   X exit the OLED Actor",

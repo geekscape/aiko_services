@@ -50,24 +50,27 @@ spike, `oled_test.py`, stays in the directory unchanged for reference.
 ### Command-line usage
 
 `aiko_oled` (registered in `pyproject.toml`; the example directory is not
-in the wheel, so it needs `pip install -e .`).  `run` starts the Actor in
-the foreground; every other subcommand discovers the running Actor by
-name and protocol and sends it one command.
+in the wheel, so it needs `pip install -e .`).  Two options come before
+the subcommand: `-n NAME` names the Actor, the one to run or the one to
+command (default: the local hostname), and `-t SECONDS` is how long to
+wait for it (default 5; for `list`, how long to collect).  `run` starts
+the Actor in the foreground; every other subcommand discovers the running
+Actor by name and protocol and sends it one command.
 
 | Subcommand | Arguments and options | What it does |
 |------------|----------------------|--------------|
-| `run` | `-n NAME` (default: hostname), `-o auto\|oled\|window\|terminal\|png\|none`, `-a 0x3C`, `-b 1`, `--applet NAME`, `-fs 5x7\|6..64`, `--title TEXT\|off`, `-c 'FG [BG]'`, `--png FILE`, `--standalone`, `--strict` | Run the Actor.  `auto` picks the OLED when `/dev/i2c-N` exists, else a window when there is a desktop and pygame, else the terminal.  `--standalone` runs without a broker.  `--strict` exits when the display can't be opened, instead of retrying every 10 s |
-| `exit` | `-n`, `-t 5`, `--all` | `(exit)`: blank the display and terminate.  `-n '*'` needs `--all` |
-| `list` | `-t 2` | Every `oled:0` Actor on the broker: name, topic path, tags |
-| `clear` | `-n`, `-t` | `(clear)` |
-| `log WORDS...` | `-n`, `-t` | `(log WORDS ...)` |
-| `text X Y WORDS...` | `-n`, `-t` | `(text X Y WORDS ...)`, origin bottom-left |
-| `pixels X Y ...` | `-n`, `-t` | `(pixels X Y ...)` |
-| `line X0 Y0 X1 Y1` | `-n`, `-t` | `(line X0 Y0 X1 Y1)` |
-| `set KEY VALUE` | `-n`, `-t` | `(update KEY VALUE)` on the Actor's control topic, exactly what the Dashboard does |
-| `applet NAME [ARGS...]` | `-n`, `-t`, `-l` | `(applet NAME ARGS ...)`; `stop` is `(applet none)`; `applet -l` lists the applets and their options without an Actor |
-| `key NAME [tap\|down\|up]` | `-n`, `-t` | `(key NAME STATE)` for the running applet |
-| `keys` | `-n`, `-t` | Interactive console: letters switch applets (the same letter again: its next options), arrows send keys, digits set the speed, `f` `T` `i` `o` `a` `+` `-` change settings, `R` resets, `x` quits, `X` exits the Actor; a status line follows the shared state |
+| `run` | `-o auto\|oled\|window\|terminal\|png\|none`, `-a 0x3C`, `-b 1`, `--applet NAME`, `-fs 5x7\|6..64`, `--title TEXT\|off`, `-c 'FG [BG]'`, `--png FILE`, `--standalone`, `--strict` | Run the Actor.  `auto` picks the OLED when `/dev/i2c-N` exists, else a window when there is a desktop and pygame, else the terminal.  `--standalone` runs without a broker.  `--strict` exits when the display can't be opened, instead of retrying every 10 s |
+| `exit` | `--all` | `(exit)`: blank the display and terminate.  `-n '*'` needs `--all` |
+| `list` | | Every `oled:0` Actor on the broker (or the one named with `-n`): name, topic path, tags |
+| `clear` | | `(clear)` |
+| `log WORDS...` | | `(log WORDS ...)` |
+| `text X Y WORDS...` | | `(text X Y WORDS ...)`, origin bottom-left |
+| `pixels X Y ...` | | `(pixels X Y ...)` |
+| `line X0 Y0 X1 Y1` | | `(line X0 Y0 X1 Y1)` |
+| `set KEY VALUE` | | `(update KEY VALUE)` on the Actor's control topic, exactly what the Dashboard does |
+| `applet NAME [ARGS...]` | `-l` | `(applet NAME ARGS ...)`; `stop` is `(applet none)`; `applet -l` lists the applets and their options without an Actor |
+| `key NAME [tap\|down\|up]` | | `(key NAME STATE)` for the running applet |
+| `keys` | | Interactive console: letters switch applets (the same letter again: its next options; `h` again: the next help page), arrows send keys, digits set the speed, `f` `T` `i` `o` `a` `+` `-` change settings, `R` resets, `x` quits, `X` exits the Actor; a status line follows the shared state |
 
 Every remote subcommand gives up with exit status 1 after `-t` seconds
 when no Actor answers (the framework's `do_command()` would wait for
@@ -75,15 +78,15 @@ ever).  A session on the desktop:
 
     $ export AIKO_MQTT_HOST=localhost
     $ aiko_registrar &
-    $ aiko_oled run -o png --png /tmp/oled.png -n oledit --title Aiko_v0.8 &
+    $ aiko_oled -n oledit run -o png --png /tmp/oled.png --title Aiko_v0.8 &
     OLED Actor oledit: aiko/nomad/92920/1/in
     $ mosquitto_pub -t aiko/nomad/92920/1/in -m "(oled:text 0 0 hello)"
-    $ aiko_oled text -n oledit 0 8 second row
-    $ aiko_oled set -n oledit contrast 32
+    $ aiko_oled -n oledit text 0 8 second row
+    $ aiko_oled -n oledit set contrast 32
     $ aiko_oled list
     oledit  aiko/nomad/92920/1  ec=true
-    $ aiko_oled exit -n oledit
-    $ aiko_oled exit -n oledit -t 2
+    $ aiko_oled -n oledit exit
+    $ aiko_oled -n oledit -t 2 exit
     Timeout after 2 s: no OLED Actor named oledit
     $ echo $?
     1
@@ -157,7 +160,9 @@ one-way; outcomes are observed in the shared state.  Coordinates: x
 |------|---------|---------------|
 | `status` | `rate=` updates per second (1), `date=on` | The host's status; the default |
 | `log` | | The last eight `(log ...)` lines as they arrive |
-| `help` | | The wire commands and settings |
+| `help` | `page=N`, `hold=` seconds (8) | Help in pages that fit the display: console keys (applets, actions), Dashboard settings and state, LISP commands and notes; the pages turn by themselves, with the arrow keys, or with `h` in the console |
+| `clock` | `title=on`, `seconds=off` | An analog clock face: hour, minute and second hands, the day of the month in a window, weekday and month |
+| `eyes` | `seed=`, `emotion=neutral\|happy\|sad\|angry\|surprised\|sleepy\|suspicious\|curious\|loving`, `blink=off` | Animated eyes (iris, pupil, lids, brows, smile lines) that look around, blink and show a random range of emotions |
 | `pattern` | | The test pattern for a panel: border, ruler ticks, diagonals, a circle, even and odd row blocks, a checkerboard, "centre" |
 | `text [WORDS]` | | The words centred; without words a screen full of digits |
 | `blink` | `rate=` changes per second (2) | The panel's power off and on: a hardware test |
@@ -281,6 +286,7 @@ published again, so an observer converges back.
 | `StatusApplet`, `PatternApplet`, `TextApplet`, `BlinkApplet`, `HelpApplet`, `DemoApplet` | The built-in applets; the demo runs the others in turn and restores the settings it changed | `Host`, `APPLETS` |
 | `games.py`: `pong`, `asteroids`, `invaders`, `forklift_work`, `ForkliftGame` | Frame generators and the forklift game's pallet physics, counted in frames | `Host` |
 | `drawings.py`: `SUBJECTS`, `scene_strokes`, `sketch_frames`, `DrawApplet` | Cartoon subjects, stroke planning, the pencil sketch as a frame generator | `Host` |
+| `faces.py`: `ClockApplet`, `EyesApplet` | The clock face; the eyes' lens shapes, gaze, blinks and eased emotions | `Host` |
 | `KeysConsole` (console.py) | Keys typed in a terminal become wire commands and settings updates; an ECConsumer shows the shared state | `aiko.do_discovery`, `ECConsumerImpl` |
 | `main` (click) | `run`, and discovery-plus-one-command subcommands with a timeout | `aiko.do_command`, `aiko.do_discovery` |
 
