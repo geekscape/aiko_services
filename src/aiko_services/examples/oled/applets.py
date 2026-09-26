@@ -345,7 +345,7 @@ class HelpApplet(Applet):
             "p pattern t text",
             "d draw D demo",
             "g games G forklift",
-            "S blink C clock",
+            "P blink C clock",
             "e eyes",
         ]),
         ("Keys: actions", [

@@ -446,6 +446,38 @@ def test_clock_face():
     assert titled.wants_title and min(lit_rows(titled.face(datetime(2026, 1, 1)))) >= 8
     assert clock.step() is not None and clock.step() is None   # once a second
 
+def lit_bands(image):
+    """The runs of consecutive lit rows: (first, last) of each"""
+
+    bands, rows = [], lit_rows(image)
+    for row in rows:
+        if bands and row == bands[-1][1] + 1:
+            bands[-1][1] = row
+        else:
+            bands.append([row, row])
+    return bands
+
+def test_clock_digital_face():
+    host = RecordingHost()
+    digital = ClockApplet(host, [], {"face": "digital"})
+    assert digital.wants_title and digital.description == "digital"
+    face = digital.face(datetime(2026, 9, 27, 8, 5, 9))
+    bands = lit_bands(face)
+    assert len(bands) == 3 and bands[0][0] >= 8 + 2            # below the title, spaced
+    assert all(b[0] - a[1] > 2 for a, b in zip(bands, bands[1:]))   # whitespace between
+    assert bands[-1][1] <= HEIGHT - 1 - 2
+    size = digital._digital_font[1].size
+    assert 12 <= size <= 20                                    # the largest that fits
+    assert face.tobytes() != digital.face(datetime(2026, 9, 27, 8, 5, 10)).tobytes()
+    full = ClockApplet(host, [], {"face": "digital", "title": False})
+    assert not full.wants_title
+    assert full._fit_font(["Wednesday", "2026-09-27", "00:00:00"], WIDTH, HEIGHT).size > size
+    minutes = ClockApplet(host, [], {"face": "digital", "seconds": False})
+    assert minutes.face(datetime(2026, 9, 27, 8, 5, 9)).tobytes()  \
+        == minutes.face(datetime(2026, 9, 27, 8, 5, 10)).tobytes()
+    with pytest.raises(ValueError):
+        parse_applet_args(["face=round"], ClockApplet.OPTIONS)
+
 def test_eyes_are_deterministic_and_emotional():
     host = RecordingHost()
     first = [frame.tobytes() for frame in frames_of(EyesApplet(host, [], {"seed": 1}), 100)]

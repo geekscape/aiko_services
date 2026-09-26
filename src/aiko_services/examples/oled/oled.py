@@ -1357,7 +1357,7 @@ def keys_command(options):
     """Interactive console: keys switch applets and settings, arrows play
 
     \b
-    s status  l log  p pattern  t text  d draw  D demo  S blink  C clock
+    s status  l log  p pattern  t text  d draw  D demo  P blink  C clock
     e eyes  g games (pong, asteroids, invaders, forklift)  G forklift game
     h or ? help (the same applet key again: its next options)
     arrows: keys for the applet   0-9 speed (4 normal)   f F next/previous font

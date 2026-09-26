@@ -82,7 +82,7 @@ pytest src/aiko_services/tests/unit/test_oled.py \
        src/aiko_services/tests/unit/test_oled_applets.py
 ```
 
-86 tests; no broker and no panel needed.
+89 tests; no broker and no panel needed.
 
 ## Files
 
@@ -94,7 +94,7 @@ pytest src/aiko_services/tests/unit/test_oled.py \
 | `applets.py` | Applets: sources of frames the Actor runs — `status` (the default), `log`, `help`, `pattern`, `text`, `blink`, `demo` |
 | `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` (arrow keys over the wire) |
 | `drawings.py` | `draw`: pencil-sketched cartoon scenes |
-| `faces.py` | `clock`: an analog clock face; `eyes`: animated eyes showing emotions |
+| `faces.py` | `clock`: an analog or a digital clock face; `eyes`: animated eyes showing emotions |
 | `keys.py` | The key map: what each key sends, shared by the console and the emulator window (`-o window`) |
 | `console.py` | `aiko_oled keys`: an interactive console for the running Actor |
 | `aiko_oled.service` | systemd unit for a Linux SBC: the display comes up with the host |

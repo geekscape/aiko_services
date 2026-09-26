@@ -23,7 +23,8 @@ import math
 from PIL import Image, ImageDraw, ImageFont
 
 __all__ = [
-    "FONT_5X7", "FONT_SIZES", "HEIGHT", "INK", "WIDTH",
+    "FONT_5X7", "FONT_SIZES", "FONT_SIZE_MAXIMUM", "FONT_SIZE_MINIMUM",
+    "HEIGHT", "INK", "WIDTH",
     "Canvas", "Font", "blank", "parse_font_size", "paste_centred", "pixels",
     "sprite", "stamp", "title_strip",
 ]

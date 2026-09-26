@@ -2,14 +2,19 @@
 #
 # Aiko Services: OLED faces
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
-# Two applets with faces: an analog clock face, and a pair of animated eyes
-# that show a range of emotions.  The eyes use no clock, only frame counts
-# and a seeded random generator, so the same seed gives the same animation.
+# Two applets with faces: a clock face, analog or digital, and a pair of
+# animated eyes that show a range of emotions.  The eyes use no clock, only
+# frame counts and a seeded random generator, so the same seed gives the
+# same animation.
 #
 # Applets
 # ~~~~~~~
-#   clock [title=off] [seconds=on]  hour, minute and second hands, the day of
+#   clock [face=analog] [title=off] [seconds=on]
+#                                   hour, minute and second hands, the day of
 #                                   the month in a window, weekday and month
+#   clock face=digital [title=on] [seconds=on]
+#                                   the weekday, the date and the time, each
+#                                   on a row in the largest font that fits
 #   eyes [seed=N] [emotion=NAME] [blink=on]
 #                                   eyes with iris, pupil, lids, brows and
 #                                   smile lines; the emotion changes at random
@@ -24,28 +29,44 @@ import random
 from PIL import Image, ImageChops, ImageDraw
 
 from aiko_services.examples.oled.applets import APPLETS, Applet, on_off
-from aiko_services.examples.oled.graphics import INK, stamp
+from aiko_services.examples.oled.graphics import (
+    FONT_SIZE_MAXIMUM, FONT_SIZE_MINIMUM, INK, Font, stamp,
+)
 
 __all__ = ["EMOTIONS", "ClockApplet", "EyesApplet"]
 
 # --------------------------------------------------------------------------- #
 
+FACES = ("analog", "digital")
+DIGITAL_GAP = 3      # rows of whitespace at least between the digital rows
+
+def _face(text):
+    if text not in FACES:
+        raise ValueError(text)
+    return text
+
 class ClockApplet(Applet):
     """An analog clock face: hour, minute and second hands, the day of the
     month in a window at three o'clock, the weekday and the month beside
-    the face.  Full screen unless "title=on" """
+    the face; full screen unless "title=on".  Or "face=digital": the title
+    row, then the weekday, the date (yyyy-mm-dd) and the time (hh:mm:ss),
+    each on its own row in the largest font that fits, spaced evenly"""
 
     name = "clock"
     fps = 1
-    OPTIONS = {"title": on_off, "seconds": on_off}
+    OPTIONS = {"face": _face, "title": on_off, "seconds": on_off}
     description = "clock"
-    summary = "An analog clock face with a seconds hand and the day of the month"
+    summary = "A clock face, analog (hands, the day of the month) or digital (weekday, date, time)"
 
     def __init__(self, host, words=(), options=None):
         super().__init__(host, words, options)
-        self.wants_title = self.options.get("title", False)
+        self.face_name = self.options.get("face", "analog")
+        self.digital = self.face_name == "digital"
+        self.wants_title = self.options.get("title", self.digital)
         self.seconds = self.options.get("seconds", True)
+        self.description = self.face_name
         self._shown = None
+        self._digital_font = None    # (key, Font): chosen once per day
 
     def step(self):
         now = datetime.now().replace(microsecond=0)
@@ -59,6 +80,44 @@ class ClockApplet(Applet):
     def face(self, now):
         """The clock face for a datetime (pure: tests draw fixed times)"""
 
+        return self.digital_face(now) if self.digital else self.analog_face(now)
+
+    def digital_face(self, now):
+        """The weekday, the date and the time, each centered on a row, in
+        the largest font whose three rows fit with whitespace between"""
+
+        frame = self.frame()
+        top = self.host.title_rows() if self.wants_title else 0
+        height, width = self.host.height - top, self.host.width
+        texts = [now.strftime("%A"), now.strftime("%Y-%m-%d"),
+                 now.strftime("%H:%M:%S" if self.seconds else "%H:%M")]
+        key = (texts[0], self.seconds, height)
+        if self._digital_font is None or self._digital_font[0] != key:
+            self._digital_font = (key, self._fit_font(texts, width, height))
+        font = self._digital_font[1]
+        images = [font.render_line(text) for text in texts]
+        free = height - sum(image.height for image in images)
+        gap, extra = divmod(free, len(images) + 1)   # even gaps, top and bottom too
+        y = top + gap + extra // 2
+        for image in images:
+            stamp(frame, image, (width - image.width) // 2, y)
+            y += image.height + gap
+        return frame
+
+    @staticmethod
+    def _fit_font(texts, width, height):
+        """The largest TrueType size whose rows all fit the width, with at
+        least DIGITAL_GAP rows between them and at the edges"""
+
+        for size in range(FONT_SIZE_MAXIMUM, FONT_SIZE_MINIMUM, -1):
+            font = Font(size)
+            needed = len(texts) * font.line_height + (len(texts) + 1) * DIGITAL_GAP
+            if needed <= height and all(
+                    font.render_line(text).width <= width - 2 for text in texts):
+                return font
+        return Font(FONT_SIZE_MINIMUM)
+
+    def analog_face(self, now):
         frame = self.frame()
         draw = ImageDraw.Draw(frame)
         font = self.host.font

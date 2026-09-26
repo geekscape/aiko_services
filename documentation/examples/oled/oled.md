@@ -216,9 +216,9 @@ window (`-o window`), where the Actor applies them itself. There `Esc`,
 | `d` | draw, then shade=off, style=hatch, style=stipple, then each subject: bicycle, cat, dog, flower, forklift, house, pine, tree |
 | `g` | pong, asteroids, invaders, forklift: the self-playing games |
 | `G` | forklift_game: the interactive one |
-| `S` | blink, blink rate=8 |
+| `P` | blink, blink rate=8 |
 | `D` | demo, demo random=off |
-| `C` | clock, clock title=on, clock seconds=off |
+| `C` | clock, clock title=on, clock seconds=off, clock face=digital |
 | `e` | eyes, then each emotion: happy, sad, angry, surprised, sleepy, suspicious, curious, loving |
 | arrows | `(key left\|right\|up\|down)` for the applet: the forklift game and the help pages |
 | `0`..`9` | The speed: `0` fastest (x4), `4` normal, `9` slowest |
@@ -265,7 +265,7 @@ x 0..127 left to right, y 0..63 bottom to top.
 | `status` | `rate=` updates per second (1), `date=on` | The host's status, the default |
 | `log` | | The last eight `(log ...)` lines as they arrive |
 | `help` | `page=N`, `hold=` seconds (8) | Help in pages that fit the display: console keys (applets, actions), Dashboard settings and state, wire commands and notes |
-| `clock` | `title=on`, `seconds=off` | An analog clock face: hour, minute and second hands, the day of the month in a window, the weekday and the month |
+| `clock` | `face=analog\|digital`, `title=on\|off`, `seconds=off` | Analog: hour, minute and second hands, the day of the month in a window, the weekday and the month, full screen unless `title=on`. Digital: the title row, then the weekday, the date and the time, each on a row in the largest font that fits, spaced evenly |
 | `eyes` | `seed=`, `emotion=neutral\|happy\|sad\|angry\|surprised\|sleepy\|suspicious\|curious\|loving`, `blink=off` | Animated eyes (iris, pupil, lids, brows, smile lines) that look around, blink and show a random range of emotions |
 | `pattern` | | The test pattern for a panel: border, ruler ticks, diagonals, a circle, even and odd row blocks, a checkerboard, "centre" |
 | `text [WORDS]` | | The words in the center. Without words, a screen full of digits |
@@ -421,7 +421,7 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
 
 ## Current limitations and roadmap
 
-**Implemented** (Epic 0, complete 2026-09-26): everything above, with 86
+**Implemented** (Epic 0, complete 2026-09-26): everything above, with 89
 unit tests that need no broker and no panel, run on Python 3.12 (macOS)
 and 3.13 (the SBC).
 

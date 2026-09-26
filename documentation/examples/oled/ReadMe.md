@@ -55,12 +55,12 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 | `applets.py` | The `Applet` base class and registry: `status` (the default), `log`, `help`, `pattern`, `text`, `blink`, `demo` |
 | `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` |
 | `drawings.py` | `draw`: pencil-sketched cartoon scenes |
-| `faces.py` | `clock`: an analog clock face. `eyes`: animated eyes with emotions |
+| `faces.py` | `clock`: an analog or a digital clock face. `eyes`: animated eyes with emotions |
 | `keys.py` | The key map: what each key sends, shared by the console and the emulator window |
 | `console.py` | `aiko_oled keys`: the interactive console |
 | `aiko_oled.service` | A systemd unit for a Linux SBC: the display comes up with the host |
 | `oled_test.py` | The original standalone spike, kept unchanged for reference. No module imports it |
-| `tests/unit/test_oled.py`, `test_oled_cli.py`, `test_oled_applets.py` | 86 unit tests: graphics, displays, the Actor, dispatch, settings, the command line, the applets. No broker and no panel needed |
+| `tests/unit/test_oled.py`, `test_oled_cli.py`, `test_oled_applets.py` | 89 unit tests: graphics, displays, the Actor, dispatch, settings, the command line, the applets. No broker and no panel needed |
 
 ## Status
 

@@ -181,7 +181,7 @@ def test_keys_console_map():
     assert key_command("g", state) == [("applet", ("forklift",))]
     assert key_command("g", state) == [("applet", ("pong",))]
     assert key_command("G", state) == [("applet", ("forklift_game",))]
-    assert key_command("S", state) == [("applet", ("blink",))]
+    assert key_command("P", state) == [("applet", ("blink",))]
     assert key_command("d", state) == [("applet", ("draw",))]
     assert key_command("d", state) == [("applet", ("draw", "shade=off"))]
     assert key_command("t", state)[0] == ("applet", ("text",))
@@ -218,6 +218,9 @@ def test_keys_console_map():
     assert key_command("l", state) == [("update", "font", "5x7"), ("applet", ("log",))]
     state["settings"]["font"] = "5x7"
     assert key_command("C", state) == [("applet", ("clock",))]
+    assert key_command("C", state) == [("applet", ("clock", "title=on"))]
+    assert key_command("C", state) == [("applet", ("clock", "seconds=off"))]
+    assert key_command("C", state) == [("applet", ("clock", "face=digital"))]
     assert key_command("e", state) == [("applet", ("eyes",))]
     assert key_command("e", state) == [("applet", ("eyes", "emotion=happy"))]
     assert key_command("h", state) == [("applet", ("help", "page=1"))]
@@ -225,7 +228,7 @@ def test_keys_console_map():
     assert key_command("T", state) == [("update", "title", "off")]
     state["settings"]["title"] = "off"
     assert key_command("T", state) == [("update", "title", "on")]
-    for key in ("w", "A", "z", "k"):
+    for key in ("w", "A", "S", "z", "k"):
         assert key_command(key, state) == []
     commands = reset_commands(state)
     assert commands[-1] == ("applet", ("status",))

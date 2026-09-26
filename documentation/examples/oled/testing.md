@@ -82,7 +82,7 @@ pytest src/aiko_services/tests/unit/test_oled.py \
 flake8 . --select=E9,F63,F7,F82
 ```
 
-Expect: `86 passed`, and no flake8 output. No broker and no panel are
+Expect: `89 passed`, and no flake8 output. No broker and no panel are
 needed. Run them on the SBC too (Python 3.13 there). One test asserts
 that `oled_test.py`, the original spike, is never imported.
 
@@ -243,7 +243,8 @@ aiko_oled applet blink rate=4      # the power off and on, four times a second (
 aiko_oled applet log               # the last eight (log ...) lines, oldest first
 aiko_oled applet help              # the help pages, turning every 8 s; page=2 holds one
 aiko_oled applet help page=5       # the wire commands; the arrow keys turn the pages
-aiko_oled applet clock             # the clock face; title=on keeps the title row; seconds=off
+aiko_oled applet clock             # the analog clock face; title=on keeps the title row; seconds=off
+aiko_oled applet clock face=digital   # the weekday, the date and the time under the title row
 aiko_oled applet eyes              # the eyes; emotion=angry holds one; blink=off
 aiko_oled applet asteroids seed=1  # the same game every time with the same seed
 aiko_oled applet games duration=10 # pong, asteroids and invaders in turn
@@ -284,10 +285,10 @@ that follows the shared state. Then type, without Enter:
 | `b`, repeatedly **[mac]** | The next foreground color: deepskyblue, yellow, lime, orange, hotpink, white |
 | `B`, repeatedly **[mac]** | The next background color: midnightblue, darkslategray, maroon, dimgray, white, black |
 | `c` | Clear the canvas |
-| `S`, twice | The panel's power off and on, twice a second, then eight times a second |
+| `P`, twice | The panel's power off and on, twice a second, then eight times a second |
 | `l` | The log lines |
 | `h`, six times | The help pages, one per press |
-| `C`, three times | The clock face, then with the title row, then without the seconds hand |
+| `C`, four times | The clock face, then with the title row, then without the seconds hand, then the digital face |
 | `e`, repeatedly | The eyes, then held at `happy`, and on through the emotions |
 | `T` | The title row off, then on again |
 | `s`, repeatedly | The status display, then at 4 updates a second, then in the 5x7, 10 and 12 pixel fonts |

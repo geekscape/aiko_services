@@ -85,7 +85,7 @@ are current and instructive. Colab, speech, llm and the robot examples
 mix working code with stubs, mocks and work-in-progress. Each document
 separates implemented behavior from planned behavior, based on the
 source code as of 2026-07-06 (oled: 2026-09-26). Only the oled package
-has automated tests: 86 unit tests that need no hardware. Several
+has automated tests: 89 unit tests that need no hardware. Several
 packages depend on hardware (microphone, webcam, CUDA GPU, XGO-Mini
 robot, an SSD1306 OLED) or external services (Ollama, Google Colab).
 

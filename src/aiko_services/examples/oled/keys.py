@@ -13,7 +13,7 @@
 #
 # Keys
 # ~~~~
-#   s status  l log  p pattern  t text  d draw  D demo  S blink  C clock
+#   s status  l log  p pattern  t text  d draw  D demo  P blink  C clock
 #   e eyes  g games: pong, asteroids, invaders, forklift  G forklift game
 #   h ? help (again: the next page)
 #   arrows: (key left|right|up|down)   0-9 speed (0 fastest, 4 normal, 9 slowest)
@@ -64,9 +64,10 @@ PRESETS = {
          + [[applet("draw", f"subject={subject}")] for subject in sorted(SUBJECTS)],
     "g": [[applet("pong")], [applet("asteroids")], [applet("invaders")], [applet("forklift")]],
     "G": [[applet("forklift_game")]],
-    "S": [[applet("blink")], [applet("blink", "rate=8")]],
+    "P": [[applet("blink")], [applet("blink", "rate=8")]],
     "D": [[applet("demo")], [applet("demo", "random=off")]],
-    "C": [[applet("clock")], [applet("clock", "title=on")], [applet("clock", "seconds=off")]],
+    "C": [[applet("clock")], [applet("clock", "title=on")], [applet("clock", "seconds=off")],
+          [applet("clock", "face=digital")]],
     "e": [[applet("eyes")]] + [[applet("eyes", f"emotion={emotion}")]
                                for emotion in ("happy", "sad", "angry", "surprised",
                                                "sleepy", "suspicious", "curious", "loving")],
