@@ -145,7 +145,8 @@ on another host, put `-n NAME` before the subcommand.
 | 5.12 | `aiko_oled set title off`, then `aiko_oled set title on` | The row disappears, so the canvas and the applets have the whole panel. Then it returns with the same text |
 | 5.13 | `aiko_oled applet pong`, then `aiko_oled log one`, `aiko_oled log two`, then `aiko_oled applet log` | Pong keeps running while the lines arrive (no title row over a game). The `log` applet shows both lines and clears `L` |
 | 5.14 | `aiko_oled set font 12` | Text drawn from now on is larger. `set font 5x7` restores |
-| 5.15 | `aiko_oled applet status` | The status display again, in the current font: IP, uptime, `CPU 12.3% Mem 34.5%`, `Disk 61.2% Load 0.42`, `Rx 111k Tx 1.1k`, `Temp 45.1C` on an SBC, and the newest log line. `aiko_oled log again` replaces that line |
+| 5.14a **[mac]** | `aiko_oled set foreground yellow`, then `aiko_oled set background navy` | Lit pixels turn yellow, then the rest turns navy. On the panel nothing changes, but the values are published. `set foreground default` and `set background default` restore the colors from `-c`, or white on black |
+| 5.15 | `aiko_oled applet status` | The status display again, in the current font: IP, uptime, `CPU 12% Mem 34%`, `Dsk 61% R 111k T 1.1k`, `Load 0.42 0.38 0.35`, `Temp 45.1C` on an SBC, and the newest log line. `aiko_oled log again` replaces that line |
 | 5.16 | `aiko_oled applet status date=on` | The date row is added |
 | 5.17 | `aiko_oled applet pong` | Pong plays itself. `aiko_oled set speed 2` doubles the pace, and `set speed 1` restores |
 | 5.18 | `aiko_oled applet forklift_game`, then `aiko_oled key right`, `aiko_oled key up` | The forklift drives right a little, and lifts its forks a little, per key |
@@ -280,17 +281,25 @@ that follows the shared state. Then type, without Enter:
 | `f`, repeatedly | The next font size |
 | `i`, `o`, `a` | Invert, power and all-pixels-on toggles |
 | `+`, `-` | Contrast up and down by 16 |
-| `c` | Clear the canvas |
+| `c`, repeatedly **[mac]** | The next foreground color: deepskyblue, yellow, lime, orange, hotpink, white |
+| `C`, repeatedly **[mac]** | The next background color: midnightblue, darkslategray, maroon, dimgray, white, black |
+| `z` | Clear the canvas |
 | `l` | The log lines |
 | `h`, six times | The help pages, one per press |
-| `C`, three times | The clock face, then with the title row, then without the seconds hand |
+| `k`, three times | The clock face, then with the title row, then without the seconds hand |
 | `e`, repeatedly | The eyes, then held at `happy`, and on through the emotions |
 | `T` | The title row off, then on again |
 | `s`, repeatedly | The status display, then at 4 updates a second, then in the 5x7, 10 and 12 pixel fonts |
-| `R` | Reset the settings, and show the status display |
+| `R` | Reset the settings and the colors, and show the status display |
 | `x` | Quit the console. The Actor keeps running |
 
 `X` then `y` would exit the Actor.
+
+**[mac]** The emulator window takes the same keys. Start
+`aiko_oled run -o window`, click the window, and type `g`, `g`, `c`, `5`
+and `R`: pong, then asteroids, a blue foreground, a slower pace, then the
+status display with the colors reset. The arrow keys drive the forklift
+game (`F`). `x`, `q` or `Esc` closes the window and exits the Actor.
 
 ## 11. Failure behavior
 

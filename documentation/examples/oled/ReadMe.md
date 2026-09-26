@@ -56,6 +56,7 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 | `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` |
 | `drawings.py` | `draw`: pencil-sketched cartoon scenes |
 | `faces.py` | `clock`: an analog clock face. `eyes`: animated eyes with emotions |
+| `keys.py` | The key map: what each key sends, shared by the console and the emulator window |
 | `console.py` | `aiko_oled keys`: the interactive console |
 | `aiko_oled.service` | A systemd unit for a Linux SBC: the display comes up with the host |
 | `oled_test.py` | The original standalone spike, kept unchanged for reference. No module imports it |

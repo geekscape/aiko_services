@@ -55,7 +55,7 @@ aiko_oled log Hello from nomad
 aiko_oled set contrast 64     # settings are shared state: the Dashboard edits them too
 aiko_oled applet pong         # or draw, clock, eyes, forklift_game, demo ...
 aiko_oled applet --list       # the applets and their options
-aiko_oled keys                # interactive: letters, arrows, digits
+aiko_oled keys                # interactive: letters, arrows, digits (the window takes them too)
 aiko_oled list
 aiko_oled exit
 ```
@@ -95,6 +95,7 @@ pytest src/aiko_services/tests/unit/test_oled.py \
 | `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` (arrow keys over the wire) |
 | `drawings.py` | `draw`: pencil-sketched cartoon scenes |
 | `faces.py` | `clock`: an analog clock face; `eyes`: animated eyes showing emotions |
+| `keys.py` | The key map: what each key sends, shared by the console and the emulator window (`-o window`) |
 | `console.py` | `aiko_oled keys`: an interactive console for the running Actor |
 | `aiko_oled.service` | systemd unit for a Linux SBC: the display comes up with the host |
 | `oled_test.py` | The original standalone spike (click, no Aiko Services): kept unchanged for reference |

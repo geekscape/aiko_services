@@ -154,6 +154,7 @@ class FakeDisplay(Display):
         self.fail_open = fail_open
         self.opened = self.closed = False
         self.blanked = False
+        self.events = []     # what poll() returns next, e.g. ("tap", "g")
 
     def open(self):
         if self.fail_open:
@@ -181,6 +182,16 @@ class FakeDisplay(Display):
     def all_on(self, on):
         self.controls.append(("all_on", on))
         super().all_on(on)
+
+    def set_colors(self, foreground=None, background=None):
+        self.controls.append(("colors", foreground, background))
+        super().set_colors(foreground, background)
+
+    def poll(self):
+        """Events a test queued in "events": "quit" or (state, key)"""
+
+        events, self.events = self.events, []
+        return events
 
     def close(self, blank_first=True):
         self.closed, self.blanked = True, blank_first

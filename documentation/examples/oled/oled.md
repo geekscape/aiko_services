@@ -18,6 +18,7 @@ source:
   - src/aiko_services/examples/oled/drawings.py
   - src/aiko_services/examples/oled/faces.py
   - src/aiko_services/examples/oled/console.py
+  - src/aiko_services/examples/oled/keys.py
 related: [actor, service, share, discovery, event, process, connection,
   dashboard, dashboard_plugin, oled_protocol, testing]
 version: "0.8-dev"
@@ -113,13 +114,13 @@ The options of `run`:
 
 | Option | Meaning | Default |
 |--------|---------|---------|
-| `-o`, `--output` | `oled`: the SSD1306 over I2C. `window`: a pygame window, 5x with pixel gaps. `Esc` closes it, and keys work as in the console. `terminal`: half-block characters, 128x34 (Braille dots, 64x18, in a smaller terminal). `png`: the newest frame in a file, at most once a second. `none`: no display, the Actor still runs. `auto`: `oled` when `/dev/i2c-N` exists, else `window` on a desktop with pygame, else `terminal` | `auto` |
+| `-o`, `--output` | `oled`: the SSD1306 over I2C. `window`: a pygame window, 5x with pixel gaps. The console keys work in it, and `Esc`, `x` or `q` exits the Actor. `terminal`: half-block characters, 128x34 (Braille dots, 64x18, in a smaller terminal). `png`: the newest frame in a file, at most once a second. `none`: no display, the Actor still runs. `auto`: `oled` when `/dev/i2c-N` exists, else `window` on a desktop with pygame, else `terminal` | `auto` |
 | `-a`, `--address` | The I2C address: `0x3C`, or `0x3D` with the module's SA0 pin high | `0x3C` |
 | `-b`, `--bus` | The I2C bus number | `1` |
 | `--applet NAME` | The applet at start. `none` shows the canvas | `status` |
 | `-fs`, `--font_size` | The text font: `5x7`, the bitmap font, or a TrueType size 6..64 | `5x7` |
 | `--title TEXT\|off` | The title row text, `_` for a space, or `off` | The Actor name |
-| `-c 'FG [BG]'`, `--color` | Pixel colors of an emulated display, for example `'yellow navy'` | White on black |
+| `-c 'FG [BG]'`, `--color` | The colors of an emulated display, for example `'yellow navy'`: the settings `foreground` and `background`, which the keys `c` and `C` step through | White on black |
 | `--png FILE` | The file for `-o png` | `oled.png` |
 | `--standalone` | Run without an MQTT broker. The status display works before, or without, the broker | |
 | `--strict` | Exit when the display cannot be opened. Without it, the Actor reports `device` `absent` and retries every 10 s | |
@@ -176,9 +177,9 @@ keeps a fixed width, so nothing jumps:
 ▮w3029f1   LMR 14:26:45▮   the title row, inverse video
 IP 192.168.0.137
 Up 3d04h
-CPU 12.3% Mem 34.5%
-Disk 61.2% Load 0.42
-Rx 111k Tx 1.1k            bytes per second: three digits and a unit
+CPU 12% Mem 34%
+Dsk 61% R 111k T 1.1k      received and sent, bytes per second: three digits and a unit
+Load 0.42 0.38 0.35        the 1, 5 and 15 minute load averages
 Temp 45.1C 1500MHz         only where the host has a sensor (an SBC has)
 Hello from nomad           the newest (log ...) line, a new one replaces it
 ```
@@ -201,7 +202,9 @@ arrow keys, or with `h` in the console.
 `aiko_oled keys` turns keys typed in a terminal into wire commands and
 settings, and a status line follows the Actor's shared state. The same
 key again steps to the next preset of that key. `x` or `q` quits the
-console, and the Actor keeps running.
+console, and the Actor keeps running. The same keys work in the emulator
+window (`-o window`), where the Actor applies them itself. There `Esc`,
+`x` and `q` exit the Actor, as the original spike did.
 
 | Key | Presets, in turn |
 |-----|------------------|
@@ -215,15 +218,17 @@ console, and the Actor keeps running.
 | `g` | pong, asteroids, invaders, games |
 | `F`, `A` | forklift_game, forklift |
 | `D` | demo, demo random=off |
-| `C` | clock, clock title=on, clock seconds=off |
+| `k` | clock, clock title=on, clock seconds=off |
 | `e` | eyes, then each emotion: happy, sad, angry, surprised, sleepy, suspicious, curious, loving |
 | arrows | `(key left\|right\|up\|down)` for the applet: the forklift game and the help pages |
 | `0`..`9` | The speed: `0` fastest (x4), `4` normal, `9` slowest |
 | `f` | The next font size |
 | `T`, `i`, `o`, `a` | Title on or off, invert, power, all pixels on |
 | `+`, `-` | Contrast up or down by 16 |
-| `c` | Clear the canvas |
-| `R` | Reset the settings and show the status display |
+| `c` | The next foreground color of an emulated display: white, deepskyblue, yellow, lime, orange, hotpink |
+| `C` | The next background color: black, midnightblue, darkslategray, maroon, dimgray, white |
+| `z` | Clear the canvas |
+| `R` | Reset the settings and the colors, and show the status display |
 | `?` | The key list |
 | `x`, `q`, `X` | Quit the console. `X` then `y` exits the Actor |
 
@@ -298,6 +303,7 @@ tokens.
 | `font` | `5x7` or `6`..`64` | The canvas font: the 5x7 bitmap font or a TrueType size |
 | `speed` | `0.1`..`10` | Multiplies every applet's frame rate |
 | `blank_after` | seconds, `0` = never | Sleep the display after this long without a new frame. Any command wakes it |
+| `foreground`, `background` | A color name, `#rrggbb`, or `default` | The colors of lit and unlit pixels on an emulated display. The OLED's color is fixed, but the value is kept. `default` is the color from `-c`, or white on black |
 
 **Observations**: the read-only shared state.
 
@@ -387,6 +393,10 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
 - Share values must be single tokens, because the framework publishes
   incremental updates unencoded. `_token()` reduces free text, and it
   never lets a value start with digits followed by a colon.
+- A key typed in the emulator window reaches `_step()` as a display
+  event. A console key is applied through the same key map as
+  `aiko_oled keys`, in `keys.py`, and any other key goes to the running
+  applet.
 - The remote-X trap: a pygame window over `ssh -Y` fails with a GLX
   error. `WindowDisplay` sets `SDL_VIDEO_X11_FORCE_EGL=1` when the X
   display is remote.
@@ -406,7 +416,8 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
 | `games.py`: `pong`, `asteroids`, `invaders`, `forklift_work`, `ForkliftGame` | Frame generators, and the forklift game's pallet physics, counted in frames | `Host` |
 | `drawings.py`: `SUBJECTS`, `scene_strokes`, `sketch_frames`, `DrawApplet` | Cartoon subjects, stroke planning, the pencil sketch as a frame generator | `Host` |
 | `faces.py`: `ClockApplet`, `EyesApplet` | The clock face. The eyes' lens shapes, gaze, blinks and eased emotions | `Host` |
-| `KeysConsole` (console.py) | Keys typed in a terminal become wire commands and settings updates. An ECConsumer shows the shared state | `aiko.do_discovery`, `ECConsumerImpl` |
+| `keys.py`: `PRESETS`, `key_command`, `reset_commands` | The key map: what each key sends, shared by the console and the emulator window | `KeysConsole`, `OLEDImpl` |
+| `KeysConsole` (console.py) | Keys typed in a terminal become wire commands and settings updates. An ECConsumer shows the shared state | `keys.py`, `aiko.do_discovery`, `ECConsumerImpl` |
 | `main` (click) | `run`, and the discovery-plus-one-command subcommands with a timeout | `aiko.do_command`, `aiko.do_discovery` |
 
 ## Current limitations and roadmap

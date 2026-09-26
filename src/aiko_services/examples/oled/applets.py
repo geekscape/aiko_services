@@ -216,8 +216,9 @@ def on_off(text):
 class StatusApplet(Applet):
     """The host's status, one item per text row, refreshed "rate" times a
     second (default once): IP address; uptime; CPU and memory; disk and
-    load; network traffic; temperature and CPU speed (where the host has
-    a sensor); then the newest (log ...) line.  Numbers keep a fixed width
+    network traffic; the 1, 5 and 15 minute load averages; temperature and
+    CPU speed (where the host has a sensor); then the newest (log ...)
+    line.  Numbers keep a fixed width
     so the text doesn't jump.  Without the title row the first line is the
     host name and the connection state, and the time precedes the uptime;
     "date=on" adds the date.  Sampling uses non-blocking psutil calls"""
@@ -227,7 +228,7 @@ class StatusApplet(Applet):
     wants_title = True
     OPTIONS = {"rate": float, "date": on_off}
     description = "status"
-    summary = "The host's status: IP, uptime, CPU, memory, disk, load, network, temperature, newest log line"
+    summary = "The host's status: IP, uptime, CPU, memory, disk, network, load, temperature, newest log line"
 
     def __init__(self, host, words=(), options=None):
         super().__init__(host, words, options)
@@ -273,7 +274,7 @@ class StatusApplet(Applet):
         clock = datetime.now()
         temperature = self._temperature()
         try:
-            load = "Load {:.2f}".format(os.getloadavg()[0])
+            load = "Load {:.2f} {:.2f} {:.2f}".format(*os.getloadavg())  # 1, 5, 15 min
         except (AttributeError, OSError):
             load = ""
         titled = bool(self.host.title_rows())
@@ -284,11 +285,12 @@ class StatusApplet(Applet):
         if self.options.get("date"):
             lines.append(f"{clock:%a %d %b %Y}")
         lines.append(f"Up {uptime}" if titled else f"{clock:%H:%M:%S} up {uptime}")
-        lines.append(f"CPU {psutil.cpu_percent(interval=None):4.1f}% "
-                     f"Mem {psutil.virtual_memory().percent:4.1f}%")
-        lines.append(f"Disk {psutil.disk_usage(os.path.expanduser('~')).percent:4.1f}% "
-                     f"{load}".rstrip())
-        lines.append(f"Rx {per_second(received)} Tx {per_second(sent)}")
+        lines.append(f"CPU {psutil.cpu_percent(interval=None):2.0f}% "
+                     f"Mem {psutil.virtual_memory().percent:2.0f}%")
+        lines.append(f"Dsk {psutil.disk_usage(os.path.expanduser('~')).percent:2.0f}% "
+                     f"R {per_second(received)} T {per_second(sent)}")
+        if load:
+            lines.append(load)
         if temperature is not None:
             lines.append(f"Temp {temperature:4.1f}C {self._cpu_speed()}".rstrip())
         log_lines = self.host.log_lines()
@@ -343,7 +345,7 @@ class HelpApplet(Applet):
             "p pattern t text",
             "b blink d draw",
             "g games D demo",
-            "A forklift C clock",
+            "A forklift k clock",
             "F fork.game e eyes",
         ]),
         ("Keys: actions", [
@@ -351,16 +353,16 @@ class HelpApplet(Applet):
             "0-9 speed  f font",
             "T title  i invert",
             "o power  a all_on",
-            "+/- contrast  c clear",
-            "R reset x quit X exit",
+            "+/- contrast z clear",
+            "c C color R reset x X",
         ]),
         ("Dashboard: set", [
             "applet  contrast",
             "invert  power  all_on",
             "title  font  speed",
             "blank_after",
+            "foreground background",
             "(update KEY VALUE)",
-            "on the control topic",
         ]),
         ("Dashboard: state", [
             "backend device size",

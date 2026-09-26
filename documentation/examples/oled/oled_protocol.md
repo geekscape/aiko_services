@@ -115,6 +115,7 @@ without spaces.
 | `invert`, `power`, `all_on` | `on`, `off`. Also accepted: `true`, `false`, `1`, `0`, `yes`, `no` | RW | Written |
 | `title` | Text of at most 32 characters, `_` for a space. Or `on`, `off` | RW | Written. `on` publishes the last text again |
 | `blank_after` | `0`..`86400` seconds, `0` never | RW | Written |
+| `foreground`, `background` | A color name that Pillow knows, or `#rrggbb`. When written, also `default`: the starting color | RW | Written |
 | `log_pending` | `on`, `off` | R | A log line arrives, or an applet shows the lines |
 | `log_count` | Integer | R | A log line is accepted |
 | `heartbeat` | Integer seconds since start | R | Every second |
@@ -147,7 +148,7 @@ as a WARNING: `NAME: METHOD rejected: REASON (DETAIL)`. The reasons:
 | `pixel`, `line` | `x_not_int`, `x_range`, `y_not_int`, `y_range` |
 | `pixels` | `count` (no values, an odd count, or more than 512), `xy_not_int`, `xy_range`, `range` (a pair out of range) |
 | `key` | `name`, `state` |
-| `set` | `applet_unknown`, `applet_args`, `applet_failed`, `contrast_not_int`, `contrast_range`, `invert_not_on_off` (also `power`, `all_on`), `title_too_long`, `font_range`, `speed_not_number`, `speed_range`, `blank_after_not_int`, `blank_after_range` |
+| `set` | `applet_unknown`, `applet_args`, `applet_failed`, `contrast_not_int`, `contrast_range`, `invert_not_on_off` (also `power`, `all_on`), `title_too_long`, `font_range`, `speed_not_number`, `speed_range`, `blank_after_not_int`, `blank_after_range`, `foreground_not_color`, `background_not_color` |
 | `display` | `not_found`, `failed` |
 | `tick`, `key`, `heartbeat`, `metrics`, `reopen` | The class name of the exception that a guarded timer caught, for example `tick_RuntimeError` |
 

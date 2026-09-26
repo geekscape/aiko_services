@@ -436,6 +436,64 @@ def test_settings_apply_and_bad_values_converge(actor_display):
     for key in SETTINGS:
         assert actor.share[key] == actor._applied[key]
 
+def test_color_settings_apply_and_reset(actor_display, monkeypatch):
+    actor, display = actor_display
+    assert actor.share["foreground"] == "white" and actor.share["background"] == "black"
+    remote_update(actor, "foreground", "yellow")
+    assert actor.share["foreground"] == "yellow"
+    assert display.foreground == (255, 255, 0) and display.controls[-1][0] == "colors"
+    remote_update(actor, "background", "#000080")
+    assert display.background == (0, 0, 128) and actor.share["background"] == "#000080"
+    remote_update(actor, "foreground", "not_a_color")
+    assert actor.share["foreground"] == "yellow"            # converged back
+    assert actor.share["last_error"].startswith("set_foreground_not_color@")
+    remote_update(actor, "foreground", "default")
+    assert actor.share["foreground"] == "white" and display.foreground == (255, 255, 255)
+    started, _ = make_actor(colors=["lime", "navy"])       # -c 'lime navy'
+    try:
+        assert started.share["foreground"] == "lime"
+        assert started._display.foreground == (0, 255, 0)
+        assert started._display.background == (0, 0, 128)
+        remote_update(started, "background", "white")
+        remote_update(started, "background", "default")
+        assert started.share["background"] == "navy"
+    finally:
+        started._shutdown()
+
+def test_window_keys_use_the_console_map(actor_display, test_applets, monkeypatch):
+    actor, display = actor_display
+    exits = []
+    monkeypatch.setattr(aiko.process, "terminate", lambda *args: exits.append(args))
+
+    def typed(*keys):
+        display.events = [("tap", key) for key in keys]
+        actor._step()
+
+    typed("g")
+    assert actor.share["applet"] == "pong"
+    typed("g")
+    assert actor.share["applet"] == "asteroids"              # the next preset
+    typed("5", "c", "c", "C", "-")
+    assert actor.share["speed"] == "0.707"
+    assert actor.share["foreground"] == "yellow"             # white, deepskyblue, yellow
+    assert display.foreground == (255, 255, 0)
+    assert actor.share["background"] == "midnightblue"
+    assert actor.share["contrast"] == "239"
+    typed("z")
+    assert actor.share["applet"] == "none"                   # a drawing command
+    typed("R")
+    assert actor.share["applet"] == "status"
+    assert actor.share["foreground"] == "white" and actor.share["contrast"] == "255"
+    assert actor.share["speed"] == "1"
+    actor.applet("bouncer")
+    typed("w")                                               # not a console key
+    assert actor._applet.keys[-1] == ("w", "tap")
+    display.events = [("down", "left"), ("up", "left")]     # arrows: the applet's
+    actor._step()
+    assert actor._applet.keys[-2:] == [("left", "down"), ("left", "up")]
+    typed("x")
+    assert exits                                             # as Esc: the Actor exits
+
 def test_title_setting(actor_display):
     actor, display = actor_display
     assert actor.share["title"] == "off" and actor._canvas.title_rows == 0

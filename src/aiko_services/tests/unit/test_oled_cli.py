@@ -67,6 +67,8 @@ def test_help_for_every_subcommand():
     assert "forklift_game" in invoke("applet", "--help").output
     assert "arrows" in invoke("keys", "--help").output
     assert "hardware test" in invoke("set", "--help").output
+    assert "foreground" in invoke("set", "--help").output
+    assert "z clear" in invoke("keys", "--help").output
     assert "Braille" in invoke("run", "--help").output
 
 @pytest.mark.parametrize("args", [
@@ -165,6 +167,7 @@ def test_run_strict_reports_a_missing_display(monkeypatch):
 # The keys console
 
 from aiko_services.examples.oled.console import key_command  # noqa: E402
+from aiko_services.examples.oled.keys import RESET, reset_commands  # noqa: E402
 
 def test_keys_console_map():
     state = {"turns": {}, "current": None, "settings": {}, "base_font": "5x7"}
@@ -197,10 +200,17 @@ def test_keys_console_map():
     assert key_command("o", state) == [("update", "power", "off")]
     assert key_command("-", state) == [("update", "contrast", "239")]
     assert key_command("+", state) == [("update", "contrast", "255")]
-    assert key_command("c", state) == [("clear", ())]
+    assert key_command("z", state) == [("clear", ())]
+    assert key_command("c", state) == [("update", "foreground", "white")]
+    state["settings"]["foreground"] = "white"                # the Actor applied it
+    assert key_command("c", state) == [("update", "foreground", "deepskyblue")]
+    state["settings"]["foreground"] = "#123456"              # not in the list
+    assert key_command("c", state) == [("update", "foreground", "white")]
+    state["settings"]["background"] = "black"
+    assert key_command("C", state) == [("update", "background", "midnightblue")]
     assert key_command("l", state) == [("update", "font", "5x7"), ("applet", ("log",))]
     state["settings"]["font"] = "5x7"
-    assert key_command("C", state) == [("applet", ("clock",))]
+    assert key_command("k", state) == [("applet", ("clock",))]
     assert key_command("e", state) == [("applet", ("eyes",))]
     assert key_command("e", state) == [("applet", ("eyes", "emotion=happy"))]
     assert key_command("h", state) == [("applet", ("help", "page=1"))]
@@ -208,7 +218,12 @@ def test_keys_console_map():
     assert key_command("T", state) == [("update", "title", "off")]
     state["settings"]["title"] = "off"
     assert key_command("T", state) == [("update", "title", "on")]
-    assert key_command("z", state) == []
+    assert key_command("w", state) == []
+    commands = reset_commands(state)
+    assert commands[-1] == ("applet", ("status",))
+    assert ("update", "foreground", "default") in commands
+    assert len(commands) == len(RESET) + 1
+    assert state["current"] == "s" and state["base_font"] == "5x7"
 
 def test_keys_needs_a_terminal():
     result = invoke("keys")

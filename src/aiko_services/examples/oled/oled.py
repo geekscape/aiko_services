@@ -18,7 +18,7 @@
 #   aiko_oled clear | log WORDS | text X Y WORDS | pixels X Y ... | line X0 Y0 X1 Y1
 #   aiko_oled set KEY VALUE          # contrast 128, invert on, title Aiko, font 10 ...
 #   aiko_oled applet NAME [ARGS ...] | applet -l | stop | key NAME [tap|down|up]
-#   aiko_oled keys                   # interactive console: see console.py
+#   aiko_oled keys                   # interactive console: see console.py, keys.py
 #
 #   mosquitto_pub -t $TOPIC_IN -m "(oled:text 0 0 hello)"     # aiko_engine_mp style
 #   mosquitto_pub -t $TOPIC_IN -m "(text 0 8 second row)"
@@ -41,7 +41,8 @@
 # ~~~~~~~~~~~~
 #   backend device size origin connection applets applet(RW)
 #   applet_detail fps speed(RW) font(RW) contrast(RW) invert(RW)
-#   power(RW) all_on(RW) title(RW: text, on, off) blank_after(RW) heartbeat
+#   power(RW) all_on(RW) title(RW: text, on, off) blank_after(RW)
+#   foreground(RW) background(RW: colors of an emulated display) heartbeat
 #   last_error log_count log_pending metrics.commands metrics.rejected metrics.frames
 #   metrics.frame_ms metrics.errors
 #
@@ -73,6 +74,7 @@ import traceback
 import textwrap
 
 import click
+from PIL import ImageColor
 
 import aiko_services as aiko
 from aiko_services.main.utilities import get_hostname, parse
@@ -88,6 +90,7 @@ from aiko_services.examples.oled.display import (
 from aiko_services.examples.oled.graphics import (
     HEIGHT, WIDTH, Canvas, parse_font_size, title_strip,
 )
+from aiko_services.examples.oled import keys as keymap  # the emulator window's keys
 
 __all__ = [
     "OLED", "OLEDApplets", "OLEDImpl", "PROTOCOL", "PROTOCOL_TYPE",
@@ -123,7 +126,8 @@ DEFAULT_APPLET = "status"
 # Settings: shared state that anyone may write with "(update KEY VALUE)" on
 # the control topic; the change handler applies them through one setter each
 SETTINGS = ("applet", "contrast", "invert", "power", "all_on", "title",
-            "font", "speed", "blank_after")
+            "font", "speed", "blank_after", "foreground", "background")
+DEFAULT_COLORS = ("white", "black")  # of an emulated display: lit, unlit
 
 # --------------------------------------------------------------------------- #
 
@@ -327,6 +331,13 @@ class OLEDImpl(OLED, OLEDApplets):
         self._strict = bool(parameters.get("strict", False))
         self._font = parse_font_size(parameters.get("font", "5x7"))
         self._canvas = Canvas(self._font)
+        colors = [str(color) for color in (parameters.get("colors") or ()) if color]
+        self._start_colors = {           # what "default" means for a color
+            "foreground": colors[0] if colors else DEFAULT_COLORS[0],
+            "background": colors[1] if len(colors) > 1 else DEFAULT_COLORS[1],
+        }
+        self._display.set_colors(*(ImageColor.getrgb(self._start_colors[key])[:3]
+                                   for key in ("foreground", "background")))
         self._log = collections.deque(maxlen=LOG_LINES)
         self._log_total = 0
         self._log_pending = False   # the "L" annunciator
@@ -365,6 +376,8 @@ class OLEDImpl(OLED, OLEDApplets):
             "font": self._set_font,
             "speed": self._set_speed,
             "blank_after": self._set_blank_after,
+            "foreground": lambda value: self._set_color("foreground", value),
+            "background": lambda value: self._set_color("background", value),
         }
         self.share.update({
             "source_file": f"v{_VERSION}⇒ {__file__}",
@@ -385,6 +398,8 @@ class OLEDImpl(OLED, OLEDApplets):
             "all_on": "off",
             "title": _token(title) if self._title_text else "off",
             "blank_after": "0",
+            "foreground": self._start_colors["foreground"],
+            "background": self._start_colors["background"],
             "heartbeat": "0",
             "last_error": "-",
             "log_count": "0",
@@ -392,6 +407,8 @@ class OLEDImpl(OLED, OLEDApplets):
             "metrics": {key: "0" for key in self._metrics},
         })
         self._applied = {key: self.share[key] for key in SETTINGS}
+        self._local_keys = {"turns": {}, "current": None,   # the window's keys
+                            "settings": self._applied, "base_font": self.share["font"]}
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
         self._open_display()
@@ -645,6 +662,23 @@ class OLEDImpl(OLED, OLEDApplets):
         if not seconds:
             self._wake()
 
+    def _set_color(self, key, value):
+        """The colors of lit ("foreground") and unlit ("background") pixels
+        on an emulated display (the OLED's color is fixed): a name such as
+        yellow, or #rrggbb; "default" is the color the Actor started with"""
+
+        token = str(value).strip()
+        if token == "default":
+            token = self._start_colors[key]
+        try:
+            if not re.fullmatch(r"[#A-Za-z0-9]+", token):
+                raise ValueError(token)
+            rgb = ImageColor.getrgb(token)[:3]
+        except ValueError:
+            return self._reject_setting(key, f"{key}_not_color")
+        self._control_display("set_colors", **{key: rgb})
+        self._settle(key, token)
+
     # The display --------------------------------------------------------- #
 
     def _open_display(self):
@@ -695,11 +729,11 @@ class OLEDImpl(OLED, OLEDApplets):
             pass
         self._start_reopening()
 
-    def _control_display(self, name, value):
+    def _control_display(self, name, *args, **kwargs):
         if not self._display_ok:
             return
         try:
-            getattr(self._display, name)(value)
+            getattr(self._display, name)(*args, **kwargs)
         except Exception as exception:
             self._display_failed(f"{name}: {exception}")
 
@@ -813,7 +847,10 @@ class OLEDImpl(OLED, OLEDApplets):
                 self.exit()
             else:
                 state, name = event
-                self.key(name, state)
+                if state == "tap" and name not in KEY_NAMES:
+                    self._local_key(name)     # typed in the emulator window
+                else:
+                    self.key(name, state)
         applet = self._applet
         if applet is not None and now >= self._frame_due:
             period = 1.0 / (max(applet.fps, 0.001) * self._speed)
@@ -834,6 +871,30 @@ class OLEDImpl(OLED, OLEDApplets):
                 and now - self._last_change >= self._blank_after:
             self._blanked = True
             self._control_display("power", False)
+
+    def _local_key(self, key):
+        """A key typed in the emulator window: the same keys as the console
+        (keys.py), applied here.  x, q and X exit, as Esc does; a key that
+        means nothing to the console goes to the running applet"""
+
+        if key in ("x", "q", "X"):
+            return self.exit()
+        if key == "?":
+            key = "h"
+        state = self._local_keys
+        commands = keymap.reset_commands(state) if key == "R"  \
+            else keymap.key_command(key, state)
+        if not commands:
+            return self.key(key, "tap")
+        for command in commands:
+            if command[0] == "update":
+                self._setters[command[1]](command[2])
+            elif command[0] == "applet":
+                self.applet(*command[1])
+            elif command[0] == "key":
+                self.key(*command[1])
+            elif command[0] == "clear":
+                self.clear()
 
     def _heartbeat(self):
         self._guarded("heartbeat", lambda: self.ec_producer.update(
@@ -929,13 +990,16 @@ def _parse_address(ctx, param, value):
         raise click.BadParameter(f"{value!r} is not a number, e.g. 0x3D")
 
 def _parse_colors(ctx, param, value):
+    """-c 'FOREGROUND [BACKGROUND]': the color names (or #rrggbb), checked"""
+
     if value is None:
         return None
     try:
-        return parse_colors(value)
+        parse_colors(value)
     except ValueError as error:
         raise click.BadParameter(
             f"{value!r}: {error}, e.g. -c yellow or -c 'yellow navy'")
+    return str(value).replace(",", " ").split()
 
 def _validate_font_size(ctx, param, value):
     try:
@@ -1004,7 +1068,8 @@ def main(ctx, name, timeout):
     help="Title row text (use _ for spaces) or off  [default: the Actor name]")
 @click.option("--color", "-c", default=None, callback=_parse_colors,
     metavar="'FOREGROUND [BACKGROUND]'",
-    help="Pixel colors of an emulated display, e.g. 'yellow navy'")
+    help="Colors of an emulated display, e.g. 'yellow navy': the settings "
+         "foreground and background")
 @click.option("--png", type=click.Path(dir_okay=False), default=None,
     help="File for -o png  [default: oled.png]")
 @click.option("--standalone", is_flag=True,
@@ -1024,7 +1089,7 @@ def run_command(options, output, address, bus, applet, font_size, title,
       oled      the SSD1306 over I2C: -a address (0x3C, or 0x3D with SA0
                 high), -b bus; needs "pip install luma.oled"
       window    an emulated OLED in a pygame window, 5x with pixel gaps;
-                Esc closes it, keys work as in "aiko_oled keys"
+                the keys work as in "aiko_oled keys"; Esc, x or q exits
       terminal  half-block characters, 128x34 (Braille dots when smaller)
       png       the latest frame in a PNG file (--png, at most once a second)
       none      no display: the Actor still runs (shared state, applets)
@@ -1037,8 +1102,9 @@ def run_command(options, output, address, bus, applet, font_size, title,
     the title row: the Actor's name (-n, default the hostname; --title TEXT
     with _ for spaces, or off), the annunciators L (log lines not yet
     shown), M (connected to the broker) and R (registered), and the clock.
-    -fs is the text font (5x7, or a TrueType size 6..64); -c colours an
-    emulated display, e.g. -c 'yellow navy'.
+    -fs is the text font (5x7, or a TrueType size 6..64).  -c colors an
+    emulated display, e.g. -c 'yellow navy': the settings "foreground" and
+    "background", which the keys c and C step through while it runs.
 
     \b
     --standalone runs without an MQTT broker: the status display still
@@ -1050,10 +1116,10 @@ def run_command(options, output, address, bus, applet, font_size, title,
     name = options["name"] or get_hostname()
     if output == "terminal":  # console logging would scribble on the picture
         os.environ.setdefault("AIKO_LOG_MQTT", "true")
-    display = choose_display(output, address, bus, png, color)
+    display = choose_display(output, address, bus, png)
     parameters = {
         "display": display, "applet": applet, "font": font_size,
-        "title": title, "strict": strict,
+        "title": title, "strict": strict, "colors": color,
     }
     init_args = aiko.actor_args(
         name, parameters=parameters, protocol=PROTOCOL, tags=["ec=true"])
@@ -1230,6 +1296,8 @@ def set_command(options, key, value):
     speed        0.1..10                   multiplies every applet's frame rate
     blank_after  SECONDS (0: never)        sleep the display after inactivity;
                                            any command wakes it
+    foreground   COLOR | default           lit pixels of an emulated display
+    background   COLOR | default           unlit pixels; default: as started (-c)
     """
 
     if any(character.isspace() for character in value):
@@ -1292,11 +1360,11 @@ def keys_command(options):
 
     \b
     s status  l log  p pattern  t text  d draw  g games  F forklift game
-    A forklift  D demo  b blink  C clock  e eyes  h help (again: the next page)
+    A forklift  D demo  b blink  k clock  e eyes  h help (again: the next page)
     (the same applet key again: its next options)
     arrows: keys for the applet   0-9 speed (4 normal)   f next font  T title
-    i invert  o power  a all pixels on  +/- contrast  c clear  R reset
-    ? this list   x or q quit the console   X exit the OLED Actor
+    i invert  o power  a all pixels on  +/- contrast  c C color  z clear
+    R reset   ? this list   x or q quit the console   X exit the OLED Actor
     """
 
     from aiko_services.examples.oled.console import KeysConsole  # (imports this module)
@@ -1344,14 +1412,15 @@ _SETTINGS_REFERENCE = _block([
     "  invert       on | off                power        on | off",
     "  all_on       on | off                title        TEXT | on | off",
     "  font         5x7 | 6..64             speed        0.1..10",
-    "  blank_after  SECONDS (0: never)",
+    "  blank_after  SECONDS (0: never)      foreground   COLOR | default",
+    "  background   COLOR | default         (colors of an emulated display)",
 ])
 _STATE_REFERENCE = _block([
     "Shared state  (aiko_dashboard, or (share TOPIC SECONDS *) on control)",
     "  backend device size origin connection applets applet applet_detail fps",
-    "  speed font contrast invert power all_on title blank_after heartbeat",
-    "  last_error log_count log_pending metrics.commands metrics.rejected",
-    "  metrics.frames metrics.frame_ms metrics.errors",
+    "  speed font contrast invert power all_on title blank_after foreground",
+    "  background heartbeat last_error log_count log_pending metrics.commands",
+    "  metrics.rejected metrics.frames metrics.frame_ms metrics.errors",
 ])
 _WIRE_REFERENCE = _block([
     "Wire commands on the in topic  (mosquitto_pub -t TOPIC/in -m '...')",
@@ -1378,9 +1447,8 @@ def _preset_text(commands):
     return " ".join(words)
 
 def _keys_reference():
-    from aiko_services.examples.oled.console import PRESETS  # (imports this module)
     lines = ["Keys in \"aiko_oled keys\"  (the same key again: the next preset)"]
-    for key, presets in PRESETS.items():
+    for key, presets in keymap.PRESETS.items():
         text = " | ".join(_preset_text(preset) for preset in presets)
         lines += textwrap.wrap(text, width=75, initial_indent=f"  {key}  ",
                                subsequent_indent="     ")
@@ -1388,8 +1456,10 @@ def _keys_reference():
         "  arrows  (key left|right|up|down) for the applet: the forklift game, help",
         "  0-9     speed: 0 fastest (x4), 4 normal, 9 slowest   f  the next font size",
         "  T title on/off   i invert   o power   a all pixels on   + - contrast by 16",
-        "  c clear the canvas   R reset the settings and show status   ? the keys",
+        "  c C  the next foreground / background color (emulated displays)  z clear",
+        "  R  reset the settings and the colors, show status   ? the keys",
         "  x q  quit the console   X  exit the OLED Actor (then y to confirm)",
+        "  The same keys work in the emulator window (-o window); x q X exit there",
     ]
     return _block(lines)
 

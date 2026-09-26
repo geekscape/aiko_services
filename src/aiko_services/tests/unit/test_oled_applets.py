@@ -89,9 +89,9 @@ def test_status_lines_with_a_title_row(monkeypatch):
     lines = status.lines()
     assert lines[0] == "IP 192.168.0.137"
     assert lines[1] == "Up 3d04h"                         # no date, no time
-    assert lines[2] == "CPU 12.0% Mem 34.0%"               # fixed widths
-    assert lines[3] == "Disk 61.0% Load 0.42"
-    assert lines[4] == "Rx   0  Tx   0 "
+    assert lines[2] == "CPU 12% Mem 34%"                   # fixed widths
+    assert lines[3] == "Dsk 61% R   0  T   0 "
+    assert lines[4] == "Load 0.42 0.31 0.25"               # 1, 5 and 15 minutes
     assert lines[5] == "Temp 45.1C 1500MHz"
     assert lines[6:] == ["hello"]                          # the newest line only
     assert all(len(line) <= 21 for line in lines)
@@ -409,7 +409,6 @@ def test_random_steps_are_valid_applets():
 # Help pages, the clock face, the eyes
 
 from datetime import datetime  # noqa: E402
-from aiko_services.examples.oled.applets import HelpApplet  # noqa: E402
 from aiko_services.examples.oled.faces import EMOTIONS, ClockApplet, EyesApplet  # noqa: E402
 
 def test_help_pages_fit_the_display_and_turn():
