@@ -163,7 +163,7 @@ def test_canvas_log_scrolls_below_the_title_row():
     assert min(lit_rows(canvas.image)) >= 8           # never into the title
 
 def test_title_strip_is_inverse_video():
-    strip = title_strip(Font("5x7"), "nomad", " MR", "12:30")
+    strip = title_strip(Font("5x7"), "nomad", "LMR", "12:30:45")
     assert strip.size == (WIDTH, 8)
     lit = lit_count(strip)
     assert WIDTH * 8 * 0.6 < lit < WIDTH * 8          # mostly lit, text unlit
@@ -306,10 +306,14 @@ def test_clear(actor_display):
 
 def test_log_scrolls_and_keeps_eight_lines(actor_display):
     actor, display = actor_display
+    assert actor.share["log_pending"] == "off"
     for n in range(10):
         actor.log(f"line{n}", "x")
     assert list(actor._log)[0] == "line2 x" and len(actor._log) == 8
     assert actor.share["log_count"] == "10"
+    assert actor.share["log_pending"] == "on" and actor._log_pending
+    actor._host.log_seen()
+    assert actor.share["log_pending"] == "off"
     frame = display.frames[-1]
     assert min(lit_rows(frame)) < 8                       # scrolled to the top
     frames = len(display.frames)
@@ -440,6 +444,9 @@ def test_title_setting(actor_display):
     assert lit_count(display.frames[-1]) > 200                # the strip
     remote_update(actor, "title", "off")
     assert actor.share["title"] == "off" and lit_count(display.frames[-1]) == 0
+    remote_update(actor, "title", "on")                      # the last text again
+    assert actor.share["title"] == "Aiko_v0.8" and actor._title_text == "Aiko v0.8"
+    remote_update(actor, "title", "off")
     remote_update(actor, "title", "x" * 33)
     assert actor.share["title"] == "off" and actor._metrics["rejected"] == 1
 

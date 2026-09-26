@@ -73,9 +73,10 @@ Terminal 1:
 
 Expect: a line `OLED Actor NAME: aiko/HOST/PID/1/in` (NAME is the
 hostname), then the status display: an inverse-video title row with the
-name, the annunciators `M` (broker) and `R` (Registrar) and the clock, and
-below it the IP address, date, time and uptime, CPU and memory, disk and
-network, temperature or load.  In the terminal the picture is drawn with
+name, the annunciators `M` (broker) and `R` (Registrar) and the clock
+(hh:mm:ss), and below it the IP address, uptime, CPU and memory, disk and
+load, network traffic, and the temperature where the host has a sensor.  In
+the terminal the picture is drawn with
 half-block characters (Braille dots in a small terminal).  With `-o png`,
 open the file after each command below to see the display.
 
@@ -98,9 +99,12 @@ Terminal 2 (same host):
 | 4.8 | `aiko_oled set contrast 32` | Dim; `aiko_oled set contrast 255` restores |
 | 4.9 | `aiko_oled set invert on`, then `off` | Inverse video and back |
 | 4.10 | `aiko_oled set power off`, then `on` | Display off (blank) and back |
-| 4.11 | `aiko_oled set title Aiko_Services` | The title row reads `Aiko Services`; `set title off` removes the row |
+| 4.11 | `aiko_oled set title Aiko_Services` | The title row reads `Aiko Services` with the annunciators (`L` log lines pending, `M` broker, `R` Registrar) and the clock `hh:mm:ss` |
+| 4.11a | `aiko_oled set title off`, then `aiko_oled set title on` | The row disappears (the whole panel for the canvas and applets), then returns with `Aiko Services` |
+| 4.11b | `aiko_oled applet pong`, then `aiko_oled log one`, `aiko_oled log two`, then `aiko_oled applet log` | `L` is not visible during pong (no title row over a game); the `log` applet shows both lines and, with the title row on, clears `L` |
 | 4.12 | `aiko_oled set font 12` | Text drawn from now on is larger (`set font 5x7` restores) |
-| 4.13 | `aiko_oled applet status` | The status display again (its rows use the current font) |
+| 4.13 | `aiko_oled applet status` | The status display again (its rows use the current font): IP, uptime, `CPU 12.3% Mem 34.5%`, `Disk 61.2% Load 0.42`, `Rx 111k Tx 1.1k`, `Temp 45.1C` on an SBC, and the newest log line — `aiko_oled log again` replaces it |
+| 4.13a | `aiko_oled applet --list` | The applets with a summary and their options, no Actor needed |
 | 4.14 | `aiko_oled applet pong` | Pong plays itself; `aiko_oled set speed 2` doubles the pace, `set speed 1` restores |
 | 4.15 | `aiko_oled applet forklift_game` then `aiko_oled key right`, `aiko_oled key up` | The forklift drives right a little and lifts its forks a little per key |
 | 4.16 | `aiko_oled stop` | The canvas (from 4.7) is shown again |
@@ -178,6 +182,7 @@ token: no spaces.
     aiko_oled applet text              # a screen full of digits, each row offset by one
     aiko_oled applet text Hello lead   # the words centred
     aiko_oled applet blink rate=4      # the power off and on four times a second (stop with the next applet)
+    aiko_oled applet log               # the last eight (log ...) lines, oldest first
     aiko_oled applet help              # the wire commands on the display
     aiko_oled applet asteroids seed=1  # the same game every time with the same seed
     aiko_oled applet games duration=10 # pong, asteroids and invaders in turn
@@ -211,6 +216,8 @@ follows the shared state.  Then type, without Enter:
 | `i`, `o`, `a` | Invert, power and all-pixels-on toggles |
 | `+`, `-` | Contrast up and down by 16 |
 | `c` | Clear the canvas |
+| `l` | The log lines |
+| `T` | The title row off, then on again |
 | `s` | The status display |
 | `R` | Reset the settings and show the status display |
 | `x` | Quit the console (the Actor keeps running) |

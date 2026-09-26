@@ -232,13 +232,13 @@ class Canvas:
         self.text(0, 0, string)
 
 def title_strip(font, title, annunciators="", clock="", width=WIDTH):
-    """The inverse-video title row: the title (12 characters with the 5x7
-    font) then annunciators, and the clock at the right.  Its height is the
-    font's cell height"""
+    """The inverse-video title row: the title (9 characters with the 5x7
+    font), the annunciators (3), a space, and the clock (hh:mm:ss) at the
+    right.  Its height is the font's cell height"""
 
     strip = blank(INK, width=width, height=font.cell_height)
-    if font.cell_width:  # fixed layout: 12 + 4 + 5 = 21 columns of 6 pixels
-        text = f"{title[:12]:12s}{annunciators[:4]:4s}{clock[:5]:>5s}"
+    if font.cell_width:  # fixed layout: 9 + 3 + 1 + 8 = 21 columns of 6 pixels
+        text = f"{title[:9]:9s}{annunciators[:3]:3s} {clock[:8]:>8s}"
         ink = font.render_line(text)
         strip.paste(0, (0, 0), ink)
     else:

@@ -16,7 +16,7 @@
 #   aiko_oled exit | list
 #   aiko_oled clear | log WORDS | text X Y WORDS | pixels X Y ... | line X0 Y0 X1 Y1
 #   aiko_oled set KEY VALUE          # contrast 128, invert on, title Aiko, font 10 ...
-#   aiko_oled applet NAME [ARGS ...] | stop | key NAME [tap|down|up]
+#   aiko_oled applet NAME [ARGS ...] | applet -l | stop | key NAME [tap|down|up]
 #   aiko_oled keys                   # interactive console: see console.py
 #
 #   mosquitto_pub -t $TOPIC_IN -m "(oled:text 0 0 hello)"     # aiko_engine_mp style
@@ -40,8 +40,8 @@
 # ~~~~~~~~~~~~
 #   backend device size origin connection applets applet(RW)
 #   applet_detail fps speed(RW) font(RW) contrast(RW) invert(RW)
-#   power(RW) all_on(RW) title(RW) blank_after(RW) heartbeat last_error
-#   log_count metrics.commands metrics.rejected metrics.frames
+#   power(RW) all_on(RW) title(RW: text, on, off) blank_after(RW) heartbeat
+#   last_error log_count log_pending metrics.commands metrics.rejected metrics.frames
 #   metrics.frame_ms metrics.errors
 #
 # Bounds (P9): log ring 8 lines (oldest dropped); 256 pixel pairs per
@@ -298,7 +298,7 @@ class _Host(Host):
         return list(self._actor._log)
 
     def log_seen(self):
-        self._actor._log_pending = False
+        self._actor._set_log_pending(False)
 
     def keys_held(self):
         return self._actor._keys_held()
@@ -349,6 +349,7 @@ class OLEDImpl(OLED, OLEDApplets):
 
         title = str(parameters.get("title") or self.name)
         self._title_text = "" if title == "off" else title.replace("_", " ")
+        self._title_saved = self._title_text or self.name  # what "title on" restores
         self._canvas.title_rows = self._font.cell_height if self._title_text else 0
 
         self._setters = {
@@ -384,6 +385,7 @@ class OLEDImpl(OLED, OLEDApplets):
             "heartbeat": "0",
             "last_error": "-",
             "log_count": "0",
+            "log_pending": "off",
             "metrics": {key: "0" for key in self._metrics},
         })
         self._applied = {key: self.share[key] for key in SETTINGS}
@@ -428,7 +430,7 @@ class OLEDImpl(OLED, OLEDApplets):
         self._wake()
         self._log.append(line)
         self._log_total += 1
-        self._log_pending = True
+        self._set_log_pending(True)
         self._canvas.log(line)
         self.ec_producer.update("log_count", str(self._log_total))
         if self._applet is None:
@@ -583,14 +585,31 @@ class OLEDImpl(OLED, OLEDApplets):
         self._settle(key, "on" if flag else "off")
 
     def _set_title(self, value):
+        """The title row: "off" hides it (the whole panel for the canvas or
+        an applet), "on" shows it again with the last text, anything else
+        is the text (underscores are spaces)"""
+
         text = str(value)
         if len(text) > TITLE_LENGTH_MAXIMUM:
             return self._reject_setting("title", "title_too_long")
         token = _token(text)
-        self._title_text = "" if token in ("off", "-") else token.replace("_", " ")
+        if token in ("off", "-"):
+            self._title_text = ""
+        elif token == "on":
+            self._title_text = self._title_saved
+        else:
+            self._title_text = token.replace("_", " ")
+        self._title_saved = self._title_text or self._title_saved
         self._canvas.title_rows = self._font.cell_height if self._title_text else 0
-        self._settle("title", token if self._title_text else "off")
+        self._settle("title", _token(self._title_text) if self._title_text else "off")
         self._refresh()
+
+    def _set_log_pending(self, pending):
+        """The "L" annunciator: log lines arrived that no applet has shown"""
+
+        if pending != self._log_pending:
+            self._log_pending = pending
+            self.ec_producer.update("log_pending", "on" if pending else "off")
 
     def _set_font(self, value):
         try:
@@ -687,7 +706,7 @@ class OLEDImpl(OLED, OLEDApplets):
             + ("M" if connection in ("TRANSPORT", "REGISTRAR") else " ")  \
             + ("R" if connection == "REGISTRAR" else " ")
         return title_strip(self._font, self._title_text, annunciators,
-            time.strftime("%H:%M"))
+            time.strftime("%H:%M:%S"))
 
     def _present(self, image):
         """Show a frame, with the title row when it applies, if it changed"""
@@ -1123,14 +1142,26 @@ def set_command(name, timeout, key, value):
     aiko.do_discovery(OLED, _service_filter(name), add_handler)
     aiko.process.run()
 
-@main.command(name="applet", no_args_is_help=True)
+@main.command(name="applet")
 @_remote_options
-@click.argument("applet_name")
+@click.option("--list", "-l", "list_applets", is_flag=True,
+    help="List the applets and their options, without an Actor")
+@click.argument("applet_name", required=False)
 @click.argument("arguments", nargs=-1)
 
-def applet_command(name, timeout, applet_name, arguments):
+def applet_command(name, timeout, list_applets, applet_name, arguments):
     """Run an applet, e.g. status, pong seed=1; none shows the canvas"""
 
+    if list_applets:
+        width = max(len(applet_name) for applet_name in APPLETS)
+        for applet_name, applet_class in sorted(APPLETS.items()):
+            options = " ".join(f"{option}=" for option in applet_class.OPTIONS)
+            summary = applet_class.summary or " ".join((applet_class.__doc__ or "").split())
+            click.echo(f"{applet_name:{width}}  {summary}"
+                       + (f"  [{options}]" if options else ""))
+        return
+    if not applet_name:
+        raise click.UsageError("give an applet name, or --list")
     _remote(OLEDApplets, name, timeout,
         lambda oled: oled.applet(applet_name, *arguments))
 
@@ -1149,9 +1180,9 @@ def keys_command(name, timeout):
     """Interactive console: keys switch applets and settings, arrows play
 
     \b
-    s status  p pattern  t text  d draw  g games  F forklift game  A forklift
-    D demo  b blink  h help (the same key again: the next options)
-    arrows: keys for the applet   0-9 speed (4 normal)   f next font
+    s status  l log  p pattern  t text  d draw  g games  F forklift game
+    A forklift  D demo  b blink  h help (the same key again: the next options)
+    arrows: keys for the applet   0-9 speed (4 normal)   f next font  T title
     i invert  o power  a all pixels on  +/- contrast  c clear  R reset
     ? this list   x or q quit the console   X exit the OLED Actor
     """

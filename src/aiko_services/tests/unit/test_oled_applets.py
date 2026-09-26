@@ -75,9 +75,11 @@ def lit_rows(image):
 
 def make_status(monkeypatch, **kwargs):
     monkeypatch.setattr(applets, "ip_address", lambda: "192.168.0.137")
+    monkeypatch.setattr(applets.os, "getloadavg", lambda: (0.42, 0.31, 0.25))
     host = StubHost(**kwargs)
     status = StatusApplet(host)
     status.psutil = FakePsutil()
+    status._before = (time.monotonic(), status._network_bytes())  # the fake's baseline
     return status, host
 
 # --------------------------------------------------------------------------- #
@@ -86,11 +88,15 @@ def test_status_lines_with_a_title_row(monkeypatch):
     status, host = make_status(monkeypatch, lines=["boot ok", "hello"])
     lines = status.lines()
     assert lines[0] == "IP 192.168.0.137"
-    assert lines[2].endswith(" up 3d04h")
-    assert lines[3] == "CPU 12% Mem 34%"
-    assert lines[4].startswith("Disk 61% Rx") and "Tx" in lines[4]
+    assert lines[1] == "Up 3d04h"                         # no date, no time
+    assert lines[2] == "CPU 12.0% Mem 34.0%"               # fixed widths
+    assert lines[3] == "Disk 61.0% Load 0.42"
+    assert lines[4] == "Rx   0  Tx   0 "
     assert lines[5] == "Temp 45.1C 1500MHz"
-    assert lines[6:] == ["boot ok", "hello"]
+    assert lines[6:] == ["hello"]                          # the newest line only
+    assert all(len(line) <= 21 for line in lines)
+    status.options["date"] = True
+    assert status.lines()[1].endswith(str(time.localtime().tm_year))  # the date row
     frame = status.step()
     assert frame.size == (WIDTH, HEIGHT)
     assert min(lit_rows(frame)) == 8                     # below the title row
@@ -101,18 +107,31 @@ def test_status_lines_without_a_title_row(monkeypatch):
     lines = status.lines()
     assert lines[0] == "oled REGISTRAR"
     assert lines[1] == "IP 192.168.0.137"
+    assert lines[2].endswith(" up 3d04h") and lines[2][2] == ":"   # hh:mm:ss up ...
     assert min(lit_rows(status.step())) == 0
 
 def test_status_falls_back_to_load_and_rate_option(monkeypatch):
     status, host = make_status(monkeypatch)
     status.psutil.sensors_temperatures = lambda: {}
-    assert status.lines()[5].startswith("Load ")
+    assert not any(line.startswith("Temp") for line in status.lines())
     assert StatusApplet(host, options={"rate": 4}).fps == 4
     assert StatusApplet(host, options={"rate": 99}).fps == 10
 
 def test_per_second():
-    assert [per_second(n) for n in (0, 950, 1200, 12000, 3.4e6, 2e12)]  \
-        == ["0", "950", "1.2k", "12k", "3.4M", "2T"]
+    assert [per_second(n) for n in (0, 950, 1200, 12000, 111000, 3.4e6, 2e12)]  \
+        == ["  0 ", "950 ", "1.2k", " 12k", "111k", "3.4M", "  2T"]
+    assert all(len(per_second(n)) == 4 for n in (0, 999, 1000, 99999, 1e9))
+
+def test_log_applet_shows_the_lines_and_clears_the_annunciator():
+    from aiko_services.examples.oled.applets import LogApplet
+    host = StubHost(lines=[f"line {n}" for n in range(9)])
+    log = LogApplet(host)
+    frame = log.step()
+    assert host.seen == 1 and len(lit_rows(frame)) > 40
+    assert min(lit_rows(frame)) == 8                     # below the title row
+    assert log.step() is None                            # nothing new
+    host._lines.append("newest")
+    assert log.step() is not None and host.seen == 2
 
 def test_help_applet_writes_lines():
     host = StubHost()
@@ -257,7 +276,7 @@ def frames_of(applet, count):
     return [applet.step() for _ in range(count)]
 
 def test_registry_has_every_applet():
-    assert set(APPLETS) == {"status", "help", "pattern", "text", "blink", "demo",
+    assert set(APPLETS) == {"status", "log", "help", "pattern", "text", "blink", "demo",
         "pong", "asteroids", "invaders", "games", "forklift", "forklift_game", "draw"}
 
 @pytest.mark.parametrize("name", ["pong", "asteroids", "invaders", "forklift", "forklift_game"])

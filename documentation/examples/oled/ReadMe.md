@@ -42,7 +42,7 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 | `oled.py` | Interfaces `OLED` and `OLEDApplets`, `OLEDImpl`, the `aiko_oled` command line |
 | `display.py` | Display backends: SSD1306 over I2C (luma.oled), pygame window, terminal, PNG file, none, fake |
 | `graphics.py` | The 5x7 font, image helpers, the bottom-left `Canvas`, the title row |
-| `applets.py` | The `Applet` base class and registry; `status` (the default), `help`, `pattern`, `text`, `blink`, `demo` |
+| `applets.py` | The `Applet` base class and registry; `status` (the default), `log`, `help`, `pattern`, `text`, `blink`, `demo` |
 | `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` |
 | `drawings.py` | `draw`: pencil-sketched cartoon scenes |
 | `console.py` | `aiko_oled keys`: the interactive console |

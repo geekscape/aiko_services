@@ -65,9 +65,9 @@ name and protocol and sends it one command.
 | `pixels X Y ...` | `-n`, `-t` | `(pixels X Y ...)` |
 | `line X0 Y0 X1 Y1` | `-n`, `-t` | `(line X0 Y0 X1 Y1)` |
 | `set KEY VALUE` | `-n`, `-t` | `(update KEY VALUE)` on the Actor's control topic, exactly what the Dashboard does |
-| `applet NAME [ARGS...]` | `-n`, `-t` | `(applet NAME ARGS ...)`; `stop` is `(applet none)` |
+| `applet NAME [ARGS...]` | `-n`, `-t`, `-l` | `(applet NAME ARGS ...)`; `stop` is `(applet none)`; `applet -l` lists the applets and their options without an Actor |
 | `key NAME [tap\|down\|up]` | `-n`, `-t` | `(key NAME STATE)` for the running applet |
-| `keys` | `-n`, `-t` | Interactive console: letters switch applets (the same letter again: its next options), arrows send keys, digits set the speed, `f` `i` `o` `a` `+` `-` change settings, `R` resets, `x` quits, `X` exits the Actor; a status line follows the shared state |
+| `keys` | `-n`, `-t` | Interactive console: letters switch applets (the same letter again: its next options), arrows send keys, digits set the speed, `f` `T` `i` `o` `a` `+` `-` change settings, `R` resets, `x` quits, `X` exits the Actor; a status line follows the shared state |
 
 Every remote subcommand gives up with exit status 1 after `-t` seconds
 when no Actor answers (the framework's `do_command()` would wait for
@@ -97,21 +97,35 @@ or without, the MQTT broker.
 
 **The status display.**  The default applet, `status`, refreshes
 once a second (`applet status rate=2` for twice).  With the 5x7 font
-the title row shows the Actor's name, the annunciators `L` (log lines not
-yet shown), `M` (connected to the broker) and `R` (registered with the
-Registrar), and the clock; below it, seven rows:
+the title row shows the Actor's name, three annunciators and the clock:
 
-    ▮w3029f1       LMR 14:26▮
+| Annunciator | Meaning | Cleared |
+|---|---|---|
+| `L` | `(log ...)` lines arrived that no applet has shown yet (`log_pending on`) | When the `status` or `log` applet shows them |
+| `M` | Connected to the MQTT broker (connection `TRANSPORT` or better) | When the connection drops |
+| `R` | Registered with the Registrar (connection `REGISTRAR`) | When the Registrar goes |
+
+Below the title row, the status rows keep every number a fixed width, so
+nothing jumps:
+
+    ▮w3029f1   LMR 14:26:45▮
     IP 192.168.0.137
-    Fri 26 Sep 2026
-    14:26:45 up 3d04h
-    CPU 12% Mem 34%
-    Disk 61% Rx12k Tx3k
-    Temp 45.1C 1500MHz        (Load 0.42 0.31 0.25 without a sensor)
-    Hello from nomad          the last (log ...) lines
+    Up 3d04h
+    CPU 12.3% Mem 34.5%
+    Disk 61.2% Load 0.42
+    Rx 111k Tx 1.1k           bytes per second: three digits and a unit
+    Temp 45.1C 1500MHz        only where the host has a sensor (an SBC does)
+    Hello from nomad          the newest (log ...) line; a new one replaces it
 
-Without the title row the first line is the name and the connection
-state.  `help` lists the wire commands on the display.
+The date is not shown (`applet status date=on` adds it) and the time only
+when the title row is off: then the first line is the name and the
+connection state, and the time precedes the uptime.  `set title off` gives
+an applet the whole panel; `set title on` brings the row back.
+
+The `log` applet shows the last eight `(log ...)` lines, oldest first, as
+they arrive, and clears `L`; the lines are kept whatever applet runs, so
+`applet log` shows them after a game.  `help` lists the wire commands on
+the display; `aiko_oled applet --list` lists the applets and their options.
 
 ### Public API
 
@@ -141,7 +155,8 @@ one-way; outcomes are observed in the shared state.  Coordinates: x
 
 | Name | Options | What it shows |
 |------|---------|---------------|
-| `status` | `rate=` updates per second (1) | The host's status; the default |
+| `status` | `rate=` updates per second (1), `date=on` | The host's status; the default |
+| `log` | | The last eight `(log ...)` lines as they arrive |
 | `help` | | The wire commands and settings |
 | `pattern` | | The test pattern for a panel: border, ruler ticks, diagonals, a circle, even and odd row blocks, a checkerboard, "centre" |
 | `text [WORDS]` | | The words centred; without words a screen full of digits |
@@ -178,11 +193,12 @@ published again, so an observer converges back.
 | `font` | `5x7` or `6`..`64` | RW | The canvas font: the 5x7 bitmap font or a TrueType size |
 | `contrast` | `0`..`255` | RW | Panel brightness |
 | `invert` / `power` / `all_on` | `on\|off` | RW | Inverse video; display sleep; every pixel lit (a hardware test) |
-| `title` | token (`_` shown as a space) or `off`; default: the Actor name | RW | The inverse-video title row with annunciators `L` `M` `R` and the clock |
+| `title` | text (`_` shown as a space), `off` or `on`; default: the Actor name | RW | The inverse-video title row: the text, the annunciators and the clock (hh:mm:ss).  `off` hides it, so the canvas and applets have the whole panel; `on` shows it again with the last text |
+| `log_pending` | `on\|off` | R | The `L` annunciator: `(log ...)` lines arrived that no applet has shown yet |
 | `blank_after` | seconds, `0` = never | RW | Sleep the display after this long without a new frame; any command wakes it |
 | `heartbeat` | seconds since start | R | Updated every second: proof the event loop is not blocked |
 | `last_error` | `WHAT@UTC` or `-` | R | The last rejection or failure, e.g. `pixel_x_range@2026-09-26T04:21:00Z` |
-| `log_count` | count | R | Lines received by `log` |
+| `log_count` | count | R | Lines received by `log` (the last eight are kept) |
 | `metrics.commands` `.rejected` `.frames` `.frame_ms` `.errors` | counts | R | Accepted and rejected commands, frames shown, the last frame's render time, errors caught in timers; published every 2 s when changed |
 
 ## For framework developers (internals)

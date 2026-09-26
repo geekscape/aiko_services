@@ -293,6 +293,7 @@ class DrawApplet(Applet):
 
     name = "draw"
     fps = 20
+    summary = "Pencil-sketched cartoon scenes, drawn a little at a time"
     OPTIONS = {"subject": _subject, "style": _style, "shade": _on_off, "speed": float,
                "hold": float, "count": int, "seed": int}
 

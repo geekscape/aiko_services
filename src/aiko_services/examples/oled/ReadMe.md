@@ -59,7 +59,7 @@ aiko_engine_mp style, with `mosquitto_pub` on the Actor's `in` topic:
 | `oled.py` | The `OLED` and `OLEDApplets` Interfaces, `OLEDImpl` and the `aiko_oled` command line |
 | `display.py` | Display backends: SSD1306 (luma.oled), pygame window, terminal, PNG, none, fake |
 | `graphics.py` | 5x7 font, image helpers, the bottom-left `Canvas`, the title row |
-| `applets.py` | Applets: sources of frames the Actor runs — `status` (the default), `help`, `pattern`, `text`, `blink`, `demo` |
+| `applets.py` | Applets: sources of frames the Actor runs — `status` (the default), `log`, `help`, `pattern`, `text`, `blink`, `demo` |
 | `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` (arrow keys over the wire) |
 | `drawings.py` | `draw`: pencil-sketched cartoon scenes |
 | `console.py` | `aiko_oled keys`: an interactive console for the running Actor |

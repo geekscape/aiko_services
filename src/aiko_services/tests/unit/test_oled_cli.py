@@ -175,7 +175,19 @@ def test_keys_console_map():
     assert key_command("-", state) == ("update", "contrast", "239")
     assert key_command("+", state) == ("update", "contrast", "255")
     assert key_command("c", state) == ("clear", ())
+    assert key_command("l", state) == ("applet", ("log",))
+    assert key_command("T", state) == ("update", "title", "off")
+    state["settings"]["title"] = "off"
+    assert key_command("T", state) == ("update", "title", "on")
     assert key_command("z", state) is None
+
+def test_applet_list_needs_no_actor():
+    result = invoke("applet", "--list")
+    assert result.exit_code == 0
+    for name in ("status", "log", "pong", "draw", "demo"):
+        assert name in result.output
+    assert "seed=" in result.output and "rate=" in result.output
+    assert invoke("applet").exit_code == 2
 
 def test_keys_needs_a_terminal():
     result = invoke("keys")

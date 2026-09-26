@@ -11,10 +11,11 @@
 #
 # Keys
 # ~~~~
-#   s status  p pattern  t text  d draw  g games  F forklift game
+#   s status  l log  p pattern  t text  d draw  g games  F forklift game
 #   A forklift  D demo  b blink  h help
 #   arrows: (key left|right|up|down)   0-9 speed (0 fastest, 4 normal, 9 slowest)
-#   f next font   i invert   o power   a all pixels on   + - contrast
+#   f next font   T title on/off   i invert   o power   a all pixels on
+#   + - contrast
 #   c clear   R reset   ? this list   x q quit the console   X exit the Actor
 #
 # The console runs on the Aiko Services event loop: the keyboard is polled
@@ -41,9 +42,9 @@ from aiko_services.examples.oled.oled import (
 __all__ = ["KEY_APPLETS", "PRESETS", "Keyboard", "KeysConsole", "key_command"]
 
 ARROWS = {"A": "up", "B": "down", "C": "right", "D": "left"}  # the terminal's codes
-KEY_APPLETS = {"s": "status", "p": "pattern", "t": "text", "d": "draw",
-                    "g": "games", "F": "forklift_game", "A": "forklift",
-                    "D": "demo", "b": "blink", "h": "help"}
+KEY_APPLETS = {"s": "status", "l": "log", "p": "pattern", "t": "text",
+               "d": "draw", "g": "games", "F": "forklift_game", "A": "forklift",
+               "D": "demo", "b": "blink", "h": "help"}
 PRESETS = {  # the same key again: the next argument list
     "status": [[], ["rate=4"]],
     "pattern": [[]],
@@ -56,6 +57,7 @@ PRESETS = {  # the same key again: the next argument list
     "demo": [[], ["random=off"]],
     "blink": [[], ["rate=8"]],
     "help": [[]],
+    "log": [[]],
 }
 RESET = {"contrast": "255", "invert": "off", "power": "on", "all_on": "off",
          "font": "5x7", "speed": "1"}
@@ -118,6 +120,9 @@ def key_command(key, state):
         return ("applet", (name, *presets[turn % len(presets)]))
     if key.isdigit():
         return ("update", "speed", f"{2 ** ((4 - int(key)) / 2):.3g}")
+    if key == "T":
+        current = state["settings"].get("title", "on")
+        return ("update", "title", "on" if current == "off" else "off")
     if key == "f":
         sizes = [str(size) for size in FONT_SIZES]
         current = state["settings"].get("font", "5x7")
@@ -238,9 +243,9 @@ class KeysConsole:
     @staticmethod
     def _help():
         return "\r\n".join([
-            "s status  p pattern  t text  d draw  g games  F forklift game  A forklift",
-            "D demo  b blink  h help   (the same key again: the next options)",
-            "arrows: keys for the applet   0-9 speed (4 normal)   f next font",
+            "s status  l log  p pattern  t text  d draw  g games  F forklift game",
+            "A forklift  D demo  b blink  h help   (the same key again: the next options)",
+            "arrows: keys for the applet   0-9 speed (4 normal)   f next font   T title",
             "i invert  o power  a all on  + - contrast  c clear  R reset",
             "? this list   x q quit the console   X exit the OLED Actor",
         ])

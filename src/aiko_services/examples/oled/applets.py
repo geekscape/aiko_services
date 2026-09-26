@@ -17,6 +17,7 @@
 #                     CPU and memory, disk and network, temperature, load,
 #                     and the last (log ...) lines.  The default, and the
 #                     main purpose of the Actor: a display for headless hosts
+#   log               the last eight (log ...) lines; clears the "L" annunciator
 #   help              the wire commands and settings, on the display
 #   pattern           the test pattern: shifted, missing or stretched rows show
 #   text [WORDS]      the words centred; without words a screen full of digits
@@ -51,8 +52,8 @@ from aiko_services.examples.oled.graphics import (
 __all__ = [
     "APPLETS", "OPTION_LENGTH_MAXIMUM", "TOUR", "Applet",
     "AppletDone", "BlinkApplet", "DemoApplet", "HelpApplet",
-    "Host", "PatternApplet", "StatusApplet", "TextApplet",
-    "parse_applet_args", "pattern_image", "random_steps",
+    "Host", "LogApplet", "PatternApplet", "StatusApplet", "TextApplet",
+    "on_off", "parse_applet_args", "pattern_image", "random_steps",
 ]
 
 OPTION_LENGTH_MAXIMUM = 64  # characters per word or option value (P9 bound)
@@ -116,6 +117,7 @@ class Applet:
     wants_title = False  # True: the title row is drawn over the frame
     OPTIONS = {}         # option name: type, e.g. {"seed": int}
     description = ""     # one token for observers
+    summary = ""         # one line for "aiko_oled applet --list"
 
     def __init__(self, host, words=(), options=None):
         self.host = host
@@ -190,27 +192,41 @@ def ip_address():
             return "none"
 
 def per_second(count):
-    """Short human readable rate, e.g. 950, 12k, 3.4M"""
+    """A rate in four characters, three for the number and one for the unit
+    (space, k, M, G), so that columns don't move: "950 ", "1.2k", " 12k" """
 
-    for unit in ("", "k", "M", "G"):
+    for unit in (" ", "k", "M", "G"):
         if count < 999.5:
-            return f"{count:.1f}{unit}" if unit and count < 9.95 else f"{count:.0f}{unit}"
+            if unit != " " and count < 9.95:
+                return f"{count:3.1f}{unit}"
+            return f"{count:3.0f}{unit}"
         count /= 1000
-    return f"{count:.0f}T"
+    return f"{count:3.0f}T"
+
+def on_off(text):
+    """True for on/true/1/yes, False for off/false/0/no; ValueError otherwise"""
+
+    if text in ("on", "true", "1", "yes"):
+        return True
+    if text in ("off", "false", "0", "no"):
+        return False
+    raise ValueError(text)
 
 class StatusApplet(Applet):
     """The host's status, one item per text row, refreshed "rate" times a
-    second (default once).  With the 5x7 font and the title row, seven
-    rows: IP address; date; time and uptime; CPU and memory; disk and
-    network traffic; temperature and CPU speed (or load); then the last
-    (log ...) lines.  Without the title row the first line is the host
-    name and the connection state.  Sampling uses non-blocking psutil calls"""
+    second (default once): IP address; uptime; CPU and memory; disk and
+    load; network traffic; temperature and CPU speed (where the host has
+    a sensor); then the newest (log ...) line.  Numbers keep a fixed width
+    so the text doesn't jump.  Without the title row the first line is the
+    host name and the connection state, and the time precedes the uptime;
+    "date=on" adds the date.  Sampling uses non-blocking psutil calls"""
 
     name = "status"
     fps = 1
     wants_title = True
-    OPTIONS = {"rate": float}
+    OPTIONS = {"rate": float, "date": on_off}
     description = "status"
+    summary = "The host's status: IP, uptime, CPU, memory, disk, load, network, temperature, newest log line"
 
     def __init__(self, host, words=(), options=None):
         super().__init__(host, words, options)
@@ -256,30 +272,58 @@ class StatusApplet(Applet):
         clock = datetime.now()
         temperature = self._temperature()
         try:
-            load = "Load {:.2f} {:.2f} {:.2f}".format(*os.getloadavg())
+            load = "Load {:.2f}".format(os.getloadavg()[0])
         except (AttributeError, OSError):
             load = ""
+        titled = bool(self.host.title_rows())
         lines = []
-        if not self.host.title_rows():
+        if not titled:
             lines.append(f"{self.host.name} {self.host.connection()}"[:21])
-        lines += [
-            f"IP {ip_address()}",
-            f"{clock:%a %d %b %Y}",
-            f"{clock:%H:%M:%S} up {uptime}",
-            f"CPU {psutil.cpu_percent(interval=None):.0f}% "
-            f"Mem {psutil.virtual_memory().percent:.0f}%",
-            f"Disk {psutil.disk_usage(os.path.expanduser('~')).percent:.0f}% "
-            f"Rx{per_second(received)} Tx{per_second(sent)}",
-            (f"Temp {temperature:.1f}C {self._cpu_speed()}".rstrip()
-             if temperature is not None else load),
-        ]
-        lines += self.host.log_lines()
-        return [line for line in lines if line]
+        lines.append(f"IP {ip_address()}")
+        if self.options.get("date"):
+            lines.append(f"{clock:%a %d %b %Y}")
+        lines.append(f"Up {uptime}" if titled else f"{clock:%H:%M:%S} up {uptime}")
+        lines.append(f"CPU {psutil.cpu_percent(interval=None):4.1f}% "
+                     f"Mem {psutil.virtual_memory().percent:4.1f}%")
+        lines.append(f"Disk {psutil.disk_usage(os.path.expanduser('~')).percent:4.1f}% "
+                     f"{load}".rstrip())
+        lines.append(f"Rx {per_second(received)} Tx {per_second(sent)}")
+        if temperature is not None:
+            lines.append(f"Temp {temperature:4.1f}C {self._cpu_speed()}".rstrip())
+        log_lines = self.host.log_lines()
+        if log_lines:
+            lines.append(log_lines[-1])  # the newest line replaces the last
+        return lines
 
     def step(self):
         frame = self.write_lines(self.lines())
         self.host.log_seen()
         return frame
+
+class LogApplet(Applet):
+    """The last eight (log ...) lines, oldest first, as they arrive; showing
+    them clears the "L" annunciator"""
+
+    name = "log"
+    fps = 2
+    wants_title = True
+    description = "log"
+    summary = "The last eight (log ...) lines, as they arrive"
+
+    def __init__(self, host, words=(), options=None):
+        super().__init__(host, words, options)
+        self._shown = None
+
+    def step(self):
+        lines = self.host.log_lines()
+        shown = (self.host.font, tuple(lines))
+        if shown == self._shown:
+            return None
+        self._shown = shown
+        font = self.host.font
+        rows = max(1, (self.host.height - self.host.title_rows()) // font.cell_height)
+        self.host.log_seen()
+        return self.write_lines(lines[-rows:])
 
 class HelpApplet(Applet):
     """The wire commands and settings, on the display"""
@@ -288,14 +332,15 @@ class HelpApplet(Applet):
     fps = 0.2
     wants_title = True
     description = "help"
+    summary = "The wire commands and settings, on the display"
     LINES = [
         "(text X Y WORDS)",
         "(log WORDS)",
         "(pixels X Y ...)",
         "(clear) (exit)",
-        "(applet NAME)",
+        "(applet NAME) -l list",
         "set contrast|invert",
-        "set title|font|speed",
+        "set title on|off|TEXT",
         "aiko_oled --help",
     ]
 
@@ -372,6 +417,7 @@ class PatternApplet(StillApplet):
 
     name = "pattern"
     description = "pattern"
+    summary = "The test pattern for a panel"
 
     def picture(self):
         return pattern_image(self.host.font)
@@ -381,6 +427,7 @@ class TextApplet(StillApplet):
     of digits"""
 
     name = "text"
+    summary = "WORDS centred, or without words a screen full of digits"
 
     def __init__(self, host, words=(), options=None):
         super().__init__(host, words, options)
@@ -401,6 +448,7 @@ class BlinkApplet(Applet):
     fps = 2
     OPTIONS = {"rate": float}
     description = "blink"
+    summary = "The panel's power off and on: a hardware test"
 
     def __init__(self, host, words=(), options=None):
         super().__init__(host, words, options)
@@ -490,6 +538,7 @@ class DemoApplet(Applet):
     OPTIONS = {"random": lambda text: text not in ("off", "false", "0", "no"),
                "count": int, "seed": int}
     description = "demo"
+    summary = "A tour of the applets and settings, a few seconds each"
 
     def __init__(self, host, words=(), options=None):
         super().__init__(host, words, options)
@@ -560,5 +609,5 @@ class DemoApplet(Applet):
         self._restore()
 
 APPLETS = {applet.name: applet for applet in (
-    StatusApplet, HelpApplet, PatternApplet, TextApplet,
+    StatusApplet, LogApplet, HelpApplet, PatternApplet, TextApplet,
     BlinkApplet, DemoApplet)}

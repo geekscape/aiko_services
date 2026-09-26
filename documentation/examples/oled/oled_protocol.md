@@ -52,7 +52,7 @@ above with the 5x7 font.
 | `(line X0 Y0 X1 Y1)` | integers | in range | — |
 | `(text X Y WORDS ...)` | integers, words | in range; 128 characters | `(oled:text ...)`, 8x8 font |
 | `(exit)` | — | — | — |
-| `(applet NAME [WORDS ...] [key=value ...])` | name, words, options | name in `applets` (status, help, pattern, text, blink, demo, pong, asteroids, invaders, games, forklift, forklift_game, draw); options as the applet declares; 64 characters each | — |
+| `(applet NAME [WORDS ...] [key=value ...])` | name, words, options | name in `applets` (status, log, help, pattern, text, blink, demo, pong, asteroids, invaders, games, forklift, forklift_game, draw); options as the applet declares; 64 characters each | — |
 | `(key NAME [tap\|down\|up])` | `up`, `down`, `left`, `right` or one character | state as listed | — |
 | `(stop)`, `(set_log_level LEVEL)` | framework | | — |
 
@@ -63,8 +63,8 @@ the parser's canonical form and the command is rejected.
 **Shared state** (observed with `(share ...)` on the control topic, or in
 the Dashboard): the keys and values listed in [oled](oled.md).  Settings
 are written with `(update KEY VALUE)` on the control topic: `applet`,
-`contrast`, `invert`, `power`, `all_on`, `title`, `font`, `speed`,
-`blank_after`.  Values are single tokens.
+`contrast`, `invert`, `power`, `all_on`, `title` (text, `on` or `off`),
+`font`, `speed`, `blank_after`.  Values are single tokens.
 
 ### Failure behavior
 

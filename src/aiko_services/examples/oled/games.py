@@ -700,16 +700,19 @@ class GeneratorApplet(Applet):
 class PongApplet(GeneratorApplet):
     name = "pong"
     description = "pong"
+    summary = "Self-playing pong"
     generator = staticmethod(pong)
 
 class AsteroidsApplet(GeneratorApplet):
     name = "asteroids"
     description = "asteroids"
+    summary = "Self-playing asteroids"
     generator = staticmethod(asteroids)
 
 class InvadersApplet(GeneratorApplet):
     name = "invaders"
     description = "invaders"
+    summary = "Self-playing space invaders"
     generator = staticmethod(invaders)
 
 class GamesApplet(Applet):
@@ -718,6 +721,7 @@ class GamesApplet(Applet):
     name = "games"
     fps = 30
     OPTIONS = {"seed": int, "duration": float}
+    summary = "Pong, asteroids and invaders in turn"
 
     def __init__(self, host, words=(), options=None):
         super().__init__(host, words, options)
@@ -748,6 +752,7 @@ class ForkliftApplet(GeneratorApplet):
     name = "forklift"
     description = "forklift"
     OPTIONS = {"seed": int, "duration": float}
+    summary = "A forklift moves a pallet in and out of a racking bay by itself"
     generator = staticmethod(forklift_work)
 
     def __init__(self, host, words=(), options=None):
@@ -769,6 +774,7 @@ class ForkliftGameApplet(Applet):
     fps = 30
     OPTIONS = {"seed": int}
     description = "forklift_game"
+    summary = "The forklift game: (key left|right|up|down) drive and lift"
 
     def __init__(self, host, words=(), options=None):
         super().__init__(host, words, options)
