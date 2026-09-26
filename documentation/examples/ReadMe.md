@@ -37,6 +37,7 @@ Concepts and PipelineElements documentation
 | Package | Contents |
 |---------|----------|
 | [aloha_honua/](aloha_honua/ReadMe.md) | The graduated four-stage hello-world Actor tutorial — plain Actor, discovery client, remote stop, request/response |
+| [oled/](oled/ReadMe.md) | SSD1306 OLED display Actor — a status display for headless hosts, an aiko_engine_mp compatible canvas, settings in the shared state, emulated on a desktop |
 | [pipeline/](pipeline/ReadMe.md) | Teaching Pipelines — local and remote deployment, Graph Paths, frame data encode/decode, plus the multitude/ scale stress tests |
 | [colab/](colab/ReadMe.md) | Google Colab integration — running Pipelines inside a notebook with browser camera, microphone and speaker widgets |
 | [speech/](speech/ReadMe.md) | Speech processing — microphone capture, WhisperX transcription, Coqui text-to-speech and the speech-to-LLM round trip |

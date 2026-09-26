@@ -70,6 +70,8 @@ dependencies = [
 # aiko = "aiko_services.main.cli:main"
 aiko_dashboard = "aiko_services.main.dashboard:main"
 aiko_hyperspace = "aiko_services.main.hyperspace:main"
+# aiko_oled lives in examples/ (excluded from the wheel): editable installs only
+aiko_oled = "aiko_services.examples.oled.oled:main"
 aiko_pipeline = "aiko_services.main.pipeline:main"
 aiko_process = "aiko_services.main.process_manager:main"
 aiko_registrar = "aiko_services.main.registrar:main"
