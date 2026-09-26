@@ -56,5 +56,6 @@ aiko_engine_mp style, with `mosquitto_pub` on the Actor's `in` topic:
 | `oled.py` | The `OLED` and `OLEDApplications` Interfaces, `OLEDImpl` and the `aiko_oled` command line |
 | `display.py` | Display backends: SSD1306 (luma.oled), pygame window, terminal, PNG, none, fake |
 | `graphics.py` | 5x7 font, image helpers, the bottom-left `Canvas`, the title row |
-| `applications.py` | Applications: sources of frames the Actor runs (status, games, ...) |
+| `applications.py` | Applications: sources of frames the Actor runs — `status` (the default), `help` |
+| `aiko_oled.service` | systemd unit for a Raspberry Pi: the display comes up with the host |
 | `oled_test.py` | The original standalone spike (click, no Aiko Services): kept unchanged for reference |

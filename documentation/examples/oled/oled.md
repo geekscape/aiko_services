@@ -88,7 +88,29 @@ ever).  A session on the desktop:
     1
 
 On the Raspberry Pi: `aiko_oled run -a 0x3D`.  Append `&` to run it in
-the background, or start it with `aiko_process create`.
+the background, or start it with `aiko_process create`.  For a display
+that comes up with the host, install `aiko_oled.service` (in the source
+directory) with systemd: `systemctl stop` sends SIGTERM and the Actor
+blanks the panel.  With `--standalone` the status display works before,
+or without, the MQTT broker.
+
+**The status display.**  The default application, `status`, refreshes
+once a second (`application status rate=2` for twice).  With the 5x7 font
+the title row shows the Actor's name, the annunciators `L` (log lines not
+yet shown), `M` (connected to the broker) and `R` (registered with the
+Registrar), and the clock; below it, seven rows:
+
+    ▮w3029f1       LMR 14:26▮
+    IP 192.168.0.137
+    Fri 26 Sep 2026
+    14:26:45 up 3d04h
+    CPU 12% Mem 34%
+    Disk 61% Rx12k Tx3k
+    Temp 45.1C 1500MHz        (Load 0.42 0.31 0.25 without a sensor)
+    Hello from nomad          the last (log ...) lines
+
+Without the title row the first line is the name and the connection
+state.  `help` lists the wire commands on the display.
 
 ### Public API
 
@@ -114,9 +136,10 @@ one-way; outcomes are observed in the shared state.  Coordinates: x
 | `application(name, *args)` | `(application NAME [WORDS ...] [key=value ...])` | Run an application, replacing the running one; `none` shows the canvas |
 | `key(name, state="tap")` | `(key NAME [tap\|down\|up])` | A key for the running application |
 
-Drawing on the canvas stops a running application, so that the drawing
-is seen; `log` does not, because the status application shows the log
-lines itself.  Anything else on the `in` topic — including the
+Applications: `status` (`rate=SECONDS`, default 1), `help`; more in the
+next phase.  Drawing on the canvas stops a running application, so that
+the drawing is seen; `log` does not, because the status application shows
+the log lines itself.  Anything else on the `in` topic — including the
 framework's `(run)` — is rejected: the Actor dispatches only the
 methods of its Interfaces, plus `(stop)` and `(set_log_level LEVEL)`.
 
@@ -138,7 +161,7 @@ published again, so an observer converges back.
 | `font` | `5x7` or `6`..`64` | RW | The canvas font: the 5x7 bitmap font or a TrueType size |
 | `contrast` | `0`..`255` | RW | Panel brightness |
 | `invert` / `power` / `all_on` | `on\|off` | RW | Inverse video; display sleep; every pixel lit (a hardware test) |
-| `title` | token (`_` shown as a space) or `off` | RW | The inverse-video title row with annunciators and the clock |
+| `title` | token (`_` shown as a space) or `off`; default: the Actor name | RW | The inverse-video title row with annunciators `L` `M` `R` and the clock |
 | `blank_after` | seconds, `0` = never | RW | Sleep the display after this long without a new frame; any command wakes it |
 | `heartbeat` | seconds since start | R | Updated every second: proof the event loop is not blocked |
 | `last_error` | `WHAT@UTC` or `-` | R | The last rejection or failure, e.g. `pixel_x_range@2026-09-26T04:21:00Z` |
@@ -226,9 +249,12 @@ published again, so an observer converges back.
 
 ## Current limitations and roadmap
 
-- Applications: the status display (the main goal), then pattern, text,
-  blink, the games, the forklift, drawings and the demo from
-  `oled_test.py`, and an `aiko_oled keys` console — the next two phases.
+- Applications: pattern, text, blink, the games, the forklift, drawings
+  and the demo from `oled_test.py`, and an `aiko_oled keys` console — the
+  next phase.
+- The status sampling (psutil) runs on the event-loop thread: well under
+  5 ms on a Raspberry Pi 4.  If a host proves slow, move it to a worker
+  that posts the readings to the mailbox.
 - The 5x7 font gives 21 characters per row; aiko_engine_mp's 8x8 font
   gives 16.  An 8x8 bitmap font for pixel parity is on the roadmap.
 - One panel per Actor.  aiko_engine_mp spreads text across two panels.

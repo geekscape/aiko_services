@@ -38,7 +38,7 @@ _counter = itertools.count()
 
 def make_actor(**parameters):
     display = parameters.pop("display", None) or FakeDisplay()
-    parameters = {"display": display, "title": "off", **parameters}
+    parameters = {"display": display, "title": "off", "application": "none", **parameters}
     name = f"oled_test_{next(_counter)}"
     actor = aiko.compose_instance(OLEDImpl,
         aiko.actor_args(name, parameters=parameters, protocol=PROTOCOL))

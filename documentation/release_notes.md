@@ -34,6 +34,14 @@ sections are.
 
 ### Features
 
+* OLED display Actor example, *src/aiko_services/examples/oled*: an SSD1306
+  128x64 OLED as an Actor with protocol *oled:0*.  It shows the status of a
+  headless host (IP address, connection state, time, load, the last log
+  lines) and accepts the same S-expressions as the aiko_engine_mp OLED,
+  for example *(oled:text 0 0 hello)*.  Its settings are shared state that
+  the Dashboard edits.  The *aiko_oled* command runs the Actor or sends it
+  one command.  Without the panel, a desktop window, the terminal or a PNG
+  file emulates it.  See *documentation/examples/oled/ReadMe.md*
 * Classes may now omit the *__init__()* method entirely when they need no
   constructor arguments beyond *context* and no explicit super-class
   initialization: the composition engine synthesizes the cooperative

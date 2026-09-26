@@ -55,8 +55,7 @@
 #
 # To Do
 # ~~~~~
-# - Phase 1: status application, help; Phase 2: games, forklift, drawings,
-#   demo, "aiko_oled keys" console
+# - Phase 2: games, forklift, drawings, demo, "aiko_oled keys" console
 # - Dashboard plug-in; convergence with aiko_engine_mp (protocol oled:0)
 # - Promote into src/aiko_services/main/oled/ (then aiko_oled ships in the wheel)
 
@@ -115,7 +114,7 @@ HEARTBEAT_PERIOD = 1.0
 METRICS_PERIOD = 2.0
 REOPEN_PERIOD = 10.0          # retry a failed display this often
 TIMEOUT = 5.0                 # CLI: seconds to wait for the OLED Actor
-DEFAULT_APPLICATION = "none"  # Phase 1: "status"
+DEFAULT_APPLICATION = "status"
 
 # Settings: shared state that anyone may write with "(update KEY VALUE)" on
 # the control topic; the change handler applies them through one setter each
@@ -287,8 +286,18 @@ class _Host(Host):
     def connection(self):
         return self._actor.share.get("connection", "NONE")
 
+    @property
+    def name(self):
+        return self._actor.name
+
+    def title_rows(self):
+        return self._actor._canvas.title_rows
+
     def log_lines(self):
         return list(self._actor._log)
+
+    def log_seen(self):
+        self._actor._log_pending = False
 
     def keys_held(self):
         return self._actor._keys_held()
@@ -334,7 +343,7 @@ class OLEDImpl(OLED, OLEDApplications):
         self._shut = False
         self.last_event_thread = None  # for tests: where handlers run
 
-        title = str(parameters.get("title") or get_hostname())
+        title = str(parameters.get("title") or self.name)
         self._title_text = "" if title == "off" else title.replace("_", " ")
         self._canvas.title_rows = self._font.cell_height if self._title_text else 0
 
@@ -954,7 +963,7 @@ def main():
     callback=_validate_font_size,
     help="5x7 bitmap font, or a TrueType font size in pixels, 6 to 64")
 @click.option("--title", default=None,
-    help="Title row text (use _ for spaces) or off  [default: the name]")
+    help="Title row text (use _ for spaces) or off  [default: the Actor name]")
 @click.option("--color", "-c", default=None, callback=_parse_colors,
     metavar="'FOREGROUND [BACKGROUND]'",
     help="Pixel colors of an emulated display, e.g. 'yellow navy'")
@@ -975,7 +984,7 @@ def run_command(name, output, address, bus, application, font_size, title,
     display = choose_display(output, address, bus, png, color)
     parameters = {
         "display": display, "application": application, "font": font_size,
-        "title": title or name, "strict": strict,
+        "title": title, "strict": strict,
     }
     init_args = aiko.actor_args(
         name, parameters=parameters, protocol=PROTOCOL, tags=["ec=true"])

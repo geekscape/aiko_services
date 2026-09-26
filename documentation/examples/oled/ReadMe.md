@@ -41,5 +41,6 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 | `oled.py` | Interfaces `OLED` and `OLEDApplications`, `OLEDImpl`, the `aiko_oled` command line |
 | `display.py` | Display backends: SSD1306 over I2C (luma.oled), pygame window, terminal, PNG file, none, fake |
 | `graphics.py` | The 5x7 font, image helpers, the bottom-left `Canvas`, the title row |
-| `applications.py` | The `Application` base class and registry |
+| `applications.py` | The `Application` base class and registry; `status` (the default) and `help` |
+| `aiko_oled.service` | systemd unit for a Raspberry Pi |
 | `oled_test.py` | The original standalone spike, kept unchanged for reference |
