@@ -75,10 +75,10 @@ class ClockApplet(Applet):
                       fill=INK)
         day = font.render_line(f"{now.day:2d}")
         window_x, window_y = cx + round(r * 0.55), cy
-        box = (window_x - day.width // 2 - 2, window_y - day.height // 2 - 2,
-               window_x + day.width // 2 + 2, window_y + day.height // 2 + 2)
-        draw.rectangle(box, fill=0, outline=INK)
-        stamp(frame, day, box[0] + 3, box[1] + 3)
+        box = (window_x - day.width // 2 - 4, window_y - day.height // 2 - 3,
+               window_x + day.width // 2 + 4, window_y + day.height // 2 + 3)
+        draw.rectangle(box, fill=0, outline=INK)   # the date window, with room
+        stamp(frame, day, box[0] + 5, box[1] + 4)
 
         def hand(degrees, length, width):
             angle = math.radians(degrees)
