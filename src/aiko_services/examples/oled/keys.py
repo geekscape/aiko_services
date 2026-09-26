@@ -13,12 +13,14 @@
 #
 # Keys
 # ~~~~
-#   s status  l log  p pattern  t text  d draw  g games  F forklift game
-#   A forklift  D demo  b blink  k clock  e eyes  h help (again: next page)
+#   s status  l log  p pattern  t text  d draw  D demo  S blink  C clock
+#   e eyes  g games: pong, asteroids, invaders, forklift  G forklift game
+#   h ? help (again: the next page)
 #   arrows: (key left|right|up|down)   0-9 speed (0 fastest, 4 normal, 9 slowest)
-#   f next font   T title on/off   i invert   o power   a all pixels on
-#   + - contrast   c C next foreground / background color (emulated displays)
-#   z clear   R reset the settings and the colors, show status   ? the keys
+#   f F next / previous font   T title on/off   i invert   o power
+#   a all pixels on   + - contrast
+#   b B next foreground / background color (emulated displays)   c clear
+#   R reset the settings and the colors, show status
 #   x q quit (the console; in the window: exit the Actor)   X exit the Actor
 
 from aiko_services.examples.oled.drawings import SUBJECTS
@@ -29,7 +31,7 @@ __all__ = ["ARROWS", "BACKGROUNDS", "FOREGROUNDS", "KEY_APPLETS", "PRESETS",
 
 ARROWS = {"A": "up", "B": "down", "C": "right", "D": "left"}  # the terminal's codes
 
-# What "c" and "C" step through (the original oled_test.py's lists)
+# What "b" and "B" step through (the original oled_test.py's lists)
 FOREGROUNDS = ("white", "deepskyblue", "yellow", "lime", "orange", "hotpink")
 BACKGROUNDS = ("black", "midnightblue", "darkslategray", "maroon", "dimgray", "white")
 
@@ -57,15 +59,14 @@ PRESETS = {
           [update("font", "10"), applet("text", "Hello!")],
           [update("font", "24"), applet("text", "OLED")],
           [update("font", "16"), applet("text", "128x64")]],
-    "b": [[applet("blink")], [applet("blink", "rate=8")]],
     "d": [[applet("draw")], [applet("draw", "shade=off")],
           [applet("draw", "style=hatch")], [applet("draw", "style=stipple")]]
          + [[applet("draw", f"subject={subject}")] for subject in sorted(SUBJECTS)],
-    "g": [[applet("pong")], [applet("asteroids")], [applet("invaders")], [applet("games")]],
-    "F": [[applet("forklift_game")]],
-    "A": [[applet("forklift")]],
+    "g": [[applet("pong")], [applet("asteroids")], [applet("invaders")], [applet("forklift")]],
+    "G": [[applet("forklift_game")]],
+    "S": [[applet("blink")], [applet("blink", "rate=8")]],
     "D": [[applet("demo")], [applet("demo", "random=off")]],
-    "k": [[applet("clock")], [applet("clock", "title=on")], [applet("clock", "seconds=off")]],
+    "C": [[applet("clock")], [applet("clock", "title=on")], [applet("clock", "seconds=off")]],
     "e": [[applet("eyes")]] + [[applet("eyes", f"emotion={emotion}")]
                                for emotion in ("happy", "sad", "angry", "surprised",
                                                "sleepy", "suspicious", "curious", "loving")],
@@ -90,6 +91,8 @@ def key_command(key, state):
     key, the Actor's settings and the base font"""
 
     settings = state["settings"]
+    if key == "?":
+        key = "h"                    # help, wherever the key is typed
     if key in ARROWS.values():
         return [("key", (key, "tap"))]
     if key in PRESETS:
@@ -109,10 +112,11 @@ def key_command(key, state):
     if key == "T":
         current = settings.get("title", "on")
         return [update("title", "on" if current == "off" else "off")]
-    if key == "f":
+    if key in ("f", "F"):
         sizes = [str(size) for size in FONT_SIZES]
         current = settings.get("font", "5x7")
-        turn = (sizes.index(current) + 1) % len(sizes) if current in sizes else 0
+        step = 1 if key == "f" else -1
+        turn = (sizes.index(current) + step) % len(sizes) if current in sizes else 0
         state["base_font"] = sizes[turn]
         return [update("font", sizes[turn])]
     if key in ("i", "o", "a"):
@@ -126,11 +130,11 @@ def key_command(key, state):
             contrast = 255
         contrast = max(0, min(255, contrast + (16 if key == "+" else -16)))
         return [update("contrast", str(contrast))]
-    if key in ("c", "C"):
-        name = "foreground" if key == "c" else "background"
-        names = FOREGROUNDS if key == "c" else BACKGROUNDS
+    if key in ("b", "B"):
+        name = "foreground" if key == "b" else "background"
+        names = FOREGROUNDS if key == "b" else BACKGROUNDS
         return [update(name, _next_color(names, settings.get(name)))]
-    if key == "z":
+    if key == "c":
         return [("clear", ())]
     return []
 

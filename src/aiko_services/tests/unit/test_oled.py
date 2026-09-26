@@ -473,14 +473,16 @@ def test_window_keys_use_the_console_map(actor_display, test_applets, monkeypatc
     assert actor.share["applet"] == "pong"
     typed("g")
     assert actor.share["applet"] == "asteroids"              # the next preset
-    typed("5", "c", "c", "C", "-")
+    typed("5", "b", "b", "B", "-")
     assert actor.share["speed"] == "0.707"
     assert actor.share["foreground"] == "yellow"             # white, deepskyblue, yellow
     assert display.foreground == (255, 255, 0)
     assert actor.share["background"] == "midnightblue"
     assert actor.share["contrast"] == "239"
-    typed("z")
-    assert actor.share["applet"] == "none"                   # a drawing command
+    typed("c")
+    assert actor.share["applet"] == "none"                   # clear: a drawing command
+    typed("?")
+    assert actor.share["applet"] == "help"                   # ? is help, as h
     typed("R")
     assert actor.share["applet"] == "status"
     assert actor.share["foreground"] == "white" and actor.share["contrast"] == "255"

@@ -875,12 +875,10 @@ class OLEDImpl(OLED, OLEDApplets):
     def _local_key(self, key):
         """A key typed in the emulator window: the same keys as the console
         (keys.py), applied here.  x, q and X exit, as Esc does; a key that
-        means nothing to the console goes to the running applet"""
+        means nothing in the key map goes to the running applet"""
 
         if key in ("x", "q", "X"):
             return self.exit()
-        if key == "?":
-            key = "h"
         state = self._local_keys
         commands = keymap.reset_commands(state) if key == "R"  \
             else keymap.key_command(key, state)
@@ -1069,7 +1067,7 @@ def main(ctx, name, timeout):
 @click.option("--color", "-c", default=None, callback=_parse_colors,
     metavar="'FOREGROUND [BACKGROUND]'",
     help="Colors of an emulated display, e.g. 'yellow navy': the settings "
-         "foreground and background")
+         "foreground and background, which the keys b and B step through")
 @click.option("--png", type=click.Path(dir_okay=False), default=None,
     help="File for -o png  [default: oled.png]")
 @click.option("--standalone", is_flag=True,
@@ -1104,7 +1102,7 @@ def run_command(options, output, address, bus, applet, font_size, title,
     shown), M (connected to the broker) and R (registered), and the clock.
     -fs is the text font (5x7, or a TrueType size 6..64).  -c colors an
     emulated display, e.g. -c 'yellow navy': the settings "foreground" and
-    "background", which the keys c and C step through while it runs.
+    "background", which the keys b and B step through while it runs.
 
     \b
     --standalone runs without an MQTT broker: the status display still
@@ -1359,12 +1357,12 @@ def keys_command(options):
     """Interactive console: keys switch applets and settings, arrows play
 
     \b
-    s status  l log  p pattern  t text  d draw  g games  F forklift game
-    A forklift  D demo  b blink  k clock  e eyes  h help (again: the next page)
-    (the same applet key again: its next options)
-    arrows: keys for the applet   0-9 speed (4 normal)   f next font  T title
-    i invert  o power  a all pixels on  +/- contrast  c C color  z clear
-    R reset   ? this list   x or q quit the console   X exit the OLED Actor
+    s status  l log  p pattern  t text  d draw  D demo  S blink  C clock
+    e eyes  g games (pong, asteroids, invaders, forklift)  G forklift game
+    h or ? help (the same applet key again: its next options)
+    arrows: keys for the applet   0-9 speed (4 normal)   f F next/previous font
+    T title  i invert  o power  a all pixels on  +/- contrast  b B color
+    c clear  R reset   x or q quit the console   X exit the OLED Actor
     """
 
     from aiko_services.examples.oled.console import KeysConsole  # (imports this module)
@@ -1454,10 +1452,10 @@ def _keys_reference():
                                subsequent_indent="     ")
     lines += [
         "  arrows  (key left|right|up|down) for the applet: the forklift game, help",
-        "  0-9     speed: 0 fastest (x4), 4 normal, 9 slowest   f  the next font size",
+        "  0-9  speed: 0 fastest (x4), 4 normal, 9 slowest   f F  next/previous font",
         "  T title on/off   i invert   o power   a all pixels on   + - contrast by 16",
-        "  c C  the next foreground / background color (emulated displays)  z clear",
-        "  R  reset the settings and the colors, show status   ? the keys",
+        "  b B  the next foreground / background color (emulated displays)  c clear",
+        "  R  reset the settings and the colors, show status   ? the same as h",
         "  x q  quit the console   X  exit the OLED Actor (then y to confirm)",
         "  The same keys work in the emulator window (-o window); x q X exit there",
     ]

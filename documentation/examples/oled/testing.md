@@ -270,23 +270,24 @@ that follows the shared state. Then type, without Enter:
 
 | Key | Expect |
 |-----|--------|
-| `?` | The key list |
+| `?` | The help applet on the display, page 1: the same as `h` |
 | `p` | The test pattern. The status line shows `applet pattern` |
 | `p` again, three times | The test pattern in the 5x7, 10 and 16 pixel fonts. The same key again gives the next preset |
 | `t`, seven times | The digit grid in the current font, then in the 5x7, 10 and 16 pixel fonts, then `Hello!`, `OLED` and `128x64` in larger fonts |
-| `g`, four times | Pong, asteroids, invaders, then the three in turn |
+| `g`, four times | Pong, asteroids, invaders, then the forklift working by itself |
 | `d`, repeatedly | A drawing, then outlined, hatched, stippled, then each subject |
-| `F`, then the arrow keys | The forklift game: left and right drive, up and down lift. A tapped key moves a little, and a held key moves more |
+| `G`, then the arrow keys | The forklift game: left and right drive, up and down lift. A tapped key moves a little, and a held key moves more |
 | `0` … `9` | The speed: `0` fastest, `4` normal, `9` slowest (`speed` in the status line) |
-| `f`, repeatedly | The next font size |
+| `f`, then `F` | The next font size, then the previous one again |
 | `i`, `o`, `a` | Invert, power and all-pixels-on toggles |
 | `+`, `-` | Contrast up and down by 16 |
-| `c`, repeatedly **[mac]** | The next foreground color: deepskyblue, yellow, lime, orange, hotpink, white |
-| `C`, repeatedly **[mac]** | The next background color: midnightblue, darkslategray, maroon, dimgray, white, black |
-| `z` | Clear the canvas |
+| `b`, repeatedly **[mac]** | The next foreground color: deepskyblue, yellow, lime, orange, hotpink, white |
+| `B`, repeatedly **[mac]** | The next background color: midnightblue, darkslategray, maroon, dimgray, white, black |
+| `c` | Clear the canvas |
+| `S`, twice | The panel's power off and on, twice a second, then eight times a second |
 | `l` | The log lines |
 | `h`, six times | The help pages, one per press |
-| `k`, three times | The clock face, then with the title row, then without the seconds hand |
+| `C`, three times | The clock face, then with the title row, then without the seconds hand |
 | `e`, repeatedly | The eyes, then held at `happy`, and on through the emotions |
 | `T` | The title row off, then on again |
 | `s`, repeatedly | The status display, then at 4 updates a second, then in the 5x7, 10 and 12 pixel fonts |
@@ -296,10 +297,10 @@ that follows the shared state. Then type, without Enter:
 `X` then `y` would exit the Actor.
 
 **[mac]** The emulator window takes the same keys. Start
-`aiko_oled run -o window`, click the window, and type `g`, `g`, `c`, `5`
+`aiko_oled run -o window`, click the window, and type `g`, `g`, `b`, `5`
 and `R`: pong, then asteroids, a blue foreground, a slower pace, then the
 status display with the colors reset. The arrow keys drive the forklift
-game (`F`). `x`, `q` or `Esc` closes the window and exits the Actor.
+game (`G`). `x`, `q` or `Esc` closes the window and exits the Actor.
 
 ## 11. Failure behavior
 

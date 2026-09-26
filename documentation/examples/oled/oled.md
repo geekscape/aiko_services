@@ -120,7 +120,7 @@ The options of `run`:
 | `--applet NAME` | The applet at start. `none` shows the canvas | `status` |
 | `-fs`, `--font_size` | The text font: `5x7`, the bitmap font, or a TrueType size 6..64 | `5x7` |
 | `--title TEXT\|off` | The title row text, `_` for a space, or `off` | The Actor name |
-| `-c 'FG [BG]'`, `--color` | The colors of an emulated display, for example `'yellow navy'`: the settings `foreground` and `background`, which the keys `c` and `C` step through | White on black |
+| `-c 'FG [BG]'`, `--color` | The colors of an emulated display, for example `'yellow navy'`: the settings `foreground` and `background`, which the keys `b` and `B` step through | White on black |
 | `--png FILE` | The file for `-o png` | `oled.png` |
 | `--standalone` | Run without an MQTT broker. The status display works before, or without, the broker | |
 | `--strict` | Exit when the display cannot be opened. Without it, the Actor reports `device` `absent` and retries every 10 s | |
@@ -210,26 +210,25 @@ window (`-o window`), where the Actor applies them itself. There `Esc`,
 |-----|------------------|
 | `s` | status, status rate=4, then status in the 5x7, 10 and 12 pixel fonts |
 | `l` | log |
-| `h` | help page 1 to 6 |
+| `h`, `?` | help page 1 to 6 |
 | `p` | pattern, then in the 5x7, 10 and 16 pixel fonts |
 | `t` | text (a screen full of digits), then in the 5x7, 10 and 16 pixel fonts, then `Hello!`, `OLED` and `128x64` in larger fonts |
-| `b` | blink, blink rate=8 |
 | `d` | draw, then shade=off, style=hatch, style=stipple, then each subject: bicycle, cat, dog, flower, forklift, house, pine, tree |
-| `g` | pong, asteroids, invaders, games |
-| `F`, `A` | forklift_game, forklift |
+| `g` | pong, asteroids, invaders, forklift: the self-playing games |
+| `G` | forklift_game: the interactive one |
+| `S` | blink, blink rate=8 |
 | `D` | demo, demo random=off |
-| `k` | clock, clock title=on, clock seconds=off |
+| `C` | clock, clock title=on, clock seconds=off |
 | `e` | eyes, then each emotion: happy, sad, angry, surprised, sleepy, suspicious, curious, loving |
 | arrows | `(key left\|right\|up\|down)` for the applet: the forklift game and the help pages |
 | `0`..`9` | The speed: `0` fastest (x4), `4` normal, `9` slowest |
-| `f` | The next font size |
+| `f`, `F` | The next, or the previous, font size |
 | `T`, `i`, `o`, `a` | Title on or off, invert, power, all pixels on |
 | `+`, `-` | Contrast up or down by 16 |
-| `c` | The next foreground color of an emulated display: white, deepskyblue, yellow, lime, orange, hotpink |
-| `C` | The next background color: black, midnightblue, darkslategray, maroon, dimgray, white |
-| `z` | Clear the canvas |
+| `b` | The next foreground color of an emulated display: white, deepskyblue, yellow, lime, orange, hotpink |
+| `B` | The next background color: black, midnightblue, darkslategray, maroon, dimgray, white |
+| `c` | Clear the canvas |
 | `R` | Reset the settings and the colors, and show the status display |
-| `?` | The key list |
 | `x`, `q`, `X` | Quit the console. `X` then `y` exits the Actor |
 
 A preset with a font of its own sets that font, and the next preset

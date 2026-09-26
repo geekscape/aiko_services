@@ -56,7 +56,7 @@ def test_help_for_every_subcommand():
         assert heading in result.output, heading
     flat = " ".join(result.output.split())                 # wrapped lines joined
     for text in ("forklift_game", "blank_after", "log_pending", "(oled:text",
-                 "pong | asteroids | invaders | games", "font 10 text Hello!"):
+                 "pong | asteroids | invaders | forklift", "font 10 text Hello!"):
         assert text in flat, text
     assert all(len(line) <= 80 for line in result.output.splitlines())  # click wraps at 80
     for name in SUBCOMMANDS:
@@ -68,7 +68,7 @@ def test_help_for_every_subcommand():
     assert "arrows" in invoke("keys", "--help").output
     assert "hardware test" in invoke("set", "--help").output
     assert "foreground" in invoke("set", "--help").output
-    assert "z clear" in invoke("keys", "--help").output
+    assert "c clear" in invoke("keys", "--help").output
     assert "Braille" in invoke("run", "--help").output
 
 @pytest.mark.parametrize("args", [
@@ -178,8 +178,10 @@ def test_keys_console_map():
     assert key_command("g", state) == [("applet", ("pong",))]
     assert key_command("g", state) == [("applet", ("asteroids",))]
     assert key_command("g", state) == [("applet", ("invaders",))]
-    assert key_command("g", state) == [("applet", ("games",))]
+    assert key_command("g", state) == [("applet", ("forklift",))]
     assert key_command("g", state) == [("applet", ("pong",))]
+    assert key_command("G", state) == [("applet", ("forklift_game",))]
+    assert key_command("S", state) == [("applet", ("blink",))]
     assert key_command("d", state) == [("applet", ("draw",))]
     assert key_command("d", state) == [("applet", ("draw", "shade=off"))]
     assert key_command("t", state)[0] == ("applet", ("text",))
@@ -194,31 +196,37 @@ def test_keys_console_map():
     assert key_command("f", state) == [("update", "font", "8")] and state["base_font"] == "8"
     state["settings"]["font"] = "24"
     assert key_command("f", state) == [("update", "font", "5x7")]
+    state["settings"]["font"] = "5x7"
+    assert key_command("F", state) == [("update", "font", "24")]   # the previous font
+    state["settings"]["font"] = "10"
+    assert key_command("F", state) == [("update", "font", "8")]
+    state["base_font"] = "5x7"                               # (as after "R")
     assert key_command("i", state) == [("update", "invert", "on")]
     state["settings"]["invert"] = "on"
     assert key_command("i", state) == [("update", "invert", "off")]
     assert key_command("o", state) == [("update", "power", "off")]
     assert key_command("-", state) == [("update", "contrast", "239")]
     assert key_command("+", state) == [("update", "contrast", "255")]
-    assert key_command("z", state) == [("clear", ())]
-    assert key_command("c", state) == [("update", "foreground", "white")]
+    assert key_command("c", state) == [("clear", ())]
+    assert key_command("b", state) == [("update", "foreground", "white")]
     state["settings"]["foreground"] = "white"                # the Actor applied it
-    assert key_command("c", state) == [("update", "foreground", "deepskyblue")]
+    assert key_command("b", state) == [("update", "foreground", "deepskyblue")]
     state["settings"]["foreground"] = "#123456"              # not in the list
-    assert key_command("c", state) == [("update", "foreground", "white")]
+    assert key_command("b", state) == [("update", "foreground", "white")]
     state["settings"]["background"] = "black"
-    assert key_command("C", state) == [("update", "background", "midnightblue")]
+    assert key_command("B", state) == [("update", "background", "midnightblue")]
     assert key_command("l", state) == [("update", "font", "5x7"), ("applet", ("log",))]
     state["settings"]["font"] = "5x7"
-    assert key_command("k", state) == [("applet", ("clock",))]
+    assert key_command("C", state) == [("applet", ("clock",))]
     assert key_command("e", state) == [("applet", ("eyes",))]
     assert key_command("e", state) == [("applet", ("eyes", "emotion=happy"))]
     assert key_command("h", state) == [("applet", ("help", "page=1"))]
-    assert key_command("h", state) == [("applet", ("help", "page=2"))]
+    assert key_command("?", state) == [("applet", ("help", "page=2"))]   # ? is h
     assert key_command("T", state) == [("update", "title", "off")]
     state["settings"]["title"] = "off"
     assert key_command("T", state) == [("update", "title", "on")]
-    assert key_command("w", state) == []
+    for key in ("w", "A", "z", "k"):
+        assert key_command(key, state) == []
     commands = reset_commands(state)
     assert commands[-1] == ("applet", ("status",))
     assert ("update", "foreground", "default") in commands

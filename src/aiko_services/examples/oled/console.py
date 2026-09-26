@@ -14,12 +14,13 @@
 #
 # Keys
 # ~~~~
-#   s status  l log  p pattern  t text  d draw  g games  F forklift game
-#   A forklift  D demo  b blink  k clock  e eyes  h help (again: next page)
+#   s status  l log  p pattern  t text  d draw  D demo  S blink  C clock
+#   e eyes  g games: pong, asteroids, invaders, forklift  G forklift game
+#   h ? help (again: the next page)
 #   arrows: (key left|right|up|down)   0-9 speed (0 fastest, 4 normal, 9 slowest)
-#   f next font   T title on/off   i invert   o power   a all pixels on
-#   + - contrast   c C next foreground / background color   z clear
-#   R reset the settings and colors   ? this list   x q quit the console
+#   f F next / previous font   T title on/off   i invert   o power
+#   a all pixels on   + - contrast   b B next foreground / background color
+#   c clear   R reset the settings and colors   x q quit the console
 #   X exit the Actor
 #
 # The console runs on the Aiko Services event loop: the keyboard is polled
@@ -164,8 +165,6 @@ class KeysConsole:
         elif key == "X":
             self.confirm_exit = True
             click.echo("\r\nExit the OLED Actor?  y to confirm", nl=False)
-        elif key == "?":
-            click.echo("\r\n" + self._help())
         else:
             commands = reset_commands(self.state) if key == "R"  \
                 else key_command(key, self.state)
@@ -184,15 +183,3 @@ class KeysConsole:
         if status != self.status:
             self.status = status
             click.echo(f"\r\x1b[K{status}", nl=False)
-
-    @staticmethod
-    def _help():
-        return "\r\n".join([
-            "s status  l log  p pattern  t text  d draw  g games  F forklift game",
-            "A forklift  D demo  b blink  k clock  e eyes  h help (again: the next page)",
-            "(the same key again: the next preset, e.g. g: pong, asteroids, invaders, all;",
-            " p, t, s: the fonts; t: messages; d: styles, subjects; e: emotions)",
-            "arrows: keys for the applet   0-9 speed (4 normal)   f next font   T title",
-            "i invert  o power  a all on  + - contrast  c C color  z clear  R reset",
-            "? this list   x q quit the console   X exit the OLED Actor",
-        ])
