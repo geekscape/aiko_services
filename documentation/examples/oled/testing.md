@@ -48,8 +48,15 @@ Two deployment traps to know about:
   found" although the Actor runs).  Clear it and restart the Registrar:
   `mosquitto_pub -t aiko/service/registrar -r -n`.
 - A broker that listens on 127.0.0.1 only (the Debian default) cannot be
-  reached from another host: the commands below run on the host of the
-  broker.
+  reached from another host.  To drive the SBC's Actor from a desktop, let
+  its broker listen on every interface (any host on the LAN can then
+  publish, so keep this to a trusted network):
+
+      printf "listener 1883 0.0.0.0\nallow_anonymous true\n" | sudo tee /etc/mosquitto/conf.d/aiko.conf
+      sudo systemctl restart mosquitto
+
+  Then, on the desktop, `export AIKO_MQTT_HOST=SBC_HOSTNAME` and use the
+  Actor's name: `aiko_oled list`, `aiko_oled keys -n SBC_HOSTNAME`.
 
 ## 2. Unit tests and lint
 

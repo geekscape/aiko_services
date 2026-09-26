@@ -48,6 +48,11 @@ From another terminal or host on the same broker:
     aiko_oled list
     aiko_oled exit
 
+From another host, point `AIKO_MQTT_HOST` at the SBC's broker and name
+the Actor: `aiko_oled keys -n HOSTNAME`.  The SBC's mosquitto must listen
+on every interface (`listener 1883 0.0.0.0` and `allow_anonymous true` in
+`/etc/mosquitto/conf.d/aiko.conf`; the Debian default is 127.0.0.1 only).
+
 aiko_engine_mp style, with `mosquitto_pub` on the Actor's `in` topic:
 
     mosquitto_pub -t aiko/HOST/PID/1/in -m "(oled:text 0 0 hello)"
