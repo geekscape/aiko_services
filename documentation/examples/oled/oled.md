@@ -3,7 +3,7 @@ title: OLED display Actor (oled.py)
 description: An SSD1306 128x64 OLED as an Aiko Services Actor — a status
   display for headless hosts, a canvas that any client draws on with
   aiko_engine_mp compatible S-expressions, settings that the Dashboard
-  reads and writes, applications that run on the display, and emulated
+  reads and writes, applets that run on the display, and emulated
   displays for a desktop
 type: concept
 audience: [developers, end-users]
@@ -13,7 +13,7 @@ source:
   - src/aiko_services/examples/oled/oled.py
   - src/aiko_services/examples/oled/display.py
   - src/aiko_services/examples/oled/graphics.py
-  - src/aiko_services/examples/oled/applications.py
+  - src/aiko_services/examples/oled/applets.py
 related: [actor, service, share, discovery, event, dashboard,
   dashboard_plugin, oled_protocol]
 version: "0.8-dev"
@@ -32,8 +32,8 @@ with protocol `oled:0`.
 
 The Actor owns one 128x64 one-bit image.  Remote one-way commands draw on
 it (`clear`, `text`, `pixel`, `pixels`, `line`, `log`), or choose an
-*application*: a source of frames that the Actor steps at the
-application's frame rate.  Everything else about the display — contrast,
+*applet*: a source of frames that the Actor steps at the
+applet's frame rate.  Everything else about the display — contrast,
 invert, power, title row, font, speed, blanking — is
 [shared state](../../concepts/share.md) that the Aiko Dashboard, or any
 client, writes with `(update KEY VALUE)`.  The wire commands are the same
@@ -56,7 +56,7 @@ name and protocol and sends it one command.
 
 | Subcommand | Arguments and options | What it does |
 |------------|----------------------|--------------|
-| `run` | `-n NAME` (default: hostname), `-o auto\|oled\|window\|terminal\|png\|none`, `-a 0x3C`, `-b 1`, `--application NAME`, `-fs 5x7\|6..64`, `--title TEXT\|off`, `-c 'FG [BG]'`, `--png FILE`, `--standalone`, `--strict` | Run the Actor.  `auto` picks the OLED when `/dev/i2c-N` exists, else a window when there is a desktop and pygame, else the terminal.  `--standalone` runs without a broker.  `--strict` exits when the display can't be opened, instead of retrying every 10 s |
+| `run` | `-n NAME` (default: hostname), `-o auto\|oled\|window\|terminal\|png\|none`, `-a 0x3C`, `-b 1`, `--applet NAME`, `-fs 5x7\|6..64`, `--title TEXT\|off`, `-c 'FG [BG]'`, `--png FILE`, `--standalone`, `--strict` | Run the Actor.  `auto` picks the OLED when `/dev/i2c-N` exists, else a window when there is a desktop and pygame, else the terminal.  `--standalone` runs without a broker.  `--strict` exits when the display can't be opened, instead of retrying every 10 s |
 | `exit` | `-n`, `-t 5`, `--all` | `(exit)`: blank the display and terminate.  `-n '*'` needs `--all` |
 | `list` | `-t 2` | Every `oled:0` Actor on the broker: name, topic path, tags |
 | `clear` | `-n`, `-t` | `(clear)` |
@@ -65,9 +65,9 @@ name and protocol and sends it one command.
 | `pixels X Y ...` | `-n`, `-t` | `(pixels X Y ...)` |
 | `line X0 Y0 X1 Y1` | `-n`, `-t` | `(line X0 Y0 X1 Y1)` |
 | `set KEY VALUE` | `-n`, `-t` | `(update KEY VALUE)` on the Actor's control topic, exactly what the Dashboard does |
-| `application NAME [ARGS...]` | `-n`, `-t` | `(application NAME ARGS ...)`; `stop` is `(application none)` |
-| `key NAME [tap\|down\|up]` | `-n`, `-t` | `(key NAME STATE)` for the running application |
-| `keys` | `-n`, `-t` | Interactive console: letters switch applications (the same letter again: its next options), arrows send keys, digits set the speed, `f` `i` `o` `a` `+` `-` change settings, `R` resets, `x` quits, `X` exits the Actor; a status line follows the shared state |
+| `applet NAME [ARGS...]` | `-n`, `-t` | `(applet NAME ARGS ...)`; `stop` is `(applet none)` |
+| `key NAME [tap\|down\|up]` | `-n`, `-t` | `(key NAME STATE)` for the running applet |
+| `keys` | `-n`, `-t` | Interactive console: letters switch applets (the same letter again: its next options), arrows send keys, digits set the speed, `f` `i` `o` `a` `+` `-` change settings, `R` resets, `x` quits, `X` exits the Actor; a status line follows the shared state |
 
 Every remote subcommand gives up with exit status 1 after `-t` seconds
 when no Actor answers (the framework's `do_command()` would wait for
@@ -88,15 +88,15 @@ ever).  A session on the desktop:
     $ echo $?
     1
 
-On the Raspberry Pi: `aiko_oled run -a 0x3D`.  Append `&` to run it in
+On the SBC with the OLED: `aiko_oled run -a 0x3C`.  Append `&` to run it in
 the background, or start it with `aiko_process create`.  For a display
 that comes up with the host, install `aiko_oled.service` (in the source
 directory) with systemd: `systemctl stop` sends SIGTERM and the Actor
 blanks the panel.  With `--standalone` the status display works before,
 or without, the MQTT broker.
 
-**The status display.**  The default application, `status`, refreshes
-once a second (`application status rate=2` for twice).  With the 5x7 font
+**The status display.**  The default applet, `status`, refreshes
+once a second (`applet status rate=2` for twice).  With the 5x7 font
 the title row shows the Actor's name, the annunciators `L` (log lines not
 yet shown), `M` (connected to the broker) and `R` (registered with the
 Registrar), and the clock; below it, seven rows:
@@ -123,21 +123,21 @@ one-way; outcomes are observed in the shared state.  Coordinates: x
 | Method | Wire form | Effect |
 |--------|-----------|--------|
 | `clear()` | `(clear)`, `(oled:clear)` | Erase the canvas; the title row stays |
-| `log(*words)` | `(log WORDS ...)`, `(oled:log ...)` | Scroll the canvas up one text row, write the words on the bottom row; keep the line (8 lines) for the status application |
+| `log(*words)` | `(log WORDS ...)`, `(oled:log ...)` | Scroll the canvas up one text row, write the words on the bottom row; keep the line (8 lines) for the status applet |
 | `pixel(x, y)` | `(pixel X Y)`, `(oled:pixel X Y)` | Light one pixel |
 | `pixels(*coordinates)` | `(pixels X Y X Y ...)`, `(oled:pixels ...)` | Light pixels, at most 256 pairs, all or nothing |
 | `line(x0, y0, x1, y1)` | `(line X0 Y0 X1 Y1)` | Draw a line |
 | `text(x, y, *words)` | `(text X Y WORDS ...)`, `(oled:text ...)` | Write the words with the text cell's bottom-left at (X, Y) |
 | `exit()` | `(exit)` | Blank the display and terminate |
 
-**Interface `OLEDApplications`**.
+**Interface `OLEDApplets`**.
 
 | Method | Wire form | Effect |
 |--------|-----------|--------|
-| `application(name, *args)` | `(application NAME [WORDS ...] [key=value ...])` | Run an application, replacing the running one; `none` shows the canvas |
-| `key(name, state="tap")` | `(key NAME [tap\|down\|up])` | A key for the running application |
+| `applet(name, *args)` | `(applet NAME [WORDS ...] [key=value ...])` | Run an applet, replacing the running one; `none` shows the canvas |
+| `key(name, state="tap")` | `(key NAME [tap\|down\|up])` | A key for the running applet |
 
-**Applications** (`(application NAME [WORDS ...] [key=value ...])`):
+**Applets** (`(applet NAME [WORDS ...] [key=value ...])`):
 
 | Name | Options | What it shows |
 |------|---------|---------------|
@@ -151,12 +151,12 @@ one-way; outcomes are observed in the shared state.  Coordinates: x
 | `forklift` | `duration=` seconds (0: for ever), `seed=` | A forklift moving a pallet between the ground and a racking bay |
 | `forklift_game` | `seed=` | The forklift game: `(key left\|right\|up\|down)` drive and lift; put the pallet where the top line says |
 | `draw` | `subject=`, `style=outline\|hatch\|stipple`, `shade=on\|off`, `speed=` seconds per drawing (8), `hold=` (3), `count=` (0: for ever), `seed=` | Pencil-sketched cartoon scenes |
-| `demo` | `random=on\|off`, `count=`, `seed=` | A tour of the applications and settings, a few seconds each |
+| `demo` | `random=on\|off`, `count=`, `seed=` | A tour of the applets and settings, a few seconds each |
 
-Every application is deterministic for a given `seed=`: no application
+Every applet is deterministic for a given `seed=`: no applet
 uses a clock, only frame counts.  Drawing on the canvas stops a running
-application, so that the drawing is seen; `log` does not, because the
-status application shows the log lines itself.  Anything else on the `in` topic — including the
+applet, so that the drawing is seen; `log` does not, because the
+status applet shows the log lines itself.  Anything else on the `in` topic — including the
 framework's `(run)` — is rejected: the Actor dispatches only the
 methods of its Interfaces, plus `(stop)` and `(set_log_level LEVEL)`.
 
@@ -167,14 +167,14 @@ published again, so an observer converges back.
 
 | Key | Values | RW | Meaning |
 |-----|--------|----|---------|
-| `backend` / `device` | `oled\|window\|terminal\|png\|none\|fake` / `ssd1306@0x3D/i2c1`, `pygame`, `tty`, `png:NAME`, `absent` | R | The display in use; `absent` while it can't be opened |
+| `backend` / `device` | `oled\|window\|terminal\|png\|none\|fake` / `ssd1306@0x3C/i2c1`, `pygame`, `tty`, `png:NAME`, `absent` | R | The display in use; `absent` while it can't be opened |
 | `size` / `origin` | `128x64` / `bottom` | R | The panel; the coordinate origin |
 | `connection` | `NONE\|NETWORK\|TRANSPORT\|REGISTRAR` | R | The Actor's connection state |
-| `applications` | comma-separated names | R | The applications this Actor can run |
-| `application` | name or `none` | RW | The running application; writing it starts one (`NAME[,ARG,...]`) |
-| `application_detail` | token | R | What the application says it is doing |
+| `applets` | comma-separated names | R | The applets this Actor can run |
+| `applet` | name or `none` | RW | The running applet; writing it starts one (`NAME[,ARG,...]`) |
+| `applet_detail` | token | R | What the applet says it is doing |
 | `fps` | frames per second shown, measured | R | |
-| `speed` | `0.1`..`10` | RW | Multiplies every application's frame rate |
+| `speed` | `0.1`..`10` | RW | Multiplies every applet's frame rate |
 | `font` | `5x7` or `6`..`64` | RW | The canvas font: the 5x7 bitmap font or a TrueType size |
 | `contrast` | `0`..`255` | RW | Panel brightness |
 | `invert` / `power` / `all_on` | `on\|off` | RW | Inverse video; display sleep; every pixel lit (a hardware test) |
@@ -195,7 +195,7 @@ published again, so an observer converges back.
        │ OLEDImpl                                                          │
        │  _topic_in_handler: parse guard → oled: aliases → allow-list      │
        │  wire methods ─► Canvas (PIL "1" 128x64, wire coordinates)        │
-       │  _tick 30 Hz  ─► application.step() → frame                       │
+       │  _tick 30 Hz  ─► applet.step() → frame                       │
        │  _present(frame): + title row, skip if unchanged ─► Display.show  │
        │  settings ◄── ec_producer change handler ◄── (update K V)         │
        │  _heartbeat 1 s, _metrics_flush 2 s, _reopen 10 s                 │
@@ -221,11 +221,11 @@ published again, so an observer converges back.
   written setting through the same setter the Actor uses itself; an
   `_applied` table stops the Actor's own updates from re-entering.
 - **Bounds (P9).** Log ring 8 lines (oldest dropped); 256 pixel pairs per
-  command; 128 characters of text; 64 characters per application argument;
+  command; 128 characters of text; 64 characters per applet argument;
   5 keys held.
 - **Every timer body is guarded.** The framework's event loop does not
   catch exceptions in timer handlers, so `_guarded()` logs, counts
-  `metrics.errors`, sets `last_error` and stops the application, and the
+  `metrics.errors`, sets `last_error` and stops the applet, and the
   process lives on.
 - **Failure behavior.** A display that can't be opened, or that fails, is
   reported (`device` `absent`, `last_error`) and retried every 10 s; the
@@ -235,7 +235,7 @@ published again, so an observer converges back.
 ### Implementation notes
 
 - `Canvas._device_y()` in `graphics.py` is the only place the bottom-left
-  wire coordinates meet PIL's top-left rows.  Applications draw PIL frames
+  wire coordinates meet PIL's top-left rows.  Applets draw PIL frames
   directly.
 - `ec_producer.add_handler()` replays the whole share synchronously, so
   the share and every attribute a handler touches are seeded before the
@@ -256,22 +256,22 @@ published again, so an observer converges back.
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `OLED` (Interface) | The `oled:0` canvas commands and `exit` | `OLEDImpl` |
-| `OLEDApplications` (Interface) | Running applications, keys | `OLEDImpl` |
-| `OLEDImpl` | Dispatch guard, validation, the canvas, settings, timers, metrics, display failure and recovery, shutdown | `Canvas`, `Display`, `Application`, `ECProducer`, `aiko.event` |
+| `OLEDApplets` (Interface) | Running applets, keys | `OLEDImpl` |
+| `OLEDImpl` | Dispatch guard, validation, the canvas, settings, timers, metrics, display failure and recovery, shutdown | `Canvas`, `Display`, `Applet`, `ECProducer`, `aiko.event` |
 | `Canvas` | The frame buffer in wire coordinates; text, pixels, lines, scrolling log, title rows | `Font` |
 | `Font` | 5x7 bitmap or TrueType glyph rendering, cell metrics | Pillow |
 | `Display` and backends | Show a frame; contrast, invert, power, all-on; window events; blank on close | luma.oled, pygame, the terminal, Pillow |
-| `Application`, `Host` | A source of frames and what it may use of the Actor | `OLEDImpl` |
-| `StatusApplication`, `PatternApplication`, `TextApplication`, `BlinkApplication`, `HelpApplication`, `DemoApplication` | The built-in applications; the demo runs the others in turn and restores the settings it changed | `Host`, `APPLICATIONS` |
+| `Applet`, `Host` | A source of frames and what it may use of the Actor | `OLEDImpl` |
+| `StatusApplet`, `PatternApplet`, `TextApplet`, `BlinkApplet`, `HelpApplet`, `DemoApplet` | The built-in applets; the demo runs the others in turn and restores the settings it changed | `Host`, `APPLETS` |
 | `games.py`: `pong`, `asteroids`, `invaders`, `forklift_work`, `ForkliftGame` | Frame generators and the forklift game's pallet physics, counted in frames | `Host` |
-| `drawings.py`: `SUBJECTS`, `scene_strokes`, `sketch_frames`, `DrawApplication` | Cartoon subjects, stroke planning, the pencil sketch as a frame generator | `Host` |
+| `drawings.py`: `SUBJECTS`, `scene_strokes`, `sketch_frames`, `DrawApplet` | Cartoon subjects, stroke planning, the pencil sketch as a frame generator | `Host` |
 | `KeysConsole` (console.py) | Keys typed in a terminal become wire commands and settings updates; an ECConsumer shows the shared state | `aiko.do_discovery`, `ECConsumerImpl` |
 | `main` (click) | `run`, and discovery-plus-one-command subcommands with a timeout | `aiko.do_command`, `aiko.do_discovery` |
 
 ## Current limitations and roadmap
 
 - The status sampling (psutil) runs on the event-loop thread: well under
-  5 ms on a Raspberry Pi 4.  If a host proves slow, move it to a worker
+  5 ms on a Linux Single Board Computer (SBC).  If a host proves slow, move it to a worker
   that posts the readings to the mailbox.
 - The 5x7 font gives 21 characters per row; aiko_engine_mp's 8x8 font
   gives 16.  An 8x8 bitmap font for pixel parity is on the roadmap.

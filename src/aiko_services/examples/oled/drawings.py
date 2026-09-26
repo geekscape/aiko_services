@@ -8,7 +8,7 @@
 # Actor.  Nothing here uses a clock: the sketch is a generator that yields
 # a frame each time a share of the drawing is done.  Ported from oled_test.py.
 #
-# Application
+# Applet
 # ~~~~~~~~~~~
 #   draw [subject=NAME] [style=outline|hatch|stipple] [shade=on|off]
 #        [speed=SECONDS_PER_DRAWING] [hold=SECONDS] [count=N] [seed=N]
@@ -21,13 +21,13 @@ import random
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
-from aiko_services.examples.oled.applications import (
-    APPLICATIONS, Application, ApplicationDone,
+from aiko_services.examples.oled.applets import (
+    APPLETS, Applet, AppletDone,
 )
 from aiko_services.examples.oled.graphics import HEIGHT, INK, WIDTH, blank, pixels
 
 __all__ = [
-    "DRAW_SECONDS", "GROUND", "STYLES", "SUBJECTS", "SUN", "DrawApplication",
+    "DRAW_SECONDS", "GROUND", "STYLES", "SUBJECTS", "SUN", "DrawApplet",
     "erase_frames", "oval", "place", "scene_strokes", "sketch_frames",
 ]
 
@@ -287,7 +287,7 @@ def _style(text):
         raise ValueError(text)
     return text
 
-class DrawApplication(Application):
+class DrawApplet(Applet):
     """Pencil-draw random cartoon scenes, "speed" seconds each, hold them
     "hold" seconds, erase, and draw the next; "count" drawings (0: for ever)"""
 
@@ -328,6 +328,6 @@ class DrawApplication(Application):
         try:
             return next(self._frames)
         except StopIteration:
-            raise ApplicationDone
+            raise AppletDone
 
-APPLICATIONS[DrawApplication.name] = DrawApplication
+APPLETS[DrawApplet.name] = DrawApplet

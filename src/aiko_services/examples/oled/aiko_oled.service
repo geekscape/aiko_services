@@ -1,4 +1,4 @@
-# Aiko Services: OLED Actor as a systemd service (Raspberry Pi)
+# Aiko Services: OLED Actor as a systemd service (Linux SBC)
 #
 # Install:
 #   sudo cp aiko_oled.service /etc/systemd/system/
@@ -21,7 +21,7 @@ User=claude
 WorkingDirectory=/home/claude
 Environment=AIKO_MQTT_HOST=localhost
 Environment=AIKO_LOG_MQTT=false
-ExecStart=/home/claude/venvs/venv_3.13/bin/aiko_oled run -a 0x3D --standalone
+ExecStart=/home/claude/venvs/venv_3.13/bin/aiko_oled run -a 0x3C --standalone
 KillSignal=SIGTERM
 TimeoutStopSec=5
 Restart=on-failure

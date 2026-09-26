@@ -52,7 +52,7 @@ above with the 5x7 font.
 | `(line X0 Y0 X1 Y1)` | integers | in range | — |
 | `(text X Y WORDS ...)` | integers, words | in range; 128 characters | `(oled:text ...)`, 8x8 font |
 | `(exit)` | — | — | — |
-| `(application NAME [WORDS ...] [key=value ...])` | name, words, options | name in `applications` (status, help, pattern, text, blink, demo, pong, asteroids, invaders, games, forklift, forklift_game, draw); options as the application declares; 64 characters each | — |
+| `(applet NAME [WORDS ...] [key=value ...])` | name, words, options | name in `applets` (status, help, pattern, text, blink, demo, pong, asteroids, invaders, games, forklift, forklift_game, draw); options as the applet declares; 64 characters each | — |
 | `(key NAME [tap\|down\|up])` | `up`, `down`, `left`, `right` or one character | state as listed | — |
 | `(stop)`, `(set_log_level LEVEL)` | framework | | — |
 
@@ -62,7 +62,7 @@ the parser's canonical form and the command is rejected.
 
 **Shared state** (observed with `(share ...)` on the control topic, or in
 the Dashboard): the keys and values listed in [oled](oled.md).  Settings
-are written with `(update KEY VALUE)` on the control topic: `application`,
+are written with `(update KEY VALUE)` on the control topic: `applet`,
 `contrast`, `invert`, `power`, `all_on`, `title`, `font`, `speed`,
 `blank_after`.  Values are single tokens.
 
@@ -79,9 +79,9 @@ are written with `(update KEY VALUE)` on the control topic: `application`,
 - A display that can't be opened or that fails: `device` is `absent`,
   `last_error` is `display_not_found@...` or `display_failed@...`, the
   Actor retries every 10 s and keeps accepting commands meanwhile.
-- An exception in an application or a timer: `metrics.errors` +1,
-  `last_error` `tick_RuntimeError@...`, the application is stopped
-  (`application` `none`); the process continues.
+- An exception in an applet or a timer: `metrics.errors` +1,
+  `last_error` `tick_RuntimeError@...`, the applet is stopped
+  (`applet` `none`); the process continues.
 
 ## For framework developers (internals)
 
@@ -118,9 +118,9 @@ See [oled](oled.md).
 
 - aiko_engine_mp differences: its font is 8x8 (16 characters per row, here
   21 with the 5x7 font); it keeps runs of spaces in `oled:log`; it spreads
-  text across two panels; it has no `line`, `exit`, `application` or `key`,
+  text across two panels; it has no `line`, `exit`, `applet` or `key`,
   and no shared state.  Its planned `(oled:traits)` reply is not needed
-  here: `size`, `backend` and `applications` in the shared state are the
+  here: `size`, `backend` and `applets` in the shared state are the
   traits.
 - Convergence: aiko_engine_mp could register protocol `oled:0`, accept
   both `text` and `oled:text`, and expose `contrast`, `invert` and `power`

@@ -4,8 +4,8 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # "aiko_oled keys": an interactive console in the terminal for a running
 # OLED Actor.  Keys typed here become wire commands: letters switch
-# applications (the same letter again: its next option preset), arrow keys
-# go to the running application, digits set the speed, and other keys
+# applets (the same letter again: its next option preset), arrow keys
+# go to the running applet, digits set the speed, and other keys
 # change settings through the shared state, exactly as the Dashboard does.
 # A status line shows the Actor's shared state as it changes.
 #
@@ -35,13 +35,13 @@ from aiko_services.main.utilities import get_hostname
 from aiko_services.examples.oled.drawings import SUBJECTS
 from aiko_services.examples.oled.graphics import FONT_SIZES
 from aiko_services.examples.oled.oled import (
-    OLED, OLEDApplications, _service_filter,
+    OLED, OLEDApplets, _service_filter,
 )
 
-__all__ = ["KEY_APPLICATIONS", "PRESETS", "Keyboard", "KeysConsole", "key_command"]
+__all__ = ["KEY_APPLETS", "PRESETS", "Keyboard", "KeysConsole", "key_command"]
 
 ARROWS = {"A": "up", "B": "down", "C": "right", "D": "left"}  # the terminal's codes
-KEY_APPLICATIONS = {"s": "status", "p": "pattern", "t": "text", "d": "draw",
+KEY_APPLETS = {"s": "status", "p": "pattern", "t": "text", "d": "draw",
                     "g": "games", "F": "forklift_game", "A": "forklift",
                     "D": "demo", "b": "blink", "h": "help"}
 PRESETS = {  # the same key again: the next argument list
@@ -60,7 +60,7 @@ PRESETS = {  # the same key again: the next argument list
 RESET = {"contrast": "255", "invert": "off", "power": "on", "all_on": "off",
          "font": "5x7", "speed": "1"}
 POLL_PERIOD = 0.05
-STATUS_KEYS = ("application", "application_detail", "fps", "speed", "font",
+STATUS_KEYS = ("applet", "applet_detail", "fps", "speed", "font",
                "contrast", "invert", "power", "all_on", "last_error")
 
 class Keyboard:
@@ -109,13 +109,13 @@ def key_command(key, state):
 
     if key in ARROWS.values():
         return ("key", (key, "tap"))
-    if key in KEY_APPLICATIONS:
-        name = KEY_APPLICATIONS[key]
+    if key in KEY_APPLETS:
+        name = KEY_APPLETS[key]
         presets = PRESETS[name]
         turn = state["turns"].get(name, -1) + 1 if state.get("current") == name else 0
         state["turns"][name] = turn % len(presets)
         state["current"] = name
-        return ("application", (name, *presets[turn % len(presets)]))
+        return ("applet", (name, *presets[turn % len(presets)]))
     if key.isdigit():
         return ("update", "speed", f"{2 ** ((4 - int(key)) / 2):.3g}")
     if key == "f":
@@ -146,7 +146,7 @@ class KeysConsole:
         self.timeout = timeout
         self.keyboard = None
         self.topic_path = None
-        self.oled = self.applications = None
+        self.oled = self.applets = None
         self.cache = {}                  # the Actor's shared state, kept by an ECConsumer
         self.state = {"turns": {}, "current": None, "settings": self.cache}
         self.status = ""
@@ -158,7 +158,7 @@ class KeysConsole:
             raise click.UsageError("keys needs a terminal (stdin isn't one)")
         try:
             aiko.event.add_timer_handler(self._timed_out, self.timeout)
-            aiko.do_discovery(OLEDApplications, _service_filter(self.name),
+            aiko.do_discovery(OLEDApplets, _service_filter(self.name),
                 self._found, self._lost)
             aiko.process.run()
         finally:
@@ -177,7 +177,7 @@ class KeysConsole:
         if self.topic_path is not None:
             return
         self.topic_path = service_details[0]
-        self.applications = service
+        self.applets = service
         self.oled = aiko.get_service_proxy(f"{self.topic_path}/in", OLED)
         aiko.compose_instance(aiko.ECConsumerImpl, aiko.ec_consumer_args(
             aiko.process, 0, self.cache, f"{self.topic_path}/control"))
@@ -214,7 +214,7 @@ class KeysConsole:
         elif key == "R":
             for name, value in RESET.items():
                 self._update(name, value)
-            self.applications.application("status")
+            self.applets.applet("status")
             self.state["current"] = "status"
         else:
             command = key_command(key, self.state)
@@ -223,7 +223,7 @@ class KeysConsole:
             if command[0] == "update":
                 self._update(command[1], command[2])
             else:
-                getattr(self.applications if command[0] in ("application", "key")
+                getattr(self.applets if command[0] in ("applet", "key")
                         else self.oled, command[0])(*command[1])
 
     def _update(self, name, value):
@@ -240,7 +240,7 @@ class KeysConsole:
         return "\r\n".join([
             "s status  p pattern  t text  d draw  g games  F forklift game  A forklift",
             "D demo  b blink  h help   (the same key again: the next options)",
-            "arrows: keys for the application   0-9 speed (4 normal)   f next font",
+            "arrows: keys for the applet   0-9 speed (4 normal)   f next font",
             "i invert  o power  a all on  + - contrast  c clear  R reset",
             "? this list   x q quit the console   X exit the OLED Actor",
         ])

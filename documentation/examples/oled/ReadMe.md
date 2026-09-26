@@ -16,8 +16,8 @@ last_updated: 2026-09-26
 
 # OLED example index
 
-One concept document for the Actor and one for its wire protocol, both
-about `src/aiko_services/examples/oled/`.  These modules drive an SSD1306
+One concept document for the Actor, one for its wire protocol and a test
+guide, all about `src/aiko_services/examples/oled/`.  These modules drive an SSD1306
 128x64 OLED on a Raspberry Pi as an Aiko Services
 [Actor](../../concepts/actor.md), or emulate it on a desktop.  The main
 use is a status display for a headless host.  The source
@@ -31,17 +31,18 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 
 | Document | Summary |
 |----------|---------|
-| [oled](oled.md) | The OLED Actor: status display, canvas, settings in the shared state, applications, display backends, the `aiko_oled` command line |
+| [oled](oled.md) | The OLED Actor: status display, canvas, settings in the shared state, applets, display backends, the `aiko_oled` command line |
 | [oled_protocol](oled_protocol.md) | The `oled:0` protocol: wire commands, shared state keys, failure behavior, the conformance trace, and compatibility with aiko_engine_mp |
+| [testing](testing.md) | Step-by-step test guide: macOS and a Linux SBC, the command line, raw S-expressions, the shared state, the Dashboard, applets, the keys console, failure behavior |
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `oled.py` | Interfaces `OLED` and `OLEDApplications`, `OLEDImpl`, the `aiko_oled` command line |
+| `oled.py` | Interfaces `OLED` and `OLEDApplets`, `OLEDImpl`, the `aiko_oled` command line |
 | `display.py` | Display backends: SSD1306 over I2C (luma.oled), pygame window, terminal, PNG file, none, fake |
 | `graphics.py` | The 5x7 font, image helpers, the bottom-left `Canvas`, the title row |
-| `applications.py` | The `Application` base class and registry; `status` (the default), `help`, `pattern`, `text`, `blink`, `demo` |
+| `applets.py` | The `Applet` base class and registry; `status` (the default), `help`, `pattern`, `text`, `blink`, `demo` |
 | `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` |
 | `drawings.py` | `draw`: pencil-sketched cartoon scenes |
 | `console.py` | `aiko_oled keys`: the interactive console |

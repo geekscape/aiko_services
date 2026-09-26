@@ -8,7 +8,7 @@
 #
 # Coordinates: the wire protocol (and aiko_engine_mp) put the origin at the
 # BOTTOM-LEFT, y upwards.  PIL puts it at the top-left, y downwards.  The
-# only place the two meet is Canvas._device_y().  Applications draw PIL
+# only place the two meet is Canvas._device_y().  Applets draw PIL
 # frames directly and never use the Canvas.
 #
 # Not part of the Interface composition pattern (see ADR-022): pure

@@ -9,11 +9,12 @@ OLED accepts, and the Aiko Dashboard reads and writes its settings.
 Without the panel, the OLED is emulated in a desktop window (pygame), in
 the terminal or in a PNG file.
 
-Documentation: [documentation/examples/oled/ReadMe.md](../../../../documentation/examples/oled/ReadMe.md)
+Documentation: [documentation/examples/oled/ReadMe.md](../../../../documentation/examples/oled/ReadMe.md);
+test guide: [testing.md](../../../../documentation/examples/oled/testing.md)
 
 ## Hardware
 
-- Raspberry Pi 4B (or any Linux host with an I2C bus)
+- Linux Single Board Computer (SBC) with an I2C bus, e.g. a Raspberry Pi
 - SSD1306 128x64 OLED module on I2C bus 1: SDA pin 3, SCL pin 5, VCC 3.3 V
   pin 1, GND pin 6.  Address 0x3C (default) or 0x3D (SA0 pin high)
 - Enable I2C: `sudo raspi-config nonint do_i2c 0`, then reboot.  Faster
@@ -34,7 +35,7 @@ install of the repository:
 
     export AIKO_MQTT_HOST=localhost
     aiko_registrar &
-    aiko_oled run -a 0x3D         # on the Raspberry Pi
+    aiko_oled run -a 0x3C         # on the SBC with the OLED
     aiko_oled run -o terminal     # or emulated, on any host
 
 From another terminal or host on the same broker:
@@ -42,7 +43,7 @@ From another terminal or host on the same broker:
     aiko_oled text 0 0 hello      # origin bottom-left: the bottom row
     aiko_oled log Hello from nomad
     aiko_oled set contrast 64     # settings are shared state: the Dashboard edits them too
-    aiko_oled application pong    # or draw, forklift_game, demo ...
+    aiko_oled applet pong    # or draw, forklift_game, demo ...
     aiko_oled keys                # interactive: letters, arrows, digits
     aiko_oled list
     aiko_oled exit
@@ -55,10 +56,10 @@ aiko_engine_mp style, with `mosquitto_pub` on the Actor's `in` topic:
 
 | File | Purpose |
 |------|---------|
-| `oled.py` | The `OLED` and `OLEDApplications` Interfaces, `OLEDImpl` and the `aiko_oled` command line |
+| `oled.py` | The `OLED` and `OLEDApplets` Interfaces, `OLEDImpl` and the `aiko_oled` command line |
 | `display.py` | Display backends: SSD1306 (luma.oled), pygame window, terminal, PNG, none, fake |
 | `graphics.py` | 5x7 font, image helpers, the bottom-left `Canvas`, the title row |
-| `applications.py` | Applications: sources of frames the Actor runs — `status` (the default), `help`, `pattern`, `text`, `blink`, `demo` |
+| `applets.py` | Applets: sources of frames the Actor runs — `status` (the default), `help`, `pattern`, `text`, `blink`, `demo` |
 | `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` (arrow keys over the wire) |
 | `drawings.py` | `draw`: pencil-sketched cartoon scenes |
 | `console.py` | `aiko_oled keys`: an interactive console for the running Actor |

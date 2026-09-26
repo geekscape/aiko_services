@@ -60,7 +60,7 @@ class Display:
     and renders nothing: subclasses render()"""
 
     name = "base"
-    device = "-"  # what was opened, e.g. "ssd1306@0x3D/i2c1"
+    device = "-"  # what was opened, e.g. "ssd1306@0x3C/i2c1"
 
     def __init__(self):
         self.frame = blank()
@@ -186,7 +186,7 @@ class FakeDisplay(Display):
         self.closed, self.blanked = True, blank_first
 
 class NullDisplay(Display):
-    """No display at all: the Actor still works (share, applications)"""
+    """No display at all: the Actor still works (share, applets)"""
 
     name = "none"
     device = "none"

@@ -5,10 +5,10 @@
 # Self-playing demonstrations of the classics (pong, asteroids, space
 # invaders), a forklift that moves a pallet in and out of a racking bay by
 # itself, and the forklift game (arrow keys through "(key ...)").  All are
-# applications: sources of frames stepped by the OLED Actor; none uses a
+# applets: sources of frames stepped by the OLED Actor; none uses a
 # clock, so the same seed gives the same frames.  Ported from oled_test.py.
 #
-# Applications
+# Applets
 # ~~~~~~~~~~~~
 #   pong | asteroids | invaders [seed=N]      one game, for ever
 #   games [duration=20] [seed=N]              the three in turn
@@ -22,8 +22,8 @@ import math
 
 from PIL import Image, ImageDraw
 
-from aiko_services.examples.oled.applications import (
-    APPLICATIONS, Application, ApplicationDone,
+from aiko_services.examples.oled.applets import (
+    APPLETS, Applet, AppletDone,
 )
 from aiko_services.examples.oled.drawings import GROUND, SUBJECTS, oval
 from aiko_services.examples.oled.graphics import (
@@ -31,9 +31,9 @@ from aiko_services.examples.oled.graphics import (
 )
 
 __all__ = [
-    "GAMES", "AsteroidsApplication", "ForkliftApplication", "ForkliftGame",
-    "ForkliftGameApplication", "GamesApplication", "InvadersApplication",
-    "PongApplication", "asteroids", "forklift_work", "invaders", "pong",
+    "GAMES", "AsteroidsApplet", "ForkliftApplet", "ForkliftGame",
+    "ForkliftGameApplet", "GamesApplet", "InvadersApplet",
+    "PongApplet", "asteroids", "forklift_work", "invaders", "pong",
 ]
 
 # --------------------------------------------------------------------------- #
@@ -675,10 +675,10 @@ class ForkliftGame:
         return image
 
 # --------------------------------------------------------------------------- #
-# Applications
+# Applets
 
-class GeneratorApplication(Application):
-    """An application whose frames come from a generator function
+class GeneratorApplet(Applet):
+    """An applet whose frames come from a generator function
     generator(rng, host); "seed=" repeats the same play"""
 
     fps = 30
@@ -695,24 +695,24 @@ class GeneratorApplication(Application):
         try:
             return next(self._frames)
         except StopIteration:
-            raise ApplicationDone
+            raise AppletDone
 
-class PongApplication(GeneratorApplication):
+class PongApplet(GeneratorApplet):
     name = "pong"
     description = "pong"
     generator = staticmethod(pong)
 
-class AsteroidsApplication(GeneratorApplication):
+class AsteroidsApplet(GeneratorApplet):
     name = "asteroids"
     description = "asteroids"
     generator = staticmethod(asteroids)
 
-class InvadersApplication(GeneratorApplication):
+class InvadersApplet(GeneratorApplet):
     name = "invaders"
     description = "invaders"
     generator = staticmethod(invaders)
 
-class GamesApplication(Application):
+class GamesApplet(Applet):
     """The three games in turn, "duration" seconds each"""
 
     name = "games"
@@ -742,7 +742,7 @@ class GamesApplication(Application):
         self._left -= 1
         return next(self._frames)
 
-class ForkliftApplication(GeneratorApplication):
+class ForkliftApplet(GeneratorApplet):
     """The forklift at work by itself; "duration" seconds, 0 for ever"""
 
     name = "forklift"
@@ -758,11 +758,11 @@ class ForkliftApplication(GeneratorApplication):
     def step(self):
         if self._left is not None:
             if self._left <= 0:
-                raise ApplicationDone
+                raise AppletDone
             self._left -= 1
         return super().step()
 
-class ForkliftGameApplication(Application):
+class ForkliftGameApplet(Applet):
     """The forklift game, driven by (key left|right|up|down)"""
 
     name = "forklift_game"
@@ -780,6 +780,6 @@ class ForkliftGameApplication(Application):
         self.game.step(self.host.keys_held())
         return self.game.frame()
 
-for application in (PongApplication, AsteroidsApplication, InvadersApplication,
-                    GamesApplication, ForkliftApplication, ForkliftGameApplication):
-    APPLICATIONS[application.name] = application
+for applet in (PongApplet, AsteroidsApplet, InvadersApplet,
+                    GamesApplet, ForkliftApplet, ForkliftGameApplet):
+    APPLETS[applet.name] = applet

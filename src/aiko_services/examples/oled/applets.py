@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 #
-# Aiko Services: OLED applications
+# Aiko Services: OLED applets
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The higher-level features of the OLED Actor: an application is a source
+# The higher-level features of the OLED Actor: an applet is a source
 # of 128x64 frames that the Actor steps from its event-loop timer at the
-# application's frame rate (times the "speed" setting).  Applications never
+# applet's frame rate (times the "speed" setting).  Applets never
 # sleep, never block and never touch the Actor: they get a Host with just
-# what they may use.  Keys reach interactive applications through key().
+# what they may use.  Keys reach interactive applets through key().
 #
-# Wire form:  (application NAME [WORDS ...] [key=value ...])
-#             (application none)
+# Wire form:  (applet NAME [WORDS ...] [key=value ...])
+#             (applet none)
 #
-# Applications
+# Applets
 # ~~~~~~~~~~~~
 #   status [rate=1]   the host's status: IP address, date, time and uptime,
 #                     CPU and memory, disk and network, temperature, load,
@@ -22,7 +22,7 @@
 #   text [WORDS]      the words centred; without words a screen full of digits
 #   blink [rate=2]    the panel's power off and on: a hardware test
 #   demo [random=on] [count=N] [seed=N]
-#                     a tour of the applications and settings, a few seconds
+#                     a tour of the applets and settings, a few seconds
 #                     each, at random or the fixed TOUR
 #   games.py: pong asteroids invaders games forklift forklift_game
 #   drawings.py: draw
@@ -49,19 +49,19 @@ from aiko_services.examples.oled.graphics import (
 )
 
 __all__ = [
-    "APPLICATIONS", "OPTION_LENGTH_MAXIMUM", "TOUR", "Application",
-    "ApplicationDone", "BlinkApplication", "DemoApplication", "HelpApplication",
-    "Host", "PatternApplication", "StatusApplication", "TextApplication",
-    "parse_application_args", "pattern_image", "random_steps",
+    "APPLETS", "OPTION_LENGTH_MAXIMUM", "TOUR", "Applet",
+    "AppletDone", "BlinkApplet", "DemoApplet", "HelpApplet",
+    "Host", "PatternApplet", "StatusApplet", "TextApplet",
+    "parse_applet_args", "pattern_image", "random_steps",
 ]
 
 OPTION_LENGTH_MAXIMUM = 64  # characters per word or option value (P9 bound)
 
-class ApplicationDone(Exception):
-    """The application finished: the Actor goes back to its default"""
+class AppletDone(Exception):
+    """The applet finished: the Actor goes back to its default"""
 
 class Host:
-    """What an application may use.  The Actor implements this; tests can
+    """What an applet may use.  The Actor implements this; tests can
     pass a plain one"""
 
     width, height = WIDTH, HEIGHT
@@ -96,8 +96,8 @@ class Host:
         return set()
 
     def status(self, token):
-        """Tell observers what the application is doing (share
-        "application_detail"); one token, no spaces"""
+        """Tell observers what the applet is doing (share
+        "applet_detail"); one token, no spaces"""
 
     def setting(self, name):
         """The current value of a setting, e.g. setting("font")"""
@@ -107,7 +107,7 @@ class Host:
     def control(self, name, value):
         """Change a display setting, e.g. control("power", "off")"""
 
-class Application:
+class Applet:
     """A source of frames.  Subclasses set "name", "fps" (frames per second
     at speed 1) and "OPTIONS" (key: type), and implement step()"""
 
@@ -124,7 +124,7 @@ class Application:
 
     def step(self):
         """The next frame (a 128x64 "1" PIL image), or None for no change.
-        Raise ApplicationDone when finished"""
+        Raise AppletDone when finished"""
 
         return None
 
@@ -133,7 +133,7 @@ class Application:
         state "tap", "down" or "up" """
 
     def stop(self):
-        """The application is being replaced: undo any settings it changed"""
+        """The applet is being replaced: undo any settings it changed"""
 
     def frame(self):
         """A blank frame to draw on"""
@@ -154,7 +154,7 @@ class Application:
             y += font.cell_height
         return frame
 
-def parse_application_args(args, spec):
+def parse_applet_args(args, spec):
     """Split wire arguments into plain words and key=value options, coercing
     each option with the type in spec.  Raises ValueError for an unknown
     option, a bad value or an over-long argument"""
@@ -198,7 +198,7 @@ def per_second(count):
         count /= 1000
     return f"{count:.0f}T"
 
-class StatusApplication(Application):
+class StatusApplet(Applet):
     """The host's status, one item per text row, refreshed "rate" times a
     second (default once).  With the 5x7 font and the title row, seven
     rows: IP address; date; time and uptime; CPU and memory; disk and
@@ -281,7 +281,7 @@ class StatusApplication(Application):
         self.host.log_seen()
         return frame
 
-class HelpApplication(Application):
+class HelpApplet(Applet):
     """The wire commands and settings, on the display"""
 
     name = "help"
@@ -293,7 +293,7 @@ class HelpApplication(Application):
         "(log WORDS)",
         "(pixels X Y ...)",
         "(clear) (exit)",
-        "(application NAME)",
+        "(applet NAME)",
         "set contrast|invert",
         "set title|font|speed",
         "aiko_oled --help",
@@ -348,7 +348,7 @@ def digits_image(font):
             stamp(image, digits[(row + column) % 10], column * cell, row * pitch)
     return image
 
-class StillApplication(Application):
+class StillApplet(Applet):
     """One picture, drawn again only when the font changes"""
 
     fps = 2
@@ -366,7 +366,7 @@ class StillApplication(Application):
         self._font = self.host.font
         return self.picture()
 
-class PatternApplication(StillApplication):
+class PatternApplet(StillApplet):
     """The test pattern, to check a panel for shifted, missing, stretched or
     interleaved rows and columns"""
 
@@ -376,7 +376,7 @@ class PatternApplication(StillApplication):
     def picture(self):
         return pattern_image(self.host.font)
 
-class TextApplication(StillApplication):
+class TextApplet(StillApplet):
     """WORDS centred in the current font, or without words the screen full
     of digits"""
 
@@ -393,7 +393,7 @@ class TextApplication(StillApplication):
         paste_centred(frame, " ".join(self.words), self.host.font)
         return frame
 
-class BlinkApplication(Application):
+class BlinkApplet(Applet):
     """The panel's power switched off and on, "rate" times a second, over
     the test pattern: a hardware test.  Stopping it leaves the power on"""
 
@@ -419,7 +419,7 @@ class BlinkApplication(Application):
     def stop(self):
         self.host.control("power", "on")
 
-# The fixed tour: (seconds, application, arguments, settings for the step)
+# The fixed tour: (seconds, applet, arguments, settings for the step)
 TOUR = [
     (3, "blink", ["rate=4"], {}),
     (4, "pattern", [], {}),
@@ -480,8 +480,8 @@ def random_steps(rng):
         previous = maker
         yield maker()
 
-class DemoApplication(Application):
-    """A tour of the applications and settings, a few seconds each: at
+class DemoApplet(Applet):
+    """A tour of the applets and settings, a few seconds each: at
     random (default) or the fixed TOUR ("random=off"); "count" steps, 0 for
     ever.  Settings a step changes are put back after it"""
 
@@ -520,12 +520,12 @@ class DemoApplication(Application):
         self._restore()
         while True:
             seconds, name, args, settings = next(self._steps)  # StopIteration: done
-            application_class = APPLICATIONS.get(name)
-            if application_class is None:
+            applet_class = APPLETS.get(name)
+            if applet_class is None:
                 continue
             try:
-                words, options = parse_application_args(args, application_class.OPTIONS)
-                self._sub = application_class(self.host, words, options)
+                words, options = parse_applet_args(args, applet_class.OPTIONS)
+                self._sub = applet_class(self.host, words, options)
                 break
             except ValueError:
                 continue
@@ -544,7 +544,7 @@ class DemoApplication(Application):
                 self._next_step()
             except StopIteration:
                 self._restore()
-                raise ApplicationDone
+                raise AppletDone
             return self._sub.step()
         self._left -= 1
         self._tick += 1
@@ -552,13 +552,13 @@ class DemoApplication(Application):
             return None
         try:
             return self._sub.step()
-        except ApplicationDone:
+        except AppletDone:
             self._left = 0
             return None
 
     def stop(self):
         self._restore()
 
-APPLICATIONS = {application.name: application for application in (
-    StatusApplication, HelpApplication, PatternApplication, TextApplication,
-    BlinkApplication, DemoApplication)}
+APPLETS = {applet.name: applet for applet in (
+    StatusApplet, HelpApplet, PatternApplet, TextApplet,
+    BlinkApplet, DemoApplet)}

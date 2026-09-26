@@ -4,7 +4,7 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
 # An SSD1306 128x64 OLED as an Actor: a canvas that any client draws on
 # with the same S-expressions the MicroPython aiko_engine_mp OLED accepts,
-# settings that the Aiko Dashboard reads and writes, and applications that
+# settings that the Aiko Dashboard reads and writes, and applets that
 # run on the display, above all a status display for headless hosts.  On a
 # desktop without the panel, the OLED is emulated in a window, in the
 # terminal or in a PNG file.
@@ -12,11 +12,11 @@
 # Usage
 # ~~~~~
 #   export AIKO_MQTT_HOST=localhost
-#   aiko_oled run [-o oled -a 0x3D] [--application status] [--standalone]
+#   aiko_oled run [-o oled -a 0x3C] [--applet status] [--standalone]
 #   aiko_oled exit | list
 #   aiko_oled clear | log WORDS | text X Y WORDS | pixels X Y ... | line X0 Y0 X1 Y1
 #   aiko_oled set KEY VALUE          # contrast 128, invert on, title Aiko, font 10 ...
-#   aiko_oled application NAME [ARGS ...] | stop | key NAME [tap|down|up]
+#   aiko_oled applet NAME [ARGS ...] | stop | key NAME [tap|down|up]
 #   aiko_oled keys                   # interactive console: see console.py
 #
 #   mosquitto_pub -t $TOPIC_IN -m "(oled:text 0 0 hello)"     # aiko_engine_mp style
@@ -32,21 +32,21 @@
 #   (line X0 Y0 X1 Y1)                           draw a line
 #   (text X Y WORDS ...)        (oled:text ...)  write text, cell bottom-left at (X, Y)
 #   (exit)                                       blank the display and terminate
-#   (application NAME [ARGS ...])                run an application; "none" shows the canvas
-#   (key NAME [tap|down|up])                     a key for the running application
+#   (applet NAME [ARGS ...])                run an applet; "none" shows the canvas
+#   (key NAME [tap|down|up])                     a key for the running applet
 #   Anything else on the "in" topic is rejected (P12), including "(run)".
 #
 # Shared state (aiko_dashboard shows it; the RW keys can be edited there)
 # ~~~~~~~~~~~~
-#   backend device size origin connection applications application(RW)
-#   application_detail fps speed(RW) font(RW) contrast(RW) invert(RW)
+#   backend device size origin connection applets applet(RW)
+#   applet_detail fps speed(RW) font(RW) contrast(RW) invert(RW)
 #   power(RW) all_on(RW) title(RW) blank_after(RW) heartbeat last_error
 #   log_count metrics.commands metrics.rejected metrics.frames
 #   metrics.frame_ms metrics.errors
 #
 # Bounds (P9): log ring 8 lines (oldest dropped); 256 pixel pairs per
 # command; 128 characters of text per command; 64 characters per
-# application argument; 5 keys held.  A frame is shown at most once per
+# applet argument; 5 keys held.  A frame is shown at most once per
 # tick (30 Hz) and only when it changed.
 #
 # Coordinates: origin bottom-left, y upwards (aiko_engine_mp compatible);
@@ -74,10 +74,10 @@ import click
 import aiko_services as aiko
 from aiko_services.main.utilities import get_hostname, parse
 
-from aiko_services.examples.oled.applications import (
-    APPLICATIONS, ApplicationDone, Host, parse_application_args,
+from aiko_services.examples.oled.applets import (
+    APPLETS, AppletDone, Host, parse_applet_args,
 )
-from aiko_services.examples.oled import drawings, games  # noqa: F401 (they register applications)
+from aiko_services.examples.oled import drawings, games  # noqa: F401 (they register applets)
 from aiko_services.examples.oled.display import (
     ADDRESSES, OUTPUTS, DisplayNotFound, NullDisplay, choose_display,
     parse_colors, scan_i2c,
@@ -87,7 +87,7 @@ from aiko_services.examples.oled.graphics import (
 )
 
 __all__ = [
-    "OLED", "OLEDApplications", "OLEDImpl", "PROTOCOL", "PROTOCOL_TYPE",
+    "OLED", "OLEDApplets", "OLEDImpl", "PROTOCOL", "PROTOCOL_TYPE",
     "SETTINGS", "WIRE_COMMANDS", "main",
 ]
 
@@ -110,16 +110,16 @@ KEY_HOLD = 0.15               # seconds a tapped key stays held (MQTT latency)
 SPEED_MINIMUM, SPEED_MAXIMUM = 0.1, 10.0
 BLANK_AFTER_MAXIMUM = 86400   # seconds
 
-TICK_PERIOD = 1 / 30          # the frame timer; applications run at fps × speed
+TICK_PERIOD = 1 / 30          # the frame timer; applets run at fps × speed
 HEARTBEAT_PERIOD = 1.0
 METRICS_PERIOD = 2.0
 REOPEN_PERIOD = 10.0          # retry a failed display this often
 TIMEOUT = 5.0                 # CLI: seconds to wait for the OLED Actor
-DEFAULT_APPLICATION = "status"
+DEFAULT_APPLET = "status"
 
 # Settings: shared state that anyone may write with "(update KEY VALUE)" on
 # the control topic; the change handler applies them through one setter each
-SETTINGS = ("application", "contrast", "invert", "power", "all_on", "title",
+SETTINGS = ("applet", "contrast", "invert", "power", "all_on", "title",
             "font", "speed", "blank_after")
 
 # --------------------------------------------------------------------------- #
@@ -180,8 +180,8 @@ class OLED(aiko.Actor):
     are the same command.  Coordinates have their origin at the bottom-left,
     y upwards.  Every method is one-way: a rejected command changes
     nothing but "metrics.rejected" and "last_error" in the shared state.
-    Drawing on the canvas stops any running application, except "log",
-    whose lines the status application shows itself.
+    Drawing on the canvas stops any running applet, except "log",
+    whose lines the status applet shows itself.
     """
 
     aiko.Interface.default("OLED", "aiko_services.examples.oled.oled.OLEDImpl")
@@ -195,7 +195,7 @@ class OLED(aiko.Actor):
     @abstractmethod
     def log(self, *words):
         """Scroll the canvas up one text row and write WORDS on the bottom
-        row; the line is also kept (8 lines) for the status application.
+        row; the line is also kept (8 lines) for the status applet.
         Wire form: "(log WORDS ...)" or "(oled:log WORDS ...)"; runs of
         spaces collapse to one.  Outcome: share "log_count" +1.
         Projection: command"""
@@ -229,29 +229,29 @@ class OLED(aiko.Actor):
         """Blank the display and terminate the process.
         Wire form: "(exit)".  Projection: command"""
 
-class OLEDApplications(aiko.Interface):
+class OLEDApplets(aiko.Interface):
     """
-    The higher-level features: applications are sources of frames that the
+    The higher-level features: applets are sources of frames that the
     Actor runs on the display (status, games, drawings, demo ...), listed
-    in share "applications".  Their settings (speed, font) and everything
+    in share "applets".  Their settings (speed, font) and everything
     else about the display are shared state, written with
     "(update KEY VALUE)" on the control topic: see SETTINGS.
     """
 
     aiko.Interface.default(
-        "OLEDApplications", "aiko_services.examples.oled.oled.OLEDImpl")
+        "OLEDApplets", "aiko_services.examples.oled.oled.OLEDImpl")
 
     @abstractmethod
-    def application(self, name, *args):
-        """Run an application, replacing the running one; "(application none)"
+    def applet(self, name, *args):
+        """Run an applet, replacing the running one; "(applet none)"
         stops it and shows the canvas.  ARGS are words and key=value options
-        that the application accepts, e.g. "(application pong seed=1)".
-        Outcome: share "application", "application_detail".
+        that the applet accepts, e.g. "(applet pong seed=1)".
+        Outcome: share "applet", "applet_detail".
         Rejected when the name or an option is unknown.  Projection: command"""
 
     @abstractmethod
     def key(self, name, state="tap"):
-        """A key for the running application: NAME is "up", "down", "left",
+        """A key for the running applet: NAME is "up", "down", "left",
         "right" or one character; STATE is "tap" (default: held briefly),
         "down" or "up".  Wire form: "(key NAME [STATE])".
         Projection: command"""
@@ -259,7 +259,7 @@ class OLEDApplications(aiko.Interface):
 # The commands accepted on the "in" topic: the Interfaces' methods, plus the
 # framework's log level and stop (P12: deny by default)
 WIRE_COMMANDS = frozenset(name
-    for interface in (OLED, OLEDApplications)
+    for interface in (OLED, OLEDApplets)
     for name, member in vars(interface).items()
     if getattr(member, "__isabstractmethod__", False)
     and not name.startswith("_")) | {"set_log_level", "stop"}
@@ -267,7 +267,7 @@ WIRE_COMMANDS = frozenset(name
 # --------------------------------------------------------------------------- #
 
 class _Host(Host):
-    """What applications see of the Actor"""
+    """What applets see of the Actor"""
 
     def __init__(self, actor):
         self._actor = actor
@@ -304,7 +304,7 @@ class _Host(Host):
         return self._actor._keys_held()
 
     def status(self, token):
-        self._actor.ec_producer.update("application_detail", _token(token))
+        self._actor.ec_producer.update("applet_detail", _token(token))
 
     def setting(self, name):
         return self._actor.share.get(name)
@@ -313,7 +313,7 @@ class _Host(Host):
         if name in ("contrast", "invert", "power", "all_on", "font", "speed"):
             self._actor._setters[name](str(value))
 
-class OLEDImpl(OLED, OLEDApplications):
+class OLEDImpl(OLED, OLEDApplets):
     def __init__(self, context):
         context.call_init(self, "Actor", context)
         parameters = context.get_parameters() or {}
@@ -333,9 +333,9 @@ class OLEDImpl(OLED, OLEDApplications):
         self._speed = 1.0
         self._blank_after = 0
         self._blanked = False
-        self._application = None
-        self._default_application = str(
-            parameters.get("application") or DEFAULT_APPLICATION)
+        self._applet = None
+        self._default_applet = str(
+            parameters.get("applet") or DEFAULT_APPLET)
         self._held = {}             # key name: held until (monotonic)
         self._host = _Host(self)
         self._last_frame = None     # bytes of the frame on the display
@@ -352,7 +352,7 @@ class OLEDImpl(OLED, OLEDApplications):
         self._canvas.title_rows = self._font.cell_height if self._title_text else 0
 
         self._setters = {
-            "application": self._set_application,
+            "applet": self._set_applet,
             "contrast": self._set_contrast,
             "invert": lambda value: self._set_flag("invert", value),
             "power": lambda value: self._set_flag("power", value),
@@ -369,9 +369,9 @@ class OLEDImpl(OLED, OLEDApplications):
             "size": f"{WIDTH}x{HEIGHT}",
             "origin": "bottom",
             "connection": _token(aiko.process.connection.get_state()),
-            "applications": ",".join(sorted(APPLICATIONS)) or "none",
-            "application": "none",
-            "application_detail": "-",
+            "applets": ",".join(sorted(APPLETS)) or "none",
+            "applet": "none",
+            "applet_detail": "-",
             "fps": "0",
             "speed": "1",
             "font": self._font.token(),
@@ -395,8 +395,8 @@ class OLEDImpl(OLED, OLEDApplications):
         aiko.event.add_timer_handler(self._heartbeat, HEARTBEAT_PERIOD)
         aiko.event.add_timer_handler(self._metrics_flush, METRICS_PERIOD)
         self._present(self._canvas.image)
-        if self._default_application != "none":
-            self.application(self._default_application)
+        if self._default_applet != "none":
+            self.applet(self._default_applet)
         self.logger.info(f"{self.name}: display {self.share['backend']} "
                          f"{self.share['device']}, topic {self.topic_in}")
 
@@ -431,7 +431,7 @@ class OLEDImpl(OLED, OLEDApplications):
         self._log_pending = True
         self._canvas.log(line)
         self.ec_producer.update("log_count", str(self._log_total))
-        if self._application is None:
+        if self._applet is None:
             self._present(self._canvas.image)
 
     def pixel(self, x, y):
@@ -486,37 +486,37 @@ class OLEDImpl(OLED, OLEDApplications):
         self._metrics["commands"] += 1
         aiko.process.terminate()
 
-    # Wire commands: OLEDApplications --------------------------------------- #
+    # Wire commands: OLEDApplets --------------------------------------- #
 
-    def application(self, name, *args):
+    def applet(self, name, *args):
         name = str(name)
         if name == "none":
             self._metrics["commands"] += 1
             self._wake()
-            self._stop_application()
-            self._settle("application", "none")
+            self._stop_applet()
+            self._settle("applet", "none")
             self._refresh()
             return
-        application_class = APPLICATIONS.get(name)
-        if application_class is None:
-            return self._reject_setting("application", "application_unknown", name)
+        applet_class = APPLETS.get(name)
+        if applet_class is None:
+            return self._reject_setting("applet", "applet_unknown", name)
         try:
-            words, options = parse_application_args(
-                args, application_class.OPTIONS)
-            instance = application_class(self._host, words, options)
+            words, options = parse_applet_args(
+                args, applet_class.OPTIONS)
+            instance = applet_class(self._host, words, options)
         except ValueError as error:
-            return self._reject_setting("application", "application_args", str(error))
+            return self._reject_setting("applet", "applet_args", str(error))
         except Exception:
             self.logger.error(f"{self.name}: {name}: {traceback.format_exc()}")
             self._metrics["errors"] += 1
-            return self._reject_setting("application", "application_failed", name)
+            return self._reject_setting("applet", "applet_failed", name)
         self._metrics["commands"] += 1
         self._wake()
-        self._stop_application()
-        self._application = instance
+        self._stop_applet()
+        self._applet = instance
         self._frame_due = time.monotonic()
-        self._settle("application", name)
-        self.ec_producer.update("application_detail",
+        self._settle("applet", name)
+        self.ec_producer.update("applet_detail",
             _token(instance.description) if instance.description else "-")
 
     def key(self, name, state="tap"):
@@ -534,8 +534,8 @@ class OLEDImpl(OLED, OLEDApplications):
                 else time.monotonic() + KEY_HOLD
             while len(self._held) > KEYS_HELD_MAXIMUM:
                 del self._held[next(iter(self._held))]
-        if self._application is not None:
-            self._guarded("key", lambda: self._application.key(name, state))
+        if self._applet is not None:
+            self._guarded("key", lambda: self._applet.key(name, state))
 
     # Settings: applied through the shared state ---------------------------- #
 
@@ -560,8 +560,8 @@ class OLEDImpl(OLED, OLEDApplications):
         self._reject("set", reason, detail)
         self.ec_producer.update(key, self._applied[key])
 
-    def _set_application(self, value):
-        self.application(*str(value).split(","))
+    def _set_applet(self, value):
+        self.applet(*str(value).split(","))
 
     def _set_contrast(self, value):
         try:
@@ -692,8 +692,8 @@ class OLEDImpl(OLED, OLEDApplications):
     def _present(self, image):
         """Show a frame, with the title row when it applies, if it changed"""
 
-        if self._title_text and (self._application is None
-                or self._application.wants_title):
+        if self._title_text and (self._applet is None
+                or self._applet.wants_title):
             image = image.copy()
             image.paste(self._title_strip(), (0, 0))
         data = image.tobytes()
@@ -712,10 +712,10 @@ class OLEDImpl(OLED, OLEDApplications):
         self._metrics["frame_ms"] = round((time.monotonic() - started) * 1000)
 
     def _refresh(self):
-        """Show the canvas again (an application shows its next frame)"""
+        """Show the canvas again (an applet shows its next frame)"""
 
         self._last_frame = None
-        if self._application is None:
+        if self._applet is None:
             self._present(self._canvas.image)
 
     def _wake(self):
@@ -732,32 +732,32 @@ class OLEDImpl(OLED, OLEDApplications):
 
         self._metrics["commands"] += 1
         self._wake()
-        if self._application is not None:
-            self._stop_application()
-            self._settle("application", "none")
+        if self._applet is not None:
+            self._stop_applet()
+            self._settle("applet", "none")
             self._last_frame = None
 
-    # Applications ------------------------------------------------------- #
+    # Applets ------------------------------------------------------- #
 
-    def _stop_application(self):
-        application, self._application = self._application, None
-        if application is not None:
+    def _stop_applet(self):
+        applet, self._applet = self._applet, None
+        if applet is not None:
             try:
-                application.stop()
+                applet.stop()
             except Exception:
                 self.logger.error(f"{self.name}: stop: {traceback.format_exc()}")
                 self._metrics["errors"] += 1
             self._held.clear()
-            self.ec_producer.update("application_detail", "-")
+            self.ec_producer.update("applet_detail", "-")
 
-    def _application_finished(self):
-        finished = self.share.get("application")
-        self._stop_application()
-        default = self._default_application
-        if default != "none" and default != finished and default in APPLICATIONS:
-            self.application(default)
+    def _applet_finished(self):
+        finished = self.share.get("applet")
+        self._stop_applet()
+        default = self._default_applet
+        if default != "none" and default != finished and default in APPLETS:
+            self.applet(default)
         else:
-            self.application("none")
+            self.applet("none")
 
     def _keys_held(self):
         now = time.monotonic()
@@ -767,7 +767,7 @@ class OLEDImpl(OLED, OLEDApplications):
 
     def _guarded(self, what, function):
         """Run a timer or callback body: an exception must never unwind the
-        event loop (it isn't caught there); it stops the application"""
+        event loop (it isn't caught there); it stops the applet"""
 
         try:
             function()
@@ -775,9 +775,9 @@ class OLEDImpl(OLED, OLEDApplications):
             self.logger.error(f"{self.name}: {what}: {traceback.format_exc()}")
             self._metrics["errors"] += 1
             self._note_error(f"{what}_{type(exception).__name__}")
-            if self._application is not None:
-                self._stop_application()
-                self._settle("application", "none")
+            if self._applet is not None:
+                self._stop_applet()
+                self._settle("applet", "none")
                 self._refresh()
 
     def _tick(self):
@@ -792,20 +792,20 @@ class OLEDImpl(OLED, OLEDApplications):
             else:
                 state, name = event
                 self.key(name, state)
-        application = self._application
-        if application is not None and now >= self._frame_due:
-            period = 1.0 / (max(application.fps, 0.001) * self._speed)
+        applet = self._applet
+        if applet is not None and now >= self._frame_due:
+            period = 1.0 / (max(applet.fps, 0.001) * self._speed)
             self._frame_due = max(self._frame_due + period, now - period)
             try:
-                frame = application.step()
-            except ApplicationDone:
-                self._application_finished()
+                frame = applet.step()
+            except AppletDone:
+                self._applet_finished()
                 frame = None
             if frame is not None:
                 self._present(frame)
         if self._title_text and now >= self._title_due:
             self._title_due = now + 1.0
-            if self._application is None:
+            if self._applet is None:
                 self._present(self._canvas.image)
         if self._blank_after and not self._blanked  \
                 and self._applied.get("power") == "on"  \
@@ -861,7 +861,7 @@ class OLEDImpl(OLED, OLEDApplications):
         if self._shut:
             return
         self._shut = True
-        self._stop_application()
+        self._stop_applet()
         for timer in (self._tick, self._heartbeat, self._metrics_flush, self._reopen):
             try:
                 aiko.event.remove_timer_handler(timer)
@@ -943,7 +943,7 @@ def main():
 
     \b
     export AIKO_MQTT_HOST=localhost
-    aiko_oled run -a 0x3D                # the OLED, or an emulation on a desktop
+    aiko_oled run -a 0x3C                # the OLED, or an emulation on a desktop
     aiko_oled text 0 0 hello             # from another terminal or host
     aiko_oled set contrast 64            # settings are shared state (Dashboard too)
     aiko_oled exit
@@ -961,8 +961,8 @@ def main():
     help="I2C address of the OLED  [default: 0x3C]")
 @click.option("--bus", "-b", type=int, default=1, show_default=True,
     help="I2C bus number")
-@click.option("--application", default=DEFAULT_APPLICATION, show_default=True,
-    help="Application to run at start; none: show the canvas")
+@click.option("--applet", default=DEFAULT_APPLET, show_default=True,
+    help="Applet to run at start; none: show the canvas")
 @click.option("--font_size", "-fs", default="5x7", show_default=True,
     callback=_validate_font_size,
     help="5x7 bitmap font, or a TrueType font size in pixels, 6 to 64")
@@ -978,7 +978,7 @@ def main():
 @click.option("--strict", is_flag=True,
     help="Exit when the display can't be opened, instead of retrying")
 
-def run_command(name, output, address, bus, application, font_size, title,
+def run_command(name, output, address, bus, applet, font_size, title,
     color, png, standalone, strict):
     """Run the OLED Actor (foreground; append & or use aiko_process create)"""
 
@@ -987,7 +987,7 @@ def run_command(name, output, address, bus, application, font_size, title,
         os.environ.setdefault("AIKO_LOG_MQTT", "true")
     display = choose_display(output, address, bus, png, color)
     parameters = {
-        "display": display, "application": application, "font": font_size,
+        "display": display, "applet": applet, "font": font_size,
         "title": title, "strict": strict,
     }
     init_args = aiko.actor_args(
@@ -1106,7 +1106,7 @@ def set_command(name, timeout, key, value):
     \b
     contrast 0..255   invert on|off   power on|off   all_on on|off
     title WORDS_WITH_UNDERSCORES|off   font 5x7|6..64   speed 0.1..10
-    blank_after SECONDS (0: never)   application NAME[,ARG,...]
+    blank_after SECONDS (0: never)   applet NAME[,ARG,...]
     """
 
     if any(character.isspace() for character in value):
@@ -1123,35 +1123,35 @@ def set_command(name, timeout, key, value):
     aiko.do_discovery(OLED, _service_filter(name), add_handler)
     aiko.process.run()
 
-@main.command(name="application", no_args_is_help=True)
+@main.command(name="applet", no_args_is_help=True)
 @_remote_options
-@click.argument("application_name")
+@click.argument("applet_name")
 @click.argument("arguments", nargs=-1)
 
-def application_command(name, timeout, application_name, arguments):
-    """Run an application, e.g. status, pong seed=1; none shows the canvas"""
+def applet_command(name, timeout, applet_name, arguments):
+    """Run an applet, e.g. status, pong seed=1; none shows the canvas"""
 
-    _remote(OLEDApplications, name, timeout,
-        lambda oled: oled.application(application_name, *arguments))
+    _remote(OLEDApplets, name, timeout,
+        lambda oled: oled.applet(applet_name, *arguments))
 
 @main.command(name="stop")
 @_remote_options
 
 def stop_command(name, timeout):
-    """Stop the running application: the canvas is shown"""
+    """Stop the running applet: the canvas is shown"""
 
-    _remote(OLEDApplications, name, timeout, lambda oled: oled.application("none"))
+    _remote(OLEDApplets, name, timeout, lambda oled: oled.applet("none"))
 
 @main.command(name="keys")
 @_remote_options
 
 def keys_command(name, timeout):
-    """Interactive console: keys switch applications and settings, arrows play
+    """Interactive console: keys switch applets and settings, arrows play
 
     \b
     s status  p pattern  t text  d draw  g games  F forklift game  A forklift
     D demo  b blink  h help (the same key again: the next options)
-    arrows: keys for the application   0-9 speed (4 normal)   f next font
+    arrows: keys for the applet   0-9 speed (4 normal)   f next font
     i invert  o power  a all pixels on  +/- contrast  c clear  R reset
     ? this list   x or q quit the console   X exit the OLED Actor
     """
@@ -1165,9 +1165,9 @@ def keys_command(name, timeout):
 @click.argument("state", type=click.Choice(KEY_STATES), default="tap")
 
 def key_command(name, timeout, key_name, state):
-    """Send a key to the running application: up, down, left, right or a character"""
+    """Send a key to the running applet: up, down, left, right or a character"""
 
-    _remote(OLEDApplications, name, timeout,
+    _remote(OLEDApplets, name, timeout,
         lambda oled: oled.key(key_name, state))
 
 if __name__ == "__main__":

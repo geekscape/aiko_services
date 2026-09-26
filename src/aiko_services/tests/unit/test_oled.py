@@ -1,5 +1,5 @@
 # Unit tests for the OLED example: graphics, display backends, the Actor
-# (dispatch, wire commands, settings, applications, failure behavior) and
+# (dispatch, wire commands, settings, applets, failure behavior) and
 # the share-token contract.  No MQTT broker: the Actor is composed with a
 # FakeDisplay and its methods are called directly; the event loop runs
 # briefly with mqtt_connection_required=False where mailboxes or timers
@@ -17,11 +17,11 @@ import aiko_services as aiko
 from aiko_services.main.utilities import parse
 
 from aiko_services.examples.oled import (
-    OLED, OLEDApplications, OLEDImpl, PROTOCOL, SETTINGS, WIRE_COMMANDS,
+    OLED, OLEDApplets, OLEDImpl, PROTOCOL, SETTINGS, WIRE_COMMANDS,
 )
-from aiko_services.examples.oled import applications
-from aiko_services.examples.oled.applications import (
-    Application, ApplicationDone, parse_application_args,
+from aiko_services.examples.oled import applets
+from aiko_services.examples.oled.applets import (
+    Applet, AppletDone, parse_applet_args,
 )
 from aiko_services.examples.oled.display import (
     DisplayNotFound, FakeDisplay, NullDisplay, PngDisplay, TerminalDisplay,
@@ -38,7 +38,7 @@ _counter = itertools.count()
 
 def make_actor(**parameters):
     display = parameters.pop("display", None) or FakeDisplay()
-    parameters = {"display": display, "title": "off", "application": "none", **parameters}
+    parameters = {"display": display, "title": "off", "applet": "none", **parameters}
     name = f"oled_test_{next(_counter)}"
     actor = aiko.compose_instance(OLEDImpl,
         aiko.actor_args(name, parameters=parameters, protocol=PROTOCOL))
@@ -68,8 +68,8 @@ def lit_count(image):
     return sum(1 for y in range(image.height)
         for x in range(image.width) if image.getpixel((x, y)))
 
-class Bouncer(Application):
-    """A test application: one moving pixel per frame, records keys"""
+class Bouncer(Applet):
+    """A test applet: one moving pixel per frame, records keys"""
 
     name = "bouncer"
     fps = 30
@@ -94,22 +94,22 @@ class Bouncer(Application):
     def stop(self):
         self.stopped = True
 
-class Failing(Application):
+class Failing(Applet):
     name = "failing"
 
     def step(self):
         raise RuntimeError("boom")
 
-class Finishing(Application):
+class Finishing(Applet):
     name = "finishing"
 
     def step(self):
-        raise ApplicationDone
+        raise AppletDone
 
 @pytest.fixture
-def test_applications(monkeypatch):
-    for application in (Bouncer, Failing, Finishing):
-        monkeypatch.setitem(applications.APPLICATIONS, application.name, application)
+def test_applets(monkeypatch):
+    for applet in (Bouncer, Failing, Finishing):
+        monkeypatch.setitem(applets.APPLETS, applet.name, applet)
 
 # --------------------------------------------------------------------------- #
 # Graphics
@@ -229,15 +229,15 @@ def test_choose_display():
 
 def test_composition_and_wire_commands(actor_display):
     actor, display = actor_display
-    assert isinstance(actor, OLED) and isinstance(actor, OLEDApplications)
+    assert isinstance(actor, OLED) and isinstance(actor, OLEDApplets)
     assert WIRE_COMMANDS == {"clear", "log", "pixel", "pixels", "line", "text",
-        "exit", "application", "key", "set_log_level", "stop"}
+        "exit", "applet", "key", "set_log_level", "stop"}
     for name in ("run", "add_tags", "_tick", "_shutdown", "ec_producer_change_handler"):
         assert name not in WIRE_COMMANDS
     assert "oled_test" not in sys.modules                 # R0: never imported
     assert actor.share["backend"] == "fake" and actor.share["device"] == "fake"
     assert actor.share["size"] == "128x64" and actor.share["origin"] == "bottom"
-    assert actor.share["application"] == "none"
+    assert actor.share["applet"] == "none"
     assert display.opened and len(display.frames) == 1   # the blank canvas
 
 def test_dispatch_aliases_allow_list_and_parse_guard(actor_display):
@@ -325,63 +325,63 @@ def test_exit_terminates(actor_display, monkeypatch):
     assert calls == [()]
 
 # --------------------------------------------------------------------------- #
-# The Actor: applications
+# The Actor: applets
 
-def test_application_lifecycle(actor_display, test_applications):
+def test_applet_lifecycle(actor_display, test_applets):
     actor, display = actor_display
-    actor.application("bouncer", "seed=3")
-    assert actor.share["application"] == "bouncer"
-    assert actor.share["application_detail"] == "bouncing"
-    assert actor._application.options == {"seed": 3}
+    actor.applet("bouncer", "seed=3")
+    assert actor.share["applet"] == "bouncer"
+    assert actor.share["applet_detail"] == "bouncing"
+    assert actor._applet.options == {"seed": 3}
     run_loop(0.3)
-    assert actor._application.count >= 3 and len(display.frames) >= 4
-    bouncer = actor._application
+    assert actor._applet.count >= 3 and len(display.frames) >= 4
+    bouncer = actor._applet
     actor.log("still", "running")                          # log doesn't stop it
-    assert actor._application is bouncer
+    assert actor._applet is bouncer
     actor.text(0, 0, "canvas")                            # drawing does
-    assert actor._application is None and bouncer.stopped
-    assert actor.share["application"] == "none"
-    assert actor.share["application_detail"] == "-"
-    actor.application("bouncer")
-    actor.application("none")
-    assert actor._application is None
+    assert actor._applet is None and bouncer.stopped
+    assert actor.share["applet"] == "none"
+    assert actor.share["applet_detail"] == "-"
+    actor.applet("bouncer")
+    actor.applet("none")
+    assert actor._applet is None
 
-def test_application_rejections(actor_display, test_applications):
+def test_applet_rejections(actor_display, test_applets):
     actor, _ = actor_display
-    actor.application("nosuch")
-    assert actor.share["application"] == "none"
-    assert actor.share["last_error"].startswith("set_application_unknown@")
-    actor.application("bouncer", "seed=abc")
-    actor.application("bouncer", "colour=red")
-    actor.application("bouncer", "x" * 65)
-    assert actor._metrics["rejected"] == 4 and actor._application is None
+    actor.applet("nosuch")
+    assert actor.share["applet"] == "none"
+    assert actor.share["last_error"].startswith("set_applet_unknown@")
+    actor.applet("bouncer", "seed=abc")
+    actor.applet("bouncer", "colour=red")
+    actor.applet("bouncer", "x" * 65)
+    assert actor._metrics["rejected"] == 4 and actor._applet is None
 
-def test_finished_application_returns_to_default(actor_display, test_applications):
+def test_finished_applet_returns_to_default(actor_display, test_applets):
     actor, _ = actor_display
-    actor._default_application = "bouncer"
-    actor.application("finishing")
+    actor._default_applet = "bouncer"
+    actor.applet("finishing")
     run_loop(0.2)
-    assert actor.share["application"] == "bouncer"
-    actor.application("finishing")
-    actor._default_application = "none"
+    assert actor.share["applet"] == "bouncer"
+    actor.applet("finishing")
+    actor._default_applet = "none"
     run_loop(0.2)
-    assert actor.share["application"] == "none"
+    assert actor.share["applet"] == "none"
 
-def test_failing_application_is_stopped_not_the_process(actor_display, test_applications):
+def test_failing_applet_is_stopped_not_the_process(actor_display, test_applets):
     actor, _ = actor_display
-    actor.application("failing")
+    actor.applet("failing")
     run_loop(0.2)                                          # the loop survives
-    assert actor.share["application"] == "none"
+    assert actor.share["applet"] == "none"
     assert actor._metrics["errors"] >= 1
     assert actor.share["last_error"].startswith("tick_RuntimeError@")
 
-def test_keys(actor_display, test_applications):
+def test_keys(actor_display, test_applets):
     actor, _ = actor_display
-    actor.application("bouncer")
+    actor.applet("bouncer")
     actor.key("up")
     actor.key("x", "down")
     assert actor._keys_held() == {"up", "x"}
-    assert actor._application.keys == [("up", "tap"), ("x", "down")]
+    assert actor._applet.keys == [("up", "tap"), ("x", "down")]
     actor.key("x", "up")
     assert actor._keys_held() == {"up"}
     actor.key("select")
@@ -455,13 +455,13 @@ def test_own_updates_do_not_loop_and_replay_is_ignored(actor_display, monkeypatc
     actor._ec_producer_change_handler("update", "metrics.frames", "3")
     assert calls == ["100"]
 
-def test_application_setting_starts_an_application(actor_display, test_applications):
+def test_applet_setting_starts_an_applet(actor_display, test_applets):
     actor, _ = actor_display
-    remote_update(actor, "application", "bouncer,seed=7")
-    assert actor.share["application"] == "bouncer"
-    assert actor._application.options == {"seed": 7}
-    remote_update(actor, "application", "nosuch")
-    assert actor.share["application"] == "bouncer"
+    remote_update(actor, "applet", "bouncer,seed=7")
+    assert actor.share["applet"] == "bouncer"
+    assert actor._applet.options == {"seed": 7}
+    remote_update(actor, "applet", "nosuch")
+    assert actor.share["applet"] == "bouncer"
 
 # --------------------------------------------------------------------------- #
 # The Actor: display failure, blanking, threads, shutdown
@@ -548,11 +548,11 @@ def test_shutdown_blanks_and_is_idempotent(actor_display):
 # --------------------------------------------------------------------------- #
 # Share tokens: every value must survive the unencoded "(update K V)" publish
 
-def test_share_values_are_single_tokens(actor_display, test_applications):
+def test_share_values_are_single_tokens(actor_display, test_applets):
     actor, _ = actor_display
     remote_update(actor, "title", "12:30 lunch")           # would break the parser
     actor.pixel("x", 0)
-    actor.application("bouncer")
+    actor.applet("bouncer")
     remote_update(actor, "font", "16")
     actor._flush_metrics()
     values = {key: value for key, value in actor.share.items()
@@ -561,9 +561,9 @@ def test_share_values_are_single_tokens(actor_display, test_applications):
     for key, value in values.items():
         assert parse(f"(update {key} {value})") == ("update", [key, str(value)]), key
 
-def test_parse_application_args():
-    words, options = parse_application_args(["hello", "seed=3"], {"seed": int})
+def test_parse_applet_args():
+    words, options = parse_applet_args(["hello", "seed=3"], {"seed": int})
     assert words == ["hello"] and options == {"seed": 3}
     for bad in (["seed=x"], ["colour=1"], [["nested"]], ["x" * 65]):
         with pytest.raises(ValueError):
-            parse_application_args(bad, {"seed": int})
+            parse_applet_args(bad, {"seed": int})

@@ -16,7 +16,7 @@ from aiko_services.examples.oled.display import FakeDisplay
 from aiko_services.examples.oled.oled import _service_filter, main
 
 SUBCOMMANDS = ("run", "exit", "list", "clear", "log", "text", "pixels", "line",
-               "set", "application", "stop", "key", "keys")
+               "set", "applet", "stop", "key", "keys")
 
 class RecordingProxy:
     """Stands in for the discovered OLED Actor's proxy"""
@@ -88,7 +88,7 @@ def test_remote_commands_send_the_wire_command(remote):
     assert invoke("log", "boot", "ok").exit_code == 0
     assert invoke("pixels", "1", "2", "3", "4").exit_code == 0
     assert invoke("line", "0", "0", "127", "63").exit_code == 0
-    assert invoke("application", "pong", "seed=1").exit_code == 0
+    assert invoke("applet", "pong", "seed=1").exit_code == 0
     assert invoke("stop").exit_code == 0
     assert invoke("key", "left").exit_code == 0
     assert invoke("key", "x", "down").exit_code == 0
@@ -99,8 +99,8 @@ def test_remote_commands_send_the_wire_command(remote):
         ("log", ("boot", "ok")),
         ("pixels", (1, 2, 3, 4)),
         ("line", (0, 0, 127, 63)),
-        ("application", ("pong", "seed=1")),
-        ("application", ("none",)),
+        ("applet", ("pong", "seed=1")),
+        ("applet", ("none",)),
         ("key", ("left", "tap")),
         ("key", ("x", "down")),
         ("exit", ()),
@@ -156,12 +156,12 @@ from aiko_services.examples.oled.console import key_command  # noqa: E402
 def test_keys_console_map():
     state = {"turns": {}, "current": None, "settings": {}}
     assert key_command("left", state) == ("key", ("left", "tap"))
-    assert key_command("s", state) == ("application", ("status",))
-    assert key_command("s", state) == ("application", ("status", "rate=4"))
-    assert key_command("s", state) == ("application", ("status",))
-    assert key_command("p", state) == ("application", ("pattern",))
-    assert key_command("d", state) == ("application", ("draw",))
-    assert key_command("d", state) == ("application", ("draw", "shade=off"))
+    assert key_command("s", state) == ("applet", ("status",))
+    assert key_command("s", state) == ("applet", ("status", "rate=4"))
+    assert key_command("s", state) == ("applet", ("status",))
+    assert key_command("p", state) == ("applet", ("pattern",))
+    assert key_command("d", state) == ("applet", ("draw",))
+    assert key_command("d", state) == ("applet", ("draw", "shade=off"))
     assert key_command("0", state) == ("update", "speed", "4")
     assert key_command("4", state) == ("update", "speed", "1")
     assert key_command("9", state) == ("update", "speed", "0.177")
