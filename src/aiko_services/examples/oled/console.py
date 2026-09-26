@@ -4,7 +4,9 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # "aiko_oled keys": an interactive console in the terminal for a running
 # OLED Actor.  Keys typed here become wire commands: letters switch
-# applets (the same letter again: its next option preset), arrow keys
+# applets (the same letter again: the next preset, e.g. g steps through
+# pong, asteroids, invaders and all three in turn; p, t and s through the
+# fonts; t through messages; d through styles and subjects), arrow keys
 # go to the running applet, digits set the speed, and other keys
 # change settings through the shared state, exactly as the Dashboard does.
 # A status line shows the Actor's shared state as it changes.
@@ -39,29 +41,48 @@ from aiko_services.examples.oled.oled import (
     OLED, OLEDApplets, _service_filter,
 )
 
-__all__ = ["KEY_APPLETS", "PRESETS", "Keyboard", "KeysConsole", "key_command"]
+__all__ = ["KEY_APPLETS", "PRESETS", "Keyboard", "KeysConsole", "applet", "key_command", "update"]
 
 ARROWS = {"A": "up", "B": "down", "C": "right", "D": "left"}  # the terminal's codes
-KEY_APPLETS = {"s": "status", "l": "log", "p": "pattern", "t": "text",
-               "d": "draw", "g": "games", "F": "forklift_game", "A": "forklift",
-               "D": "demo", "b": "blink", "h": "help", "C": "clock", "e": "eyes"}
-PRESETS = {  # the same key again: the next argument list
-    "status": [[], ["rate=4"]],
-    "pattern": [[]],
-    "text": [[], ["Hello!"], ["OLED"], ["128x64"]],
-    "draw": [[], ["shade=off"], ["style=hatch"], ["style=stipple"]]
-            + [[f"subject={subject}"] for subject in sorted(SUBJECTS)],
-    "games": [[], ["duration=10"]],
-    "forklift_game": [[]],
-    "forklift": [[]],
-    "demo": [[], ["random=off"]],
-    "blink": [[], ["rate=8"]],
-    "help": [[f"page={page}"] for page in range(1, 7)],  # h again: the next page
-    "log": [[]],
-    "clock": [[], ["title=on"], ["seconds=off"]],
-    "eyes": [[], ["emotion=happy"], ["emotion=angry"], ["emotion=surprised"],
-             ["emotion=sleepy"], ["emotion=suspicious"], ["emotion=loving"]],
+def applet(name, *arguments):
+    return ("applet", (name, *arguments))
+
+def update(key, value):
+    return ("update", key, value)
+
+# What each applet key sends; the same key again: the next preset (as the
+# original oled_test.py stepped through each subcommand's options).  A
+# preset without its own font goes back to the base font (see key_command)
+PRESETS = {
+    "s": [[applet("status")], [applet("status", "rate=4")],
+          [update("font", "5x7"), applet("status")],
+          [update("font", "10"), applet("status")],
+          [update("font", "12"), applet("status")]],
+    "l": [[applet("log")]],
+    "h": [[applet("help", f"page={page}")] for page in range(1, 7)],
+    "p": [[applet("pattern")], [update("font", "5x7"), applet("pattern")],
+          [update("font", "10"), applet("pattern")],
+          [update("font", "16"), applet("pattern")]],
+    "t": [[applet("text")], [update("font", "5x7"), applet("text")],
+          [update("font", "10"), applet("text")],
+          [update("font", "16"), applet("text")],
+          [update("font", "10"), applet("text", "Hello!")],
+          [update("font", "24"), applet("text", "OLED")],
+          [update("font", "16"), applet("text", "128x64")]],
+    "b": [[applet("blink")], [applet("blink", "rate=8")]],
+    "d": [[applet("draw")], [applet("draw", "shade=off")],
+          [applet("draw", "style=hatch")], [applet("draw", "style=stipple")]]
+         + [[applet("draw", f"subject={subject}")] for subject in sorted(SUBJECTS)],
+    "g": [[applet("pong")], [applet("asteroids")], [applet("invaders")], [applet("games")]],
+    "F": [[applet("forklift_game")]],
+    "A": [[applet("forklift")]],
+    "D": [[applet("demo")], [applet("demo", "random=off")]],
+    "C": [[applet("clock")], [applet("clock", "title=on")], [applet("clock", "seconds=off")]],
+    "e": [[applet("eyes")]] + [[applet("eyes", f"emotion={emotion}")]
+                               for emotion in ("happy", "sad", "angry", "surprised",
+                                               "sleepy", "suspicious", "curious", "loving")],
 }
+KEY_APPLETS = {key: presets[0][-1][1][0] for key, presets in PRESETS.items()}
 RESET = {"contrast": "255", "invert": "off", "power": "on", "all_on": "off",
          "font": "5x7", "speed": "1"}
 POLL_PERIOD = 0.05
@@ -108,43 +129,50 @@ class Keyboard:
         self.termios.tcsetattr(sys.stdin, self.termios.TCSADRAIN, self.saved)
 
 def key_command(key, state):
-    """The (method, arguments) or ("update", key, value) that a console key
-    sends, given the console's state (presets, settings); None for keys
-    that only change the console itself.  Pure, for tests"""
+    """The commands a console key sends: a list of ("applet", arguments),
+    ("key", arguments), ("clear", ()) or ("update", key, value); [] for a
+    key that means nothing.  "state" holds the preset turns, the current
+    key, the Actor's settings and the base font.  Pure, for tests"""
 
     if key in ARROWS.values():
-        return ("key", (key, "tap"))
-    if key in KEY_APPLETS:
-        name = KEY_APPLETS[key]
-        presets = PRESETS[name]
-        turn = state["turns"].get(name, -1) + 1 if state.get("current") == name else 0
-        state["turns"][name] = turn % len(presets)
-        state["current"] = name
-        return ("applet", (name, *presets[turn % len(presets)]))
+        return [("key", (key, "tap"))]
+    if key in PRESETS:
+        presets = PRESETS[key]
+        turn = state["turns"].get(key, -1) + 1 if state.get("current") == key else 0
+        turn %= len(presets)
+        state["turns"][key] = turn
+        state["current"] = key
+        commands = list(presets[turn])
+        base = state.get("base_font")
+        if base and not any(command[:2] == ("update", "font") for command in commands)  \
+                and state["settings"].get("font", base) != base:
+            commands.insert(0, update("font", base))     # back to the base font
+        return commands
     if key.isdigit():
-        return ("update", "speed", f"{2 ** ((4 - int(key)) / 2):.3g}")
+        return [update("speed", f"{2 ** ((4 - int(key)) / 2):.3g}")]
     if key == "T":
         current = state["settings"].get("title", "on")
-        return ("update", "title", "on" if current == "off" else "off")
+        return [update("title", "on" if current == "off" else "off")]
     if key == "f":
         sizes = [str(size) for size in FONT_SIZES]
         current = state["settings"].get("font", "5x7")
         turn = (sizes.index(current) + 1) % len(sizes) if current in sizes else 0
-        return ("update", "font", sizes[turn])
+        state["base_font"] = sizes[turn]
+        return [update("font", sizes[turn])]
     if key in ("i", "o", "a"):
         name = {"i": "invert", "o": "power", "a": "all_on"}[key]
         current = state["settings"].get(name, "on" if name == "power" else "off")
-        return ("update", name, "off" if current == "on" else "on")
+        return [update(name, "off" if current == "on" else "on")]
     if key in ("+", "-"):
         try:
             contrast = int(state["settings"].get("contrast", "255"))
         except ValueError:
             contrast = 255
         contrast = max(0, min(255, contrast + (16 if key == "+" else -16)))
-        return ("update", "contrast", str(contrast))
+        return [update("contrast", str(contrast))]
     if key == "c":
-        return ("clear", ())
-    return None
+        return [("clear", ())]
+    return []
 
 class KeysConsole:
     """The interactive console for one OLED Actor"""
@@ -200,6 +228,8 @@ class KeysConsole:
     # Keys ----------------------------------------------------------------- #
 
     def _poll(self):
+        if "base_font" not in self.state and "font" in self.cache:
+            self.state["base_font"] = self.cache["font"]   # the font at the start
         for key in self.keyboard.read():
             self._key(key)
         self._show_status()
@@ -223,16 +253,15 @@ class KeysConsole:
             for name, value in RESET.items():
                 self._update(name, value)
             self.applets.applet("status")
-            self.state["current"] = "status"
+            self.state["current"] = "s"
+            self.state["base_font"] = RESET["font"]
         else:
-            command = key_command(key, self.state)
-            if command is None:
-                return
-            if command[0] == "update":
-                self._update(command[1], command[2])
-            else:
-                getattr(self.applets if command[0] in ("applet", "key")
-                        else self.oled, command[0])(*command[1])
+            for command in key_command(key, self.state):
+                if command[0] == "update":
+                    self._update(command[1], command[2])
+                else:
+                    getattr(self.applets if command[0] in ("applet", "key")
+                            else self.oled, command[0])(*command[1])
 
     def _update(self, name, value):
         aiko.process.message.publish(f"{self.topic_path}/control", f"(update {name} {value})")
@@ -248,7 +277,8 @@ class KeysConsole:
         return "\r\n".join([
             "s status  l log  p pattern  t text  d draw  g games  F forklift game",
             "A forklift  D demo  b blink  C clock  e eyes  h help (again: the next page)",
-            "(the same applet key again: its next options)",
+            "(the same key again: the next preset, e.g. g: pong, asteroids, invaders, all;",
+            " p, t, s: the fonts; t: messages; d: styles, subjects; e: emotions)",
             "arrows: keys for the applet   0-9 speed (4 normal)   f next font   T title",
             "i invert  o power  a all on  + - contrast  c clear  R reset",
             "? this list   x q quit the console   X exit the OLED Actor",

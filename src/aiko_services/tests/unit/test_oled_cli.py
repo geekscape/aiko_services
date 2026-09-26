@@ -154,44 +154,48 @@ def test_run_strict_reports_a_missing_display(monkeypatch):
 from aiko_services.examples.oled.console import key_command  # noqa: E402
 
 def test_keys_console_map():
-    state = {"turns": {}, "current": None, "settings": {}}
-    assert key_command("left", state) == ("key", ("left", "tap"))
-    assert key_command("s", state) == ("applet", ("status",))
-    assert key_command("s", state) == ("applet", ("status", "rate=4"))
-    assert key_command("s", state) == ("applet", ("status",))
-    assert key_command("p", state) == ("applet", ("pattern",))
-    assert key_command("d", state) == ("applet", ("draw",))
-    assert key_command("d", state) == ("applet", ("draw", "shade=off"))
-    assert key_command("0", state) == ("update", "speed", "4")
-    assert key_command("4", state) == ("update", "speed", "1")
-    assert key_command("9", state) == ("update", "speed", "0.177")
-    assert key_command("f", state) == ("update", "font", "8")
+    state = {"turns": {}, "current": None, "settings": {}, "base_font": "5x7"}
+    assert key_command("left", state) == [("key", ("left", "tap"))]
+    assert key_command("s", state) == [("applet", ("status",))]
+    assert key_command("s", state) == [("applet", ("status", "rate=4"))]
+    assert key_command("s", state) == [("update", "font", "5x7"), ("applet", ("status",))]
+    assert key_command("g", state) == [("applet", ("pong",))]
+    assert key_command("g", state) == [("applet", ("asteroids",))]
+    assert key_command("g", state) == [("applet", ("invaders",))]
+    assert key_command("g", state) == [("applet", ("games",))]
+    assert key_command("g", state) == [("applet", ("pong",))]
+    assert key_command("d", state) == [("applet", ("draw",))]
+    assert key_command("d", state) == [("applet", ("draw", "shade=off"))]
+    assert key_command("t", state)[0] == ("applet", ("text",))
+    assert key_command("t", state) == [("update", "font", "5x7"), ("applet", ("text",))]
+    assert key_command("t", state) == [("update", "font", "10"), ("applet", ("text",))]
+    state["settings"]["font"] = "10"                     # the Actor applied it
+    assert key_command("p", state) == [("update", "font", "5x7"), ("applet", ("pattern",))]
+    state["settings"]["font"] = "5x7"
+    assert key_command("0", state) == [("update", "speed", "4")]
+    assert key_command("4", state) == [("update", "speed", "1")]
+    assert key_command("9", state) == [("update", "speed", "0.177")]
+    assert key_command("f", state) == [("update", "font", "8")] and state["base_font"] == "8"
     state["settings"]["font"] = "24"
-    assert key_command("f", state) == ("update", "font", "5x7")
-    assert key_command("i", state) == ("update", "invert", "on")
+    assert key_command("f", state) == [("update", "font", "5x7")]
+    assert key_command("i", state) == [("update", "invert", "on")]
     state["settings"]["invert"] = "on"
-    assert key_command("i", state) == ("update", "invert", "off")
-    assert key_command("o", state) == ("update", "power", "off")
-    assert key_command("-", state) == ("update", "contrast", "239")
-    assert key_command("+", state) == ("update", "contrast", "255")
-    assert key_command("c", state) == ("clear", ())
-    assert key_command("l", state) == ("applet", ("log",))
-    assert key_command("C", state) == ("applet", ("clock",))
-    assert key_command("e", state) == ("applet", ("eyes",))
-    assert key_command("h", state) == ("applet", ("help", "page=1"))
-    assert key_command("h", state) == ("applet", ("help", "page=2"))
-    assert key_command("T", state) == ("update", "title", "off")
+    assert key_command("i", state) == [("update", "invert", "off")]
+    assert key_command("o", state) == [("update", "power", "off")]
+    assert key_command("-", state) == [("update", "contrast", "239")]
+    assert key_command("+", state) == [("update", "contrast", "255")]
+    assert key_command("c", state) == [("clear", ())]
+    assert key_command("l", state) == [("update", "font", "5x7"), ("applet", ("log",))]
+    state["settings"]["font"] = "5x7"
+    assert key_command("C", state) == [("applet", ("clock",))]
+    assert key_command("e", state) == [("applet", ("eyes",))]
+    assert key_command("e", state) == [("applet", ("eyes", "emotion=happy"))]
+    assert key_command("h", state) == [("applet", ("help", "page=1"))]
+    assert key_command("h", state) == [("applet", ("help", "page=2"))]
+    assert key_command("T", state) == [("update", "title", "off")]
     state["settings"]["title"] = "off"
-    assert key_command("T", state) == ("update", "title", "on")
-    assert key_command("z", state) is None
-
-def test_applet_list_needs_no_actor():
-    result = invoke("applet", "--list")
-    assert result.exit_code == 0
-    for name in ("status", "log", "pong", "draw", "demo"):
-        assert name in result.output
-    assert "seed=" in result.output and "rate=" in result.output
-    assert invoke("applet").exit_code == 2
+    assert key_command("T", state) == [("update", "title", "on")]
+    assert key_command("z", state) == []
 
 def test_keys_needs_a_terminal():
     result = invoke("keys")

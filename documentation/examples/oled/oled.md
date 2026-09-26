@@ -70,7 +70,7 @@ Actor by name and protocol and sends it one command.
 | `set KEY VALUE` | | `(update KEY VALUE)` on the Actor's control topic, exactly what the Dashboard does |
 | `applet NAME [ARGS...]` | `-l` | `(applet NAME ARGS ...)`; `stop` is `(applet none)`; `applet -l` lists the applets and their options without an Actor |
 | `key NAME [tap\|down\|up]` | | `(key NAME STATE)` for the running applet |
-| `keys` | | Interactive console: letters switch applets (the same letter again: its next options; `h` again: the next help page), arrows send keys, digits set the speed, `f` `T` `i` `o` `a` `+` `-` change settings, `R` resets, `x` quits, `X` exits the Actor; a status line follows the shared state |
+| `keys` | | Interactive console: letters switch applets and the same letter again steps through the presets (`g`: pong, asteroids, invaders, all in turn; `p`, `t`, `s`: the fonts; `t`: messages; `d`: styles and subjects; `e`: emotions; `h`: the help pages), arrows send keys, digits set the speed, `f` `T` `i` `o` `a` `+` `-` change settings, `R` resets, `x` quits, `X` exits the Actor; a status line follows the shared state |
 
 Every remote subcommand gives up with exit status 1 after `-t` seconds
 when no Actor answers (the framework's `do_command()` would wait for

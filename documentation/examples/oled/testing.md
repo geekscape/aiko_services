@@ -218,8 +218,10 @@ follows the shared state.  Then type, without Enter:
 |-----|--------|
 | `?` | The key list |
 | `p` | The test pattern; the status line shows `applet pattern` |
-| `t`, then `t` again | The digits, then `Hello!` (the same key again: its next preset) |
-| `d` | A drawing; `d` again: an outlined one |
+| `t` repeatedly | The digit grid in the current font, then in the 5x7, 10 and 16 pixel fonts, then `Hello!`, `OLED` and `128x64` in larger fonts (the same key again: the next preset) |
+| `g` repeatedly | Pong, asteroids, invaders, then the three in turn |
+| `p` repeatedly | The test pattern in the 5x7, 10 and 16 pixel fonts |
+| `d` repeatedly | A drawing; outlined; hatched; stippled; then each subject |
 | `F`, then the arrow keys | The forklift game: left and right drive, up and down lift (a tapped key moves a little; hold it for more) |
 | `0` … `9` | Speed: `0` fastest, `4` normal, `9` slowest (`speed` in the status line) |
 | `f` (repeat) | The next font size |
