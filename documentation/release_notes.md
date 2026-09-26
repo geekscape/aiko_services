@@ -19,7 +19,7 @@ and bug fixes.
 
 **Language rule (adopted 2026-07-31).** Write each new release section in
 ASD-STE100 Simplified Technical English, at the `adapted` level of
-[constitution/t_04_SimplifiedTechnicalEnglish.md](constitution/t_04_SimplifiedTechnicalEnglish.md).
+the project STE profile [Privately maintained].
 This rule applies to v0.8 and to each release after it. The v0.6
 (human-written) and v0.7 (A.I-written) sections stay unchanged, because
 they are a historical record. Thus the front-matter `ste:` field of this
@@ -44,7 +44,9 @@ sections are.
   run on the display: games, a forklift, pencil drawings, a clock face,
   animated eyes and a demo tour.
   Without the panel, a desktop window, the terminal or a PNG file emulates
-  it.  See *documentation/examples/oled/ReadMe.md*
+  it.  See *documentation/examples/oled/ReadMe.md*, which has a
+  step-by-step test guide
+
 * Classes may now omit the *__init__()* method entirely when they need no
   constructor arguments beyond *context* and no explicit super-class
   initialization: the composition engine synthesizes the cooperative
@@ -188,6 +190,12 @@ remote callers are unaffected.  For Python code:
   running it.
   These tests skip when OpenCV is absent, because *video_io.py* needs
   *cv2* at import time
+
+* New *test_oled.py*, *test_oled_cli.py* and *test_oled_applets.py*: 86
+  tests for the OLED display Actor example.  They cover graphics, the
+  display backends, dispatch and validation, the settings, the command
+  line and the applets.  A fake display stands in for the panel, so no
+  broker and no panel are needed
 
 ### Bug Fixes
 

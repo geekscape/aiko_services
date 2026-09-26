@@ -1,12 +1,13 @@
 ---
 title: OLED example index
-description: Index of the SSD1306 OLED display Actor example concept
-  documents — the Actor and its aiko_oled command line, and the oled:0
-  wire protocol shared with the MicroPython aiko_engine_mp OLED
+description: Index of the SSD1306 OLED display Actor example documents —
+  the Actor and its aiko_oled command line, the oled:0 wire protocol
+  shared with the MicroPython aiko_engine_mp OLED, and the step-by-step
+  test guide
 type: index
 audience: [developers, end-users]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/examples/oled
 related: [actor, service, share, discovery, dashboard]
@@ -16,13 +17,13 @@ last_updated: 2026-09-26
 
 # OLED example index
 
-One concept document for the Actor, one for its wire protocol and a test
-guide, all about `src/aiko_services/examples/oled/`.  These modules drive an SSD1306
-128x64 OLED on a Raspberry Pi as an Aiko Services
-[Actor](../../concepts/actor.md), or emulate it on a desktop.  The main
-use is a status display for a headless host.  The source
-`src/aiko_services/examples/oled/ReadMe.md` covers the hardware and the
-install.
+Three documents about `src/aiko_services/examples/oled/`: one concept
+document for the Actor, one for its wire protocol, and a test guide.
+These modules drive an SSD1306 128x64 OLED on a Linux Single Board
+Computer (SBC) as an Aiko Services [Actor](../../concepts/actor.md). On
+a desktop, they emulate it. The main use is a status display for a headless
+host. The source `src/aiko_services/examples/oled/ReadMe.md` covers the
+hardware and the install.
 
 Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 [examples index](../ReadMe.md)
@@ -31,21 +32,50 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 
 | Document | Summary |
 |----------|---------|
-| [oled](oled.md) | The OLED Actor: status display, canvas, settings in the shared state, applets, display backends, the `aiko_oled` command line |
-| [oled_protocol](oled_protocol.md) | The `oled:0` protocol: wire commands, shared state keys, failure behavior, the conformance trace, and compatibility with aiko_engine_mp |
-| [testing](testing.md) | Step-by-step test guide: macOS and a Linux SBC, the command line, raw S-expressions, the shared state, the Dashboard, applets, the keys console, failure behavior |
+| [oled](oled.md) | The OLED Actor: the status display, the canvas, settings in the shared state, the applets, the keys console, the display backends and the `aiko_oled` command line |
+| [oled_protocol](oled_protocol.md) | The `oled:0` protocol: discovery, the topics, the wire commands and their grammar, the shared state keys, the rejection reasons, the conformance trace, and compatibility with aiko_engine_mp |
+| [testing](testing.md) | The step-by-step test guide: macOS and a Linux SBC, the unit tests, the command line, raw S-expressions, the shared state, the Dashboard, the applets, the keys console, failure behavior and systemd |
+
+## Reading order
+
+1. [oled](oled.md) — the Overview and Command-line usage. Then run the
+   Actor emulated in a terminal.
+2. [testing](testing.md) — follow the steps. They exercise every feature
+   in about an hour.
+3. [oled_protocol](oled_protocol.md) — when you write a client, or when
+   you extend the Actor.
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `oled.py` | Interfaces `OLED` and `OLEDApplets`, `OLEDImpl`, the `aiko_oled` command line |
-| `display.py` | Display backends: SSD1306 over I2C (luma.oled), pygame window, terminal, PNG file, none, fake |
+| `oled.py` | The Interfaces `OLED` and `OLEDApplets`, `OLEDImpl`, and the `aiko_oled` command line |
+| `display.py` | The display backends: SSD1306 over I2C (luma.oled), pygame window, terminal, PNG file, none, fake |
 | `graphics.py` | The 5x7 font, image helpers, the bottom-left `Canvas`, the title row |
-| `applets.py` | The `Applet` base class and registry; `status` (the default), `log`, `help`, `pattern`, `text`, `blink`, `demo` |
+| `applets.py` | The `Applet` base class and registry: `status` (the default), `log`, `help`, `pattern`, `text`, `blink`, `demo` |
 | `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` |
 | `drawings.py` | `draw`: pencil-sketched cartoon scenes |
-| `faces.py` | `clock`: an analog clock face; `eyes`: animated eyes with emotions |
+| `faces.py` | `clock`: an analog clock face. `eyes`: animated eyes with emotions |
 | `console.py` | `aiko_oled keys`: the interactive console |
-| `aiko_oled.service` | systemd unit for a Raspberry Pi |
-| `oled_test.py` | The original standalone spike, kept unchanged for reference |
+| `aiko_oled.service` | A systemd unit for a Linux SBC: the display comes up with the host |
+| `oled_test.py` | The original standalone spike, kept unchanged for reference. No module imports it |
+| `tests/unit/test_oled.py`, `test_oled_cli.py`, `test_oled_applets.py` | 86 unit tests: graphics, displays, the Actor, dispatch, settings, the command line, the applets. No broker and no panel needed |
+
+## Status
+
+Epic 0 is complete (2026-09-26): the Actor, the status display, the
+settings, the applets, the console, the tests and these documents. It
+is verified on macOS (Python 3.12, emulated displays) and on a Linux SBC
+(a Raspberry Pi, Python 3.13, the panel at 0x3C). Epic 1 waits for the
+technical lead's review: a Dashboard plug-in for `oled:0`, a remote
+display abstraction, and convergence with aiko_engine_mp.
+
+## Related documentation
+
+- [Actor](../../concepts/actor.md) — the Actor and remote commands
+- [Service](../../concepts/service.md) — protocol `oled:0` and
+  discovery
+- [Share](../../concepts/share.md) — the settings and the observations
+- [Dashboard](../../concepts/dashboard.md) — editing the settings
+- [XGO robot example](../xgo_robot/ReadMe.md) — another hardware Actor
+  on an SBC

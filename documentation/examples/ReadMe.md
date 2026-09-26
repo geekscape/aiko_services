@@ -3,13 +3,13 @@ title: Aiko Services Examples documentation
 description: Index of OKF concept documents for the example applications
   in src/aiko_services/examples/ — from the AlohaHonua hello-world Actor
   tutorial through Pipeline teaching examples to computer vision, speech,
-  LLM, Google Colab and robot applications
+  LLM, Google Colab, robot and OLED display applications
 type: index
 audience: [developers, end-users]
 status: draft
 ste: adapted
-version: "0.6"
-last_updated: 2026-08-01
+version: "0.8-dev"
+last_updated: 2026-09-26
 ---
 
 # Aiko Services: Examples documentation
@@ -37,7 +37,7 @@ Concepts and PipelineElements documentation
 | Package | Contents |
 |---------|----------|
 | [aloha_honua/](aloha_honua/ReadMe.md) | The graduated four-stage hello-world Actor tutorial — plain Actor, discovery client, remote stop, request/response |
-| [oled/](oled/ReadMe.md) | SSD1306 OLED display Actor — a status display for headless hosts, an aiko_engine_mp compatible canvas, settings in the shared state, emulated on a desktop |
+| [oled/](oled/ReadMe.md) | SSD1306 OLED display Actor — a status display for headless hosts, an aiko_engine_mp compatible canvas, settings in the shared state, applets, a keys console, emulated on a desktop, with a test guide and unit tests |
 | [pipeline/](pipeline/ReadMe.md) | Teaching Pipelines — local and remote deployment, Graph Paths, frame data encode/decode, plus the multitude/ scale stress tests |
 | [colab/](colab/ReadMe.md) | Google Colab integration — running Pipelines inside a notebook with browser camera, microphone and speaker widgets |
 | [speech/](speech/ReadMe.md) | Speech processing — microphone capture, WhisperX transcription, Coqui text-to-speech and the speech-to-LLM round trip |
@@ -67,6 +67,10 @@ Concepts and PipelineElements documentation
 - **Speech and language**: [speech/](speech/ReadMe.md) then
   [llm/](llm/ReadMe.md) — three cooperating Pipelines forming a
   voice-in, voice-out LLM loop.
+- **Headless hosts and small displays**: [oled/](oled/ReadMe.md) — an
+  Actor that shows the host's status on an OLED, with its settings in
+  the [shared state](../concepts/share.md) for the Dashboard. Its
+  [test guide](oled/testing.md) runs on a desktop without hardware.
 - **Distributed systems**:
   [system_pipelines/](system_pipelines/ReadMe.md) for
   [ProcessManager](../concepts/process_manager.md) bootstrap, and
@@ -76,13 +80,14 @@ Concepts and PipelineElements documentation
 ## Status
 
 The examples are working material for a framework under active
-development (version 0.6) and vary widely in maturity: aloha_honua and
-pipeline are current and instructive. Colab, speech, llm and the robot
-examples mix working code with stubs, mocks and work-in-progress. Each
-document separates implemented behavior from planned behavior, based on
-the source code as of 2026-07-06. No example package has automated
-tests, and several depend on hardware (microphone, webcam, CUDA GPU,
-XGO-Mini robot) or external services (Ollama, Google Colab).
+development and vary widely in maturity: aloha_honua, pipeline and oled
+are current and instructive. Colab, speech, llm and the robot examples
+mix working code with stubs, mocks and work-in-progress. Each document
+separates implemented behavior from planned behavior, based on the
+source code as of 2026-07-06 (oled: 2026-09-26). Only the oled package
+has automated tests: 86 unit tests that need no hardware. Several
+packages depend on hardware (microphone, webcam, CUDA GPU, XGO-Mini
+robot, an SSD1306 OLED) or external services (Ollama, Google Colab).
 
 ## Related documentation
 
