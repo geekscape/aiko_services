@@ -11,9 +11,10 @@ import aiko_services as aiko
 from aiko_services.main.utilities import get_hostname
 
 from aiko_services.actors.display import PROTOCOL, SETTINGS, WIRE_COMMANDS
-from aiko_services.actors.display import display as oled_module
+from aiko_services.actors.display import cli as cli_module
 from aiko_services.actors.display.outputs import fake_output
-from aiko_services.actors.display.display import _service_filter, main
+from aiko_services.actors.display.cli import main
+from aiko_services.actors.display.display import service_filter
 
 SUBCOMMANDS = ("run", "exit", "list", "clear", "log", "text", "pixels", "line",
                "set", "applet", "stop", "key", "keys", "mirror")
@@ -38,8 +39,8 @@ def remote(monkeypatch):
         seen["interface"], seen["filter"] = interface, service_filter
         command_handler(proxy)
 
-    monkeypatch.setattr(oled_module.aiko, "do_command", do_command)
-    monkeypatch.setattr(oled_module, "_start_timeout", lambda *args: None)
+    monkeypatch.setattr(cli_module.aiko, "do_command", do_command)
+    monkeypatch.setattr(cli_module, "_start_timeout", lambda *args: None)
     monkeypatch.setattr(aiko.process, "run", lambda *args, **kwargs: None)
     proxy.seen = seen
     return proxy
@@ -91,10 +92,10 @@ def test_bad_arguments_are_rejected(args):
     assert result.exit_code == 2, result.output
 
 def test_service_filter_defaults_to_the_hostname():
-    service_filter = _service_filter(None)
-    assert service_filter.name == get_hostname()
-    assert service_filter.protocol == PROTOCOL
-    assert _service_filter("w3029f1").name == "w3029f1"
+    filter_ = service_filter(None)
+    assert filter_.name == get_hostname()
+    assert filter_.protocol == PROTOCOL
+    assert service_filter("w3029f1").name == "w3029f1"
 
 def test_remote_commands_send_the_wire_command(remote):
     assert invoke("text", "0", "8", "hello", "world").exit_code == 0
@@ -134,8 +135,8 @@ def test_set_publishes_an_update_on_the_control_topic(monkeypatch):
     def do_discovery(interface, service_filter, add_handler=None, remove_handler=None):
         add_handler(("aiko/pi/1234/1", "pi", PROTOCOL, "mqtt", "me", []), None)
 
-    monkeypatch.setattr(oled_module.aiko, "do_discovery", do_discovery)
-    monkeypatch.setattr(oled_module, "_start_timeout", lambda *args: None)
+    monkeypatch.setattr(cli_module.aiko, "do_discovery", do_discovery)
+    monkeypatch.setattr(cli_module, "_start_timeout", lambda *args: None)
     monkeypatch.setattr(aiko.process, "message", Message())
     monkeypatch.setattr(aiko.process, "run", lambda *args, **kwargs: None)
     monkeypatch.setattr(aiko.process, "terminate", lambda *args: None)
@@ -146,7 +147,7 @@ def test_set_publishes_an_update_on_the_control_topic(monkeypatch):
 
 def test_run_composes_the_actor_and_blanks_on_exit(monkeypatch):
     display = fake_output()
-    monkeypatch.setattr(oled_module, "choose_output", lambda *args: display)
+    monkeypatch.setattr(cli_module, "choose_output", lambda *args: display)
     monkeypatch.setattr(aiko.process, "run",
         lambda *args, **kwargs: (_ for _ in ()).throw(SystemExit(0)))
     result = invoke("-n", "oled_cli_test", "run", "-o", "none", "--standalone",
@@ -157,8 +158,8 @@ def test_run_composes_the_actor_and_blanks_on_exit(monkeypatch):
 
 def test_run_strict_reports_a_missing_display(monkeypatch):
     display = fake_output(fail_open=True)
-    monkeypatch.setattr(oled_module, "choose_output", lambda *args: display)
-    monkeypatch.setattr(oled_module, "scan_i2c", lambda *args: [0x3D])
+    monkeypatch.setattr(cli_module, "choose_output", lambda *args: display)
+    monkeypatch.setattr(cli_module, "scan_i2c", lambda *args: [0x3D])
     result = invoke("-n", "oled_cli_strict", "run", "-o", "none", "--strict")
     assert result.exit_code == 1
     assert "fake output told to fail" in result.output

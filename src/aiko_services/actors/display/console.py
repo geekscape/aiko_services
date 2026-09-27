@@ -42,7 +42,7 @@ from aiko_services.main.utilities import get_hostname
 
 from aiko_services.actors.display.keys import ARROWS
 from aiko_services.actors.display.display import (
-    Display, Interaction, _service_filter,
+    Display, Interaction, service_filter,
 )
 
 __all__ = ["Keyboard", "KeysConsole"]
@@ -91,7 +91,7 @@ class Keyboard:
         self.termios.tcsetattr(sys.stdin, self.termios.TCSADRAIN, self.saved)
 
 class KeysConsole:
-    """The interactive console for one OLED Actor"""
+    """The interactive console for one display Actor"""
 
     def __init__(self, name, timeout):
         self.name = name or get_hostname()
@@ -109,7 +109,7 @@ class KeysConsole:
             raise click.UsageError("keys needs a terminal (stdin isn't one)")
         try:
             aiko.event.add_timer_handler(self._timed_out, self.timeout)
-            aiko.do_discovery(Interaction, _service_filter(self.name),
+            aiko.do_discovery(Interaction, service_filter(self.name),
                 self._found, self._lost)
             aiko.process.run()
         finally:
@@ -121,7 +121,7 @@ class KeysConsole:
     def _timed_out(self):
         aiko.event.remove_timer_handler(self._timed_out)
         if self.topic_path is None:
-            click.echo(f"Timeout after {self.timeout:g} s: no OLED Actor named {self.name}", err=True)
+            click.echo(f"Timeout after {self.timeout:g} s: no display Actor named {self.name}", err=True)
             aiko.process.terminate(1)
 
     def _found(self, service_details, service):
@@ -132,12 +132,12 @@ class KeysConsole:
         self.display = aiko.get_service_proxy(f"{self.topic_path}/in", Display)
         aiko.compose_instance(aiko.ECConsumerImpl, aiko.ec_consumer_args(
             aiko.process, 0, self.cache, f"{self.topic_path}/control"))
-        click.echo(f"OLED Actor {service_details[1]}: {self.topic_path}  (? for the keys)")
+        click.echo(f"display Actor {service_details[1]}: {self.topic_path}  (? for the keys)")
         aiko.event.add_timer_handler(self._poll, POLL_PERIOD)
 
     def _lost(self, service_details):
         if service_details[0] == self.topic_path:
-            click.echo(f"\r\nOLED Actor {self.name} has gone")
+            click.echo(f"\r\ndisplay Actor {self.name} has gone")
             aiko.process.terminate()
 
     # Keys ----------------------------------------------------------------- #
@@ -159,7 +159,7 @@ class KeysConsole:
             aiko.process.terminate()
         elif key == "X":
             self.confirm_exit = True
-            click.echo("\r\nExit the OLED Actor?  y to confirm", nl=False)
+            click.echo("\r\nExit the display Actor?  y to confirm", nl=False)
         else:
             self.interaction.key(key, "tap")    # the Actor's key map decides
 

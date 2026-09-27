@@ -15,11 +15,11 @@
 from aiko_services.actors.display.display import (  # noqa: F401
     ASPECT_TAGS, Canvas, Display, DisplayImpl, Interaction, PROTOCOL,
     PROTOCOL_TYPE, SETTINGS, SETTINGS_SPEC, Screen, WIRE_COMMANDS,
-    service_tags,
+    service_filter, service_tags,
 )
 
 __all__ = [
     "ASPECT_TAGS", "Canvas", "Display", "DisplayImpl", "Interaction",
     "PROTOCOL", "PROTOCOL_TYPE", "SETTINGS", "SETTINGS_SPEC", "Screen",
-    "WIRE_COMMANDS", "service_tags",
+    "WIRE_COMMANDS", "service_filter", "service_tags",
 ]
