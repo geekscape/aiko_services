@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 #
-# Aiko Services: OLED Actor
-# ~~~~~~~~~~~~~~~~~~~~~~~~~
-# An SSD1306 128x64 OLED as an Actor: a canvas that any client draws on
-# with the same S-expressions the MicroPython aiko_engine_mp OLED accepts,
-# settings that the Aiko Dashboard reads and writes, and applets that
-# run on the display, above all a status display for headless hosts.  On a
-# desktop without the panel, the OLED is emulated in a window, in the
-# terminal or in a PNG file.
+# Aiko Services: OLED display Actor
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# An SSD1306 128x64 OLED as a display Actor (protocol "display:0"): a
+# canvas that any client draws on with the same S-expressions the
+# MicroPython aiko_engine_mp OLED accepts, settings that the Aiko Dashboard
+# reads and writes, and applets that run on the display, above all a
+# status display for headless hosts.  On a desktop without the panel, the
+# OLED is emulated in a window, in the terminal or in a PNG file.
+#
+# The protocol is the composite of three aspect Interfaces, each advertised
+# as a tag (canvas=0 screen=0 interaction=0) beside device=oled:
+#   Canvas       drawing: clear log pixel pixels line text
+#   Screen       the screen: its settings in the shared state (mirror: Epic 1)
+#   Interaction  what runs on the display: applet, key (the key map is here)
 #
 # Usage
 # ~~~~~
@@ -32,14 +38,16 @@
 #   (pixels X Y X Y ...)        (oled:pixels ..) light pixels, at most 256 pairs
 #   (line X0 Y0 X1 Y1)                           draw a line
 #   (text X Y WORDS ...)        (oled:text ...)  write text, cell bottom-left at (X, Y)
-#   (exit)                                       blank the display and terminate
+#   (exit)                      = (stop)         blank the display and terminate
 #   (applet NAME [ARGS ...])                run an applet; "none" shows the canvas
-#   (key NAME [tap|down|up])                     a key for the running applet
+#   (key NAME [tap|down|up])                     a key in the map runs its preset,
+#                                                any other goes to the applet
 #   Anything else on the "in" topic is rejected (P12), including "(run)".
 #
 # Shared state (aiko_dashboard shows it; the RW keys can be edited there)
 # ~~~~~~~~~~~~
-#   backend device size origin connection applets applet(RW)
+#   backend device panels size origin depth settings keys.* connection
+#   applets applet(RW)
 #   applet_detail fps speed(RW) font(RW) contrast(RW) invert(RW)
 #   power(RW) all_on(RW) title(RW: text, on, off) blank_after(RW)
 #   foreground(RW) background(RW: colors of an emulated display) heartbeat
@@ -54,7 +62,7 @@
 # Coordinates: origin bottom-left, y upwards (aiko_engine_mp compatible);
 # the only y flip is graphics.Canvas._device_y()
 #
-# Protocol: oled:0
+# Protocol: display:0 (aspects canvas:0 screen:0 interaction:0)
 #
 # To Do
 # ~~~~~
@@ -63,6 +71,7 @@
 
 from abc import abstractmethod
 import collections
+from typing import NamedTuple
 import os
 import random
 import re
@@ -89,22 +98,24 @@ from aiko_services.examples.oled.display import (
     parse_colors, scan_i2c,
 )
 from aiko_services.examples.oled.graphics import (
-    HEIGHT, WIDTH, Canvas, parse_font_size, title_strip,
+    HEIGHT, WIDTH, FrameBuffer, parse_font_size, title_strip,
 )
 from aiko_services.examples.oled import keys as keymap  # the emulator window's keys
 
 __all__ = [
-    "OLED", "OLEDApplets", "OLEDImpl", "PROTOCOL", "PROTOCOL_TYPE",
-    "SETTINGS", "WIRE_COMMANDS", "main",
+    "ASPECT_TAGS", "Canvas", "Display", "Interaction", "OLEDImpl", "PROTOCOL",
+    "PROTOCOL_TYPE", "SETTINGS", "SETTINGS_SPEC", "Screen", "Setting",
+    "WIRE_COMMANDS", "main", "service_tags",
 ]
 
 _VERSION = 0
-PROTOCOL_TYPE = "oled"
+PROTOCOL_TYPE = "display"
 PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/{PROTOCOL_TYPE}:{_VERSION}"
 
 # aiko_engine_mp names its commands "oled:clear" etc: the same methods
 _ALIASES = {f"oled:{name}": name
     for name in ("clear", "log", "pixel", "pixels", "text")}
+_ALIASES["exit"] = "stop"       # the framework's stop() terminates; the CLI blanks
 
 LOG_LINES = 8                 # the log ring: oldest line dropped
 PIXEL_PAIRS_MAXIMUM = 256     # per (pixels ...) command
@@ -126,9 +137,46 @@ DEFAULT_APPLET = "status"
 
 # Settings: shared state that anyone may write with "(update KEY VALUE)" on
 # the control topic; the change handler applies them through one setter each
-SETTINGS = ("applet", "contrast", "invert", "power", "all_on", "title",
-            "font", "speed", "blank_after", "foreground", "background")
 DEFAULT_COLORS = ("white", "black")  # of an emulated display: lit, unlit
+
+class Setting(NamedTuple):
+    """One declared setting: what the share key accepts.  The kinds: int
+    and float (low..high), flag (on/off), applet, title, font, color"""
+
+    name: str
+    kind: str
+    default: str
+    low: float
+    high: float
+    values: str        # the grammar, for help
+    description: str
+
+# The settings, declared once: the "settings" share key, the setters, the
+# help and the tests derive from this table (the shape of Pipeline
+# Parameters: declared names with defaults, overridden live through share)
+SETTINGS_SPEC = (
+    Setting("applet", "applet", DEFAULT_APPLET, None, None,
+            "NAME[,ARG,...] | none", "run an applet, or show the canvas"),
+    Setting("contrast", "int", "255", 0, 255, "0..255", "brightness"),
+    Setting("invert", "flag", "off", None, None, "on | off", "inverse video"),
+    Setting("power", "flag", "on", None, None, "on | off", "display sleep (blank)"),
+    Setting("all_on", "flag", "off", None, None, "on | off",
+            "every pixel lit: a hardware test"),
+    Setting("title", "title", "", None, None, "TEXT | on | off",
+            "the title row; off: the whole panel"),
+    Setting("font", "font", "5x7", None, None, "5x7 | 6..64",
+            "the font: 5x7 bitmap, or TrueType size"),
+    Setting("speed", "float", "1", SPEED_MINIMUM, SPEED_MAXIMUM, "0.1..10",
+            "multiplies every applet's frame rate"),
+    Setting("blank_after", "int", "0", 0, BLANK_AFTER_MAXIMUM, "SECONDS (0: never)",
+            "sleep the display after inactivity; any command wakes it"),
+    Setting("foreground", "color", DEFAULT_COLORS[0], None, None, "COLOR | default",
+            "lit pixels of an emulated display"),
+    Setting("background", "color", DEFAULT_COLORS[1], None, None, "COLOR | default",
+            "unlit pixels; default: as started (-c)"),
+)
+SETTINGS = tuple(setting.name for setting in SETTINGS_SPEC)
+SETTINGS_BY_NAME = {setting.name: setting for setting in SETTINGS_SPEC}
 
 # --------------------------------------------------------------------------- #
 
@@ -181,18 +229,20 @@ def _words(words):
 
 # --------------------------------------------------------------------------- #
 
-class OLED(aiko.Actor):
+class Canvas(aiko.Interface):
     """
-    A 128x64 one-bit canvas on an OLED, wire-compatible with the
-    aiko_engine_mp (MicroPython) OLED: "(oled:text ...)" and "(text ...)"
-    are the same command.  Coordinates have their origin at the bottom-left,
-    y upwards.  Every method is one-way: a rejected command changes
-    nothing but "metrics.rejected" and "last_error" in the shared state.
-    Drawing on the canvas stops any running applet, except "log",
-    whose lines the status applet shows itself.
+    Drawing on a canvas: a one-bit frame buffer of "size" pixels, origin
+    bottom-left and y upwards, wire-compatible with the aiko_engine_mp
+    (MicroPython) OLED: "(oled:text ...)" and "(text ...)" are the same
+    command.  Every method is one-way: a rejected command changes nothing
+    but "metrics.rejected" and "last_error" in the shared state.  Drawing
+    stops any running applet, except "log", whose lines the status applet
+    shows itself.  Share: font and title (RW); size, origin, depth,
+    log_count, log_pending.
     """
 
-    aiko.Interface.default("OLED", "aiko_services.examples.oled.oled.OLEDImpl")
+    PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/canvas:{_VERSION}"
+    aiko.Interface.default("Canvas", "aiko_services.examples.oled.oled.OLEDImpl")
 
     @abstractmethod
     def clear(self):
@@ -210,8 +260,8 @@ class OLED(aiko.Actor):
 
     @abstractmethod
     def pixel(self, x, y):
-        """Light one pixel: x 0..127 left to right, y 0..63 bottom to top.
-        Wire form: "(pixel X Y)" or "(oled:pixel X Y)".
+        """Light one pixel: x 0..width-1 left to right, y 0..height-1
+        bottom to top.  Wire form: "(pixel X Y)" or "(oled:pixel X Y)".
         Rejected when out of range.  Projection: command"""
 
     @abstractmethod
@@ -232,22 +282,31 @@ class OLED(aiko.Actor):
         font.  Wire form: "(text X Y WORDS ...)" or "(oled:text ...)".
         Projection: command"""
 
-    @abstractmethod
-    def exit(self):
-        """Blank the display and terminate the process.
-        Wire form: "(exit)".  Projection: command"""
-
-class OLEDApplets(aiko.Interface):
+class Screen(aiko.Interface):
     """
-    The higher-level features: applets are sources of frames that the
-    Actor runs on the display (status, games, drawings, demo ...), listed
-    in share "applets".  Their settings (speed, font) and everything
-    else about the display are shared state, written with
-    "(update KEY VALUE)" on the control topic: see SETTINGS.
+    Controlling the screen: its settings are shared state, written with
+    "(update KEY VALUE)" on the control topic (see SETTINGS_SPEC): contrast,
+    invert, power, all_on, blank_after, foreground, background.  Observed:
+    backend, device, panels, fps, metrics.frames, metrics.frame_ms.  The
+    leased frame mirror "(mirror TOPIC SECONDS)" joins this aspect in
+    Epic 1 phase 2.
     """
 
+    PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/screen:{_VERSION}"
+    aiko.Interface.default("Screen", "aiko_services.examples.oled.oled.OLEDImpl")
+
+class Interaction(aiko.Interface):
+    """
+    Controlling what runs on the display: applets are sources of frames
+    that the Actor runs (status, games, drawings, demo ...), listed in
+    share "applets"; keys reach the running applet, or run the display's
+    own key map (share "keys.*").  Share: applet and speed (RW); applets,
+    applet_detail.
+    """
+
+    PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/interaction:{_VERSION}"
     aiko.Interface.default(
-        "OLEDApplets", "aiko_services.examples.oled.oled.OLEDImpl")
+        "Interaction", "aiko_services.examples.oled.oled.OLEDImpl")
 
     @abstractmethod
     def applet(self, name, *args):
@@ -259,15 +318,47 @@ class OLEDApplets(aiko.Interface):
 
     @abstractmethod
     def key(self, name, state="tap"):
-        """A key for the running applet: NAME is "up", "down", "left",
-        "right" or one character; STATE is "tap" (default: held briefly),
-        "down" or "up".  Wire form: "(key NAME [STATE])".
-        Projection: command"""
+        """A key: NAME is "up", "down", "left", "right" or one character;
+        STATE is "tap" (default: held briefly), "down" or "up".  A key in
+        the display's key map (share "keys.*") runs its preset or changes
+        its setting, on "tap" or "down"; any other key goes to the running
+        applet.  Wire form: "(key NAME [STATE])".  Projection: command"""
 
-# The commands accepted on the "in" topic: the Interfaces' methods, plus the
+class Display(aiko.Actor, Canvas, Screen, Interaction):
+    """
+    A display: the composite of the Canvas, Screen and Interaction aspects,
+    the registered protocol "display:0".  No methods of its own beyond the
+    Actor's; the aspects are advertised as tags (see ASPECT_TAGS).  Share:
+    connection, heartbeat, last_error, settings, metrics.commands,
+    metrics.rejected, metrics.errors.
+    """
+
+    PROTOCOL = PROTOCOL
+    aiko.Interface.default("Display", "aiko_services.examples.oled.oled.OLEDImpl")
+
+ASPECTS = (Canvas, Screen, Interaction)
+
+def _aspect_tag(aspect):
+    """"canvas=0" from the aspect's contract id ".../canvas:0" """
+
+    name, _, version = aspect.PROTOCOL.rpartition("/")[2].partition(":")
+    return f"{name}={version}"
+
+# The aspects, advertised as Service tags until the Registrar matches
+# several protocols per Service
+ASPECT_TAGS = tuple(_aspect_tag(aspect) for aspect in ASPECTS)
+
+def service_tags(device):
+    """The tags the Actor registers with: shared state, the device kind
+    (the display backend's name) and the aspects"""
+
+    return ["ec=true", f"device={device}", *ASPECT_TAGS]
+
+# The commands accepted on the "in" topic: the abstract methods of the
+# aspects (never the framework's Actor and Service methods), plus the
 # framework's log level and stop (P12: deny by default)
 WIRE_COMMANDS = frozenset(name
-    for interface in (OLED, OLEDApplets)
+    for interface in ASPECTS
     for name, member in vars(interface).items()
     if getattr(member, "__isabstractmethod__", False)
     and not name.startswith("_")) | {"set_log_level", "stop"}
@@ -321,7 +412,7 @@ class _Host(Host):
         if name in ("contrast", "invert", "power", "all_on", "font", "speed"):
             self._actor._setters[name](str(value))
 
-class OLEDImpl(OLED, OLEDApplets):
+class OLEDImpl(Display):
     def __init__(self, context):
         context.call_init(self, "Actor", context)
         parameters = context.get_parameters() or {}
@@ -331,7 +422,7 @@ class OLEDImpl(OLED, OLEDApplets):
         self._reopening = False
         self._strict = bool(parameters.get("strict", False))
         self._font = parse_font_size(parameters.get("font", "5x7"))
-        self._canvas = Canvas(self._font)
+        self._canvas = FrameBuffer(self._font)
         colors = [str(color) for color in (parameters.get("colors") or ()) if color]
         self._start_colors = {           # what "default" means for a color
             "foreground": colors[0] if colors else DEFAULT_COLORS[0],
@@ -367,38 +458,28 @@ class OLEDImpl(OLED, OLEDApplets):
         self._title_saved = self._title_text or self.name  # what "title on" restores
         self._canvas.title_rows = self._font.cell_height if self._title_text else 0
 
-        self._setters = {
-            "applet": self._set_applet,
-            "contrast": self._set_contrast,
-            "invert": lambda value: self._set_flag("invert", value),
-            "power": lambda value: self._set_flag("power", value),
-            "all_on": lambda value: self._set_flag("all_on", value),
-            "title": self._set_title,
-            "font": self._set_font,
-            "speed": self._set_speed,
-            "blank_after": self._set_blank_after,
-            "foreground": lambda value: self._set_color("foreground", value),
-            "background": lambda value: self._set_color("background", value),
-        }
+        self._setters = {setting.name: (lambda value, setting=setting:
+                                        self._apply_setting(setting, value))
+                         for setting in SETTINGS_SPEC}
         self.share.update({
             "source_file": f"v{_VERSION}⇒ {__file__}",
             "backend": self._display.name,
             "device": "-",
+            "panels": "-",
             "size": f"{WIDTH}x{HEIGHT}",
             "origin": "bottom",
+            "depth": "1",
+            "settings": ",".join(SETTINGS),
+            "keys": keymap.legend(),
             "connection": _token(aiko.process.connection.get_state()),
             "applets": ",".join(sorted(APPLETS)) or "none",
             "applet": "none",
             "applet_detail": "-",
             "fps": "0",
-            "speed": "1",
+            **{setting.name: setting.default for setting in SETTINGS_SPEC
+               if setting.kind in ("int", "flag", "float")},
             "font": self._font.token(),
-            "contrast": "255",
-            "invert": "off",
-            "power": "on",
-            "all_on": "off",
             "title": _token(title) if self._title_text else "off",
-            "blank_after": "0",
             "foreground": self._start_colors["foreground"],
             "background": self._start_colors["background"],
             "heartbeat": "0",
@@ -435,7 +516,7 @@ class OLEDImpl(OLED, OLEDApplets):
             return self._reject("dispatch", "unknown_command", str(command)[:40])
         self._post_message(aiko.ActorTopic.IN, command, parameters)
 
-    # Wire commands: OLED (the canvas) -------------------------------------- #
+    # Wire commands: Canvas -------------------------------------- #
 
     def clear(self):
         self._canvas_command()
@@ -504,12 +585,7 @@ class OLEDImpl(OLED, OLEDApplets):
         self._canvas.text(x, y, line)
         self._present(self._canvas.image)
 
-    def exit(self):
-        self.logger.info(f"{self.name}: exit")
-        self._metrics["commands"] += 1
-        aiko.process.terminate()
-
-    # Wire commands: OLEDApplets --------------------------------------- #
+    # Wire commands: Interaction --------------------------------------- #
 
     def applet(self, name, *args):
         name = str(name)
@@ -550,6 +626,10 @@ class OLEDImpl(OLED, OLEDApplets):
             return self._reject("key", "state", state[:20])
         self._metrics["commands"] += 1
         self._wake()
+        if name in keymap.MAPPED_KEYS:       # the display's own key map
+            if state != "up":
+                self._run_key_map(name)
+            return
         if state == "up":
             self._held.pop(name, None)
         else:
@@ -586,13 +666,42 @@ class OLEDImpl(OLED, OLEDApplets):
     def _set_applet(self, value):
         self.applet(*str(value).split(","))
 
-    def _set_contrast(self, value):
-        try:
-            number = _int(value, "contrast", 0, 255)
+    def _apply_setting(self, setting, value):
+        """Apply a declared setting (SETTINGS_SPEC) by its kind; a bad value
+        is rejected and the value in force published again"""
+
+        kind, name = setting.kind, setting.name
+        if kind == "applet":
+            return self._set_applet(value)
+        if kind == "title":
+            return self._set_title(value)
+        if kind == "font":
+            return self._set_font(value)
+        if kind == "color":
+            return self._set_color(name, value)
+        if kind == "flag":
+            return self._set_flag(name, value)
+        if kind == "float":
+            try:
+                number = float(str(value))
+            except ValueError:
+                return self._reject_setting(name, f"{name}_not_number")
+            if not setting.low <= number <= setting.high:
+                return self._reject_setting(name, f"{name}_range")
+            if name == "speed":
+                self._speed = number
+            return self._settle(name, f"{number:g}")
+        try:                                             # kind == "int"
+            number = _int(value, name, setting.low, setting.high)
         except _Reject as reject:
-            return self._reject_setting("contrast", reject.reason)
-        self._control_display("contrast", number)
-        self._settle("contrast", str(number))
+            return self._reject_setting(name, reject.reason)
+        if name == "contrast":
+            self._control_display("contrast", number)
+        elif name == "blank_after":
+            self._blank_after = number
+            if not number:
+                self._wake()
+        self._settle(name, str(number))
 
     def _set_flag(self, key, value):
         try:
@@ -643,26 +752,6 @@ class OLEDImpl(OLED, OLEDApplets):
         self._settle("font", font.token())
         self._refresh()
 
-    def _set_speed(self, value):
-        try:
-            speed = float(str(value))
-        except ValueError:
-            return self._reject_setting("speed", "speed_not_number")
-        if not SPEED_MINIMUM <= speed <= SPEED_MAXIMUM:
-            return self._reject_setting("speed", "speed_range")
-        self._speed = speed
-        self._settle("speed", f"{speed:g}")
-
-    def _set_blank_after(self, value):
-        try:
-            seconds = _int(value, "blank_after", 0, BLANK_AFTER_MAXIMUM)
-        except _Reject as reject:
-            return self._reject_setting("blank_after", reject.reason)
-        self._blank_after = seconds
-        self._settle("blank_after", str(seconds))
-        if not seconds:
-            self._wake()
-
     def _set_color(self, key, value):
         """The colors of lit ("foreground") and unlit ("background") pixels
         on an emulated display (the OLED's color is fixed): a name such as
@@ -690,11 +779,18 @@ class OLEDImpl(OLED, OLEDApplets):
                 raise
             self.logger.warning(f"{self.name}: display {self._display.name}: {error}")
             self._note_error("display_not_found")
-            self.ec_producer.update("device", "absent")
+            self._set_device("absent")
             self._start_reopening()
             return
         self._display_ok = True
-        self.ec_producer.update("device", _token(self._display.device, 48))
+        self._set_device(_token(self._display.device, 48))
+
+    def _set_device(self, token):
+        """What is open: "device" summarizes, "panels" lists (one panel
+        until Epic 1 phase 4)"""
+
+        self.ec_producer.update("device", token)
+        self.ec_producer.update("panels", token)
 
     def _start_reopening(self):
         if not self._reopening:
@@ -712,7 +808,7 @@ class OLEDImpl(OLED, OLEDApplets):
         aiko.event.remove_timer_handler(self._reopen)
         self._reopening = False
         self._display_ok = True
-        self.ec_producer.update("device", _token(self._display.device, 48))
+        self._set_device(_token(self._display.device, 48))
         self.logger.info(f"{self.name}: display {self._display.name} back")
         self._control_display("contrast", int(self._applied["contrast"]))
         for key in ("invert", "power", "all_on"):
@@ -723,7 +819,7 @@ class OLEDImpl(OLED, OLEDApplets):
         self._display_ok = False
         self.logger.error(f"{self.name}: display {self._display.name} failed: {reason}")
         self._note_error("display_failed")
-        self.ec_producer.update("device", "absent")
+        self._set_device("absent")
         try:
             self._display.close(blank_first=False)
         except Exception:
@@ -844,14 +940,10 @@ class OLEDImpl(OLED, OLEDApplets):
         self.last_event_thread = threading.get_ident()
         now = time.monotonic()
         for event in self._display.poll():
-            if event == "quit":
-                self.exit()
+            if event == "quit" or (event[0] == "tap" and event[1] in ("x", "q", "X")):
+                self.stop()                   # the window's own exit keys
             else:
-                state, name = event
-                if state == "tap" and name not in KEY_NAMES:
-                    self._local_key(name)     # typed in the emulator window
-                else:
-                    self.key(name, state)
+                self.key(*reversed(event))    # (state, name) -> name, state
         applet = self._applet
         if applet is not None and now >= self._frame_due:
             period = 1.0 / (max(applet.fps, 0.001) * self._speed)
@@ -873,18 +965,13 @@ class OLEDImpl(OLED, OLEDApplets):
             self._blanked = True
             self._control_display("power", False)
 
-    def _local_key(self, key):
-        """A key typed in the emulator window: the same keys as the console
-        (keys.py), applied here.  x, q and X exit, as Esc does; a key that
-        means nothing in the key map goes to the running applet"""
+    def _run_key_map(self, key):
+        """A key in the key map (keys.py), run here on the device so that
+        every client sends the same "(key K)": its preset, or its setting"""
 
-        if key in ("x", "q", "X"):
-            return self.exit()
         state = self._local_keys
         commands = keymap.reset_commands(state) if key == "R"  \
             else keymap.key_command(key, state)
-        if not commands:
-            return self.key(key, "tap")
         for command in commands:
             if command[0] == "update":
                 self._setters[command[1]](command[2])
@@ -1122,7 +1209,8 @@ def run_command(options, output, address, bus, applet, font_size, title,
         "title": title, "strict": strict, "colors": color,
     }
     init_args = aiko.actor_args(
-        name, parameters=parameters, protocol=PROTOCOL, tags=["ec=true"])
+        name, parameters=parameters, protocol=PROTOCOL,
+        tags=service_tags(display.name))
     signal.signal(signal.SIGTERM, lambda *_: aiko.process.terminate())
     actor = None
     try:
@@ -1147,12 +1235,13 @@ def exit_command(options, every):
 
     The Actor named with -n (default: the local hostname).  -n '*' with
     --all exits every OLED Actor on the broker.  Exit status 1 after -t
-    seconds when no Actor answers.  The same as "(exit)" on the in topic.
+    seconds when no Actor answers.  The same as "(exit)", the framework's
+    "(stop)", on the in topic: the display blanks on the way out.
     """
 
     if options["name"] == "*" and not every:
         raise click.BadParameter("-n '*' would exit every OLED Actor: add --all")
-    _remote(OLED, options, lambda oled: oled.exit())
+    _remote(Display, options, lambda display: display.stop())
 
 @main.command(name="list")
 @click.pass_obj
@@ -1160,7 +1249,7 @@ def exit_command(options, every):
 def list_command(options):
     """List the running OLED Actors: name, topic path, tags
 
-    Every oled:0 Actor on the broker (or the one named with -n), collected
+    Every display:0 Actor on the broker (or the one named with -n), collected
     for -t seconds through the Registrar.  Exit status 1 when none is found:
     check AIKO_MQTT_HOST, that aiko_registrar runs, and for a stale retained
     Registrar announcement (see the test guide).
@@ -1180,7 +1269,7 @@ def list_command(options):
             click.echo("No OLED Actors found", err=True)
         aiko.process.terminate(0 if found else 1)
 
-    aiko.do_discovery(OLED,
+    aiko.do_discovery(Display,
         aiko.ServiceFilter("*", name, PROTOCOL, "*", "*", "*"), add_handler)
     aiko.event.add_timer_handler(done, timeout)
     aiko.process.run()
@@ -1197,7 +1286,7 @@ def clear_command(options):
     display back.  The same as "(clear)" or aiko_engine_mp's "(oled:clear)".
     """
 
-    _remote(OLED, options, lambda oled: oled.clear())
+    _remote(Canvas, options, lambda oled: oled.clear())
 
 @main.command(name="log", no_args_is_help=True)
 @click.argument("words", nargs=-1, required=True)
@@ -1214,11 +1303,11 @@ def log_command(options, words):
     The same as "(log WORDS ...)" or aiko_engine_mp's "(oled:log ...)".
     """
 
-    _remote(OLED, options, lambda oled: oled.log(*words))
+    _remote(Canvas, options, lambda oled: oled.log(*words))
 
 @main.command(name="text", no_args_is_help=True)
-@click.argument("x", type=click.IntRange(0, WIDTH - 1))
-@click.argument("y", type=click.IntRange(0, HEIGHT - 1))
+@click.argument("x", type=int)
+@click.argument("y", type=int)
 @click.argument("words", nargs=-1, required=True)
 
 @click.pass_obj
@@ -1234,7 +1323,7 @@ def text_command(options, x, y, words):
     The same as "(text X Y WORDS ...)" or "(oled:text ...)".
     """
 
-    _remote(OLED, options, lambda oled: oled.text(x, y, *words))
+    _remote(Canvas, options, lambda oled: oled.text(x, y, *words))
 
 @main.command(name="pixels", no_args_is_help=True)
 @click.argument("coordinates", nargs=-1, type=int, required=True)
@@ -1252,13 +1341,13 @@ def pixels_command(options, coordinates):
     if len(coordinates) % 2 or len(coordinates) > 2 * PIXEL_PAIRS_MAXIMUM:
         raise click.BadParameter(
             f"give X Y pairs, at most {PIXEL_PAIRS_MAXIMUM} of them")
-    _remote(OLED, options, lambda oled: oled.pixels(*coordinates))
+    _remote(Canvas, options, lambda oled: oled.pixels(*coordinates))
 
 @main.command(name="line", no_args_is_help=True)
-@click.argument("x0", type=click.IntRange(0, WIDTH - 1))
-@click.argument("y0", type=click.IntRange(0, HEIGHT - 1))
-@click.argument("x1", type=click.IntRange(0, WIDTH - 1))
-@click.argument("y1", type=click.IntRange(0, HEIGHT - 1))
+@click.argument("x0", type=int)
+@click.argument("y0", type=int)
+@click.argument("x1", type=int)
+@click.argument("y1", type=int)
 
 @click.pass_obj
 
@@ -1268,7 +1357,7 @@ def line_command(options, x0, y0, x1, y1):
     The same as "(line X0 Y0 X1 Y1)" (not in aiko_engine_mp).
     """
 
-    _remote(OLED, options, lambda oled: oled.line(x0, y0, x1, y1))
+    _remote(Canvas, options, lambda oled: oled.line(x0, y0, x1, y1))
 
 @main.command(name="set", no_args_is_help=True)
 @click.argument("key", type=click.Choice(SETTINGS))
@@ -1283,21 +1372,6 @@ def set_command(options, key, value):
     the Dashboard does when a variable is edited.  A bad value is rejected
     (last_error tells why) and the value in force is published again.
     Values are single tokens: _ stands for a space in a title.
-
-    \b
-    KEY          VALUE                     MEANING
-    applet       NAME[,ARG,...] | none     run an applet, or show the canvas
-    contrast     0..255                    brightness
-    invert       on | off                  inverse video
-    power        on | off                  display sleep (blank)
-    all_on       on | off                  every pixel lit: a hardware test
-    title        TEXT | on | off           the title row; off: the whole panel
-    font         5x7 | 6..64               the font: 5x7 bitmap, or TrueType size
-    speed        0.1..10                   multiplies every applet's frame rate
-    blank_after  SECONDS (0: never)        sleep the display after inactivity;
-                                           any command wakes it
-    foreground   COLOR | default           lit pixels of an emulated display
-    background   COLOR | default           unlit pixels; default: as started (-c)
     """
 
     if any(character.isspace() for character in value):
@@ -1312,7 +1386,7 @@ def set_command(options, key, value):
         aiko.process.terminate()
 
     _start_timeout(timeout, what)
-    aiko.do_discovery(OLED, _service_filter(name), add_handler)
+    aiko.do_discovery(Display, _service_filter(name), add_handler)
     aiko.process.run()
 
 @main.command(name="applet")
@@ -1336,7 +1410,7 @@ def applet_command(options, list_applets, applet_name, arguments):
         return
     if not applet_name:
         raise click.UsageError("give an applet name, or --list")
-    _remote(OLEDApplets, options,
+    _remote(Interaction, options,
         lambda oled: oled.applet(applet_name, *arguments))
 
 @main.command(name="stop")
@@ -1349,7 +1423,7 @@ def stop_command(options):
     The same as "aiko_oled applet none" or "(applet none)".
     """
 
-    _remote(OLEDApplets, options, lambda oled: oled.applet("none"))
+    _remote(Interaction, options, lambda oled: oled.applet("none"))
 
 @main.command(name="keys")
 
@@ -1378,16 +1452,18 @@ def keys_command(options):
 @click.pass_obj
 
 def key_command(options, key_name, state):
-    """Send a key to the running applet
+    """Send a key to the running display Actor
 
     KEY_NAME is up, down, left, right or one character; STATE is tap (held
-    briefly, the default), down or up.  forklift_game: left and right
-    drive, up and down lift; help: right and left turn the pages.  The
-    same as "(key NAME [STATE])"; "aiko_oled keys" sends these from the
-    keyboard.
+    briefly, the default), down or up.  A key in the Actor's key map runs its
+    preset or changes its setting ("key g" starts pong, "key 5" halves the
+    speed, "key R" resets); any other key goes to the running applet:
+    forklift_game: left and right drive, up and down lift; help: right and
+    left turn the pages.  The same as "(key NAME [STATE])"; "aiko_oled keys"
+    sends every key this way.
     """
 
-    _remote(OLEDApplets, options,
+    _remote(Interaction, options,
         lambda oled: oled.key(key_name, state))
 
 # --------------------------------------------------------------------------- #
@@ -1406,19 +1482,19 @@ def _applets_reference():
                                subsequent_indent=" " * (width + 4))
     return _block(lines)
 
-_SETTINGS_REFERENCE = _block([
-    "Settings  (aiko_oled set KEY VALUE, or (update KEY VALUE) on the control",
-    "           topic; the Aiko Dashboard edits them; a bad value converges back)",
-    "  applet       NAME[,ARG,...] | none   contrast     0..255",
-    "  invert       on | off                power        on | off",
-    "  all_on       on | off                title        TEXT | on | off",
-    "  font         5x7 | 6..64             speed        0.1..10",
-    "  blank_after  SECONDS (0: never)      foreground   COLOR | default",
-    "  background   COLOR | default         (colors of an emulated display)",
-])
+def _settings_reference():
+    lines = ["Settings  (aiko_oled set KEY VALUE, or (update KEY VALUE) on the control",
+             "           topic; the Aiko Dashboard edits them; a bad value converges back)"]
+    cells = [f"{setting.name:12} {setting.values}" for setting in SETTINGS_SPEC]
+    for left, right in zip(cells[0::2], cells[1::2] + [""]):
+        lines.append(f"  {left:37}{right}".rstrip())
+    return _block(lines)
+
+_SETTINGS_REFERENCE = _settings_reference()
 _STATE_REFERENCE = _block([
     "Shared state  (aiko_dashboard, or (share TOPIC SECONDS *) on control)",
-    "  backend device size origin connection applets applet applet_detail fps",
+    "  backend device panels size origin depth settings keys.* connection",
+    "  applets applet applet_detail fps",
     "  speed font contrast invert power all_on title blank_after foreground",
     "  background heartbeat last_error log_count log_pending metrics.commands",
     "  metrics.rejected metrics.frames metrics.frame_ms metrics.errors",
@@ -1432,9 +1508,10 @@ _WIRE_REFERENCE = _block([
     "  (pixels X Y X Y ...)     [(oled:pixels .)] at most 256 pairs",
     "  (line X0 Y0 X1 Y1)                         draw a line",
     "  (text X Y WORDS ...)     [(oled:text ..)]  text with its bottom-left at X Y",
-    "  (exit)                                     blank the display and terminate",
+    "  (exit)                   = (stop)          blank the display and terminate",
     "  (applet NAME [ARGS ...])                   run an applet; none: the canvas",
-    "  (key NAME [tap|down|up])                   a key for the running applet",
+    "  (key NAME [tap|down|up])                   a mapped key runs its preset,",
+    "                                             any other goes to the applet",
     "  Anything else is rejected (last_error, metrics.rejected).",
 ])
 
@@ -1448,7 +1525,9 @@ def _preset_text(commands):
     return " ".join(words)
 
 def _keys_reference():
-    lines = ["Keys in \"aiko_oled keys\"  (the same key again: the next preset)"]
+    lines = ["Keys  (the map lives on the Actor: \"(key K)\" from the console, the",
+             "       emulator window, the plug-in or \"aiko_oled key\"; the same key",
+             "       again: the next preset)"]
     for key, presets in keymap.PRESETS.items():
         text = " | ".join(_preset_text(preset) for preset in presets)
         lines += textwrap.wrap(text, width=75, initial_indent=f"  {key}  ",
@@ -1475,6 +1554,15 @@ main.commands["applet"].help = (
     "key=value options.  \"none\" shows the canvas; --list lists the applets without\n"
     "an Actor.  Every applet is deterministic for a seed= (no clocks, only frame\n"
     "counts); \"set speed\" changes their pace.\n\n" + _applets_reference())
+def _set_help():
+    rows = [f"{'KEY':12} {'VALUE':22} MEANING"]
+    for setting in SETTINGS_SPEC:
+        rows += textwrap.wrap(setting.description, width=76,
+            initial_indent=f"{setting.name:12} {setting.values:22} ",
+            subsequent_indent=" " * 36)
+    return main.commands["set"].help.rstrip() + "\n\n\b\n" + "\n".join(rows)
+
+main.commands["set"].help = _set_help()
 main.commands["keys"].help = (
     "Interactive console for the running OLED Actor: keys typed here become wire\n"
     "commands and settings, and a status line follows the Actor's shared state.\n"

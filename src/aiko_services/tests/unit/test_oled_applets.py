@@ -558,6 +558,14 @@ def lit_bands(image):
             bands.append([row, row])
     return bands
 
+def test_help_pages_list_every_setting():
+    from aiko_services.examples.oled import SETTINGS
+    page = " ".join(lines for heading, lines in
+                    ((heading, " ".join(lines)) for heading, lines in HelpApplet.PAGES)
+                    if heading == "Dashboard: set")
+    for name in SETTINGS:
+        assert name in page, name
+
 def test_clock_digital_face():
     host = RecordingHost()
     digital = ClockApplet(host, [], {"face": "digital"})

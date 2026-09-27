@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 #
-# Aiko Services: OLED key map
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# What each key does, for "aiko_oled keys" (the console in a terminal) and
-# for the emulator window (the same keys, typed into the pygame window).
-# Both call key_command() and act on the commands it returns: the console
-# sends them to the Actor over the wire, the Actor applies them itself.
-# Letters switch applets, and the same letter again steps to the next
-# preset (as the original oled_test.py stepped through each subcommand's
-# options); digits set the speed; other keys change settings.  Pure: no
-# I/O, so tests can check every key.
+# Aiko Services: display key map
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# What each key does.  The map lives on the device: the Actor's key()
+# runs a mapped key's preset, or changes its setting, and passes any other
+# key to the running applet.  Thus every client, the "aiko_oled keys"
+# console, the emulator window, the Dashboard plug-in and "aiko_oled key",
+# sends the same "(key K tap)" and gets the same result.  Letters switch
+# applets, and the same letter again steps to the next preset (as the
+# original oled_test.py stepped through each subcommand's options); digits
+# set the speed; other keys change settings.  legend() publishes the map
+# as the share keys "keys.*".  Pure: no I/O, so tests can check every key.
+#
+# Not part of the Interface composition pattern (ADR-022 category
+# Value and data types) — see e_10 §2.16: a data table owned by the Actor.
 #
 # Keys
 # ~~~~
@@ -28,8 +32,9 @@ from aiko_services.examples.oled.drawings import SUBJECTS
 from aiko_services.examples.oled.graphics import FONT_SIZES
 from aiko_services.examples.oled.status import STATUS_VIEWS
 
-__all__ = ["ARROWS", "BACKGROUNDS", "FOREGROUNDS", "KEY_APPLETS", "PRESETS",
-           "RESET", "applet", "key_command", "reset_commands", "update"]
+__all__ = ["ACTION_KEYS", "ARROWS", "BACKGROUNDS", "FOREGROUNDS", "KEY_APPLETS",
+           "MAPPED_KEYS", "PRESETS", "RESET", "applet", "key_command", "legend",
+           "reset_commands", "update"]
 
 ARROWS = {"A": "up", "B": "down", "C": "right", "D": "left"}  # the terminal's codes
 
@@ -72,6 +77,34 @@ PRESETS = {
                                                "sleepy", "suspicious", "curious", "loving")],
 }
 KEY_APPLETS = {key: presets[0][-1][1][0] for key, presets in PRESETS.items()}
+
+# The keys the map acts on: the device runs their presets or changes their
+# settings.  Any other key, the arrows above all, goes to the running applet
+ACTION_KEYS = frozenset("0123456789fFTioa+-bBcSR?")
+MAPPED_KEYS = frozenset(PRESETS) | ACTION_KEYS
+
+# What the action keys mean, as share tokens ("keys.KEY")
+_ACTIONS = {"S": "status_view", "digits": "speed", "f": "font_next",
+            "F": "font_previous", "T": "title", "i": "invert", "o": "power",
+            "a": "all_on", "plus": "contrast_up", "minus": "contrast_down",
+            "b": "foreground", "B": "background", "c": "clear", "R": "reset",
+            "arrows": "applet"}
+
+def legend():
+    """The key map as shared state: "keys.KEY" is the applets a key steps
+    through, joined by "|", or the setting it changes.  Single tokens, so
+    that a client of any display builds its legend from the share"""
+
+    entries = {}
+    for key, presets in PRESETS.items():
+        names = []
+        for preset in presets:
+            for command in preset:
+                if command[0] == "applet" and command[1][0] not in names:
+                    names.append(command[1][0])
+        entries[key] = "|".join(names)
+    entries.update(_ACTIONS)
+    return entries
 
 # "R": every setting back to its default; "default" for a color is the
 # color the Actor started with (-c), as the original oled_test.py reset to

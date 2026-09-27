@@ -3,13 +3,13 @@
 # Aiko Services: OLED graphics
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Pure drawing helpers for a 128x64 one-bit display: the classic 5x7 bitmap
-# font (or a TrueType font at a size in pixels), image helpers, the Canvas
+# font (or a TrueType font at a size in pixels), image helpers, the FrameBuffer
 # that the wire commands draw on, and the inverse-video title row.
 #
 # Coordinates: the wire protocol (and aiko_engine_mp) put the origin at the
 # BOTTOM-LEFT, y upwards.  PIL puts it at the top-left, y downwards.  The
-# only place the two meet is Canvas._device_y().  Applets draw PIL
-# frames directly and never use the Canvas.
+# only place the two meet is FrameBuffer._device_y().  Applets draw PIL
+# frames directly and never use the FrameBuffer.
 #
 # Not part of the Interface composition pattern (see ADR-022): pure
 # presentation helpers, no Service state.
@@ -25,7 +25,7 @@ from PIL import Image, ImageDraw, ImageFont
 __all__ = [
     "FONT_5X7", "FONT_SIZES", "FONT_SIZE_MAXIMUM", "FONT_SIZE_MINIMUM",
     "HEIGHT", "INK", "WIDTH",
-    "Canvas", "Font", "blank", "parse_font_size", "paste_centred", "pixels",
+    "FrameBuffer", "Font", "blank", "parse_font_size", "paste_centred", "pixels",
     "sprite", "stamp", "title_strip",
 ]
 
@@ -79,7 +79,7 @@ class Font:
         _, self.top, _, self.bottom = (0, 0, 0, 7) if size == "5x7"  \
             else self.render("Ajgy").getbbox()
         self.line_height = self.bottom - self.top
-        # The row pitch: what a text row occupies on the Canvas
+        # The row pitch: what a text row occupies on the FrameBuffer
         self.cell_height = 8 if size == "5x7" else self.line_height + 1
         self.cell_width = 6 if size == "5x7" else None  # None: proportional
 
@@ -171,7 +171,7 @@ def paste_centred(image, text, font):
 
 # --------------------------------------------------------------------------- #
 
-class Canvas:
+class FrameBuffer:
     """The frame buffer that the wire commands draw on (event-loop thread
     only).  Origin bottom-left, as aiko_engine_mp: the only y flip is
     _device_y().  When a title row is shown, "title_rows" pixel rows at the

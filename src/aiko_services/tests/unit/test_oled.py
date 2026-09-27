@@ -17,7 +17,8 @@ import aiko_services as aiko
 from aiko_services.main.utilities import parse
 
 from aiko_services.examples.oled import (
-    OLED, OLEDApplets, OLEDImpl, PROTOCOL, SETTINGS, WIRE_COMMANDS,
+    Canvas, Display, Interaction, OLEDImpl, PROTOCOL, SETTINGS,
+    SETTINGS_SPEC, Screen, WIRE_COMMANDS, service_tags,
 )
 from aiko_services.examples.oled import applets
 from aiko_services.examples.oled.applets import (
@@ -28,7 +29,7 @@ from aiko_services.examples.oled.display import (
     choose_display, parse_colors,
 )
 from aiko_services.examples.oled.graphics import (
-    HEIGHT, WIDTH, Canvas, Font, parse_font_size, title_strip,
+    HEIGHT, WIDTH, Font, FrameBuffer, parse_font_size, title_strip,
 )
 
 _counter = itertools.count()
@@ -132,7 +133,7 @@ def test_parse_font_size():
             parse_font_size(bad)
 
 def test_canvas_origin_is_bottom_left():
-    canvas = Canvas(Font("5x7"))
+    canvas = FrameBuffer(Font("5x7"))
     canvas.pixel(0, 0)
     assert canvas.image.getpixel((0, HEIGHT - 1))
     canvas.pixel(WIDTH - 1, HEIGHT - 1)
@@ -148,7 +149,7 @@ def test_canvas_origin_is_bottom_left():
     assert lit_count(canvas.image) == HEIGHT
 
 def test_canvas_log_scrolls_below_the_title_row():
-    canvas = Canvas(Font("5x7"))
+    canvas = FrameBuffer(Font("5x7"))
     canvas.title_rows = 8
     canvas.log("ONE")
     assert lit_rows(canvas.image) == list(range(56, 63))
@@ -174,7 +175,7 @@ def test_title_strip_is_inverse_video():
 def test_fake_display_emulates_the_panel():
     display = FakeDisplay()
     display.open()
-    canvas = Canvas(Font("5x7"))
+    canvas = FrameBuffer(Font("5x7"))
     canvas.pixel(0, 0)
     display.show(canvas.image)
     assert len(display.frames) == 1
@@ -193,7 +194,7 @@ def test_fake_display_emulates_the_panel():
 
 def test_terminal_display_lines():
     display = TerminalDisplay()
-    canvas = Canvas(Font("5x7"))
+    canvas = FrameBuffer(Font("5x7"))
     canvas.pixel(0, HEIGHT - 1)                          # top-left pixel
     display.blocks = True
     lines = display.lines(canvas.image)
@@ -208,7 +209,7 @@ def test_png_display_writes_a_file(tmp_path):
     path = tmp_path / "oled.png"
     display = PngDisplay(path)
     display.open()
-    display.show(Canvas(Font("5x7")).image)
+    display.show(FrameBuffer(Font("5x7")).image)
     display.close()
     from PIL import Image
     assert Image.open(path).size == (WIDTH * 4, HEIGHT * 4)
@@ -229,9 +230,17 @@ def test_choose_display():
 
 def test_composition_and_wire_commands(actor_display):
     actor, display = actor_display
-    assert isinstance(actor, OLED) and isinstance(actor, OLEDApplets)
+    for aspect in (Display, Canvas, Screen, Interaction):
+        assert isinstance(actor, aspect)
     assert WIRE_COMMANDS == {"clear", "log", "pixel", "pixels", "line", "text",
-        "exit", "applet", "key", "set_log_level", "stop"}
+        "applet", "key", "set_log_level", "stop"}
+    assert PROTOCOL.endswith("/display:0")
+    assert service_tags("fake") == ["ec=true", "device=fake", "canvas=0", "screen=0",
+                                    "interaction=0"]
+    assert actor.share["settings"] == ",".join(SETTINGS)
+    assert actor.share["depth"] == "1" and actor.share["panels"] == "fake"
+    assert actor.share["keys"]["g"] == "pong|asteroids|invaders|forklift"
+    assert [setting.name for setting in SETTINGS_SPEC] == list(SETTINGS)
     for name in ("run", "add_tags", "_tick", "_shutdown", "ec_producer_change_handler"):
         assert name not in WIRE_COMMANDS
     assert "oled_test" not in sys.modules                 # R0: never imported
@@ -321,11 +330,14 @@ def test_log_scrolls_and_keeps_eight_lines(actor_display):
     actor.log(["nested"])
     assert len(display.frames) == frames and actor._metrics["rejected"] == 2
 
-def test_exit_terminates(actor_display, monkeypatch):
+def test_exit_is_stop_and_terminates(actor_display, monkeypatch):
     actor, _ = actor_display
-    calls = []
+    calls, posted = [], []
     monkeypatch.setattr(aiko.process, "terminate", lambda *args: calls.append(args))
-    actor.exit()
+    monkeypatch.setattr(actor, "_post_message", lambda *args: posted.append(args))
+    actor._topic_in_handler(None, actor.topic_in, "(exit)")
+    assert posted[-1][1:] == ("stop", [])                # the alias
+    actor.stop()
     assert calls == [()]
 
 # --------------------------------------------------------------------------- #
@@ -391,9 +403,26 @@ def test_keys(actor_display, test_applets):
     actor.key("select")
     actor.key("up", "sideways")
     assert actor._metrics["rejected"] == 2
-    for name in "abcdefg":
+    for name in "jkmnuvw":                                 # keys the map ignores
         actor.key(name, "down")
     assert len(actor._held) == 5                           # bounded
+
+def test_wire_key_runs_the_map(actor_display, test_applets):
+    actor, _ = actor_display
+    actor.key("g")                                         # a mapped key: its preset
+    assert actor.share["applet"] == "pong"
+    actor.key("g", "down")
+    assert actor.share["applet"] == "asteroids"
+    actor.key("5")
+    assert actor.share["speed"] == "0.707"
+    actor.key("b")
+    assert actor.share["foreground"] == "deepskyblue"
+    actor.key("R")
+    assert actor.share["applet"] == "status" and actor.share["speed"] == "1"
+    actor.applet("bouncer")
+    actor.key("w")                                         # not mapped: the applet's
+    actor.key("g", "up")                                   # a release does nothing
+    assert actor._applet.keys == [("w", "tap")]
 
 # --------------------------------------------------------------------------- #
 # The Actor: settings through the shared state
@@ -623,8 +652,10 @@ def test_share_values_are_single_tokens(actor_display, test_applets):
     remote_update(actor, "font", "16")
     actor._flush_metrics()
     values = {key: value for key, value in actor.share.items()
-              if key not in ("source_file", "metrics")}
-    values.update({f"metrics.{key}": value for key, value in actor.share["metrics"].items()})
+              if key not in ("source_file", "metrics", "keys")}
+    for group in ("metrics", "keys"):                     # the two-level keys
+        values.update({f"{group}.{key}": value
+                       for key, value in actor.share[group].items()})
     for key, value in values.items():
         assert parse(f"(update {key} {value})") == ("update", [key, str(value)]), key
 

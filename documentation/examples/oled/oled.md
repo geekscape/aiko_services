@@ -1,10 +1,11 @@
 ---
 title: OLED display Actor (oled.py)
-description: An SSD1306 128x64 OLED as an Aiko Services Actor — a status
+description: An SSD1306 128x64 OLED as a display Actor (protocol display:0,
+  the composite of the Canvas, Screen and Interaction aspects) — a status
   display for headless hosts, a canvas that any client draws on with
-  aiko_engine_mp compatible S-expressions, settings that the Dashboard
-  reads and writes, applets that run on the display, a keys console, and
-  emulated displays for a desktop
+  aiko_engine_mp compatible S-expressions, settings declared once and
+  edited through the shared state, applets that run on the display, a key
+  map on the device, a keys console, and emulated displays for a desktop
 type: concept
 audience: [developers, end-users]
 status: draft
@@ -21,9 +22,9 @@ source:
   - src/aiko_services/examples/oled/console.py
   - src/aiko_services/examples/oled/keys.py
 related: [actor, service, share, discovery, event, process, connection,
-  dashboard, dashboard_plugin, oled_protocol, testing]
+  dashboard, dashboard_plugin, parameters, stream, oled_protocol, testing]
 version: "0.8-dev"
-last_updated: 2026-09-26
+last_updated: 2026-09-27
 ---
 
 # OLED display Actor (oled.py)
@@ -34,7 +35,9 @@ A small OLED on a headless Linux Single Board Computer (SBC) or server
 shows the host's own status. The rows give the hostname, the IP address,
 the broker and Registrar connections, the clock, the load and the newest
 log line. `oled.py` makes such a display an Aiko Services
-[Actor](../../concepts/actor.md) with protocol `oled:0`.
+[Actor](../../concepts/actor.md) with protocol `display:0`: the composite
+of three aspects, drawing on a *canvas*, controlling the *screen*, and
+controlling what runs on the display (*interaction*).
 
 The Actor owns one 128x64 one-bit image, the *canvas*. Remote one-way
 commands draw on it: `clear`, `text`, `pixel`, `pixels`, `line` and
@@ -98,7 +101,7 @@ preset cycles. Every subcommand's `--help` explains it in full.
 | Subcommand | Arguments and options | What it does |
 |------------|----------------------|--------------|
 | `run` | The table below | Run the Actor |
-| `exit` | `--all` | `(exit)`: blank the display and terminate. `-n '*'` needs `--all` |
+| `exit` | `--all` | `(exit)`, an alias of the framework's `(stop)`: the Actor terminates and the display blanks. `-n '*'` needs `--all` |
 | `list` | | Every `oled:0` Actor on the broker, or the one named with `-n`: name, topic path, tags |
 | `clear` | | `(clear)` |
 | `log WORDS...` | | `(log WORDS ...)` |
@@ -108,7 +111,7 @@ preset cycles. Every subcommand's `--help` explains it in full.
 | `set KEY VALUE` | | `(update KEY VALUE)` on the Actor's control topic, exactly what the Dashboard does. The key is checked locally |
 | `applet NAME [ARGS...]` | `-l`, `--list` | `(applet NAME ARGS ...)`. `applet -l` lists the applets and their options without an Actor |
 | `stop` | | `(applet none)`: the canvas is shown again |
-| `key NAME [tap\|down\|up]` | | `(key NAME STATE)` for the running applet |
+| `key NAME [tap\|down\|up]` | | `(key NAME STATE)`: a key in the Actor's key map runs its preset, any other key goes to the running applet |
 | `keys` | | The interactive console, see below |
 
 The options of `run`:
@@ -236,12 +239,15 @@ arrow keys, or with `h` in the console.
 
 ### The keys console
 
-`aiko_oled keys` turns keys typed in a terminal into wire commands and
-settings, and a status line follows the Actor's shared state. The same
-key again steps to the next preset of that key. `x` or `q` quits the
-console, and the Actor keeps running. The same keys work in the emulator
-window (`-o window`), where the Actor applies them itself. There `Esc`,
-`x` and `q` exit the Actor, as the original spike did.
+`aiko_oled keys` sends every key typed in a terminal to the Actor as
+`(key K tap)`, and a status line follows the Actor's shared state. The
+key map lives on the Actor: a mapped key runs its preset, or changes its
+setting, and the same key again steps to the next preset. Any other key
+goes to the running applet. Only `x` and `q` (quit the console) and `X`
+(stop the Actor) are the console's own. The emulator window (`-o window`)
+and `aiko_oled key K` go through the same `key()`, so all three behave
+the same. In the window, `Esc`, `x` and `q` exit the Actor, as the
+original spike did.
 
 | Key | Presets, in turn |
 |-----|------------------|
@@ -274,10 +280,59 @@ without one reverts to the base font. `f` and `R` set the base font.
 
 ### Public API
 
-**Interface `OLED`** (`aiko.Actor`, protocol
-`github.com/geekscape/aiko_services/protocol/oled:0`). Every method is
-one-way, and the outcome is observed in the shared state. Coordinates:
-x 0..127 left to right, y 0..63 bottom to top.
+**The idea.** A display Actor registers protocol `display:0`. Clients
+draw with `(text X Y ...)`, `(pixels ...)`, `(line ...)`, `(clear)` and
+`(log ...)`. They set its appearance with `(update KEY VALUE)`. They
+start a mode with `(applet NAME ...)` and send it keys with `(key NAME)`.
+The Actor publishes what it is (`size`, `origin`, `depth`, `panels`,
+`applets`, `settings`, `keys.*`) and what it does (`applet`,
+`applet_detail`, `fps`, `last_error`), so a client adapts without code.
+A client of any display, in thirty lines:
+
+```python
+import aiko_services as aiko
+from aiko_services.examples.oled import PROTOCOL, Display
+
+cache = {}
+
+def found(details, display):
+    topic_path = details[0]
+    aiko.compose_instance(aiko.ECConsumerImpl, aiko.ec_consumer_args(
+        aiko.process, 0, cache, f"{topic_path}/control"))
+    aiko.event.add_timer_handler(lambda: draw(topic_path, display), 1.0)
+
+def draw(topic_path, display):
+    if "size" not in cache:
+        return                                   # wait for the first snapshot
+    width, height = map(int, cache["size"].split("x"))
+    display.clear()
+    display.line(0, 0, width - 1, 0)             # a bottom rule, any size
+    display.text(0, 8, "hello", cache.get("backend", "?"))
+    aiko.process.message.publish(f"{topic_path}/control", "(update contrast 64)")
+    display.applet("clock", "face=digital")      # a mode ...
+    display.key("right")                         # ... and a key for it
+    aiko.process.terminate()
+
+aiko.do_discovery(Display,
+    aiko.ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"), found)
+aiko.process.run()
+```
+
+**The aspects.** The protocol is the composite of three Interfaces, each
+with a contract id. Because the Registrar matches one protocol string per
+Service, the aspects are advertised as tags: `ec=true device=oled
+canvas=0 screen=0 interaction=0`. Every method is one-way, and the
+outcome is observed in the shared state. Coordinates: x 0..127 left to
+right, y 0..63 bottom to top. The decisions are recorded in the display
+abstraction ADR, drafted in Epic 1. It is proposed for the constitution
+through the move ceremony, which claims its number.
+
+| Aspect | Contract id | Methods | Owns in the share |
+|--------|-------------|---------|-------------------|
+| `Canvas` — drawing on a canvas | `.../canvas:0` | `clear()`, `log(*words)`, `pixel(x, y)`, `pixels(*coordinates)`, `line(x0, y0, x1, y1)`, `text(x, y, *words)` | RW `font`, `title`. R `size`, `origin`, `depth`, `log_count`, `log_pending` |
+| `Screen` — controlling the screen | `.../screen:0` | none yet (`mirror` in Epic 1 phase 2) | RW `contrast`, `invert`, `power`, `all_on`, `blank_after`, `foreground`, `background`. R `backend`, `device`, `panels`, `fps` |
+| `Interaction` — what runs on the display | `.../interaction:0` | `applet(name, *args)`, `key(name, state="tap")` | RW `applet`, `speed`. R `applets`, `applet_detail`, `keys.*` |
+| `Display` — the composite | `.../display:0`, registered | the framework's `stop` (`exit` is its alias), `set_log_level` | R `settings`, `connection`, `heartbeat`, `last_error`, `metrics.*` |
 
 | Method | Wire form | Effect |
 |--------|-----------|--------|
@@ -287,14 +342,21 @@ x 0..127 left to right, y 0..63 bottom to top.
 | `pixels(*coordinates)` | `(pixels X Y X Y ...)`, `(oled:pixels ...)` | Light pixels, at most 256 pairs, all or nothing |
 | `line(x0, y0, x1, y1)` | `(line X0 Y0 X1 Y1)` | Draw a line |
 | `text(x, y, *words)` | `(text X Y WORDS ...)`, `(oled:text ...)` | Write the words with the text cell's bottom-left at (X, Y) |
-| `exit()` | `(exit)` | Blank the display and terminate |
-
-**Interface `OLEDApplets`**:
-
-| Method | Wire form | Effect |
-|--------|-----------|--------|
 | `applet(name, *args)` | `(applet NAME [WORDS ...] [key=value ...])` | Run an applet, which replaces the running one. `none` shows the canvas |
-| `key(name, state="tap")` | `(key NAME [tap\|down\|up])` | A key for the running applet |
+| `key(name, state="tap")` | `(key NAME [tap\|down\|up])` | A key in the key map runs its preset, or changes its setting, on `tap` or `down`. Any other key goes to the running applet |
+| `stop()` | `(stop)`, `(exit)` | Terminate the process. The display blanks on the way out |
+
+**The control model.** "Control" means four things, and every client
+speaks one vocabulary. The last column names the framework concept each
+one follows. Thus the coming extraction of Parameters and Streams from
+`pipeline.py` finds the display already in shape.
+
+| Kind | Mechanism | Wire | Confirm | Framework analogue |
+|------|-----------|------|---------|--------------------|
+| Settings | share updates, one setter each, declared once in `SETTINGS_SPEC` | `(update KEY VALUE)` on `control` | observe the key | [Parameters](../../concepts/parameters.md): declared names with defaults, overridden live through the share |
+| Commands | `Canvas` methods | `(text ...)` on `in` | `metrics.commands`, `last_error` | remote method calls |
+| Interaction | the applet is the *mode*; keys go to it | `(applet NAME [key=value ...])`, `(key NAME)` | `applet`, `applet_detail` | a [Stream](../../concepts/stream.md) bound to a graph path, with per-Stream parameters |
+| Presets | the key map on the device | `(key K tap)` for a mapped key | `applet`, settings | — |
 
 **Applets** (`(applet NAME [WORDS ...] [key=value ...])`):
 
@@ -320,14 +382,16 @@ clock, only frame counts. A drawing command stops a running applet, so
 that the drawing is seen. `log` does not stop it, because the status
 applet shows the log lines itself. Anything else on the `in` topic is
 rejected, including the framework's `(run)`. The Actor dispatches only
-the methods of its two Interfaces, plus `(stop)` and
+the methods of its three aspects, plus `(stop)` and
 `(set_log_level LEVEL)`.
 
-**Settings**: the writable shared state. Write a setting with
-`aiko_oled set`, with `(update KEY VALUE)` on the control topic, or in
-the Dashboard. A bad value is rejected, and the value in force is
-published again, so an observer converges back. All values are single
-tokens.
+**Settings**: the writable shared state, declared once in
+`SETTINGS_SPEC` (name, kind, default, range, description). The `settings`
+share key, the setters, the rejection reasons, the help texts and the
+tests all derive from that table. Write a setting with `aiko_oled set`,
+with `(update KEY VALUE)` on the control topic, or in the Dashboard. A
+bad value is rejected, and the value in force is published again, so an
+observer converges back. All values are single tokens.
 
 | Key | Values | Meaning |
 |-----|--------|---------|
@@ -346,8 +410,10 @@ tokens.
 
 | Key | Values | Meaning |
 |-----|--------|---------|
-| `backend`, `device` | `oled\|window\|terminal\|png\|none\|fake` and `ssd1306@0x3C/i2c1`, `pygame`, `tty`, `png:NAME` or `absent` | The display in use. `absent` while it cannot be opened |
-| `size`, `origin` | `128x64`, `bottom` | The panel and the coordinate origin |
+| `backend`, `device`, `panels` | `oled\|window\|terminal\|png\|none\|fake` and `ssd1306@0x3C/i2c1`, `pygame`, `tty`, `png:NAME` or `absent` | The display in use. `absent` while it cannot be opened. `panels` lists every panel from Epic 1 phase 4 |
+| `size`, `origin`, `depth` | `128x64`, `bottom`, `1` | The panel, the coordinate origin, the bits per pixel |
+| `settings` | comma-separated names | The writable keys, from `SETTINGS_SPEC` |
+| `keys.KEY` | `pong\|asteroids\|invaders\|forklift`, `speed`, `title` ... | The key map: the applets a key steps through, or the setting it changes |
 | `connection` | `NONE\|NETWORK\|TRANSPORT\|REGISTRAR` | The Actor's [connection](../../concepts/connection.md) state |
 | `applets` | comma-separated names | The applets this Actor can run |
 | `applet_detail` | token or `-` | What the applet says it is doing, for example `to_bay_2` |
@@ -371,7 +437,7 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
    ┌─────────────────────────────────────────┴────────────────────────┐
    │ OLEDImpl                                                          │
    │  _topic_in_handler: parse guard → oled: aliases → allow-list      │
-   │  wire methods ─► Canvas (PIL "1" 128x64, wire coordinates)        │
+   │  wire methods ─► FrameBuffer (PIL "1" 128x64, wire coordinates)   │
    │  _tick 30 Hz  ─► applet.step() → frame                            │
    │  _present(frame): + title row, skip if unchanged ─► Display.show  │
    │  settings ◄── ec_producer change handler ◄── (update K V)         │
@@ -392,10 +458,15 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
   microseconds each and one device write.
 - **Deny by default (P12).** `_topic_in_handler` replaces the
   framework's. The parser is guarded, because a token such as `12:30`
-  raises inside it. The `oled:` names are aliased. Only `WIRE_COMMANDS`
-  reach the mailbox: the abstract methods of the two Interfaces, plus
-  `stop` and `set_log_level`. Inherited public methods such as `run` are
-  unreachable.
+  raises inside it. The `oled:` names and `exit` are aliased. Only
+  `WIRE_COMMANDS` reach the mailbox: the abstract methods of the three
+  aspects, plus `stop` and `set_log_level`. Inherited public methods
+  such as `run` are unreachable.
+- **The key map on the device.** `key()` runs a mapped key's preset, or
+  changes its setting, and passes any other key to the running applet.
+  Thus the console, the emulator window, `aiko_oled key` and the
+  Dashboard plug-in send the same `(key K tap)`. The legend `keys.*` in
+  the share lets a client of a foreign display build its own.
 - **Settings through shared state (P3).** The change handler applies a
   written setting through the same setter the Actor uses itself. An
   `_applied` table stops the Actor's own updates from re-entering.
@@ -414,7 +485,7 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
 
 ### Implementation notes
 
-- `Canvas._device_y()` in `graphics.py` is the only place where the
+- `FrameBuffer._device_y()` in `graphics.py` is the only place where the
   bottom-left wire coordinates meet PIL's top-left rows. Applets draw
   PIL frames directly.
 - `ec_producer.add_handler()` replays the whole share synchronously.
@@ -431,10 +502,9 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
   incremental updates unencoded. `_token()` reduces free text, and it
   never lets a value start with digits followed by a colon.
 - A key typed in the emulator window reaches `_step()` as a display
-  event. A console key is applied through the same key map as
-  `aiko_oled keys`, in `keys.py`, and any other key goes to the running
-  applet. The key map reads the shared state to decide, for example
-  `applet_detail` for `S`, so the window gives it the share itself.
+  event and goes through `key()` like a key from the wire. The map reads
+  the shared state to decide, for example `applet_detail` for `S`. The
+  window's own exit keys, `x`, `q` and `X`, call `stop()`.
 - `--applet` takes the applet's options after commas, as the `applet`
   share key does: `--applet status,screen=wifi`.
 - The remote-X trap: a pygame window over `ssh -Y` fails with a GLX
@@ -445,10 +515,9 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
-| `OLED` (Interface) | The `oled:0` canvas commands and `exit` | `OLEDImpl` |
-| `OLEDApplets` (Interface) | Running applets, keys | `OLEDImpl` |
-| `OLEDImpl` | The dispatch guard, validation, the canvas, settings, timers, metrics, display failure and recovery, shutdown | `Canvas`, `Display`, `Applet`, `ECProducer`, `aiko.event` |
-| `Canvas` | The frame buffer in wire coordinates: text, pixels, lines, the scrolling log, the title rows | `Font` |
+| `Canvas`, `Screen`, `Interaction` (aspect Interfaces), `Display` (the composite, protocol `display:0`) | The wire contract: drawing, the screen's settings, what runs on the display | `OLEDImpl` |
+| `OLEDImpl` | The dispatch guard, validation, the canvas, the settings from `SETTINGS_SPEC`, the key map, timers, metrics, display failure and recovery, shutdown | `FrameBuffer`, `Display` backends, `Applet`, `keys.py`, `ECProducer`, `aiko.event` |
+| `FrameBuffer` (graphics.py) | The frame buffer in wire coordinates: text, pixels, lines, the scrolling log, the title rows | `Font` |
 | `Font` | 5x7 bitmap or TrueType glyph rendering, cell metrics | Pillow |
 | `Display` and backends | Show a frame. Contrast, invert, power, all-on. Window events. Blank on close | luma.oled, pygame, the terminal, Pillow |
 | `Applet`, `Host` | A source of frames, and what it may use of the Actor | `OLEDImpl` |
@@ -457,15 +526,24 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
 | `games.py`: `pong`, `asteroids`, `invaders`, `forklift_work`, `ForkliftGame` | Frame generators, and the forklift game's pallet physics, counted in frames | `Host` |
 | `drawings.py`: `SUBJECTS`, `scene_strokes`, `sketch_frames`, `DrawApplet` | Cartoon subjects, stroke planning, the pencil sketch as a frame generator | `Host` |
 | `faces.py`: `ClockApplet`, `EyesApplet` | The clock face. The eyes' lens shapes, gaze, blinks and eased emotions | `Host` |
-| `keys.py`: `PRESETS`, `key_command`, `reset_commands` | The key map: what each key sends, shared by the console and the emulator window | `KeysConsole`, `OLEDImpl` |
-| `KeysConsole` (console.py) | Keys typed in a terminal become wire commands and settings updates. An ECConsumer shows the shared state | `keys.py`, `aiko.do_discovery`, `ECConsumerImpl` |
+| `keys.py`: `PRESETS`, `key_command`, `reset_commands`, `legend` | The key map, run on the Actor by `key()`: what each key does, and the `keys.*` legend | `OLEDImpl` |
+| `KeysConsole` (console.py) | Every key typed in a terminal becomes `(key K tap)`. `x`, `q` and `X` are its own. An ECConsumer shows the shared state | `aiko.do_discovery`, `ECConsumerImpl` |
 | `main` (click) | `run`, and the discovery-plus-one-command subcommands with a timeout | `aiko.do_command`, `aiko.do_discovery` |
 
 ## Current limitations and roadmap
 
-**Implemented** (Epic 0, complete 2026-09-26): everything above, with 92
-unit tests that need no broker and no panel, run on Python 3.12 (macOS)
-and 3.13 (the SBC).
+**Implemented.** Epic 0 (complete 2026-09-26): everything above but the
+aspects. Epic 1 phase 1 (2026-09-27) added:
+
+- the `display:0` composite of the `Canvas`, `Screen` and `Interaction`
+  aspects, with their tags
+- the settings declared once in `SETTINGS_SPEC`
+- the key map on the device, the `keys.*` legend, and `exit` as an
+  alias of `stop`
+- the parity tests
+
+The OLED tests run on Python 3.12 (macOS) and 3.13 (the SBC) and need
+no broker and no panel.
 
 **Sharp edges in the implemented code:**
 
@@ -477,24 +555,42 @@ and 3.13 (the SBC).
 - The fan level, the signal and the Wi-Fi details are Linux readings, and
   the details need `iw` or NetworkManager. Elsewhere the rows say so.
 - The 5x7 font gives 21 characters per row. The aiko_engine_mp 8x8 font
-  gives 16. An 8x8 bitmap font for pixel parity is on the roadmap.
+  gives 16. An 8x8 bitmap font for pixel parity is Epic 1 phase 5.
 - One panel per Actor. aiko_engine_mp spreads text across two panels.
+  One Actor for both panels as one display is Epic 1 phase 4.
 - `(oled:log a   b)` collapses runs of spaces, because the framework
   parser tokenizes. aiko_engine_mp keeps them.
+- A mapped letter cannot reach a running applet, because the key map
+  runs first. Games use the arrow keys, which are never mapped.
 - `aiko_oled` is a console script only for editable installs, because
-  the example directory is not in the wheel. Promotion into
-  `src/aiko_services/main/oled/` would correct that.
+  the example directory is not in the wheel. The example stays in the
+  example directory by decision.
 
-**Planned** (Epic 1, after the technical lead's review of Epic 0):
+**Planned in Epic 1** (approved 2026-09-27, the review follows phase 8):
 
-- A Dashboard plug-in for the `oled` protocol: a live mirror of the
-  panel and the key legend on the Service page.
-- A remote interactive display abstraction: the `Display` seam, the
-  `Applet` and `Host` classes, and `key` as an Interface that any
-  framebuffer device can implement.
-- Convergence with aiko_engine_mp, which could register protocol
-  `oled:0`, accept both `text` and `oled:text`, and expose `contrast`,
-  `invert` and `power` as shared state.
+- Phase 2: the leased frame mirror `(mirror TOPIC SECONDS)` on the
+  `Screen` aspect, and the Dashboard plug-in page: a live mirror, the
+  shared state, the log, and the same keys.
+- Phase 3: the output seam composed as `Output` and `OutputControls`
+  Interfaces, and applets made portable through the Host contract
+  (`host.width`, `host.height`, `host.columns()`, `MIN_SIZE`).
+- Phase 4: one Actor for both panels as one 256x64 display
+  (`-a 0x3C,0x3D`), text flowing across as on the firmware.
+- Phase 5: the 8x8 font from MicroPython, for pixel parity.
+- Phase 6: the display as a consumer of the observability plane: a
+  `logs` applet fed from the `/log` topics, and readings named after the
+  telemetry specification.
+- Phases 7 and 8: optional extras (`text scroll=`, `qr`, `status
+  screen=services`), measurements, and the review pack.
+
+**Candidates for later Epics:**
+
+- aiko_engine_mp registers `display:0` and passes the Canvas conformance
+  trace (Epic 2)
+- events on the `out` topic
+- applets defined purely in S-expressions and run by the sandboxed
+  evaluator
+- `status source=host_monitor` when a HostMonitor exists
 
 ## Related concepts
 
@@ -514,5 +610,9 @@ and 3.13 (the SBC).
   settings, and the planned plug-in
 - [S-expression parser](../../concepts/utilities/parser.md) — the wire
   format and its quoting rules
+- [Parameters](../../concepts/parameters.md), [Stream](../../concepts/stream.md)
+  — the shapes the settings and the mirror follow
+- The display abstraction ADR, proposed for the constitution — the
+  decisions behind the abstraction
 - [oled_protocol](oled_protocol.md) — the wire protocol specification
 - [testing](testing.md) — the step-by-step test guide

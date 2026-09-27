@@ -1,6 +1,7 @@
 # Aiko Services example: OLED display Actor
 
-An SSD1306 128x64 OLED as an Aiko Services Actor (protocol `oled:0`).
+An SSD1306 128x64 OLED as an Aiko Services display Actor (protocol
+`display:0`: the composite of the Canvas, Screen and Interaction aspects).
 The main use is a status display for a headless Linux Single Board
 Computer (SBC) or server: hostname, IP address, connection state, time,
 load and the newest log line.  Any Aiko Services client can also draw on
@@ -55,7 +56,8 @@ aiko_oled log Hello from nomad
 aiko_oled set contrast 64     # settings are shared state: the Dashboard edits them too
 aiko_oled applet pong         # or draw, clock, eyes, forklift_game, demo ...
 aiko_oled applet --list       # the applets and their options
-aiko_oled keys                # interactive: letters, arrows, digits (the window takes them too)
+aiko_oled key g               # the key map lives on the Actor: pong
+aiko_oled keys                # interactive: every key goes to the Actor (the window too)
 aiko_oled list
 aiko_oled exit
 ```
@@ -82,7 +84,7 @@ pytest src/aiko_services/tests/unit/test_oled.py \
        src/aiko_services/tests/unit/test_oled_applets.py
 ```
 
-92 tests; no broker and no panel needed.
+95 tests; no broker and no panel needed.
 
 ## Files
 
@@ -96,7 +98,7 @@ pytest src/aiko_services/tests/unit/test_oled.py \
 | `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` (arrow keys over the wire) |
 | `drawings.py` | `draw`: pencil-sketched cartoon scenes |
 | `faces.py` | `clock`: an analog or a digital clock face; `eyes`: animated eyes showing emotions |
-| `keys.py` | The key map: what each key sends, shared by the console and the emulator window (`-o window`) |
+| `keys.py` | The key map, run on the Actor by `(key K)`: what each key does, and the `keys.*` legend |
 | `console.py` | `aiko_oled keys`: an interactive console for the running Actor |
 | `aiko_oled.service` | systemd unit for a Linux SBC: the display comes up with the host |
 | `oled_test.py` | The original standalone spike (click, no Aiko Services): kept unchanged for reference |

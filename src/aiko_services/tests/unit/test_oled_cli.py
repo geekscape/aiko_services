@@ -10,7 +10,7 @@ from click.testing import CliRunner
 import aiko_services as aiko
 from aiko_services.main.utilities import get_hostname
 
-from aiko_services.examples.oled import PROTOCOL, SETTINGS
+from aiko_services.examples.oled import PROTOCOL, SETTINGS, WIRE_COMMANDS
 from aiko_services.examples.oled import oled as oled_module
 from aiko_services.examples.oled.display import FakeDisplay
 from aiko_services.examples.oled.oled import _service_filter, main
@@ -52,7 +52,7 @@ def invoke(*args):
 def test_help_for_every_subcommand():
     result = invoke("--help")
     assert result.exit_code == 0
-    for heading in ("Applets", "Settings", "Shared state", "Wire commands", "Keys in"):
+    for heading in ("Applets", "Settings", "Shared state", "Wire commands", "Keys  ("):
         assert heading in result.output, heading
     flat = " ".join(result.output.split())                 # wrapped lines joined
     for text in ("forklift_game", "blank_after", "log_pending", "(oled:text",
@@ -72,12 +72,11 @@ def test_help_for_every_subcommand():
     assert "Braille" in invoke("run", "--help").output
 
 @pytest.mark.parametrize("args", [
-    ("text", "a", "b", "hello"),
-    ("text", "0", "64", "hello"),
+    ("text", "a", "b", "hello"),                    # (ranges: the Actor checks them)
     ("text", "0", "0"),
     ("pixels", "1"),
     ("pixels", "1", "x"),
-    ("line", "0", "0", "200", "0"),
+    ("line", "0", "0", "x", "0"),
     ("set", "bogus", "1"),
     ("set", "title", "two words"),
     ("key", "up", "sideways"),
@@ -118,7 +117,7 @@ def test_remote_commands_send_the_wire_command(remote):
         ("applet", ("none",)),
         ("key", ("left", "tap")),
         ("key", ("x", "down")),
-        ("exit", ()),
+        ("stop", ()),
     ]
     assert remote.seen["filter"].name == "pi"
     assert remote.seen["filter"].protocol == PROTOCOL
@@ -166,8 +165,39 @@ def test_run_strict_reports_a_missing_display(monkeypatch):
 # --------------------------------------------------------------------------- #
 # The keys console
 
-from aiko_services.examples.oled.console import key_command  # noqa: E402
-from aiko_services.examples.oled.keys import RESET, reset_commands  # noqa: E402
+from aiko_services.examples.oled.keys import (  # noqa: E402
+    MAPPED_KEYS, RESET, key_command, legend, reset_commands,
+)
+
+def test_key_map_parity():
+    """Every command the key map emits is a declared wire method or a
+    declared setting, and the legend names every mapped key"""
+
+    state = {"turns": {}, "current": None, "settings": {}, "base_font": "5x7"}
+    for key in sorted(MAPPED_KEYS):
+        for _ in range(12):                                # every preset turn
+            for command in key_command(key, state):
+                if command[0] == "update":
+                    assert command[1] in SETTINGS, (key, command)
+                elif command[0] == "clear":
+                    assert "clear" in WIRE_COMMANDS
+                else:
+                    assert command[0] in ("applet", "key") and command[0] in WIRE_COMMANDS
+    for command in reset_commands(state):
+        assert command[0] == "applet" or command[1] in SETTINGS
+    legend_keys = set(legend()) - {"digits", "plus", "minus", "arrows"}
+    assert legend_keys == MAPPED_KEYS - set("0123456789+-?")
+    assert all(" " not in value for value in legend().values())
+
+def test_cli_covers_every_wire_command():
+    subcommands = set(main.commands)
+    covered = {"clear", "log", "pixels", "line", "text", "applet", "key"}
+    assert covered <= subcommands
+    assert WIRE_COMMANDS - {"pixel", "stop", "set_log_level"} == covered   # pixel: pixels
+    assert {"exit", "stop", "set", "list", "run", "keys"} <= subcommands   # stop: exit
+    help_text = invoke("set", "--help").output
+    for name in SETTINGS:
+        assert name in help_text, name
 
 def test_keys_console_map():
     state = {"turns": {}, "current": None, "settings": {}, "base_font": "5x7"}

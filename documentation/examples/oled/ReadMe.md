@@ -1,7 +1,7 @@
 ---
 title: OLED example index
 description: Index of the SSD1306 OLED display Actor example documents —
-  the Actor and its aiko_oled command line, the oled:0 wire protocol
+  the Actor and its aiko_oled command line, the display:0 wire protocol
   shared with the MicroPython aiko_engine_mp OLED, and the step-by-step
   test guide
 type: index
@@ -12,7 +12,7 @@ source:
   - src/aiko_services/examples/oled
 related: [actor, service, share, discovery, dashboard]
 version: "0.8-dev"
-last_updated: 2026-09-26
+last_updated: 2026-09-27
 ---
 
 # OLED example index
@@ -33,7 +33,7 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 | Document | Summary |
 |----------|---------|
 | [oled](oled.md) | The OLED Actor: the status display, the canvas, settings in the shared state, the applets, the keys console, the display backends and the `aiko_oled` command line |
-| [oled_protocol](oled_protocol.md) | The `oled:0` protocol: discovery, the topics, the wire commands and their grammar, the shared state keys, the rejection reasons, the conformance trace, and compatibility with aiko_engine_mp |
+| [oled_protocol](oled_protocol.md) | The `display:0` protocol: the Canvas, Screen and Interaction aspects and their tags, discovery, the topics, the wire commands and their grammar, the key map on the device, the shared state keys, the rejection reasons, the conformance trace, and compatibility with aiko_engine_mp |
 | [testing](testing.md) | The step-by-step test guide: macOS and a Linux SBC, the unit tests, the command line, raw S-expressions, the shared state, the Dashboard, the applets, the keys console, failure behavior and systemd |
 
 ## Reading order
@@ -57,20 +57,25 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 | `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` |
 | `drawings.py` | `draw`: pencil-sketched cartoon scenes |
 | `faces.py` | `clock`: an analog or a digital clock face. `eyes`: animated eyes with emotions |
-| `keys.py` | The key map: what each key sends, shared by the console and the emulator window |
-| `console.py` | `aiko_oled keys`: the interactive console |
+| `keys.py` | The key map, run on the Actor: what each key does, and the `keys.*` legend |
+| `console.py` | `aiko_oled keys`: the interactive console, which sends every key to the Actor |
 | `aiko_oled.service` | A systemd unit for a Linux SBC: the display comes up with the host |
 | `oled_test.py` | The original standalone spike, kept unchanged for reference. No module imports it |
-| `tests/unit/test_oled.py`, `test_oled_cli.py`, `test_oled_applets.py` | 92 unit tests: graphics, displays, the Actor, dispatch, settings, the command line, the applets. No broker and no panel needed |
+| `tests/unit/test_oled.py`, `test_oled_cli.py`, `test_oled_applets.py` | 95 unit tests: graphics, displays, the Actor, dispatch, settings, the command line, the applets. No broker and no panel needed |
 
 ## Status
 
-Epic 0 is complete (2026-09-26): the Actor, the status display, the
-settings, the applets, the console, the tests and these documents. It
-is verified on macOS (Python 3.12, emulated displays) and on a Linux SBC
-(a Raspberry Pi, Python 3.13, the panel at 0x3C). Epic 1 waits for the
-technical lead's review: a Dashboard plug-in for `oled:0`, a remote
-display abstraction, and convergence with aiko_engine_mp.
+Epic 0 is complete and approved (2026-09-27): the Actor, the status
+display, the settings, the applets, the console, the tests and these
+documents. Epic 1 is in progress: phase 1 (2026-09-27) made the protocol
+the `display:0` composite of three aspects, declared the settings once,
+and moved the key map to the Actor. The next phases add the Dashboard
+plug-in with a live mirror and the composed output seam. Then come both
+panels as one display, the 8x8 font and a `logs` applet. Everything is
+verified on
+macOS (Python 3.12, emulated displays) and on a Linux SBC (a Raspberry
+Pi, Python 3.13, the panel at 0x3C). Convergence with aiko_engine_mp is
+Epic 2.
 
 ## Related documentation
 

@@ -35,7 +35,8 @@ sections are.
 ### Features
 
 * OLED display Actor example, *src/aiko_services/examples/oled*: an SSD1306
-  128x64 OLED as an Actor with protocol *oled:0*.  It shows the status of a
+  128x64 OLED as an Actor with protocol *display:0*, the composite of the
+  *Canvas*, *Screen* and *Interaction* aspects.  It shows the status of a
   headless host (IP address, connection state, time, load, the last log
   lines) and accepts the same S-expressions as the aiko_engine_mp OLED,
   for example *(oled:text 0 0 hello)*.  Its settings are shared state that
@@ -191,7 +192,7 @@ remote callers are unaffected.  For Python code:
   These tests skip when OpenCV is absent, because *video_io.py* needs
   *cv2* at import time
 
-* New *test_oled.py*, *test_oled_cli.py* and *test_oled_applets.py*: 92
+* New *test_oled.py*, *test_oled_cli.py* and *test_oled_applets.py*: 95
   tests for the OLED display Actor example.  They cover graphics, the
   display backends, dispatch and validation, the settings, the command
   line and the applets.  A fake display stands in for the panel, so no

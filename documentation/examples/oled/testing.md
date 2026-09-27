@@ -82,7 +82,7 @@ pytest src/aiko_services/tests/unit/test_oled.py \
 flake8 . --select=E9,F63,F7,F82
 ```
 
-Expect: `92 passed`, and no flake8 output. No broker and no panel are
+Expect: `95 passed`, and no flake8 output. No broker and no panel are
 needed. Run them on the SBC too (Python 3.13 there). One test asserts
 that `oled_test.py`, the original spike, is never imported.
 
@@ -131,7 +131,7 @@ on another host, put `-n NAME` before the subcommand.
 
 | Step | Command | Expect |
 |------|---------|--------|
-| 5.1 | `aiko_oled list` | `HOST  aiko/HOST/PID/1  ec=true`, exit status 0 |
+| 5.1 | `aiko_oled list` | `HOST  aiko/HOST/PID/1  ec=true device=oled canvas=0 screen=0 interaction=0`, exit status 0. The tags name the display backend and the three aspects |
 | 5.2 | `aiko_oled text 0 0 hello world` | The status display stops. `hello world` on the bottom row (origin bottom-left) |
 | 5.3 | `aiko_oled text 0 8 second row` | One text row above it |
 | 5.4 | `aiko_oled log Hello from the lead` | The canvas scrolls up one row, and the line is on the bottom row. The title row shows `L` |
@@ -152,9 +152,10 @@ on another host, put `-n NAME` before the subcommand.
 | 5.16 | `aiko_oled applet status date=on` | The date row is added |
 | 5.17 | `aiko_oled applet pong` | Pong plays itself. `aiko_oled set speed 2` doubles the pace, and `set speed 1` restores |
 | 5.18 | `aiko_oled applet forklift_game`, then `aiko_oled key right`, `aiko_oled key up` | The forklift drives right a little, and lifts its forks a little, per key |
+| 5.18a | `aiko_oled key g`, then `aiko_oled key 5` | The Actor's key map runs the preset: pong starts, then runs at `speed 0.707`. `aiko_oled key R` resets and shows the status display |
 | 5.19 | `aiko_oled stop` | The canvas from 5.7 is shown again |
 | 5.20 | `aiko_oled set bogus 1` | A usage error, exit status 2. The key is checked locally |
-| 5.21 | `aiko_oled exit` | The display blanks, the Actor process ends, exit status 0 |
+| 5.21 | `aiko_oled exit` | The display blanks, the Actor process ends, exit status 0. On the wire `(exit)` is an alias of `(stop)` |
 | 5.22 | `aiko_oled -t 2 exit`, with nothing running | `Timeout after 2 s: no OLED Actor named HOST`, exit status 1 |
 
 Start the Actor again (step 4) before you continue.
@@ -167,6 +168,7 @@ mosquitto_pub -t $TOPIC/in -m "(oled:log This is a test !)"  # scrolls, the bott
 mosquitto_pub -t $TOPIC/in -m "(oled:pixels 0 0 127 63)"     # two corners
 mosquitto_pub -t $TOPIC/in -m "(text 0 16 native form)"      # the same command, no prefix
 mosquitto_pub -t $TOPIC/in -m '(text 0 24 "quoted text is one word")'
+mosquitto_pub -t $TOPIC/in -m "(key g tap)"                    # the key map: pong
 ```
 
 Expect: the same effects as the `aiko_oled` commands. Now the
@@ -207,8 +209,9 @@ Expect: a snapshot `(add KEY VALUE)` of every key in the table of
 [oled_protocol](oled_protocol.md). For example `backend oled`,
 `device ssd1306@0x3C/i2c1` on the SBC, `connection REGISTRAR`,
 `applet draw`, `contrast 64`, `heartbeat N`,
-`last_error set_contrast_not_int@...`, `log_pending off` and
-`metrics.frames N`. Then `(update heartbeat N)` once a second, and
+`last_error set_contrast_not_int@...`, `log_pending off`,
+`settings applet,contrast,...`, `keys.g pong|asteroids|invaders|forklift`
+and `metrics.frames N`. Then `(update heartbeat N)` once a second, and
 `(update metrics.* N)` every two seconds while something changes, for
 ten seconds. Every value is one token: no spaces.
 
@@ -270,7 +273,8 @@ aiko_oled keys
 ```
 
 Expect: `OLED Actor HOST: $TOPIC  (? for the keys)`, and a status line
-that follows the shared state. Then type, without Enter:
+that follows the shared state. Every key is sent to the Actor as
+`(key K tap)`, and the Actor's key map decides. Then type, without Enter:
 
 | Key | Expect |
 |-----|--------|

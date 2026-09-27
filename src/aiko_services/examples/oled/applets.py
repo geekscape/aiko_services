@@ -271,12 +271,12 @@ class HelpApplet(Applet):
             "(update KEY VALUE)",
         ]),
         ("Dashboard: state", [
-            "backend device size",
-            "connection applets",
-            "applet_detail fps",
+            "backend device panels",
+            "size depth settings",
+            "keys.* connection fps",
+            "applets applet_detail",
             "heartbeat last_error",
-            "log_count log_pending",
-            "metrics.commands ...",
+            "log_count metrics.*",
         ]),
         ("LISP on topic/in", [
             "(text X Y WORDS)",

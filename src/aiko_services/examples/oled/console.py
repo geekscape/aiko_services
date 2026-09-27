@@ -3,14 +3,14 @@
 # Aiko Services: OLED keys console
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # "aiko_oled keys": an interactive console in the terminal for a running
-# OLED Actor.  Keys typed here become wire commands and settings updates,
-# through the key map in keys.py (which the emulator window shares):
-# letters switch applets (the same letter again: the next preset, e.g. g
-# steps through pong, asteroids, invaders and all three in turn; p, t and
-# s through the fonts; t through messages; d through styles and subjects),
-# arrow keys go to the running applet, digits set the speed, and other
-# keys change settings through the shared state, exactly as the Dashboard
-# does.  A status line shows the Actor's shared state as it changes.
+# display Actor.  Every key typed here is sent as "(key K tap)": the key
+# map lives on the Actor (keys.py), which runs a mapped key's preset (g
+# steps through pong, asteroids, invaders and the forklift; s and S the
+# status screens and views; digits set the speed; other keys change
+# settings) and passes any other key, the arrows above all, to the running
+# applet.  Thus the console, the emulator window and the Dashboard plug-in
+# behave the same.  Only x, q (quit the console) and X (stop the Actor)
+# are the console's own.  A status line shows the Actor's shared state.
 #
 # Keys
 # ~~~~
@@ -39,16 +39,12 @@ import click
 import aiko_services as aiko
 from aiko_services.main.utilities import get_hostname
 
-from aiko_services.examples.oled.keys import (        # the key map, shared
-    ARROWS, KEY_APPLETS, PRESETS, RESET, applet, key_command, reset_commands,
-    update,
-)
+from aiko_services.examples.oled.keys import ARROWS
 from aiko_services.examples.oled.oled import (
-    OLED, OLEDApplets, _service_filter,
+    Display, Interaction, _service_filter,
 )
 
-__all__ = ["KEY_APPLETS", "PRESETS", "RESET", "Keyboard", "KeysConsole", "applet",
-           "key_command", "reset_commands", "update"]
+__all__ = ["Keyboard", "KeysConsole"]
 
 POLL_PERIOD = 0.05
 STATUS_KEYS = ("applet", "applet_detail", "fps", "speed", "font", "contrast",
@@ -101,9 +97,8 @@ class KeysConsole:
         self.timeout = timeout
         self.keyboard = None
         self.topic_path = None
-        self.oled = self.applets = None
+        self.display = self.interaction = None
         self.cache = {}                  # the Actor's shared state, kept by an ECConsumer
-        self.state = {"turns": {}, "current": None, "settings": self.cache}
         self.status = ""
         self.confirm_exit = False
 
@@ -113,7 +108,7 @@ class KeysConsole:
             raise click.UsageError("keys needs a terminal (stdin isn't one)")
         try:
             aiko.event.add_timer_handler(self._timed_out, self.timeout)
-            aiko.do_discovery(OLEDApplets, _service_filter(self.name),
+            aiko.do_discovery(Interaction, _service_filter(self.name),
                 self._found, self._lost)
             aiko.process.run()
         finally:
@@ -132,8 +127,8 @@ class KeysConsole:
         if self.topic_path is not None:
             return
         self.topic_path = service_details[0]
-        self.applets = service
-        self.oled = aiko.get_service_proxy(f"{self.topic_path}/in", OLED)
+        self.interaction = service
+        self.display = aiko.get_service_proxy(f"{self.topic_path}/in", Display)
         aiko.compose_instance(aiko.ECConsumerImpl, aiko.ec_consumer_args(
             aiko.process, 0, self.cache, f"{self.topic_path}/control"))
         click.echo(f"OLED Actor {service_details[1]}: {self.topic_path}  (? for the keys)")
@@ -147,8 +142,6 @@ class KeysConsole:
     # Keys ----------------------------------------------------------------- #
 
     def _poll(self):
-        if "base_font" not in self.state and "font" in self.cache:
-            self.state["base_font"] = self.cache["font"]   # the font at the start
         for key in self.keyboard.read():
             self._key(key)
         self._show_status()
@@ -157,8 +150,8 @@ class KeysConsole:
         if self.confirm_exit:
             self.confirm_exit = False
             if key == "y":
-                self.oled.exit()
-                click.echo("\r\nexit sent")
+                self.display.stop()
+                click.echo("\r\nstop sent")
                 aiko.process.terminate()
             return
         if key in ("x", "q"):
@@ -167,17 +160,7 @@ class KeysConsole:
             self.confirm_exit = True
             click.echo("\r\nExit the OLED Actor?  y to confirm", nl=False)
         else:
-            commands = reset_commands(self.state) if key == "R"  \
-                else key_command(key, self.state)
-            for command in commands:
-                if command[0] == "update":
-                    self._update(command[1], command[2])
-                else:
-                    getattr(self.applets if command[0] in ("applet", "key")
-                            else self.oled, command[0])(*command[1])
-
-    def _update(self, name, value):
-        aiko.process.message.publish(f"{self.topic_path}/control", f"(update {name} {value})")
+            self.interaction.key(key, "tap")    # the Actor's key map decides
 
     def _show_status(self):
         status = "  ".join(f"{key} {self.cache[key]}" for key in STATUS_KEYS if key in self.cache)
