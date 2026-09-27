@@ -127,13 +127,15 @@ SBC, and tmux. The test guide lists them.
 
 ## 6. The simple example
 
-Planned for phase 14: `examples/oled/oled_actor.py`, about 120 lines. It teaches one idea:
-an Actor that draws on an SSD1306. It registers `display:0` with the
-tags `device=ssd1306 canvas=0`, and implements `clear`, `log` and
-`text` with the same wire forms and the same bottom-left origin. The
-`aiko_display` command and the Dashboard page drive it without change.
-The page shows "mirror: not supported by this Actor", because the share
-has no `mirrors`.
+`examples/oled/oled_actor.py` is one file of about 130 lines. It
+teaches one idea: an Actor that draws on an SSD1306. It registers
+`display:0` with the tags `device=ssd1306 canvas=0`, and implements
+`clear`, `log` and `text` with the same wire forms and the same
+bottom-left origin. On the Linux SBC, the `aiko_display` command
+(`text`, `log`, `clear`, `exit`), the keys console and the Dashboard
+page drive it without change. The page shows "mirror: not supported by
+this Actor", because the share has no `mirrors`. A key that the example
+does not know is logged as an ERROR, "Function not found".
 
 ## 7. Future directions
 
