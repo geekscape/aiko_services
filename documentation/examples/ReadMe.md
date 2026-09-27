@@ -9,7 +9,7 @@ audience: [developers, end-users]
 status: draft
 ste: adapted
 version: "0.8-dev"
-last_updated: 2026-09-26
+last_updated: 2026-09-28
 ---
 
 # Aiko Services: Examples documentation
@@ -67,10 +67,13 @@ Concepts and PipelineElements documentation
 - **Speech and language**: [speech/](speech/ReadMe.md) then
   [llm/](llm/ReadMe.md) — three cooperating Pipelines forming a
   voice-in, voice-out LLM loop.
-- **Headless hosts and small displays**: [actors/display/](../actors/display/ReadMe.md) — an
-  Actor that shows the host's status on an OLED, with its settings in
-  the [shared state](../concepts/share.md) for the Dashboard. Its
-  [test guide](../actors/display/testing.md) runs on a desktop without hardware.
+- **Headless hosts and small displays**: [oled/](../../src/aiko_services/examples/oled/ReadMe.md)
+  — one small Actor that draws on an OLED. Then the full Display Actor
+  in the [actors tier](../actors/display/ReadMe.md), which shows the
+  host's status, with its settings in the
+  [shared state](../concepts/share.md) for the Dashboard. Its
+  [test guide](../actors/display/testing.md) runs on a desktop without
+  hardware.
 - **Distributed systems**:
   [system_pipelines/](system_pipelines/ReadMe.md) for
   [ProcessManager](../concepts/process_manager.md) bootstrap, and
@@ -84,8 +87,8 @@ development and vary widely in maturity: aloha_honua, pipeline and oled
 are current and instructive. Colab, speech, llm and the robot examples
 mix working code with stubs, mocks and work-in-progress. Each document
 separates implemented behavior from planned behavior, based on the
-source code as of 2026-07-06 (oled: 2026-09-26). Only the oled package
-has automated tests: 104 unit tests that need no hardware. Several
+source code as of 2026-07-06 (oled: 2026-09-28). Only the oled example
+has automated tests: 4 unit tests that need no hardware. Several
 packages depend on hardware (microphone, webcam, CUDA GPU, XGO-Mini
 robot, an SSD1306 OLED) or external services (Ollama, Google Colab).
 

@@ -10,10 +10,12 @@ status: draft
 ste: adapted
 source:
   - src/aiko_services/actors/display/dashboard_plugin.py
-  - src/aiko_services/actors/display/oled.py
-related: [oled, oled_protocol, testing, dashboard, dashboard_plugin, share]
+  - src/aiko_services/actors/display/display.py
+  - src/aiko_services/actors/display/outputs.py
+related: [display, display_protocol, design, testing, dashboard,
+  dashboard_plugin, share]
 version: "0.8-dev"
-last_updated: 2026-09-27
+last_updated: 2026-09-28
 ---
 
 # Dashboard page for the Display Actor (dashboard_plugin.py)
@@ -37,14 +39,16 @@ without a second terminal.
 
 ### Command-line usage
 
-The example is not in the wheel, so the plug-in needs an editable
-install, or its file path. Any `-p` replaces the Dashboard's default
-plug-ins, so give both:
+The plug-in is in the wheel, in the actors tier. Any `-p` replaces the
+Dashboard's default plug-ins, so give both:
 
 ```bash
 aiko_dashboard -p aiko_services.main.dashboard_plugins \
-               -p aiko_services.examples.oled.dashboard_plugin
+               -p aiko_services.actors.display.dashboard_plugin
 ```
+
+`AIKO_DISPLAY_MIRROR` sets the mirror when the page starts: `on` (the
+default), `off`, or `ascii` for plain ASCII characters.
 
 Select the Display Actor in the Services list and press `S`. The page
 opens with the mirror, the state, the legend and the log. `D`, `Esc`,
@@ -65,14 +69,18 @@ terminal output uses:
 lit and unlit, `contrast` dims the foreground, and `foreground` and
 `background` color it. A terminal with 256 colors shows the colors. One
 with 8 colors shows white on black, bold when the contrast is 128 or
-more. A terminal that is not Unicode aware shows a note instead of the
-mirror. The service bar's right end says `mirror 5 Hz  fps 30`, or
-`mirror: waiting for frames`, `mirror: no frames N s`, `mirror: not
-supported by this Actor` (an Actor before Epic 1) or `MQTT down`.
+more. A terminal that is not Unicode aware (`LC_ALL=C`, for example)
+shows the mirror in plain ASCII: `'`, `.` and `:` for each pair of
+pixels, or ` .:#` for each 2x4 cell by the number of lit pixels. The
+service bar's right end says `mirror 5 Hz  fps 30  key 95 ms`, or
+`mirror: waiting for frames`, `mirror: no frames N s`, `mirror: off (M)`,
+`mirror: not supported by this Actor` (an Actor before Epic 1, or the
+simple example) or `MQTT down`. `key N ms` is the time from the last key
+sent to the next frame.
 `last_error` shows red for five seconds after it changes.
 
 **Keys.** Every letter, digit and symbol of the Actor's key map is sent as
-`(key K tap)`, and the arrow keys too. The Actor runs a mapped key's
+`(key K tap)`. An arrow key is held (see below). The Actor runs a mapped key's
 preset, or changes its setting, and passes any other key to the running
 applet. Four keys differ from the console, because the Dashboard reserves
 them on every page:
@@ -83,24 +91,34 @@ them on every page:
 | `K` | Stop the Actor, after a confirmation | `X` quits the Dashboard |
 | `H` | This page's help | `?` is the Dashboard's help. `h` still shows the help applet on the panel |
 | `Esc`, `Backspace`, `q` | Back to the Dashboard | `x` quits the Dashboard |
+| `M` | The mirror off, or on again | A page key: the Actor has no `M` |
 
 Page-only keys: `Enter` on a state row edits it, when the row is a
 setting. The pop-up shows the setting's values, and a bad value converges
-back with `last_error` telling why. `L` opens the log level pop-up. The
-arrow keys send one `(key NAME tap)` per press. A held key repeats at the
-terminal's rate, and the page sends at most ten a second per arrow.
+back with `last_error` telling why. `L` opens the log level pop-up.
+
+**The arrow keys are held.** A terminal sends a key press and then its
+auto-repeats, but never a release. So the page sends `(key NAME down)`
+on the first press and ignores the repeats. When no repeat arrives for
+0.25 s, it sends `(key NAME up)`. The Actor lets go of a `down` after
+2 s, so while the key is held, the page sends `down` again each second.
+Leaving the page lets go of every arrow. A terminal that waits more than
+0.25 s before its first repeat gives one short gap at the start of a
+hold.
 
 ### Public API
 
 The page has no wire protocol of its own. It uses the display protocol
-([oled_protocol](oled_protocol.md)):
+([display_protocol](display_protocol.md)):
 
 - `(mirror TOPIC 30)` on the `in` topic asks for the feed on the
   Dashboard's own topic, `NAMESPACE/HOST/PID/0/display/mirror`, and a
   timer extends it every 10 seconds. Leaving the page sends
   `(mirror TOPIC 0)`. A page that quits without leaving, or crashes,
   costs the Actor at most 30 seconds of frames.
-- `(key NAME tap)` for every key.
+- `(key NAME tap)` for every key, and `(key NAME down)` and
+  `(key NAME up)` for the arrow keys.
+- `(mirror TOPIC 0)` for `M`, when it turns the mirror off.
 - `(update KEY VALUE)` on the control topic for an edited setting, exactly
   what the Dashboard's own page sends.
 - `(stop)` for `K`.
@@ -161,29 +179,34 @@ Dashboard process, TUI thread:         DisplayFrame._update() ─► DisplayPage
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
-| `DisplayPage` | The page's model: what a key does, the aliases, arrow coalescing, the feed status, the error flash, the rendered rows | `render_mirror` |
-| `render_mirror` | Rows of text and colors from a frame and the shared state | `Appearance`, `text_lines`, `xterm_color` |
+| `DisplayPage` | The page's model: what a key does, the aliases, the arrow hold and release, the latency measure, the mirror switch, the feed status, the error flash, the rendered rows | `render_mirror` |
+| `render_mirror` | Rows of text and colors from a frame and the shared state, in Unicode or ASCII | `Appearance`, `text_lines`, `ascii_lines`, `xterm_color` |
 | `MirrorWidget` | Prints the rows on the page's canvas | `DisplayPage` |
 | `DisplayFrame` | The page: layouts, the Service's start and stop, the feed lease, the keys, the pop-ups, the state table, the log | `ServiceFrame`, `LogUI`, `LogLevelPopupMenu`, the `Canvas`, `Screen`, `Interaction` and `Display` proxies |
 
 ## Current limitations and roadmap
 
-- Text entry for the canvas is not on the page. Use `aiko_oled text`.
-- The arrow keys reach the Actor as taps, so a game gets no true hold.
-  If the forklift game feels jerky over MQTT, a later change can send
-  `down` on the first press and `up` after a pause.
-- Verified under a pseudo-terminal with `TERM` `xterm-256color` (256
-  colors, Unicode aware) at 132x48 and 80x24, against the Pi's panel: the
-  half-block and Braille mirrors, the state table, the legend, the log,
-  and keys sent to the Actor. The macOS Terminal, iTerm2 and the Linux
-  console are left to try at the Epic 1 review.
+- Text entry for the canvas is not on the page. Use `aiko_display text`.
+- The latency from an arrow key to the next mirrored frame, measured on
+  the forklift game at `mirror_rate 10` from a Mac to the Linux SBC: 54
+  to 196 ms over 12 samples, median about 95 ms. This includes the
+  100 ms limit of the mirror.
+- The terminal test (`test_terminal_matrix`) runs the page in a
+  pseudo-terminal for each `TERM` of `xterm-256color`, `xterm`, `linux`
+  and `vt100`, with three locales and two sizes. `LC_ALL=C` gives the
+  ASCII mirror. `vt100` cannot hide the cursor, so no Dashboard starts
+  there. The [design record](design.md) gives the table.
+- A person must still try the page in the macOS Terminal, iTerm2, the
+  Linux console (its font has no Braille), ssh and tmux. The
+  [test guide](testing.md) lists these checks.
 - Two Dashboards mirroring one Actor cost it two publishes per frame. The
   Actor caps holders at four.
 
 ## Related concepts
 
-- [oled](oled.md) — the Actor
-- [oled_protocol](oled_protocol.md) — the wire protocol, the mirror rows
+- [display](display.md) — the Actor
+- [display_protocol](display_protocol.md) — the wire protocol, the mirror rows
+- [design](design.md) — the Dashboard plug-in pattern and the terminals
 - [testing](testing.md) — the step-by-step test guide, section 8
 - [Dashboard](../../concepts/dashboard.md),
   [Dashboard plug-in](../../concepts/dashboard_plugin.md)

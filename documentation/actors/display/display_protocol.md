@@ -12,12 +12,13 @@ audience: [developers, ai-coding-agents]
 status: draft
 ste: adapted
 source:
-  - src/aiko_services/actors/display/oled.py
+  - src/aiko_services/actors/display/display.py
   - src/aiko_services/actors/display/keys.py
   - src/aiko_services/tests/unit/test_display.py
-related: [oled, testing, actor, share, message, discovery, parameters, stream]
+related: [display, display_dashboard, design, testing, actor, share, message,
+  discovery, parameters, stream]
 version: "0.8-dev"
-last_updated: 2026-09-27
+last_updated: 2026-09-28
 ---
 
 # Display protocol display:0
@@ -26,12 +27,13 @@ last_updated: 2026-09-27
 
 This is the specification unit for the Display Actor: what a client may
 send, what it observes, and what happens when something is wrong. The
-Python Actor of the OLED example implements all of it. The MicroPython
-aiko_engine_mp OLED implements the compatible subset, marked in the
-tables below. The decisions behind the protocol are recorded in the
-display abstraction ADR, drafted in Epic 1 and proposed for the
-constitution through its move ceremony.
-The [oled](oled.md) document explains the Actor, and the
+Python Display Actor in `actors/display/` implements all of it. The
+MicroPython aiko_engine_mp OLED implements the compatible subset, marked
+in the tables below. The one-file example `examples/oled/oled_actor.py`
+implements `clear`, `log` and `text` only. The decisions behind the
+protocol are recorded in
+[ADR-025](../../../constitution/adr/ADR-025_RemoteDisplayAbstraction.md).
+The [display](display.md) document explains the Actor, and the
 [test guide](testing.md) exercises every rule on this page.
 
 The protocol id `oled:0` of Epic 0 is withdrawn before any release. Every
@@ -41,10 +43,10 @@ The protocol id `oled:0` of Epic 0 is withdrawn before any release. Every
 
 ### Command-line usage
 
-`aiko_oled` wraps the protocol. `aiko_oled text 0 0 hello` sends
-`(text 0 0 hello)` on the `in` topic. `aiko_oled set contrast 64` sends
-`(update contrast 64)` on the control topic. `aiko_oled key g` sends
-`(key g tap)`, and the Actor's key map starts pong. `aiko_oled --help`
+`aiko_display` wraps the protocol. `aiko_display text 0 0 hello` sends
+`(text 0 0 hello)` on the `in` topic. `aiko_display set contrast 64` sends
+`(update contrast 64)` on the control topic. `aiko_display key g` sends
+`(key g tap)`, and the Actor's key map starts pong. `aiko_display --help`
 lists every wire command. Without the command line:
 
 ```bash
@@ -99,7 +101,7 @@ is at (X, Y). Thus `(text 0 0 hi)` is the bottom row, and
 | Canvas | `(text X Y WORDS ...)` | Integers, then words | In range, 128 characters | `(oled:text ...)`, with an 8x8 font |
 | Screen | `(mirror TOPIC SECONDS)` | A topic, then seconds | The topic is one token of at most 128 characters without `+` or `#`. Seconds 0..300. At most 4 holders | — |
 | Interaction | `(applet NAME [WORDS ...] [key=value ...])` | A name, words, options | The name is in `applets`. The options are the ones the applet declares, 64 characters each | — |
-| Interaction | `(key NAME [tap\|down\|up])` | `up`, `down`, `left`, `right` or one character, then a state | The state as listed. `tap` is the default | — |
+| Interaction | `(key NAME [tap\|down\|up])` | `up`, `down`, `left`, `right` or one character, then a state | The state as listed. `tap` is the default. `down` holds the key for 2 s at most | — |
 | Display | `(stop)`, `(exit)` | — | `exit` is an alias of `stop` | — |
 | Display | `(set_log_level LEVEL)` | The framework's | | — |
 
@@ -110,6 +112,14 @@ running applet. The map is published as the share keys `keys.*`, for
 example `keys.g` = `pong|asteroids|invaders|forklift` and `keys.digits` =
 `speed`. Thus every client sends the same `(key K tap)`. The arrow keys
 are never mapped.
+
+**How long a key is held.** A `tap` holds a key for 0.15 s. A `down`
+holds it until the `up`, but for 2 s at most (`KEY_DOWN_MAXIMUM`). Thus
+a lost `up` cannot hold a key for ever (P9). A client that holds a key
+for longer sends `down` again, at least once each 2 s. The Dashboard
+page and the emulator window send it each second. This limit is new on
+2026-09-28, and it changes the meaning of `down` for a client that sent
+one `down` and waited.
 
 **The frame mirror.** `(mirror TOPIC SECONDS)` creates or extends a leased
 feed, in the vocabulary of a Stream: TOPIC names the holder and is the
@@ -134,7 +144,7 @@ share key takes the same arguments, separated by commas:
 
 **Applet names**: `status`, `log`, `help`, `pattern`, `text`, `blink`,
 `demo`, `clock`, `eyes`, `pong`, `asteroids`, `invaders`, `games`,
-`forklift`, `forklift_game` and `draw`. The [oled](oled.md) document
+`forklift`, `forklift_game` and `draw`. The [display](display.md) document
 lists the options of each one.
 
 **Shared state**, observed with `(share TOPIC SECONDS *)` on the control
@@ -216,11 +226,11 @@ y flip from the bottom-left wire origin to PIL's top-left rows happens in
 one place, `FrameBuffer._device_y()`. The settings are one declaration,
 `SETTINGS_SPEC`, in the shape of a Pipeline
 [Parameters](../../concepts/parameters.md) declaration. The
-[oled](oled.md) document gives the full design.
+[display](display.md) document gives the full design.
 
 ### Implementation notes
 
-**Conformance trace** (`test_oled.py`). Given a fresh Actor with a fake
+**Conformance trace** (`test_display.py`). Given a fresh Actor with a fake
 display and no title row:
 
 | Test | Payload on `in` | Outcome |
@@ -254,7 +264,7 @@ aiko_engine_mp must pass in Epic 2.
 
 ### CRC card
 
-See [oled](oled.md).
+See [display](display.md).
 
 ## Current limitations and roadmap
 
@@ -268,22 +278,23 @@ See [oled](oled.md).
 | Origin | Bottom-left | Bottom-left |
 | Font | 5x7 (21 characters per row), or TrueType | 8x8 (16 characters per row) |
 | Runs of spaces in `log` | Collapsed by the parser | Kept |
-| Panels | One per Actor (both panels as one display: Epic 1 phase 4) | Two, with the text spread across them |
+| Panels | One per Actor (both panels as one display: Epic 1 phase 4, only on the lead's "Do it") | Two, with the text spread across them |
 | Shared state | Every setting and observation above | None |
 | Traits | `size`, `depth`, `backend`, `applets`, `settings`, `keys.*` in the shared state | A planned `(oled:traits)` reply |
 
-**Planned in Epic 1**: the `panels` list for two panels as one display,
-and the 8x8 font. **Planned convergence** (Epic 2): aiko_engine_mp registers
+**Only on the lead's "Do it"**: the `panels` list for two panels as one
+display (phase 4). **Deferred**: the 8x8 font. **Planned convergence** (Epic 2): aiko_engine_mp registers
 `display:0`, accepts both `text` and `oled:text`, and exposes `contrast`,
 `invert` and `power` as shared state. Then the same clients, the same
 console and the same Dashboard page drive both.
 
 ## Related concepts
 
-- [oled](oled.md) — the Actor
+- [display](display.md) — the Actor
 - [testing](testing.md) — the step-by-step test guide
-- The display abstraction ADR, proposed for the constitution — the
-  decisions behind the protocol
+- [ADR-025](../../../constitution/adr/ADR-025_RemoteDisplayAbstraction.md)
+  — the decisions behind the protocol
+- [design](design.md) — the design record and the future directions
 - [Actor](../../concepts/actor.md), [Share](../../concepts/share.md),
   [Message](../../concepts/message.md),
   [Discovery](../../concepts/discovery.md)

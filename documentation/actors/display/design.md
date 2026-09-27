@@ -7,7 +7,7 @@ description: The design record of the Display Actor (protocol display:0).
 type: concept
 audience: [project-lead, architects, developers, ai-coding-agents]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/actors/display
 related: [actor, dashboard, dashboard_plugin, registrar, share, lease,
@@ -77,10 +77,10 @@ Navigation: [display index](ReadMe.md) · [actors index](../ReadMe.md)
 ## 3. Terminals
 
 asciimatics decides Unicode from the locale encoding only, and the
-colours from terminfo. A pseudo-terminal test runs the page in each
+colors from terminfo. A pseudo-terminal test runs the page in each
 combination of these (`test_terminal_matrix`):
 
-| TERM | `LANG=en_AU.UTF-8` | `LANG=C` | `LC_ALL=C` | Colours |
+| TERM | `LANG=en_AU.UTF-8` | `LANG=C` | `LC_ALL=C` | Colors |
 |---|---|---|---|---|
 | `xterm-256color` | Unicode | Unicode (Python changes `C` to `C.UTF-8`) | ASCII | 256 |
 | `xterm` | Unicode | Unicode | ASCII | 8 |
@@ -140,7 +140,7 @@ does not know is logged as an ERROR, "Function not found".
 ## 7. Future directions
 
 - **Any pixel surface is a display.** `depth` (bits for each pixel) is
-  the hook for grey scale and colour, and it is additive (CP-G).
+  the hook for gray scale and color, and it is additive (CP-G).
 - **Epic 2, aiko_engine_mp.** The ESP32 firmware registers `display:0`
   with `device=esp32 canvas=0`, and passes the Canvas conformance trace
   in the protocol document. The 8x8 font (deferred phase 5) gives the
@@ -161,7 +161,7 @@ does not know is logged as an ERROR, "Function not found".
 
 ## Related
 
-- [Display Actor](oled.md) · [display:0 protocol](oled_protocol.md) ·
-  [Dashboard page](oled_dashboard.md) · [test guide](testing.md)
+- [Display Actor](display.md) · [display:0 protocol](display_protocol.md) ·
+  [Dashboard page](display_dashboard.md) · [test guide](testing.md)
 - [Parameters and Streams shape](parameters_streams_shape.md)
 - [ADR-025](../../../constitution/adr/ADR-025_RemoteDisplayAbstraction.md)

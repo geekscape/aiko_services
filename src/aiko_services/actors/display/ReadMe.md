@@ -1,4 +1,4 @@
-# Aiko Services example: OLED Display Actor
+# Aiko Services actors: the Display Actor
 
 An SSD1306 128x64 OLED as an Aiko Services Display Actor (protocol
 `display:0`: the composite of the Canvas, Screen and Interaction aspects).
@@ -12,7 +12,7 @@ the panel, the OLED is emulated in a desktop window (pygame), in the
 terminal or in a PNG file.
 
 Documentation: [documentation/actors/display/ReadMe.md](../../../../documentation/actors/display/ReadMe.md)
-(the Actor, the `oled:0` protocol and the step-by-step
+(the Actor, the `display:0` protocol, the design record and the step-by-step
 [test guide](../../../../documentation/actors/display/testing.md)).
 `aiko_display --help` is the complete command reference.
 
@@ -29,12 +29,11 @@ Documentation: [documentation/actors/display/ReadMe.md](../../../../documentatio
 
 ## Install
 
-The example lives in `src/aiko_services/examples/`, which the Aiko
-Services wheel does not ship, so the `aiko_display` command needs an
-editable install of the repository:
+The package ships in the Aiko Services wheel, in the actors tier, with
+the `aiko_display` command:
 
 ```bash
-pip install -e .              # aiko_services, in your virtual environment
+pip install aiko_services     # or "pip install -e ." in a clone
 pip install luma.oled         # the SSD1306 driver (the SBC only)
 pip install pygame            # optional: the desktop window emulation
 ```
@@ -81,19 +80,22 @@ with systemd (the instructions are in the file).
 ## Tests
 
 ```bash
-pytest src/aiko_services/tests/unit/test_oled.py \
-       src/aiko_services/tests/unit/test_oled_cli.py \
-       src/aiko_services/tests/unit/test_oled_applets.py
+pytest src/aiko_services/tests/unit/test_display.py \
+       src/aiko_services/tests/unit/test_display_cli.py \
+       src/aiko_services/tests/unit/test_display_applets.py \
+       src/aiko_services/tests/unit/test_display_dashboard_plugin.py
 ```
 
-111 tests; no broker and no panel needed.
+142 tests (6 of them expected failures: the `vt100` terminal cases); no
+broker and no panel needed.
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `display.py` | The `Canvas`, `Screen` and `Interaction` aspects, the `Display` composite, `DisplayImpl` and the `aiko_display` command line |
-| `outputs.py` | The output seam: `Output` and `OutputControls` Interfaces, one Impl per backend (SSD1306 with luma.oled, pygame window, terminal, PNG, none, fake), the `Appearance` emulation |
+| `display.py` | The `Canvas`, `Screen` and `Interaction` aspects, the `Display` composite, `DisplayImpl`, `SETTINGS_SPEC` and `service_filter()` |
+| `cli.py` | The `aiko_display` command line |
+| `outputs.py` | The output seam: `Output` and `OutputControls` Interfaces, one Impl per backend (SSD1306 with luma.oled, pygame window, terminal, PNG, none, fake), the `Appearance` emulation, the frame as Unicode or ASCII text |
 | `graphics.py` | 5x7 font, image helpers, the bottom-left `FrameBuffer`, the title row |
 | `applets.py` | Applets: sources of frames the Actor runs — `log`, `help`, `pattern`, `text`, `blink`, `demo` |
 | `status.py` | `status`, the default: the host and Wi-Fi screens, as text or as charts of the newest samples, one per column |
@@ -102,6 +104,8 @@ pytest src/aiko_services/tests/unit/test_oled.py \
 | `faces.py` | `clock`: an analog or a digital clock face; `eyes`: animated eyes showing emotions |
 | `keys.py` | The key map, run on the Actor by `(key K)`: what each key does, and the `keys.*` legend |
 | `console.py` | `aiko_display keys`: an interactive console for the running Actor |
-| `dashboard_plugin.py` | The Aiko Dashboard page: a live mirror of the panel, the shared state, the log, the keys |
+| `dashboard_plugin.py` | The Aiko Dashboard page: a live mirror of the panel (Unicode or ASCII, `M` turns it off), the shared state, the log, the keys, held arrows |
 | `aiko_display.service` | systemd unit for a Linux SBC: the display comes up with the host |
-| `oled_test.py` | The original standalone spike (click, no Aiko Services): kept unchanged for reference |
+
+The one-file example of the same protocol, `oled_actor.py`, and the
+original standalone spike, `oled_test.py`, are in `src/aiko_services/examples/oled/`.

@@ -1,23 +1,24 @@
 ---
-title: OLED Actor test guide
+title: Display Actor test guide
 description: Step-by-step instructions for a technical lead to exercise
-  every part of the OLED Display Actor example — on macOS with an emulated
-  display and on a Linux Single Board Computer (SBC) with the SSD1306 panel —
-  the unit tests, the command line and its help, raw S-expressions, the
-  shared state, the Aiko Dashboard, the applets, the keys console, failure
-  behavior and systemd
+  every part of the Display Actor — on macOS with an emulated display and
+  on a Linux Single Board Computer (SBC) with the SSD1306 panel — the unit
+  tests, the command line and its help, raw S-expressions, the shared
+  state, the Aiko Dashboard, the applets, the keys console, the simple
+  example, the terminals, failure behavior and systemd
 type: guide
 audience: [developers]
 status: draft
 ste: adapted
 source:
   - src/aiko_services/actors/display
-related: [oled, oled_protocol, dashboard, share, discovery]
+related: [display, display_protocol, display_dashboard, dashboard, share,
+  discovery]
 version: "0.8-dev"
-last_updated: 2026-09-26
+last_updated: 2026-09-28
 ---
 
-# OLED Actor test guide
+# Display Actor test guide
 
 Each step says what to do and what to expect. A step marked **[mac]**
 runs on macOS, or any desktop, with an emulated display. A step marked
@@ -36,8 +37,8 @@ for the commands. The whole guide takes about an hour.
   ```
 
 - The repository installed editable in a virtual environment. The
-  `aiko_oled` command needs an editable install, because `examples/` is
-  not in the wheel:
+  wheel also has the `aiko_display` command, but the tests and the simple
+  example are in the repository:
 
   ```bash
   cd <repository>
@@ -53,8 +54,10 @@ for the commands. The whole guide takes about an hour.
 Two deployment traps:
 
 - A stale retained Registrar announcement stops discovery. The symptom
-  is "No OLED Actors found" although the Actor runs. Clear it, then
-  restart the Registrar:
+  is "No Display Actors found" although the Actor runs. A Registrar with
+  the liveness probe (branch `andyg/registrar-liveness`) replaces the
+  stale announcement by itself, in about 5 s. With an older Registrar,
+  clear it, then restart the Registrar:
 
   ```bash
   mosquitto_pub -t aiko/service/registrar -r -n
@@ -71,7 +74,7 @@ Two deployment traps:
   ```
 
   Then, on the desktop, `export AIKO_MQTT_HOST=SBC_HOSTNAME` and name the
-  Actor: `aiko_oled list`, then `aiko_oled -n SBC_HOSTNAME keys`.
+  Actor: `aiko_display list`, then `aiko_display -n SBC_HOSTNAME keys`.
 
 ## 2. Unit tests and lint
 
@@ -79,21 +82,23 @@ Two deployment traps:
 pytest src/aiko_services/tests/unit/test_display.py \
        src/aiko_services/tests/unit/test_display_cli.py \
        src/aiko_services/tests/unit/test_display_applets.py \
-       src/aiko_services/tests/unit/test_display_dashboard_plugin.py
+       src/aiko_services/tests/unit/test_display_dashboard_plugin.py \
+       src/aiko_services/tests/unit/test_example_oled.py
 flake8 . --select=E9,F63,F7,F82
 ```
 
-Expect: `104 passed`, and no flake8 output. No broker and no panel are
-needed. Run them on the SBC too (Python 3.13 there). One test asserts
-that `oled_test.py`, the original spike, is never imported.
+Expect: `140 passed, 6 xfailed`, and no flake8 output. The 6 expected
+failures are the `vt100` terminal cases (see step 14). No broker and no
+panel are needed. Run them on the SBC too (Python 3.13 there). One test
+asserts that `oled_test.py`, the original spike, is never imported.
 
 ## 3. The help
 
 ```bash
-aiko_oled --help
-aiko_oled run --help
-aiko_oled applet --list
-aiko_oled keys --help
+aiko_display --help
+aiko_display run --help
+aiko_display applet --list
+aiko_display keys --help
 ```
 
 Expect: the group help ends with a reference built from the code's own
@@ -107,13 +112,13 @@ Terminal 1:
 
 ```bash
 aiko_registrar &
-aiko_oled run -o terminal                  # [mac] emulated in the terminal
-aiko_oled run -o window                    # [mac] emulated in a pygame window
-aiko_oled run -o png --png /tmp/oled.png   # [mac] the newest frame as a PNG
-aiko_oled run                              # [sbc] the panel at 0x3C (-a 0x3D for SA0 high)
+aiko_display run -o terminal                  # [mac] emulated in the terminal
+aiko_display run -o window                    # [mac] emulated in a pygame window
+aiko_display run -o png --png /tmp/oled.png   # [mac] the newest frame as a PNG
+aiko_display run                              # [sbc] the panel at 0x3C (-a 0x3D for SA0 high)
 ```
 
-Expect: a line `OLED Actor NAME: aiko/HOST/PID/1/in`, where NAME is the
+Expect: a line `Display Actor NAME: aiko/HOST/PID/1/in`, where NAME is the
 hostname. Then the status display: an inverse-video title row with the
 name, the annunciators and the clock (hh:mm:ss). The annunciators are
 `M` (the broker) and `R` (the Registrar). Below the title row: the IP
@@ -132,33 +137,33 @@ on another host, put `-n NAME` before the subcommand.
 
 | Step | Command | Expect |
 |------|---------|--------|
-| 5.1 | `aiko_oled list` | `HOST  aiko/HOST/PID/1  ec=true device=oled canvas=0 screen=0 interaction=0`, exit status 0. The tags name the display backend and the three aspects |
-| 5.2 | `aiko_oled text 0 0 hello world` | The status display stops. `hello world` on the bottom row (origin bottom-left) |
-| 5.3 | `aiko_oled text 0 8 second row` | One text row above it |
-| 5.4 | `aiko_oled log Hello from the lead` | The canvas scrolls up one row, and the line is on the bottom row. The title row shows `L` |
-| 5.5 | `aiko_oled pixels 0 0 127 63` | The bottom-left pixel lights. The top-right pixel lights unless the title row covers it |
-| 5.6 | `aiko_oled line 0 0 127 63` | A diagonal |
-| 5.7 | `aiko_oled clear` | Only the title row remains |
-| 5.8 | `aiko_oled set contrast 32` | Dim. `aiko_oled set contrast 255` restores |
-| 5.9 | `aiko_oled set invert on`, then `off` | Inverse video, and back |
-| 5.10 | `aiko_oled set power off`, then `on` | The display off (blank), and back |
-| 5.11 | `aiko_oled set title Aiko_Services` | The title row reads `Aiko Serv`: the title has 9 columns with the 5x7 font. The annunciators and the clock follow |
-| 5.12 | `aiko_oled set title off`, then `aiko_oled set title on` | The row disappears, so the canvas and the applets have the whole panel. Then it returns with the same text |
-| 5.13 | `aiko_oled applet pong`, then `aiko_oled log one`, `aiko_oled log two`, then `aiko_oled applet log` | Pong keeps running while the lines arrive (no title row over a game). The `log` applet shows both lines and clears `L` |
-| 5.14 | `aiko_oled set font 12` | Text drawn from now on is larger. `set font 5x7` restores |
-| 5.14a **[mac]** | `aiko_oled set foreground yellow`, then `aiko_oled set background navy` | Lit pixels turn yellow, then the rest turns navy. On the panel nothing changes, but the values are published. `set foreground default` and `set background default` restore the colors from `-c`, or white on black |
-| 5.15 | `aiko_oled applet status` | The status display again, in the current font: IP, `CPU 12% Mem 34%`, `Dsk 61% R 111k T 1.1k`, `Load 0.42 0.38 0.35`, `Temp 45C F 1 1500MHz` on an SBC, the uptime, then the newest log line last. `aiko_oled log again` replaces the log line |
-| 5.15a | `aiko_oled applet status view=cpu_mem` | A chart: a heading with a solid sample and `CPU 12%`, a dotted sample and `Mem 34%`, then the traces growing from the right, one column a second |
-| 5.15b **[sbc]** | `aiko_oled applet status screen=wifi` | The Wi-Fi link: `SSID`, `Ch` with the band and bandwidth, `RSSI`, the `Tx` and `Rx` bit rates, `AP`, the traffic and the interface. Then `view=rssi` for its chart |
-| 5.16 | `aiko_oled applet status date=on` | The date row is added |
-| 5.17 | `aiko_oled applet pong` | Pong plays itself. `aiko_oled set speed 2` doubles the pace, and `set speed 1` restores |
-| 5.18 | `aiko_oled applet forklift_game`, then `aiko_oled key right`, `aiko_oled key up` | The forklift drives right a little, and lifts its forks a little, per key |
-| 5.18a | `aiko_oled key g`, then `aiko_oled key 5` | The Actor's key map runs the preset: pong starts, then runs at `speed 0.707`. `aiko_oled key R` resets and shows the status display |
-| 5.18b | `aiko_oled mirror aiko/probe/mirror 20`, then `mosquitto_sub -t aiko/probe/mirror -C 3 \| wc -c` | 3072: three frames of 1024 bytes, one for each change of the panel (the clock changes it once a second). `aiko_oled mirror aiko/probe/mirror 0` stops the feed, and `mirrors` in the shared state reads `0` |
-| 5.19 | `aiko_oled stop` | The canvas from 5.7 is shown again |
-| 5.20 | `aiko_oled set bogus 1` | A usage error, exit status 2. The key is checked locally |
-| 5.21 | `aiko_oled exit` | The display blanks, the Actor process ends, exit status 0. On the wire `(exit)` is an alias of `(stop)` |
-| 5.22 | `aiko_oled -t 2 exit`, with nothing running | `Timeout after 2 s: no OLED Actor named HOST`, exit status 1 |
+| 5.1 | `aiko_display list` | `HOST  aiko/HOST/PID/1  ec=true device=oled canvas=0 screen=0 interaction=0`, exit status 0. The tags name the display backend and the three aspects |
+| 5.2 | `aiko_display text 0 0 hello world` | The status display stops. `hello world` on the bottom row (origin bottom-left) |
+| 5.3 | `aiko_display text 0 8 second row` | One text row above it |
+| 5.4 | `aiko_display log Hello from the lead` | The canvas scrolls up one row, and the line is on the bottom row. The title row shows `L` |
+| 5.5 | `aiko_display pixels 0 0 127 63` | The bottom-left pixel lights. The top-right pixel lights unless the title row covers it |
+| 5.6 | `aiko_display line 0 0 127 63` | A diagonal |
+| 5.7 | `aiko_display clear` | Only the title row remains |
+| 5.8 | `aiko_display set contrast 32` | Dim. `aiko_display set contrast 255` restores |
+| 5.9 | `aiko_display set invert on`, then `off` | Inverse video, and back |
+| 5.10 | `aiko_display set power off`, then `on` | The display off (blank), and back |
+| 5.11 | `aiko_display set title Aiko_Services` | The title row reads `Aiko Serv`: the title has 9 columns with the 5x7 font. The annunciators and the clock follow |
+| 5.12 | `aiko_display set title off`, then `aiko_display set title on` | The row disappears, so the canvas and the applets have the whole panel. Then it returns with the same text |
+| 5.13 | `aiko_display applet pong`, then `aiko_display log one`, `aiko_display log two`, then `aiko_display applet log` | Pong keeps running while the lines arrive (no title row over a game). The `log` applet shows both lines and clears `L` |
+| 5.14 | `aiko_display set font 12` | Text drawn from now on is larger. `set font 5x7` restores |
+| 5.14a **[mac]** | `aiko_display set foreground yellow`, then `aiko_display set background navy` | Lit pixels turn yellow, then the rest turns navy. On the panel nothing changes, but the values are published. `set foreground default` and `set background default` restore the colors from `-c`, or white on black |
+| 5.15 | `aiko_display applet status` | The status display again, in the current font: IP, `CPU 12% Mem 34%`, `Dsk 61% R 111k T 1.1k`, `Load 0.42 0.38 0.35`, `Temp 45C F 1 1500MHz` on an SBC, the uptime, then the newest log line last. `aiko_display log again` replaces the log line |
+| 5.15a | `aiko_display applet status view=cpu_mem` | A chart: a heading with a solid sample and `CPU 12%`, a dotted sample and `Mem 34%`, then the traces growing from the right, one column a second |
+| 5.15b **[sbc]** | `aiko_display applet status screen=wifi` | The Wi-Fi link: `SSID`, `Ch` with the band and bandwidth, `RSSI`, the `Tx` and `Rx` bit rates, `AP`, the traffic and the interface. Then `view=rssi` for its chart |
+| 5.16 | `aiko_display applet status date=on` | The date row is added |
+| 5.17 | `aiko_display applet pong` | Pong plays itself. `aiko_display set speed 2` doubles the pace, and `set speed 1` restores |
+| 5.18 | `aiko_display applet forklift_game`, then `aiko_display key right`, `aiko_display key up` | The forklift drives right a little, and lifts its forks a little, per key. `aiko_display key right down` drives it for 2 s: a `down` holds a key for 2 s at most |
+| 5.18a | `aiko_display key g`, then `aiko_display key 5` | The Actor's key map runs the preset: pong starts, then runs at `speed 0.707`. `aiko_display key R` resets and shows the status display |
+| 5.18b | `aiko_display mirror aiko/probe/mirror 20`, then `mosquitto_sub -t aiko/probe/mirror -C 3 \| wc -c` | 3072: three frames of 1024 bytes, one for each change of the panel (the clock changes it once a second). `aiko_display mirror aiko/probe/mirror 0` stops the feed, and `mirrors` in the shared state reads `0` |
+| 5.19 | `aiko_display stop` | The canvas from 5.7 is shown again |
+| 5.20 | `aiko_display set bogus 1` | A usage error, exit status 2. The key is checked locally |
+| 5.21 | `aiko_display exit` | The display blanks, the Actor process ends, exit status 0. On the wire `(exit)` is an alias of `(stop)` |
+| 5.22 | `aiko_display -t 2 exit`, with nothing running | `Timeout after 2 s: no Display Actor named HOST`, exit status 1 |
 
 Start the Actor again (step 4) before you continue.
 
@@ -173,7 +178,7 @@ mosquitto_pub -t $TOPIC/in -m '(text 0 24 "quoted text is one word")'
 mosquitto_pub -t $TOPIC/in -m "(key g tap)"                    # the key map: pong
 ```
 
-Expect: the same effects as the `aiko_oled` commands. Now the
+Expect: the same effects as the `aiko_display` commands. Now the
 rejections:
 
 ```bash
@@ -208,7 +213,7 @@ mosquitto_pub -t $TOPIC/control -m "(share aiko/probe 10 *)"
 ```
 
 Expect: a snapshot `(add KEY VALUE)` of every key in the table of
-[oled_protocol](oled_protocol.md). For example `backend oled`,
+[display_protocol](display_protocol.md). For example `backend oled`,
 `device ssd1306@0x3C/i2c1` on the SBC, `connection REGISTRAR`,
 `applet draw`, `contrast 64`, `heartbeat N`,
 `last_error set_contrast_not_int@...`, `log_pending off`,
@@ -225,8 +230,8 @@ aiko_dashboard
 
 The Dashboard's own pages first, then the display page (step 6 on).
 
-1. The Services list shows the OLED Actor: protocol `.../oled:0`, tag
-   `ec=true`. Move to its row with the arrow keys, and press `s` to
+1. The Services list shows the Display Actor: protocol `.../display:0`,
+   tags `ec=true device=... canvas=0 screen=0 interaction=0`. Move to its row with the arrow keys, and press `s` to
    select it. Expect: the Variables section fills with the shared state
    (`applet`, `contrast`, `heartbeat` counting, `metrics.*` and more).
 2. Press `Tab` to move to the Variables section. Move to `contrast`,
@@ -244,7 +249,7 @@ The Dashboard's own pages first, then the display page (step 6 on).
    132x48 for the half-block mirror (80x24 gives the Braille mirror):
 
    ```bash
-   aiko_dashboard -p aiko_services.main.dashboard_plugins -p aiko_services.examples.oled.dashboard_plugin
+   aiko_dashboard -p aiko_services.main.dashboard_plugins -p aiko_services.actors.display.dashboard_plugin
    ```
 
    Select the Actor and press `S`. Expect: the mirror shows the status
@@ -262,44 +267,57 @@ The Dashboard's own pages first, then the display page (step 6 on).
 10. Press `D` (or `Esc`). Expect: the Dashboard. In another terminal,
     `mosquitto_sub -v -t 'aiko/+/+/+/control'` shows no `(mirror ...)`
     renewal after 10 s, and `mirrors` in the shared state reads `0`.
-11. Press `S` again, then `x` to quit the Dashboard. Expect: within 30 s
-    the Actor's `mirrors` reads `0` (the lease expired).
+11. Press `S` again. Press `M`. Expect: the page and the service bar
+    read `mirror: off (M)`, and the Actor's `mirrors` falls by one. Press
+    `M` again: the mirror returns within 10 s.
+12. Press `G`, then hold the right arrow key for three seconds. Expect:
+    the forklift drives right all the time that the key is held, and
+    stops within a quarter of a second after you let go. The service
+    bar shows `key N ms`, the time from the key to the next frame. With
+    `aiko_display set mirror_rate 10` first, expect about 50 to 200 ms
+    from a desktop to the SBC.
+13. Press `x` to quit the Dashboard. Expect: within 30 s the Actor's
+    `mirrors` reads `0` (the lease expired).
+14. Start the page again with `AIKO_DISPLAY_MIRROR=ascii`, and then with
+    `LC_ALL=C` instead. Expect: both show the mirror in plain ASCII
+    (`'`, `.` and `:`). `AIKO_DISPLAY_MIRROR=off` starts with the mirror
+    off.
 
 ## 9. The applets
 
 ```bash
-aiko_oled applet pattern           # the test pattern: border, ticks, diagonals, circle, blocks, "centre"
-aiko_oled applet text              # a screen full of digits, each row offset by one
-aiko_oled applet text Hello lead   # the words in the center
-aiko_oled applet blink rate=4      # the power off and on, four times a second (the next applet stops it)
-aiko_oled applet log               # the last eight (log ...) lines, oldest first
-aiko_oled applet help              # the help pages, turning every 8 s; page=2 holds one
-aiko_oled applet help page=5       # the wire commands; the arrow keys turn the pages
-aiko_oled applet clock             # the analog clock face; title=on keeps the title row; seconds=off
-aiko_oled applet clock face=digital   # the weekday, the date and the time under the title row
-aiko_oled applet eyes              # the eyes; emotion=angry holds one; blink=off
-aiko_oled applet asteroids seed=1  # the same game every time with the same seed
-aiko_oled applet games duration=10 # pong, asteroids and invaders in turn
-aiko_oled applet forklift          # the forklift moves the pallet by itself
-aiko_oled applet draw subject=cat style=hatch speed=4
-aiko_oled applet draw shade=off count=1   # one outlined drawing, then back to the default applet
-aiko_oled applet demo random=off   # the fixed tour of the applets and settings
-aiko_oled applet demo              # the random tour
-aiko_oled applet status screen=wifi view=rx_tx   # the Wi-Fi interface's traffic chart
-aiko_oled applet status            # back to the status display
+aiko_display applet pattern           # the test pattern: border, ticks, diagonals, circle, blocks, "centre"
+aiko_display applet text              # a screen full of digits, each row offset by one
+aiko_display applet text Hello lead   # the words in the center
+aiko_display applet blink rate=4      # the power off and on, four times a second (the next applet stops it)
+aiko_display applet log               # the last eight (log ...) lines, oldest first
+aiko_display applet help              # the help pages, turning every 8 s; page=2 holds one
+aiko_display applet help page=5       # the wire commands; the arrow keys turn the pages
+aiko_display applet clock             # the analog clock face; title=on keeps the title row; seconds=off
+aiko_display applet clock face=digital   # the weekday, the date and the time under the title row
+aiko_display applet eyes              # the eyes; emotion=angry holds one; blink=off
+aiko_display applet asteroids seed=1  # the same game every time with the same seed
+aiko_display applet games duration=10 # pong, asteroids and invaders in turn
+aiko_display applet forklift          # the forklift moves the pallet by itself
+aiko_display applet draw subject=cat style=hatch speed=4
+aiko_display applet draw shade=off count=1   # one outlined drawing, then back to the default applet
+aiko_display applet demo random=off   # the fixed tour of the applets and settings
+aiko_display applet demo              # the random tour
+aiko_display applet status screen=wifi view=rx_tx   # the Wi-Fi interface's traffic chart
+aiko_display applet status            # back to the status display
 ```
 
-Expect: each applet runs until the next command. `aiko_oled applet
-nosuch` and `aiko_oled applet draw subject=unicorn` change nothing, and
+Expect: each applet runs until the next command. `aiko_display applet
+nosuch` and `aiko_display applet draw subject=unicorn` change nothing, and
 they set `last_error` (`set_applet_unknown@...`, `set_applet_args@...`).
 
 ## 10. The keys console
 
 ```bash
-aiko_oled keys
+aiko_display keys
 ```
 
-Expect: `OLED Actor HOST: $TOPIC  (? for the keys)`, and a status line
+Expect: `Display Actor HOST: $TOPIC  (? for the keys)`, and a status line
 that follows the shared state. Every key is sent to the Actor as
 `(key K tap)`, and the Actor's key map decides. Then type, without Enter:
 
@@ -333,7 +351,7 @@ that follows the shared state. Every key is sent to the Actor as
 `X` then `y` would exit the Actor.
 
 **[mac]** The emulator window takes the same keys. Start
-`aiko_oled run -o window`, click the window, and type `g`, `g`, `b`, `5`
+`aiko_display run -o window`, click the window, and type `g`, `g`, `b`, `5`
 and `R`: pong, then asteroids, a blue foreground, a slower pace, then the
 status display with the colors reset. The arrow keys drive the forklift
 game (`G`). `x`, `q` or `Esc` closes the window and exits the Actor.
@@ -342,40 +360,77 @@ game (`G`). `x`, `q` or `Esc` closes the window and exits the Actor.
 
 | Step | Do | Expect |
 |------|----|--------|
-| 11.1 **[sbc]** | `aiko_oled run -a 0x3D`, an address without a panel | A WARNING `no SSD1306 at 0x3D`. The Actor runs. The shared state shows `device absent` and `last_error display_not_found@...`, and every 10 s it retries. `aiko_oled exit` ends it |
-| 11.2 **[sbc]** | `aiko_oled run -a 0x3D --strict` | The Actor exits at once with the error |
-| 11.3 | `aiko_oled run --standalone`, with the broker stopped or `AIKO_MQTT_HOST` wrong | The status display works without a broker. The title row shows no `M` and no `R` |
+| 11.1 **[sbc]** | `aiko_display run -a 0x3D`, an address without a panel | A WARNING `no SSD1306 at 0x3D`. The Actor runs. The shared state shows `device absent` and `last_error display_not_found@...`, and every 10 s it retries. `aiko_display exit` ends it |
+| 11.2 **[sbc]** | `aiko_display run -a 0x3D --strict` | The Actor exits at once with the error |
+| 11.3 | `aiko_display run --standalone`, with the broker stopped or `AIKO_MQTT_HOST` wrong | The status display works without a broker. The title row shows no `M` and no `R` |
 | 11.4 | With the Actor running: `kill -TERM PID` | The display blanks, and the process ends with exit status 0 |
 | 11.5 | Ctrl-C in the Actor's terminal | The same |
-| 11.6 | `aiko_oled set blank_after 5`, then wait 5 s | The display goes off. Any command, for example `aiko_oled log wake`, brings it back. `set blank_after 0` disables it |
-| 11.7 | `aiko_oled applet pong`, then `mosquitto_pub -t $TOPIC/in -m "(text 0 0 stop)"` | A drawing command stops the applet and shows the text. `aiko_oled log x` while an applet runs does not stop it |
-| 11.8 | `aiko_oled -n nosuch -t 2 applet pong` | `Timeout after 2 s: no OLED Actor named nosuch`, exit status 1 |
+| 11.6 | `aiko_display set blank_after 5`, then wait 5 s | The display goes off. Any command, for example `aiko_display log wake`, brings it back. `set blank_after 0` disables it |
+| 11.7 | `aiko_display applet pong`, then `mosquitto_pub -t $TOPIC/in -m "(text 0 0 stop)"` | A drawing command stops the applet and shows the text. `aiko_display log x` while an applet runs does not stop it |
+| 11.8 | `aiko_display -n nosuch -t 2 applet pong` | `Timeout after 2 s: no Display Actor named nosuch`, exit status 1 |
 
 ## 12. systemd on the SBC (optional)
 
-Edit `src/aiko_services/actors/display/aiko_oled.service` for the user,
+Edit `src/aiko_services/actors/display/aiko_display.service` for the user,
 the paths and the address. Then:
 
 ```bash
-sudo cp aiko_oled.service /etc/systemd/system/
+sudo cp aiko_display.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now aiko_oled
-journalctl -u aiko_oled -f
+sudo systemctl enable --now aiko_display
+journalctl -u aiko_display -f
 ```
 
-Expect: the status display at boot. `sudo systemctl stop aiko_oled`
+Expect: the status display at boot. `sudo systemctl stop aiko_display`
 blanks it.
 
-## 13. Clean up
+## 13. The simple example
+
+`examples/oled/oled_actor.py` is a second, much smaller Actor for the
+same protocol. It accepts `clear`, `log` and `text` only. Stop the
+Display Actor first (`aiko_display exit`) when both would use the same
+panel.
 
 ```bash
-aiko_oled exit
+cd src/aiko_services/examples/oled
+./oled_actor.py -a 0x3C -n example      # [sbc] the panel
+./oled_actor.py -a none -n example      # [mac] drawn in the terminal
+```
+
+| Step | Command | Expect |
+|------|---------|--------|
+| 13.1 | `aiko_display -n example list` | `example  aiko/HOST/PID/1  ec=true device=ssd1306 canvas=0` (`device=terminal` with `-a none`) |
+| 13.2 | `aiko_display -n example text 0 56 Aloha` | `Aloha` on the top row |
+| 13.3 | `aiko_display -n example log hello world`, twice | The picture scrolls up one row each time, and the line is on the bottom row |
+| 13.4 | The Dashboard page on `example` | `mirror: not supported by this Actor`. A key typed on the page is logged as an ERROR, `Function not found`, on the Actor's log topic |
+| 13.5 | `aiko_display -n example exit` | The panel blanks and the example ends. `aiko_display stop` stops an applet, so the example does not accept it |
+
+## 14. Terminals (a person must look)
+
+The terminal test (`test_terminal_matrix`) finds what asciimatics
+decides in a pseudo-terminal, but it cannot see the glyphs. Start the
+display page (step 8.6) in each of these, at 132x48 and at 80x24:
+
+| Terminal | Expect |
+|----------|--------|
+| macOS Terminal | The half-block and the Braille mirror, in the panel's colors |
+| iTerm2 | The same |
+| The Linux console of the SBC (no desktop) | The half-block mirror. The console font has no Braille, so at 80x24 use `AIKO_DISPLAY_MIRROR=ascii` |
+| ssh from the desktop to the SBC | The same as the local terminal. The arrow keys hold, with one short gap at the start when the first repeat is slow |
+| tmux, in any of the above | The same, with 256 colors when `TERM` in tmux is `tmux-256color` |
+| `TERM=vt100` | No Dashboard: asciimatics cannot hide the cursor. The 6 expected failures in step 2 record this |
+
+## 15. Clean up
+
+```bash
+aiko_display exit
 kill %1            # the Registrar started in step 4, if it was yours
 ```
 
 ## Related concepts
 
-- [oled](oled.md), [oled_protocol](oled_protocol.md)
+- [display](display.md), [display_protocol](display_protocol.md),
+  [display_dashboard](display_dashboard.md), [design](design.md)
 - [Dashboard](../../concepts/dashboard.md),
   [Share](../../concepts/share.md),
   [Discovery](../../concepts/discovery.md)

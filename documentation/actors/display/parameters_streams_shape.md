@@ -8,7 +8,7 @@ description: A proposal for e_03 task T6. It records how Pipeline
 type: concept
 audience: [project-lead, architects, developers, ai-coding-agents]
 status: draft
-ste: false
+ste: adapted
 source:
   - src/aiko_services/main/pipeline.py
   - src/aiko_services/main/stream.py
@@ -93,9 +93,9 @@ master `d516775`.
 
 ### 2.3 Two signature mismatches
 
-- The `PipelineElement` Interface declares `get_parameter(name, default,
-  required, use_pipeline)`. The implementation adds
-  `self_share_priority`.
+- The `PipelineElement` Interface declares
+  `get_parameter(name, default, required, use_pipeline)`. The
+  implementation adds `self_share_priority`.
 - The Interface declares `get_variables()`. The implementation takes
   `get_variables(stream)`.
 
@@ -217,7 +217,7 @@ the mirror leases (`tests/unit/test_display.py`).
 
 ## Related
 
-- [Display Actor](oled.md): the settings and the mirror
-- [display:0 protocol](oled_protocol.md): the wire forms
+- [Display Actor](display.md): the settings and the mirror
+- [display:0 protocol](display_protocol.md): the wire forms
 - [Parameters](../../concepts/parameters.md): the resolution today
 - [Pipeline](../../concepts/pipeline.md) · [Lease](../../concepts/lease.md)
