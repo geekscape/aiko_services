@@ -30,6 +30,12 @@ framework's built-in Actors. `pipeline/` is the dataflow engine. `agents/` compo
 perceive-decide-act Actors. `elements/` is the open-ended library of PipelineElements. `cli/` and
 `examples/` consume everything and are imported by nothing.
 
+**Status 2026-09-27.** The `actors/` tier exists with its first package, `actors/display/`,
+the `display:0` protocol design and evaluation (ADR-025). It moved there from
+`examples/oled/`. The rule it embodies: a design that must ship lives under `actors/`. An
+example teaches one concept and stays out of the wheel. The wheel ships `tests/`, so a
+shipped test imports only shipped packages.
+
 ## 2. Target tree
 
     src/aiko_services/
@@ -63,6 +69,7 @@ perceive-decide-act Actors. `elements/` is the open-ended library of PipelineEle
             process_manager.py
             recorder.py
             dashboard/              # observer UI (optional-dependency group)
+            display/                # display:0 protocol Actor (in place since 2026-09-27)
         pipeline/
             __init__.py
             AGENTS.md

@@ -78,6 +78,9 @@ A Service is described by five fields (the ServiceFields tuple): **name**, **pro
 `github.com/geekscape/aiko_services/protocol/actor:0`. Protocol identifiers are the unit of
 compatibility: a client requiring `storage:1` MUST be served by any Service declaring it,
 regardless of implementation language. Tags are `key=value` strings used for discovery filtering.
+A Service that composes several aspect Interfaces SHOULD be able to declare several protocol
+identifiers, and the Registrar SHOULD match on any of them. Until the Registrar does, the
+aspects are advertised as tags, for example `canvas=0` (ADR-025, 2026-09-27).
 **[VERIFY: field order and exact protocol URI prefix in current master.]**
 
 ### 1.4 Registrar protocol
@@ -88,6 +91,11 @@ The Registrar is the discovery Actor. The protocol MUST specify, as message sequ
   Registrar's periodic/retained `(primary ...)` announcement), and the behavior when no Registrar
   is present (wait/retry, and optionally start one). **[VERIFY: retained-message compared with broadcast
   mechanics, and the primary-election behavior when multiple registrars start.]**
+- **Liveness (2026-09-27):** a Registrar that finds a retained `(primary found ...)` MUST
+  verify that the primary answers, for example with `(history ...)`, before it becomes
+  secondary. When the primary does not answer within a bounded time, the Registrar MUST
+  publish `(primary absent)` retained and then elect. Reason: a broker with persistence
+  keeps the announcement of a primary that died with it, and the last will is never sent.
 - **Registration:** `(add <service_fields...>)` on the `in` topic of the Registrar.
   Deregistration is `(remove ...)`. Crash-deregistration uses the MQTT last will.
 - **Query/share:** `(share ...)` / query messages with filters over protocol, name, owner and tags.

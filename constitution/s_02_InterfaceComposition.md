@@ -199,3 +199,10 @@ protocol version. Compatibility within a major version means added methods only.
 change updates `docs/interfaces/CATALOG.md` in the same PR — the drift check fails the build
 otherwise. When unsure whether something is a query, an observation, or a stream, §2's order of
 preference decides: shared state first, reply-to second, streams for sequences.
+
+A default Implementation registered for several Interfaces MUST implement every method so
+that it works without its own constructor. A composed Implementation that lacks a method
+gets the default's method, but it runs its own constructor, never the default's. Thus a
+no-op must not read state that only the default's constructor creates. Evidence: the
+display outputs seam, 2026-09-27, where a handler list existed only in the default's
+constructor and the SSD1306 backend failed at start.

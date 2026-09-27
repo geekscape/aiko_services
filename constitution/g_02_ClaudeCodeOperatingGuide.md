@@ -275,3 +275,10 @@ aspirations.
 **You, reviewing code instead of specs** — the leverage inversion (transition plan §3) fails
 quietly if you go back to diff-reading. The reviewer subagent and CI exist precisely
 so your reading hours stay on the normative documents.
+
+**The STE gate on a moving document** — a document that changes every phase is rewritten
+at gate zero every phase. That burns tokens on prose that changes again. Gate it once, at
+the end of the Epic (project-lead direction, 2026-09-27). Links must not dangle meanwhile.
+
+**A package move in one commit** — git loses the history. Move in three commits: renames
+only (git records 100% renames), then the names and imports, then any splits.
