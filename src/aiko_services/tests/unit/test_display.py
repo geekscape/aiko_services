@@ -16,20 +16,20 @@ import pytest
 import aiko_services as aiko
 from aiko_services.main.utilities import parse
 
-from aiko_services.examples.oled import (
-    Canvas, Display, Interaction, OLEDImpl, PROTOCOL, SETTINGS,
+from aiko_services.actors.display import (
+    Canvas, Display, Interaction, DisplayImpl, PROTOCOL, SETTINGS,
     SETTINGS_SPEC, Screen, WIRE_COMMANDS, service_tags,
 )
-from aiko_services.examples.oled import applets
-from aiko_services.examples.oled.applets import (
+from aiko_services.actors.display import applets
+from aiko_services.actors.display.applets import (
     Applet, AppletDone, parse_applet_args,
 )
-from aiko_services.examples.oled.display import (
+from aiko_services.actors.display.outputs import (
     OUTPUTS, DisplayNotFound, FakeOutputImpl, NullOutputImpl, Output,
     OutputControls, PngOutputImpl, choose_output, fake_output, parse_colors,
     text_lines,
 )
-from aiko_services.examples.oled.graphics import (
+from aiko_services.actors.display.graphics import (
     HEIGHT, WIDTH, Font, FrameBuffer, parse_font_size, title_strip,
 )
 
@@ -42,7 +42,7 @@ def make_actor(**parameters):
     display = parameters.pop("output", None) or fake_output()
     parameters = {"output": display, "title": "off", "applet": "none", **parameters}
     name = f"oled_test_{next(_counter)}"
-    actor = aiko.compose_instance(OLEDImpl,
+    actor = aiko.compose_instance(DisplayImpl,
         aiko.actor_args(name, parameters=parameters, protocol=PROTOCOL))
     return actor, display
 

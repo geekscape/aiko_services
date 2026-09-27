@@ -1,17 +1,17 @@
-# Aiko Services: OLED Actor as a systemd service (Linux SBC)
+# Aiko Services: display Actor (SSD1306 OLED) as a systemd service (Linux SBC)
 #
 # Install:
-#   sudo cp aiko_oled.service /etc/systemd/system/
+#   sudo cp aiko_display.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
-#   sudo systemctl enable --now aiko_oled
-#   journalctl -u aiko_oled -f
+#   sudo systemctl enable --now aiko_display
+#   journalctl -u aiko_display -f
 #
 # Edit User, WorkingDirectory, the virtual environment path, the I2C
 # address (-a) and AIKO_MQTT_HOST for the host.  Stopping the service sends
 # SIGTERM: the Actor blanks the display and exits.
 
 [Unit]
-Description=Aiko Services OLED display Actor
+Description=Aiko Services display Actor (SSD1306 OLED)
 After=network-online.target mosquitto.service
 Wants=network-online.target
 
@@ -21,7 +21,7 @@ User=claude
 WorkingDirectory=/home/claude
 Environment=AIKO_MQTT_HOST=localhost
 Environment=AIKO_LOG_MQTT=false
-ExecStart=/home/claude/venvs/venv_3.13/bin/aiko_oled run -a 0x3C --standalone
+ExecStart=/home/claude/venvs/venv_3.13/bin/aiko_display run -a 0x3C --standalone
 KillSignal=SIGTERM
 TimeoutStopSec=5
 Restart=on-failure

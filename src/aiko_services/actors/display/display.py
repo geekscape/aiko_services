@@ -19,13 +19,13 @@
 # Usage
 # ~~~~~
 #   export AIKO_MQTT_HOST=localhost
-#   aiko_oled [-n NAME] [-t SECONDS] SUBCOMMAND ...   (-n: the Actor to run or command)
-#   aiko_oled run [-o oled -a 0x3C] [--applet status] [--standalone]
-#   aiko_oled exit | list
-#   aiko_oled clear | log WORDS | text X Y WORDS | pixels X Y ... | line X0 Y0 X1 Y1
-#   aiko_oled set KEY VALUE          # contrast 128, invert on, title Aiko, font 10 ...
-#   aiko_oled applet NAME [ARGS ...] | applet -l | stop | key NAME [tap|down|up]
-#   aiko_oled keys                   # interactive console: see console.py, keys.py
+#   aiko_display [-n NAME] [-t SECONDS] SUBCOMMAND ...   (-n: the Actor to run or command)
+#   aiko_display run [-o oled -a 0x3C] [--applet status] [--standalone]
+#   aiko_display exit | list
+#   aiko_display clear | log WORDS | text X Y WORDS | pixels X Y ... | line X0 Y0 X1 Y1
+#   aiko_display set KEY VALUE          # contrast 128, invert on, title Aiko, font 10 ...
+#   aiko_display applet NAME [ARGS ...] | applet -l | stop | key NAME [tap|down|up]
+#   aiko_display keys                   # interactive console: see console.py, keys.py
 #
 #   mosquitto_pub -t $TOPIC_IN -m "(oled:text 0 0 hello)"     # aiko_engine_mp style
 #   mosquitto_pub -t $TOPIC_IN -m "(text 0 8 second row)"
@@ -69,7 +69,6 @@
 # To Do
 # ~~~~~
 # - Dashboard plug-in; convergence with aiko_engine_mp (protocol oled:0)
-# - Promote into src/aiko_services/main/oled/ (then aiko_oled ships in the wheel)
 
 from abc import abstractmethod
 import collections
@@ -92,22 +91,22 @@ from aiko_services.main.connection import ConnectionState
 from aiko_services.main.lease import Lease
 from aiko_services.main.utilities import get_hostname, parse
 
-from aiko_services.examples.oled.applets import (
+from aiko_services.actors.display.applets import (
     APPLETS, AppletDone, Host, fits, parse_applet_args,
 )
-from aiko_services.examples.oled import drawings, faces, games  # noqa: F401 (they register applets)
-from aiko_services.examples.oled import status as status_screens  # noqa: F401 (registers status)
-from aiko_services.examples.oled.display import (
+from aiko_services.actors.display import drawings, faces, games  # noqa: F401 (they register applets)
+from aiko_services.actors.display import status as status_screens  # noqa: F401 (registers status)
+from aiko_services.actors.display.outputs import (
     ADDRESSES, OUTPUTS, DisplayNotFound, NullOutputImpl, choose_output,
     output_args, parse_colors, scan_i2c,
 )
-from aiko_services.examples.oled.graphics import (
+from aiko_services.actors.display.graphics import (
     HEIGHT, WIDTH, FrameBuffer, blank, parse_font_size, title_strip,
 )
-from aiko_services.examples.oled import keys as keymap  # the emulator window's keys
+from aiko_services.actors.display import keys as keymap  # the emulator window's keys
 
 __all__ = [
-    "ASPECT_TAGS", "Canvas", "Display", "Interaction", "OLEDImpl", "PROTOCOL",
+    "ASPECT_TAGS", "Canvas", "Display", "Interaction", "DisplayImpl", "PROTOCOL",
     "PROTOCOL_TYPE", "SETTINGS", "SETTINGS_SPEC", "Screen", "Setting",
     "WIRE_COMMANDS", "main", "service_tags",
 ]
@@ -251,7 +250,7 @@ class Canvas(aiko.Interface):
     """
 
     PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/canvas:{_VERSION}"
-    aiko.Interface.default("Canvas", "aiko_services.examples.oled.oled.OLEDImpl")
+    aiko.Interface.default("Canvas", "aiko_services.actors.display.display.DisplayImpl")
 
     @abstractmethod
     def clear(self):
@@ -302,7 +301,7 @@ class Screen(aiko.Interface):
     """
 
     PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/screen:{_VERSION}"
-    aiko.Interface.default("Screen", "aiko_services.examples.oled.oled.OLEDImpl")
+    aiko.Interface.default("Screen", "aiko_services.actors.display.display.DisplayImpl")
 
     @abstractmethod
     def mirror(self, topic, seconds):
@@ -327,7 +326,7 @@ class Interaction(aiko.Interface):
 
     PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/interaction:{_VERSION}"
     aiko.Interface.default(
-        "Interaction", "aiko_services.examples.oled.oled.OLEDImpl")
+        "Interaction", "aiko_services.actors.display.display.DisplayImpl")
 
     @abstractmethod
     def applet(self, name, *args):
@@ -355,7 +354,7 @@ class Display(aiko.Actor, Canvas, Screen, Interaction):
     """
 
     PROTOCOL = PROTOCOL
-    aiko.Interface.default("Display", "aiko_services.examples.oled.oled.OLEDImpl")
+    aiko.Interface.default("Display", "aiko_services.actors.display.display.DisplayImpl")
 
 ASPECTS = (Canvas, Screen, Interaction)
 
@@ -441,7 +440,7 @@ class _Host(Host):
         if name in ("contrast", "invert", "power", "all_on", "font", "speed"):
             self._actor._setters[name](str(value))
 
-class OLEDImpl(Display):
+class DisplayImpl(Display):
     def __init__(self, context):
         context.call_init(self, "Actor", context)
         parameters = context.get_parameters() or {}
@@ -1254,14 +1253,14 @@ def main(ctx, name, timeout):
 
     \b
     export AIKO_MQTT_HOST=localhost       # the broker; aiko_registrar must run
-    aiko_oled run -a 0x3C                 # the OLED, or emulated on a desktop
-    aiko_oled text 0 0 hello              # from another terminal: the bottom row
-    aiko_oled log Hello from nomad        # scrolls; the status applet shows it
-    aiko_oled set contrast 64             # a setting: the Dashboard edits it too
-    aiko_oled applet pong                 # an applet; applet -l lists them
-    aiko_oled keys                        # an interactive console
-    aiko_oled -n w3029f1 -t 3 applet eyes # another host's Actor, 3 s to find it
-    aiko_oled exit
+    aiko_display run -a 0x3C                 # the OLED, or emulated on a desktop
+    aiko_display text 0 0 hello            # from another terminal: the bottom row
+    aiko_display log Hello from nomad        # scrolls; the status applet shows it
+    aiko_display set contrast 64           # a setting: the Dashboard edits it too
+    aiko_display applet pong                 # an applet; applet -l lists them
+    aiko_display keys                        # an interactive console
+    aiko_display -n w3029f1 -t 3 applet eyes  # another host, 3 s to find it
+    aiko_display exit
     """
 
     ctx.obj = {"name": name, "timeout": timeout}
@@ -1306,7 +1305,7 @@ def run_command(options, output, address, bus, applet, font_size, title,
       oled      the SSD1306 over I2C: -a address (0x3C, or 0x3D with SA0
                 high), -b bus; needs "pip install luma.oled"
       window    an emulated OLED in a pygame window, 5x with pixel gaps;
-                the keys work as in "aiko_oled keys"; Esc, x or q exits
+                the keys work as in "aiko_display keys"; Esc, x or q exits
       terminal  half-block characters, 128x34 (Braille dots when smaller)
       png       the latest frame in a PNG file (--png, at most once a second)
       none      no display: the Actor still runs (shared state, applets)
@@ -1328,7 +1327,7 @@ def run_command(options, output, address, bus, applet, font_size, title,
     --standalone runs without an MQTT broker: the status display still
     works.  --strict exits when the display can't be opened, instead of
     reporting "device absent" and retrying every 10 s.  Ctrl-C, SIGTERM,
-    "(exit)" and "aiko_oled exit" all blank the display on the way out.
+    "(exit)" and "aiko_display exit" all blank the display on the way out.
     """
 
     name = options["name"] or get_hostname()
@@ -1345,7 +1344,7 @@ def run_command(options, output, address, bus, applet, font_size, title,
     signal.signal(signal.SIGTERM, lambda *_: aiko.process.terminate())
     actor = None
     try:
-        actor = aiko.compose_instance(OLEDImpl, init_args)
+        actor = aiko.compose_instance(DisplayImpl, init_args)
         backend.message(f"{name}: {actor.topic_in}")
         if backend.name != "terminal":
             click.echo(f"OLED Actor {name}: {actor.topic_in}")
@@ -1413,7 +1412,7 @@ def clear_command(options):
     """Erase the canvas (the title row stays)
 
     Drawing commands (clear, text, pixels, line) stop a running applet so
-    that the canvas shows; "aiko_oled applet status" brings the status
+    that the canvas shows; "aiko_display applet status" brings the status
     display back.  The same as "(clear)" or aiko_engine_mp's "(oled:clear)".
     """
 
@@ -1551,7 +1550,7 @@ def applet_command(options, list_applets, applet_name, arguments):
 def stop_command(options):
     """Stop the running applet: the canvas is shown again
 
-    The same as "aiko_oled applet none" or "(applet none)".
+    The same as "aiko_display applet none" or "(applet none)".
     """
 
     _remote(Interaction, options, lambda oled: oled.applet("none"))
@@ -1590,7 +1589,7 @@ def keys_command(options):
     c clear  R reset   x or q quit the console   X exit the OLED Actor
     """
 
-    from aiko_services.examples.oled.console import KeysConsole  # (imports this module)
+    from aiko_services.actors.display.console import KeysConsole  # (imports this module)
     KeysConsole(options["name"], options["timeout"]).run()
 
 @main.command(name="key", no_args_is_help=True)
@@ -1607,7 +1606,7 @@ def key_command(options, key_name, state):
     preset or changes its setting ("key g" starts pong, "key 5" halves the
     speed, "key R" resets); any other key goes to the running applet:
     forklift_game: left and right drive, up and down lift; help: right and
-    left turn the pages.  The same as "(key NAME [STATE])"; "aiko_oled keys"
+    left turn the pages.  The same as "(key NAME [STATE])"; "aiko_display keys"
     sends every key this way.
     """
 
@@ -1622,7 +1621,7 @@ def _block(lines):
 
 def _applets_reference():
     width = max(len(name) for name in APPLETS)
-    lines = ["Applets  (aiko_oled applet NAME [WORDS ...] [key=value ...]; -l lists them)"]
+    lines = ["Applets  (aiko_display applet NAME [WORDS ...] [key=value ...]; -l lists them)"]
     for name, applet_class in sorted(APPLETS.items()):
         options = " ".join(f"{option}=" for option in applet_class.OPTIONS)
         text = applet_class.summary + (f"  [{options}]" if options else "")
@@ -1631,7 +1630,7 @@ def _applets_reference():
     return _block(lines)
 
 def _settings_reference():
-    lines = ["Settings  (aiko_oled set KEY VALUE, or (update KEY VALUE) on the control",
+    lines = ["Settings  (aiko_display set KEY VALUE, or (update KEY VALUE) on the control",
              "           topic; the Aiko Dashboard edits them; a bad value converges back)"]
     cells = [f"{setting.name:12} {setting.values}" for setting in SETTINGS_SPEC]
     for left, right in zip(cells[0::2], cells[1::2] + [""]):
@@ -1677,7 +1676,7 @@ def _preset_text(commands):
 
 def _keys_reference():
     lines = ["Keys  (the map lives on the Actor: \"(key K)\" from the console, the",
-             "       emulator window, the plug-in or \"aiko_oled key\"; the same key",
+             "       emulator window, the plug-in or \"aiko_display key\"; the same key",
              "       again: the next preset)"]
     for key, presets in keymap.PRESETS.items():
         text = " | ".join(_preset_text(preset) for preset in presets)

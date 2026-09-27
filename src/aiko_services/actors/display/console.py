@@ -2,7 +2,7 @@
 #
 # Aiko Services: OLED keys console
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# "aiko_oled keys": an interactive console in the terminal for a running
+# "aiko_display keys": an interactive console in the terminal for a running
 # display Actor.  Every key typed here is sent as "(key K tap)": the key
 # map lives on the Actor (keys.py), which runs a mapped key's preset (g
 # steps through pong, asteroids, invaders and the forklift; s and S the
@@ -40,8 +40,8 @@ import click
 import aiko_services as aiko
 from aiko_services.main.utilities import get_hostname
 
-from aiko_services.examples.oled.keys import ARROWS
-from aiko_services.examples.oled.oled import (
+from aiko_services.actors.display.keys import ARROWS
+from aiko_services.actors.display.display import (
     Display, Interaction, _service_filter,
 )
 

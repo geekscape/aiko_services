@@ -41,7 +41,7 @@ from PIL import Image, ImageChops, ImageColor, ImageDraw
 
 import aiko_services as aiko
 
-from aiko_services.examples.oled.graphics import HEIGHT, INK, WIDTH, blank
+from aiko_services.actors.display.graphics import HEIGHT, INK, WIDTH, blank
 
 __all__ = [
     "ADDRESSES", "OUTPUTS", "Appearance", "DisplayNotFound", "FakeOutputImpl",
@@ -146,7 +146,7 @@ class Output(aiko.Interface):
     device.
     """
 
-    aiko.Interface.default("Output", "aiko_services.examples.oled.display.NullOutputImpl")
+    aiko.Interface.default("Output", "aiko_services.actors.display.outputs.NullOutputImpl")
 
     @abstractmethod
     def open(self):
@@ -180,7 +180,7 @@ class OutputControls(aiko.Interface):
     """
 
     aiko.Interface.default(
-        "OutputControls", "aiko_services.examples.oled.display.NullOutputImpl")
+        "OutputControls", "aiko_services.actors.display.outputs.NullOutputImpl")
 
     @abstractmethod
     def contrast(self, value):

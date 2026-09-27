@@ -9,8 +9,8 @@ audience: [developers, end-users]
 status: draft
 ste: adapted
 source:
-  - src/aiko_services/examples/oled/dashboard_plugin.py
-  - src/aiko_services/examples/oled/oled.py
+  - src/aiko_services/actors/display/dashboard_plugin.py
+  - src/aiko_services/actors/display/oled.py
 related: [oled, oled_protocol, testing, dashboard, dashboard_plugin, share]
 version: "0.8-dev"
 last_updated: 2026-09-27

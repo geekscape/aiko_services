@@ -9,7 +9,7 @@ audience: [project-lead, architects, developers, application-developers,
 status: operational
 ste: adapted
 related: [../constitution/ReadMe, ../constitution/adr/ReadMe,
-  concepts/ReadMe, elements/ReadMe, examples/ReadMe, tools/ReadMe,
+  concepts/ReadMe, actors/ReadMe, elements/ReadMe, examples/ReadMe, tools/ReadMe,
   ../constitution/t_03_IdentifierGlossary]
 last_updated: 2026-09-26
 ---
@@ -30,6 +30,7 @@ terminology that links to the owning descriptions.
 | Area | What it holds | Start at |
 |------|---------------|----------|
 | [concepts/](concepts/ReadMe.md) | The framework itself — 46 OKF concept documents (32 plus 14 in the utilities sub-index), from the per-process event loop to the distributed structural model | [design_overview.md](concepts/design_overview.md) |
+| [actors/](actors/ReadMe.md) | The actors tier (`src/aiko_services/actors/`) — packages of Actors with their own protocols, shipped in the wheel; the `display:0` protocol design and evaluation is the first | [display/](actors/display/ReadMe.md) |
 | [elements/](elements/ReadMe.md) | The PipelineElement library (`src/aiko_services/elements/`) — one document per module, plus the example PipelineDefinitions | its reading paths |
 | [examples/](examples/ReadMe.md) | The example applications (`src/aiko_services/examples/`) — hello-world Actor tutorial through vision, speech, LLM, robots and an OLED status display | [aloha_honua/](examples/aloha_honua/ReadMe.md) |
 | [../constitution/](../constitution/ReadMe.md) | The documents that govern development — principles (p), specifications (s), plans (e), operating guides (g), analyses (a), templates (t), plus the ADR registry, diagrams and the public journal | its index |

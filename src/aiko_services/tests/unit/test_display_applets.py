@@ -14,16 +14,16 @@ import pytest
 
 import aiko_services as aiko
 
-from aiko_services.examples.oled import OLEDImpl, PROTOCOL
-from aiko_services.examples.oled import applets
-from aiko_services.examples.oled.applets import (
+from aiko_services.actors.display import DisplayImpl, PROTOCOL
+from aiko_services.actors.display import applets
+from aiko_services.actors.display.applets import (
     APPLETS, Applet, HelpApplet, Host,
     per_second,
 )
-from aiko_services.examples.oled.display import fake_output
-from aiko_services.examples.oled.graphics import HEIGHT, WIDTH, Font
-from aiko_services.examples.oled import status as status_module
-from aiko_services.examples.oled.status import (
+from aiko_services.actors.display.outputs import fake_output
+from aiko_services.actors.display.graphics import HEIGHT, WIDTH, Font
+from aiko_services.actors.display import status as status_module
+from aiko_services.actors.display.status import (
     HISTORY, StatusApplet, parse_iw, parse_nmcli, parse_wireless,
 )
 
@@ -224,7 +224,7 @@ def test_per_second():
     assert all(len(per_second(n)) == 4 for n in (0, 999, 1000, 99999, 1e9))
 
 def test_log_applet_shows_the_lines_and_clears_the_annunciator():
-    from aiko_services.examples.oled.applets import LogApplet
+    from aiko_services.actors.display.applets import LogApplet
     host = StubHost(lines=[f"line {n}" for n in range(9)])
     log = LogApplet(host)
     frame = log.step()
@@ -254,7 +254,7 @@ def make_actor(**parameters):
     display = parameters.pop("output", None) or fake_output()
     parameters = {"output": display, **parameters}
     name = f"oled_status_{next(_counter)}"
-    actor = aiko.compose_instance(OLEDImpl,
+    actor = aiko.compose_instance(DisplayImpl,
         aiko.actor_args(name, parameters=parameters, protocol=PROTOCOL))
     return actor, display
 
@@ -336,18 +336,18 @@ def test_slow_display_does_not_block_the_event_loop(monkeypatch):
 # --------------------------------------------------------------------------- #
 # Phase 2: pattern, text, blink, demo, games, forklift, drawings
 
-from aiko_services.examples.oled.applets import (  # noqa: E402
+from aiko_services.actors.display.applets import (  # noqa: E402
     TOUR, BlinkApplet, DemoApplet, PatternApplet, TextApplet,
     parse_applet_args, random_steps,
 )
-from aiko_services.examples.oled.drawings import (  # noqa: E402
+from aiko_services.actors.display.drawings import (  # noqa: E402
     DrawApplet, erase_frames, scene, scene_strokes, sketch_frames,
 )
-from aiko_services.examples.oled.games import (  # noqa: E402
+from aiko_services.actors.display.games import (  # noqa: E402
     FORKS_CARRY, GROUND, ForkliftApplet, ForkliftGameApplet,
     GamesApplet,
 )
-from aiko_services.examples.oled.applets import AppletDone  # noqa: E402
+from aiko_services.actors.display.applets import AppletDone  # noqa: E402
 import random  # noqa: E402
 
 class RecordingHost(StubHost):
@@ -510,7 +510,7 @@ def test_random_steps_are_valid_applets():
 # Help pages, the clock face, the eyes
 
 from datetime import datetime  # noqa: E402
-from aiko_services.examples.oled.faces import EMOTIONS, ClockApplet, EyesApplet  # noqa: E402
+from aiko_services.actors.display.faces import EMOTIONS, ClockApplet, EyesApplet  # noqa: E402
 
 def test_help_pages_fit_the_display_and_turn():
     assert len(HelpApplet.PAGES) == 6
@@ -559,7 +559,7 @@ def lit_bands(image):
     return bands
 
 def test_help_pages_list_every_setting():
-    from aiko_services.examples.oled import SETTINGS
+    from aiko_services.actors.display import SETTINGS
     page = " ".join(lines for heading, lines in
                     ((heading, " ".join(lines)) for heading, lines in HelpApplet.PAGES)
                     if heading == "Dashboard: set")

@@ -49,10 +49,10 @@ import time
 
 from PIL import ImageDraw
 
-from aiko_services.examples.oled.applets import (
+from aiko_services.actors.display.applets import (
     APPLETS, Applet, ip_address, on_off, per_second,
 )
-from aiko_services.examples.oled.graphics import INK, Font, stamp
+from aiko_services.actors.display.graphics import INK, Font, stamp
 
 __all__ = ["HISTORY", "STATUS_SCREENS", "STATUS_VIEWS", "StatusApplet",
            "fan_state", "parse_iw", "parse_nmcli", "parse_wireless",

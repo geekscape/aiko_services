@@ -37,7 +37,7 @@ Concepts and PipelineElements documentation
 | Package | Contents |
 |---------|----------|
 | [aloha_honua/](aloha_honua/ReadMe.md) | The graduated four-stage hello-world Actor tutorial — plain Actor, discovery client, remote stop, request/response |
-| [oled/](oled/ReadMe.md) | SSD1306 OLED display Actor — a status display for headless hosts, an aiko_engine_mp compatible canvas, settings in the shared state, applets, a keys console, emulated on a desktop, with a test guide and unit tests |
+| [oled/](../actors/display/ReadMe.md) | Moved to the actors tier: the SSD1306 OLED display Actor — a status display for headless hosts, an aiko_engine_mp compatible canvas, settings in the shared state, applets, a keys console, emulated on a desktop, with a test guide and unit tests |
 | [pipeline/](pipeline/ReadMe.md) | Teaching Pipelines — local and remote deployment, Graph Paths, frame data encode/decode, plus the multitude/ scale stress tests |
 | [colab/](colab/ReadMe.md) | Google Colab integration — running Pipelines inside a notebook with browser camera, microphone and speaker widgets |
 | [speech/](speech/ReadMe.md) | Speech processing — microphone capture, WhisperX transcription, Coqui text-to-speech and the speech-to-LLM round trip |
@@ -67,10 +67,10 @@ Concepts and PipelineElements documentation
 - **Speech and language**: [speech/](speech/ReadMe.md) then
   [llm/](llm/ReadMe.md) — three cooperating Pipelines forming a
   voice-in, voice-out LLM loop.
-- **Headless hosts and small displays**: [oled/](oled/ReadMe.md) — an
+- **Headless hosts and small displays**: [actors/display/](../actors/display/ReadMe.md) — an
   Actor that shows the host's status on an OLED, with its settings in
   the [shared state](../concepts/share.md) for the Dashboard. Its
-  [test guide](oled/testing.md) runs on a desktop without hardware.
+  [test guide](../actors/display/testing.md) runs on a desktop without hardware.
 - **Distributed systems**:
   [system_pipelines/](system_pipelines/ReadMe.md) for
   [ProcessManager](../concepts/process_manager.md) bootstrap, and

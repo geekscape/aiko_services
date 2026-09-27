@@ -49,7 +49,10 @@ sections are.
   Without the panel, a desktop window, the terminal or a PNG file emulates
   it.  The outputs are composed *Output* and *OutputControls* Interfaces
   with one Impl per backend.  The applets are portable across canvas
-  sizes.  See *documentation/examples/oled/ReadMe.md*, which has a
+  sizes.  Reclassified as an Interface design and evaluation and moved to
+  *src/aiko_services/actors/display* (the first package of the actors
+  tier, shipped in the wheel): the command is *aiko_display* and the Actor
+  *DisplayImpl*.  See *documentation/actors/display/ReadMe.md*, which has a
   step-by-step test guide
 
 * Classes may now omit the *__init__()* method entirely when they need no

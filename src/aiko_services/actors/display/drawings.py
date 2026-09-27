@@ -23,10 +23,10 @@ import random
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
-from aiko_services.examples.oled.applets import (
+from aiko_services.actors.display.applets import (
     APPLETS, Applet, AppletDone,
 )
-from aiko_services.examples.oled.graphics import INK, blank, pixels
+from aiko_services.actors.display.graphics import INK, blank, pixels
 
 # The field the scenes are composed for: one 128x64 panel
 FIELD_WIDTH, FIELD_HEIGHT = FIELD = (128, 64)

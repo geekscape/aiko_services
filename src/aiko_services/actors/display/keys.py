@@ -4,8 +4,8 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # What each key does.  The map lives on the device: the Actor's key()
 # runs a mapped key's preset, or changes its setting, and passes any other
-# key to the running applet.  Thus every client, the "aiko_oled keys"
-# console, the emulator window, the Dashboard plug-in and "aiko_oled key",
+# key to the running applet.  Thus every client, the "aiko_display keys"
+# console, the emulator window, the Dashboard plug-in and "aiko_display key",
 # sends the same "(key K tap)" and gets the same result.  Letters switch
 # applets, and the same letter again steps to the next preset (as the
 # original oled_test.py stepped through each subcommand's options); digits
@@ -28,9 +28,9 @@
 #   R reset the settings and the colors, show status
 #   x q quit (the console; in the window: exit the Actor)   X exit the Actor
 
-from aiko_services.examples.oled.drawings import SUBJECTS
-from aiko_services.examples.oled.graphics import FONT_SIZES
-from aiko_services.examples.oled.status import STATUS_VIEWS
+from aiko_services.actors.display.drawings import SUBJECTS
+from aiko_services.actors.display.graphics import FONT_SIZES
+from aiko_services.actors.display.status import STATUS_VIEWS
 
 __all__ = ["ACTION_KEYS", "ARROWS", "BACKGROUNDS", "FOREGROUNDS", "KEY_APPLETS",
            "MAPPED_KEYS", "PRESETS", "RESET", "applet", "key_command", "legend",

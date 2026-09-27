@@ -14,11 +14,11 @@ import pytest
 asciimatics = pytest.importorskip("asciimatics")
 from asciimatics.screen import Screen  # noqa: E402
 
-from aiko_services.examples.oled import dashboard_plugin as plugin  # noqa: E402
-from aiko_services.examples.oled.dashboard_plugin import (  # noqa: E402
+from aiko_services.actors.display import dashboard_plugin as plugin  # noqa: E402
+from aiko_services.actors.display.dashboard_plugin import (  # noqa: E402
     DisplayPage, MirrorWidget, render_mirror,
 )
-from aiko_services.examples.oled.graphics import FrameBuffer, Font  # noqa: E402
+from aiko_services.actors.display.graphics import FrameBuffer, Font  # noqa: E402
 
 def frame_bytes(text="hello"):
     frame = FrameBuffer(Font("5x7"))

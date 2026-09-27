@@ -4,14 +4,14 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # One Aiko Dashboard page for a running display Actor (protocol display:0,
 # the OLED example): a live mirror of the panel, the shared state, the
-# process log, and the same keys as "aiko_oled keys".  Every key typed here
+# process log, and the same keys as "aiko_display keys".  Every key typed here
 # is sent as "(key K tap)": the key map lives on the Actor.  The mirror is
 # the leased frame feed "(mirror TOPIC SECONDS)" of the Screen aspect.
 #
 # Usage
 # ~~~~~
 #   aiko_dashboard -p aiko_services.main.dashboard_plugins \
-#                  -p aiko_services.examples.oled.dashboard_plugin
+#                  -p aiko_services.actors.display.dashboard_plugin
 #   Select the display Actor, press S.  D or Esc: back to the Dashboard.
 #
 # Keys on the page (the Actor's own keys, plus the page's)
@@ -49,8 +49,8 @@ import aiko_services as aiko
 from aiko_services.main.connection import ConnectionState
 from aiko_services.main.dashboard import LogLevelPopupMenu, LogUI, ServiceFrame
 
-from aiko_services.examples.oled.display import Appearance, text_lines, xterm_color
-from aiko_services.examples.oled.oled import (
+from aiko_services.actors.display.outputs import Appearance, text_lines, xterm_color
+from aiko_services.actors.display.display import (
     Canvas, Display, Interaction, SETTINGS, SETTINGS_BY_NAME, Screen,
 )
 

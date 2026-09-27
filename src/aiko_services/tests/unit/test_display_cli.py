@@ -1,4 +1,4 @@
-# Unit tests for the "aiko_oled" command line: argument validation, the
+# Unit tests for the "aiko_display" command line: argument validation, the
 # discovery filter, and the wire commands each subcommand sends (the
 # framework's discovery and event loop are replaced by fakes).
 #
@@ -10,10 +10,10 @@ from click.testing import CliRunner
 import aiko_services as aiko
 from aiko_services.main.utilities import get_hostname
 
-from aiko_services.examples.oled import PROTOCOL, SETTINGS, WIRE_COMMANDS
-from aiko_services.examples.oled import oled as oled_module
-from aiko_services.examples.oled.display import fake_output
-from aiko_services.examples.oled.oled import _service_filter, main
+from aiko_services.actors.display import PROTOCOL, SETTINGS, WIRE_COMMANDS
+from aiko_services.actors.display import display as oled_module
+from aiko_services.actors.display.outputs import fake_output
+from aiko_services.actors.display.display import _service_filter, main
 
 SUBCOMMANDS = ("run", "exit", "list", "clear", "log", "text", "pixels", "line",
                "set", "applet", "stop", "key", "keys", "mirror")
@@ -167,7 +167,7 @@ def test_run_strict_reports_a_missing_display(monkeypatch):
 # --------------------------------------------------------------------------- #
 # The keys console
 
-from aiko_services.examples.oled.keys import (  # noqa: E402
+from aiko_services.actors.display.keys import (  # noqa: E402
     MAPPED_KEYS, RESET, key_command, legend, reset_commands,
 )
 

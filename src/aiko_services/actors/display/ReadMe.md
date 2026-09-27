@@ -11,10 +11,10 @@ accepts, and the Aiko Dashboard reads and writes its settings.  Without
 the panel, the OLED is emulated in a desktop window (pygame), in the
 terminal or in a PNG file.
 
-Documentation: [documentation/examples/oled/ReadMe.md](../../../../documentation/examples/oled/ReadMe.md)
+Documentation: [documentation/actors/display/ReadMe.md](../../../../documentation/actors/display/ReadMe.md)
 (the Actor, the `oled:0` protocol and the step-by-step
-[test guide](../../../../documentation/examples/oled/testing.md)).
-`aiko_oled --help` is the complete command reference.
+[test guide](../../../../documentation/actors/display/testing.md)).
+`aiko_display --help` is the complete command reference.
 
 ## Hardware
 
@@ -30,7 +30,7 @@ Documentation: [documentation/examples/oled/ReadMe.md](../../../../documentation
 ## Install
 
 The example lives in `src/aiko_services/examples/`, which the Aiko
-Services wheel does not ship, so the `aiko_oled` command needs an
+Services wheel does not ship, so the `aiko_display` command needs an
 editable install of the repository:
 
 ```bash
@@ -44,28 +44,28 @@ pip install pygame            # optional: the desktop window emulation
 ```bash
 export AIKO_MQTT_HOST=localhost
 aiko_registrar &
-aiko_oled run -a 0x3C         # on the SBC with the OLED
-aiko_oled run -o terminal     # or emulated, on any host
+aiko_display run -a 0x3C         # on the SBC with the OLED
+aiko_display run -o terminal     # or emulated, on any host
 ```
 
 From another terminal or host on the same broker:
 
 ```bash
-aiko_oled text 0 0 hello      # origin bottom-left: the bottom row
-aiko_oled log Hello from nomad
-aiko_oled set contrast 64     # settings are shared state: the Dashboard edits them too
-aiko_oled applet pong         # or draw, clock, eyes, forklift_game, demo ...
-aiko_oled applet --list       # the applets and their options
-aiko_oled key g               # the key map lives on the Actor: pong
-aiko_oled keys                # interactive: every key goes to the Actor (the window too)
-aiko_oled mirror aiko/probe 20 # a leased feed of raw frames to a topic, 20 s
-aiko_dashboard -p aiko_services.main.dashboard_plugins -p aiko_services.examples.oled.dashboard_plugin
-aiko_oled list
-aiko_oled exit
+aiko_display text 0 0 hello      # origin bottom-left: the bottom row
+aiko_display log Hello from nomad
+aiko_display set contrast 64     # settings are shared state: the Dashboard edits them too
+aiko_display applet pong         # or draw, clock, eyes, forklift_game, demo ...
+aiko_display applet --list       # the applets and their options
+aiko_display key g               # the key map lives on the Actor: pong
+aiko_display keys                # interactive: every key goes to the Actor (the window too)
+aiko_display mirror aiko/probe 20 # a leased feed of raw frames to a topic, 20 s
+aiko_dashboard -p aiko_services.main.dashboard_plugins -p aiko_services.actors.display.dashboard_plugin
+aiko_display list
+aiko_display exit
 ```
 
 From another host, point `AIKO_MQTT_HOST` at the SBC's broker and name
-the Actor: `aiko_oled -n HOSTNAME keys`.  The SBC's mosquitto must listen
+the Actor: `aiko_display -n HOSTNAME keys`.  The SBC's mosquitto must listen
 on every interface (`listener 1883 0.0.0.0` and `allow_anonymous true` in
 `/etc/mosquitto/conf.d/aiko.conf`; the Debian default is 127.0.0.1 only).
 
@@ -75,7 +75,7 @@ aiko_engine_mp style, with `mosquitto_pub` on the Actor's `in` topic:
 mosquitto_pub -t aiko/HOST/PID/1/in -m "(oled:text 0 0 hello)"
 ```
 
-For a display that comes up with the host, install `aiko_oled.service`
+For a display that comes up with the host, install `aiko_display.service`
 with systemd (the instructions are in the file).
 
 ## Tests
@@ -92,8 +92,8 @@ pytest src/aiko_services/tests/unit/test_oled.py \
 
 | File | Purpose |
 |------|---------|
-| `oled.py` | The `Canvas`, `Screen` and `Interaction` aspects, the `Display` composite, `OLEDImpl` and the `aiko_oled` command line |
-| `display.py` | The output seam: `Output` and `OutputControls` Interfaces, one Impl per backend (SSD1306 with luma.oled, pygame window, terminal, PNG, none, fake), the `Appearance` emulation |
+| `display.py` | The `Canvas`, `Screen` and `Interaction` aspects, the `Display` composite, `DisplayImpl` and the `aiko_display` command line |
+| `outputs.py` | The output seam: `Output` and `OutputControls` Interfaces, one Impl per backend (SSD1306 with luma.oled, pygame window, terminal, PNG, none, fake), the `Appearance` emulation |
 | `graphics.py` | 5x7 font, image helpers, the bottom-left `FrameBuffer`, the title row |
 | `applets.py` | Applets: sources of frames the Actor runs — `log`, `help`, `pattern`, `text`, `blink`, `demo` |
 | `status.py` | `status`, the default: the host and Wi-Fi screens, as text or as charts of the newest samples, one per column |
@@ -101,7 +101,7 @@ pytest src/aiko_services/tests/unit/test_oled.py \
 | `drawings.py` | `draw`: pencil-sketched cartoon scenes |
 | `faces.py` | `clock`: an analog or a digital clock face; `eyes`: animated eyes showing emotions |
 | `keys.py` | The key map, run on the Actor by `(key K)`: what each key does, and the `keys.*` legend |
-| `console.py` | `aiko_oled keys`: an interactive console for the running Actor |
+| `console.py` | `aiko_display keys`: an interactive console for the running Actor |
 | `dashboard_plugin.py` | The Aiko Dashboard page: a live mirror of the panel, the shared state, the log, the keys |
-| `aiko_oled.service` | systemd unit for a Linux SBC: the display comes up with the host |
+| `aiko_display.service` | systemd unit for a Linux SBC: the display comes up with the host |
 | `oled_test.py` | The original standalone spike (click, no Aiko Services): kept unchanged for reference |

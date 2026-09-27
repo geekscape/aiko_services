@@ -11,16 +11,16 @@ audience: [developers, end-users]
 status: draft
 ste: adapted
 source:
-  - src/aiko_services/examples/oled/oled.py
-  - src/aiko_services/examples/oled/display.py
-  - src/aiko_services/examples/oled/graphics.py
-  - src/aiko_services/examples/oled/applets.py
-  - src/aiko_services/examples/oled/status.py
-  - src/aiko_services/examples/oled/games.py
-  - src/aiko_services/examples/oled/drawings.py
-  - src/aiko_services/examples/oled/faces.py
-  - src/aiko_services/examples/oled/console.py
-  - src/aiko_services/examples/oled/keys.py
+  - src/aiko_services/actors/display/oled.py
+  - src/aiko_services/actors/display/display.py
+  - src/aiko_services/actors/display/graphics.py
+  - src/aiko_services/actors/display/applets.py
+  - src/aiko_services/actors/display/status.py
+  - src/aiko_services/actors/display/games.py
+  - src/aiko_services/actors/display/drawings.py
+  - src/aiko_services/actors/display/faces.py
+  - src/aiko_services/actors/display/console.py
+  - src/aiko_services/actors/display/keys.py
 related: [actor, service, share, discovery, event, process, connection,
   dashboard, dashboard_plugin, parameters, stream, oled_protocol, testing]
 version: "0.8-dev"

@@ -44,7 +44,7 @@ import socket
 
 from PIL import Image, ImageDraw
 
-from aiko_services.examples.oled.graphics import (
+from aiko_services.actors.display.graphics import (
     HEIGHT, INK, WIDTH, blank, paste_centred, pixels, stamp,
 )
 
@@ -134,7 +134,7 @@ class Applet:
     MIN_SIZE = (0, 0)    # the smallest host (width, height) that fits: games
     OPTIONS = {}         # option name: type, e.g. {"seed": int}
     description = ""     # one token for observers
-    summary = ""         # one line for "aiko_oled applet --list"
+    summary = ""         # one line for "aiko_display applet --list"
 
     def __init__(self, host, words=(), options=None):
         self.host = host
@@ -311,8 +311,8 @@ class HelpApplet(Applet):
             "(oled:text)=(text)",
             "origin bottom-left",
             "y=0 is the bottom row",
-            "aiko_oled set KEY VAL",
-            "aiko_oled applet -l",
+            "aiko_display set K V",
+            "aiko_display applet",
             "mosquitto_pub -t T/in",
         ]),
     ]

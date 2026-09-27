@@ -9,7 +9,7 @@ audience: [developers, end-users]
 status: draft
 ste: adapted
 source:
-  - src/aiko_services/examples/oled
+  - src/aiko_services/actors/display
 related: [actor, service, share, discovery, dashboard]
 version: "0.8-dev"
 last_updated: 2026-09-27
@@ -17,16 +17,16 @@ last_updated: 2026-09-27
 
 # OLED example index
 
-Three documents about `src/aiko_services/examples/oled/`: one concept
+Three documents about `src/aiko_services/actors/display/`: one concept
 document for the Actor, one for its wire protocol, and a test guide.
 These modules drive an SSD1306 128x64 OLED on a Linux Single Board
 Computer (SBC) as an Aiko Services [Actor](../../concepts/actor.md). On
 a desktop, they emulate it. The main use is a status display for a headless
-host. The source `src/aiko_services/examples/oled/ReadMe.md` covers the
+host. The source `src/aiko_services/actors/display/ReadMe.md` covers the
 hardware and the install.
 
 Navigation: [concepts guide](../../concepts/ReadMe.md) ·
-[examples index](../ReadMe.md)
+[actors index](../ReadMe.md)
 
 ## Documents
 
@@ -50,8 +50,8 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 
 | File | Purpose |
 |------|---------|
-| `oled.py` | The `Canvas`, `Screen` and `Interaction` aspects, the `Display` composite, `OLEDImpl`, and the `aiko_oled` command line |
-| `display.py` | The output seam: the `Output` and `OutputControls` Interfaces, one Impl per backend (SSD1306 over I2C with luma.oled, pygame window, terminal, PNG file, none, fake), and the `Appearance` emulation |
+| `display.py` | The `Canvas`, `Screen` and `Interaction` aspects, the `Display` composite, `DisplayImpl`, and the `aiko_display` command line |
+| `outputs.py` | The output seam: the `Output` and `OutputControls` Interfaces, one Impl per backend (SSD1306 over I2C with luma.oled, pygame window, terminal, PNG file, none, fake), and the `Appearance` emulation |
 | `graphics.py` | The 5x7 font, image helpers, the bottom-left `FrameBuffer`, the title row |
 | `applets.py` | The `Applet` base class and registry: `log`, `help`, `pattern`, `text`, `blink`, `demo` |
 | `status.py` | `status`, the default: the host and Wi-Fi screens as text or charts, the sample history, the fan, signal and link readers (`pinctrl`, `iw`, `nmcli`) |
@@ -63,7 +63,7 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 | `dashboard_plugin.py` | The Dashboard page: `aiko_dashboard -p aiko_services.examples.oled.dashboard_plugin` |
 | `aiko_oled.service` | A systemd unit for a Linux SBC: the display comes up with the host |
 | `oled_test.py` | The original standalone spike, kept unchanged for reference. No module imports it |
-| `tests/unit/test_oled.py`, `test_oled_cli.py`, `test_oled_applets.py`, `test_oled_dashboard_plugin.py` | 111 unit tests: graphics, the outputs, the Actor, dispatch, settings, the mirror, the command line, the applets at three canvas sizes, the Dashboard page. No broker, no panel and no screen needed |
+| `tests/unit/test_display.py`, `test_display_cli.py`, `test_display_applets.py`, `test_display_dashboard_plugin.py` | 111 unit tests: graphics, the outputs, the Actor, dispatch, settings, the mirror, the command line, the applets at three canvas sizes, the Dashboard page. No broker, no panel and no screen needed |
 
 ## Status
 
@@ -87,5 +87,5 @@ Epic 2.
   discovery
 - [Share](../../concepts/share.md) — the settings and the observations
 - [Dashboard](../../concepts/dashboard.md) — editing the settings
-- [XGO robot example](../xgo_robot/ReadMe.md) — another hardware Actor
+- [XGO robot example](../../examples/xgo_robot/ReadMe.md) — another hardware Actor
   on an SBC

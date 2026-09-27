@@ -24,13 +24,13 @@ import math
 
 from PIL import Image, ImageDraw
 
-from aiko_services.examples.oled.applets import (
+from aiko_services.actors.display.applets import (
     APPLETS, Applet, AppletDone,
 )
-from aiko_services.examples.oled.drawings import (
+from aiko_services.actors.display.drawings import (
     FIELD, FIELD_HEIGHT, FIELD_WIDTH, GROUND, SUBJECTS, field, oval,
 )
-from aiko_services.examples.oled.graphics import INK, sprite, stamp
+from aiko_services.actors.display.graphics import INK, sprite, stamp
 
 __all__ = [
     "GAMES", "AsteroidsApplet", "ForkliftApplet", "ForkliftGame",

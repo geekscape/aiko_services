@@ -29,8 +29,8 @@ import random
 
 from PIL import Image, ImageChops, ImageDraw
 
-from aiko_services.examples.oled.applets import APPLETS, Applet, on_off
-from aiko_services.examples.oled.graphics import (
+from aiko_services.actors.display.applets import APPLETS, Applet, on_off
+from aiko_services.actors.display.graphics import (
     FONT_SIZE_MAXIMUM, FONT_SIZE_MINIMUM, INK, Font, stamp,
 )
 

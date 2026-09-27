@@ -11,7 +11,7 @@ audience: [developers]
 status: draft
 ste: adapted
 source:
-  - src/aiko_services/examples/oled
+  - src/aiko_services/actors/display
 related: [oled, oled_protocol, dashboard, share, discovery]
 version: "0.8-dev"
 last_updated: 2026-09-26
@@ -76,10 +76,10 @@ Two deployment traps:
 ## 2. Unit tests and lint
 
 ```bash
-pytest src/aiko_services/tests/unit/test_oled.py \
-       src/aiko_services/tests/unit/test_oled_cli.py \
-       src/aiko_services/tests/unit/test_oled_applets.py \
-       src/aiko_services/tests/unit/test_oled_dashboard_plugin.py
+pytest src/aiko_services/tests/unit/test_display.py \
+       src/aiko_services/tests/unit/test_display_cli.py \
+       src/aiko_services/tests/unit/test_display_applets.py \
+       src/aiko_services/tests/unit/test_display_dashboard_plugin.py
 flake8 . --select=E9,F63,F7,F82
 ```
 
@@ -353,7 +353,7 @@ game (`G`). `x`, `q` or `Esc` closes the window and exits the Actor.
 
 ## 12. systemd on the SBC (optional)
 
-Edit `src/aiko_services/examples/oled/aiko_oled.service` for the user,
+Edit `src/aiko_services/actors/display/aiko_oled.service` for the user,
 the paths and the address. Then:
 
 ```bash

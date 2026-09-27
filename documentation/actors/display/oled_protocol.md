@@ -12,9 +12,9 @@ audience: [developers, ai-coding-agents]
 status: draft
 ste: adapted
 source:
-  - src/aiko_services/examples/oled/oled.py
-  - src/aiko_services/examples/oled/keys.py
-  - src/aiko_services/tests/unit/test_oled.py
+  - src/aiko_services/actors/display/oled.py
+  - src/aiko_services/actors/display/keys.py
+  - src/aiko_services/tests/unit/test_display.py
 related: [oled, testing, actor, share, message, discovery, parameters, stream]
 version: "0.8-dev"
 last_updated: 2026-09-27
