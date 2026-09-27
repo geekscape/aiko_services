@@ -31,7 +31,7 @@ has exactly one **owning document** (the registry pattern). Two conventions bind
 |------------|---------|-----------------|
 | **P1–P10, P12** | The adopted framework design principles — the constitution of the framework (P12 adopted 2026-07-13, ADR-023: guarded evaluation + default-deny method exposure — candidate CP-E's promotion) | [p_00_DesignPrinciples.md](p_00_DesignPrinciples.md), one section per principle (rule, reasoning, forbidden anti-patterns) |
 | **P11** | Candidate eleventh principle (all state mutation on the event-loop thread) — number reserved, unadopted; hence the gap in the adopted sequence | Stub in p_00 "Candidate principles awaiting ADR"; full draft in [p_02_CandidatePrinciples.md](p_02_CandidatePrinciples.md) |
-| **CP-A…CP-I** | **C**andidate **P**rinciples — the missing principles awaiting ADR adoption (CP-E adopted 2026-07-13 as P12) | Stubs in p_00; full wording, in-play assessments and adoption paths in [p_02_CandidatePrinciples.md](p_02_CandidatePrinciples.md) |
+| **CP-A…CP-I, CP-M** | **C**andidate **P**rinciples — the missing principles awaiting ADR adoption (CP-E adopted 2026-07-13 as P12; CP-M proposed 2026-09-27) | Stubs in p_00; full wording, in-play assessments and adoption paths in [p_02_CandidatePrinciples.md](p_02_CandidatePrinciples.md) |
 | **Phase 0, 1, …** | The ordered, gate-conditioned segments of one execution plan — **the standard term** (project-lead direction, 2026-07-19): "Stage" and plan-internal "Wave" were retired and renamed to Phase throughout, numbers unchanged. Scoped **per plan** — always cite as "e_03 Phase 0", never bare | Each `e_NN` plan document; convention here and g_04 rule 12 |
 | **Waves 1–3** | The candidate-principle adoption batches — after the 2026-07-19 Phase standardization, **the only sanctioned "Wave" usage**; the only sanctioned "Stage" usages are gate-internal stage numbering and external organizations' own terms | [Privately maintained — prioritization register] |
 | **DA-1…DA-5** | **D**eferred **A**mendments — strengthenings of P1–P10 held in the roadmap until the artifacts comply (per G3); DA-1→P4, DA-2→P5, DA-3→P8, DA-4→P1, DA-5→P3 | p_00 § "Deferred amendments" |
@@ -52,6 +52,7 @@ has exactly one **owning document** (the registry pattern). Two conventions bind
 | **Actions 1–10** | The July 2026 constitution rework plan's numbered actions | [Privately maintained] |
 | **p/s/e/g/a/t/z** | Constitution file-group letters (principles, specifications, plans, guides, analyses, templates, working notes) | [ReadMe.md](ReadMe.md) |
 | **CP-J** | Reserved — letter registered so it is never reused | [Privately maintained]; deliberately **not** in p_02 |
+| **`display:0` / `Display`** | The naming rule for a protocol and its Interface: the protocol id is lower case (`display:0`), the Interface is a Python class and upper case (`Display`), and the Actor is named by its Interface ("the Display Actor"). The pattern holds for every protocol/Interface pair | [adr/ADR-025_RemoteDisplayAbstraction.md](adr/ADR-025_RemoteDisplayAbstraction.md) (project-lead direction, 2026-09-27) |
 
 ## Citation style
 

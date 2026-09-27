@@ -117,7 +117,8 @@ non-idempotent commands.
 names observation as the canonical pattern. Adoption needs reworking examples and concept
 docs to demonstrate it (today none do), plus DA-5 (idempotency tokens) for the retry half.
 **Evidence:** critique U7, S7. Review §2.4. Shortfall §2.1 (nothing tells application code about
-at-most-once).
+at-most-once). The Display Actor (ADR-025, 2026-09-27): a rejected setting write republishes
+the value in force, so the writer's ECConsumer converges back and no reply is needed.
 
 ## Theme: security
 
@@ -218,7 +219,8 @@ out-of-band.
 schedule: examples publishing video frames over MQTT (xgo_robot video topics). Spec promotion is
 S1 work, but the design rule itself passes G3 today.
 **Evidence:** review §2.5. The comparison document, takeaway 2. Critique S1. The elements
-audit.
+audit. The Display Actor's leased frame mirror (ADR-025) is the worked bounded in-band case:
+fixed small frames, on change, rate-capped, leased, four holders at most.
 
 ### CP-G (candidate). Protocols are versioned and evolve compatibly
 
@@ -301,6 +303,24 @@ but the discipline passes G3 now.
 **Evidence:** review §2.6, §4.9. Critique U7 context, and the S1/S3 dependencies. The July
 audit (stdout
 tracebacks, share-write invisibility).
+
+### CP-M (candidate, proposed 2026-09-27). Capabilities are advertised, not assumed
+
+**Rule (draft):** a Service publishes what it can do in its shared state: its size and
+kind, the settings it accepts, the modes it can run, and the keys or presets it knows. A
+client reads those keys and adapts. It does not carry a copy of the Service's tables, and
+it does not range-check on the Service's behalf. Presets and macros live on the device,
+so every client sends the same small wire form.
+*Why:* the Display Actor has four clients (a CLI, a console, a window, a Dashboard page).
+When the key map moved to the device and the capabilities into the share, the clients
+became thin senders. Parity tests then bind them to the declared Interfaces. A foreign
+device with its own map is driven by the same clients without a code change.
+*Forbidden:* a client that duplicates a Service's validation or its preset tables. Also,
+a capability that a client can learn only from source code.
+**In-play assessment (Class 1):** the pattern passes G3 for new code. The Display Actor is
+the reference. The Dashboard's generic variables page is the existing consumer.
+**Evidence:** ADR-025 decisions 3 and 4. The Display Actor's compatibility matrix and parity
+tests (documentation/actors/display).
 
 ## Theme: ecosystem
 

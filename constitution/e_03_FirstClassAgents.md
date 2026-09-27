@@ -238,7 +238,9 @@ pipeline traces of D.
 **Phase 2 — Parameter/Stream orthogonalization (1–2 weeks)**
 - T6 (AI, 1 session, A review). Spec the aspect extraction: what moves out of
   PipelineImpl/PipelineElementImpl, and the composition defaults (into Actor by default,
-  Service opt-in).
+  Service opt-in). Input (2026-09-27): the Display Actor's `SETTINGS_SPEC` (a declared,
+  validated settings table) and its leased frame mirror (a stream on a Lease) are the
+  worked pilot. A shape document is planned under `documentation/actors/display/`.
 - T7 (AI, 2–4 sessions, subagents with worktree isolation for the mechanical moves). Execute.
   Keep the traces and the aiko_chat canary green throughout.
 
