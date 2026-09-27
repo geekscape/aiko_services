@@ -44,7 +44,7 @@ import aiko_services as aiko
 from aiko_services.actors.display.graphics import HEIGHT, INK, WIDTH, blank
 
 __all__ = [
-    "ADDRESSES", "OUTPUTS", "Appearance", "DisplayNotFound", "FakeOutputImpl",
+    "ADDRESSES", "KEY_DOWN_RENEW", "OUTPUTS", "Appearance", "ascii_lines", "DisplayNotFound", "FakeOutputImpl",
     "NullOutputImpl", "Output", "OutputControls", "PngOutputImpl",
     "Ssd1306OutputImpl", "TerminalOutputImpl", "WindowOutputImpl",
     "choose_output", "fake_output", "output_args", "parse_colors", "scan_i2c",
@@ -54,6 +54,8 @@ __all__ = [
 ADDRESSES = (0x3C, 0x3D)  # the two addresses an SSD1306 can have (SA0 pin)
 OUTPUTS = ("auto", "oled", "window", "terminal", "png", "none")
 PNG_PERIOD = 1.0  # seconds between PNG files, at most
+KEY_DOWN_RENEW = 1.0  # seconds: a client repeats "down" for a key still held
+                      # (the Actor lets go after display.KEY_DOWN_MAXIMUM)
 
 # SSD1306 raw commands, sent directly so the display memory is left alone
 _INVERT, _NORMAL = 0xA7, 0xA6
@@ -115,6 +117,23 @@ def text_lines(image, blocks=True):
             for x in range(image.width)) for y in range(0, image.height, 2)]
     return ["".join(chr(0x2800 + sum(bit
         for (dx, dy), bit in BRAILLE_DOTS.items() if lit[x + dx, y + dy]))
+        for x in range(0, image.width, 2)) for y in range(0, image.height, 4)]
+
+ASCII_PAIRS = " '.:"         # top pixel, bottom pixel, both
+ASCII_SHADES = " .:#"        # lit pixels in a 2x4 cell: 0, 1-2, 3-5, 6-8
+
+def ascii_lines(image, blocks=True):
+    """A one-bit picture as rows of plain ASCII, for a terminal that isn't
+    Unicode aware: one character per pixel pair (blocks, the half-block
+    geometry) or per 2x4 cell (the Braille geometry)"""
+
+    lit = image.load()
+    if blocks:
+        return ["".join(ASCII_PAIRS[(lit[x, y] > 0) + 2 * (lit[x, y + 1] > 0)]
+            for x in range(image.width)) for y in range(0, image.height, 2)]
+    shade = (0, 1, 1, 2, 2, 2, 3, 3, 3)
+    return ["".join(ASCII_SHADES[shade[sum(1 for dx, dy in BRAILLE_DOTS
+                                           if lit[x + dx, y + dy])]]
         for x in range(0, image.width, 2)) for y in range(0, image.height, 4)]
 
 def xterm_color(rgb):
@@ -466,6 +485,7 @@ class WindowOutputImpl(_Emulated, Output, OutputControls):
         self.scale = scale
         self.pygame = None
         self._events = []
+        self._arrows_down = {}       # arrow: monotonic time "down" last sent
 
     def open(self):
         os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
@@ -521,6 +541,10 @@ class WindowOutputImpl(_Emulated, Output, OutputControls):
                 state = "down" if event.type == pygame.KEYDOWN else "up"
                 if event.key in arrows:
                     self._events.append((state, arrows[event.key]))
+                    if state == "down":
+                        self._arrows_down[arrows[event.key]] = time.monotonic()
+                    else:
+                        self._arrows_down.pop(arrows[event.key], None)
                 elif state == "down" and len(event.unicode) == 1  \
                         and event.unicode.isprintable():
                     self._events.append(("tap", event.unicode))
@@ -528,6 +552,11 @@ class WindowOutputImpl(_Emulated, Output, OutputControls):
     def pump(self):
         if self.pygame is not None:
             self._collect()
+        now = time.monotonic()
+        for arrow, sent_at in list(self._arrows_down.items()):
+            if now - sent_at >= KEY_DOWN_RENEW:  # still held: "down" is bounded
+                self._arrows_down[arrow] = now
+                self._events.append(("down", arrow))
         events, self._events = self._events, []
         self._deliver(events)
 

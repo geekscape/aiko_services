@@ -436,6 +436,43 @@ def test_keys(actor_display, test_applets):
         actor.key(name, "down")
     assert len(actor._held) == 5                           # bounded
 
+def test_key_down_is_bounded(actor_display, test_applets, monkeypatch):
+    """A lost "up" can't hold a key for ever: "down" lasts KEY_DOWN_MAXIMUM
+    seconds unless the client repeats it (P9)"""
+
+    import aiko_services.actors.display.display as display_module
+    actor, _ = actor_display
+    actor.applet("bouncer")
+    clock = [1000.0]
+    monkeypatch.setattr(display_module.time, "monotonic", lambda: clock[0])
+    actor.key("left", "down")
+    clock[0] += display_module.KEY_DOWN_MAXIMUM - 0.1
+    assert actor._keys_held() == {"left"}
+    actor.key("left", "down")                              # the client renews
+    clock[0] += display_module.KEY_DOWN_MAXIMUM - 0.1
+    assert actor._keys_held() == {"left"}
+    clock[0] += 0.2                                        # no renewal: let go
+    assert actor._keys_held() == set()
+
+def test_window_renews_a_held_arrow(monkeypatch):
+    import aiko_services.actors.display.outputs as outputs_module
+    window = aiko.compose_instance(outputs_module.WindowOutputImpl,
+                                   outputs_module.output_args())
+    delivered = []
+    window.add_handler(delivered.append)
+    clock = [50.0]
+    monkeypatch.setattr(outputs_module.time, "monotonic", lambda: clock[0])
+    window._arrows_down["up"] = clock[0]                   # as a KEYDOWN records it
+    window.pump()
+    assert delivered == []
+    clock[0] += outputs_module.KEY_DOWN_RENEW
+    window.pump()
+    assert delivered == [("down", "up")]
+    window._arrows_down.clear()                            # KEYUP
+    clock[0] += 5
+    window.pump()
+    assert delivered == [("down", "up")]
+
 def test_wire_key_runs_the_map(actor_display, test_applets):
     actor, _ = actor_display
     actor.key("g")                                         # a mapped key: its preset

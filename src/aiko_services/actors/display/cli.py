@@ -460,7 +460,8 @@ def key_command(options, key_name, state):
     """Send a key to the running Display Actor
 
     KEY_NAME is up, down, left, right or one character; STATE is tap (held
-    briefly, the default), down or up.  A key in the Actor's key map runs its
+    briefly, the default), down (held for 2 seconds at most) or up.  A key
+    in the Actor's key map runs its
     preset or changes its setting ("key g" starts pong, "key 5" halves the
     speed, "key R" resets); any other key goes to the running applet:
     forklift_game: left and right drive, up and down lift; help: right and

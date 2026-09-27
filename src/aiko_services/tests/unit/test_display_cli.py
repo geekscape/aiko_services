@@ -137,7 +137,10 @@ def test_set_publishes_an_update_on_the_control_topic(monkeypatch):
 
     monkeypatch.setattr(cli_module.aiko, "do_discovery", do_discovery)
     monkeypatch.setattr(cli_module, "_start_timeout", lambda *args: None)
-    monkeypatch.setattr(aiko.process, "message", Message())
+    # The class attribute, not the instance: undoing an instance patch leaves
+    # "message = None" on the instance, which hides ProcessData.message for
+    # every later test in the process (the mirror tests then fail)
+    monkeypatch.setattr(type(aiko.process), "message", Message())
     monkeypatch.setattr(aiko.process, "run", lambda *args, **kwargs: None)
     monkeypatch.setattr(aiko.process, "terminate", lambda *args: None)
     assert invoke("set", "contrast", "64").exit_code == 0

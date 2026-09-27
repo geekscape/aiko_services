@@ -16,10 +16,17 @@
 #
 # Keys on the page (the Actor's own keys, plus the page's)
 # ~~~~~~~~~~~~~~~~
-#   every letter, digit and symbol of the key map -> (key K tap); arrows too
+#   every letter, digit and symbol of the key map -> (key K tap)
+#   arrows -> (key A down) while held, (key A up) when let go
 #   m  demo (the Dashboard reserves D)     K  stop the Actor (confirmed)
 #   H  this page's help (? is the Dashboard's)   Enter  edit a setting
-#   L  log level     Esc Backspace q  back to the Dashboard     x  quit
+#   L  log level   M  mirror on or off   Esc Backspace q  back   x  quit
+#
+# Environment
+# ~~~~~~~~~~~
+#   AIKO_DISPLAY_MIRROR=on|off|ascii   the mirror at the start (default on);
+#       ascii draws it in plain ASCII, as a terminal that isn't Unicode
+#       aware always gets
 #
 # Design (P2, P5, CP-F)
 # ~~~~~~
@@ -31,10 +38,15 @@
 # - The page is rebuilt on every resize; nothing is subscribed in __init__.
 # - Rendering reuses the terminal backend's half-block and Braille lines
 #   and its emulation of power, all_on, invert, contrast and the colors.
+# - A terminal reports key presses and their auto-repeats, never a release:
+#   an arrow is "down" on its first press and "up" after ARROW_RELEASE
+#   seconds without a repeat.  The Actor bounds "down" (KEY_DOWN_MAXIMUM),
+#   so a held arrow repeats "down" every KEY_DOWN_RENEW seconds.
 #
 # Not part of the Interface composition pattern (ADR-022 category
 # Presentation and CLI shells) — see e_10 §2.16: a Dashboard shell.
 
+import os
 import time
 
 from asciimatics.event import KeyboardEvent
@@ -49,22 +61,33 @@ import aiko_services as aiko
 from aiko_services.main.connection import ConnectionState
 from aiko_services.main.dashboard import LogLevelPopupMenu, LogUI, ServiceFrame
 
-from aiko_services.actors.display.outputs import Appearance, text_lines, xterm_color
+from aiko_services.actors.display.outputs import (
+    KEY_DOWN_RENEW, Appearance, ascii_lines, text_lines, xterm_color,
+)
 from aiko_services.actors.display.display import (
     Canvas, Display, Interaction, SETTINGS, SETTINGS_BY_NAME, Screen,
 )
 
-__all__ = ["DisplayFrame", "DisplayPage", "MirrorWidget", "plugins", "render_mirror"]
+__all__ = ["DisplayFrame", "DisplayPage", "MIRROR_MODE", "MirrorWidget", "plugins",
+           "render_mirror"]
 
 MIRROR_SECONDS = 30            # the lease the page asks for
 MIRROR_RENEW_PERIOD = 10.0     # seconds between renewals
-ARROW_PERIOD = 0.1             # seconds between repeats of one arrow key
+ARROW_RELEASE = 0.25           # seconds without a repeat: the arrow is let go
+LATENCY_WINDOW = 2.0           # seconds a key waits for a frame to be measured
 ERROR_FLASH = 5.0              # seconds last_error shows red after a change
 WIDE = (132, 48)               # columns, rows: half blocks and the full table
 NARROW = (80, 24)              # Braille beside a state column
 STATUS_KEYS = ("applet", "applet_detail", "fps", "speed", "font", "contrast",
                "invert", "power", "all_on", "foreground", "background", "last_error")
 ALIASES = {"m": "D"}           # the Dashboard reserves D (demo), ? (help), x X
+MIRROR_MODES = ("on", "off", "ascii")
+
+def _mirror_mode(value):
+    value = (value or "on").strip().lower()
+    return value if value in MIRROR_MODES else "on"
+
+MIRROR_MODE = _mirror_mode(os.environ.get("AIKO_DISPLAY_MIRROR"))
 
 # The newest mirrored frame, shared by every page instance (the frame is
 # rebuilt on resize): (topic_path, bytes, monotonic time)
@@ -84,11 +107,12 @@ def mirror_topic():
 
 # --------------------------------------------------------------------------- #
 
-def render_mirror(frame_bytes, size, cache, blocks, colours):
+def render_mirror(frame_bytes, size, cache, blocks, colours, unicode=True):
     """The frame as rows of (text, colour, attribute, background): the
-    terminal backend's half blocks (blocks) or Braille, with the panel's
-    emulation of power, all_on, invert, contrast and the colors, from the
-    shared state.  Pure: no screen, no I/O"""
+    terminal backend's half blocks (blocks) or Braille, or their plain ASCII
+    forms when not unicode, with the panel's emulation of power, all_on,
+    invert, contrast and the colors, from the shared state.  Pure: no
+    screen, no I/O"""
 
     width, height = size
     image = Image.frombytes("1", (width, height), frame_bytes)
@@ -106,7 +130,7 @@ def render_mirror(frame_bytes, size, cache, blocks, colours):
                 if name == "foreground" else "black"))[:3])
         except ValueError:
             pass
-    rows = text_lines(emulation.apply(image), blocks)
+    rows = (text_lines if unicode else ascii_lines)(emulation.apply(image), blocks)
     if colours >= 256:
         colour, background = xterm_color(emulation.lit_color()), xterm_color(emulation.background)
         attribute = AsciimaticsScreen.A_NORMAL
@@ -120,27 +144,38 @@ class DisplayPage:
     rows, the staleness of the feed, the last_error flash.  Pure, so tests
     run without a screen"""
 
-    def __init__(self, blocks):
+    def __init__(self, blocks, mode=None):
         self.blocks = blocks
+        self.mode = mode or MIRROR_MODE
+        self.mirror_on = self.mode != "off"
         self.size = (128, 64)
-        self.arrows_sent = {}            # arrow name: monotonic time sent
+        self.arrows_held = {}            # arrow: [last press or repeat, "down" sent]
+        self.sent_at = None              # a key sent, waiting for its frame
+        self.latency_ms = None           # key sent to the next frame, at most
         self.error = "-"
         self.error_changed_at = -ERROR_FLASH
         self._rendered = (None, None)    # (key, rows)
 
     def action(self, key_code, now):
-        """What a key does on the page: ("key", NAME), ("back",),
-        ("stop",), ("help",), ("edit",), ("log_level",), or None for a key
-        the Dashboard handles (D ? x X Tab) or an ignored one"""
+        """What a key does on the page: ("key", NAME, STATE), ("back",),
+        ("stop",), ("help",), ("edit",), ("log_level",), ("mirror",),
+        ("consumed",) for an arrow's repeat, or None for a key the Dashboard
+        handles (D ? x X Tab) or an ignored one"""
 
         arrows = {AsciimaticsScreen.KEY_LEFT: "left", AsciimaticsScreen.KEY_RIGHT: "right",
                   AsciimaticsScreen.KEY_UP: "up", AsciimaticsScreen.KEY_DOWN: "down"}
         if key_code in arrows:
             name = arrows[key_code]
-            if now - self.arrows_sent.get(name, -1.0) < ARROW_PERIOD:
-                return ("consumed",)                     # a repeat: coalesced
-            self.arrows_sent[name] = now
-            return ("key", name)
+            held = self.arrows_held.get(name)
+            if held is None:                             # the first press
+                self.arrows_held[name] = [now, now]
+                self.sent_at = now
+                return ("key", name, "down")
+            held[0] = now                                # a repeat
+            if now - held[1] >= KEY_DOWN_RENEW:          # still held: renew
+                held[1] = now
+                return ("key", name, "down")
+            return ("consumed",)
         if key_code in (AsciimaticsScreen.KEY_ESCAPE, AsciimaticsScreen.KEY_BACK, ord("q")):
             return ("back",)
         if key_code in (10, 13):
@@ -155,8 +190,44 @@ class DisplayPage:
                 return ("help",)
             if character == "L":
                 return ("log_level",)
-            return ("key", ALIASES.get(character, character))
+            if character == "M":
+                return ("mirror",)
+            self.sent_at = now
+            return ("key", ALIASES.get(character, character), "tap")
         return None
+
+    def released(self, now):
+        """The arrows let go: no repeat for ARROW_RELEASE seconds"""
+
+        names = [name for name, (seen, _) in self.arrows_held.items()
+                 if now - seen >= ARROW_RELEASE]
+        for name in names:
+            del self.arrows_held[name]
+        return names
+
+    def release_all(self):
+        """Every arrow still held, now let go (the page is left)"""
+
+        names, self.arrows_held = list(self.arrows_held), {}
+        return names
+
+    def measure(self, now):
+        """The time from a key sent to the next frame: an upper bound, as
+        it includes the Actor's frame rate and the mirror's throttle (so
+        measure with mirror_rate 10).  A key with no frame in
+        LATENCY_WINDOW seconds changed nothing visible: not measured"""
+
+        if self.sent_at is None:
+            return
+        if _latest["at"] > self.sent_at:
+            self.latency_ms = round((_latest["at"] - self.sent_at) * 1000)
+            self.sent_at = None
+        elif now - self.sent_at > LATENCY_WINDOW:
+            self.sent_at = None
+
+    def toggle_mirror(self):
+        self.mirror_on = not self.mirror_on
+        return self.mirror_on
 
     def observe(self, cache, now):
         """Follow the shared state: the size, the last_error flash"""
@@ -172,18 +243,22 @@ class DisplayPage:
     def error_is_fresh(self, now):
         return self.error != "-" and now - self.error_changed_at < ERROR_FLASH
 
-    def rows(self, cache, colours):
+    def rows(self, cache, colours, unicode=True):
         """The mirror rows for the newest frame, rendered once per frame
-        and per change of the settings that color it"""
+        and per change of the settings that color it; plain ASCII when the
+        terminal isn't Unicode aware or AIKO_DISPLAY_MIRROR=ascii"""
 
         frame = _latest["frame"]
-        if frame is None or len(frame) != (self.size[0] // 8) * self.size[1]:
+        if not self.mirror_on or frame is None  \
+                or len(frame) != (self.size[0] // 8) * self.size[1]:
             return None
-        key = (id(frame), self.size, self.blocks, colours,
+        unicode = unicode and self.mode != "ascii"
+        key = (id(frame), self.size, self.blocks, colours, unicode,
                tuple(cache.get(name) for name in ("power", "all_on", "invert",
                                                   "contrast", "foreground", "background")))
         if self._rendered[0] != key:
-            self._rendered = (key, render_mirror(frame, self.size, cache, self.blocks, colours))
+            self._rendered = (key, render_mirror(
+                frame, self.size, cache, self.blocks, colours, unicode))
         return self._rendered[1]
 
     @staticmethod
@@ -197,17 +272,21 @@ class DisplayPage:
             return "MQTT down"
         if "mirrors" not in cache:
             return "mirror: not supported by this Actor"
+        if not self.mirror_on:
+            return "mirror: off (M)"
         stale = self.staleness(now)
         if stale is None:
             return "mirror: waiting for frames"
         if stale > 4.0:
             return f"mirror: no frames {stale:.0f} s"
-        return f"mirror {cache.get('mirror_rate', '5')} Hz  fps {cache.get('fps', '?')}"
+        latency = f"  key {self.latency_ms} ms" if self.latency_ms is not None else ""
+        return f"mirror {cache.get('mirror_rate', '5')} Hz  fps {cache.get('fps', '?')}{latency}"
 
 # --------------------------------------------------------------------------- #
 
 class MirrorWidget(Widget):
-    """The panel, in half blocks or Braille, in the panel's colors"""
+    """The panel, in half blocks or Braille (or their ASCII forms), in the
+    panel's colors"""
 
     def __init__(self, page, rows, name=None):
         super().__init__(name, tab_stop=False)
@@ -217,12 +296,11 @@ class MirrorWidget(Widget):
         self.message = "mirror: waiting for frames"
 
     def update(self, frame_no):
-        colours = self._frame.canvas.colours if hasattr(self._frame.canvas, "colours") else 8
-        rows = self.page.rows(self.cache, colours) if self._frame.canvas.unicode_aware else None
+        canvas = self._frame.canvas
+        colours = getattr(canvas, "colours", 8)
+        rows = self.page.rows(self.cache, colours, canvas.unicode_aware)
         if rows is None:
-            text = self.message if self._frame.canvas.unicode_aware  \
-                else "the terminal is not Unicode aware: no mirror"
-            self._frame.canvas.print_at(text[:self._w], self._x, self._y)
+            canvas.print_at(self.message[:self._w], self._x, self._y)
             return
         for i, (text, colour, attribute, background) in enumerate(rows[:self._h]):
             self._frame.canvas.print_at(text[:self._w], self._x, self._y + i,
@@ -322,7 +400,10 @@ class DisplayFrame(ServiceFrame):
         if self.topic_path is None:
             return
         aiko.event.remove_timer_handler(self._renew)
+        arrows = self.page.release_all()
         if self._connected():
+            for name in arrows:
+                self.interaction_proxy.key(name, "up")
             self.screen_proxy.mirror(mirror_topic(), 0)        # destroy the feed
         self.log_ui._service_frame_stop(service)
         self.topic_path = None
@@ -333,7 +414,8 @@ class DisplayFrame(ServiceFrame):
         exits without stop (x, a crash) by MIRROR_SECONDS at most.  Only
         once the shared state shows "mirrors": an older Actor has none"""
 
-        if self.topic_path and self._connected() and "mirrors" in self._cache():
+        if self.topic_path and self.page.mirror_on and self._connected()  \
+                and "mirrors" in self._cache():
             self.screen_proxy.mirror(mirror_topic(), MIRROR_SECONDS)
             self.requested = True
 
@@ -359,7 +441,14 @@ class DisplayFrame(ServiceFrame):
         kind = action[0]
         if kind == "key":
             if self._connected():
-                self.interaction_proxy.key(action[1], "tap")
+                self.interaction_proxy.key(action[1], action[2])
+        elif kind == "mirror":
+            if self.page.toggle_mirror():
+                self.requested = False                   # asked for at the next update
+            else:
+                if self._connected():
+                    self.screen_proxy.mirror(mirror_topic(), 0)
+                _latest["frame"], _latest["at"] = None, 0.0
         elif kind == "back":
             self._service_frame_stop(self.service)
             self.dashboard.subscribed_service = None
@@ -419,7 +508,8 @@ class DisplayFrame(ServiceFrame):
             "+ - contrast  b B colors  c clear  R reset  arrows: the applet's",
             "",
             "This page: m demo (D is back)  K stop the Actor  Enter edit a setting",
-            "L log level  H this help  Esc Backspace q back  x quit the Dashboard",
+            "L log level  M mirror on or off  H this help",
+            "Esc Backspace q back  x quit the Dashboard",
         ])
 
     # Drawing ---------------------------------------------------------- #
@@ -437,6 +527,11 @@ class DisplayFrame(ServiceFrame):
         cache = self._cache()
         if not self.requested:
             self._renew()                                # the state arrived: ask now
+        released = self.page.released(now)
+        if released and self._connected():
+            for name in released:
+                self.interaction_proxy.key(name, "up")
+        self.page.measure(now)
         self.page.observe(cache, now)
         self.mirror_widget.cache = cache
         self.mirror_widget.message = self.page.feed_status(cache, now, self._connected())

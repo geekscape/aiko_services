@@ -123,6 +123,8 @@ KEYS_HELD_MAXIMUM = 5
 KEY_NAMES = ("up", "down", "left", "right")  # plus any single character
 KEY_STATES = ("tap", "down", "up")
 KEY_HOLD = 0.15               # seconds a tapped key stays held (MQTT latency)
+KEY_DOWN_MAXIMUM = 2.0       # seconds a "down" holds a key, unless repeated:
+                             # a lost "up" can't hold a key for ever (P9)
 MIRROR_LEASES_MAXIMUM = 4     # holders of the frame feed
 MIRROR_TOPIC_LENGTH_MAXIMUM = 128
 MIRROR_SECONDS_MAXIMUM = 300
@@ -333,7 +335,9 @@ class Interaction(aiko.Interface):
     @abstractmethod
     def key(self, name, state="tap"):
         """A key: NAME is "up", "down", "left", "right" or one character;
-        STATE is "tap" (default: held briefly), "down" or "up".  A key in
+        STATE is "tap" (default: held briefly), "down" or "up"; "down"
+        holds the key for 2 seconds at most, so a client holding a key
+        repeats "down" (a lost "up" can't hold it for ever).  A key in
         the display's key map (share "keys.*") runs its preset or changes
         its setting, on "tap" or "down"; any other key goes to the running
         applet.  Wire form: "(key NAME [STATE])".  Projection: command"""
@@ -671,8 +675,8 @@ class DisplayImpl(Display):
         if state == "up":
             self._held.pop(name, None)
         else:
-            self._held[name] = float("inf") if state == "down"  \
-                else time.monotonic() + KEY_HOLD
+            self._held[name] = time.monotonic() +  \
+                (KEY_DOWN_MAXIMUM if state == "down" else KEY_HOLD)
             while len(self._held) > KEYS_HELD_MAXIMUM:
                 del self._held[next(iter(self._held))]
         if self._applet is not None:
