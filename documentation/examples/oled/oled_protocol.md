@@ -3,7 +3,8 @@ title: Display protocol display:0
 description: The wire protocol of the OLED example's display Actor — the
   display:0 composite of the Canvas, Screen and Interaction aspects, the
   aspect tags and discovery, the topics, the one-way commands and their
-  argument grammar, the key map on the device, the shared state keys and
+  argument grammar, the leased frame mirror, the key map on the device,
+  the shared state keys and
   their values, the rejection reasons, the conformance trace, and
   compatibility with the MicroPython aiko_engine_mp OLED
 type: concept
@@ -60,7 +61,7 @@ version, only methods are added.
 | Aspect | Contract id | Concern | Methods |
 |--------|-------------|---------|---------|
 | `Canvas` | `.../canvas:0` | Drawing on a canvas | `clear`, `log`, `pixel`, `pixels`, `line`, `text` |
-| `Screen` | `.../screen:0` | Controlling the screen: its settings are shared state | none yet (`mirror` in Epic 1 phase 2) |
+| `Screen` | `.../screen:0` | Controlling the screen: its settings are shared state, and the leased frame mirror | `mirror` |
 | `Interaction` | `.../interaction:0` | Controlling what runs on the display | `applet`, `key` |
 | `Display` | `.../display:0`, registered | The composite | the framework's `stop`, `set_log_level` |
 
@@ -96,6 +97,7 @@ is at (X, Y). Thus `(text 0 0 hi)` is the bottom row, and
 | Canvas | `(pixels X Y X Y ...)` | 2..512 integers, an even count | Every pair in range, or nothing is lit | `(oled:pixels ...)` |
 | Canvas | `(line X0 Y0 X1 Y1)` | Integers | In range | — |
 | Canvas | `(text X Y WORDS ...)` | Integers, then words | In range, 128 characters | `(oled:text ...)`, with an 8x8 font |
+| Screen | `(mirror TOPIC SECONDS)` | A topic, then seconds | The topic is one token of at most 128 characters without `+` or `#`. Seconds 0..300. At most 4 holders | — |
 | Interaction | `(applet NAME [WORDS ...] [key=value ...])` | A name, words, options | The name is in `applets`. The options are the ones the applet declares, 64 characters each | — |
 | Interaction | `(key NAME [tap\|down\|up])` | `up`, `down`, `left`, `right` or one character, then a state | The state as listed. `tap` is the default | — |
 | Display | `(stop)`, `(exit)` | — | `exit` is an alias of `stop` | — |
@@ -108,6 +110,17 @@ running applet. The map is published as the share keys `keys.*`, for
 example `keys.g` = `pong|asteroids|invaders|forklift` and `keys.digits` =
 `speed`. Thus every client sends the same `(key K tap)`. The arrow keys
 are never mapped.
+
+**The frame mirror.** `(mirror TOPIC SECONDS)` creates or extends a leased
+feed, in the vocabulary of a Stream: TOPIC names the holder and is the
+destination, SECONDS is the lease, a repeat extends it, and 0 destroys
+it. While a lease holds, the Actor publishes the frame to TOPIC as raw
+bytes: PIL mode `1`, `size` pixels, row major, the most significant bit
+first, 1024 bytes at 128x64. It publishes only when the frame changed,
+at most `mirror_rate` times a second, and never while the transport is
+down. A frame that arrives too soon waits as the one pending frame, so
+the last frame of a burst always arrives. The holder count is `mirrors`.
+The Dashboard page uses this feed for its live mirror, on its own topic.
 
 **Argument grammar.** Every argument arrives as a string, and the Actor
 validates it (P12). A client does not range-check. An integer is decimal,
@@ -145,6 +158,8 @@ is one token without spaces.
 | Screen | `blank_after` | `0`..`86400` seconds, `0` never | RW | Written |
 | Screen | `foreground`, `background` | A color name that Pillow knows, or `#rrggbb`. When written, also `default`: the starting color | RW | Written |
 | Screen | `fps` | Integer | R | Every 2 s |
+| Screen | `mirror_rate` | `1`..`10`, frames a second to each holder at most | RW | Written |
+| Screen | `mirrors` | Integer, the feed's holders (at most 4) | R | A feed is created, destroyed or expires |
 | Interaction | `applets` | Comma-separated names | R | Start |
 | Interaction | `applet` | A name or `none`. When written, also `NAME,ARG,...` | RW | An applet starts or stops |
 | Interaction | `applet_detail` | A token, or `-` | R | The applet reports |
@@ -154,7 +169,7 @@ is one token without spaces.
 | Display | `connection` | `NONE`, `NETWORK`, `TRANSPORT`, `REGISTRAR` | R | The connection state changes |
 | Display | `heartbeat` | Integer seconds since start | R | Every second |
 | Display | `last_error` | `WHAT@YYYY-MM-DDTHH:MM:SSZ`, or `-` | R | A rejection or a failure |
-| Display | `metrics.commands`, `metrics.rejected`, `metrics.frames`, `metrics.frame_ms`, `metrics.errors` | Integers | R | Every 2 s, when changed |
+| Display | `metrics.commands`, `metrics.rejected`, `metrics.frames`, `metrics.frame_ms`, `metrics.errors`, `metrics.mirrored` | Integers | R | Every 2 s, when changed |
 
 ### Failure behavior
 
@@ -182,7 +197,8 @@ as a WARNING: `NAME: METHOD rejected: REASON (DETAIL)`. The reasons:
 | `pixel`, `line` | `x_not_int`, `x_range`, `y_not_int`, `y_range` |
 | `pixels` | `count` (no values, an odd count, or more than 512), `xy_not_int`, `xy_range`, `range` (a pair out of range) |
 | `key` | `name`, `state` |
-| `set` | `applet_unknown`, `applet_args`, `applet_failed`, `contrast_not_int`, `contrast_range`, `invert_not_on_off` (also `power`, `all_on`), `title_too_long`, `font_range`, `speed_not_number`, `speed_range`, `blank_after_not_int`, `blank_after_range`, `foreground_not_color`, `background_not_color` |
+| `mirror` | `topic`, `seconds_not_int`, `seconds_range`, `full` (a fifth holder) |
+| `set` | `applet_unknown`, `applet_args`, `applet_failed`, `contrast_not_int`, `contrast_range`, `invert_not_on_off` (also `power`, `all_on`), `title_too_long`, `font_range`, `speed_not_number`, `speed_range`, `blank_after_not_int`, `blank_after_range`, `foreground_not_color`, `background_not_color`, `mirror_rate_not_int`, `mirror_rate_range` |
 | `display` | `not_found`, `failed` |
 | `tick`, `key`, `heartbeat`, `metrics`, `reopen` | The class name of the exception that a guarded timer caught, for example `tick_RuntimeError` |
 
@@ -223,6 +239,10 @@ display and no title row:
 | `test_wire_key_runs_the_map` | `(key g tap)` | `applet` `pong`: the key map ran the preset |
 | | `(key g down)` | `applet` `asteroids`: the next preset |
 | | `(key w tap)` with an applet running | The applet received `w` |
+| `test_mirror_publishes_on_change_and_caps_rate` | `(mirror aiko/probe/mirror 30)` | `mirrors` `1`. The current frame, 1024 bytes, is published to the topic on the next tick. A changed frame within the rate waits, and the end of the burst arrives. An unchanged frame is not sent |
+| `test_mirror_leases_extend_expire_and_destroy` | `(mirror T 1)` twice, then 1.4 s | `mirrors` `1`, then `0` when the lease expires. `(mirror T 0)` destroys at once |
+| `test_mirror_rejections_and_bounds` | `(mirror aiko/+/mirror 30)`, `(mirror T 999)`, `(mirror T soon)`, a fifth holder | `mirror_topic@...`, `mirror_seconds_range@...`, `mirror_seconds_not_int@...`, `mirror_full@...`; `mirrors` stays `4` |
+| `test_mirror_drops_frames_while_disconnected` | A feed while the transport is down | Nothing is published, nothing blocks |
 | `test_settings_apply_and_bad_values_converge` | `(update contrast 64)` on `control` | `contrast` `64`, and the display's contrast set |
 | | `(update contrast abc)` on `control` | `contrast` back to `64`, `last_error` `set_contrast_not_int@...` |
 | `test_display_not_found_degrades_and_reopens` | A display that fails to open | `device` `absent`, `last_error` `display_not_found@...`, then the reopen succeeds |
@@ -252,9 +272,8 @@ See [oled](oled.md).
 | Shared state | Every setting and observation above | None |
 | Traits | `size`, `depth`, `backend`, `applets`, `settings`, `keys.*` in the shared state | A planned `(oled:traits)` reply |
 
-**Planned in Epic 1**: the leased frame mirror `(mirror TOPIC SECONDS)` on
-the Screen aspect, the `panels` list for two panels as one display, and
-the 8x8 font. **Planned convergence** (Epic 2): aiko_engine_mp registers
+**Planned in Epic 1**: the `panels` list for two panels as one display,
+and the 8x8 font. **Planned convergence** (Epic 2): aiko_engine_mp registers
 `display:0`, accepts both `text` and `oled:text`, and exposes `contrast`,
 `invert` and `power` as shared state. Then the same clients, the same
 console and the same Dashboard page drive both.

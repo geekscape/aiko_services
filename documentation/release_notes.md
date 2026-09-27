@@ -41,7 +41,9 @@ sections are.
   lines) and accepts the same S-expressions as the aiko_engine_mp OLED,
   for example *(oled:text 0 0 hello)*.  Its settings are shared state that
   the Dashboard edits.  The *aiko_oled* command runs the Actor or sends it
-  one command, and *aiko_oled keys* is an interactive console.  Applets
+  one command, *aiko_oled keys* is an interactive console, and a Dashboard
+  plug-in page mirrors the panel live and drives it with the same keys.
+  Applets
   run on the display: games, a forklift, pencil drawings, a clock face,
   animated eyes and a demo tour.
   Without the panel, a desktop window, the terminal or a PNG file emulates
@@ -192,7 +194,7 @@ remote callers are unaffected.  For Python code:
   These tests skip when OpenCV is absent, because *video_io.py* needs
   *cv2* at import time
 
-* New *test_oled.py*, *test_oled_cli.py* and *test_oled_applets.py*: 95
+* New *test_oled.py*, *test_oled_cli.py* and *test_oled_applets.py* and *test_oled_dashboard_plugin.py*: 104
   tests for the OLED display Actor example.  They cover graphics, the
   display backends, dispatch and validation, the settings, the command
   line and the applets.  A fake display stands in for the panel, so no

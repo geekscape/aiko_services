@@ -16,7 +16,7 @@ from aiko_services.examples.oled.display import FakeDisplay
 from aiko_services.examples.oled.oled import _service_filter, main
 
 SUBCOMMANDS = ("run", "exit", "list", "clear", "log", "text", "pixels", "line",
-               "set", "applet", "stop", "key", "keys")
+               "set", "applet", "stop", "key", "keys", "mirror")
 
 class RecordingProxy:
     """Stands in for the discovered OLED Actor's proxy"""
@@ -106,6 +106,7 @@ def test_remote_commands_send_the_wire_command(remote):
     assert invoke("stop").exit_code == 0
     assert invoke("key", "left").exit_code == 0
     assert invoke("key", "x", "down").exit_code == 0
+    assert invoke("mirror", "aiko/probe/mirror", "60").exit_code == 0
     assert invoke("-n", "pi", "exit").exit_code == 0
     assert remote.calls == [
         ("text", (0, 8, "hello", "world")),
@@ -117,6 +118,7 @@ def test_remote_commands_send_the_wire_command(remote):
         ("applet", ("none",)),
         ("key", ("left", "tap")),
         ("key", ("x", "down")),
+        ("mirror", ("aiko/probe/mirror", 60)),
         ("stop", ()),
     ]
     assert remote.seen["filter"].name == "pi"
@@ -191,7 +193,7 @@ def test_key_map_parity():
 
 def test_cli_covers_every_wire_command():
     subcommands = set(main.commands)
-    covered = {"clear", "log", "pixels", "line", "text", "applet", "key"}
+    covered = {"clear", "log", "pixels", "line", "text", "applet", "key", "mirror"}
     assert covered <= subcommands
     assert WIRE_COMMANDS - {"pixel", "stop", "set_log_level"} == covered   # pixel: pixels
     assert {"exit", "stop", "set", "list", "run", "keys"} <= subcommands   # stop: exit

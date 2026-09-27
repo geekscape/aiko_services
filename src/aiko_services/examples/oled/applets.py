@@ -263,12 +263,12 @@ class HelpApplet(Applet):
             "b B color R reset x X",
         ]),
         ("Dashboard: set", [
-            "applet  contrast",
-            "invert  power  all_on",
-            "title  font  speed",
+            "applet contrast font",
+            "invert power all_on",
+            "title speed",
             "blank_after",
+            "mirror_rate",
             "foreground background",
-            "(update KEY VALUE)",
         ]),
         ("Dashboard: state", [
             "backend device panels",

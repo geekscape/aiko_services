@@ -58,6 +58,8 @@ aiko_oled applet pong         # or draw, clock, eyes, forklift_game, demo ...
 aiko_oled applet --list       # the applets and their options
 aiko_oled key g               # the key map lives on the Actor: pong
 aiko_oled keys                # interactive: every key goes to the Actor (the window too)
+aiko_oled mirror aiko/probe 20 # a leased feed of raw frames to a topic, 20 s
+aiko_dashboard -p aiko_services.main.dashboard_plugins -p aiko_services.examples.oled.dashboard_plugin
 aiko_oled list
 aiko_oled exit
 ```
@@ -84,7 +86,7 @@ pytest src/aiko_services/tests/unit/test_oled.py \
        src/aiko_services/tests/unit/test_oled_applets.py
 ```
 
-95 tests; no broker and no panel needed.
+104 tests; no broker and no panel needed.
 
 ## Files
 
@@ -100,5 +102,6 @@ pytest src/aiko_services/tests/unit/test_oled.py \
 | `faces.py` | `clock`: an analog or a digital clock face; `eyes`: animated eyes showing emotions |
 | `keys.py` | The key map, run on the Actor by `(key K)`: what each key does, and the `keys.*` legend |
 | `console.py` | `aiko_oled keys`: an interactive console for the running Actor |
+| `dashboard_plugin.py` | The Aiko Dashboard page: a live mirror of the panel, the shared state, the log, the keys |
 | `aiko_oled.service` | systemd unit for a Linux SBC: the display comes up with the host |
 | `oled_test.py` | The original standalone spike (click, no Aiko Services): kept unchanged for reference |

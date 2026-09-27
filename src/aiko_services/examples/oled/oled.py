@@ -12,7 +12,8 @@
 # The protocol is the composite of three aspect Interfaces, each advertised
 # as a tag (canvas=0 screen=0 interaction=0) beside device=oled:
 #   Canvas       drawing: clear log pixel pixels line text
-#   Screen       the screen: its settings in the shared state (mirror: Epic 1)
+#   Screen       the screen: its settings in the shared state, and the leased
+#                frame mirror (mirror TOPIC SECONDS) for the Dashboard plug-in
 #   Interaction  what runs on the display: applet, key (the key map is here)
 #
 # Usage
@@ -42,17 +43,18 @@
 #   (applet NAME [ARGS ...])                run an applet; "none" shows the canvas
 #   (key NAME [tap|down|up])                     a key in the map runs its preset,
 #                                                any other goes to the applet
+#   (mirror TOPIC SECONDS)                       a leased feed of raw frames to TOPIC
 #   Anything else on the "in" topic is rejected (P12), including "(run)".
 #
 # Shared state (aiko_dashboard shows it; the RW keys can be edited there)
 # ~~~~~~~~~~~~
 #   backend device panels size origin depth settings keys.* connection
-#   applets applet(RW)
+#   mirrors applets applet(RW)
 #   applet_detail fps speed(RW) font(RW) contrast(RW) invert(RW)
 #   power(RW) all_on(RW) title(RW: text, on, off) blank_after(RW)
 #   foreground(RW) background(RW: colors of an emulated display) heartbeat
 #   last_error log_count log_pending metrics.commands metrics.rejected metrics.frames
-#   metrics.frame_ms metrics.errors
+#   metrics.frame_ms metrics.errors metrics.mirrored
 #
 # Bounds (P9): log ring 8 lines (oldest dropped); 256 pixel pairs per
 # command; 128 characters of text per command; 64 characters per
@@ -86,6 +88,8 @@ import click
 from PIL import ImageColor
 
 import aiko_services as aiko
+from aiko_services.main.connection import ConnectionState
+from aiko_services.main.lease import Lease
 from aiko_services.main.utilities import get_hostname, parse
 
 from aiko_services.examples.oled.applets import (
@@ -125,6 +129,9 @@ KEYS_HELD_MAXIMUM = 5
 KEY_NAMES = ("up", "down", "left", "right")  # plus any single character
 KEY_STATES = ("tap", "down", "up")
 KEY_HOLD = 0.15               # seconds a tapped key stays held (MQTT latency)
+MIRROR_LEASES_MAXIMUM = 4     # holders of the frame feed
+MIRROR_TOPIC_LENGTH_MAXIMUM = 128
+MIRROR_SECONDS_MAXIMUM = 300
 SPEED_MINIMUM, SPEED_MAXIMUM = 0.1, 10.0
 BLANK_AFTER_MAXIMUM = 86400   # seconds
 
@@ -170,6 +177,8 @@ SETTINGS_SPEC = (
             "multiplies every applet's frame rate"),
     Setting("blank_after", "int", "0", 0, BLANK_AFTER_MAXIMUM, "SECONDS (0: never)",
             "sleep the display after inactivity; any command wakes it"),
+    Setting("mirror_rate", "int", "5", 1, 10, "1..10",
+            "frames a second to each mirror holder, at most"),
     Setting("foreground", "color", DEFAULT_COLORS[0], None, None, "COLOR | default",
             "lit pixels of an emulated display"),
     Setting("background", "color", DEFAULT_COLORS[1], None, None, "COLOR | default",
@@ -286,14 +295,26 @@ class Screen(aiko.Interface):
     """
     Controlling the screen: its settings are shared state, written with
     "(update KEY VALUE)" on the control topic (see SETTINGS_SPEC): contrast,
-    invert, power, all_on, blank_after, foreground, background.  Observed:
-    backend, device, panels, fps, metrics.frames, metrics.frame_ms.  The
-    leased frame mirror "(mirror TOPIC SECONDS)" joins this aspect in
-    Epic 1 phase 2.
+    invert, power, all_on, blank_after, foreground, background, mirror_rate.
+    Observed: backend, device, panels, fps, mirrors, metrics.frames,
+    metrics.frame_ms, metrics.mirrored.  One method: the leased frame
+    mirror, in the vocabulary of a Stream (create, extend, destroy).
     """
 
     PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/screen:{_VERSION}"
     aiko.Interface.default("Screen", "aiko_services.examples.oled.oled.OLEDImpl")
+
+    @abstractmethod
+    def mirror(self, topic, seconds):
+        """Create or extend a leased feed of the panel's frames to TOPIC:
+        each frame as raw bytes (PIL mode "1", "size" pixels, row major,
+        MSB first), published when it changes, at most "mirror_rate" a
+        second, until SECONDS pass without another request; SECONDS 0
+        destroys the feed.  At most 4 holders.
+        Wire form: "(mirror TOPIC SECONDS)".  Outcome: share "mirrors" (the
+        holder count) and "metrics.mirrored".  Rejected: mirror_topic,
+        mirror_seconds_not_int, mirror_seconds_range, mirror_full.
+        Projection: command"""
 
 class Interaction(aiko.Interface):
     """
@@ -435,7 +456,7 @@ class OLEDImpl(Display):
         self._log_pending = False   # the "L" annunciator
         self._rng = random.Random()
         self._metrics = {"commands": 0, "rejected": 0, "frames": 0,
-                         "frame_ms": 0, "errors": 0}
+                         "frame_ms": 0, "errors": 0, "mirrored": 0}
         self._speed = 1.0
         self._blank_after = 0
         self._blanked = False
@@ -443,6 +464,10 @@ class OLEDImpl(Display):
         self._default_applet = str(
             parameters.get("applet") or DEFAULT_APPLET)
         self._held = {}             # key name: held until (monotonic)
+        self._mirrors = {}          # topic: Lease, the frame feed's holders
+        self._mirror_rate = 5
+        self._mirror_due = 0.0
+        self._mirror_pending = None # the newest frame not yet mirrored
         self._host = _Host(self)
         self._last_frame = None     # bytes of the frame on the display
         self._started = time.monotonic()
@@ -466,6 +491,7 @@ class OLEDImpl(Display):
             "backend": self._display.name,
             "device": "-",
             "panels": "-",
+            "mirrors": "0",
             "size": f"{WIDTH}x{HEIGHT}",
             "origin": "bottom",
             "depth": "1",
@@ -640,6 +666,63 @@ class OLEDImpl(Display):
         if self._applet is not None:
             self._guarded("key", lambda: self._applet.key(name, state))
 
+    # Wire commands: Screen -------------------------------------------- #
+
+    def mirror(self, topic, seconds):
+        topic = str(topic)
+        if not 0 < len(topic) <= MIRROR_TOPIC_LENGTH_MAXIMUM  \
+                or any(character in topic for character in "+# \t"):
+            return self._reject("mirror", "topic", topic[:40])
+        try:
+            seconds = _int(seconds, "seconds", 0, MIRROR_SECONDS_MAXIMUM)
+        except _Reject as reject:
+            return self._reject("mirror", reject.reason)
+        self._metrics["commands"] += 1
+        self._wake()
+        lease = self._mirrors.get(topic)
+        if seconds == 0:                             # destroy
+            if lease is not None:
+                lease.terminate()
+                del self._mirrors[topic]
+                self._publish_mirrors()
+            return
+        if lease is not None:                        # extend
+            lease.extend(seconds)
+            return
+        if len(self._mirrors) >= MIRROR_LEASES_MAXIMUM:
+            return self._reject("mirror", "full", topic[:40])
+        self._mirrors[topic] = Lease(                # create
+            seconds, topic, lease_expired_handler=self._mirror_expired)
+        self._publish_mirrors()
+        self._mirror_pending = self._last_frame      # the holder sees the panel now
+        self._mirror_due = 0.0
+
+    def _mirror_expired(self, topic):
+        if self._mirrors.pop(topic, None) is not None:
+            self._publish_mirrors()
+
+    def _publish_mirrors(self):
+        self.ec_producer.update("mirrors", str(len(self._mirrors)))
+
+    def _mirror_frame(self, data):
+        """Send a frame to the mirror holders when one is due, else keep it
+        as the one pending frame (the latest wins: bound 1 frame)"""
+
+        if not self._mirrors or data is None:
+            self._mirror_pending = None
+            return
+        now = time.monotonic()
+        if now < self._mirror_due:
+            self._mirror_pending = data
+            return
+        self._mirror_pending = None
+        self._mirror_due = now + 1.0 / self._mirror_rate
+        if not aiko.process.connection.is_connected(ConnectionState.TRANSPORT):
+            return                                   # publish() would block
+        for topic in list(self._mirrors):
+            aiko.process.message.publish(topic, data)
+        self._metrics["mirrored"] += 1
+
     # Settings: applied through the shared state ---------------------------- #
 
     def _ec_producer_change_handler(self, command, item_name, item_value):
@@ -701,6 +784,8 @@ class OLEDImpl(Display):
             self._blank_after = number
             if not number:
                 self._wake()
+        elif name == "mirror_rate":
+            self._mirror_rate = number
         self._settle(name, str(number))
 
     def _set_flag(self, key, value):
@@ -853,6 +938,7 @@ class OLEDImpl(Display):
         if data == self._last_frame:
             return
         self._last_frame = data
+        self._mirror_frame(data)
         self._wake()
         if not self._display_ok:
             return
@@ -955,6 +1041,8 @@ class OLEDImpl(Display):
                 frame = None
             if frame is not None:
                 self._present(frame)
+        if self._mirror_pending is not None and now >= self._mirror_due:
+            self._mirror_frame(self._mirror_pending)     # the end of a burst
         if self._title_text and now >= self._title_due:
             self._title_due = now + 1.0
             if self._applet is None:
@@ -1031,6 +1119,9 @@ class OLEDImpl(Display):
             return
         self._shut = True
         self._stop_applet()
+        for lease in self._mirrors.values():
+            lease.terminate()
+        self._mirrors.clear()
         for timer in (self._tick, self._heartbeat, self._metrics_flush, self._reopen):
             try:
                 aiko.event.remove_timer_handler(timer)
@@ -1425,6 +1516,23 @@ def stop_command(options):
 
     _remote(Interaction, options, lambda oled: oled.applet("none"))
 
+@main.command(name="mirror")
+@click.argument("topic")
+@click.argument("seconds", type=int, default=30)
+@click.pass_obj
+
+def mirror_command(options, topic, seconds):
+    """Ask the Actor to publish its frames to TOPIC: a leased feed
+
+    Raw frames (1024 bytes at 128x64: PIL mode "1", row major, MSB first) go
+    to TOPIC whenever the panel changes, at most "mirror_rate" a second, for
+    SECONDS (default 30, at most 300; repeat to extend); 0 stops.  At most
+    4 holders.  The same as "(mirror TOPIC SECONDS)".  The Dashboard plug-in
+    uses this for its live mirror; "mosquitto_sub -t TOPIC" shows the bytes.
+    """
+
+    _remote(Screen, options, lambda screen: screen.mirror(topic, seconds))
+
 @main.command(name="keys")
 
 @click.pass_obj
@@ -1494,10 +1602,11 @@ _SETTINGS_REFERENCE = _settings_reference()
 _STATE_REFERENCE = _block([
     "Shared state  (aiko_dashboard, or (share TOPIC SECONDS *) on control)",
     "  backend device panels size origin depth settings keys.* connection",
-    "  applets applet applet_detail fps",
+    "  mirrors applets applet applet_detail fps",
     "  speed font contrast invert power all_on title blank_after foreground",
     "  background heartbeat last_error log_count log_pending metrics.commands",
     "  metrics.rejected metrics.frames metrics.frame_ms metrics.errors",
+    "  metrics.mirrored",
 ])
 _WIRE_REFERENCE = _block([
     "Wire commands on the in topic  (mosquitto_pub -t TOPIC/in -m '...')",
@@ -1512,6 +1621,8 @@ _WIRE_REFERENCE = _block([
     "  (applet NAME [ARGS ...])                   run an applet; none: the canvas",
     "  (key NAME [tap|down|up])                   a mapped key runs its preset,",
     "                                             any other goes to the applet",
+    "  (mirror TOPIC SECONDS)                     a leased feed of raw frames to",
+    "                                             TOPIC (the Dashboard plug-in)",
     "  Anything else is rejected (last_error, metrics.rejected).",
 ])
 

@@ -34,6 +34,7 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 |----------|---------|
 | [oled](oled.md) | The OLED Actor: the status display, the canvas, settings in the shared state, the applets, the keys console, the display backends and the `aiko_oled` command line |
 | [oled_protocol](oled_protocol.md) | The `display:0` protocol: the Canvas, Screen and Interaction aspects and their tags, discovery, the topics, the wire commands and their grammar, the key map on the device, the shared state keys, the rejection reasons, the conformance trace, and compatibility with aiko_engine_mp |
+| [oled_dashboard](oled_dashboard.md) | The Dashboard plug-in page: a live mirror of the panel through the leased frame feed, the shared state with editable settings, the process log, and the same keys as the console |
 | [testing](testing.md) | The step-by-step test guide: macOS and a Linux SBC, the unit tests, the command line, raw S-expressions, the shared state, the Dashboard, the applets, the keys console, failure behavior and systemd |
 
 ## Reading order
@@ -59,9 +60,10 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 | `faces.py` | `clock`: an analog or a digital clock face. `eyes`: animated eyes with emotions |
 | `keys.py` | The key map, run on the Actor: what each key does, and the `keys.*` legend |
 | `console.py` | `aiko_oled keys`: the interactive console, which sends every key to the Actor |
+| `dashboard_plugin.py` | The Dashboard page: `aiko_dashboard -p aiko_services.examples.oled.dashboard_plugin` |
 | `aiko_oled.service` | A systemd unit for a Linux SBC: the display comes up with the host |
 | `oled_test.py` | The original standalone spike, kept unchanged for reference. No module imports it |
-| `tests/unit/test_oled.py`, `test_oled_cli.py`, `test_oled_applets.py` | 95 unit tests: graphics, displays, the Actor, dispatch, settings, the command line, the applets. No broker and no panel needed |
+| `tests/unit/test_oled.py`, `test_oled_cli.py`, `test_oled_applets.py`, `test_oled_dashboard_plugin.py` | 104 unit tests: graphics, displays, the Actor, dispatch, settings, the mirror, the command line, the applets, the Dashboard page. No broker, no panel and no screen needed |
 
 ## Status
 
@@ -69,9 +71,10 @@ Epic 0 is complete and approved (2026-09-27): the Actor, the status
 display, the settings, the applets, the console, the tests and these
 documents. Epic 1 is in progress: phase 1 (2026-09-27) made the protocol
 the `display:0` composite of three aspects, declared the settings once,
-and moved the key map to the Actor. The next phases add the Dashboard
-plug-in with a live mirror and the composed output seam. Then come both
-panels as one display, the 8x8 font and a `logs` applet. Everything is
+and moved the key map to the Actor. Phase 2 (2026-09-27) added the
+leased frame mirror and the Dashboard page. The next phases add the
+composed output seam, both panels as one display, the 8x8 font and a
+`logs` applet. Everything is
 verified on
 macOS (Python 3.12, emulated displays) and on a Linux SBC (a Raspberry
 Pi, Python 3.13, the panel at 0x3C). Convergence with aiko_engine_mp is

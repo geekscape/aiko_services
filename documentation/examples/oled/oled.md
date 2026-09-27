@@ -113,6 +113,7 @@ preset cycles. Every subcommand's `--help` explains it in full.
 | `stop` | | `(applet none)`: the canvas is shown again |
 | `key NAME [tap\|down\|up]` | | `(key NAME STATE)`: a key in the Actor's key map runs its preset, any other key goes to the running applet |
 | `keys` | | The interactive console, see below |
+| `mirror TOPIC [SECONDS]` | | `(mirror TOPIC SECONDS)`: a leased feed of raw frames to TOPIC, 30 s by default, 0 stops. `mosquitto_sub -t TOPIC` shows the bytes |
 
 The options of `run`:
 
@@ -160,6 +161,13 @@ SBC's broker and name the Actor: `aiko_oled -n HOSTNAME keys`. The
 SBC's broker must listen on every interface. The
 [test guide](testing.md) gives the mosquitto configuration and the two
 discovery traps.
+
+**The Dashboard page.** `aiko_dashboard -p aiko_services.main.dashboard_plugins
+-p aiko_services.examples.oled.dashboard_plugin`, then `S` on the Actor.
+The page shows a live mirror of the panel through the leased frame feed,
+and the shared state with editable settings. It shows the process log,
+and it takes the same keys as the console. The
+[Dashboard page](oled_dashboard.md) document describes it.
 
 ### The status display
 
@@ -330,7 +338,7 @@ through the move ceremony, which claims its number.
 | Aspect | Contract id | Methods | Owns in the share |
 |--------|-------------|---------|-------------------|
 | `Canvas` — drawing on a canvas | `.../canvas:0` | `clear()`, `log(*words)`, `pixel(x, y)`, `pixels(*coordinates)`, `line(x0, y0, x1, y1)`, `text(x, y, *words)` | RW `font`, `title`. R `size`, `origin`, `depth`, `log_count`, `log_pending` |
-| `Screen` — controlling the screen | `.../screen:0` | none yet (`mirror` in Epic 1 phase 2) | RW `contrast`, `invert`, `power`, `all_on`, `blank_after`, `foreground`, `background`. R `backend`, `device`, `panels`, `fps` |
+| `Screen` — controlling the screen | `.../screen:0` | `mirror(topic, seconds)` | RW `contrast`, `invert`, `power`, `all_on`, `blank_after`, `foreground`, `background`, `mirror_rate`. R `backend`, `device`, `panels`, `fps`, `mirrors` |
 | `Interaction` — what runs on the display | `.../interaction:0` | `applet(name, *args)`, `key(name, state="tap")` | RW `applet`, `speed`. R `applets`, `applet_detail`, `keys.*` |
 | `Display` — the composite | `.../display:0`, registered | the framework's `stop` (`exit` is its alias), `set_log_level` | R `settings`, `connection`, `heartbeat`, `last_error`, `metrics.*` |
 
@@ -344,6 +352,7 @@ through the move ceremony, which claims its number.
 | `text(x, y, *words)` | `(text X Y WORDS ...)`, `(oled:text ...)` | Write the words with the text cell's bottom-left at (X, Y) |
 | `applet(name, *args)` | `(applet NAME [WORDS ...] [key=value ...])` | Run an applet, which replaces the running one. `none` shows the canvas |
 | `key(name, state="tap")` | `(key NAME [tap\|down\|up])` | A key in the key map runs its preset, or changes its setting, on `tap` or `down`. Any other key goes to the running applet |
+| `mirror(topic, seconds)` | `(mirror TOPIC SECONDS)` | Create or extend a leased feed of the panel's frames to TOPIC, raw bytes on change at most `mirror_rate` a second. 0 destroys it. At most 4 holders |
 | `stop()` | `(stop)`, `(exit)` | Terminate the process. The display blanks on the way out |
 
 **The control model.** "Control" means four things, and every client
@@ -404,6 +413,7 @@ observer converges back. All values are single tokens.
 | `font` | `5x7` or `6`..`64` | The canvas font: the 5x7 bitmap font or a TrueType size |
 | `speed` | `0.1`..`10` | Multiplies every applet's frame rate |
 | `blank_after` | seconds, `0` = never | Sleep the display after this long without a new frame. Any command wakes it |
+| `mirror_rate` | `1`..`10` | Frames a second to each mirror holder, at most |
 | `foreground`, `background` | A color name, `#rrggbb`, or `default` | The colors of lit and unlit pixels on an emulated display. The OLED's color is fixed, but the value is kept. `default` is the color from `-c`, or white on black |
 
 **Observations**: the read-only shared state.
@@ -414,6 +424,7 @@ observer converges back. All values are single tokens.
 | `size`, `origin`, `depth` | `128x64`, `bottom`, `1` | The panel, the coordinate origin, the bits per pixel |
 | `settings` | comma-separated names | The writable keys, from `SETTINGS_SPEC` |
 | `keys.KEY` | `pong\|asteroids\|invaders\|forklift`, `speed`, `title` ... | The key map: the applets a key steps through, or the setting it changes |
+| `mirrors` | count | The holders of the frame feed, at most 4 |
 | `connection` | `NONE\|NETWORK\|TRANSPORT\|REGISTRAR` | The Actor's [connection](../../concepts/connection.md) state |
 | `applets` | comma-separated names | The applets this Actor can run |
 | `applet_detail` | token or `-` | What the applet says it is doing, for example `to_bay_2` |
@@ -422,7 +433,7 @@ observer converges back. All values are single tokens.
 | `log_count` | count | The lines received by `log`. The last eight are kept |
 | `heartbeat` | seconds since start | Updated every second: the proof that the event loop is not blocked |
 | `last_error` | `WHAT@UTC` or `-` | The last rejection or failure, for example `pixel_x_range@2026-09-26T04:21:00Z` |
-| `metrics.commands`, `.rejected`, `.frames`, `.frame_ms`, `.errors` | counts | Accepted and rejected commands, frames shown, the last frame's render time, errors caught in timers. Published every 2 s when changed |
+| `metrics.commands`, `.rejected`, `.frames`, `.frame_ms`, `.errors`, `.mirrored` | counts | Accepted and rejected commands, frames shown, the last frame's render time, errors caught in timers, frames mirrored. Published every 2 s when changed |
 
 The [protocol](oled_protocol.md) document gives the grammar of every
 value and the rejection reasons.
@@ -568,9 +579,9 @@ no broker and no panel.
 
 **Planned in Epic 1** (approved 2026-09-27, the review follows phase 8):
 
-- Phase 2: the leased frame mirror `(mirror TOPIC SECONDS)` on the
-  `Screen` aspect, and the Dashboard plug-in page: a live mirror, the
-  shared state, the log, and the same keys.
+- Phase 2 (done 2026-09-27): the leased frame mirror
+  `(mirror TOPIC SECONDS)` on the `Screen` aspect, and the
+  [Dashboard page](oled_dashboard.md).
 - Phase 3: the output seam composed as `Output` and `OutputControls`
   Interfaces, and applets made portable through the Host contract
   (`host.width`, `host.height`, `host.columns()`, `MIN_SIZE`).
@@ -615,4 +626,5 @@ no broker and no panel.
 - The display abstraction ADR, proposed for the constitution — the
   decisions behind the abstraction
 - [oled_protocol](oled_protocol.md) — the wire protocol specification
+- [oled_dashboard](oled_dashboard.md) — the Dashboard page
 - [testing](testing.md) — the step-by-step test guide

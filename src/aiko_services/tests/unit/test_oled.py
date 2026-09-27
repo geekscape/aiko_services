@@ -233,7 +233,7 @@ def test_composition_and_wire_commands(actor_display):
     for aspect in (Display, Canvas, Screen, Interaction):
         assert isinstance(actor, aspect)
     assert WIRE_COMMANDS == {"clear", "log", "pixel", "pixels", "line", "text",
-        "applet", "key", "set_log_level", "stop"}
+        "applet", "key", "mirror", "set_log_level", "stop"}
     assert PROTOCOL.endswith("/display:0")
     assert service_tags("fake") == ["ec=true", "device=fake", "canvas=0", "screen=0",
                                     "interaction=0"]
@@ -524,6 +524,75 @@ def test_window_keys_use_the_console_map(actor_display, test_applets, monkeypatc
     assert actor._applet.keys[-2:] == [("left", "down"), ("left", "up")]
     typed("x")
     assert exits                                             # as Esc: the Actor exits
+
+def mirror_setup(actor, monkeypatch, connected=True):
+    published = []
+    monkeypatch.setattr(aiko.process.message, "publish",
+                        lambda topic, payload, **kwargs: published.append((topic, payload)))
+    monkeypatch.setattr(aiko.process.connection, "is_connected", lambda state: connected)
+    return published
+
+def test_mirror_publishes_on_change_and_caps_rate(actor_display, monkeypatch):
+    actor, display = actor_display
+    published = mirror_setup(actor, monkeypatch)
+    actor.mirror("aiko/probe/mirror", "30")
+    assert actor.share["mirrors"] == "1" and actor._metrics["rejected"] == 0
+    actor._step()                                          # the holder sees the panel now
+    assert published[-1][0] == "aiko/probe/mirror" and len(published[-1][1]) == 1024
+    assert published[-1][1] == display.frames[-1].tobytes()
+    count = len(published)
+    actor.text("0", "0", "hi")                             # within the rate: pending
+    assert len(published) == count and actor._mirror_pending == display.frames[-1].tobytes()
+    actor._mirror_due = 0.0
+    actor._step()                                          # the end of the burst
+    assert len(published) == count + 1 and actor._mirror_pending is None
+    actor.text("0", "0", "hi")                             # unchanged: nothing
+    actor._mirror_due = 0.0
+    actor._step()
+    assert len(published) == count + 1
+    remote_update(actor, "mirror_rate", "10")
+    assert actor._mirror_rate == 10 and actor.share["mirror_rate"] == "10"
+    actor._flush_metrics()
+    assert actor.share["metrics"]["mirrored"] == "2"
+
+def test_mirror_leases_extend_expire_and_destroy(actor_display, monkeypatch):
+    actor, _ = actor_display
+    mirror_setup(actor, monkeypatch)
+    actor.mirror("aiko/probe/a", "1")
+    actor.mirror("aiko/probe/a", "1")                      # extend, not a second holder
+    assert actor.share["mirrors"] == "1"
+    run_loop(1.4)
+    assert actor.share["mirrors"] == "0" and not actor._mirrors   # expired
+    actor.mirror("aiko/probe/b", "30")
+    actor.mirror("aiko/probe/b", "0")                      # destroy
+    assert actor.share["mirrors"] == "0"
+
+def test_mirror_rejections_and_bounds(actor_display, monkeypatch):
+    actor, _ = actor_display
+    mirror_setup(actor, monkeypatch)
+    actor.mirror("aiko/+/mirror", "30")
+    assert actor.share["last_error"].startswith("mirror_topic@")
+    actor.mirror("aiko/probe", "999")
+    assert actor.share["last_error"].startswith("mirror_seconds_range@")
+    actor.mirror("aiko/probe", "soon")
+    assert actor.share["last_error"].startswith("mirror_seconds_not_int@")
+    for holder in range(5):
+        actor.mirror(f"aiko/probe/{holder}", "30")
+    assert actor.share["mirrors"] == "4"                   # bounded
+    assert actor.share["last_error"].startswith("mirror_full@")
+    assert actor._metrics["rejected"] == 4
+    actor._shutdown()
+    assert not actor._mirrors                              # leases terminated
+
+def test_mirror_drops_frames_while_disconnected(actor_display, monkeypatch):
+    actor, _ = actor_display
+    published = mirror_setup(actor, monkeypatch, connected=False)
+    actor.mirror("aiko/probe/mirror", "30")
+    actor._step()
+    actor.text("0", "0", "hi")
+    actor._mirror_due = 0.0
+    actor._step()
+    assert published == [] and actor._metrics["mirrored"] == 0   # no block, no send
 
 def test_title_setting(actor_display):
     actor, display = actor_display

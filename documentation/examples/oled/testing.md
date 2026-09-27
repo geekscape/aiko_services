@@ -78,11 +78,12 @@ Two deployment traps:
 ```bash
 pytest src/aiko_services/tests/unit/test_oled.py \
        src/aiko_services/tests/unit/test_oled_cli.py \
-       src/aiko_services/tests/unit/test_oled_applets.py
+       src/aiko_services/tests/unit/test_oled_applets.py \
+       src/aiko_services/tests/unit/test_oled_dashboard_plugin.py
 flake8 . --select=E9,F63,F7,F82
 ```
 
-Expect: `95 passed`, and no flake8 output. No broker and no panel are
+Expect: `104 passed`, and no flake8 output. No broker and no panel are
 needed. Run them on the SBC too (Python 3.13 there). One test asserts
 that `oled_test.py`, the original spike, is never imported.
 
@@ -153,6 +154,7 @@ on another host, put `-n NAME` before the subcommand.
 | 5.17 | `aiko_oled applet pong` | Pong plays itself. `aiko_oled set speed 2` doubles the pace, and `set speed 1` restores |
 | 5.18 | `aiko_oled applet forklift_game`, then `aiko_oled key right`, `aiko_oled key up` | The forklift drives right a little, and lifts its forks a little, per key |
 | 5.18a | `aiko_oled key g`, then `aiko_oled key 5` | The Actor's key map runs the preset: pong starts, then runs at `speed 0.707`. `aiko_oled key R` resets and shows the status display |
+| 5.18b | `aiko_oled mirror aiko/probe/mirror 20`, then `mosquitto_sub -t aiko/probe/mirror -C 3 \| wc -c` | 3072: three frames of 1024 bytes, one for each change of the panel (the clock changes it once a second). `aiko_oled mirror aiko/probe/mirror 0` stops the feed, and `mirrors` in the shared state reads `0` |
 | 5.19 | `aiko_oled stop` | The canvas from 5.7 is shown again |
 | 5.20 | `aiko_oled set bogus 1` | A usage error, exit status 2. The key is checked locally |
 | 5.21 | `aiko_oled exit` | The display blanks, the Actor process ends, exit status 0. On the wire `(exit)` is an alias of `(stop)` |
@@ -221,6 +223,8 @@ ten seconds. Every value is one token: no spaces.
 aiko_dashboard
 ```
 
+The Dashboard's own pages first, then the display page (step 6 on).
+
 1. The Services list shows the OLED Actor: protocol `.../oled:0`, tag
    `ec=true`. Move to its row with the arrow keys, and press `s` to
    select it. Expect: the Variables section fills with the shared state
@@ -235,8 +239,31 @@ aiko_dashboard
    returns to what it was, and `last_error` shows
    `set_contrast_not_int@...`.
 5. `?` shows the Dashboard's help. `l` changes the Actor's log level.
-   `x` exits the Dashboard. The Service page (`S`) has no OLED plug-in
-   yet: that is Epic 1.
+   `x` exits the Dashboard.
+6. Start the Dashboard with the display page, in a terminal of at least
+   132x48 for the half-block mirror (80x24 gives the Braille mirror):
+
+   ```bash
+   aiko_dashboard -p aiko_services.main.dashboard_plugins -p aiko_services.examples.oled.dashboard_plugin
+   ```
+
+   Select the Actor and press `S`. Expect: the mirror shows the status
+   display within a second, and the service bar reads `mirror 5 Hz  fps
+   N`. The state table lists every key, the legend names the keys, and
+   the log pane shows the Actor's lines.
+7. Press `g`: pong plays in the mirror. `i`: the mirror inverts. `o`: it
+   goes dark, and again lights. `+` and `-`: it dims and brightens. `b`:
+   the lit pixels change color (a 256-color terminal). `m`: the demo.
+8. Press `Enter` on the `contrast` row, type `abc`, `OK`. Expect:
+   `last_error` turns red with `set_contrast_not_int@...`, and the value
+   snaps back. Type `32`: the mirror dims.
+9. `H` shows the page's help. `L` opens the log level pop-up. `K` asks to
+   stop the Actor: `Cancel`.
+10. Press `D` (or `Esc`). Expect: the Dashboard. In another terminal,
+    `mosquitto_sub -v -t 'aiko/+/+/+/control'` shows no `(mirror ...)`
+    renewal after 10 s, and `mirrors` in the shared state reads `0`.
+11. Press `S` again, then `x` to quit the Dashboard. Expect: within 30 s
+    the Actor's `mirrors` reads `0` (the lease expired).
 
 ## 9. The applets
 
