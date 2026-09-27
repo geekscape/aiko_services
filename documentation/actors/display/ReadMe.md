@@ -35,6 +35,8 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 | [oled](oled.md) | The OLED Actor: the status display, the canvas, settings in the shared state, the applets, the keys console, the display backends and the `aiko_oled` command line |
 | [oled_protocol](oled_protocol.md) | The `display:0` protocol: the Canvas, Screen and Interaction aspects and their tags, discovery, the topics, the wire commands and their grammar, the key map on the device, the shared state keys, the rejection reasons, the conformance trace, and compatibility with aiko_engine_mp |
 | [oled_dashboard](oled_dashboard.md) | The Dashboard plug-in page: a live mirror of the panel through the leased frame feed, the shared state with editable settings, the process log, and the same keys as the console |
+| [design](design.md) | The design record: what the protocol proves, the Dashboard plug-in pattern, the terminals, the framework findings, the measurements and the future directions |
+| [parameters_streams_shape](parameters_streams_shape.md) | A proposal for e_03 T6: Parameters and Streams as aspects of an Actor, with the Display Actor as the pilot |
 | [testing](testing.md) | The step-by-step test guide: macOS and a Linux SBC, the unit tests, the command line, raw S-expressions, the shared state, the Dashboard, the applets, the keys console, failure behavior and systemd |
 
 ## Reading order
