@@ -24,7 +24,7 @@ from aiko_services.examples.oled.display import FakeDisplay
 from aiko_services.examples.oled.graphics import HEIGHT, WIDTH, Font
 from aiko_services.examples.oled import status as status_module
 from aiko_services.examples.oled.status import (
-    HISTORY, StatusApplet, parse_nmcli, parse_wireless,
+    HISTORY, StatusApplet, parse_iw, parse_nmcli, parse_wireless,
 )
 
 _counter = itertools.count()
@@ -86,14 +86,34 @@ NMCLI = ("yes:wlan0:geekscape_n:A6\\:91\\:B1\\:75\\:16\\:82:132:5660 MHz:540 Mbi
          "yes:wlan1:hotspot:DC\\:A6\\:32\\:0B\\:AB\\:23:1:2412 MHz:0 Mbit/s:0:0 MHz\n"
          "no:wlan0:other:00\\:11\\:22\\:33\\:44\\:55:6:2437 MHz:65 Mbit/s:40:20 MHz\n")
 
-def make_status(monkeypatch, options=None, wifi=True, **kwargs):
+IW_LINK = """Connected to a6:91:b1:75:16:82 (on wlan0)
+\tSSID: geekscape_n
+\tfreq: 5660.0
+\tRX: 55016461 bytes (294843 packets)
+\tTX: 4135904 bytes (31394 packets)
+\tsignal: -37 dBm
+\trx bitrate: 780.0 MBit/s VHT-MCS 9 80MHz VHT-NSS 2
+\ttx bitrate: 866.7 MBit/s VHT-MCS 9 80MHz short GI VHT-NSS 2
+\tbss flags: short-slot-time
+"""
+IW_INFO = """Interface wlan0
+\tifindex 4
+\taddr c0:3a:55:a6:af:eb
+\tssid geekscape_n
+\ttype managed
+\tchannel 132 (5660 MHz), width: 80 MHz, center1: 5690 MHz
+\ttxpower 26.00 dBm
+"""
+
+def make_status(monkeypatch, options=None, wifi=True, details="iw", **kwargs):
     monkeypatch.setattr(status_module, "ip_address", lambda: "192.168.0.137")
     monkeypatch.setattr(status_module.os, "getloadavg", lambda: (0.42, 0.31, 0.25))
     monkeypatch.setattr(status_module, "fan_state", lambda: "1")
     monkeypatch.setattr(status_module, "wifi_signal",
                         lambda: ("wlan0", 70, -37) if wifi else None)
     monkeypatch.setattr(status_module, "wifi_details",
-                        lambda interface: parse_nmcli(NMCLI, interface))
+                        lambda interface: parse_iw(IW_LINK, IW_INFO) if details == "iw"
+                        else parse_nmcli(NMCLI, interface))
     for values in HISTORY.values():
         values.clear()
     host = StubHost(**kwargs)
@@ -149,10 +169,12 @@ def test_status_wifi_screen(monkeypatch):
     assert status.description == "wifi_text"
     lines = status.wifi_lines(status.sample())
     assert lines == ["SSID geekscape_n", "Ch 132 5GHz BW 80MHz", "RSSI -37dBm Q 70/70",
-                     "Rate 540Mb/s Sig 84%", "AP a6:91:b1:75:16:82", "R   0  T   0 ",
+                     "Tx 867 Rx 780 Mb/s", "AP a6:91:b1:75:16:82", "R   0  T   0 ",
                      "IF wlan0"]
     assert all(len(line) <= 21 for line in lines)
     assert min(lit_rows(status.step())) == 8
+    manager, _ = make_status(monkeypatch, options={"screen": "wifi"}, details="nmcli")
+    assert manager.wifi_lines(manager.sample())[3] == "Rate 540Mb/s Sig 84%"
     none, _ = make_status(monkeypatch, options={"screen": "wifi"}, wifi=False)
     assert none.wifi_lines(none.sample())[0] == "Wi-Fi: none"
 
@@ -180,6 +202,12 @@ def test_status_charts(monkeypatch):
     assert len(HISTORY["cpu"]) == 128                    # bounded
 
 def test_status_parsers():
+    link = parse_iw(IW_LINK, IW_INFO)
+    assert link["ssid"] == "geekscape_n" and link["bssid"] == "a6:91:b1:75:16:82"
+    assert link["mhz"] == 5660 and link["band"] == "5GHz" and link["channel"] == "132"
+    assert link["bandwidth"] == "80MHz" and link["signal_dbm"] == -37
+    assert link["tx_rate"] == 866.7 and link["rx_rate"] == 780.0
+    assert parse_iw("Not connected.", IW_INFO) == {}
     assert parse_wireless(WIRELESS) == ("wlan0", 70, -37)
     assert parse_wireless("") is None
     details = parse_nmcli(NMCLI, "wlan0")

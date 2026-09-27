@@ -12,7 +12,7 @@
 #                 view=cpu_mem   CPU (solid) and memory (dotted), 0..100%
 #                 view=rx_tx     received (solid) and sent (dotted) bytes/s
 #   screen=wifi   SSID, channel, band and bandwidth, RSSI and link quality,
-#                 rate and signal, the access point, the interface's traffic
+#                 the bit rates, the access point, the interface's traffic
 #                 view=rssi      RSSI in dBm, -90..-30
 #                 view=rx_tx     the Wi-Fi interface's bytes/s
 #
@@ -22,9 +22,12 @@
 #
 # Readings and their cost on the event-loop thread (P2): psutil calls are
 # non-blocking; /proc/net/wireless is a file read; the fan is
-# "pinctrl get 14" (about 3 ms, every 2 s); the Wi-Fi details are one
-# "nmcli" call (about 50 ms, every 10 s, only while the Wi-Fi screen shows).
-# Without Linux, NetworkManager or a wireless interface, the rows say so.
+# "pinctrl get 14" (about 3 ms, every 2 s); the Wi-Fi details are
+# "iw dev IF link" and "iw dev IF info" (about 6 ms together, every 10 s,
+# only while the Wi-Fi text screen shows), else one "nmcli" call (about
+# 50 ms).  Tools are looked for in /usr/sbin and /sbin too, which a
+# non-login shell's PATH can lack.  Without Linux, iw or NetworkManager, or
+# a wireless interface, the rows say so.
 # History (P9): 128 samples per value, module level, kept while the process
 # lives, so that switching views keeps the chart.
 #
@@ -51,8 +54,8 @@ from aiko_services.examples.oled.applets import (
 from aiko_services.examples.oled.graphics import INK, WIDTH, Font, stamp
 
 __all__ = ["HISTORY", "STATUS_SCREENS", "STATUS_VIEWS", "StatusApplet",
-           "fan_state", "parse_nmcli", "parse_wireless", "wifi_details",
-           "wifi_signal"]
+           "fan_state", "parse_iw", "parse_nmcli", "parse_wireless",
+           "wifi_details", "wifi_signal"]
 
 STATUS_SCREENS = ("host", "wifi")
 STATUS_VIEWS = {"host": ("text", "cpu_mem", "rx_tx"),
@@ -68,26 +71,45 @@ _CHART_FONT = Font("5x7")              # charts keep their fixed layout
 
 # Readings ----------------------------------------------------------------- #
 
+def _tool(name):
+    """The path of a command, looking in /usr/sbin and /sbin as well as
+    PATH (a non-login shell often lacks them); None when absent"""
+
+    found = shutil.which(name)
+    if found:
+        return found
+    for path in (f"/usr/sbin/{name}", f"/sbin/{name}"):
+        if os.access(path, os.X_OK):
+            return path
+    return None
+
+def _run(command, timeout):
+    """The command's output, or "" when it fails or times out"""
+
+    try:
+        return subprocess.run(command, capture_output=True, text=True,
+                              timeout=timeout).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+def _band(mhz):
+    return "2.4GHz" if mhz < 3000 else "5GHz" if mhz < 5925 else "6GHz"
+
 def fan_state():
     """The level of the fan's GPIO line: "1" high, "0" low, "-" unknown
     ("pinctrl" on a Raspberry Pi, else "gpioget")"""
 
-    try:
-        if shutil.which("pinctrl"):
-            out = subprocess.run(["pinctrl", "get", str(FAN_GPIO)], capture_output=True,
-                                 text=True, timeout=0.5).stdout
-            match = re.search(r"\|\s*(hi|lo)\b", out)
-            if match:
-                return "1" if match.group(1) == "hi" else "0"
-        elif shutil.which("gpioget"):
-            out = subprocess.run(["gpioget", "-c", "gpiochip0", str(FAN_GPIO)],
-                                 capture_output=True, text=True, timeout=0.5).stdout
-            if "active" in out or out.strip().endswith("1"):
-                return "0" if "inactive" in out else "1"
-            if "inactive" in out or out.strip().endswith("0"):
-                return "0"
-    except (OSError, subprocess.SubprocessError):
-        pass
+    pinctrl, gpioget = _tool("pinctrl"), _tool("gpioget")
+    if pinctrl:
+        match = re.search(r"\|\s*(hi|lo)\b", _run([pinctrl, "get", str(FAN_GPIO)], 0.5))
+        if match:
+            return "1" if match.group(1) == "hi" else "0"
+    elif gpioget:
+        out = _run([gpioget, "-c", "gpiochip0", str(FAN_GPIO)], 0.5).strip()
+        if "inactive" in out or out.endswith("0"):
+            return "0"
+        if "active" in out or out.endswith("1"):
+            return "1"
     return "-"
 
 def parse_wireless(text):
@@ -132,15 +154,46 @@ def parse_nmcli(text, interface):
             continue
         details = dict(zip((name.lower() for name in _NMCLI_FIELDS), fields))
         mhz = int(details.pop("freq").split()[0] or 0)
-        band = "2.4GHz" if mhz < 3000 else "5GHz" if mhz < 5925 else "6GHz"
         return {
             "ssid": details["ssid"], "bssid": details["bssid"].lower(),
-            "channel": details["chan"], "mhz": mhz, "band": band,
+            "channel": details["chan"], "mhz": mhz, "band": _band(mhz),
             "rate": details["rate"].replace(" Mbit/s", "Mb/s"),
             "signal": details["signal"],
             "bandwidth": details["bandwidth"].replace(" MHz", "MHz"),
         }
     return {}
+
+def parse_iw(link_text, info_text=""):
+    """The link from "iw dev IF link" and "iw dev IF info": ssid, bssid,
+    mhz, band, channel, bandwidth, tx_rate and rx_rate (Mbit/s) and
+    signal_dbm, as far as the outputs give them; {} when not connected"""
+
+    details = {}
+    match = re.search(r"Connected to ([0-9A-Fa-f:]{17})", link_text)
+    if match:
+        details["bssid"] = match.group(1).lower()
+    match = re.search(r"^\s*SSID:\s*(.+?)\s*$", link_text, re.M)  \
+        or re.search(r"^\s*ssid (.+?)\s*$", info_text, re.M)
+    if match:
+        details["ssid"] = match.group(1)
+    match = re.search(r"^\s*freq:\s*([\d.]+)", link_text, re.M)
+    if match:
+        details["mhz"] = int(float(match.group(1)))
+    match = re.search(r"^\s*signal:\s*(-?\d+)", link_text, re.M)
+    if match:
+        details["signal_dbm"] = int(match.group(1))
+    for which in ("tx", "rx"):
+        match = re.search(rf"^\s*{which} bitrate:\s*([\d.]+)\s*MBit/s", link_text, re.M)
+        if match:
+            details[f"{which}_rate"] = float(match.group(1))
+    match = re.search(r"channel (\d+) \((\d+) MHz\), width: (\d+) MHz", info_text)
+    if match:
+        details["channel"] = match.group(1)
+        details.setdefault("mhz", int(match.group(2)))
+        details["bandwidth"] = f"{match.group(3)}MHz"
+    if "mhz" in details:
+        details["band"] = _band(details["mhz"])
+    return details if "bssid" in details else {}
 
 def _essid(interface):
     """The SSID through the wireless-extensions ioctl: the fallback without
@@ -157,20 +210,22 @@ def _essid(interface):
         return essid.value.decode(errors="replace")
 
 def wifi_details(interface):
-    """SSID, access point, channel, band, rate, signal and bandwidth of the
-    interface's link, from NetworkManager; only the SSID without it"""
+    """SSID, access point, channel, band, bandwidth and bit rates of the
+    interface's link, from iw, else from NetworkManager (its rate and
+    signal percent instead); only the SSID without either"""
 
-    try:
-        if shutil.which("nmcli"):
-            out = subprocess.run(
-                ["nmcli", "-t", "-e", "yes", "-f", ",".join(_NMCLI_FIELDS),
-                 "dev", "wifi", "list", "--rescan", "no"],
-                capture_output=True, text=True, timeout=2.0).stdout
-            details = parse_nmcli(out, interface)
-            if details:
-                return details
-    except (OSError, subprocess.SubprocessError):
-        pass
+    iw, nmcli = _tool("iw"), _tool("nmcli")
+    if iw:
+        details = parse_iw(_run([iw, "dev", interface, "link"], 1.0),
+                           _run([iw, "dev", interface, "info"], 1.0))
+        if details:
+            return details
+    if nmcli:
+        details = parse_nmcli(_run(
+            [nmcli, "-t", "-e", "yes", "-f", ",".join(_NMCLI_FIELDS),
+             "dev", "wifi", "list", "--rescan", "no"], 2.0), interface)
+        if details:
+            return details
     try:
         return {"ssid": _essid(interface)} if sys.platform.startswith("linux") else {}
     except Exception:
@@ -401,7 +456,9 @@ class StatusApplet(Applet):
             lines.append(f"Ch {details['channel']} {details['band']} "
                          f"BW {details['bandwidth'] or '-'}"[:21])
         lines.append(f"RSSI {rssi:d}dBm Q {quality}/70"[:21])
-        if details.get("rate"):
+        if "tx_rate" in details:
+            lines.append(f"Tx {details['tx_rate']:.0f} Rx {details.get('rx_rate', 0):.0f} Mb/s"[:21])
+        elif details.get("rate"):
             lines.append(f"Rate {details['rate']} Sig {details['signal']}%"[:21])
         if details.get("bssid"):
             lines.append(f"AP {details['bssid']}"[:21])

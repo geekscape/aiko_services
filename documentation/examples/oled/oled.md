@@ -201,7 +201,7 @@ strongest wireless interface:
 SSID geekscape_n
 Ch 132 5GHz BW 80MHz       the channel, the band and the bandwidth
 RSSI -37dBm Q 70/70        the signal and the link quality
-Rate 540Mb/s Sig 84%       the bit rate and the signal, as NetworkManager reports them
+Tx 867 Rx 780 Mb/s         the bit rates (with NetworkManager: its rate and signal percent)
 AP a6:91:b1:75:16:82       the access point
 R 4.6k T 950               the interface's traffic, bytes per second
 IF wlxc03a55a6afeb         the interface
@@ -221,9 +221,11 @@ chart. In the console and the window, `s` steps through the screens, and
 **The readings.** The psutil calls do not block. The signal comes from
 `/proc/net/wireless` at every refresh. The fan level comes from
 `pinctrl get 14` every 2 seconds, about 3 milliseconds. The Wi-Fi details
-come from one `nmcli` call every 10 seconds, about 50 milliseconds, only
-while the Wi-Fi text screen shows. Without Linux, NetworkManager or a
-wireless interface, the rows say so.
+come from `iw dev IF link` and `iw dev IF info`, about 6 milliseconds
+together, every 10 seconds while the Wi-Fi text screen shows. Without
+`iw`, one `nmcli` call gives them, about 50 milliseconds. The tools are
+looked for in `/usr/sbin` and `/sbin` as well as the PATH. Without Linux,
+`iw` or NetworkManager, or a wireless interface, the rows say so.
 
 The `log` applet shows the last eight `(log ...)` lines, oldest first,
 as they arrive, and it clears `L`. The lines are kept whatever applet
@@ -450,7 +452,7 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
 | `Font` | 5x7 bitmap or TrueType glyph rendering, cell metrics | Pillow |
 | `Display` and backends | Show a frame. Contrast, invert, power, all-on. Window events. Blank on close | luma.oled, pygame, the terminal, Pillow |
 | `Applet`, `Host` | A source of frames, and what it may use of the Actor | `OLEDImpl` |
-| `status.py`: `StatusApplet`, `HISTORY`, the readers | The host and Wi-Fi screens, their text rows and charts, the sample history; the fan, signal and NetworkManager readers | `Host`, psutil, `pinctrl`, `nmcli` |
+| `status.py`: `StatusApplet`, `HISTORY`, the readers | The host and Wi-Fi screens, their text rows and charts, the sample history; the fan, signal and link readers | `Host`, psutil, `pinctrl`, `iw`, `nmcli` |
 | `LogApplet`, `HelpApplet`, `PatternApplet`, `TextApplet`, `BlinkApplet`, `DemoApplet` | The built-in applets. The demo runs the others in turn and restores the settings it changed | `Host`, `APPLETS` |
 | `games.py`: `pong`, `asteroids`, `invaders`, `forklift_work`, `ForkliftGame` | Frame generators, and the forklift game's pallet physics, counted in frames | `Host` |
 | `drawings.py`: `SUBJECTS`, `scene_strokes`, `sketch_frames`, `DrawApplet` | Cartoon subjects, stroke planning, the pencil sketch as a frame generator | `Host` |
@@ -467,12 +469,13 @@ and 3.13 (the SBC).
 
 **Sharp edges in the implemented code:**
 
-- The status readings run on the event-loop thread: psutil well under
-  5 ms, `pinctrl` about 3 ms every 2 s, `nmcli` about 50 ms every 10 s
-  while the Wi-Fi text screen shows. If a host proves slow, move them to
-  a worker that posts the readings to the mailbox.
+- The status readings run on the event-loop thread. The psutil calls
+  take well under 5 ms. The `pinctrl` reading takes about 3 ms every
+  2 s. The `iw` reading takes about 6 ms every 10 s while the Wi-Fi text
+  screen shows, and `nmcli` about 50 ms. If a host proves slow, move
+  them to a worker that posts the readings to the mailbox.
 - The fan level, the signal and the Wi-Fi details are Linux readings, and
-  the details need NetworkManager. Elsewhere the rows say so.
+  the details need `iw` or NetworkManager. Elsewhere the rows say so.
 - The 5x7 font gives 21 characters per row. The aiko_engine_mp 8x8 font
   gives 16. An 8x8 bitmap font for pixel parity is on the roadmap.
 - One panel per Actor. aiko_engine_mp spreads text across two panels.

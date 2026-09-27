@@ -148,7 +148,7 @@ on another host, put `-n NAME` before the subcommand.
 | 5.14a **[mac]** | `aiko_oled set foreground yellow`, then `aiko_oled set background navy` | Lit pixels turn yellow, then the rest turns navy. On the panel nothing changes, but the values are published. `set foreground default` and `set background default` restore the colors from `-c`, or white on black |
 | 5.15 | `aiko_oled applet status` | The status display again, in the current font: IP, `CPU 12% Mem 34%`, `Dsk 61% R 111k T 1.1k`, `Load 0.42 0.38 0.35`, `Temp 45C F 1 1500MHz` on an SBC, the newest log line, then the uptime last. `aiko_oled log again` replaces the log line |
 | 5.15a | `aiko_oled applet status view=cpu_mem` | A chart: a heading with a solid sample and `CPU 12%`, a dotted sample and `Mem 34%`, then the traces growing from the right, one column a second |
-| 5.15b **[sbc]** | `aiko_oled applet status screen=wifi` | The Wi-Fi link: `SSID`, `Ch`, `RSSI`, `Rate`, `AP`, the traffic and the interface. Then `view=rssi` for its chart |
+| 5.15b **[sbc]** | `aiko_oled applet status screen=wifi` | The Wi-Fi link: `SSID`, `Ch` with the band and bandwidth, `RSSI`, the `Tx` and `Rx` bit rates, `AP`, the traffic and the interface. Then `view=rssi` for its chart |
 | 5.16 | `aiko_oled applet status date=on` | The date row is added |
 | 5.17 | `aiko_oled applet pong` | Pong plays itself. `aiko_oled set speed 2` doubles the pace, and `set speed 1` restores |
 | 5.18 | `aiko_oled applet forklift_game`, then `aiko_oled key right`, `aiko_oled key up` | The forklift drives right a little, and lifts its forks a little, per key |
