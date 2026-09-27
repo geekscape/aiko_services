@@ -13,10 +13,9 @@
 #
 # Applets
 # ~~~~~~~~~~~~
-#   status [rate=1]   the host's status: IP address, date, time and uptime,
-#                     CPU and memory, disk and network, temperature, load,
-#                     and the last (log ...) lines.  The default, and the
-#                     main purpose of the Actor: a display for headless hosts
+#   status.py: status  the host's status or the Wi-Fi link, as text or charts.
+#                     The default, and the main purpose of the Actor: a
+#                     display for headless hosts
 #   log               the last eight (log ...) lines; clears the "L" annunciator
 #   help [page=N] [hold=8]
 #                     help pages: console keys, Dashboard variables, LISP
@@ -36,13 +35,10 @@
 # ~~~~~
 # - None, yet !
 
-from datetime import datetime
 import itertools
 import math
-import os
 import random
 import socket
-import time
 
 from PIL import Image, ImageDraw
 
@@ -53,7 +49,7 @@ from aiko_services.examples.oled.graphics import (
 __all__ = [
     "APPLETS", "OPTION_LENGTH_MAXIMUM", "TOUR", "Applet",
     "AppletDone", "BlinkApplet", "DemoApplet", "HelpApplet",
-    "Host", "LogApplet", "PatternApplet", "StatusApplet", "TextApplet",
+    "Host", "LogApplet", "PatternApplet", "TextApplet",
     "on_off", "parse_applet_args", "pattern_image", "random_steps",
 ]
 
@@ -213,96 +209,6 @@ def on_off(text):
         return False
     raise ValueError(text)
 
-class StatusApplet(Applet):
-    """The host's status, one item per text row, refreshed "rate" times a
-    second (default once): IP address; uptime; CPU and memory; disk and
-    network traffic; the 1, 5 and 15 minute load averages; temperature and
-    CPU speed (where the host has a sensor); then the newest (log ...)
-    line.  Numbers keep a fixed width
-    so the text doesn't jump.  Without the title row the first line is the
-    host name and the connection state, and the time precedes the uptime;
-    "date=on" adds the date.  Sampling uses non-blocking psutil calls"""
-
-    name = "status"
-    fps = 1
-    wants_title = True
-    OPTIONS = {"rate": float, "date": on_off}
-    description = "status"
-    summary = "The host's status: IP, uptime, CPU, memory, disk, network, load, temperature, newest log line"
-
-    def __init__(self, host, words=(), options=None):
-        super().__init__(host, words, options)
-        self.fps = max(0.1, min(10.0, self.options.get("rate", 1.0)))
-        import psutil
-        self.psutil = psutil
-        psutil.cpu_percent(interval=None)  # starts the measurement
-        self._before = (time.monotonic(), self._network_bytes())
-
-    def _network_bytes(self):
-        counters = [counter for name, counter
-            in self.psutil.net_io_counters(pernic=True).items()
-            if not name.startswith("lo")]
-        return (sum(counter.bytes_recv for counter in counters),
-                sum(counter.bytes_sent for counter in counters))
-
-    def _cpu_speed(self):
-        try:
-            frequency = self.psutil.cpu_freq()
-            return f"{frequency.current:.0f}MHz" if frequency else ""
-        except (AttributeError, NotImplementedError, OSError, RuntimeError):
-            return ""
-
-    def _temperature(self):
-        try:
-            sensors = self.psutil.sensors_temperatures()  # Linux only
-        except (AttributeError, NotImplementedError, OSError):
-            return None
-        for readings in sensors.values():
-            if readings:
-                return readings[0].current
-        return None
-
-    def lines(self):
-        psutil = self.psutil
-        now = (time.monotonic(), self._network_bytes())
-        seconds = max(now[0] - self._before[0], 1e-6)
-        received, sent = ((b - a) / seconds for a, b in zip(self._before[1], now[1]))
-        self._before = now
-        up = int(time.time() - psutil.boot_time())
-        days, hours, minutes = up // 86400, up // 3600 % 24, up // 60 % 60
-        uptime = f"{days}d{hours:02d}h" if days else f"{hours}h{minutes:02d}m"
-        clock = datetime.now()
-        temperature = self._temperature()
-        try:
-            load = "Load {:.2f} {:.2f} {:.2f}".format(*os.getloadavg())  # 1, 5, 15 min
-        except (AttributeError, OSError):
-            load = ""
-        titled = bool(self.host.title_rows())
-        lines = []
-        if not titled:
-            lines.append(f"{self.host.name} {self.host.connection()}"[:21])
-        lines.append(f"IP {ip_address()}")
-        if self.options.get("date"):
-            lines.append(f"{clock:%a %d %b %Y}")
-        lines.append(f"Up {uptime}" if titled else f"{clock:%H:%M:%S} up {uptime}")
-        lines.append(f"CPU {psutil.cpu_percent(interval=None):2.0f}% "
-                     f"Mem {psutil.virtual_memory().percent:2.0f}%")
-        lines.append(f"Dsk {psutil.disk_usage(os.path.expanduser('~')).percent:2.0f}% "
-                     f"R {per_second(received)} T {per_second(sent)}")
-        if load:
-            lines.append(load)
-        if temperature is not None:
-            lines.append(f"Temp {temperature:4.1f}C {self._cpu_speed()}".rstrip())
-        log_lines = self.host.log_lines()
-        if log_lines:
-            lines.append(log_lines[-1])  # the newest line replaces the last
-        return lines
-
-    def step(self):
-        frame = self.write_lines(self.lines())
-        self.host.log_seen()
-        return frame
-
 class LogApplet(Applet):
     """The last eight (log ...) lines, oldest first, as they arrive; showing
     them clears the "L" annunciator"""
@@ -346,7 +252,7 @@ class HelpApplet(Applet):
             "d draw D demo",
             "g games G forklift",
             "P blink C clock",
-            "e eyes",
+            "e eyes  S status view",
         ]),
         ("Keys: actions", [
             "arrows: applet keys",
@@ -690,5 +596,5 @@ class DemoApplet(Applet):
         self._restore()
 
 APPLETS = {applet.name: applet for applet in (
-    StatusApplet, LogApplet, HelpApplet, PatternApplet, TextApplet,
+    LogApplet, HelpApplet, PatternApplet, TextApplet,
     BlinkApplet, DemoApplet)}

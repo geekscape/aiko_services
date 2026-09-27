@@ -14,8 +14,9 @@
 #
 # Keys
 # ~~~~
-#   s status  l log  p pattern  t text  d draw  D demo  P blink  C clock
-#   e eyes  g games: pong, asteroids, invaders, forklift  G forklift game
+#   s status screens: host, wifi   S the next view of that screen: text, charts
+#   l log  p pattern  t text  d draw  D demo  P blink  C clock  e eyes
+#   g games: pong, asteroids, invaders, forklift   G forklift game
 #   h ? help (again: the next page)
 #   arrows: (key left|right|up|down)   0-9 speed (0 fastest, 4 normal, 9 slowest)
 #   f F next / previous font   T title on/off   i invert   o power

@@ -17,11 +17,15 @@ import aiko_services as aiko
 from aiko_services.examples.oled import OLEDImpl, PROTOCOL
 from aiko_services.examples.oled import applets
 from aiko_services.examples.oled.applets import (
-    APPLETS, Applet, HelpApplet, Host, StatusApplet,
+    APPLETS, Applet, HelpApplet, Host,
     per_second,
 )
 from aiko_services.examples.oled.display import FakeDisplay
 from aiko_services.examples.oled.graphics import HEIGHT, WIDTH, Font
+from aiko_services.examples.oled import status as status_module
+from aiko_services.examples.oled.status import (
+    HISTORY, StatusApplet, parse_nmcli, parse_wireless,
+)
 
 _counter = itertools.count()
 
@@ -33,7 +37,8 @@ class FakePsutil:
 
     def net_io_counters(self, pernic=False):
         return {"lo0": SimpleNamespace(bytes_recv=1, bytes_sent=1),
-                "eth0": SimpleNamespace(bytes_recv=1000, bytes_sent=2000)}
+                "eth0": SimpleNamespace(bytes_recv=1000, bytes_sent=2000),
+                "wlan0": SimpleNamespace(bytes_recv=500, bytes_sent=300)}
 
     def cpu_freq(self):
         return SimpleNamespace(current=1500.0)
@@ -73,11 +78,26 @@ def lit_rows(image):
     return sorted({y for y in range(image.height)
         for x in range(image.width) if image.getpixel((x, y))})
 
-def make_status(monkeypatch, **kwargs):
-    monkeypatch.setattr(applets, "ip_address", lambda: "192.168.0.137")
-    monkeypatch.setattr(applets.os, "getloadavg", lambda: (0.42, 0.31, 0.25))
+WIRELESS = """Inter-| sta-|   Quality        |   Discarded packets               | Missed | WE
+ face | tus | link level noise |  nwid  crypt   frag  retry   misc | beacon | 22
+ wlan0: 0000   70.  -37.  -256        0      0      0      0      4        0
+"""
+NMCLI = ("yes:wlan0:geekscape_n:A6\\:91\\:B1\\:75\\:16\\:82:132:5660 MHz:540 Mbit/s:84:80 MHz\n"
+         "yes:wlan1:hotspot:DC\\:A6\\:32\\:0B\\:AB\\:23:1:2412 MHz:0 Mbit/s:0:0 MHz\n"
+         "no:wlan0:other:00\\:11\\:22\\:33\\:44\\:55:6:2437 MHz:65 Mbit/s:40:20 MHz\n")
+
+def make_status(monkeypatch, options=None, wifi=True, **kwargs):
+    monkeypatch.setattr(status_module, "ip_address", lambda: "192.168.0.137")
+    monkeypatch.setattr(status_module.os, "getloadavg", lambda: (0.42, 0.31, 0.25))
+    monkeypatch.setattr(status_module, "fan_state", lambda: "1")
+    monkeypatch.setattr(status_module, "wifi_signal",
+                        lambda: ("wlan0", 70, -37) if wifi else None)
+    monkeypatch.setattr(status_module, "wifi_details",
+                        lambda interface: parse_nmcli(NMCLI, interface))
+    for values in HISTORY.values():
+        values.clear()
     host = StubHost(**kwargs)
-    status = StatusApplet(host)
+    status = StatusApplet(host, options=options)
     status.psutil = FakePsutil()
     status._before = (time.monotonic(), status._network_bytes())  # the fake's baseline
     return status, host
@@ -86,17 +106,20 @@ def make_status(monkeypatch, **kwargs):
 
 def test_status_lines_with_a_title_row(monkeypatch):
     status, host = make_status(monkeypatch, lines=["boot ok", "hello"])
-    lines = status.lines()
+    assert status.description == "host_text"
+    lines = status.host_lines(status.sample())
     assert lines[0] == "IP 192.168.0.137"
-    assert lines[1] == "Up 3d04h"                         # no date, no time
-    assert lines[2] == "CPU 12% Mem 34%"                   # fixed widths
-    assert lines[3] == "Dsk 61% R   0  T   0 "
-    assert lines[4] == "Load 0.42 0.31 0.25"               # 1, 5 and 15 minutes
-    assert lines[5] == "Temp 45.1C 1500MHz"
-    assert lines[6:] == ["hello"]                          # the newest line only
+    assert lines[1] == "CPU 12% Mem 34%"                   # fixed widths
+    assert lines[2] == "Dsk 61% R   0  T   0 "
+    assert lines[3] == "Load 0.42 0.31 0.25"               # 1, 5 and 15 minutes
+    assert lines[4] == "Temp 45C F 1 1500MHz"              # the fan on GPIO14
+    assert lines[5] == "hello"                             # the newest line only
+    assert lines[6] == "Up 3d04h"                          # uptime last
     assert all(len(line) <= 21 for line in lines)
     status.options["date"] = True
-    assert status.lines()[1].endswith(str(time.localtime().tm_year))  # the date row
+    lines = status.host_lines(status.sample())
+    assert lines[1].endswith(str(time.localtime().tm_year))  # the date row
+    assert "hello" not in lines and lines[-1] == "Up 3d04h"  # the log line went first
     frame = status.step()
     assert frame.size == (WIDTH, HEIGHT)
     assert min(lit_rows(frame)) == 8                     # below the title row
@@ -104,18 +127,67 @@ def test_status_lines_with_a_title_row(monkeypatch):
 
 def test_status_lines_without_a_title_row(monkeypatch):
     status, host = make_status(monkeypatch, title_rows=0)
-    lines = status.lines()
+    lines = status.host_lines(status.sample())
     assert lines[0] == "oled REGISTRAR"
     assert lines[1] == "IP 192.168.0.137"
-    assert lines[2].endswith(" up 3d04h") and lines[2][2] == ":"   # hh:mm:ss up ...
+    assert lines[-1].endswith(" up 3d04h") and lines[-1][2] == ":"   # hh:mm:ss up ...
     assert min(lit_rows(status.step())) == 0
 
-def test_status_falls_back_to_load_and_rate_option(monkeypatch):
+def test_status_falls_back_without_sensor_fan_and_rate_option(monkeypatch):
     status, host = make_status(monkeypatch)
     status.psutil.sensors_temperatures = lambda: {}
-    assert not any(line.startswith("Temp") for line in status.lines())
+    assert not any(line.startswith("Temp") for line in status.host_lines(status.sample()))
+    status.psutil.sensors_temperatures = FakePsutil().sensors_temperatures
+    monkeypatch.setattr(status_module, "fan_state", lambda: "-")
+    status._fan = (0.0, "-")
+    assert "Temp 45C F - 1500MHz" in status.host_lines(status.sample())
     assert StatusApplet(host, options={"rate": 4}).fps == 4
     assert StatusApplet(host, options={"rate": 99}).fps == 10
+
+def test_status_wifi_screen(monkeypatch):
+    status, host = make_status(monkeypatch, options={"screen": "wifi"})
+    assert status.description == "wifi_text"
+    lines = status.wifi_lines(status.sample())
+    assert lines == ["SSID geekscape_n", "Ch 132 5GHz BW 80MHz", "RSSI -37dBm Q 70/70",
+                     "Rate 540Mb/s Sig 84%", "AP a6:91:b1:75:16:82", "R   0  T   0 ",
+                     "IF wlan0"]
+    assert all(len(line) <= 21 for line in lines)
+    assert min(lit_rows(status.step())) == 8
+    none, _ = make_status(monkeypatch, options={"screen": "wifi"}, wifi=False)
+    assert none.wifi_lines(none.sample())[0] == "Wi-Fi: none"
+
+def test_status_charts(monkeypatch):
+    status, host = make_status(monkeypatch, options={"view": "cpu_mem"})
+    assert status.description == "host_cpu_mem"
+    for _ in range(5):
+        frame = status.step()
+    assert len(HISTORY["cpu"]) == 5 and HISTORY["cpu"][-1] == 12.0
+    rows = lit_rows(frame)
+    assert 8 in rows and 63 in rows                      # the heading and the baseline
+    assert sum(frame.getpixel((x, 63)) > 0 for x in range(WIDTH)) == WIDTH
+    plotted = [y for y in rows if 16 <= y < 63]
+    assert plotted                                       # traces in the plot area
+    for view, screen in (("rx_tx", "host"), ("rssi", "wifi"), ("rx_tx", "wifi")):
+        chart, _ = make_status(monkeypatch, options={"screen": screen, "view": view})
+        assert chart.description == f"{screen}_{view}"
+        assert chart.step().size == (WIDTH, HEIGHT)
+    with pytest.raises(ValueError):
+        StatusApplet(host, options={"screen": "wifi", "view": "cpu_mem"})
+    with pytest.raises(ValueError):
+        parse_applet_args(["screen=moon"], StatusApplet.OPTIONS)
+    for _ in range(130):
+        HISTORY["cpu"].append(1.0)
+    assert len(HISTORY["cpu"]) == 128                    # bounded
+
+def test_status_parsers():
+    assert parse_wireless(WIRELESS) == ("wlan0", 70, -37)
+    assert parse_wireless("") is None
+    details = parse_nmcli(NMCLI, "wlan0")
+    assert details["ssid"] == "geekscape_n" and details["bssid"] == "a6:91:b1:75:16:82"
+    assert details["channel"] == "132" and details["mhz"] == 5660 and details["band"] == "5GHz"
+    assert details["rate"] == "540Mb/s" and details["bandwidth"] == "80MHz"
+    assert parse_nmcli(NMCLI, "wlan1")["band"] == "2.4GHz"
+    assert parse_nmcli(NMCLI, "wlan9") == {}
 
 def test_per_second():
     assert [per_second(n) for n in (0, 950, 1200, 12000, 111000, 3.4e6, 2e12)]  \

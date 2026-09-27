@@ -82,7 +82,7 @@ pytest src/aiko_services/tests/unit/test_oled.py \
 flake8 . --select=E9,F63,F7,F82
 ```
 
-Expect: `89 passed`, and no flake8 output. No broker and no panel are
+Expect: `92 passed`, and no flake8 output. No broker and no panel are
 needed. Run them on the SBC too (Python 3.13 there). One test asserts
 that `oled_test.py`, the original spike, is never imported.
 
@@ -146,7 +146,9 @@ on another host, put `-n NAME` before the subcommand.
 | 5.13 | `aiko_oled applet pong`, then `aiko_oled log one`, `aiko_oled log two`, then `aiko_oled applet log` | Pong keeps running while the lines arrive (no title row over a game). The `log` applet shows both lines and clears `L` |
 | 5.14 | `aiko_oled set font 12` | Text drawn from now on is larger. `set font 5x7` restores |
 | 5.14a **[mac]** | `aiko_oled set foreground yellow`, then `aiko_oled set background navy` | Lit pixels turn yellow, then the rest turns navy. On the panel nothing changes, but the values are published. `set foreground default` and `set background default` restore the colors from `-c`, or white on black |
-| 5.15 | `aiko_oled applet status` | The status display again, in the current font: IP, uptime, `CPU 12% Mem 34%`, `Dsk 61% R 111k T 1.1k`, `Load 0.42 0.38 0.35`, `Temp 45.1C` on an SBC, and the newest log line. `aiko_oled log again` replaces that line |
+| 5.15 | `aiko_oled applet status` | The status display again, in the current font: IP, `CPU 12% Mem 34%`, `Dsk 61% R 111k T 1.1k`, `Load 0.42 0.38 0.35`, `Temp 45C F 1 1500MHz` on an SBC, the newest log line, then the uptime last. `aiko_oled log again` replaces the log line |
+| 5.15a | `aiko_oled applet status view=cpu_mem` | A chart: a heading with a solid sample and `CPU 12%`, a dotted sample and `Mem 34%`, then the traces growing from the right, one column a second |
+| 5.15b **[sbc]** | `aiko_oled applet status screen=wifi` | The Wi-Fi link: `SSID`, `Ch`, `RSSI`, `Rate`, `AP`, the traffic and the interface. Then `view=rssi` for its chart |
 | 5.16 | `aiko_oled applet status date=on` | The date row is added |
 | 5.17 | `aiko_oled applet pong` | Pong plays itself. `aiko_oled set speed 2` doubles the pace, and `set speed 1` restores |
 | 5.18 | `aiko_oled applet forklift_game`, then `aiko_oled key right`, `aiko_oled key up` | The forklift drives right a little, and lifts its forks a little, per key |
@@ -253,6 +255,7 @@ aiko_oled applet draw subject=cat style=hatch speed=4
 aiko_oled applet draw shade=off count=1   # one outlined drawing, then back to the default applet
 aiko_oled applet demo random=off   # the fixed tour of the applets and settings
 aiko_oled applet demo              # the random tour
+aiko_oled applet status screen=wifi view=rx_tx   # the Wi-Fi interface's traffic chart
 aiko_oled applet status            # back to the status display
 ```
 
@@ -291,7 +294,8 @@ that follows the shared state. Then type, without Enter:
 | `C`, four times | The clock face, then with the title row, then without the seconds hand, then the digital face |
 | `e`, repeatedly | The eyes, then held at `happy`, and on through the emotions |
 | `T` | The title row off, then on again |
-| `s`, repeatedly | The status display, then at 4 updates a second, then in the 5x7, 10 and 12 pixel fonts |
+| `s`, twice | The host status, then the Wi-Fi screen |
+| `S`, three times | The views of the screen shown: its first chart, its second chart, then the text again |
 | `R` | Reset the settings and the colors, and show the status display |
 | `x` | Quit the console. The Actor keeps running |
 

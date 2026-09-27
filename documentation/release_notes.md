@@ -191,7 +191,7 @@ remote callers are unaffected.  For Python code:
   These tests skip when OpenCV is absent, because *video_io.py* needs
   *cv2* at import time
 
-* New *test_oled.py*, *test_oled_cli.py* and *test_oled_applets.py*: 89
+* New *test_oled.py*, *test_oled_cli.py* and *test_oled_applets.py*: 92
   tests for the OLED display Actor example.  They cover graphics, the
   display backends, dispatch and validation, the settings, the command
   line and the applets.  A fake display stands in for the panel, so no

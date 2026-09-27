@@ -173,8 +173,19 @@ def test_keys_console_map():
     state = {"turns": {}, "current": None, "settings": {}, "base_font": "5x7"}
     assert key_command("left", state) == [("key", ("left", "tap"))]
     assert key_command("s", state) == [("applet", ("status",))]
-    assert key_command("s", state) == [("applet", ("status", "rate=4"))]
-    assert key_command("s", state) == [("update", "font", "5x7"), ("applet", ("status",))]
+    assert key_command("s", state) == [("applet", ("status", "screen=wifi"))]
+    assert key_command("s", state) == [("applet", ("status",))]
+    assert key_command("S", state) == [("applet", ("status",))]            # not running
+    state["settings"].update({"applet": "status", "applet_detail": "host_text"})
+    assert key_command("S", state) == [("applet", ("status", "screen=host", "view=cpu_mem"))]
+    state["settings"]["applet_detail"] = "host_cpu_mem"
+    assert key_command("S", state) == [("applet", ("status", "screen=host", "view=rx_tx"))]
+    state["settings"]["applet_detail"] = "host_rx_tx"
+    assert key_command("S", state) == [("applet", ("status", "screen=host", "view=text"))]
+    state["settings"]["applet_detail"] = "wifi_text"
+    assert key_command("S", state) == [("applet", ("status", "screen=wifi", "view=rssi"))]
+    state["settings"]["applet"] = "pong"
+    assert key_command("S", state) == [("applet", ("status",))]
     assert key_command("g", state) == [("applet", ("pong",))]
     assert key_command("g", state) == [("applet", ("asteroids",))]
     assert key_command("g", state) == [("applet", ("invaders",))]
@@ -228,7 +239,7 @@ def test_keys_console_map():
     assert key_command("T", state) == [("update", "title", "off")]
     state["settings"]["title"] = "off"
     assert key_command("T", state) == [("update", "title", "on")]
-    for key in ("w", "A", "S", "z", "k"):
+    for key in ("w", "A", "z", "k"):
         assert key_command(key, state) == []
     commands = reset_commands(state)
     assert commands[-1] == ("applet", ("status",))

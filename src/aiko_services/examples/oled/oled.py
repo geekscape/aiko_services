@@ -83,6 +83,7 @@ from aiko_services.examples.oled.applets import (
     APPLETS, AppletDone, Host, parse_applet_args,
 )
 from aiko_services.examples.oled import drawings, faces, games  # noqa: F401 (they register applets)
+from aiko_services.examples.oled import status as status_screens  # noqa: F401 (registers status)
 from aiko_services.examples.oled.display import (
     ADDRESSES, OUTPUTS, DisplayNotFound, NullDisplay, choose_display,
     parse_colors, scan_i2c,
@@ -408,7 +409,7 @@ class OLEDImpl(OLED, OLEDApplets):
         })
         self._applied = {key: self.share[key] for key in SETTINGS}
         self._local_keys = {"turns": {}, "current": None,   # the window's keys
-                            "settings": self._applied, "base_font": self.share["font"]}
+                            "settings": self.share, "base_font": self.share["font"]}
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
         self._open_display()
@@ -418,7 +419,7 @@ class OLEDImpl(OLED, OLEDApplets):
         aiko.event.add_timer_handler(self._metrics_flush, METRICS_PERIOD)
         self._present(self._canvas.image)
         if self._default_applet != "none":
-            self.applet(self._default_applet)
+            self.applet(*self._default_applet.split(","))
         self.logger.info(f"{self.name}: display {self.share['backend']} "
                          f"{self.share['device']}, topic {self.topic_in}")
 
@@ -809,9 +810,9 @@ class OLEDImpl(OLED, OLEDApplets):
     def _applet_finished(self):
         finished = self.share.get("applet")
         self._stop_applet()
-        default = self._default_applet
+        default, *arguments = self._default_applet.split(",")
         if default != "none" and default != finished and default in APPLETS:
-            self.applet(default)
+            self.applet(default, *arguments)
         else:
             self.applet("none")
 
@@ -1095,8 +1096,9 @@ def run_command(options, output, address, bus, applet, font_size, title,
                 pygame, else terminal
 
     \b
-    At start the Actor shows --applet (status: IP address, uptime, CPU and
-    memory, disk and load, network, temperature, the newest log line) under
+    At start the Actor shows --applet (status: IP address, CPU and memory,
+    disk and network, load, temperature and fan, the newest log line, uptime;
+    status,screen=wifi: the Wi-Fi link; view=cpu_mem: a chart) under
     the title row: the Actor's name (-n, default the hostname; --title TEXT
     with _ for spaces, or off), the annunciators L (log lines not yet
     shown), M (connected to the broker) and R (registered), and the clock.
@@ -1357,8 +1359,9 @@ def keys_command(options):
     """Interactive console: keys switch applets and settings, arrows play
 
     \b
-    s status  l log  p pattern  t text  d draw  D demo  P blink  C clock
-    e eyes  g games (pong, asteroids, invaders, forklift)  G forklift game
+    s status screens (host, wifi)  S the next view of that screen (charts)
+    l log  p pattern  t text  d draw  D demo  P blink  C clock  e eyes
+    g games (pong, asteroids, invaders, forklift)  G forklift game
     h or ? help (the same applet key again: its next options)
     arrows: keys for the applet   0-9 speed (4 normal)   f F next/previous font
     T title  i invert  o power  a all pixels on  +/- contrast  b B color
@@ -1451,6 +1454,7 @@ def _keys_reference():
         lines += textwrap.wrap(text, width=75, initial_indent=f"  {key}  ",
                                subsequent_indent="     ")
     lines += [
+        "  S  the next view of the status screen shown: text, then its charts",
         "  arrows  (key left|right|up|down) for the applet: the forklift game, help",
         "  0-9  speed: 0 fastest (x4), 4 normal, 9 slowest   f F  next/previous font",
         "  T title on/off   i invert   o power   a all pixels on   + - contrast by 16",

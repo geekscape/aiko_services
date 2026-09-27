@@ -13,8 +13,9 @@
 #
 # Keys
 # ~~~~
-#   s status  l log  p pattern  t text  d draw  D demo  P blink  C clock
-#   e eyes  g games: pong, asteroids, invaders, forklift  G forklift game
+#   s status screens: host, wifi   S the next view of that screen: text, charts
+#   l log  p pattern  t text  d draw  D demo  P blink  C clock  e eyes
+#   g games: pong, asteroids, invaders, forklift   G forklift game
 #   h ? help (again: the next page)
 #   arrows: (key left|right|up|down)   0-9 speed (0 fastest, 4 normal, 9 slowest)
 #   f F next / previous font   T title on/off   i invert   o power
@@ -25,6 +26,7 @@
 
 from aiko_services.examples.oled.drawings import SUBJECTS
 from aiko_services.examples.oled.graphics import FONT_SIZES
+from aiko_services.examples.oled.status import STATUS_VIEWS
 
 __all__ = ["ARROWS", "BACKGROUNDS", "FOREGROUNDS", "KEY_APPLETS", "PRESETS",
            "RESET", "applet", "key_command", "reset_commands", "update"]
@@ -44,10 +46,7 @@ def update(key, value):
 # What each applet key sends; the same key again: the next preset.  A
 # preset without its own font goes back to the base font (see key_command)
 PRESETS = {
-    "s": [[applet("status")], [applet("status", "rate=4")],
-          [update("font", "5x7"), applet("status")],
-          [update("font", "10"), applet("status")],
-          [update("font", "12"), applet("status")]],
+    "s": [[applet("status")], [applet("status", "screen=wifi")]],
     "l": [[applet("log")]],
     "h": [[applet("help", f"page={page}")] for page in range(1, 7)],
     "p": [[applet("pattern")], [update("font", "5x7"), applet("pattern")],
@@ -108,6 +107,14 @@ def key_command(key, state):
                 and settings.get("font", base) != base:
             commands.insert(0, update("font", base))     # back to the base font
         return commands
+    if key == "S":                   # the next view of the status screen shown
+        detail = str(settings.get("applet_detail", ""))
+        screen, _, view = detail.partition("_")
+        if settings.get("applet") != "status" or screen not in STATUS_VIEWS:
+            return [applet("status")]
+        views = STATUS_VIEWS[screen]
+        turn = (views.index(view) + 1) % len(views) if view in views else 0
+        return [applet("status", f"screen={screen}", f"view={views[turn]}")]
     if key.isdigit():
         return [update("speed", f"{2 ** ((4 - int(key)) / 2):.3g}")]
     if key == "T":

@@ -52,7 +52,8 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 | `oled.py` | The Interfaces `OLED` and `OLEDApplets`, `OLEDImpl`, and the `aiko_oled` command line |
 | `display.py` | The display backends: SSD1306 over I2C (luma.oled), pygame window, terminal, PNG file, none, fake |
 | `graphics.py` | The 5x7 font, image helpers, the bottom-left `Canvas`, the title row |
-| `applets.py` | The `Applet` base class and registry: `status` (the default), `log`, `help`, `pattern`, `text`, `blink`, `demo` |
+| `applets.py` | The `Applet` base class and registry: `log`, `help`, `pattern`, `text`, `blink`, `demo` |
+| `status.py` | `status`, the default: the host and Wi-Fi screens as text or charts, the sample history, the fan, signal and NetworkManager readers |
 | `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` |
 | `drawings.py` | `draw`: pencil-sketched cartoon scenes |
 | `faces.py` | `clock`: an analog or a digital clock face. `eyes`: animated eyes with emotions |
@@ -60,7 +61,7 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 | `console.py` | `aiko_oled keys`: the interactive console |
 | `aiko_oled.service` | A systemd unit for a Linux SBC: the display comes up with the host |
 | `oled_test.py` | The original standalone spike, kept unchanged for reference. No module imports it |
-| `tests/unit/test_oled.py`, `test_oled_cli.py`, `test_oled_applets.py` | 89 unit tests: graphics, displays, the Actor, dispatch, settings, the command line, the applets. No broker and no panel needed |
+| `tests/unit/test_oled.py`, `test_oled_cli.py`, `test_oled_applets.py` | 92 unit tests: graphics, displays, the Actor, dispatch, settings, the command line, the applets. No broker and no panel needed |
 
 ## Status
 

@@ -82,7 +82,7 @@ pytest src/aiko_services/tests/unit/test_oled.py \
        src/aiko_services/tests/unit/test_oled_applets.py
 ```
 
-89 tests; no broker and no panel needed.
+92 tests; no broker and no panel needed.
 
 ## Files
 
@@ -91,7 +91,8 @@ pytest src/aiko_services/tests/unit/test_oled.py \
 | `oled.py` | The `OLED` and `OLEDApplets` Interfaces, `OLEDImpl` and the `aiko_oled` command line |
 | `display.py` | Display backends: SSD1306 (luma.oled), pygame window, terminal, PNG, none, fake |
 | `graphics.py` | 5x7 font, image helpers, the bottom-left `Canvas`, the title row |
-| `applets.py` | Applets: sources of frames the Actor runs — `status` (the default), `log`, `help`, `pattern`, `text`, `blink`, `demo` |
+| `applets.py` | Applets: sources of frames the Actor runs — `log`, `help`, `pattern`, `text`, `blink`, `demo` |
+| `status.py` | `status`, the default: the host and Wi-Fi screens, as text or as charts of the last 128 samples |
 | `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` (arrow keys over the wire) |
 | `drawings.py` | `draw`: pencil-sketched cartoon scenes |
 | `faces.py` | `clock`: an analog or a digital clock face; `eyes`: animated eyes showing emotions |

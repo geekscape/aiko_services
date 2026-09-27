@@ -14,6 +14,7 @@ source:
   - src/aiko_services/examples/oled/display.py
   - src/aiko_services/examples/oled/graphics.py
   - src/aiko_services/examples/oled/applets.py
+  - src/aiko_services/examples/oled/status.py
   - src/aiko_services/examples/oled/games.py
   - src/aiko_services/examples/oled/drawings.py
   - src/aiko_services/examples/oled/faces.py
@@ -160,8 +161,10 @@ discovery traps.
 ### The status display
 
 The default applet, `status`, refreshes once a second
-(`applet status rate=2` for twice). With the 5x7 font, the title row
-shows the Actor's name, three annunciators and the clock:
+(`applet status rate=2` for twice). It has two screens, the host and the
+Wi-Fi link, and each screen shows its values as text or as a chart. With
+the 5x7 font, the title row shows the Actor's name, three annunciators
+and the clock:
 
 | Annunciator | Meaning | Cleared |
 |-------------|---------|---------|
@@ -176,19 +179,51 @@ keeps a fixed width, so nothing jumps:
 ```text
 ▮w3029f1   LMR 14:26:45▮   the title row, inverse video
 IP 192.168.0.137
-Up 3d04h
 CPU 12% Mem 34%
 Dsk 61% R 111k T 1.1k      received and sent, bytes per second: three digits and a unit
 Load 0.42 0.38 0.35        the 1, 5 and 15 minute load averages
-Temp 45.1C 1500MHz         only where the host has a sensor (an SBC has)
+Temp 45C F 1 1500MHz       where the host has a sensor: the fan's GPIO14 level, 1 or 0
 Hello from nomad           the newest (log ...) line, a new one replaces it
+Up 3d04h                   the uptime, always the last row
 ```
 
-The date is not shown, and `applet status date=on` adds it. The time is
-shown only when the title row is off. Then the first row is the name and
-the connection state, and the time precedes the uptime. `set title off`
-gives an applet the whole panel, and `set title on` brings the row back
-with its last text.
+The date is not shown, and `applet status date=on` adds it. When the
+rows do not all fit, the log line gives way before the uptime does. The
+time is shown only when the title row is off. Then the first row is the
+name and the connection state, and the time precedes the uptime.
+`set title off` gives an applet the whole panel, and `set title on`
+brings the row back with its last text.
+
+**The Wi-Fi screen.** `applet status screen=wifi` shows the link of the
+strongest wireless interface:
+
+```text
+SSID geekscape_n
+Ch 132 5GHz BW 80MHz       the channel, the band and the bandwidth
+RSSI -37dBm Q 70/70        the signal and the link quality
+Rate 540Mb/s Sig 84%       the bit rate and the signal, as NetworkManager reports them
+AP a6:91:b1:75:16:82       the access point
+R 4.6k T 950               the interface's traffic, bytes per second
+IF wlxc03a55a6afeb         the interface
+```
+
+**The charts.** `view=` plots a screen's values over the last 128
+refreshes, one column each, the newest at the right. A heading row shows
+a sample of each trace, solid or dotted, with its name and current
+value. The host screen has `view=cpu_mem` (CPU solid, memory dotted, 0
+to 100 percent) and `view=rx_tx` (received solid, sent dotted, scaled to
+the largest value shown, which the heading gives). The Wi-Fi screen has
+`view=rssi` (-90 to -30 dBm) and `view=rx_tx` for the interface. The
+samples are kept while the process runs, so a change of view keeps the
+chart. In the console and the window, `s` steps through the screens, and
+`S` steps through the views of the screen shown: text, then the charts.
+
+**The readings.** The psutil calls do not block. The signal comes from
+`/proc/net/wireless` at every refresh. The fan level comes from
+`pinctrl get 14` every 2 seconds, about 3 milliseconds. The Wi-Fi details
+come from one `nmcli` call every 10 seconds, about 50 milliseconds, only
+while the Wi-Fi text screen shows. Without Linux, NetworkManager or a
+wireless interface, the rows say so.
 
 The `log` applet shows the last eight `(log ...)` lines, oldest first,
 as they arrive, and it clears `L`. The lines are kept whatever applet
@@ -208,7 +243,8 @@ window (`-o window`), where the Actor applies them itself. There `Esc`,
 
 | Key | Presets, in turn |
 |-----|------------------|
-| `s` | status, status rate=4, then status in the 5x7, 10 and 12 pixel fonts |
+| `s` | status (the host screen), status screen=wifi |
+| `S` | The next view of the status screen shown: text, then its charts. Host: CPU and memory, then received and sent. Wi-Fi: RSSI, then received and sent |
 | `l` | log |
 | `h`, `?` | help page 1 to 6 |
 | `p` | pattern, then in the 5x7, 10 and 16 pixel fonts |
@@ -262,7 +298,7 @@ x 0..127 left to right, y 0..63 bottom to top.
 
 | Name | Options | What it shows |
 |------|---------|---------------|
-| `status` | `rate=` updates per second (1), `date=on` | The host's status, the default |
+| `status` | `rate=` updates per second (1), `date=on`, `screen=host\|wifi`, `view=text\|cpu_mem\|rx_tx\|rssi` | The host's status, the default, or the Wi-Fi link, as text or as a chart |
 | `log` | | The last eight `(log ...)` lines as they arrive |
 | `help` | `page=N`, `hold=` seconds (8) | Help in pages that fit the display: console keys (applets, actions), Dashboard settings and state, wire commands and notes |
 | `clock` | `face=analog\|digital`, `title=on\|off`, `seconds=off` | Analog: hour, minute and second hands, the day of the month in a window, the weekday and the month, full screen unless `title=on`. Digital: the title row, then the weekday, the date and the time, each on a row in the largest font that fits, spaced evenly |
@@ -395,7 +431,10 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
 - A key typed in the emulator window reaches `_step()` as a display
   event. A console key is applied through the same key map as
   `aiko_oled keys`, in `keys.py`, and any other key goes to the running
-  applet.
+  applet. The key map reads the shared state to decide, for example
+  `applet_detail` for `S`, so the window gives it the share itself.
+- `--applet` takes the applet's options after commas, as the `applet`
+  share key does: `--applet status,screen=wifi`.
 - The remote-X trap: a pygame window over `ssh -Y` fails with a GLX
   error. `WindowDisplay` sets `SDL_VIDEO_X11_FORCE_EGL=1` when the X
   display is remote.
@@ -411,7 +450,8 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
 | `Font` | 5x7 bitmap or TrueType glyph rendering, cell metrics | Pillow |
 | `Display` and backends | Show a frame. Contrast, invert, power, all-on. Window events. Blank on close | luma.oled, pygame, the terminal, Pillow |
 | `Applet`, `Host` | A source of frames, and what it may use of the Actor | `OLEDImpl` |
-| `StatusApplet`, `LogApplet`, `HelpApplet`, `PatternApplet`, `TextApplet`, `BlinkApplet`, `DemoApplet` | The built-in applets. The demo runs the others in turn and restores the settings it changed | `Host`, `APPLETS` |
+| `status.py`: `StatusApplet`, `HISTORY`, the readers | The host and Wi-Fi screens, their text rows and charts, the sample history; the fan, signal and NetworkManager readers | `Host`, psutil, `pinctrl`, `nmcli` |
+| `LogApplet`, `HelpApplet`, `PatternApplet`, `TextApplet`, `BlinkApplet`, `DemoApplet` | The built-in applets. The demo runs the others in turn and restores the settings it changed | `Host`, `APPLETS` |
 | `games.py`: `pong`, `asteroids`, `invaders`, `forklift_work`, `ForkliftGame` | Frame generators, and the forklift game's pallet physics, counted in frames | `Host` |
 | `drawings.py`: `SUBJECTS`, `scene_strokes`, `sketch_frames`, `DrawApplet` | Cartoon subjects, stroke planning, the pencil sketch as a frame generator | `Host` |
 | `faces.py`: `ClockApplet`, `EyesApplet` | The clock face. The eyes' lens shapes, gaze, blinks and eased emotions | `Host` |
@@ -421,15 +461,18 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
 
 ## Current limitations and roadmap
 
-**Implemented** (Epic 0, complete 2026-09-26): everything above, with 89
+**Implemented** (Epic 0, complete 2026-09-26): everything above, with 92
 unit tests that need no broker and no panel, run on Python 3.12 (macOS)
 and 3.13 (the SBC).
 
 **Sharp edges in the implemented code:**
 
-- The status sampling (psutil) runs on the event-loop thread, well under
-  5 ms on an SBC. If a host proves slow, move it to a worker that posts
-  the readings to the mailbox.
+- The status readings run on the event-loop thread: psutil well under
+  5 ms, `pinctrl` about 3 ms every 2 s, `nmcli` about 50 ms every 10 s
+  while the Wi-Fi text screen shows. If a host proves slow, move them to
+  a worker that posts the readings to the mailbox.
+- The fan level, the signal and the Wi-Fi details are Linux readings, and
+  the details need NetworkManager. Elsewhere the rows say so.
 - The 5x7 font gives 21 characters per row. The aiko_engine_mp 8x8 font
   gives 16. An 8x8 bitmap font for pixel parity is on the roadmap.
 - One panel per Actor. aiko_engine_mp spreads text across two panels.
