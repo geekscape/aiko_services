@@ -684,6 +684,7 @@ from threading import Thread
 import time
 
 _HISTORY_RING_BUFFER_SIZE = 4096
+_REGISTRAR_REPLY_TIMEOUT = 5.0  # seconds: warn when the Registrar is silent
 
 class ServicesCache():
     def __init__(self, service, event_loop_start=False, history_limit=0):
@@ -691,6 +692,7 @@ class ServicesCache():
         self._event_loop_start = event_loop_start
         self._event_loop_owner = False
         self._history_limit = history_limit
+        self._reply_timer_pending = False
 
         self._cache_reset()
         self._handlers = set()
@@ -699,6 +701,7 @@ class ServicesCache():
         aiko.connection.add_handler(self._connection_state_handler)
 
     def _cache_reset(self):
+        self._reply_timer_cancel()
         self._begin_registration = False
         self._item_count = None
         self._registrar_service = None
@@ -735,6 +738,9 @@ class ServicesCache():
                 else:
                     self._publish_registrar_share()
                     self._state = "share"
+                self._reply_timer_pending = True
+                event.add_timer_handler(
+                    self._reply_timer, _REGISTRAR_REPLY_TIMEOUT)
         else:
             if self._registrar_topic_out:
                 self._service.remove_message_handler(
@@ -746,6 +752,24 @@ class ServicesCache():
                 if self._registrar_service:
                     self._history.appendleft(self._registrar_service)
                 self._cache_reset()
+
+    def _reply_timer(self):
+        """The first request got no "(item_count ...)": the Registrar that
+        the retained announcement names is probably gone.  Once, bounded"""
+
+        self._reply_timer_cancel()
+        registrar = aiko.registrar["topic_path"] if aiko.registrar else "?"
+        _LOGGER.warning(
+            f"Service cache: no reply from the Registrar {registrar} in "
+            f"{_REGISTRAR_REPLY_TIMEOUT:g} s: its announcement may be stale.  "
+            f"Start a Registrar (a current one replaces a stale announcement), "
+            f"or clear it: mosquitto_pub -t {aiko.TOPIC_REGISTRAR_BOOT} -r -n")
+
+    def _reply_timer_cancel(self):
+        # remove_timer_handler() counts down even when nothing is removed
+        if self._reply_timer_pending:
+            self._reply_timer_pending = False
+            event.remove_timer_handler(self._reply_timer)
 
     def _publish_registrar_history(self):
         aiko.message.publish(
@@ -782,6 +806,7 @@ class ServicesCache():
     def registrar_share_handler(self, aiko, topic_path, payload_in):
         command, parameters = parse(payload_in)
         if command == "item_count" and len(parameters) == 1:
+            self._reply_timer_cancel()
             self._item_count = int(parameters[0])
         elif command == "add" and len(parameters) >= 6:
             if self._item_count is None:

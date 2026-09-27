@@ -96,3 +96,57 @@ def test_ec_cache_local_get_and_handlers():
     assert cache.consumers == {}
     assert cache.get("battery.percent", default=None) is None
     cache.terminate()
+
+
+# --------------------------------------------------------------------------- #
+# ServicesCache: a bounded warning when the Registrar never replies
+
+class _StubService:
+    topic_path = "aiko/t_host/1/1"
+
+    def add_message_handler(self, handler, topic, binary=False):
+        pass
+
+    def remove_message_handler(self, handler, topic):
+        pass
+
+
+class _Connected:
+    def __init__(self, connected):
+        self.connected = connected
+
+    def is_connected(self, state):
+        return self.connected
+
+
+def test_services_cache_warns_once_when_the_registrar_is_silent(monkeypatch):
+    import aiko_services.main.share as share_module
+    from aiko_services.main import aiko as process_data
+
+    published, warnings = [], []
+    stub = type("Message", (), {"publish": lambda self, topic, payload:
+                                published.append((topic, payload))})()
+    monkeypatch.setattr(process_data, "message", stub)
+    monkeypatch.setattr(process_data, "registrar", {"topic_path": "aiko/dead/9/1"})
+    monkeypatch.setattr(share_module._LOGGER, "warning", warnings.append)
+    cache = share_module.ServicesCache(_StubService())
+    try:
+        cache._connection_state_handler(_Connected(True), None)
+        assert published[-1][0] == "aiko/dead/9/1/in" and cache._reply_timer_pending
+        cache._reply_timer()                             # no (item_count ...)
+        assert len(warnings) == 1 and "aiko/dead/9/1" in warnings[0]
+        assert "mosquitto_pub" in warnings[0] and not cache._reply_timer_pending
+
+        cache._connection_state_handler(_Connected(False), None)   # reset
+        cache._connection_state_handler(_Connected(True), None)
+        assert cache._reply_timer_pending
+        cache.registrar_share_handler(None, "t", "(item_count 0)")   # a reply
+        assert not cache._reply_timer_pending
+
+        cache._connection_state_handler(_Connected(False), None)
+        cache._connection_state_handler(_Connected(True), None)
+        cache._connection_state_handler(_Connected(False), None)   # lost: cancelled
+        assert not cache._reply_timer_pending and len(warnings) == 1
+    finally:
+        process_data.connection.remove_handler(cache._connection_state_handler)
+        cache._reply_timer_cancel()
