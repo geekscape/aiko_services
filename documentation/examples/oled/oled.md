@@ -183,13 +183,13 @@ CPU 12% Mem 34%
 Dsk 61% R 111k T 1.1k      received and sent, bytes per second: three digits and a unit
 Load 0.42 0.38 0.35        the 1, 5 and 15 minute load averages
 Temp 45C F 1 1500MHz       where the host has a sensor: the fan's GPIO14 level, 1 or 0
-Hello from nomad           the newest (log ...) line, a new one replaces it
-Up 3d04h                   the uptime, always the last row
+Up 3d04h                   the uptime
+Hello from nomad           the newest (log ...) line, last; a new one replaces it
 ```
 
 The date is not shown, and `applet status date=on` adds it. When the
-rows do not all fit, the log line gives way before the uptime does. The
-time is shown only when the title row is off. Then the first row is the
+rows do not all fit, the last row, the log line, is dropped. The time is
+shown only when the title row is off. Then the first row is the
 name and the connection state, and the time precedes the uptime.
 `set title off` gives an applet the whole panel, and `set title on`
 brings the row back with its last text.

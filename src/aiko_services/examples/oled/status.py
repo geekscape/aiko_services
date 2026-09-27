@@ -7,8 +7,8 @@
 # over the last 128 samples (one per refresh):
 #
 #   screen=host   IP address, CPU and memory, disk and network, the load
-#                 averages, temperature with the fan and CPU speed, the
-#                 newest (log ...) line, uptime
+#                 averages, temperature with the fan and CPU speed, uptime,
+#                 the newest (log ...) line
 #                 view=cpu_mem   CPU (solid) and memory (dotted), 0..100%
 #                 view=rx_tx     received (solid) and sent (dotted) bytes/s
 #   screen=wifi   SSID, channel, band and bandwidth, RSSI and link quality,
@@ -296,7 +296,7 @@ class StatusApplet(Applet):
     """The host's status ("screen=host", the default): IP address; CPU and
     memory; disk and network traffic; the 1, 5 and 15 minute load averages;
     temperature, the fan and the CPU speed (where the host has a sensor);
-    the newest (log ...) line; uptime last.  Or the Wi-Fi link
+    uptime; the newest (log ...) line last.  Or the Wi-Fi link
     ("screen=wifi").  As text ("view=text") or as a chart of the screen's
     values over the last 128 refreshes ("view=cpu_mem", "rx_tx", "rssi").
     Refreshed "rate" times a second (once).  Numbers keep a fixed width so
@@ -311,7 +311,7 @@ class StatusApplet(Applet):
     description = "host_text"
     summary = ("The host's status, or the Wi-Fi link (screen=wifi), as text or a chart "
                "(view=cpu_mem|rx_tx|rssi): IP, CPU, memory, disk, network, load, "
-               "temperature, fan, newest log line, uptime")
+               "temperature, fan, uptime, newest log line")
 
     def __init__(self, host, words=(), options=None):
         super().__init__(host, words, options)
@@ -428,13 +428,10 @@ class StatusApplet(Applet):
         if temperature is not None:
             lines.append(f"Temp {temperature:2.0f}C F {self._fan_state()} "
                          f"{self._cpu_speed()}".rstrip())
+        lines.append(f"Up {uptime}" if titled else f"{clock:%H:%M:%S} up {uptime}")
         log_lines = self.host.log_lines()
         if log_lines:
-            lines.append(log_lines[-1])  # the newest line only
-        lines.append(f"Up {uptime}" if titled else f"{clock:%H:%M:%S} up {uptime}")
-        rows = (self.host.height - self.host.title_rows()) // self.host.font.cell_height
-        if len(lines) > rows and log_lines:
-            lines.remove(log_lines[-1])  # the log line goes before the uptime does
+            lines.append(log_lines[-1])  # the newest line only, last: dropped first
         return lines
 
     def wifi_lines(self, reading):

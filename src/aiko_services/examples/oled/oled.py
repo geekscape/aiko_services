@@ -1097,7 +1097,7 @@ def run_command(options, output, address, bus, applet, font_size, title,
 
     \b
     At start the Actor shows --applet (status: IP address, CPU and memory,
-    disk and network, load, temperature and fan, the newest log line, uptime;
+    disk and network, load, temperature and fan, uptime, the newest log line;
     status,screen=wifi: the Wi-Fi link; view=cpu_mem: a chart) under
     the title row: the Actor's name (-n, default the hostname; --title TEXT
     with _ for spaces, or off), the annunciators L (log lines not yet

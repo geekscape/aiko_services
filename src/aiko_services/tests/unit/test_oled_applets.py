@@ -133,14 +133,14 @@ def test_status_lines_with_a_title_row(monkeypatch):
     assert lines[2] == "Dsk 61% R   0  T   0 "
     assert lines[3] == "Load 0.42 0.31 0.25"               # 1, 5 and 15 minutes
     assert lines[4] == "Temp 45C F 1 1500MHz"              # the fan on GPIO14
-    assert lines[5] == "hello"                             # the newest line only
-    assert lines[6] == "Up 3d04h"                          # uptime last
+    assert lines[5] == "Up 3d04h"
+    assert lines[6] == "hello"                             # the newest line, last
     assert all(len(line) <= 21 for line in lines)
     status.options["date"] = True
     lines = status.host_lines(status.sample())
     assert lines[1].endswith(str(time.localtime().tm_year))  # the date row
-    assert "hello" not in lines and lines[-1] == "Up 3d04h"  # the log line went first
-    frame = status.step()
+    assert lines[-2:] == ["Up 3d04h", "hello"]            # eight rows: the last is
+    frame = status.step()                                # dropped by write_lines
     assert frame.size == (WIDTH, HEIGHT)
     assert min(lit_rows(frame)) == 8                     # below the title row
     assert host.seen == 1                                # "L" annunciator cleared
@@ -151,6 +151,7 @@ def test_status_lines_without_a_title_row(monkeypatch):
     assert lines[0] == "oled REGISTRAR"
     assert lines[1] == "IP 192.168.0.137"
     assert lines[-1].endswith(" up 3d04h") and lines[-1][2] == ":"   # hh:mm:ss up ...
+    assert len(lines) == 7                               # no log lines here
     assert min(lit_rows(status.step())) == 0
 
 def test_status_falls_back_without_sensor_fan_and_rate_option(monkeypatch):

@@ -146,7 +146,7 @@ on another host, put `-n NAME` before the subcommand.
 | 5.13 | `aiko_oled applet pong`, then `aiko_oled log one`, `aiko_oled log two`, then `aiko_oled applet log` | Pong keeps running while the lines arrive (no title row over a game). The `log` applet shows both lines and clears `L` |
 | 5.14 | `aiko_oled set font 12` | Text drawn from now on is larger. `set font 5x7` restores |
 | 5.14a **[mac]** | `aiko_oled set foreground yellow`, then `aiko_oled set background navy` | Lit pixels turn yellow, then the rest turns navy. On the panel nothing changes, but the values are published. `set foreground default` and `set background default` restore the colors from `-c`, or white on black |
-| 5.15 | `aiko_oled applet status` | The status display again, in the current font: IP, `CPU 12% Mem 34%`, `Dsk 61% R 111k T 1.1k`, `Load 0.42 0.38 0.35`, `Temp 45C F 1 1500MHz` on an SBC, the newest log line, then the uptime last. `aiko_oled log again` replaces the log line |
+| 5.15 | `aiko_oled applet status` | The status display again, in the current font: IP, `CPU 12% Mem 34%`, `Dsk 61% R 111k T 1.1k`, `Load 0.42 0.38 0.35`, `Temp 45C F 1 1500MHz` on an SBC, the uptime, then the newest log line last. `aiko_oled log again` replaces the log line |
 | 5.15a | `aiko_oled applet status view=cpu_mem` | A chart: a heading with a solid sample and `CPU 12%`, a dotted sample and `Mem 34%`, then the traces growing from the right, one column a second |
 | 5.15b **[sbc]** | `aiko_oled applet status screen=wifi` | The Wi-Fi link: `SSID`, `Ch` with the band and bandwidth, `RSSI`, the `Tx` and `Rx` bit rates, `AP`, the traffic and the interface. Then `view=rssi` for its chart |
 | 5.16 | `aiko_oled applet status date=on` | The date row is added |
