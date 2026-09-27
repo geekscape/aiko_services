@@ -3,8 +3,9 @@
 # Aiko Services: OLED applets
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # The higher-level features of the OLED Actor: an applet is a source
-# of 128x64 frames that the Actor steps from its event-loop timer at the
-# applet's frame rate (times the "speed" setting).  Applets never
+# of frames, the size of its Host (128x64 on one panel), that the Actor
+# steps from its event-loop timer at the applet's frame rate (times the
+# "speed" setting).  Applets never
 # sleep, never block and never touch the Actor: they get a Host with just
 # what they may use.  Keys reach interactive applets through key().
 #
@@ -28,8 +29,9 @@
 #   games.py: pong asteroids invaders games forklift forklift_game
 #   drawings.py: draw
 #
-# Not part of the Interface composition pattern (see ADR-022): plain
-# presentation classes owned by the Actor, not Services.
+# Not part of the Interface composition pattern (ADR-022 category
+# Presentation and CLI shells) — see e_10 §2.16: plain presentation
+# classes owned by the Actor, not Services.
 #
 # To Do
 # ~~~~~
@@ -49,7 +51,7 @@ from aiko_services.examples.oled.graphics import (
 __all__ = [
     "APPLETS", "OPTION_LENGTH_MAXIMUM", "TOUR", "Applet",
     "AppletDone", "BlinkApplet", "DemoApplet", "HelpApplet",
-    "Host", "LogApplet", "PatternApplet", "TextApplet",
+    "Host", "LogApplet", "PatternApplet", "TextApplet", "fits",
     "on_off", "parse_applet_args", "pattern_image", "random_steps",
 ]
 
@@ -60,15 +62,26 @@ class AppletDone(Exception):
 
 class Host:
     """What an applet may use.  The Actor implements this; tests can
-    pass a plain one"""
+    pass a plain one.  Every call takes and returns S-expression values
+    (tokens, integers, words), never a Python object to call into: the
+    surface a sandboxed evaluator could expose to applets written in LISP"""
 
-    width, height = WIDTH, HEIGHT
     name = "oled"
+    depth = 1  # bits per pixel
 
-    def __init__(self, font, rng=None, speed=1.0):
+    def __init__(self, font, rng=None, speed=1.0, width=WIDTH, height=HEIGHT):
         self.font = font
         self.rng = rng or random.Random()
         self.speed = speed
+        self.width, self.height = width, height
+
+    def columns(self):
+        """Characters per text row in the font (21 for 5x7 on 128 pixels);
+        an average for a proportional font"""
+
+        cell = self.font.cell_width  \
+            or max(1, round(self.font.render_line("0123456789").width / 10))
+        return max(1, self.width // cell)
 
     def title_rows(self):
         """Pixel rows at the top that the Actor's title row covers (0: none)"""
@@ -105,6 +118,12 @@ class Host:
     def control(self, name, value):
         """Change a display setting, e.g. control("power", "off")"""
 
+def fits(applet_class, width, height):
+    """Whether the applet's MIN_SIZE fits a host of the size"""
+
+    minimum_width, minimum_height = applet_class.MIN_SIZE
+    return width >= minimum_width and height >= minimum_height
+
 class Applet:
     """A source of frames.  Subclasses set "name", "fps" (frames per second
     at speed 1) and "OPTIONS" (key: type), and implement step()"""
@@ -112,6 +131,7 @@ class Applet:
     name = "base"
     fps = 30
     wants_title = False  # True: the title row is drawn over the frame
+    MIN_SIZE = (0, 0)    # the smallest host (width, height) that fits: games
     OPTIONS = {}         # option name: type, e.g. {"seed": int}
     description = ""     # one token for observers
     summary = ""         # one line for "aiko_oled applet --list"
@@ -122,7 +142,8 @@ class Applet:
         self.options = options or {}
 
     def step(self):
-        """The next frame (a 128x64 "1" PIL image), or None for no change.
+        """The next frame (a "1" PIL image: the host's size, or the fixed
+        field of MIN_SIZE that the Actor centers), or None for no change.
         Raise AppletDone when finished"""
 
         return None
@@ -135,7 +156,7 @@ class Applet:
         """The applet is being replaced: undo any settings it changed"""
 
     def frame(self):
-        """A blank frame to draw on"""
+        """A blank frame to draw on, the host's size"""
 
         return Image.new("1", (self.host.width, self.host.height))
 
@@ -336,38 +357,42 @@ class HelpApplet(Applet):
 
 # --------------------------------------------------------------------------- #
 
-def pattern_image(font):
+def pattern_image(font, width=WIDTH, height=HEIGHT):
     """The test pattern: a border on all four edges; ruler ticks every 8
     pixels (longer every 32) along the top and left; corner-to-corner
     diagonals; a circle; blocks of even rows only and odd rows only (left),
     a solid block and a 1-pixel checkerboard (right); "centre" in the middle"""
 
-    image = blank()
+    image = blank(width=width, height=height)
     draw = ImageDraw.Draw(image)
-    draw.rectangle((0, 0, WIDTH - 1, HEIGHT - 1), outline=INK)
-    for x in range(8, WIDTH, 8):
+    draw.rectangle((0, 0, width - 1, height - 1), outline=INK)
+    for x in range(8, width, 8):
         draw.line((x, 1, x, 4 if x % 32 == 0 else 2), fill=INK)
-    for y in range(8, HEIGHT, 8):
+    for y in range(8, height, 8):
         draw.line((1, y, 4 if y % 32 == 0 else 2, y), fill=INK)
-    draw.line((0, 0, WIDTH - 1, HEIGHT - 1), fill=INK)
-    draw.line((0, HEIGHT - 1, WIDTH - 1, 0), fill=INK)
-    draw.ellipse((40, 8, 87, 55), outline=INK)
+    draw.line((0, 0, width - 1, height - 1), fill=INK)
+    draw.line((0, height - 1, width - 1, 0), fill=INK)
+    cx, cy, radius = width // 2, height // 2, min(width, height) // 2 - 8
+    draw.ellipse((cx - radius, cy - radius, cx + radius - 1, cy + radius - 1),
+                 outline=INK)
     blocks = [
-        (8, 18, lambda x, y: y % 2 == 0),
-        (8, 34, lambda x, y: y % 2 == 1),
-        (104, 18, lambda x, y: True),
-        (104, 34, lambda x, y: (x + y) % 2 == 0),
+        (8, cy - 14, lambda x, y: y % 2 == 0),
+        (8, cy + 2, lambda x, y: y % 2 == 1),
+        (width - 24, cy - 14, lambda x, y: True),
+        (width - 24, cy + 2, lambda x, y: (x + y) % 2 == 0),
     ]
     for left, top, lit in blocks:
-        image.paste(pixels(lit).crop((left, top, left + 16, top + 12)), (left, top))
+        top = max(1, top)
+        image.paste(pixels(lit, width, height).crop(
+            (left, top, left + 16, top + 12)), (left, top))
     paste_centred(image, "centre", font)
     return image
 
-def digits_image(font):
+def digits_image(font, width=WIDTH, height=HEIGHT):
     """A screen full of digits: each row counts 0123456789012... across every
     column, starting one digit later than the row above"""
 
-    image = blank()
+    image = blank(width=width, height=height)
     font = font.mono()
     digits = [font.render_line(str(digit)) for digit in range(10)]
     _, top, _, bottom = font.render("0123456789").getbbox()
@@ -375,8 +400,8 @@ def digits_image(font):
               for digit in digits]
     cell = 6 if font.truetype is None else round(font.truetype.getlength("0"))
     pitch = bottom - top + 1
-    for row in range(math.ceil(HEIGHT / pitch)):
-        for column in range(math.ceil(WIDTH / cell)):
+    for row in range(math.ceil(height / pitch)):
+        for column in range(math.ceil(width / cell)):
             stamp(image, digits[(row + column) % 10], column * cell, row * pitch)
     return image
 
@@ -407,7 +432,7 @@ class PatternApplet(StillApplet):
     summary = "The test pattern for a panel"
 
     def picture(self):
-        return pattern_image(self.host.font)
+        return pattern_image(self.host.font, self.host.width, self.host.height)
 
 class TextApplet(StillApplet):
     """WORDS centred in the current font, or without words the screen full
@@ -422,7 +447,7 @@ class TextApplet(StillApplet):
 
     def picture(self):
         if not self.words:
-            return digits_image(self.host.font)
+            return digits_image(self.host.font, self.host.width, self.host.height)
         frame = self.frame()
         paste_centred(frame, " ".join(self.words), self.host.font)
         return frame
@@ -449,7 +474,7 @@ class BlinkApplet(Applet):
         if self._shown:
             return None
         self._shown = True
-        return pattern_image(self.host.font)
+        return pattern_image(self.host.font, self.host.width, self.host.height)
 
     def stop(self):
         self.host.control("power", "on")
@@ -557,7 +582,8 @@ class DemoApplet(Applet):
         while True:
             seconds, name, args, settings = next(self._steps)  # StopIteration: done
             applet_class = APPLETS.get(name)
-            if applet_class is None:
+            if applet_class is None  \
+                    or not fits(applet_class, self.host.width, self.host.height):
                 continue
             try:
                 words, options = parse_applet_args(args, applet_class.OPTIONS)

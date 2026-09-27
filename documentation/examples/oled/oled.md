@@ -448,14 +448,14 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
    ┌─────────────────────────────────────────┴────────────────────────┐
    │ OLEDImpl                                                          │
    │  _topic_in_handler: parse guard → oled: aliases → allow-list      │
-   │  wire methods ─► FrameBuffer (PIL "1" 128x64, wire coordinates)   │
-   │  _tick 30 Hz  ─► applet.step() → frame                            │
-   │  _present(frame): + title row, skip if unchanged ─► Display.show  │
+   │  wire methods ─► FrameBuffer (PIL "1", canvas size, wire coords)  │
+   │  _tick 30 Hz  ─► applet.step() → frame (centered if smaller)      │
+   │  _present(frame): + title row, skip if unchanged ─► Output.show   │
    │  settings ◄── ec_producer change handler ◄── (update K V)         │
    │  _heartbeat 1 s, _metrics_flush 2 s, _reopen 10 s                 │
    └───────────────────────────────────────────────────────────────────┘
                                              │
-                    Display: Ssd1306 (luma) | Window (pygame) | Terminal | Png | Null | Fake
+      Output + OutputControls: Ssd1306 (luma) | Window (pygame) | Terminal | Png | Null | Fake
 ```
 
 - **One thread.** All Actor state is touched only on the event-loop
@@ -464,6 +464,26 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
   `metrics.frame_ms`. The pygame window must be pumped from the main
   thread, which the event loop is. A display worker thread stays a roadmap item, to be
   added only if measurements demand it.
+- **The output seam is composed (ADR-022).** Where frames go is two
+  Interfaces in `display.py`: `Output` (open, show, close, pump,
+  add_handler, message) and `OutputControls` (contrast, invert, power,
+  all_on, set_colors). One Impl serves each backend, and `NullOutputImpl`
+  is the default Impl of both. Thus a backend that lacks a method gets a
+  no-op. `choose_output()` composes the one that `-o` names, and the
+  Actor receives it as the parameter `output`. The window's events reach
+  the Actor through `pump()` and a handler, on the event-loop thread. An
+  `Appearance` value type emulates the panel's settings for the window,
+  the terminal, the PNG file and the Dashboard mirror.
+- **Applets are portable.** An applet draws frames of its Host's size
+  (`host.width`, `host.height`, `host.depth`) and cuts text rows at
+  `host.columns()`. The games and the drawings are composed for a fixed
+  128x64 field, and they declare `MIN_SIZE`. On a wider canvas the Actor
+  centers the field. On a smaller canvas `applet` is rejected with
+  `applet_too_small`, and `applets` lists only the applets that fit.
+  Every Host call takes and returns S-expression values (tokens,
+  integers, words). Thus a sandboxed evaluator could expose the same
+  surface to applets written in LISP. That is a direction, not Epic 1
+  work.
 - **Coalescing.** A frame is shown only when its bytes changed, and at
   most once per tick. Thus a flood of `pixels` commands costs
   microseconds each and one device write.
@@ -519,7 +539,7 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
 - `--applet` takes the applet's options after commas, as the `applet`
   share key does: `--applet status,screen=wifi`.
 - The remote-X trap: a pygame window over `ssh -Y` fails with a GLX
-  error. `WindowDisplay` sets `SDL_VIDEO_X11_FORCE_EGL=1` when the X
+  error. `WindowOutputImpl` sets `SDL_VIDEO_X11_FORCE_EGL=1` when the X
   display is remote.
 
 ### CRC card
@@ -527,14 +547,15 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `Canvas`, `Screen`, `Interaction` (aspect Interfaces), `Display` (the composite, protocol `display:0`) | The wire contract: drawing, the screen's settings, what runs on the display | `OLEDImpl` |
-| `OLEDImpl` | The dispatch guard, validation, the canvas, the settings from `SETTINGS_SPEC`, the key map, timers, metrics, display failure and recovery, shutdown | `FrameBuffer`, `Display` backends, `Applet`, `keys.py`, `ECProducer`, `aiko.event` |
+| `OLEDImpl` | The dispatch guard, validation, the canvas, the settings from `SETTINGS_SPEC`, the key map, timers, metrics, output failure and recovery, applet fit and centering, shutdown | `FrameBuffer`, `Output`, `OutputControls`, `Applet`, `keys.py`, `ECProducer`, `aiko.event` |
 | `FrameBuffer` (graphics.py) | The frame buffer in wire coordinates: text, pixels, lines, the scrolling log, the title rows | `Font` |
 | `Font` | 5x7 bitmap or TrueType glyph rendering, cell metrics | Pillow |
-| `Display` and backends | Show a frame. Contrast, invert, power, all-on. Window events. Blank on close | luma.oled, pygame, the terminal, Pillow |
-| `Applet`, `Host` | A source of frames, and what it may use of the Actor | `OLEDImpl` |
+| `Output`, `OutputControls` (display.py) and the Impls `Ssd1306OutputImpl`, `WindowOutputImpl`, `TerminalOutputImpl`, `PngOutputImpl`, `NullOutputImpl` (the default), `FakeOutputImpl` | Show a frame. Contrast, invert, power, all-on, colors. Window events through `pump()`. Blank on close | luma.oled, pygame, the terminal, Pillow, `Appearance` |
+| `Appearance`, `text_lines()` (display.py) | The emulated panel: power, all-on, invert and contrast applied to a frame, the colors, the frame as half blocks or Braille | Pillow, the Dashboard page |
+| `Applet`, `Host` | A source of frames of the Host's size, or of a fixed `MIN_SIZE` field. What an applet may use of the Actor: geometry, font, settings, log lines, keys | `OLEDImpl` |
 | `status.py`: `StatusApplet`, `HISTORY`, the readers | The host and Wi-Fi screens, their text rows and charts, the sample history; the fan, signal and link readers | `Host`, psutil, `pinctrl`, `iw`, `nmcli` |
 | `LogApplet`, `HelpApplet`, `PatternApplet`, `TextApplet`, `BlinkApplet`, `DemoApplet` | The built-in applets. The demo runs the others in turn and restores the settings it changed | `Host`, `APPLETS` |
-| `games.py`: `pong`, `asteroids`, `invaders`, `forklift_work`, `ForkliftGame` | Frame generators, and the forklift game's pallet physics, counted in frames | `Host` |
+| `games.py`: `pong`, `asteroids`, `invaders`, `forklift_work`, `ForkliftGame` | Frame generators on the fixed 128x64 field, and the forklift game's pallet physics, counted in frames | `Host` |
 | `drawings.py`: `SUBJECTS`, `scene_strokes`, `sketch_frames`, `DrawApplet` | Cartoon subjects, stroke planning, the pencil sketch as a frame generator | `Host` |
 | `faces.py`: `ClockApplet`, `EyesApplet` | The clock face. The eyes' lens shapes, gaze, blinks and eased emotions | `Host` |
 | `keys.py`: `PRESETS`, `key_command`, `reset_commands`, `legend` | The key map, run on the Actor by `key()`: what each key does, and the `keys.*` legend | `OLEDImpl` |
@@ -582,9 +603,11 @@ no broker and no panel.
 - Phase 2 (done 2026-09-27): the leased frame mirror
   `(mirror TOPIC SECONDS)` on the `Screen` aspect, and the
   [Dashboard page](oled_dashboard.md).
-- Phase 3: the output seam composed as `Output` and `OutputControls`
-  Interfaces, and applets made portable through the Host contract
-  (`host.width`, `host.height`, `host.columns()`, `MIN_SIZE`).
+- Phase 3 (done 2026-09-27): the output seam composed as `Output` and
+  `OutputControls` Interfaces, and applets made portable through the
+  Host contract (`host.width`, `host.height`, `host.columns()`,
+  `MIN_SIZE`, `applet_too_small`). The canvas size is a parameter of the
+  Actor, which phase 4 sets from the panels.
 - Phase 4: one Actor for both panels as one 256x64 display
   (`-a 0x3C,0x3D`), text flowing across as on the firmware.
 - Phase 5: the 8x8 font from MicroPython, for pixel parity.

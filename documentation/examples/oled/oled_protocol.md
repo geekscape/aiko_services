@@ -160,7 +160,7 @@ is one token without spaces.
 | Screen | `fps` | Integer | R | Every 2 s |
 | Screen | `mirror_rate` | `1`..`10`, frames a second to each holder at most | RW | Written |
 | Screen | `mirrors` | Integer, the feed's holders (at most 4) | R | A feed is created, destroyed or expires |
-| Interaction | `applets` | Comma-separated names | R | Start |
+| Interaction | `applets` | Comma-separated names of the applets that fit the canvas | R | Start |
 | Interaction | `applet` | A name or `none`. When written, also `NAME,ARG,...` | RW | An applet starts or stops |
 | Interaction | `applet_detail` | A token, or `-` | R | The applet reports |
 | Interaction | `speed` | `0.1`..`10`, a decimal number | RW | Written |
@@ -198,7 +198,7 @@ as a WARNING: `NAME: METHOD rejected: REASON (DETAIL)`. The reasons:
 | `pixels` | `count` (no values, an odd count, or more than 512), `xy_not_int`, `xy_range`, `range` (a pair out of range) |
 | `key` | `name`, `state` |
 | `mirror` | `topic`, `seconds_not_int`, `seconds_range`, `full` (a fifth holder) |
-| `set` | `applet_unknown`, `applet_args`, `applet_failed`, `contrast_not_int`, `contrast_range`, `invert_not_on_off` (also `power`, `all_on`), `title_too_long`, `font_range`, `speed_not_number`, `speed_range`, `blank_after_not_int`, `blank_after_range`, `foreground_not_color`, `background_not_color`, `mirror_rate_not_int`, `mirror_rate_range` |
+| `set` | `applet_unknown`, `applet_too_small` (the canvas is smaller than the applet's `MIN_SIZE`), `applet_args`, `applet_failed`, `contrast_not_int`, `contrast_range`, `invert_not_on_off` (also `power`, `all_on`), `title_too_long`, `font_range`, `speed_not_number`, `speed_range`, `blank_after_not_int`, `blank_after_range`, `foreground_not_color`, `background_not_color`, `mirror_rate_not_int`, `mirror_rate_range` |
 | `display` | `not_found`, `failed` |
 | `tick`, `key`, `heartbeat`, `metrics`, `reopen` | The class name of the exception that a guarded timer caught, for example `tick_RuntimeError` |
 

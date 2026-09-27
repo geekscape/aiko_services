@@ -93,16 +93,16 @@ from aiko_services.main.lease import Lease
 from aiko_services.main.utilities import get_hostname, parse
 
 from aiko_services.examples.oled.applets import (
-    APPLETS, AppletDone, Host, parse_applet_args,
+    APPLETS, AppletDone, Host, fits, parse_applet_args,
 )
 from aiko_services.examples.oled import drawings, faces, games  # noqa: F401 (they register applets)
 from aiko_services.examples.oled import status as status_screens  # noqa: F401 (registers status)
 from aiko_services.examples.oled.display import (
-    ADDRESSES, OUTPUTS, DisplayNotFound, NullDisplay, choose_display,
-    parse_colors, scan_i2c,
+    ADDRESSES, OUTPUTS, DisplayNotFound, NullOutputImpl, choose_output,
+    output_args, parse_colors, scan_i2c,
 )
 from aiko_services.examples.oled.graphics import (
-    HEIGHT, WIDTH, FrameBuffer, parse_font_size, title_strip,
+    HEIGHT, WIDTH, FrameBuffer, blank, parse_font_size, title_strip,
 )
 from aiko_services.examples.oled import keys as keymap  # the emulator window's keys
 
@@ -393,6 +393,14 @@ class _Host(Host):
         self._actor = actor
 
     @property
+    def width(self):
+        return self._actor._canvas.width
+
+    @property
+    def height(self):
+        return self._actor._canvas.height
+
+    @property
     def font(self):
         return self._actor._font
 
@@ -438,18 +446,21 @@ class OLEDImpl(Display):
         context.call_init(self, "Actor", context)
         parameters = context.get_parameters() or {}
 
-        self._display = parameters.get("display") or NullDisplay()
-        self._display_ok = False
+        self._output = parameters.get("output")  \
+            or aiko.compose_instance(NullOutputImpl, output_args())
+        self._output.add_handler(self._output_event)
+        self._output_ok = False
         self._reopening = False
         self._strict = bool(parameters.get("strict", False))
         self._font = parse_font_size(parameters.get("font", "5x7"))
-        self._canvas = FrameBuffer(self._font)
+        width, height = parameters.get("size") or (WIDTH, HEIGHT)
+        self._canvas = FrameBuffer(self._font, int(width), int(height))
         colors = [str(color) for color in (parameters.get("colors") or ()) if color]
         self._start_colors = {           # what "default" means for a color
             "foreground": colors[0] if colors else DEFAULT_COLORS[0],
             "background": colors[1] if len(colors) > 1 else DEFAULT_COLORS[1],
         }
-        self._display.set_colors(*(ImageColor.getrgb(self._start_colors[key])[:3]
+        self._output.set_colors(*(ImageColor.getrgb(self._start_colors[key])[:3]
                                    for key in ("foreground", "background")))
         self._log = collections.deque(maxlen=LOG_LINES)
         self._log_total = 0
@@ -488,17 +499,17 @@ class OLEDImpl(Display):
                          for setting in SETTINGS_SPEC}
         self.share.update({
             "source_file": f"v{_VERSION}⇒ {__file__}",
-            "backend": self._display.name,
+            "backend": self._output.name,
             "device": "-",
             "panels": "-",
             "mirrors": "0",
-            "size": f"{WIDTH}x{HEIGHT}",
+            "size": f"{self._canvas.width}x{self._canvas.height}",
             "origin": "bottom",
             "depth": "1",
             "settings": ",".join(SETTINGS),
             "keys": keymap.legend(),
             "connection": _token(aiko.process.connection.get_state()),
-            "applets": ",".join(sorted(APPLETS)) or "none",
+            "applets": self._applets_that_fit(),
             "applet": "none",
             "applet_detail": "-",
             "fps": "0",
@@ -519,7 +530,7 @@ class OLEDImpl(Display):
                             "settings": self.share, "base_font": self.share["font"]}
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
-        self._open_display()
+        self._open_output()
         aiko.process.connection.add_handler(self._connection_handler)
         aiko.event.add_timer_handler(self._tick, TICK_PERIOD)
         aiko.event.add_timer_handler(self._heartbeat, HEARTBEAT_PERIOD)
@@ -527,7 +538,7 @@ class OLEDImpl(Display):
         self._present(self._canvas.image)
         if self._default_applet != "none":
             self.applet(*self._default_applet.split(","))
-        self.logger.info(f"{self.name}: display {self.share['backend']} "
+        self.logger.info(f"{self.name}: output {self.share['backend']} "
                          f"{self.share['device']}, topic {self.topic_in}")
 
     # Dispatch (event-loop thread): aliases, parse guard, allow-list -------- #
@@ -625,6 +636,8 @@ class OLEDImpl(Display):
         applet_class = APPLETS.get(name)
         if applet_class is None:
             return self._reject_setting("applet", "applet_unknown", name)
+        if not self._fits(applet_class):
+            return self._reject_setting("applet", "applet_too_small", name)
         try:
             words, options = parse_applet_args(
                 args, applet_class.OPTIONS)
@@ -779,7 +792,7 @@ class OLEDImpl(Display):
         except _Reject as reject:
             return self._reject_setting(name, reject.reason)
         if name == "contrast":
-            self._control_display("contrast", number)
+            self._control_output("contrast", number)
         elif name == "blank_after":
             self._blank_after = number
             if not number:
@@ -796,7 +809,7 @@ class OLEDImpl(Display):
         if key == "power":
             self._blanked = False
             self._last_change = time.monotonic()
-        self._control_display(key, flag)
+        self._control_output(key, flag)
         self._settle(key, "on" if flag else "off")
 
     def _set_title(self, value):
@@ -851,24 +864,41 @@ class OLEDImpl(Display):
             rgb = ImageColor.getrgb(token)[:3]
         except ValueError:
             return self._reject_setting(key, f"{key}_not_color")
-        self._control_display("set_colors", **{key: rgb})
+        self._control_output("set_colors", **{key: rgb})
         self._settle(key, token)
 
-    # The display --------------------------------------------------------- #
+    def _fits(self, applet_class):
+        """Whether the applet's MIN_SIZE, if it has one, fits the canvas"""
 
-    def _open_display(self):
+        return fits(applet_class, self._canvas.width, self._canvas.height)
+
+    def _applets_that_fit(self):
+        return ",".join(sorted(name for name, applet_class in APPLETS.items()
+                               if self._fits(applet_class))) or "none"
+
+    def _centered(self, image):
+        """A smaller frame (a game's fixed field) centered on the canvas"""
+
+        frame = blank(width=self._canvas.width, height=self._canvas.height)
+        frame.paste(image, ((frame.width - image.width) // 2,
+                            (frame.height - image.height) // 2))
+        return frame
+
+    # The output ---------------------------------------------------------- #
+
+    def _open_output(self):
         try:
-            self._display.open()
+            self._output.open()
         except DisplayNotFound as error:
             if self._strict:
                 raise
-            self.logger.warning(f"{self.name}: display {self._display.name}: {error}")
+            self.logger.warning(f"{self.name}: output {self._output.name}: {error}")
             self._note_error("display_not_found")
             self._set_device("absent")
             self._start_reopening()
             return
-        self._display_ok = True
-        self._set_device(_token(self._display.device, 48))
+        self._output_ok = True
+        self._set_device(_token(self._output.device, 48))
 
     def _set_device(self, token):
         """What is open: "device" summarizes, "panels" lists (one panel
@@ -887,37 +917,37 @@ class OLEDImpl(Display):
 
     def _try_reopen(self):
         try:
-            self._display.open()
+            self._output.open()
         except DisplayNotFound:
             return
         aiko.event.remove_timer_handler(self._reopen)
         self._reopening = False
-        self._display_ok = True
-        self._set_device(_token(self._display.device, 48))
-        self.logger.info(f"{self.name}: display {self._display.name} back")
-        self._control_display("contrast", int(self._applied["contrast"]))
+        self._output_ok = True
+        self._set_device(_token(self._output.device, 48))
+        self.logger.info(f"{self.name}: output {self._output.name} back")
+        self._control_output("contrast", int(self._applied["contrast"]))
         for key in ("invert", "power", "all_on"):
-            self._control_display(key, self._applied[key] == "on")
+            self._control_output(key, self._applied[key] == "on")
         self._refresh()
 
-    def _display_failed(self, reason):
-        self._display_ok = False
-        self.logger.error(f"{self.name}: display {self._display.name} failed: {reason}")
+    def _output_failed(self, reason):
+        self._output_ok = False
+        self.logger.error(f"{self.name}: output {self._output.name} failed: {reason}")
         self._note_error("display_failed")
         self._set_device("absent")
         try:
-            self._display.close(blank_first=False)
+            self._output.close(blank_first=False)
         except Exception:
             pass
         self._start_reopening()
 
-    def _control_display(self, name, *args, **kwargs):
-        if not self._display_ok:
+    def _control_output(self, name, *args, **kwargs):
+        if not self._output_ok:
             return
         try:
-            getattr(self._display, name)(*args, **kwargs)
+            getattr(self._output, name)(*args, **kwargs)
         except Exception as exception:
-            self._display_failed(f"{name}: {exception}")
+            self._output_failed(f"{name}: {exception}")
 
     def _title_strip(self):
         connection = self.share.get("connection", "NONE")
@@ -930,6 +960,8 @@ class OLEDImpl(Display):
     def _present(self, image):
         """Show a frame, with the title row when it applies, if it changed"""
 
+        if image.size != (self._canvas.width, self._canvas.height):
+            image = self._centered(image)
         if self._title_text and (self._applet is None
                 or self._applet.wants_title):
             image = image.copy()
@@ -940,13 +972,13 @@ class OLEDImpl(Display):
         self._last_frame = data
         self._mirror_frame(data)
         self._wake()
-        if not self._display_ok:
+        if not self._output_ok:
             return
         started = time.monotonic()
         try:
-            self._display.show(image)
+            self._output.show(image)
         except Exception as exception:
-            return self._display_failed(f"show: {exception}")
+            return self._output_failed(f"show: {exception}")
         self._metrics["frames"] += 1
         self._metrics["frame_ms"] = round((time.monotonic() - started) * 1000)
 
@@ -964,7 +996,7 @@ class OLEDImpl(Display):
         if self._blanked:
             self._blanked = False
             if self._applied.get("power") == "on":
-                self._control_display("power", True)
+                self._control_output("power", True)
 
     def _canvas_command(self):
         """A drawing command: the canvas is what the display shows"""
@@ -993,7 +1025,8 @@ class OLEDImpl(Display):
         finished = self.share.get("applet")
         self._stop_applet()
         default, *arguments = self._default_applet.split(",")
-        if default != "none" and default != finished and default in APPLETS:
+        if default != "none" and default != finished and default in APPLETS  \
+                and self._fits(APPLETS[default]):
             self.applet(default, *arguments)
         else:
             self.applet("none")
@@ -1025,11 +1058,7 @@ class OLEDImpl(Display):
     def _step(self):
         self.last_event_thread = threading.get_ident()
         now = time.monotonic()
-        for event in self._display.poll():
-            if event == "quit" or (event[0] == "tap" and event[1] in ("x", "q", "X")):
-                self.stop()                   # the window's own exit keys
-            else:
-                self.key(*reversed(event))    # (state, name) -> name, state
+        self._control_output("pump")          # the window's events, if any
         applet = self._applet
         if applet is not None and now >= self._frame_due:
             period = 1.0 / (max(applet.fps, 0.001) * self._speed)
@@ -1051,7 +1080,18 @@ class OLEDImpl(Display):
                 and self._applied.get("power") == "on"  \
                 and now - self._last_change >= self._blank_after:
             self._blanked = True
-            self._control_display("power", False)
+            self._control_output("power", False)
+
+    def _output_event(self, event):
+        """An event from the output (the emulator window), delivered by
+        pump(): "quit" and the window's own exit keys stop the Actor; every
+        other key is a key() on the display, like any client's"""
+
+        if event == "quit" or (event[0] == "tap" and event[1] in ("x", "q", "X")):
+            self.stop()
+        else:
+            state, name = event
+            self.key(name, state)
 
     def _run_key_map(self, key):
         """A key in the key map (keys.py), run here on the device so that
@@ -1129,12 +1169,12 @@ class OLEDImpl(Display):
                 pass
         aiko.process.connection.remove_handler(self._connection_handler)
         try:
-            self._display.close(blank_first=True)
+            self._output.close(blank_first=True)
         except Exception as exception:
             self.logger.warning(f"{self.name}: close: {exception}")
 
 # --------------------------------------------------------------------------- #
-# Command line: a CLI shell (ADR-022, exempt from Interface composition)
+# Command line: a CLI shell (ADR-022 category Presentation and CLI shells)
 
 def _service_filter(name):
     return aiko.ServiceFilter("*", name or get_hostname(), PROTOCOL, "*", "*", "*")
@@ -1294,20 +1334,20 @@ def run_command(options, output, address, bus, applet, font_size, title,
     name = options["name"] or get_hostname()
     if output == "terminal":  # console logging would scribble on the picture
         os.environ.setdefault("AIKO_LOG_MQTT", "true")
-    display = choose_display(output, address, bus, png)
+    backend = choose_output(output, address, bus, png)
     parameters = {
-        "display": display, "applet": applet, "font": font_size,
+        "output": backend, "applet": applet, "font": font_size,
         "title": title, "strict": strict, "colors": color,
     }
     init_args = aiko.actor_args(
         name, parameters=parameters, protocol=PROTOCOL,
-        tags=service_tags(display.name))
+        tags=service_tags(backend.name))
     signal.signal(signal.SIGTERM, lambda *_: aiko.process.terminate())
     actor = None
     try:
         actor = aiko.compose_instance(OLEDImpl, init_args)
-        display.message(f"{name}: {actor.topic_in}")
-        if display.name != "terminal":
+        backend.message(f"{name}: {actor.topic_in}")
+        if backend.name != "terminal":
             click.echo(f"OLED Actor {name}: {actor.topic_in}")
         aiko.process.run(mqtt_connection_required=not standalone)
     except DisplayNotFound as error:

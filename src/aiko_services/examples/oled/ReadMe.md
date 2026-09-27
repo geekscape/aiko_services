@@ -86,17 +86,17 @@ pytest src/aiko_services/tests/unit/test_oled.py \
        src/aiko_services/tests/unit/test_oled_applets.py
 ```
 
-104 tests; no broker and no panel needed.
+111 tests; no broker and no panel needed.
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `oled.py` | The `OLED` and `OLEDApplets` Interfaces, `OLEDImpl` and the `aiko_oled` command line |
-| `display.py` | Display backends: SSD1306 (luma.oled), pygame window, terminal, PNG, none, fake |
-| `graphics.py` | 5x7 font, image helpers, the bottom-left `Canvas`, the title row |
+| `oled.py` | The `Canvas`, `Screen` and `Interaction` aspects, the `Display` composite, `OLEDImpl` and the `aiko_oled` command line |
+| `display.py` | The output seam: `Output` and `OutputControls` Interfaces, one Impl per backend (SSD1306 with luma.oled, pygame window, terminal, PNG, none, fake), the `Appearance` emulation |
+| `graphics.py` | 5x7 font, image helpers, the bottom-left `FrameBuffer`, the title row |
 | `applets.py` | Applets: sources of frames the Actor runs — `log`, `help`, `pattern`, `text`, `blink`, `demo` |
-| `status.py` | `status`, the default: the host and Wi-Fi screens, as text or as charts of the last 128 samples |
+| `status.py` | `status`, the default: the host and Wi-Fi screens, as text or as charts of the newest samples, one per column |
 | `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` (arrow keys over the wire) |
 | `drawings.py` | `draw`: pencil-sketched cartoon scenes |
 | `faces.py` | `clock`: an analog or a digital clock face; `eyes`: animated eyes showing emotions |

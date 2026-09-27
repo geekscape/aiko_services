@@ -13,8 +13,10 @@
 #   draw [subject=NAME] [style=outline|hatch|stipple] [shade=on|off]
 #        [speed=SECONDS_PER_DRAWING] [hold=SECONDS] [count=N] [seed=N]
 #
-# Not part of the Interface composition pattern (see ADR-022): plain
-# presentation code owned by the Actor.
+# Not part of the Interface composition pattern (ADR-022 category
+# Presentation and CLI shells) — see e_10 §2.16: plain presentation code
+# owned by the Actor.  The scenes are composed for a fixed 128x64 field
+# (MIN_SIZE): a wider host shows it centered, a smaller one can't run them.
 
 import math
 import random
@@ -24,10 +26,19 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter
 from aiko_services.examples.oled.applets import (
     APPLETS, Applet, AppletDone,
 )
-from aiko_services.examples.oled.graphics import HEIGHT, INK, WIDTH, blank, pixels
+from aiko_services.examples.oled.graphics import INK, blank, pixels
+
+# The field the scenes are composed for: one 128x64 panel
+FIELD_WIDTH, FIELD_HEIGHT = FIELD = (128, 64)
+
+def field(fill=0):
+    """A blank field-sized image"""
+
+    return blank(fill, FIELD_WIDTH, FIELD_HEIGHT)
 
 __all__ = [
-    "DRAW_SECONDS", "GROUND", "STYLES", "SUBJECTS", "SUN", "DrawApplet",
+    "DRAW_SECONDS", "FIELD", "FIELD_HEIGHT", "FIELD_WIDTH", "GROUND", "STYLES",
+    "SUBJECTS", "SUN", "DrawApplet",
     "erase_frames", "oval", "place", "scene_strokes", "sketch_frames",
 ]
 
@@ -125,7 +136,7 @@ SUN = (24, [("oval", (12, 12, 5, 5)),
                         (12 + 10 * math.cos(a), 12 + 10 * math.sin(a))])
               for a in (k * math.pi / 4 for k in range(8))]])
 STYLES = ("outline", "hatch", "stipple")
-GROUND = HEIGHT - 2
+GROUND = FIELD_HEIGHT - 2
 DRAW_SECONDS = 8.0     # default time for one drawing
 SHADING_WEIGHT = 0.3   # shading strokes are drawn this much faster than outlines
 SOLID_LENGTH = 4       # a solid dot takes as long to draw as a line this long
@@ -144,7 +155,7 @@ def place(subject, left, top, flip):
     return placed
 
 def filled(points):
-    mask = blank()
+    mask = field()
     ImageDraw.Draw(mask).polygon(points, fill=INK, outline=INK)
     return mask
 
@@ -161,10 +172,10 @@ def shading_strokes(region, style, rng):
     lit = region.load()
     if style == "hatch":
         slope = rng.choice((1, -1))
-        lines = [[(c + slope * y, y) for y in range(HEIGHT) if 0 <= c + slope * y < WIDTH]
-                 for c in range(-HEIGHT, WIDTH + HEIGHT, 3)]
+        lines = [[(c + slope * y, y) for y in range(FIELD_HEIGHT) if 0 <= c + slope * y < FIELD_WIDTH]
+                 for c in range(-FIELD_HEIGHT, FIELD_WIDTH + FIELD_HEIGHT, 3)]
     else:
-        lines = [[(x, y) for x in range(WIDTH)] for y in range(0, HEIGHT, 2)]
+        lines = [[(x, y) for x in range(FIELD_WIDTH)] for y in range(0, FIELD_HEIGHT, 2)]
     strokes = []
     for cells in lines:
         run = []
@@ -183,23 +194,23 @@ def scene_strokes(shapes, style, rng):
     masks = [filled(points) if kind in ("poly", "oval") else None for kind, points in shapes]
     details = []  # eyes, whiskers etc, widened a pixel: shading keeps clear of them
     for kind, points in shapes:
-        detail = filled(points) if kind in ("dot", "blob") else blank()
+        detail = filled(points) if kind in ("dot", "blob") else field()
         if kind in ("line", "ring"):
             ImageDraw.Draw(detail).line(points, fill=INK)
         details.append(thicken(detail, 1))
     visibles = []
     for i in range(len(shapes)):
-        hidden = blank()
+        hidden = field()
         for mask in masks[i + 1:]:
             if mask:
                 hidden = ImageChops.logical_or(hidden, mask)
         visibles.append(ImageChops.invert(hidden))
     strokes = [(points, visible, kind in ("dot", "blob"), 1)
                for (kind, points), visible in zip(shapes, visibles)]
-    strokes.append(([(0, GROUND), (WIDTH - 1, GROUND)], blank(INK), False, 1))
+    strokes.append(([(0, GROUND), (FIELD_WIDTH - 1, GROUND)], field(INK), False, 1))
     if style != "outline":
-        texture = blank(INK) if style == "hatch"  \
-            else pixels(lambda x, y: x % 2 == 0 and y % 2 == 0)
+        texture = field(INK) if style == "hatch"  \
+            else pixels(lambda x, y: x % 2 == 0 and y % 2 == 0, FIELD_WIDTH, FIELD_HEIGHT)
         for i, (mask, visible) in enumerate(zip(masks, visibles)):
             if mask:
                 region = ImageChops.logical_and(thicken(mask, -1), visible)
@@ -220,9 +231,9 @@ def sketch_frames(strokes, frame_count):
     total = sum(weight * (SOLID_LENGTH if solid else sum(map(math.dist, points, points[1:])))
                 for points, _, solid, weight in strokes)
     per_frame = max(total, 1) / max(1, frame_count)
-    paper, budget = blank(), per_frame
+    paper, budget = field(), per_frame
     for points, visible, solid, weight in strokes:
-        layer = blank()
+        layer = field()
         draw = ImageDraw.Draw(layer)
         if solid:
             draw.polygon(points, fill=INK, outline=INK)
@@ -248,9 +259,9 @@ def sketch_frames(strokes, frame_count):
 def erase_frames(paper):
     """An eraser sweeping across the drawing"""
 
-    for x in range(0, WIDTH + 8, 8):
+    for x in range(0, FIELD_WIDTH + 8, 8):
         frame = paper.copy()
-        ImageDraw.Draw(frame).rectangle((0, 0, x, HEIGHT), fill=0)
+        ImageDraw.Draw(frame).rectangle((0, 0, x, FIELD_HEIGHT), fill=0)
         yield frame
 
 def scene(rng, subjects, style):
@@ -261,9 +272,9 @@ def scene(rng, subjects, style):
         shapes = place(SUBJECTS[names[0]], 2, 3, rng.random() < 0.5)  \
             + place(SUBJECTS[names[1]], 66, 3, rng.random() < 0.5)
     else:
-        left = rng.randint(4, WIDTH - 64)
+        left = rng.randint(4, FIELD_WIDTH - 64)
         shapes = place(SUBJECTS[names[0]], left, 3, rng.random() < 0.5)
-        gap_left, gap_right = left, WIDTH - left - 60
+        gap_left, gap_right = left, FIELD_WIDTH - left - 60
         if max(gap_left, gap_right) >= 28:
             sun_left = (gap_left - 24) // 2 if gap_left > gap_right  \
                 else left + 60 + (gap_right - 24) // 2
@@ -292,6 +303,7 @@ class DrawApplet(Applet):
     "hold" seconds, erase, and draw the next; "count" drawings (0: for ever)"""
 
     name = "draw"
+    MIN_SIZE = FIELD
     fps = 20
     summary = "Pencil-sketched cartoon scenes, drawn a little at a time"
     OPTIONS = {"subject": _subject, "style": _style, "shade": _on_off, "speed": float,

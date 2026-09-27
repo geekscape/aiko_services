@@ -59,7 +59,8 @@ is built, and again after a resize:
 | At least 80x24 | Braille: 16 rows of 64 columns, beside a column of twelve keys | The twelve keys of the console's status line | One row | The rest |
 | Smaller | A line says the terminal is too small (80x24) | Eight rows | One row | The rest |
 
-The mirror applies the panel's emulation as the terminal backend does:
+The mirror applies the panel's emulation, the same `Appearance` the
+terminal output uses:
 `power` off shows dark glass, `all_on` lights every pixel, `invert` swaps
 lit and unlit, `contrast` dims the foreground, and `foreground` and
 `background` color it. A terminal with 256 colors shows the colors. One
@@ -139,7 +140,8 @@ Dashboard process, TUI thread:         DisplayFrame._update() ─► DisplayPage
 - **Pure parts.** `DisplayPage` (what a key does, the feed status, the
   error flash) and `render_mirror()` (the rows and colors) have no
   asciimatics in them, so the unit tests run without a screen. The
-  renderer is the terminal backend's own, unopened.
+  renderer is the `Appearance` value type and `text_lines()` from
+  `display.py`, shared with the terminal output.
 
 ### Implementation notes
 
@@ -160,7 +162,7 @@ Dashboard process, TUI thread:         DisplayFrame._update() ─► DisplayPage
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `DisplayPage` | The page's model: what a key does, the aliases, arrow coalescing, the feed status, the error flash, the rendered rows | `render_mirror` |
-| `render_mirror` | Rows of text and colors from a frame and the shared state | `TerminalDisplay` (unopened), `xterm_color` |
+| `render_mirror` | Rows of text and colors from a frame and the shared state | `Appearance`, `text_lines`, `xterm_color` |
 | `MirrorWidget` | Prints the rows on the page's canvas | `DisplayPage` |
 | `DisplayFrame` | The page: layouts, the Service's start and stop, the feed lease, the keys, the pop-ups, the state table, the log | `ServiceFrame`, `LogUI`, `LogLevelPopupMenu`, the `Canvas`, `Screen`, `Interaction` and `Display` proxies |
 

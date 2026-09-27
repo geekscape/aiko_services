@@ -47,7 +47,9 @@ sections are.
   run on the display: games, a forklift, pencil drawings, a clock face,
   animated eyes and a demo tour.
   Without the panel, a desktop window, the terminal or a PNG file emulates
-  it.  See *documentation/examples/oled/ReadMe.md*, which has a
+  it.  The outputs are composed *Output* and *OutputControls* Interfaces
+  with one Impl per backend.  The applets are portable across canvas
+  sizes.  See *documentation/examples/oled/ReadMe.md*, which has a
   step-by-step test guide
 
 * Classes may now omit the *__init__()* method entirely when they need no
@@ -194,11 +196,12 @@ remote callers are unaffected.  For Python code:
   These tests skip when OpenCV is absent, because *video_io.py* needs
   *cv2* at import time
 
-* New *test_oled.py*, *test_oled_cli.py* and *test_oled_applets.py* and *test_oled_dashboard_plugin.py*: 104
+* New *test_oled.py*, *test_oled_cli.py*, *test_oled_applets.py* and *test_oled_dashboard_plugin.py*: 111
   tests for the OLED display Actor example.  They cover graphics, the
-  display backends, dispatch and validation, the settings, the command
-  line and the applets.  A fake display stands in for the panel, so no
-  broker and no panel are needed
+  composed outputs, dispatch and validation, the settings and the mirror.
+  They also cover the command line, the applets at three canvas sizes and
+  the Dashboard page.  A fake output stands in for the panel, so no broker
+  and no panel are needed
 
 ### Bug Fixes
 

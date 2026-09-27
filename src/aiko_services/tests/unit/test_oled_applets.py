@@ -20,7 +20,7 @@ from aiko_services.examples.oled.applets import (
     APPLETS, Applet, HelpApplet, Host,
     per_second,
 )
-from aiko_services.examples.oled.display import FakeDisplay
+from aiko_services.examples.oled.display import fake_output
 from aiko_services.examples.oled.graphics import HEIGHT, WIDTH, Font
 from aiko_services.examples.oled import status as status_module
 from aiko_services.examples.oled.status import (
@@ -56,8 +56,8 @@ class FakePsutil:
         return SimpleNamespace(percent=61.0)
 
 class StubHost(Host):
-    def __init__(self, title_rows=8, lines=None):
-        super().__init__(Font("5x7"))
+    def __init__(self, title_rows=8, lines=None, **geometry):
+        super().__init__(Font("5x7"), **geometry)
         self._title_rows = title_rows
         self._lines = lines or []
         self.seen = 0
@@ -198,9 +198,9 @@ def test_status_charts(monkeypatch):
         StatusApplet(host, options={"screen": "wifi", "view": "cpu_mem"})
     with pytest.raises(ValueError):
         parse_applet_args(["screen=moon"], StatusApplet.OPTIONS)
-    for _ in range(130):
+    for _ in range(300):
         HISTORY["cpu"].append(1.0)
-    assert len(HISTORY["cpu"]) == 128                    # bounded
+    assert len(HISTORY["cpu"]) == 256                    # bounded
 
 def test_status_parsers():
     link = parse_iw(IW_LINK, IW_INFO)
@@ -251,8 +251,8 @@ def test_write_lines_drops_what_does_not_fit():
 # The Actor with the status applet, and the no-blocking proof
 
 def make_actor(**parameters):
-    display = parameters.pop("display", None) or FakeDisplay()
-    parameters = {"display": display, **parameters}
+    display = parameters.pop("output", None) or fake_output()
+    parameters = {"output": display, **parameters}
     name = f"oled_status_{next(_counter)}"
     actor = aiko.compose_instance(OLEDImpl,
         aiko.actor_args(name, parameters=parameters, protocol=PROTOCOL))
@@ -306,8 +306,8 @@ def test_slow_display_does_not_block_the_event_loop(monkeypatch):
     posted from another thread is applied within 100 ms"""
 
     monkeypatch.setitem(applets.APPLETS, "bouncer", Bouncer)
-    display = FakeDisplay(show_delay=0.025)
-    actor, _ = make_actor(display=display, applet="bouncer", title="off")
+    display = fake_output(show_delay=0.025)
+    actor, _ = make_actor(output=display, applet="bouncer", title="off")
     results = {}
 
     def poster():
@@ -608,3 +608,39 @@ def test_eyes_are_deterministic_and_emotional():
 
 def lit_count(image):
     return sum(1 for y in range(image.height) for x in range(image.width) if image.getpixel((x, y)))
+
+# --------------------------------------------------------------------------- #
+# Portability: every applet on a 128x64, a 128x32 and a 256x64 host
+
+@pytest.mark.parametrize("size", [(128, 64), (128, 32), (256, 64)])
+def test_every_applet_runs_at_every_size(size, monkeypatch):
+    monkeypatch.setattr(applets, "ip_address", lambda: "10.0.0.2")
+    width, height = size
+    host = StubHost(title_rows=8, width=width, height=height)
+    assert host.columns() == width // 6
+    ran = []
+    for name, applet_class in sorted(APPLETS.items()):
+        minimum_width, minimum_height = applet_class.MIN_SIZE
+        if width < minimum_width or height < minimum_height:
+            assert applet_class.MIN_SIZE == (128, 64), name  # only the fixed-field ones
+            continue
+        options = {"seed": 1} if "seed" in applet_class.OPTIONS else {}
+        applet = applet_class(host, options=options)
+        for _ in range(3):
+            try:
+                frame = applet.step()
+            except AppletDone:
+                break
+            if frame is not None:
+                assert frame.width <= width and frame.height <= height, name
+                if applet_class.MIN_SIZE == (0, 0):
+                    assert frame.size == size, name         # fills the host
+                else:
+                    assert frame.size == (128, 64), name    # the fixed field
+        applet.stop()
+        ran.append(name)
+    assert {"status", "text", "pattern", "clock", "help"} <= set(ran)
+    if size == (128, 32):
+        assert "pong" not in ran
+    else:
+        assert {"pong", "draw", "forklift_game"} <= set(ran)

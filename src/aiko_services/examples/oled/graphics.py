@@ -11,7 +11,8 @@
 # only place the two meet is FrameBuffer._device_y().  Applets draw PIL
 # frames directly and never use the FrameBuffer.
 #
-# Not part of the Interface composition pattern (see ADR-022): pure
+# Not part of the Interface composition pattern (ADR-022 category
+# Value and data types) — see e_10 §2.16: pure
 # presentation helpers, no Service state.
 #
 # To Do

@@ -12,7 +12,7 @@ from aiko_services.main.utilities import get_hostname
 
 from aiko_services.examples.oled import PROTOCOL, SETTINGS, WIRE_COMMANDS
 from aiko_services.examples.oled import oled as oled_module
-from aiko_services.examples.oled.display import FakeDisplay
+from aiko_services.examples.oled.display import fake_output
 from aiko_services.examples.oled.oled import _service_filter, main
 
 SUBCOMMANDS = ("run", "exit", "list", "clear", "log", "text", "pixels", "line",
@@ -145,8 +145,8 @@ def test_set_publishes_an_update_on_the_control_topic(monkeypatch):
         assert invoke("set", key, "1").exit_code == 0
 
 def test_run_composes_the_actor_and_blanks_on_exit(monkeypatch):
-    display = FakeDisplay()
-    monkeypatch.setattr(oled_module, "choose_display", lambda *args: display)
+    display = fake_output()
+    monkeypatch.setattr(oled_module, "choose_output", lambda *args: display)
     monkeypatch.setattr(aiko.process, "run",
         lambda *args, **kwargs: (_ for _ in ()).throw(SystemExit(0)))
     result = invoke("-n", "oled_cli_test", "run", "-o", "none", "--standalone",
@@ -156,12 +156,12 @@ def test_run_composes_the_actor_and_blanks_on_exit(monkeypatch):
     assert display.opened and display.closed and display.blanked
 
 def test_run_strict_reports_a_missing_display(monkeypatch):
-    display = FakeDisplay(fail_open=True)
-    monkeypatch.setattr(oled_module, "choose_display", lambda *args: display)
+    display = fake_output(fail_open=True)
+    monkeypatch.setattr(oled_module, "choose_output", lambda *args: display)
     monkeypatch.setattr(oled_module, "scan_i2c", lambda *args: [0x3D])
     result = invoke("-n", "oled_cli_strict", "run", "-o", "none", "--strict")
     assert result.exit_code == 1
-    assert "fake display told to fail" in result.output
+    assert "fake output told to fail" in result.output
     assert "0x3D" in result.output
 
 # --------------------------------------------------------------------------- #

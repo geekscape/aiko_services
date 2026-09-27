@@ -27,7 +27,8 @@
 # The console runs on the Aiko Services event loop: the keyboard is polled
 # by a timer (no thread), and the Actor is found by discovery.
 #
-# Not part of the Interface composition pattern (see ADR-022): a CLI shell.
+# Not part of the Interface composition pattern (ADR-022 category
+# Presentation and CLI shells) — see e_10 §2.16: a CLI shell.
 
 import os
 import re

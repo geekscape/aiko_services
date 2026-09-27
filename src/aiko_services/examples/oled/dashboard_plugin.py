@@ -49,7 +49,7 @@ import aiko_services as aiko
 from aiko_services.main.connection import ConnectionState
 from aiko_services.main.dashboard import LogLevelPopupMenu, LogUI, ServiceFrame
 
-from aiko_services.examples.oled.display import TerminalDisplay, xterm_color
+from aiko_services.examples.oled.display import Appearance, text_lines, xterm_color
 from aiko_services.examples.oled.oled import (
     Canvas, Display, Interaction, SETTINGS, SETTINGS_BY_NAME, Screen,
 )
@@ -92,12 +92,10 @@ def render_mirror(frame_bytes, size, cache, blocks, colours):
 
     width, height = size
     image = Image.frombytes("1", (width, height), frame_bytes)
-    emulation = TerminalDisplay()                # never opened: a renderer
-    emulation.blocks = blocks
-    emulation.frame = image
-    emulation.powered = cache.get("power", "on") != "off"
-    emulation.all_lit = cache.get("all_on", "off") == "on"
-    emulation.inverted = cache.get("invert", "off") == "on"
+    emulation = Appearance(                      # the panel's settings, emulated
+        powered=cache.get("power", "on") != "off",
+        all_lit=cache.get("all_on", "off") == "on",
+        inverted=cache.get("invert", "off") == "on")
     try:
         emulation.brightness = max(0, min(255, int(cache.get("contrast", "255"))))
     except ValueError:
@@ -108,7 +106,7 @@ def render_mirror(frame_bytes, size, cache, blocks, colours):
                 if name == "foreground" else "black"))[:3])
         except ValueError:
             pass
-    rows = emulation.lines(emulation.appearance())
+    rows = text_lines(emulation.apply(image), blocks)
     if colours >= 256:
         colour, background = xterm_color(emulation.lit_color()), xterm_color(emulation.background)
         attribute = AsciimaticsScreen.A_NORMAL

@@ -31,7 +31,8 @@
 # History (P9): 128 samples per value, module level, kept while the process
 # lives, so that switching views keeps the chart.
 #
-# Not part of the Interface composition pattern (see ADR-022): plain
+# Not part of the Interface composition pattern (ADR-022 category
+# Presentation and CLI shells) — see e_10 §2.16: plain
 # presentation classes owned by the Actor.
 
 import collections
@@ -51,7 +52,7 @@ from PIL import ImageDraw
 from aiko_services.examples.oled.applets import (
     APPLETS, Applet, ip_address, on_off, per_second,
 )
-from aiko_services.examples.oled.graphics import INK, WIDTH, Font, stamp
+from aiko_services.examples.oled.graphics import INK, Font, stamp
 
 __all__ = ["HISTORY", "STATUS_SCREENS", "STATUS_VIEWS", "StatusApplet",
            "fan_state", "parse_iw", "parse_nmcli", "parse_wireless",
@@ -60,7 +61,7 @@ __all__ = ["HISTORY", "STATUS_SCREENS", "STATUS_VIEWS", "StatusApplet",
 STATUS_SCREENS = ("host", "wifi")
 STATUS_VIEWS = {"host": ("text", "cpu_mem", "rx_tx"),
                 "wifi": ("text", "rssi", "rx_tx")}
-HISTORY_LENGTH = WIDTH                 # one sample per column
+HISTORY_LENGTH = 256                   # samples: one per column, hosts to 256 wide
 HISTORY = {name: collections.deque(maxlen=HISTORY_LENGTH)
            for name in ("cpu", "mem", "rx", "tx", "rssi", "wrx", "wtx")}
 FAN_GPIO = 14
@@ -248,6 +249,7 @@ def draw_chart(frame, top, series, low, high):
         return bottom - round(max(0.0, min(1.0, fraction)) * span)
 
     for values, style in series:
+        values = list(values)[-frame.width:]   # the newest columns that fit
         points = [(frame.width - len(values) + i, y_of(value))
                   for i, value in enumerate(values)]
         if style == "dotted":
@@ -412,9 +414,10 @@ class StatusApplet(Applet):
         clock = datetime.now()
         temperature = self._temperature()
         titled = bool(self.host.title_rows())
+        columns = self.host.columns()
         lines = []
         if not titled:
-            lines.append(f"{self.host.name} {self.host.connection()}"[:21])
+            lines.append(f"{self.host.name} {self.host.connection()}"[:columns])
         lines.append(f"IP {ip_address()}")
         if self.options.get("date"):
             lines.append(f"{clock:%a %d %b %Y}")
@@ -437,9 +440,10 @@ class StatusApplet(Applet):
     def wifi_lines(self, reading):
         signal, details = reading["signal"], reading["details"]
         titled = bool(self.host.title_rows())
+        columns = self.host.columns()
         lines = []
         if not titled:
-            lines.append(f"{self.host.name} {self.host.connection()}"[:21])
+            lines.append(f"{self.host.name} {self.host.connection()}"[:columns])
         if signal is None:
             lines += ["Wi-Fi: none",
                       "no wireless interface" if sys.platform.startswith("linux")
@@ -448,19 +452,19 @@ class StatusApplet(Applet):
         interface, quality, rssi = signal
         _, _, wrx, wtx = self._rates
         ssid = details.get("ssid") or "?"
-        lines.append(f"SSID {ssid}"[:21])
+        lines.append(f"SSID {ssid}"[:columns])
         if details.get("channel"):
             lines.append(f"Ch {details['channel']} {details['band']} "
-                         f"BW {details['bandwidth'] or '-'}"[:21])
-        lines.append(f"RSSI {rssi:d}dBm Q {quality}/70"[:21])
+                         f"BW {details['bandwidth'] or '-'}"[:columns])
+        lines.append(f"RSSI {rssi:d}dBm Q {quality}/70"[:columns])
         if "tx_rate" in details:
-            lines.append(f"Tx {details['tx_rate']:.0f} Rx {details.get('rx_rate', 0):.0f} Mb/s"[:21])
+            lines.append(f"Tx {details['tx_rate']:.0f} Rx {details.get('rx_rate', 0):.0f} Mb/s"[:columns])
         elif details.get("rate"):
-            lines.append(f"Rate {details['rate']} Sig {details['signal']}%"[:21])
+            lines.append(f"Rate {details['rate']} Sig {details['signal']}%"[:columns])
         if details.get("bssid"):
-            lines.append(f"AP {details['bssid']}"[:21])
+            lines.append(f"AP {details['bssid']}"[:columns])
         lines.append(f"R {per_second(wrx)} T {per_second(wtx)}")
-        lines.append(f"IF {interface}"[:21])
+        lines.append(f"IF {interface}"[:columns])
         return lines
 
     # Frames ----------------------------------------------------------- #

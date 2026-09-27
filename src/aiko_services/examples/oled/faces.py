@@ -19,7 +19,8 @@
 #                                   eyes with iris, pupil, lids, brows and
 #                                   smile lines; the emotion changes at random
 #
-# Not part of the Interface composition pattern (see ADR-022): plain
+# Not part of the Interface composition pattern (ADR-022 category
+# Presentation and CLI shells) — see e_10 §2.16: plain
 # presentation classes owned by the Actor.
 
 from datetime import datetime

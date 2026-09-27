@@ -15,8 +15,10 @@
 #   forklift [duration=0] [seed=N]            the forklift at work; 0: for ever
 #   forklift_game [seed=N]                    keys: left right up down
 #
-# Not part of the Interface composition pattern (see ADR-022): plain
-# presentation classes owned by the Actor.
+# Not part of the Interface composition pattern (ADR-022 category
+# Presentation and CLI shells) — see e_10 §2.16: plain presentation
+# classes owned by the Actor.  The games play on the drawings' fixed
+# 128x64 field (MIN_SIZE): centered on a wider host, refused by a smaller.
 
 import math
 
@@ -25,10 +27,10 @@ from PIL import Image, ImageDraw
 from aiko_services.examples.oled.applets import (
     APPLETS, Applet, AppletDone,
 )
-from aiko_services.examples.oled.drawings import GROUND, SUBJECTS, oval
-from aiko_services.examples.oled.graphics import (
-    HEIGHT, INK, WIDTH, blank, sprite, stamp,
+from aiko_services.examples.oled.drawings import (
+    FIELD, FIELD_HEIGHT, FIELD_WIDTH, GROUND, SUBJECTS, field, oval,
 )
+from aiko_services.examples.oled.graphics import INK, sprite, stamp
 
 __all__ = [
     "GAMES", "AsteroidsApplet", "ForkliftApplet", "ForkliftGame",
@@ -41,12 +43,12 @@ __all__ = [
 def pong(rng, host):
     """Two computer players, each of which misjudges the ball now and then"""
 
-    paddle_height, xs = 12, (2, WIDTH - 4)
+    paddle_height, xs = 12, (2, FIELD_WIDTH - 4)
     faces = (xs[0] + 2, xs[1] - 2)  # ball x (its left edge) at each paddle
     paddles, aims, scores = [26.0, 26.0], [0.0, 0.0], [0, 0]
 
     def serve(direction):
-        return [WIDTH / 2, rng.uniform(16, 48)], [direction * 4.8, rng.uniform(-3, 3)]
+        return [FIELD_WIDTH / 2, rng.uniform(16, 48)], [direction * 4.8, rng.uniform(-3, 3)]
 
     ball, velocity = serve(rng.choice((-1, 1)))
     while True:
@@ -54,18 +56,18 @@ def pong(rng, host):
             coming = (velocity[0] < 0) == (side == 0)
             # Where the ball will reach this paddle, allowing for bounces
             bounce = (ball[1] + velocity[1] * (faces[side] - ball[0]) / velocity[0])  \
-                % (2 * (HEIGHT - 2))
-            arrival = min(bounce, 2 * (HEIGHT - 2) - bounce)
+                % (2 * (FIELD_HEIGHT - 2))
+            arrival = min(bounce, 2 * (FIELD_HEIGHT - 2) - bounce)
             target = arrival + 1 + aims[side] - paddle_height / 2 if coming  \
-                else (HEIGHT - paddle_height) / 2
+                else (FIELD_HEIGHT - paddle_height) / 2
             paddles[side] += max(-3.6, min(3.6, target - paddles[side]))
-            paddles[side] = max(0.0, min(HEIGHT - paddle_height, paddles[side]))
+            paddles[side] = max(0.0, min(FIELD_HEIGHT - paddle_height, paddles[side]))
         previous_x = ball[0]
         ball[0] += velocity[0]
         ball[1] += velocity[1]
-        if not 0 <= ball[1] <= HEIGHT - 2:
+        if not 0 <= ball[1] <= FIELD_HEIGHT - 2:
             velocity[1] = -velocity[1]
-            ball[1] = max(0.0, min(HEIGHT - 2, ball[1]))
+            ball[1] = max(0.0, min(FIELD_HEIGHT - 2, ball[1]))
         for side, face in enumerate(faces):
             crossed = (previous_x - face) * (ball[0] - face) <= 0
             if (velocity[0] < 0) == (side == 0) and crossed  \
@@ -75,19 +77,19 @@ def pong(rng, host):
                 velocity[1] = max(-6.0, min(6.0, velocity[1]
                     + 3 * (ball[1] + 1 - paddles[side] - paddle_height / 2) / 4))
                 aims[1 - side] = rng.uniform(-8, 8)
-        if not -2 <= ball[0] <= WIDTH:
+        if not -2 <= ball[0] <= FIELD_WIDTH:
             scores[ball[0] < 0] += 1
             ball, velocity = serve(1 if ball[0] < 0 else -1)
-        image = blank()
+        image = field()
         draw = ImageDraw.Draw(image)
-        for y in range(0, HEIGHT, 4):
-            draw.line((WIDTH // 2 - 1, y, WIDTH // 2 - 1, y + 1), fill=INK)
+        for y in range(0, FIELD_HEIGHT, 4):
+            draw.line((FIELD_WIDTH // 2 - 1, y, FIELD_WIDTH // 2 - 1, y + 1), fill=INK)
         for side, x in enumerate(xs):
             draw.rectangle((x, round(paddles[side]), x + 1,
                 round(paddles[side]) + paddle_height - 1), fill=INK)
             label = host.font.render_line(str(scores[side]))
             stamp(image, label,
-                WIDTH // 2 - 8 - label.width if side == 0 else WIDTH // 2 + 6, 1)
+                FIELD_WIDTH // 2 - 8 - label.width if side == 0 else FIELD_WIDTH // 2 + 6, 1)
         draw.rectangle((round(ball[0]), round(ball[1]),
             round(ball[0]) + 1, round(ball[1]) + 1), fill=INK)
         yield image
@@ -95,7 +97,7 @@ def pong(rng, host):
 def asteroids(rng, host):
     """A ship turns, aims and fires at the nearest rock; big rocks split"""
 
-    cx, cy = WIDTH / 2, HEIGHT / 2
+    cx, cy = FIELD_WIDTH / 2, FIELD_HEIGHT / 2
     points_for = {9: 20, 5: 50, 3: 100}
     angle, cooldown, respawn, score, lives = 0.0, 0, 0, 0, 3
     bullets, sparks = [], []
@@ -116,11 +118,11 @@ def asteroids(rng, host):
     rocks = []
     while True:
         if not rocks:
-            rocks = [rock(rng.choice((0, WIDTH - 1)), rng.uniform(0, HEIGHT), 9)
+            rocks = [rock(rng.choice((0, FIELD_WIDTH - 1)), rng.uniform(0, FIELD_HEIGHT), 9)
                      for _ in range(4)]
         for r in rocks:
-            r["x"] = (r["x"] + r["vx"]) % WIDTH
-            r["y"] = (r["y"] + r["vy"]) % HEIGHT
+            r["x"] = (r["x"] + r["vx"]) % FIELD_WIDTH
+            r["y"] = (r["y"] + r["vy"]) % FIELD_HEIGHT
             r["turn"] += r["spin"]
         if respawn:
             respawn -= 1
@@ -137,8 +139,8 @@ def asteroids(rng, host):
                     3 * math.cos(angle), 3 * math.sin(angle), 30])
                 cooldown = 7
         for bullet in bullets:
-            bullet[0] = (bullet[0] + bullet[2]) % WIDTH
-            bullet[1] = (bullet[1] + bullet[3]) % HEIGHT
+            bullet[0] = (bullet[0] + bullet[2]) % FIELD_WIDTH
+            bullet[1] = (bullet[1] + bullet[3]) % FIELD_HEIGHT
             bullet[4] -= 1
         for bullet in list(bullets):
             hit = next((r for r in rocks
@@ -165,7 +167,7 @@ def asteroids(rng, host):
             spark[1] += spark[3]
             spark[4] -= 1
         sparks = [spark for spark in sparks if spark[4] > 0]
-        image = blank()
+        image = field()
         draw = ImageDraw.Draw(image)
         for r in rocks:
             draw.polygon([(r["x"] + r["r"] * m * math.cos(r["turn"] + 2 * math.pi * k / 9),
@@ -180,7 +182,7 @@ def asteroids(rng, host):
             draw.point((x, y), fill=INK)
         stamp(image, host.font.render_line(str(score)), 1, 1)
         for i in range(lives):
-            x = WIDTH - 5 - 6 * i
+            x = FIELD_WIDTH - 5 - 6 * i
             draw.polygon([(x, 1), (x - 2, 6), (x + 2, 6)], outline=INK)
         yield image
 
@@ -202,13 +204,13 @@ def invaders(rng, host):
     """Marching invaders, a cannon that picks them off, bombs, crumbling
     bunkers and a passing saucer"""
 
-    cannon_y, bunker_y = HEIGHT - 6, HEIGHT - 17
+    cannon_y, bunker_y = FIELD_HEIGHT - 6, FIELD_HEIGHT - 17
     score = 0
     while True:
         alive = {(row, column) for row in range(3) for column in range(8)}
         score_height = host.font.line_height + 2
         grid_x, grid_y, direction, tick, pose = 10.0, score_height + 6.0, 1, 0, 0
-        bunkers = blank()
+        bunkers = field()
         for x in (18, 58, 98):
             stamp(bunkers, BUNKER, x, bunker_y)
         cannon_x, cannon_hit, target, shot, saucer = 60.0, 0, None, None, None
@@ -222,7 +224,7 @@ def invaders(rng, host):
             if tick >= 2 + len(alive) // 3:  # the fewer left, the faster they march
                 tick, pose = 0, 1 - pose
                 xs = [position(*invader)[0] for invader in alive]
-                if min(xs) + 2 * direction < 1 or max(xs) + 8 + 2 * direction > WIDTH - 1:
+                if min(xs) + 2 * direction < 1 or max(xs) + 8 + 2 * direction > FIELD_WIDTH - 1:
                     grid_y, direction = grid_y + 2, -direction
                 else:
                     grid_x += 2 * direction
@@ -266,7 +268,7 @@ def invaders(rng, host):
             for bomb in list(bombs):
                 bomb[1] += 1.2
                 x, y = round(bomb[0]), round(bomb[1])
-                if y >= HEIGHT - 1:
+                if y >= FIELD_HEIGHT - 1:
                     bombs.remove(bomb)
                 elif bunkers.getpixel((x, y)):
                     ImageDraw.Draw(bunkers).rectangle((x - 1, y, x + 1, y + 2), fill=0)
@@ -276,10 +278,10 @@ def invaders(rng, host):
                     bombs.remove(bomb)
                     cannon_hit = 40
             if saucer is None and rng.random() < 0.004:
-                saucer = [-8.0, 0.8] if rng.random() < 0.5 else [float(WIDTH), -0.8]
+                saucer = [-8.0, 0.8] if rng.random() < 0.5 else [float(FIELD_WIDTH), -0.8]
             if saucer:
                 saucer[0] += saucer[1]
-                if not -8 <= saucer[0] <= WIDTH:
+                if not -8 <= saucer[0] <= FIELD_WIDTH:
                     saucer = None
             for blast in blasts:
                 blast[2] -= 1
@@ -298,7 +300,7 @@ def invaders(rng, host):
                 stamp(image, SAUCER, saucer[0], score_height)
             for x, y, _ in blasts:
                 stamp(image, BLAST, x, y)
-            draw.line((0, HEIGHT - 1, WIDTH - 1, HEIGHT - 1), fill=INK)
+            draw.line((0, FIELD_HEIGHT - 1, FIELD_WIDTH - 1, FIELD_HEIGHT - 1), fill=INK)
             stamp(image, host.font.render_line(f"SCORE {score}"), 0, 0)
             yield image
 
@@ -381,9 +383,9 @@ def draw_warehouse(x, forks, pallet, pieces=()):
     """The ground, racking bay, forklift and pallet (if any), and the pieces
     of a broken pallet"""
 
-    image = blank()
+    image = field()
     draw = ImageDraw.Draw(image)
-    draw.line((0, GROUND, WIDTH - 1, GROUND), fill=INK)
+    draw.line((0, GROUND, FIELD_WIDTH - 1, GROUND), fill=INK)
     for post in (RACK_X, RACK_X + RACK_WIDTH):
         draw.line((post, RACK_TOP, post, GROUND - 1), fill=INK)
     for row in (RACK_TOP, *BEAMS.values()):
@@ -422,7 +424,7 @@ def forklift_work(rng, host):
         if mirrored:
             image = image.transpose(Image.FLIP_LEFT_RIGHT)
         label = host.font.render_line(f"Moves {state['moves']}")
-        stamp(image, label, WIDTH - label.width - 1 if mirrored else 1, 0)
+        stamp(image, label, FIELD_WIDTH - label.width - 1 if mirrored else 1, 0)
         return image
 
     def go(key, target, speed):
@@ -681,6 +683,8 @@ class GeneratorApplet(Applet):
     """An applet whose frames come from a generator function
     generator(rng, host); "seed=" repeats the same play"""
 
+    MIN_SIZE = FIELD
+
     fps = 30
     OPTIONS = {"seed": int}
     generator = None
@@ -719,6 +723,7 @@ class GamesApplet(Applet):
     """The three games in turn, "duration" seconds each"""
 
     name = "games"
+    MIN_SIZE = FIELD
     fps = 30
     OPTIONS = {"seed": int, "duration": float}
     summary = "Pong, asteroids and invaders in turn"
@@ -771,6 +776,7 @@ class ForkliftGameApplet(Applet):
     """The forklift game, driven by (key left|right|up|down)"""
 
     name = "forklift_game"
+    MIN_SIZE = FIELD
     fps = 30
     OPTIONS = {"seed": int}
     description = "forklift_game"

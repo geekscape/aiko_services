@@ -50,9 +50,9 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 
 | File | Purpose |
 |------|---------|
-| `oled.py` | The Interfaces `OLED` and `OLEDApplets`, `OLEDImpl`, and the `aiko_oled` command line |
-| `display.py` | The display backends: SSD1306 over I2C (luma.oled), pygame window, terminal, PNG file, none, fake |
-| `graphics.py` | The 5x7 font, image helpers, the bottom-left `Canvas`, the title row |
+| `oled.py` | The `Canvas`, `Screen` and `Interaction` aspects, the `Display` composite, `OLEDImpl`, and the `aiko_oled` command line |
+| `display.py` | The output seam: the `Output` and `OutputControls` Interfaces, one Impl per backend (SSD1306 over I2C with luma.oled, pygame window, terminal, PNG file, none, fake), and the `Appearance` emulation |
+| `graphics.py` | The 5x7 font, image helpers, the bottom-left `FrameBuffer`, the title row |
 | `applets.py` | The `Applet` base class and registry: `log`, `help`, `pattern`, `text`, `blink`, `demo` |
 | `status.py` | `status`, the default: the host and Wi-Fi screens as text or charts, the sample history, the fan, signal and link readers (`pinctrl`, `iw`, `nmcli`) |
 | `games.py` | `pong`, `asteroids`, `invaders`, `games`, `forklift`, `forklift_game` |
@@ -63,7 +63,7 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 | `dashboard_plugin.py` | The Dashboard page: `aiko_dashboard -p aiko_services.examples.oled.dashboard_plugin` |
 | `aiko_oled.service` | A systemd unit for a Linux SBC: the display comes up with the host |
 | `oled_test.py` | The original standalone spike, kept unchanged for reference. No module imports it |
-| `tests/unit/test_oled.py`, `test_oled_cli.py`, `test_oled_applets.py`, `test_oled_dashboard_plugin.py` | 104 unit tests: graphics, displays, the Actor, dispatch, settings, the mirror, the command line, the applets, the Dashboard page. No broker, no panel and no screen needed |
+| `tests/unit/test_oled.py`, `test_oled_cli.py`, `test_oled_applets.py`, `test_oled_dashboard_plugin.py` | 111 unit tests: graphics, the outputs, the Actor, dispatch, settings, the mirror, the command line, the applets at three canvas sizes, the Dashboard page. No broker, no panel and no screen needed |
 
 ## Status
 
@@ -72,10 +72,10 @@ display, the settings, the applets, the console, the tests and these
 documents. Epic 1 is in progress: phase 1 (2026-09-27) made the protocol
 the `display:0` composite of three aspects, declared the settings once,
 and moved the key map to the Actor. Phase 2 (2026-09-27) added the
-leased frame mirror and the Dashboard page. The next phases add the
-composed output seam, both panels as one display, the 8x8 font and a
-`logs` applet. Everything is
-verified on
+leased frame mirror and the Dashboard page. Phase 3 (2026-09-27)
+composed the output seam and made the applets portable. The next phases
+add both panels as one display, the 8x8 font and a `logs` applet.
+Everything is verified on
 macOS (Python 3.12, emulated displays) and on a Linux SBC (a Raspberry
 Pi, Python 3.13, the panel at 0x3C). Convergence with aiko_engine_mp is
 Epic 2.

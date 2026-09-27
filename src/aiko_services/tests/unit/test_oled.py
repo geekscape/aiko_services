@@ -25,8 +25,9 @@ from aiko_services.examples.oled.applets import (
     Applet, AppletDone, parse_applet_args,
 )
 from aiko_services.examples.oled.display import (
-    DisplayNotFound, FakeDisplay, NullDisplay, PngDisplay, TerminalDisplay,
-    choose_display, parse_colors,
+    OUTPUTS, DisplayNotFound, FakeOutputImpl, NullOutputImpl, Output,
+    OutputControls, PngOutputImpl, choose_output, fake_output, parse_colors,
+    text_lines,
 )
 from aiko_services.examples.oled.graphics import (
     HEIGHT, WIDTH, Font, FrameBuffer, parse_font_size, title_strip,
@@ -38,8 +39,8 @@ _counter = itertools.count()
 # Helpers
 
 def make_actor(**parameters):
-    display = parameters.pop("display", None) or FakeDisplay()
-    parameters = {"display": display, "title": "off", "applet": "none", **parameters}
+    display = parameters.pop("output", None) or fake_output()
+    parameters = {"output": display, "title": "off", "applet": "none", **parameters}
     name = f"oled_test_{next(_counter)}"
     actor = aiko.compose_instance(OLEDImpl,
         aiko.actor_args(name, parameters=parameters, protocol=PROTOCOL))
@@ -172,58 +173,86 @@ def test_title_strip_is_inverse_video():
 # --------------------------------------------------------------------------- #
 # Display backends
 
-def test_fake_display_emulates_the_panel():
-    display = FakeDisplay()
-    display.open()
+def test_fake_output_emulates_the_panel():
+    output = fake_output()
+    output.open()
     canvas = FrameBuffer(Font("5x7"))
     canvas.pixel(0, 0)
-    display.show(canvas.image)
-    assert len(display.frames) == 1
-    assert display.appearance().getpixel((0, HEIGHT - 1))
-    display.invert(True)
-    assert not display.appearance().getpixel((0, HEIGHT - 1))
-    display.invert(False)
-    display.power(False)
-    assert lit_count(display.appearance()) == 0
-    display.power(True)
-    display.all_on(True)
-    assert lit_count(display.appearance()) == WIDTH * HEIGHT
-    assert display.controls[-1] == ("all_on", True)
-    display.close()
-    assert display.closed and display.blanked
+    output.show(canvas.image)
+    assert len(output.frames) == 1
 
-def test_terminal_display_lines():
-    display = TerminalDisplay()
+    def shown():
+        return output.appearance.apply(output.frame)
+
+    assert shown().getpixel((0, HEIGHT - 1))
+    output.invert(True)
+    assert not shown().getpixel((0, HEIGHT - 1))
+    output.invert(False)
+    output.power(False)
+    assert lit_count(shown()) == 0
+    output.power(True)
+    output.all_on(True)
+    assert lit_count(shown()) == WIDTH * HEIGHT
+    assert output.controls[-1] == ("all_on", True)
+    output.close()
+    assert output.closed and output.blanked
+
+def test_text_lines():
     canvas = FrameBuffer(Font("5x7"))
     canvas.pixel(0, HEIGHT - 1)                          # top-left pixel
-    display.blocks = True
-    lines = display.lines(canvas.image)
+    lines = text_lines(canvas.image, blocks=True)
     assert len(lines) == HEIGHT // 2 and all(len(line) == WIDTH for line in lines)
     assert lines[0][0] == "▀"
-    display.blocks = False
-    lines = display.lines(canvas.image)
+    lines = text_lines(canvas.image, blocks=False)
     assert len(lines) == HEIGHT // 4 and len(lines[0]) == WIDTH // 2
     assert lines[0][0] == chr(0x2801)
 
-def test_png_display_writes_a_file(tmp_path):
+def test_png_output_writes_a_file(tmp_path):
     path = tmp_path / "oled.png"
-    display = PngDisplay(path)
-    display.open()
-    display.show(FrameBuffer(Font("5x7")).image)
-    display.close()
+    output = choose_output("png", png_path=path)
+    output.open()
+    output.show(FrameBuffer(Font("5x7")).image)
+    output.close()
     from PIL import Image
     assert Image.open(path).size == (WIDTH * 4, HEIGHT * 4)
 
-def test_choose_display():
-    assert isinstance(choose_display("fake"), FakeDisplay)
-    assert isinstance(choose_display("none"), NullDisplay)
-    assert isinstance(choose_display("png", png_path="x.png"), PngDisplay)
-    display = choose_display("fake", colors=parse_colors("yellow navy"))
-    assert display.foreground == (255, 255, 0) and display.background == (0, 0, 128)
+def test_choose_output_composes_every_backend(tmp_path):
+    """Every -o choice composes to an instance with the full Output and
+    OutputControls method set (the default Impl fills what a backend lacks)"""
+
+    methods = [name for interface in (Output, OutputControls)
+               for name, member in vars(interface).items()
+               if getattr(member, "__isabstractmethod__", False)]
+    assert sorted(methods) == sorted([
+        "add_handler", "all_on", "close", "contrast", "invert", "message",
+        "open", "power", "pump", "set_colors", "show"])
+    for name in [*OUTPUTS, "fake"]:
+        if name == "auto":
+            continue
+        output = choose_output(name, png_path=tmp_path / "x.png")
+        assert output.name == name, name
+        assert all(callable(getattr(output, method)) for method in methods), name
+        output.add_handler(lambda event: None)   # the no-ops work unopened,
+        output.pump()                            # whatever __init__ ran
+        output.message("hello")
+        output.set_colors((1, 2, 3), None)
+    assert isinstance(choose_output("fake"), FakeOutputImpl)
+    assert isinstance(choose_output("none"), NullOutputImpl)
+    assert isinstance(choose_output("png", png_path=tmp_path / "x.png"), PngOutputImpl)
     with pytest.raises(ValueError):
-        choose_display("holodeck")
+        choose_output("holodeck")
+
+def test_colors_and_pumped_events():
+    output = fake_output()
+    output.set_colors(*parse_colors("yellow navy"))
+    assert output.foreground == (255, 255, 0) and output.background == (0, 0, 128)
     with pytest.raises(ValueError):
         parse_colors("a b c")
+    seen = []
+    output.add_handler(seen.append)
+    output.events = [("tap", "g"), "quit"]
+    output.pump()
+    assert seen == [("tap", "g"), "quit"] and output.events == []
 
 # --------------------------------------------------------------------------- #
 # The Actor: composition and dispatch
@@ -442,13 +471,13 @@ def test_settings_apply_and_bad_values_converge(actor_display):
     assert actor.share["contrast"] == "64"
     assert actor.share["last_error"].startswith("set_contrast_not_int@")
     remote_update(actor, "invert", "on")
-    assert actor.share["invert"] == "on" and display.inverted
+    assert actor.share["invert"] == "on" and display.appearance.inverted
     remote_update(actor, "invert", "maybe")
     assert actor.share["invert"] == "on"
     remote_update(actor, "power", "off")
-    assert not display.powered
+    assert not display.appearance.powered
     remote_update(actor, "all_on", "1")
-    assert actor.share["all_on"] == "on" and display.all_lit
+    assert actor.share["all_on"] == "on" and display.appearance.all_lit
     remote_update(actor, "speed", "2.5")
     assert actor.share["speed"] == "2.5" and actor._speed == 2.5
     remote_update(actor, "speed", "0")
@@ -481,8 +510,8 @@ def test_color_settings_apply_and_reset(actor_display, monkeypatch):
     started, _ = make_actor(colors=["lime", "navy"])       # -c 'lime navy'
     try:
         assert started.share["foreground"] == "lime"
-        assert started._display.foreground == (0, 255, 0)
-        assert started._display.background == (0, 0, 128)
+        assert started._output.foreground == (0, 255, 0)
+        assert started._output.background == (0, 0, 128)
         remote_update(started, "background", "white")
         remote_update(started, "background", "default")
         assert started.share["background"] == "navy"
@@ -632,25 +661,25 @@ def test_applet_setting_starts_an_applet(actor_display, test_applets):
 # The Actor: display failure, blanking, threads, shutdown
 
 def test_display_not_found_degrades_and_reopens():
-    display = FakeDisplay(fail_open=True)
-    actor, _ = make_actor(display=display)
+    display = fake_output(fail_open=True)
+    actor, _ = make_actor(output=display)
     try:
         assert actor.share["device"] == "absent"
         assert actor.share["last_error"].startswith("display_not_found@")
-        assert not actor._display_ok and actor._reopening
+        assert not actor._output_ok and actor._reopening
         actor.text(0, 0, "unseen")
         assert display.frames == []
         display.fail_open = False
         actor._reopen()
-        assert actor._display_ok and actor.share["device"] == "fake"
+        assert actor._output_ok and actor.share["device"] == "fake"
         assert len(display.frames) == 1 and not actor._reopening
     finally:
         actor._shutdown()
 
 def test_strict_display_not_found_raises():
-    display = FakeDisplay(fail_open=True)
+    display = fake_output(fail_open=True)
     with pytest.raises(DisplayNotFound):
-        make_actor(display=display, strict=True)
+        make_actor(output=display, strict=True)
 
 def test_show_failure_marks_the_display_absent(actor_display, monkeypatch):
     actor, display = actor_display
@@ -660,7 +689,7 @@ def test_show_failure_marks_the_display_absent(actor_display, monkeypatch):
 
     monkeypatch.setattr(display, "show", broken)
     actor.text(0, 0, "x")
-    assert actor.share["device"] == "absent" and not actor._display_ok
+    assert actor.share["device"] == "absent" and not actor._output_ok
     assert actor.share["last_error"].startswith("display_failed@")
     actor.text(0, 8, "y")                                  # no exception
 
@@ -734,3 +763,47 @@ def test_parse_applet_args():
     for bad in (["seed=x"], ["colour=1"], [["nested"]], ["x" * 65]):
         with pytest.raises(ValueError):
             parse_applet_args(bad, {"seed": int})
+
+# --------------------------------------------------------------------------- #
+# The Actor: the output's events, the canvas size and applet portability
+
+def test_output_events_drive_the_display(monkeypatch):
+    actor, output = make_actor()
+    try:
+        output.events = [("tap", "g")]                    # the window's g key
+        actor._step()
+        assert actor.share["applet"] == "pong"
+        stopped = []
+        monkeypatch.setattr(aiko.process, "terminate", lambda: stopped.append(True))
+        output.events = ["quit"]
+        actor._step()
+        assert stopped
+    finally:
+        actor._shutdown()
+
+def test_applet_too_small_is_rejected_and_hidden():
+    actor, output = make_actor(size=(128, 32))
+    try:
+        assert actor.share["size"] == "128x32"
+        listed = set(actor.share["applets"].split(","))
+        assert {"status", "clock", "text"} <= listed and "pong" not in listed
+        actor.applet("pong")
+        assert actor.share["applet"] == "none"
+        assert actor.share["last_error"].startswith("set_applet_too_small@")
+        actor.text(0, 0, "fits")
+        assert output.frames[-1].size == (128, 32)
+    finally:
+        actor._shutdown()
+
+def test_a_fixed_field_is_centered_on_a_wide_canvas():
+    actor, output = make_actor(size=(256, 64))
+    try:
+        assert "pong" in actor.share["applets"].split(",")
+        actor.applet("pong", "seed=1")
+        actor._step()
+        frame = output.frames[-1]
+        assert frame.size == (256, 64)
+        left, _, right, _ = frame.getbbox()
+        assert 64 <= left and right <= 192               # the 128-wide field, centered
+    finally:
+        actor._shutdown()
