@@ -3,7 +3,7 @@
 # Aiko Services: OLED keys console
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # "aiko_display keys": an interactive console in the terminal for a running
-# display Actor.  Every key typed here is sent as "(key K tap)": the key
+# Display Actor.  Every key typed here is sent as "(key K tap)": the key
 # map lives on the Actor (keys.py), which runs a mapped key's preset (g
 # steps through pong, asteroids, invaders and the forklift; s and S the
 # status screens and views; digits set the speed; other keys change
@@ -91,7 +91,7 @@ class Keyboard:
         self.termios.tcsetattr(sys.stdin, self.termios.TCSADRAIN, self.saved)
 
 class KeysConsole:
-    """The interactive console for one display Actor"""
+    """The interactive console for one Display Actor"""
 
     def __init__(self, name, timeout):
         self.name = name or get_hostname()
@@ -121,7 +121,7 @@ class KeysConsole:
     def _timed_out(self):
         aiko.event.remove_timer_handler(self._timed_out)
         if self.topic_path is None:
-            click.echo(f"Timeout after {self.timeout:g} s: no display Actor named {self.name}", err=True)
+            click.echo(f"Timeout after {self.timeout:g} s: no Display Actor named {self.name}", err=True)
             aiko.process.terminate(1)
 
     def _found(self, service_details, service):
@@ -132,12 +132,12 @@ class KeysConsole:
         self.display = aiko.get_service_proxy(f"{self.topic_path}/in", Display)
         aiko.compose_instance(aiko.ECConsumerImpl, aiko.ec_consumer_args(
             aiko.process, 0, self.cache, f"{self.topic_path}/control"))
-        click.echo(f"display Actor {service_details[1]}: {self.topic_path}  (? for the keys)")
+        click.echo(f"Display Actor {service_details[1]}: {self.topic_path}  (? for the keys)")
         aiko.event.add_timer_handler(self._poll, POLL_PERIOD)
 
     def _lost(self, service_details):
         if service_details[0] == self.topic_path:
-            click.echo(f"\r\ndisplay Actor {self.name} has gone")
+            click.echo(f"\r\nDisplay Actor {self.name} has gone")
             aiko.process.terminate()
 
     # Keys ----------------------------------------------------------------- #
@@ -159,7 +159,7 @@ class KeysConsole:
             aiko.process.terminate()
         elif key == "X":
             self.confirm_exit = True
-            click.echo("\r\nExit the display Actor?  y to confirm", nl=False)
+            click.echo("\r\nExit the Display Actor?  y to confirm", nl=False)
         else:
             self.interaction.key(key, "tap")    # the Actor's key map decides
 

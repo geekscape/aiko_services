@@ -1,6 +1,6 @@
-# Aiko Services example: OLED display Actor
+# Aiko Services example: OLED Display Actor
 
-An SSD1306 128x64 OLED as an Aiko Services display Actor (protocol
+An SSD1306 128x64 OLED as an Aiko Services Display Actor (protocol
 `display:0`: the composite of the Canvas, Screen and Interaction aspects).
 The main use is a status display for a headless Linux Single Board
 Computer (SBC) or server: hostname, IP address, connection state, time,

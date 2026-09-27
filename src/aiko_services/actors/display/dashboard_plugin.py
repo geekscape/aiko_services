@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 #
-# Aiko Services: Dashboard plug-in page for a display Actor
+# Aiko Services: Dashboard plug-in page for a Display Actor
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# One Aiko Dashboard page for a running display Actor (protocol display:0,
+# One Aiko Dashboard page for a running Display Actor (protocol display:0,
 # the OLED example): a live mirror of the panel, the shared state, the
 # process log, and the same keys as "aiko_display keys".  Every key typed here
 # is sent as "(key K tap)": the key map lives on the Actor.  The mirror is
@@ -12,7 +12,7 @@
 # ~~~~~
 #   aiko_dashboard -p aiko_services.main.dashboard_plugins \
 #                  -p aiko_services.actors.display.dashboard_plugin
-#   Select the display Actor, press S.  D or Esc: back to the Dashboard.
+#   Select the Display Actor, press S.  D or Esc: back to the Dashboard.
 #
 # Keys on the page (the Actor's own keys, plus the page's)
 # ~~~~~~~~~~~~~~~~
@@ -378,7 +378,7 @@ class DisplayFrame(ServiceFrame):
             if button_index == 1 and self._connected():
                 self.display_proxy.stop()
 
-        self.scene.add_effect(PopUpDialog(self._screen, "Stop the display Actor?",
+        self.scene.add_effect(PopUpDialog(self._screen, "Stop the Display Actor?",
                                           ["Cancel", "Stop"], on_close=_on_close, theme="nice"))
 
     def _on_select_variable(self):

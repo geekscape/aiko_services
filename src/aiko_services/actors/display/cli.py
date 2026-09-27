@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 #
-# Aiko Services: display Actor command line
+# Aiko Services: Display Actor command line
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The "aiko_display" command: "run" starts the display Actor (display.py)
+# The "aiko_display" command: "run" starts the Display Actor (display.py)
 # in this process; every other subcommand discovers the Actor named with
 # -n (default: this host's name) and sends it one command, giving up after
 # -t seconds.  "keys" is the interactive console (console.py).
@@ -11,7 +11,7 @@
 #
 # Not part of the Interface composition pattern (ADR-022 category
 # Presentation and CLI shells) — see e_10 §2.16: a CLI shell over the
-# display Actor's Interfaces.
+# Display Actor's Interfaces.
 
 import os
 import signal
@@ -34,7 +34,7 @@ from aiko_services.actors.display.outputs import (
     ADDRESSES, OUTPUTS, DisplayNotFound, choose_output, parse_colors, scan_i2c,
 )
 
-TIMEOUT = 5.0  # seconds to wait for the display Actor before giving up
+TIMEOUT = 5.0  # seconds to wait for the Display Actor before giving up
 
 def _start_timeout(seconds, what):
     """The framework's do_command() and do_discovery() wait for ever: give up
@@ -48,11 +48,11 @@ def _start_timeout(seconds, what):
     aiko.event.add_timer_handler(timed_out, seconds)
 
 def _remote(interface, options, command_handler):
-    """Discover the display Actor named in the group options (-n, -t) and
+    """Discover the Display Actor named in the group options (-n, -t) and
     invoke one command on it"""
 
     name, timeout = options["name"], options["timeout"]
-    _start_timeout(timeout, f"no display Actor named {name or get_hostname()}")
+    _start_timeout(timeout, f"no Display Actor named {name or get_hostname()}")
     aiko.do_command(interface, service_filter(name), command_handler,
         terminate=True)
     aiko.process.run()
@@ -93,14 +93,14 @@ def _display_hint(bus):
 
 @click.group()
 @click.option("--name", "-n", type=str, default=None,
-    help="The display Actor: the one to run, or the one to command  "
+    help="The Display Actor: the one to run, or the one to command  "
          "[default: the local hostname]")
 @click.option("--timeout", "-t", type=float, default=TIMEOUT, show_default=True,
-    help="Seconds to wait for the display Actor (for list: to collect them)")
+    help="Seconds to wait for the Display Actor (for list: to collect them)")
 @click.pass_context
 
 def main(ctx, name, timeout):
-    """display Actor: run it, or send commands to the running one
+    """Display Actor: run it, or send commands to the running one
 
     An SSD1306 128x64 OLED as an Aiko Services Actor (protocol oled:0): a
     status display for a headless host, a canvas any client draws on with
@@ -155,7 +155,7 @@ def main(ctx, name, timeout):
 
 def run_command(options, output, address, bus, applet, font_size, title,
     color, png, standalone, strict):
-    """Run the display Actor in the foreground (append & for the background, or
+    """Run the Display Actor in the foreground (append & for the background, or
     start it with "aiko_process create")
 
     \b
@@ -205,7 +205,7 @@ def run_command(options, output, address, bus, applet, font_size, title,
         actor = aiko.compose_instance(DisplayImpl, init_args)
         backend.message(f"{name}: {actor.topic_in}")
         if backend.name != "terminal":
-            click.echo(f"display Actor {name}: {actor.topic_in}")
+            click.echo(f"Display Actor {name}: {actor.topic_in}")
         aiko.process.run(mqtt_connection_required=not standalone)
     except DisplayNotFound as error:
         raise click.ClickException(f"{error}\n{_display_hint(bus)}")
@@ -215,27 +215,27 @@ def run_command(options, output, address, bus, applet, font_size, title,
 
 @main.command(name="exit")
 @click.option("--all", "every", is_flag=True,
-    help="Allow -n '*': exit every display Actor")
+    help="Allow -n '*': exit every Display Actor")
 @click.pass_obj
 
 def exit_command(options, every):
-    """Blank the display and terminate the display Actor
+    """Blank the display and terminate the Display Actor
 
     The Actor named with -n (default: the local hostname).  -n '*' with
-    --all exits every display Actor on the broker.  Exit status 1 after -t
+    --all exits every Display Actor on the broker.  Exit status 1 after -t
     seconds when no Actor answers.  The same as "(exit)", the framework's
     "(stop)", on the in topic: the display blanks on the way out.
     """
 
     if options["name"] == "*" and not every:
-        raise click.BadParameter("-n '*' would exit every display Actor: add --all")
+        raise click.BadParameter("-n '*' would exit every Display Actor: add --all")
     _remote(Display, options, lambda display: display.stop())
 
 @main.command(name="list")
 @click.pass_obj
 
 def list_command(options):
-    """List the running display Actors: name, topic path, tags
+    """List the running Display Actors: name, topic path, tags
 
     Every display:0 Actor on the broker (or the one named with -n), collected
     for -t seconds through the Registrar.  Exit status 1 when none is found:
@@ -254,7 +254,7 @@ def list_command(options):
         for details in found:
             click.echo(f"{details[1]}  {details[0]}  {' '.join(details[5])}")
         if not found:
-            click.echo("No display Actors found", err=True)
+            click.echo("No Display Actors found", err=True)
         aiko.process.terminate(0 if found else 1)
 
     aiko.do_discovery(Display,
@@ -365,7 +365,7 @@ def set_command(options, key, value):
     if any(character.isspace() for character in value):
         raise click.BadParameter("no spaces in a value: use _ instead")
     name, timeout = options["name"], options["timeout"]
-    what = f"no display Actor named {name or get_hostname()}"
+    what = f"no Display Actor named {name or get_hostname()}"
 
     def add_handler(service_details, service):
         topic_path = service_details[0]
@@ -444,7 +444,7 @@ def keys_command(options):
     h or ? help (the same applet key again: its next options)
     arrows: keys for the applet   0-9 speed (4 normal)   f F next/previous font
     T title  i invert  o power  a all pixels on  +/- contrast  b B color
-    c clear  R reset   x or q quit the console   X exit the display Actor
+    c clear  R reset   x or q quit the console   X exit the Display Actor
     """
 
     from aiko_services.actors.display.console import KeysConsole  # (imports this module)
@@ -457,7 +457,7 @@ def keys_command(options):
 @click.pass_obj
 
 def key_command(options, key_name, state):
-    """Send a key to the running display Actor
+    """Send a key to the running Display Actor
 
     KEY_NAME is up, down, left, right or one character; STATE is tap (held
     briefly, the default), down or up.  A key in the Actor's key map runs its
@@ -547,7 +547,7 @@ def _keys_reference():
         "  T title on/off   i invert   o power   a all pixels on   + - contrast by 16",
         "  b B  the next foreground / background color (emulated displays)  c clear",
         "  R  reset the settings and the colors, show status   ? the same as h",
-        "  x q  quit the console   X  exit the display Actor (then y to confirm)",
+        "  x q  quit the console   X  exit the Display Actor (then y to confirm)",
         "  The same keys work in the emulator window (-o window); x q X exit there",
     ]
     return _block(lines)
@@ -572,7 +572,7 @@ def _set_help():
 
 main.commands["set"].help = _set_help()
 main.commands["keys"].help = (
-    "Interactive console for the running display Actor: keys typed here become wire\n"
+    "Interactive console for the running Display Actor: keys typed here become wire\n"
     "commands and settings, and a status line follows the Actor's shared state.\n"
     "Needs a terminal.  x or q quits the console; the Actor keeps running.\n\n"
     + _keys_reference())

@@ -1,4 +1,4 @@
-# Aiko Services: display Actor (SSD1306 OLED) as a systemd service (Linux SBC)
+# Aiko Services: Display Actor (SSD1306 OLED) as a systemd service (Linux SBC)
 #
 # Install:
 #   sudo cp aiko_display.service /etc/systemd/system/
@@ -11,7 +11,7 @@
 # SIGTERM: the Actor blanks the display and exits.
 
 [Unit]
-Description=Aiko Services display Actor (SSD1306 OLED)
+Description=Aiko Services Display Actor (SSD1306 OLED)
 After=network-online.target mosquitto.service
 Wants=network-online.target
 

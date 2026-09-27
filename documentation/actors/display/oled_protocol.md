@@ -1,6 +1,6 @@
 ---
 title: Display protocol display:0
-description: The wire protocol of the OLED example's display Actor — the
+description: The wire protocol of the OLED example's Display Actor — the
   display:0 composite of the Canvas, Screen and Interaction aspects, the
   aspect tags and discovery, the topics, the one-way commands and their
   argument grammar, the leased frame mirror, the key map on the device,
@@ -24,7 +24,7 @@ last_updated: 2026-09-27
 
 ## Overview
 
-This is the specification unit for the display Actor: what a client may
+This is the specification unit for the Display Actor: what a client may
 send, what it observes, and what happens when something is wrong. The
 Python Actor of the OLED example implements all of it. The MicroPython
 aiko_engine_mp OLED implements the compatible subset, marked in the

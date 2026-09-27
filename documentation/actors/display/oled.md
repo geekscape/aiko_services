@@ -1,6 +1,6 @@
 ---
-title: OLED display Actor (oled.py)
-description: An SSD1306 128x64 OLED as a display Actor (protocol display:0,
+title: OLED Display Actor (oled.py)
+description: An SSD1306 128x64 OLED as a Display Actor (protocol display:0,
   the composite of the Canvas, Screen and Interaction aspects) — a status
   display for headless hosts, a canvas that any client draws on with
   aiko_engine_mp compatible S-expressions, settings declared once and
@@ -27,7 +27,7 @@ version: "0.8-dev"
 last_updated: 2026-09-27
 ---
 
-# OLED display Actor (oled.py)
+# OLED Display Actor (oled.py)
 
 ## Overview
 
@@ -288,7 +288,7 @@ without one reverts to the base font. `f` and `R` set the base font.
 
 ### Public API
 
-**The idea.** A display Actor registers protocol `display:0`. Clients
+**The idea.** A Display Actor registers protocol `display:0`. Clients
 draw with `(text X Y ...)`, `(pixels ...)`, `(line ...)`, `(clear)` and
 `(log ...)`. They set its appearance with `(update KEY VALUE)`. They
 start a mode with `(applet NAME ...)` and send it keys with `(key NAME)`.

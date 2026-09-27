@@ -1,6 +1,6 @@
 ---
-title: Dashboard page for the display Actor (dashboard_plugin.py)
-description: The Aiko Dashboard plug-in page for a display Actor — a live
+title: Dashboard page for the Display Actor (dashboard_plugin.py)
+description: The Aiko Dashboard plug-in page for a Display Actor — a live
   mirror of the panel through the leased frame feed, the shared state with
   editable settings, the process log, and the same keys as the console,
   sent to the Actor's own key map
@@ -16,13 +16,13 @@ version: "0.8-dev"
 last_updated: 2026-09-27
 ---
 
-# Dashboard page for the display Actor (dashboard_plugin.py)
+# Dashboard page for the Display Actor (dashboard_plugin.py)
 
 ## Overview
 
 The Aiko [Dashboard](../../concepts/dashboard.md) shows every Service's
 shared state and log. A [plug-in page](../../concepts/dashboard_plugin.md)
-adds what a display Actor needs: the panel itself. `dashboard_plugin.py`
+adds what a Display Actor needs: the panel itself. `dashboard_plugin.py`
 is that page. It mirrors the panel live, in the panel's colors, through
 the Actor's leased frame feed. It lists the shared state and edits the
 settings. It shows the process log. And it sends every key to the Actor,
@@ -46,7 +46,7 @@ aiko_dashboard -p aiko_services.main.dashboard_plugins \
                -p aiko_services.examples.oled.dashboard_plugin
 ```
 
-Select the display Actor in the Services list and press `S`. The page
+Select the Display Actor in the Services list and press `S`. The page
 opens with the mirror, the state, the legend and the log. `D`, `Esc`,
 `Backspace` or `q` returns to the Dashboard. `x` quits the Dashboard.
 

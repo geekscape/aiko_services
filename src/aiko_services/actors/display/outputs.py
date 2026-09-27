@@ -2,7 +2,7 @@
 #
 # Aiko Services: OLED display outputs
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Where the display Actor's frames go: the output seam.  Two Interfaces,
+# Where the Display Actor's frames go: the output seam.  Two Interfaces,
 # Output (open, show, close, pump, add_handler, message) and OutputControls
 # (contrast, invert, power, all_on, set_colors), and one Impl per backend:
 # the SSD1306 on the I2C bus (luma.oled), an emulated panel in a desktop

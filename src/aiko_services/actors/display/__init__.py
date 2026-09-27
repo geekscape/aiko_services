@@ -1,4 +1,4 @@
-# Aiko Services: display Actor (the display:0 protocol)
+# Aiko Services: Display Actor (the display:0 protocol)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # A remote display as an Actor: protocol "display:0", the composite of the
 # Canvas, Screen and Interaction aspects.  An SSD1306 128x64 OLED on a

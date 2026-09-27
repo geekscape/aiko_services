@@ -34,7 +34,7 @@ sections are.
 
 ### Features
 
-* OLED display Actor example, *src/aiko_services/examples/oled*: an SSD1306
+* OLED Display Actor example, *src/aiko_services/examples/oled*: an SSD1306
   128x64 OLED as an Actor with protocol *display:0*, the composite of the
   *Canvas*, *Screen* and *Interaction* aspects.  It shows the status of a
   headless host (IP address, connection state, time, load, the last log
@@ -200,7 +200,7 @@ remote callers are unaffected.  For Python code:
   *cv2* at import time
 
 * New *test_oled.py*, *test_oled_cli.py*, *test_oled_applets.py* and *test_oled_dashboard_plugin.py*: 111
-  tests for the OLED display Actor example.  They cover graphics, the
+  tests for the OLED Display Actor example.  They cover graphics, the
   composed outputs, dispatch and validation, the settings and the mirror.
   They also cover the command line, the applets at three canvas sizes and
   the Dashboard page.  A fake output stands in for the panel, so no broker

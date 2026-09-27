@@ -1,7 +1,7 @@
 ---
 title: OLED Actor test guide
 description: Step-by-step instructions for a technical lead to exercise
-  every part of the OLED display Actor example — on macOS with an emulated
+  every part of the OLED Display Actor example — on macOS with an emulated
   display and on a Linux Single Board Computer (SBC) with the SSD1306 panel —
   the unit tests, the command line and its help, raw S-expressions, the
   shared state, the Aiko Dashboard, the applets, the keys console, failure

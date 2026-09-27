@@ -1,6 +1,6 @@
 ---
 title: OLED example index
-description: Index of the SSD1306 OLED display Actor example documents —
+description: Index of the SSD1306 OLED Display Actor example documents —
   the Actor and its aiko_oled command line, the display:0 wire protocol
   shared with the MicroPython aiko_engine_mp OLED, and the step-by-step
   test guide

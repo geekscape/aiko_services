@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 #
-# Aiko Services: OLED display Actor
+# Aiko Services: OLED Display Actor
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# An SSD1306 128x64 OLED as a display Actor (protocol "display:0"): a
+# An SSD1306 128x64 OLED as a Display Actor (protocol "display:0"): a
 # canvas that any client draws on with the same S-expressions the
 # MicroPython aiko_engine_mp OLED accepts, settings that the Aiko Dashboard
 # reads and writes, and applets that run on the display, above all a
@@ -369,7 +369,7 @@ def service_tags(device):
     return ["ec=true", f"device={device}", *ASPECT_TAGS]
 
 def service_filter(name):
-    """The discovery filter for the display Actor named NAME (default: this
+    """The discovery filter for the Display Actor named NAME (default: this
     host's name): protocol display:0, any namespace, owner, transport, tags"""
 
     return aiko.ServiceFilter("*", name or get_hostname(), PROTOCOL, "*", "*", "*")
