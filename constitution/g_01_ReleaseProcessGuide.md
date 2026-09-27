@@ -252,8 +252,11 @@ hatch build   # produces dist/*.whl and dist/*.tar.gz
 
 ```
 ls -la dist/                          # wheel and sdist well under 1 MB
-unzip -l dist/aiko_services-*.whl     # ~126 files: source code plus a few
+unzip -l dist/aiko_services-*.whl     # ~140 files: source code plus a few
                                       # small sample data files, nothing else
+unzip -p dist/aiko_services-*.whl 'aiko_services/tests/*' \
+    | grep -n 'aiko_services.examples'  # must print nothing: shipped tests
+                                      # import only shipped packages
 ```
 
 If the wheel is more than ~1 MB or contains media files or back-up
