@@ -60,6 +60,9 @@ PipelineDefinition, or as a Pipeline-level parameter.
 
 # Diagnostics: one debug log line per frame
 -p VideoReadDepthAI.log_frames true
+
+# Focus assist: sensor.sharpness once a second
+-p VideoReadDepthAI.focus_assist true
 ```
 
 ### Public API
@@ -85,6 +88,7 @@ Parameters common to every camera scheme:
 | `settle` | the subclass's | Frames discarded while the camera converges after start, as a count or a time such as `3s` |
 | `capture_timeout` | `1.0` | Seconds per capture. Ten consecutive timeouts end the Stream |
 | `log_frames` | `false` | One debug log line per frame |
+| `focus_assist` | `false` | Publish `sensor.sharpness` once a second: the variance of the Laplacian over the gray center third of a frame. It means something only relative to itself, on a well exposed scene. Turn a manual focus ring until it peaks. It costs a few milliseconds per second, and nothing when off |
 | `data_batch_size` | `1` | Only `1` is supported |
 | `media_type` | none | Element level: `numpy` or `pil` |
 
@@ -97,15 +101,15 @@ Shared state on the dashboard, and through an `ECConsumer`:
 | `settled` | `waiting`, `<n>_frames`, `timeout_<n>_frames` or `off` |
 | `frames`, `measured_fps` | Frames delivered, and the rate over the last two seconds |
 | `capture_timeouts`, `last_frame_utc`, `last_error` | Is it delivering, when did it last, what failed last (`<token>@UTC`) |
-| `sensor.*` | What the device reports: `resolution` (delivered), `exposure_us`, `gain`, `iso_sensitivity`, `lens_position`, `color_temperature_k` |
-| `resolution`, `frame_rate`, `settle`, `resize_mode`, `capture_timeout`, `log_frames` | The configuration in force, as valid parameter values |
+| `sensor.*` | What the device reports: `resolution` (delivered), `exposure_us`, `gain`, `iso_sensitivity`, `lens_position`, `color_temperature_k`, and `sharpness` with `focus_assist` (`-` when it is turned off) |
+| `resolution`, `frame_rate`, `settle`, `resize_mode`, `capture_timeout`, `log_frames`, `focus_assist` | The configuration in force, as valid parameter values |
 
 The configuration keys carry the parameter names on purpose. The
 framework reads a share item in preference to the element parameter of
 the same name. Thus a dashboard `(update ...)` of a writable key takes
 effect at once, and every configuration key is the value the next Stream
-starts with. The base's writable keys are `capture_timeout` and
-`log_frames`. A subclass adds its own.
+starts with. The base's writable keys are `capture_timeout`,
+`log_frames` and `focus_assist`. A subclass adds its own.
 
 **Stream lifecycle behavior:**
 

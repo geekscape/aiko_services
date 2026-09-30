@@ -21,6 +21,8 @@
 # parameter: "capture_timeout" seconds per capture (1.0); ten consecutive
 #                              timeouts end the Stream
 # parameter: "log_frames"      true: one debug log line per frame
+# parameter: "focus_assist"    true: publish sensor.sharpness once a second,
+#                              for turning a manual focus ring to the peak
 # parameter: "data_batch_size" only 1 is supported
 #
 # Shared state (observe via aiko_dashboard) ...
@@ -31,13 +33,14 @@
 #   capture_timeouts last_frame_utc           last_error  <token>@UTC
 #   sensor.*         what the device reports: resolution (delivered WxH),
 #                    exposure_us, gain, iso_sensitivity, lens_position,
-#                    color_temperature_k
+#                    color_temperature_k; and sharpness with focus_assist
 #   Configuration keys carry the parameter names and valid parameter
 #   values: resolution, frame_rate, settle, resize_mode, capture_timeout,
-#   log_frames and the subclass's own.  The framework reads a share item
-#   in preference to the element parameter of the same name, so these are
-#   the live values: a dashboard "(update ...)" of a writable key takes
-#   effect at once, and every configuration key applies to the next Stream
+#   log_frames, focus_assist and the subclass's own.  The framework reads
+#   a share item in preference to the element parameter of the same name,
+#   so these are the live values: a dashboard "(update ...)" of a writable
+#   key takes effect at once, and every configuration key applies to the
+#   next Stream
 #
 # Threads: create_sources() / destroy_sources() and the share handler run
 # on the event-loop thread and publish directly.  frame_generator() runs
@@ -88,6 +91,8 @@ class DataSchemeCamera(aiko.DataScheme):
         self.frames = 0
         self.capture_timeout = camera.CAPTURE_TIMEOUT_S
         self.log_frames = False
+        self.focus_assist = False
+        self._focus_due = 0.0          # monotonic time of the next sharpness
         self.rate_meter = camera.RateMeter()
         self._pending = {}
         self._pending_lock = threading.Lock()
@@ -159,6 +164,8 @@ class DataSchemeCamera(aiko.DataScheme):
             raise ValueError(f"data_batch_size {batch}: only 1 is supported")
         self.log_frames = camera.parse_bool(
             get("log_frames", False)[0], "log_frames")
+        self.focus_assist = camera.parse_bool(
+            get("focus_assist", False)[0], "focus_assist")
         settings = {"resolution": resolution, "frame_rate": frame_rate,
                     "settle": settle, "resize_mode": resize_mode,
                     "rate": rate}
@@ -214,6 +221,7 @@ class DataSchemeCamera(aiko.DataScheme):
         self._publish("settle", settings["settle"])
         self._publish("capture_timeout", self.capture_timeout)
         self._publish("log_frames", str(self.log_frames).lower())
+        self._publish("focus_assist", str(self.focus_assist).lower())
         settling = not self.settle.done or self.warm_up_steps is not None
         self._publish("settled", "waiting" if settling else "off")
         self._publish("state", "settling" if settling else "streaming")
@@ -316,6 +324,10 @@ class DataSchemeCamera(aiko.DataScheme):
             diagnostic = f"{self.camera_name} sources destroyed"
             return aiko.StreamEvent.STOP, {"diagnostic": diagnostic}
         self.timeouts = 0
+        if self.focus_assist and time.monotonic() >= self._focus_due:
+            self._focus_due = time.monotonic() + PUBLISH_PERIOD_S
+            self._pend("sensor.sharpness",
+                       f"{camera.focus_sharpness(image):.1f}")
         for key in METADATA_KEYS:
             if key in metadata:
                 value = metadata[key]
@@ -401,6 +413,11 @@ class DataSchemeCamera(aiko.DataScheme):
                 self.capture_timeout = timeout
             elif item_name == "log_frames":
                 self.log_frames = camera.parse_bool(item_value, item_name)
+            elif item_name == "focus_assist":
+                self.focus_assist = camera.parse_bool(item_value, item_name)
+                self._focus_due = 0.0
+                if not self.focus_assist:
+                    self._pend("sensor.sharpness", "-")
             else:
                 self._apply_update(item_name, item_value)
         except (TypeError, ValueError) as error:

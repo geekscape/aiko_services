@@ -57,6 +57,9 @@ URL:
 # Fixed exposure and gain instead of the auto-expose warm-up
 -p VideoReadGigE.exposure_us 20000 -p VideoReadGigE.gain 2.0
 
+# Video of a moving scene: auto-expose, but never longer than 30 ms
+-p VideoReadGigE.max_exposure_us 30000
+
 # Free-running video at 1 fps, where the rule would trigger stills
 -p VideoReadGigE.frame_rate 1 -p VideoReadGigE.trigger off
 ```
@@ -80,19 +83,24 @@ Parameters, in addition to the [common ones](scheme_camera.md):
 | `trigger` | `auto` | `software`: one trigger per frame, so each exposure is fresh and the link idles between stills. `off`: free-running at `frame_rate`. `auto` takes `software` at 2 fps and below, else `off` |
 | `exposure_us` | `auto` | A fixed exposure in microseconds. `auto` runs the highlight-based auto-expose before the first frame, because the IDS default user set has no auto-exposure |
 | `gain` | none | Analog gain, applied with a fixed `exposure_us` |
+| `max_exposure_us` | `auto` | The auto-expose ceiling. `auto` is 80 % of the frame period when free-running, 100 ms at 8 fps, and 250 ms with the software trigger. An exposure longer than the frame period slows the camera below `frame_rate`. A moving scene blurs well before that, so a video Pipeline often sets it lower, for example `30000` |
 | `settle` | `2` | Frames discarded after an exposure change |
 
 In software-trigger mode `rate` defaults to `frame_rate`: the frame
 generator triggers one exposure per delivered frame.
 
-Shared state adds `backend`, `trigger`, `exposure_us` and `gain`. While
-the auto-expose runs, `exposure_us` reads `auto` and `state` reads
-`settling`. Then both hold the values the camera accepted.
+Shared state adds `backend`, `trigger`, `exposure_us`, `gain` and
+`max_exposure_us`. While the auto-expose runs, `exposure_us` reads `auto`
+and `state` reads `settling`. Then both hold the values the camera
+accepted. `max_exposure_us` holds the configured value, `auto` or a
+number, so a later Stream at another frame rate gets its own default.
 
 Writable keys: `exposure_us` (a number, or `auto` to run the auto-expose
-again), `gain`, and the base's `capture_timeout` and `log_frames`. A
-written value acts on the open camera at once, two settle frames are
-discarded, and the next Stream starts from the written value.
+again), `gain`, `max_exposure_us` (used by the next auto-expose), and the
+base's `capture_timeout`, `log_frames` and `focus_assist`. A written
+exposure or gain acts on the open camera at once, and two settle frames
+are discarded. The next Stream starts from the written value. A fixed
+exposure longer than the frame period logs a warning.
 
 Registration (module import side effect):
 

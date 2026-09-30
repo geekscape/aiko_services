@@ -150,6 +150,61 @@ def test_auto_expose_warm_up_then_frames(fake):
     assert element.share["frames"] == "1"
     stop(scheme, stream)
 
+def test_exposure_ceiling_follows_the_frame_period(fake):
+    """Free-running at 8 fps the auto-expose ceiling is 80 % of the
+    125 ms period; the frames are black, so auto-expose climbs to it and
+    never past it.  A parameter overrides it; stills keep 250 ms"""
+
+    def run_auto_expose(scheme, stream):
+        for index in range(12):
+            if scheme.frame_generator(stream, index)[0]  \
+                    == aiko.StreamEvent.OKAY:
+                return
+        raise AssertionError("auto-expose did not finish")
+
+    scheme, element, stream, event, _ = start({"settle": 0,
+                                               "frame_rate": 8})
+    assert event == aiko.StreamEvent.OKAY
+    assert element.share["max_exposure_us"] == "auto"
+    assert scheme.exposure_ceiling_us() == pytest.approx(100000.0)
+    run_auto_expose(scheme, stream)
+    assert max(fake.INSTANCES[-1].exposures) == pytest.approx(100000.0)
+    stop(scheme, stream)
+
+    scheme, element, stream, event, _ = start(
+        {"settle": 0, "frame_rate": 8, "max_exposure_us": 30000})
+    assert element.share["max_exposure_us"] == "30000"
+    run_auto_expose(scheme, stream)
+    assert max(fake.INSTANCES[-1].exposures) == 30000.0
+    stop(scheme, stream)
+
+    scheme, _, stream, event, _ = start({"exposure_us": 20000, "settle": 0,
+                                         "frame_rate": 1})
+    assert scheme.exposure_ceiling_us() == scheme_gigev.MAX_EXPOSURE_US
+    stop(scheme, stream)
+    assert scheme_gigev.default_max_exposure_us(1000, "off") == 800.0
+
+    _, _, _, event, detail = start({"max_exposure_us": "0"})
+    assert event == aiko.StreamEvent.ERROR
+    assert "max_exposure_us" in detail["diagnostic"]
+
+def test_writable_exposure_ceiling_and_long_exposure_warning(fake, caplog):
+    scheme, element, stream, event, _ = start(
+        {"exposure_us": 20000, "settle": 0, "frame_rate": 8})
+    element.ec_producer.send("max_exposure_us", "20000")
+    assert scheme.exposure_ceiling_us() == 20000.0
+    assert element.share["max_exposure_us"] == "20000"
+    element.ec_producer.send("max_exposure_us", "auto")
+    assert scheme.exposure_ceiling_us() == pytest.approx(100000.0)
+    assert element.share["max_exposure_us"] == "auto"
+    element.ec_producer.send("max_exposure_us", "-3")    # rejected, logged
+    assert scheme.exposure_ceiling_us() == pytest.approx(100000.0)
+
+    with caplog.at_level("WARNING"):
+        element.ec_producer.send("exposure_us", "200000")
+    assert "longer than the frame period" in caplog.text
+    stop(scheme, stream)
+
 def test_writable_exposure_and_gain(fake):
     scheme, element, stream, event, _ = start(
         {"exposure_us": 20000, "settle": 2, "frame_rate": 1000})

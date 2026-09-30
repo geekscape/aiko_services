@@ -60,6 +60,7 @@ URL that discovers the first camera. Run them from
 | `depthai_pipeline_1.json` | [depthai_io](depthai_io.md), [image_dewarp](image_dewarp.md), [control elements](../control/elements.md), [image_io](../media/image_io.md) | OAK camera native 4000x3000 at 2 fps → dewarp → three PNG files |
 | `depthai_pipeline_2.json` | [depthai_io](depthai_io.md), [control elements](../control/elements.md), [video_io](../media/video_io.md) | OAK camera 1920x1080 at 8 fps → `CaptureLimit` (30 s) → MP4 file, no display |
 | `gigev_pipeline_0.json` | [gigev_io](gigev_io.md), [scheme_gigev](scheme_gigev.md), [control elements](../control/elements.md), [image_io](../media/image_io.md), [video_io](../media/video_io.md) | GigE camera 1920x1080 at 8 fps → `CaptureLimit` (10 s) → resize → display |
+| `gigev_pipeline_1.json` | [gigev_io](gigev_io.md), [control elements](../control/elements.md), [video_io](../media/video_io.md) | GigE camera 1920x1080 at 8 fps, exposure at most 30 ms → `CaptureLimit` (30 s) → MP4 file, no display |
 
 `data_in/calibration_identity.json` is a zero-distortion placeholder
 calibration for `ImageDewarp`, so `depthai_pipeline_1.json` runs before

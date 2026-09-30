@@ -1,0 +1,57 @@
+{
+  "version": 0,
+  "name":    "p_gigev_1",
+  "runtime": "python",
+
+  "#": ["GigE Vision camera (gigev://) recorded, no display needed:",
+        "1920x1080 at 8 fps for 30 s into data_out/gigev_0.mp4, the video",
+        "regime of a store / forward Pipeline.  Auto-expose runs first,",
+        "never longer than 30 ms per exposure, so a moving scene stays",
+        "sharp.  Longer recording: -p CaptureLimit.duration 10m.  Lens",
+        "focus: -p VideoReadGigE.focus_assist true, then watch",
+        "sensor.sharpness on aiko_dashboard"],
+
+  "graph": ["(VideoReadGigE CaptureLimit VideoWriteFile)"],
+
+  "parameters": {
+    "_create_stream_":       "1",
+    "_destroy_stream_exit_": "1"
+  },
+
+  "elements": [
+    { "name":   "VideoReadGigE",
+      "parameters": {
+        "data_sources":    "(gigev://)",
+        "backend":         "auto",
+        "resolution":      "1920x1080",
+        "frame_rate":      8.0,
+        "max_exposure_us": 30000
+      },
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.cameras.gigev_io"}
+      }
+    },
+    { "name":   "CaptureLimit",
+      "parameters": {"duration": 30.0},  "#": "seconds, or e.g '10m'",
+      "input":  [],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.control.elements"}
+      }
+    },
+    { "name":   "VideoWriteFile",
+      "parameters": {
+        "data_targets": "(file:data_out/gigev_0.mp4)",
+        "format":       "avc1",
+        "frame_rate":   8.0
+      },  "#": "frame_rate must match the camera's; avc1: H.264",
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.video_io"}
+      }
+    }
+  ]
+}

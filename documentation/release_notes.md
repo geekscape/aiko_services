@@ -92,7 +92,16 @@ sections are.
   The Pipeline holds the Stream lock while a frame is encoded, so the
   source is not read meanwhile.  A slow encode thus loses frames at the
   source.  *store_forward_pipeline_0.json* and the cameras' recording
-  example *depthai_pipeline_2.json* encode *avc1*
+  examples *depthai_pipeline_2.json* and *gigev_pipeline_1.json* encode
+  *avc1*
+
+* Camera DataSources gain *focus_assist*: when true, *sensor.sharpness*
+  on the dashboard gives the Laplacian variance of the gray center third
+  of a frame, once a second.  Turn a manual focus ring until it peaks.
+  *VideoReadGigE* gains *max_exposure_us*, the auto-expose ceiling.  Its
+  default is 80 % of the frame period when free-running, 100 ms at 8 fps.
+  The old fixed 250 ms ceiling slowed a camera in a dim scene below its
+  *frame_rate*
 
 * New DataSchemes *depthai* (*elements/cameras/scheme_depthai.py*) and
   *gigev* (*elements/cameras/scheme_gigev.py*), on the shared

@@ -37,10 +37,11 @@ INITIAL_SHARE = {                  # never a parameter name: the framework
 # parameter: "data_sources" is "(gigev://)" or "(gigev://<address>)"
 # parameter: "backend"      auto | peak | aravis
 # parameter: "resolution"   "WxH" (default "1920x1080"), "native" / "full"
-# parameter: "frame_rate"   frames per second (default 25.0), "25/1" form
+# parameter: "frame_rate"   frames per second (default 8.0), "25/1" form
 # parameter: "trigger"      auto | software | off
-# parameter: "exposure_us", "gain", "settle", "resize_mode",
-#            "capture_timeout": see scheme_gigev.py
+# parameter: "exposure_us", "gain", "max_exposure_us", "settle",
+#            "resize_mode", "capture_timeout", "focus_assist": see
+#            scheme_gigev.py and scheme_camera.py
 # parameter: "media_type"   optional "numpy" or "pil" conversion
 #
 # Note: Only supports Streams with "data_sources" parameter

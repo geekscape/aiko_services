@@ -12,6 +12,7 @@ source:
   - src/aiko_services/elements/cameras/camera_ids_peak.py
   - src/aiko_services/elements/cameras/camera_aravis.py
   - src/aiko_services/elements/cameras/pipelines/gigev_pipeline_0.json
+  - src/aiko_services/elements/cameras/pipelines/gigev_pipeline_1.json
 related: [scheme_gigev, scheme_camera, camera, data_source_target,
   pipeline_element, scheme, parameters, share]
 version: "0.8-dev"
@@ -65,6 +66,15 @@ aiko_pipeline create pipelines/gigev_pipeline_0.json -s 1  \
   -p VideoReadGigE.resolution native -p VideoReadGigE.frame_rate 1  \
   -p VideoReadGigE.exposure_us 20000 -p VideoReadGigE.gain 2.0
 
+# The video regime of a store / forward Pipeline: 1080p at 8 fps for
+# 30 s into data_out/gigev_0.mp4, with no display (a headless host)
+aiko_pipeline create pipelines/gigev_pipeline_1.json -s 1
+
+# A manual-focus lens: watch sensor.sharpness on aiko_dashboard and
+# turn the focus ring until it peaks
+aiko_pipeline create pipelines/gigev_pipeline_0.json -s 1  \
+  -p VideoReadGigE.focus_assist true -p CaptureLimit.duration 10m
+
 # The Aravis backend, experimental
 aiko_pipeline create pipelines/gigev_pipeline_0.json -s 1  \
   -p VideoReadGigE.backend aravis
@@ -83,16 +93,16 @@ per second need a NIC MTU of 9000 and a larger receive buffer.
 
 | Class | Kind | Inputs → Outputs | Parameters |
 |-------|------|------------------|------------|
-| `VideoReadGigE` | DataSource | `images: [image]` → `images: [image]` | `data_sources` (`(gigev://)` or `(gigev://<address>)`), `backend` (`auto`), `resolution` (`1920x1080`), `frame_rate` (`8.0`), `trigger` (`auto`), `exposure_us` (`auto`), `gain`, `settle` (`2`), `resize_mode`, `rate`, `capture_timeout`, `log_frames`, `media_type` |
+| `VideoReadGigE` | DataSource | `images: [image]` → `images: [image]` | `data_sources` (`(gigev://)` or `(gigev://<address>)`), `backend` (`auto`), `resolution` (`1920x1080`), `frame_rate` (`8.0`), `trigger` (`auto`), `exposure_us` (`auto`), `gain`, `max_exposure_us` (`auto`), `settle` (`2`), `resize_mode`, `rate`, `capture_timeout`, `log_frames`, `focus_assist` (`false`), `media_type` |
 
 Service protocol: `video_read_gigev:0`.
 
 Live shared state: the keys of the [camera scheme base](scheme_camera.md)
-plus `backend`, `trigger`, `exposure_us` and `gain`. Writable keys:
-`exposure_us` (a number, or `auto` to run the auto-expose again), `gain`,
-`capture_timeout` and `log_frames`. A written exposure or gain acts on
-the open camera at once, and the value the camera accepted is published
-back.
+plus `backend`, `trigger`, `exposure_us`, `gain` and `max_exposure_us`.
+Writable keys: `exposure_us` (a number, or `auto` to run the auto-expose
+again), `gain`, `max_exposure_us`, `capture_timeout`, `log_frames` and
+`focus_assist`. A written exposure or gain acts on the open camera at
+once, and the value the camera accepted is published back.
 
 **Stream lifecycle behavior:**
 

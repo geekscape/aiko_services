@@ -40,7 +40,8 @@ __all__ = [
     "CAPTURE_TIMEOUT_LIMIT", "CAPTURE_TIMEOUT_S", "DEFAULT_FRAME_RATE",
     "DEFAULT_RESOLUTION", "NATIVE_RESOLUTION", "RESIZE_MODES",
     "Camera", "CaptureTimeout", "CountdownSettle", "RateMeter",
-    "SettleMonitor", "auto_expose", "parse_bool", "parse_frame_rate",
+    "SettleMonitor", "auto_expose", "focus_sharpness", "parse_bool",
+    "parse_frame_rate",
     "parse_resolution", "parse_settle", "plan_resolution", "resize_image",
     "share_token", "utc_now"
 ]
@@ -352,6 +353,26 @@ class CountdownSettle:
             self.frames += 1
             self.done = self.frames >= self.max_frames
         return self.done
+
+def focus_sharpness(image):
+    """Focus metric of an RGB (or gray) image: the variance of the
+    Laplacian over the gray center third.  It only means something
+    relative to itself while a focus ring turns, on a properly exposed
+    scene: turn until it peaks.  NumPy only (the 4-neighbour kernel that
+    cv2.Laplacian uses by default), about 5 ms for a 1080p frame"""
+
+    height, width = image.shape[:2]
+    center = image[height // 3:2 * height // 3, width // 3:2 * width // 3]
+    if center.ndim == 3:
+        gray = center[..., :3].astype(np.float32) @  \
+            np.array([0.299, 0.587, 0.114], dtype=np.float32)
+    else:
+        gray = center.astype(np.float32)
+    if gray.shape[0] < 3 or gray.shape[1] < 3:
+        return 0.0
+    laplacian = gray[:-2, 1:-1] + gray[2:, 1:-1] + gray[1:-1, :-2]  \
+        + gray[1:-1, 2:] - 4.0 * gray[1:-1, 1:-1]
+    return float(laplacian.var())
 
 def auto_expose(camera, logger=None, target_p99=225, max_exposure_us=250000,
     max_iterations=8, timeout_s=None):

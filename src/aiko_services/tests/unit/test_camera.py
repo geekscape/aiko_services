@@ -292,3 +292,39 @@ def test_scheme_registered_once():
     module = importlib.import_module(
         "aiko_services.elements.cameras.scheme_depthai")
     assert aiko.DataScheme.LOOKUP["depthai"] is module.DataSchemeDepthAI
+
+def _checkerboard(size=240, square=8):
+    tile = (np.indices((size, size)).sum(axis=0) // square) % 2
+    gray = (tile * 255).astype(np.uint8)
+    return np.dstack([gray, gray, gray])
+
+def _box_blur(image, radius=3):
+    blurred = image.astype(np.float32)
+    for axis in (0, 1):
+        blurred = sum(np.roll(blurred, shift, axis=axis)
+                      for shift in range(-radius, radius + 1))  \
+            / (2 * radius + 1)
+    return blurred.astype(np.uint8)
+
+def test_focus_sharpness_peaks_when_sharp():
+    sharp = _checkerboard()
+    assert camera.focus_sharpness(sharp) > 10 * camera.focus_sharpness(
+        _box_blur(sharp))
+    assert camera.focus_sharpness(np.zeros((90, 120, 3), np.uint8)) == 0.0
+    gray = sharp[..., 0]
+    assert camera.focus_sharpness(gray) == pytest.approx(
+        camera.focus_sharpness(sharp), rel=1e-3)
+    assert camera.focus_sharpness(np.zeros((6, 6, 3), np.uint8)) == 0.0
+
+def test_focus_sharpness_matches_the_spike_metric():
+    """The OpenCV form the camera spike used: Laplacian variance of the
+    gray center third.  Pure NumPy here, same kernel"""
+
+    cv2 = pytest.importorskip("cv2")
+    rng = np.random.default_rng(3)
+    image = rng.integers(0, 256, (300, 450, 3), dtype=np.uint8)
+    height, width = image.shape[:2]
+    center = image[height // 3:2 * height // 3, width // 3:2 * width // 3]
+    gray = cv2.cvtColor(center, cv2.COLOR_RGB2GRAY).astype(np.float32)
+    expected = cv2.Laplacian(gray, cv2.CV_32F)[1:-1, 1:-1].var()
+    assert camera.focus_sharpness(image) == pytest.approx(expected, rel=0.02)

@@ -268,6 +268,38 @@ def test_process_abort_closes_the_camera(fake):
     stop(scheme, stream)                             # still clean
     scheme._close_at_exit()                          # after destroy: no-op
 
+def test_focus_assist_publishes_sharpness(fake):
+    """Off by default; on, one sharpness value per publish period; the
+    dashboard turns it on and off mid-Stream"""
+
+    scheme, element, stream, event, _ = start({"settle": 0,
+                                               "frame_rate": 200})
+    assert element.share["focus_assist"] == "false"
+    assert scheme.frame_generator(stream, 0)[0] == aiko.StreamEvent.OKAY
+    scheme._publish_handler()
+    assert "sensor.sharpness" not in element.share
+
+    element.ec_producer.send("focus_assist", "true")
+    assert scheme.frame_generator(stream, 1)[0] == aiko.StreamEvent.OKAY
+    scheme._publish_handler()
+    assert element.share["sensor.sharpness"] == "0.0"   # black fake frames
+    due = scheme._focus_due
+    scheme.frame_generator(stream, 2)                   # within the period
+    assert scheme._focus_due == due
+
+    element.ec_producer.send("focus_assist", "false")
+    scheme._publish_handler()
+    assert element.share["sensor.sharpness"] == "-"
+    stop(scheme, stream)
+
+    scheme, element, stream, event, _ = start(
+        {"settle": 0, "frame_rate": 200, "focus_assist": "true"})
+    assert element.share["focus_assist"] == "true"
+    scheme.frame_generator(stream, 0)
+    scheme._publish_handler()
+    assert element.share["sensor.sharpness"] == "0.0"
+    stop(scheme, stream)
+
 def test_writable_keys(fake):
     scheme, element, stream, event, _ = start({"settle": 0})
     element.ec_producer.send("capture_timeout", "2.5")
