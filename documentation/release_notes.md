@@ -114,6 +114,13 @@ sections are.
   *sensor.auto_status*, *sensor.white_balance*, *sensor.temperature_c*
   and *sensor.packets_dropped* are on the dashboard
 
+* The camera DataSources capture on a thread of their own and queue two
+  frames.  *frame_generator()* only takes a ready frame, so the Stream
+  lock is free while the camera waits.  Before, a camera's wait held
+  that lock for most of each frame period.  The event loop then never
+  reached its MQTT messages, so a dashboard showed no variables for the
+  Pipeline.  New share key *frames_dropped*
+
 * New DataSchemes *depthai* (*elements/cameras/scheme_depthai.py*) and
   *gigev* (*elements/cameras/scheme_gigev.py*), on the shared
   *DataSchemeCamera* base (*elements/cameras/scheme_camera.py*).  A

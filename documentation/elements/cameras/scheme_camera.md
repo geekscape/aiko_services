@@ -99,7 +99,7 @@ Shared state on the dashboard, and through an `ECConsumer`:
 | `state` | `opening`, `settling`, `streaming`, `stopped` or `error` |
 | `device_id`, `address`, `sdk_version` | What is open, and through what |
 | `settled` | `waiting`, `<n>_frames`, `timeout_<n>_frames` or `off` |
-| `frames`, `measured_fps` | Frames delivered, and the rate over the last two seconds |
+| `frames`, `measured_fps`, `frames_dropped` | Frames delivered, the rate over the last two seconds, and frames captured but dropped because the Pipeline fell behind |
 | `capture_timeouts`, `last_frame_utc`, `last_error` | Is it delivering, when did it last, what failed last (`<token>@UTC`) |
 | `sensor.*` | What the device reports: `resolution` (delivered), `exposure_us`, `gain`, `iso_sensitivity`, `lens_position`, `color_temperature_k`, `auto_status` and `white_balance` (a camera's own auto features), `temperature_c` and `packets_dropped` (once a second, from `Camera.status()`), and `sharpness` with `focus_assist` (`-` when it is turned off) |
 | `resolution`, `frame_rate`, `settle`, `resize_mode`, `capture_timeout`, `log_frames`, `focus_assist` | The configuration in force, as valid parameter values |
@@ -117,16 +117,23 @@ starts with. The base's writable keys are `capture_timeout`,
   coerces the parameters, selects the device class, opens the camera and
   publishes the identity and configuration keys. Each failure returns
   `StreamEvent.ERROR` with a diagnostic, sets `state` to `error` and
-  records `last_error`. Then it starts `create_frames()`.
-- `frame_generator()` runs on the frame generator thread. It runs the
-  optional warm-up steps first, then captures with a bounded timeout. A
-  timeout returns `NO_FRAME`, and ten in a row return `STOP`. Any other
-  failure returns `STOP`, never `ERROR`. An `ERROR` on the generator
-  thread destroys the Stream on that thread, and the process lingers.
-  While the settle object is not done, frames are discarded. Then each
-  frame is delivered as `{"images": [image]}` with a timestamp.
-- `destroy_sources()` stops the generator, removes the timer and the
-  share handler, closes the camera and publishes `state stopped`.
+  records `last_error`. Then it starts the capture thread and
+  `create_frames()`.
+- The capture thread owns the camera. It runs the optional warm-up steps
+  first, then captures with a bounded timeout. Ten timeouts in a row, or
+  any other failure, end the Stream. While the settle object is not
+  done, frames are discarded. Each other frame goes onto a host queue of
+  two, and when the queue is full the oldest frame is dropped and
+  counted in `frames_dropped`.
+- `frame_generator()` runs on the frame generator thread. It takes a
+  ready frame and returns it as `{"images": [image]}` with its capture
+  timestamp, or returns `NO_FRAME` at once. After a capture failure it
+  returns `STOP` once the queued frames are delivered, never `ERROR`. An
+  `ERROR` on the generator thread destroys the Stream on that thread,
+  and the process lingers.
+- `destroy_sources()` stops and joins the capture thread, removes the
+  timer and the share handler, closes the camera and publishes `state
+  stopped`.
 - A process abort (a keyboard interrupt in the event loop) exits without
   destroying the Streams. An `atexit` hook, registered while the camera
   is open, closes it first. Without it a generator thread blocked inside
@@ -137,25 +144,35 @@ starts with. The base's writable keys are `capture_timeout`,
 ### Design
 
 ```
- event-loop thread                       frame generator thread
- ─────────────────                       ──────────────────────
- create_sources()                        frame_generator()
-   settings = _camera_settings()           warm_up_steps? -> NO_FRAME
-   camera = _camera_class().open()         capture(timeout)
-   _start_warm_up()                          CaptureTimeout -> NO_FRAME
-   publish identity, configuration          exception      -> STOP
-   timer: _publish_handler() 1 s ◄──────── _pend(key, value)
-   handler: writable keys                   settle.feed()  -> NO_FRAME
-   create_frames()                          OKAY {"images": [image]}
+ event-loop thread            capture thread            frame generator
+ ─────────────────            ──────────────            thread
+ create_sources()             _capture_loop()           ───────────────
+   settings, open()             warm_up_steps           frame_generator()
+   _start_warm_up()             capture(timeout)          (Stream lock
+   publish configuration        settle.feed()              held by the
+   timer: _publish_handler()    queue (2, drop oldest) ──► framework)
+     ◄── _pend(key, value) ──── status, sharpness         take a frame:
+   handler: writable keys                                  OKAY, else
+   start capture thread                                    NO_FRAME at
+   create_frames()                                         once
  destroy_sources()
-   stopped = True, close(), flush
+   stopped, join, close(), flush
 ```
 
-- **Two threads, one rule.** The event-loop thread publishes to share
-  directly. The generator thread never touches share: it records into a
-  pending dictionary, and a one second timer on the event loop publishes
-  what changed. This is the same rule as the StoreForward Actor's
-  mailbox hand-off.
+- **Three threads, one rule.** The event-loop thread publishes to share
+  directly. The capture and generator threads never touch share: they
+  record into a pending dictionary, and a one second timer on the event
+  loop publishes what changed. This is the same rule as the StoreForward
+  Actor's mailbox hand-off.
+- **The camera waits on its own thread.** The framework holds the Stream
+  lock around each `frame_generator()` call. A camera that waited for
+  its next frame there held the lock for most of each frame period. Each
+  frame's `process_frame()` then waited for it, the frame mailbox never
+  emptied, and the event loop never reached its MQTT messages. So a
+  dashboard showed the Pipeline but none of its variables, and ignored
+  updates. With the fake camera at 8 fps on an embedded ARM computer, no
+  share request was answered. With the capture thread, all were
+  answered in 0.3 s, and the real camera held 8.0 fps.
 - **Subclass hooks.** `_camera_class()`, `_open_camera()`,
   `_extra_settings()`, `_start_warm_up()` and `_apply_update()` are the
   five points a camera scheme fills in.
@@ -174,11 +191,14 @@ starts with. The base's writable keys are `capture_timeout`,
   `destroy_sources()`, as is the timer. The unit tests assert that both
   are gone after destroy, because a leftover timer runs into the next
   test's event loop.
-- A capture in flight when the Stream stops is posted after the stop and
-  re-creates the Stream. This is framework behavior. The generator
-  checks the stopped flag after each capture, which narrows the window.
-  The in-process tests pace delivery with `rate`, so the stop lands
-  while the generator sleeps.
+- A frame posted after the Stream stops re-creates the Stream. This is
+  framework behavior. The generator returns at once and checks the
+  stopped flag first, which narrows the window. The in-process tests pace
+  delivery with `rate`, so the stop lands while the generator sleeps.
+- `CAPTURE_THREAD = False` makes `frame_generator()` run one capture
+  step itself, as before the capture thread. The step-by-step unit tests
+  use it. The threaded path has its own tests, and the in-process
+  Pipeline tests run it.
 
 ### CRC card
 
