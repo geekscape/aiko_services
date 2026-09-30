@@ -17,6 +17,13 @@
 # and stops; without them start_stream() fails and restarts the generator
 # without end
 #
+# The writer is pinned to "mp4v": these tests are about segment
+# boundaries, and H.264 ("avc1", the default) is not exact on every
+# OpenCV build.  On an embedded ARM computer's opencv-python 5.0 an H.264
+# MP4 reports one frame more than it holds, and a one-frame H.264 file
+# decodes to nothing.  Frames are counted by decoding, not by the
+# container's frame-count property
+#
 # To Do
 # ~~~~~
 # - None, yet !
@@ -65,7 +72,8 @@ PIPELINE_DEFINITION = """{
         "data_targets":    "(store_forward://OUTBOX)",
         "segment_prefix":  "PREFIX",
         "segment_frames":  SEGMENT_FRAMES,
-        "segment_seconds": SEGMENT_SECONDS
+        "segment_seconds": SEGMENT_SECONDS,
+        "format":          "mp4v"
       },
       "input":  [{"name": "images", "type": "[image]"}], "output": [],
       "deploy": {
@@ -80,11 +88,16 @@ PIPELINE_DEFINITION = """{
 """
 
 def _frame_count(path):
+    """(frames decoded, (width, height)): decoding, because the container's
+    frame-count property is not exact for every codec and OpenCV build"""
+
     capture = cv2.VideoCapture(str(path))
     try:
-        count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
         width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        count = 0
+        while capture.read()[0]:
+            count += 1
     finally:
         capture.release()
     return count, (width, height)
