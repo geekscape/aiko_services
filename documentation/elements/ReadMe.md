@@ -1,14 +1,14 @@
 ---
 title: Aiko Services PipelineElements documentation
 description: Index of OKF concept documents for the PipelineElement library
-  in src/aiko_services/elements/ — control, gstreamer, media, observe and
-  utilities packages, with their example PipelineDefinitions
+  in src/aiko_services/elements/ — cameras, control, gstreamer, media,
+  observe and utilities packages, with their example PipelineDefinitions
 type: index
 audience: [developers, end-users]
 status: draft
 ste: adapted
 version: "0.8-dev"
-last_updated: 2026-09-10
+last_updated: 2026-09-23
 ---
 
 # Aiko Services: PipelineElements documentation
@@ -34,6 +34,7 @@ audience-first template
 
 | Package | Contents |
 |---------|----------|
+| [cameras/](cameras/ReadMe.md) | Machine-vision cameras as DataSources — Luxonis OAK through the `depthai` DataScheme, GigE Vision through the `gigev` DataScheme (IDS peak, or Aravis as an experimental backend), the shared camera contract, `ImageDewarp`, and three example PipelineDefinitions |
 | [control/](control/ReadMe.md) | Control-flow elements — the Loop element repeating a graph section until an S-expression condition becomes false, and the CaptureLimit element stopping a Stream after a frame count, a duration, a media run time or a condition |
 | [gstreamer/](gstreamer/ReadMe.md) | RTSP PipelineElements and the `rtsp` DataScheme (current style), plus the legacy GStreamer video reader/writer wrapper classes |
 | [media/](media/ReadMe.md) | The largest family — text, image, video, webcam, synthetic, store / forward and audio elements, the `file` / `synth` / `store_forward` / `tty` / `zmq` DataSchemes, and twenty-three example PipelineDefinitions |
@@ -50,6 +51,11 @@ audience-first template
   available, then [media/webcam_io.md](media/webcam_io.md),
   [media/video_io.md](media/video_io.md), then
   [gstreamer/rtsp_io.md](gstreamer/rtsp_io.md) for network cameras.
+  For machine-vision cameras, read
+  [cameras/depthai_io.md](cameras/depthai_io.md) or
+  [cameras/gigev_io.md](cameras/gigev_io.md), with
+  [cameras/image_dewarp.md](cameras/image_dewarp.md) when the lens
+  distorts.
 - **Writing a new PipelineElement**: read
   [PipelineElement](../concepts/pipeline_element.md) and
   [Data Source / Target](../concepts/data_source_target.md) first, then

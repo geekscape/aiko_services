@@ -11,7 +11,7 @@ source:
 related: [design_overview, data_source_target, pipeline, pipeline_element,
   stream, parameters]
 version: "0.6"
-last_updated: 2026-09-10
+last_updated: 2026-09-23
 ---
 
 # DataScheme
@@ -98,7 +98,10 @@ in `stream.variables`, not on `self` beyond that.
 | `tty` | `DataSchemeTTY` | `src/aiko_services/elements/media/scheme_tty.py` |
 | `zmq` | `DataSchemeZMQ` | `src/aiko_services/elements/media/scheme_zmq.py` |
 | `synth` | `DataSchemeSynthetic` | `src/aiko_services/elements/media/scheme_synth.py` |
+| `store_forward` | `DataSchemeStoreForward` | `src/aiko_services/elements/media/scheme_store_forward.py` |
 | `rtsp` | `DataSchemeRTSP` | `src/aiko_services/elements/gstreamer/scheme_rtsp.py` |
+| `depthai` | `DataSchemeDepthAI` | `src/aiko_services/elements/cameras/scheme_depthai.py` |
+| `gigev` | `DataSchemeGigE` | `src/aiko_services/elements/cameras/scheme_gigev.py` |
 | `colab` | `DataSchemeColab` | `src/aiko_services/examples/colab/scheme_colab.py` |
 
 (A `webcam://` scheme is planned — `webcam_io.py` currently selects the
