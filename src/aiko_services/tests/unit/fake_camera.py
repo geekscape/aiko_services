@@ -15,6 +15,10 @@
 # - LENS_SETTLES:  lens_position reads 0 for the first two frames, then a
 #                  stable value, so a SettleMonitor of 3+ frames converges
 # - INSTANCES:     every FakeCamera constructed since do_fake_initialize()
+# - AUTO_FEATURES: the camera has its own auto exposure and white balance;
+#                  with it on, auto_status reads "AecActive" for the first
+#                  AUTO_ACTIVE_FRAMES frames, then "Done"
+# - QUEUED:        queued_frames(), what a host auto-expose skips
 
 import logging
 import time
@@ -31,6 +35,9 @@ class FakeCamera(camera.Camera):
     FRAME_LIMIT = None
     LENS_SETTLES = True
     INSTANCES = []
+    AUTO_FEATURES = False
+    AUTO_ACTIVE_FRAMES = 3
+    QUEUED = 0
 
     def __init__(self, address=None, resolution=None, frame_rate=None,
         resize_mode="crop", trigger="off", aux_stream=None, logger=None):
@@ -42,6 +49,10 @@ class FakeCamera(camera.Camera):
         self.captured = 0
         self.exposures = []
         self.gains = []
+        self.camera_auto = False
+        self.camera_auto_calls = []
+        self.white_balance_calls = []
+        self._auto_frames = 0
         FakeCamera.INSTANCES.append(self)
 
     @classmethod
@@ -69,6 +80,12 @@ class FakeCamera(camera.Camera):
         lens = 0 if FakeCamera.LENS_SETTLES and self.captured < 2 else 120
         metadata = {"exposure_us": 15000.0, "iso_sensitivity": 800,
                     "lens_position": lens, "gain": 1.0}
+        if self.camera_auto:
+            self._auto_frames += 1
+            metadata["auto_status"] = "AecActive"  \
+                if self._auto_frames <= FakeCamera.AUTO_ACTIVE_FRAMES  \
+                else "Done"
+            metadata["white_balance"] = "Done"
         self.captured += 1
         return image, metadata
 
@@ -86,11 +103,40 @@ class FakeCamera(camera.Camera):
         self.gains.append(float(gain))
         return float(gain)
 
+    def camera_auto_available(self):
+        return FakeCamera.AUTO_FEATURES
+
+    def set_camera_auto(self, enable, max_exposure_us=None,
+                        brightness_target=None):
+        self.camera_auto_calls.append(
+            (enable, max_exposure_us, brightness_target))
+        self.camera_auto = enable
+        self._auto_frames = 0
+        return {"max_exposure_us": max_exposure_us,
+                "brightness_target": brightness_target}
+
+    def set_white_balance(self, mode):
+        if not FakeCamera.AUTO_FEATURES:
+            return None
+        self.white_balance_calls.append(mode)
+        return mode
+
+    def status(self):
+        if not FakeCamera.AUTO_FEATURES:
+            return {}
+        return {"temperature_c": 41.5, "packets_dropped": 0}
+
+    def queued_frames(self):
+        return FakeCamera.QUEUED
+
 def do_fake_initialize():
     FakeCamera.FAIL_OPEN = False
     FakeCamera.FRAME_LIMIT = None
     FakeCamera.LENS_SETTLES = True
     FakeCamera.INSTANCES.clear()
+    FakeCamera.AUTO_FEATURES = False
+    FakeCamera.AUTO_ACTIVE_FRAMES = 3
+    FakeCamera.QUEUED = 0
 
 # --------------------------------------------------------------------------- #
 

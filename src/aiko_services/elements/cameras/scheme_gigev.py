@@ -15,10 +15,20 @@
 #                           trigger per frame: fresh exposures, an idle
 #                           link between stills) when frame_rate <= 2,
 #                           else "off" (free-running video at frame_rate)
-# parameter: "exposure_us"  fixed exposure; default "auto": a highlight
-#                           based auto-expose runs before the first frame,
-#                           because the IDS default user set has none
+# parameter: "exposure_us"  a number: fixed exposure.  "auto" (default):
+#                           "camera" when the camera has its own auto
+#                           exposure and free-runs, else "host".  "camera":
+#                           the camera's continuous auto exposure and gain,
+#                           capped by max_exposure_us, frame_rate held; it
+#                           follows the light all day.  "host": the
+#                           highlight-based auto-expose runs once before the
+#                           first frame, then the exposure stays fixed
 # parameter: "gain"         analog gain, applied with a fixed exposure_us
+# parameter: "brightness_target"  the camera auto exposure's target, 3 to
+#                           253 (default "auto": the camera's own, 150 on
+#                           the IDS cameras); higher is brighter
+# parameter: "white_balance"  auto (default: the camera's continuous white
+#                           balance, when it has one) | once | off
 # parameter: "max_exposure_us"  the auto-expose ceiling; default "auto":
 #                           80 % of the frame period when free-running
 #                           (100 ms at 8 fps), 250 ms with the software
@@ -27,17 +37,23 @@
 #                           a moving scene blurs long before that, so a
 #                           video Pipeline often sets it lower (30000)
 # parameter: "settle"       frames discarded after an exposure change,
-#                           default "2"
+#                           default "2".  With the camera auto exposure:
+#                           frames are discarded until it has converged,
+#                           at most max(settle, 30); 0 turns that off
 # In software-trigger mode "rate" defaults to frame_rate: the frame
 # generator triggers one exposure per delivered frame
 #
-# Shared state adds: backend, trigger, exposure_us (the actual value, or
-#   "auto" while auto-expose runs), gain, max_exposure_us (as configured:
-#   "auto" or a number)
-# Writable keys: exposure_us (a number, or "auto" to run auto-expose
-#   again), gain, max_exposure_us (used by the next auto-expose), and the
-#   base's capture_timeout, log_frames and focus_assist.  They act on the
-#   open camera at once and the next Stream starts from them
+# Shared state adds: backend, trigger, exposure_mode (camera | host |
+#   fixed), exposure_us (the configured mode, or the value the host
+#   auto-expose settled on, or the fixed value), gain, max_exposure_us,
+#   brightness_target and white_balance (as configured).  The camera's own
+#   live values are sensor.exposure_us, sensor.gain, sensor.auto_status and
+#   sensor.white_balance
+# Writable keys: exposure_us (a number, "auto", "camera" or "host"), gain
+#   (with a fixed exposure), max_exposure_us, brightness_target,
+#   white_balance, and the base's capture_timeout, log_frames and
+#   focus_assist.  They act on the open camera at once and the next Stream
+#   starts from them
 #
 # To Do
 # ~~~~~
@@ -58,6 +74,10 @@ STILLS_FRAME_RATE = 2.0             # at or below: software trigger
 AUTO = ("", "none", "auto")
 MAX_EXPOSURE_US = 250000.0          # the auto-expose ceiling for stills ...
 FRAME_PERIOD_SHARE = 0.8            # ... and free-running: of the period
+EXPOSURE_MODES = ("auto", "camera", "host")
+WHITE_BALANCE_MODES = {"auto": "continuous", "continuous": "continuous",
+                       "once": "once", "off": "off"}
+CAMERA_AUTO_SETTLE_FRAMES = 30      # bound on the camera auto convergence
 
 BACKENDS = {"peak": IdsPeakCamera, "aravis": AravisCamera}  # tests add one
 BACKEND_ORDER = ("peak", "aravis")  # "auto" preference
@@ -107,6 +127,8 @@ class DataSchemeGigE(DataSchemeCamera):
         self._frame_rate = None
         self._trigger = "off"
         self._max_exposure_us = None    # None: default_max_exposure_us()
+        self._brightness_target = None  # None: the camera's own
+        self._exposure_mode = "fixed"   # camera | host | fixed
 
     def _camera_class(self, settings):
         self.backend_name, camera_class = select_backend(settings["backend"])
@@ -123,11 +145,15 @@ class DataSchemeGigE(DataSchemeCamera):
             trigger = "software"  \
                 if settings["frame_rate"] <= STILLS_FRAME_RATE else "off"
         settings["trigger"] = trigger
-        settings["exposure_us"] = _optional_float(
-            get("exposure_us", None)[0], "exposure_us")
+        settings["exposure_mode"], settings["exposure_us"] =  \
+            _exposure_setting(get("exposure_us", "auto")[0])
         settings["gain"] = _optional_float(get("gain", None)[0], "gain")
         settings["max_exposure_us"] = _optional_float(
             get("max_exposure_us", None)[0], "max_exposure_us")
+        settings["brightness_target"] = _brightness_target(
+            get("brightness_target", None)[0])
+        settings["white_balance"] = _white_balance(
+            get("white_balance", "auto")[0])
         if trigger == "software" and settings["rate"] is None:
             settings["rate"] = settings["frame_rate"]  # one trigger a frame
 
@@ -136,15 +162,74 @@ class DataSchemeGigE(DataSchemeCamera):
         self._frame_rate = settings["frame_rate"]
         self._trigger = settings["trigger"]
         self._max_exposure_us = settings["max_exposure_us"]
+        self._brightness_target = settings["brightness_target"]
         self.settle = camera.CountdownSettle(settings["settle"])
         self._publish("backend", self.backend_name)
         self._publish("trigger", settings["trigger"])
         self._publish("max_exposure_us", _configured(self._max_exposure_us))
-        if settings["exposure_us"] is None:
-            self._publish("exposure_us", "auto")
-            self.warm_up_steps = self._auto_expose_steps()
-        else:
+        self._publish("brightness_target",
+                      _configured(self._brightness_target))
+        if settings["exposure_mode"] == "fixed":
+            self._exposure_mode = "fixed"
+            self._publish("exposure_mode", "fixed")
             self._set_exposure(settings["exposure_us"], settings["gain"])
+        else:
+            self._start_auto_exposure(settings["exposure_mode"])
+        self._apply_white_balance(settings["white_balance"])
+
+    def _resolve_mode(self, mode):
+        """auto --> camera when the camera has its own auto exposure and
+        free-runs, else host.  An unavailable "camera" falls back to host"""
+
+        available = self._try_bool(self.camera.camera_auto_available)
+        if mode == "auto":
+            return "camera" if available and self._trigger == "off"  \
+                else "host"
+        if mode == "camera" and not available:
+            self.pipeline_element.logger.warning(
+                f"{self.camera_name} has no auto exposure of its own: "
+                "the host auto-expose runs instead")
+            return "host"
+        return mode
+
+    def _start_auto_exposure(self, configured):
+        """Event-loop thread: configured is auto, camera or host"""
+
+        self._exposure_mode = self._resolve_mode(configured)
+        self._publish("exposure_mode", self._exposure_mode)
+        self._publish("exposure_us", configured)
+        if self._exposure_mode == "camera":
+            self._camera_auto_on()
+        else:
+            if self._try_bool(self.camera.camera_auto_available):
+                self.camera.set_camera_auto(False)
+            self.warm_up_steps = self._auto_expose_steps()
+
+    def _camera_auto_on(self):
+        applied = self.camera.set_camera_auto(True,
+            max_exposure_us=self.exposure_ceiling_us(),
+            brightness_target=self._brightness_target)
+        self.pipeline_element.logger.info(
+            f"{self.camera_name}: the camera's own auto exposure, at most "
+            f"{self.exposure_ceiling_us():.0f} us, target "
+            f"{_configured(self._brightness_target)} ({applied})")
+        bound = 0 if self._settle_frames == 0  \
+            else max(self._settle_frames, CAMERA_AUTO_SETTLE_FRAMES)
+        self.settle = camera.CameraAutoSettle(bound)
+
+    def _apply_white_balance(self, configured):
+        applied = self.camera.set_white_balance(
+            WHITE_BALANCE_MODES[configured])
+        if applied is None and configured != "off":
+            self.pipeline_element.logger.info(
+                f"{self.camera_name} has no white balance of its own")
+        self._publish("white_balance", configured)
+
+    def _try_bool(self, function):
+        try:
+            return bool(function())
+        except Exception:
+            return False
 
     def exposure_ceiling_us(self):
         """The auto-expose ceiling in force, in microseconds"""
@@ -168,7 +253,8 @@ class DataSchemeGigE(DataSchemeCamera):
     def _auto_expose_steps(self):
         steps = camera.auto_expose(self.camera, self.pipeline_element.logger,
             max_exposure_us=self.exposure_ceiling_us(),
-            timeout_s=max(self.capture_timeout, 2.0))
+            timeout_s=max(self.capture_timeout, 2.0),
+            discard_frames=self.camera.queued_frames())
         for done, exposure_us, gain in steps:
             values = {}
             if exposure_us is not None:
@@ -190,32 +276,55 @@ class DataSchemeGigE(DataSchemeCamera):
                 f"{self.camera_name} exposure set-up failed: {exception}")
 
     def _apply_update(self, item_name, item_value):
-        if item_name == "max_exposure_us":
-            self._max_exposure_us = _optional_float(item_value, item_name)
-            self._publish(item_name, _configured(self._max_exposure_us))
-            return
-        if item_name not in ("exposure_us", "gain"):
+        if item_name not in ("exposure_us", "gain", "max_exposure_us",
+                             "brightness_target", "white_balance"):
             return
         if not self.camera:
             raise ValueError("no camera is open")
+        if item_name == "max_exposure_us":
+            self._max_exposure_us = _optional_float(item_value, item_name)
+            self._publish(item_name, _configured(self._max_exposure_us))
+            if self._exposure_mode == "camera":
+                self._camera_auto_on()
+                self._settling()
+            return
+        if item_name == "brightness_target":
+            self._brightness_target = _brightness_target(item_value)
+            self._publish(item_name, _configured(self._brightness_target))
+            if self._exposure_mode == "camera":
+                self._camera_auto_on()
+                self._settling()
+            return
+        if item_name == "white_balance":
+            self._apply_white_balance(_white_balance(item_value))
+            return
         if item_name == "exposure_us":
-            if str(item_value).strip().lower() in AUTO:
-                self._publish("exposure_us", "auto")
-                self.warm_up_steps = self._auto_expose_steps()
-            else:
-                exposure_us = float(item_value)
-                if exposure_us <= 0:
-                    raise ValueError("must be positive")
-                self._check_exposure(exposure_us)
-                actual = self.camera.set_exposure(exposure_us)
-                self._publish("exposure_us", f"{actual:.0f}")
+            mode, exposure_us = _exposure_setting(item_value)
+            if mode != "fixed":
+                self._start_auto_exposure(mode)
+                if self._exposure_mode == "camera":
+                    self._settling()
+                return
+            if self._exposure_mode == "camera":
+                self.camera.set_camera_auto(False)
+            self._exposure_mode = "fixed"
+            self._publish("exposure_mode", "fixed")
+            self._check_exposure(exposure_us)
+            actual = self.camera.set_exposure(exposure_us)
+            self._publish("exposure_us", f"{actual:.0f}")
         else:
+            if self._exposure_mode == "camera":
+                raise ValueError("the camera's auto exposure sets the gain: "
+                                 "fix exposure_us first")
             gain = float(item_value)
             if gain < 0:
                 raise ValueError("must not be negative")
             actual = self.camera.set_gain(gain)
             self._publish("gain", f"{actual:.2f}")
         self.settle = camera.CountdownSettle(self._settle_frames)
+        self._settling()
+
+    def _settling(self):
         self._publish("settled", "waiting")
         self._publish("state", "settling")
 
@@ -234,6 +343,36 @@ def _configured(value):
     """A share value that is also a valid parameter value"""
 
     return "auto" if value is None else f"{value:.0f}"
+
+def _exposure_setting(value):
+    """--> ("fixed", number) or (mode, None) for auto | camera | host"""
+
+    text = "auto" if value is None else str(value).strip().lower()
+    if text in ("", "none"):
+        text = "auto"
+    if text in EXPOSURE_MODES:
+        return text, None
+    try:
+        return "fixed", _optional_float(value, "exposure_us")
+    except ValueError:
+        raise ValueError(f'exposure_us "{value}" must be a positive number, '
+                         "auto, camera or host")
+
+def _brightness_target(value):
+    target = _optional_float(value, "brightness_target")
+    if target is None:
+        return None
+    low, high = 3, 253
+    if not low <= target <= high:
+        raise ValueError(f'brightness_target "{value}" must be from {low} '
+                         f"to {high}, or auto")
+    return int(round(target))
+
+def _white_balance(value):
+    text = str(value).strip().lower() if value is not None else "auto"
+    if text not in WHITE_BALANCE_MODES:
+        raise ValueError(f'white_balance "{value}" must be auto, once or off')
+    return "auto" if text == "continuous" else text
 
 aiko.DataScheme.add_data_scheme(SCHEME, DataSchemeGigE)
 

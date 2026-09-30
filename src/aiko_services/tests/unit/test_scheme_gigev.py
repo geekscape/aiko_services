@@ -231,3 +231,122 @@ def test_writable_exposure_and_gain(fake):
     assert scheme.warm_up_steps is not None
     assert element.share["exposure_us"] == "auto"
     stop(scheme, stream)
+
+# The camera's own auto features ------------------------------------------ #
+
+def run_until_frame(scheme, stream, limit=40):
+    events = []
+    for index in range(limit):
+        event = scheme.frame_generator(stream, index)[0]
+        events.append(event)
+        if event == aiko.StreamEvent.OKAY:
+            return events
+    raise AssertionError(f"no frame in {limit} calls: {events}")
+
+def test_camera_auto_exposure_by_default(fake):
+    """A camera with its own auto exposure, free-running: "auto" is the
+    camera's, capped at 80 % of the frame period, with its white balance;
+    frames are discarded until its status is no longer converging"""
+
+    fake.AUTO_FEATURES = True
+    scheme, element, stream, event, _ = start({"frame_rate": 200})
+    assert event == aiko.StreamEvent.OKAY
+    instance = fake.INSTANCES[-1]
+    assert element.share["exposure_mode"] == "camera"
+    assert element.share["exposure_us"] == "auto"
+    assert element.share["white_balance"] == "auto"
+    assert element.share["brightness_target"] == "auto"
+    assert instance.camera_auto_calls == [(True, 4000.0, None)]
+    assert instance.white_balance_calls == ["continuous"]
+    assert scheme.warm_up_steps is None             # no host auto-expose
+    events = run_until_frame(scheme, stream)
+    assert events == [aiko.StreamEvent.NO_FRAME] * 4 + [aiko.StreamEvent.OKAY]
+    assert instance.exposures == []
+    scheme._publish_handler()
+    assert element.share["sensor.auto_status"] == "Done"
+    assert element.share["sensor.white_balance"] == "Done"
+    assert element.share["sensor.temperature_c"] == "41.5"
+    assert element.share["sensor.packets_dropped"] == "0"
+    assert element.share["settled"] == "4_frames"
+    stop(scheme, stream)
+
+    scheme, element, stream, event, _ = start(
+        {"frame_rate": 200, "max_exposure_us": 30000,
+         "brightness_target": 180, "white_balance": "once"})
+    instance = fake.INSTANCES[-1]
+    assert instance.camera_auto_calls == [(True, 30000.0, 180)]
+    assert instance.white_balance_calls == ["once"]
+    assert element.share["brightness_target"] == "180"
+    assert element.share["white_balance"] == "once"
+    stop(scheme, stream)
+
+def test_host_auto_exposure_when_asked_or_needed(fake):
+    """ "host" forces the host auto-expose, which skips the camera's queued
+    frames after each change; stills and cameras without auto exposure
+    use it too"""
+
+    fake.AUTO_FEATURES = True
+    fake.QUEUED = 2
+    scheme, element, stream, event, _ = start(
+        {"exposure_us": "host", "settle": 0, "frame_rate": 1000})
+    instance = fake.INSTANCES[-1]
+    assert element.share["exposure_mode"] == "host"
+    assert element.share["exposure_us"] == "host"
+    assert instance.camera_auto_calls == [(False, None, None)]
+    run_until_frame(scheme, stream)
+    assert len(instance.exposures) == 8             # black frames: 8 steps
+    assert instance.captured == 8 * (1 + 2) + 1     # + the delivered frame
+    stop(scheme, stream)
+
+    scheme, element, stream, event, _ = start({"frame_rate": 1})
+    assert element.share["trigger"] == "software"
+    assert element.share["exposure_mode"] == "host"  # stills: exact meter
+    stop(scheme, stream)
+
+    fake.AUTO_FEATURES = False
+    scheme, element, stream, event, _ = start(
+        {"exposure_us": "camera", "frame_rate": 200})
+    assert element.share["exposure_mode"] == "host"  # warned, fell back
+    assert fake.INSTANCES[-1].white_balance_calls == []
+    stop(scheme, stream)
+
+def test_camera_auto_writable_keys(fake):
+    fake.AUTO_FEATURES = True
+    scheme, element, stream, event, _ = start({"frame_rate": 200})
+    instance = fake.INSTANCES[-1]
+    run_until_frame(scheme, stream)
+
+    element.ec_producer.send("brightness_target", "200")
+    assert instance.camera_auto_calls[-1] == (True, 4000.0, 200)
+    assert element.share["brightness_target"] == "200"
+    assert element.share["state"] == "settling"
+    element.ec_producer.send("max_exposure_us", "20000")
+    assert instance.camera_auto_calls[-1] == (True, 20000.0, 200)
+    element.ec_producer.send("gain", "2")           # the camera's job now
+    assert instance.gains == []
+    element.ec_producer.send("white_balance", "off")
+    assert instance.white_balance_calls[-1] == "off"
+    assert element.share["white_balance"] == "off"
+    element.ec_producer.send("white_balance", "blue")   # rejected
+    assert element.share["white_balance"] == "off"
+
+    element.ec_producer.send("exposure_us", "25000")
+    assert instance.camera_auto_calls[-1][0] is False
+    assert instance.exposures == [25000.0]
+    assert element.share["exposure_mode"] == "fixed"
+    assert element.share["exposure_us"] == "25000"
+    element.ec_producer.send("gain", "2")           # fixed: allowed
+    assert instance.gains == [2.0]
+    element.ec_producer.send("exposure_us", "camera")
+    assert instance.camera_auto_calls[-1] == (True, 20000.0, 200)
+    assert element.share["exposure_mode"] == "camera"
+    stop(scheme, stream)
+
+def test_camera_auto_parameter_errors(fake):
+    for parameters, word in (({"brightness_target": 300}, "brightness_target"),
+                             ({"brightness_target": "x"}, "brightness_target"),
+                             ({"white_balance": "blue"}, "white_balance"),
+                             ({"exposure_us": "sometimes"}, "exposure_us")):
+        _, _, _, event, detail = start(parameters)
+        assert event == aiko.StreamEvent.ERROR, parameters
+        assert word in detail["diagnostic"], parameters

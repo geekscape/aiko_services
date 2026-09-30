@@ -33,7 +33,10 @@
 #   capture_timeouts last_frame_utc           last_error  <token>@UTC
 #   sensor.*         what the device reports: resolution (delivered WxH),
 #                    exposure_us, gain, iso_sensitivity, lens_position,
-#                    color_temperature_k; and sharpness with focus_assist
+#                    color_temperature_k, auto_status and white_balance
+#                    (a camera's own auto features), temperature_c and
+#                    packets_dropped (once a second), and sharpness with
+#                    focus_assist
 #   Configuration keys carry the parameter names and valid parameter
 #   values: resolution, frame_rate, settle, resize_mode, capture_timeout,
 #   log_frames, focus_assist and the subclass's own.  The framework reads
@@ -71,7 +74,7 @@ __all__ = ["DataSchemeCamera"]
 
 PUBLISH_PERIOD_S = 1.0
 METADATA_KEYS = ("exposure_us", "gain", "iso_sensitivity", "lens_position",
-                 "color_temperature_k")
+                 "color_temperature_k", "auto_status", "white_balance")
 
 # --------------------------------------------------------------------------- #
 # One DataScheme instance per Stream (see DataSource.start_stream())
@@ -93,6 +96,7 @@ class DataSchemeCamera(aiko.DataScheme):
         self.log_frames = False
         self.focus_assist = False
         self._focus_due = 0.0          # monotonic time of the next sharpness
+        self._status_due = 0.0         # ... and of the next camera status()
         self.rate_meter = camera.RateMeter()
         self._pending = {}
         self._pending_lock = threading.Lock()
@@ -324,6 +328,15 @@ class DataSchemeCamera(aiko.DataScheme):
             diagnostic = f"{self.camera_name} sources destroyed"
             return aiko.StreamEvent.STOP, {"diagnostic": diagnostic}
         self.timeouts = 0
+        if time.monotonic() >= self._status_due:
+            self._status_due = time.monotonic() + PUBLISH_PERIOD_S
+            try:
+                for key, value in self.camera.status().items():
+                    self._pend(f"sensor.{key}", value)
+            except Exception as exception:     # best effort: not "error"
+                self._pend("last_error", camera.share_token(
+                    f"status_{type(exception).__name__}") + "@"
+                    + camera.utc_now())
         if self.focus_assist and time.monotonic() >= self._focus_due:
             self._focus_due = time.monotonic() + PUBLISH_PERIOD_S
             self._pend("sensor.sharpness",

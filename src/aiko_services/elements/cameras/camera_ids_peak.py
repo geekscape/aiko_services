@@ -69,6 +69,9 @@ DECIMATION_NODES = ("DecimationHorizontal", "DecimationVertical")
 BINNING_NODES = ("BinningHorizontal", "BinningVertical")
 DECIMATION_CANDIDATES = (1, 2, 3, 4, 8)
 TARGET_PIXEL_FORMAT = "BayerRG8"          # raw Bayer: debayer on the host
+WHITE_BALANCE_ENTRIES = {"continuous": "Continuous", "once": "Once",
+                         "off": "Off"}
+AUTO_TARGET_RANGE = (3, 253)              # BrightnessAutoTarget, 8-bit
 
 def ensure_gentl_path():
     """GENICAM_GENTL64_PATH, set from the standard install locations when
@@ -97,6 +100,9 @@ class IdsPeakCamera(camera.Camera):
         self._library_initialized = False
         self._host_size = None
         self.decimation = 1
+        self._buffer_count = 0
+        self._camera_auto = False
+        self._pixel_format = "-"
 
     @classmethod
     def available(cls) -> bool:
@@ -213,9 +219,12 @@ class IdsPeakCamera(camera.Camera):
 
         self.stream = self.device.DataStreams()[0].OpenDataStream()
         payload_size = self._node("PayloadSize").Value()
-        for _ in range(self.stream.NumBuffersAnnouncedMinRequired()):
+        self._buffer_count = self.stream.NumBuffersAnnouncedMinRequired()
+        for _ in range(self._buffer_count):
             buffer = self.stream.AllocAndAnnounceBuffer(payload_size)
             self.stream.QueueBuffer(buffer)
+        self._pixel_format = self._try(lambda: self._node("PixelFormat")
+            .CurrentEntry().SymbolicValue(), "-")
         self.converter = ids_peak_ipl.ImageConverter()  # reuse: no reallocs
         self._node("TLParamsLocked").SetValue(1)
         self.stream.StartAcquisition()
@@ -287,6 +296,78 @@ class IdsPeakCamera(camera.Camera):
                 "AnalogAll"))                 # single-gain models: no node
             return self._set_float("Gain", gain)
 
+    # The camera's own auto features -------------------------------------- #
+
+    def _has_entry(self, name, entry):
+        try:
+            return any(item.SymbolicValue() == entry
+                       for item in self._node(name).Entries())
+        except Exception:
+            return False
+
+    def camera_auto_available(self):
+        return bool(self.nodemap) and self._has_entry(
+            "ExposureAuto", "Continuous")
+
+    def set_camera_auto(self, enable, max_exposure_us=None,
+                        brightness_target=None):
+        """ExposureAuto and GainAuto Continuous (or Off).  The ceiling is
+        BrightnessAutoExposureTimeMax, and BrightnessAutoFramerateLimitMode
+        Fixed keeps frame_rate: the auto exposure never slows the camera"""
+
+        applied = {}
+        with self.lock:
+            if enable:
+                if max_exposure_us is not None:
+                    self._try(lambda: self._node(
+                        "BrightnessAutoExposureTimeLimitMode")
+                        .SetCurrentEntry("On"))
+                    applied["max_exposure_us"] = self._try(
+                        lambda: self._set_float(
+                            "BrightnessAutoExposureTimeMax",
+                            max_exposure_us))
+                self._try(lambda: self._node(
+                    "BrightnessAutoFramerateLimitMode")
+                    .SetCurrentEntry("Fixed"))
+                if brightness_target is not None:
+                    applied["brightness_target"] = self._try(
+                        lambda: self._set_integer(
+                            "BrightnessAutoTarget", brightness_target))
+            entry = "Continuous" if enable else "Off"
+            self._node("ExposureAuto").SetCurrentEntry(entry)
+            self._try(lambda: self._node("GainSelector").SetCurrentEntry(
+                "AnalogAll"))
+            self._try(lambda: self._node("GainAuto").SetCurrentEntry(entry))
+            self._camera_auto = enable
+        return applied
+
+    def set_white_balance(self, mode):
+        entry = WHITE_BALANCE_ENTRIES[mode]
+        with self.lock:
+            if not self._has_entry("BalanceWhiteAuto", entry):
+                return None
+            self._node("BalanceWhiteAuto").SetCurrentEntry(entry)
+        return mode
+
+    def status(self):
+        readouts = {}
+        with self.lock:
+            if not self.nodemap:
+                return readouts
+            for name, key in (("DeviceTemperature", "temperature_c"),
+                              ("DeviceLinkPacketsDropped",
+                               "packets_dropped")):
+                value = self._try(lambda: self._node(name).Value())
+                if value is not None:
+                    readouts[key] = round(float(value), 1)  \
+                        if key == "temperature_c" else int(value)
+        return readouts
+
+    def queued_frames(self):
+        """The announced buffers, plus the one being exposed"""
+
+        return self._buffer_count + 1 if self.trigger == "off" else 0
+
     def capture(self, timeout_s=camera.CAPTURE_TIMEOUT_S):
         """Returns (numpy uint8 HxWx3 RGB image, metadata dict)"""
 
@@ -314,14 +395,20 @@ class IdsPeakCamera(camera.Camera):
                 image = image_rgb.get_numpy_3D().copy()
             finally:
                 self.stream.QueueBuffer(buffer)
-            metadata = {"pixel_format": self._try(
-                lambda: self._node("PixelFormat").CurrentEntry()
-                .SymbolicValue(), "-")}
+            metadata = {"pixel_format": self._pixel_format}
             for name, key in (("ExposureTime", "exposure_us"),
                               ("Gain", "gain")):
                 value = self._try(lambda: float(self._node(name).Value()))
                 if value is not None:
                     metadata[key] = value
+            if self._camera_auto:          # about 0.4 ms per node read
+                for name, key in (("BrightnessAutoStatus", "auto_status"),
+                                  ("BalanceWhiteAutoStatus",
+                                   "white_balance")):
+                    value = self._try(lambda: self._node(name)
+                                      .CurrentEntry().SymbolicValue())
+                    if value is not None:
+                        metadata[key] = value
         if self._host_size:
             image = camera.resize_image(
                 np.ascontiguousarray(image), self._host_size,

@@ -39,9 +39,9 @@ import numpy as np
 __all__ = [
     "CAPTURE_TIMEOUT_LIMIT", "CAPTURE_TIMEOUT_S", "DEFAULT_FRAME_RATE",
     "DEFAULT_RESOLUTION", "NATIVE_RESOLUTION", "RESIZE_MODES",
-    "Camera", "CaptureTimeout", "CountdownSettle", "RateMeter",
-    "SettleMonitor", "auto_expose", "focus_sharpness", "parse_bool",
-    "parse_frame_rate",
+    "EXACT_REGION_MIN_FRACTION", "Camera", "CameraAutoSettle",
+    "CaptureTimeout", "CountdownSettle", "RateMeter", "SettleMonitor",
+    "auto_expose", "focus_sharpness", "parse_bool", "parse_frame_rate",
     "parse_resolution", "parse_settle", "plan_resolution", "resize_image",
     "share_token", "utc_now"
 ]
@@ -53,6 +53,9 @@ DEFAULT_RESOLUTION = "1920x1080"
 DEFAULT_FRAME_RATE = 8.0           # until higher rates are proven
 CAPTURE_TIMEOUT_S = 1.0            # bounded: destroy_stream() needs the lock
 CAPTURE_TIMEOUT_LIMIT = 10         # consecutive timeouts before STOP
+EXACT_REGION_MIN_FRACTION = 0.9    # crop: the camera region may narrow the
+                                   # view this far to spare a host resize
+AUTO_ACTIVE = ("AecActive", "AgcActive", "Active")  # camera auto converging
 
 _RESOLUTION_RE = re.compile(r"^\s*(\d+)\s*[xX]\s*(\d+)\s*$")
 _FRACTION_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)\s*$")
@@ -124,6 +127,41 @@ class Camera:
 
     def set_gain(self, gain):
         raise NotImplementedError
+
+    # Optional: cameras with their own auto features ------------------------ #
+
+    def camera_auto_available(self) -> bool:
+        """True when the camera runs its own continuous auto exposure"""
+
+        return False
+
+    def set_camera_auto(self, enable, max_exposure_us=None,
+                        brightness_target=None):
+        """The camera's own continuous auto exposure and gain, on or off,
+        with an exposure ceiling and a brightness target when given.
+        Returns {"max_exposure_us": ..., "brightness_target": ...} as the
+        camera accepted them"""
+
+        raise NotImplementedError
+
+    def set_white_balance(self, mode):
+        """mode "continuous", "once" or "off": the camera's own white
+        balance.  Returns the mode applied, or None when the camera has
+        none"""
+
+        return None
+
+    def status(self) -> dict:
+        """Slow-changing readouts, read about once a second: for example
+        {"temperature_c": 41.5, "packets_dropped": 0}"""
+
+        return {}
+
+    def queued_frames(self) -> int:
+        """Frames a free-running camera may already hold when a setting
+        changes: they were exposed before the change"""
+
+        return 0
 
     def _log(self, level, message):
         if self.logger:
@@ -236,7 +274,9 @@ def plan_resolution(native, target, mode="crop", decimations=(1,)):
     "decimation" the sub-sampling factor chosen from "decimations" (1 when
     the camera has none) and "host_size" the (w, h) of a host-side resize
     still needed, or None.  target None: the full sensor, factor 1, no
-    resize"""
+    resize.  crop: when a region of exactly target x decimation keeps at
+    least EXACT_REGION_MIN_FRACTION of the crop, the camera delivers the
+    target itself (a slightly narrower view, no host resize)"""
 
     native_width, native_height = native
     if target is None:
@@ -261,6 +301,14 @@ def plan_resolution(native, target, mode="crop", decimations=(1,)):
     delivered = (aoi_width // decimation, aoi_height // decimation)
     host_size = None if delivered == (target_width, target_height)  \
         else (target_width, target_height)
+    if mode == "crop" and host_size:    # the camera region, exactly?
+        exact_width = target_width * decimation
+        exact_height = target_height * decimation
+        if exact_width >= EXACT_REGION_MIN_FRACTION * aoi_width  \
+            and exact_height >= EXACT_REGION_MIN_FRACTION * aoi_height:
+            x = (native_width - exact_width) // 2
+            y = (native_height - exact_height) // 2
+            return (x, y, exact_width, exact_height), decimation, None
     return (x, y, aoi_width, aoi_height), decimation, host_size
 
 def resize_image(image, size, mode="crop"):
@@ -275,7 +323,7 @@ def resize_image(image, size, mode="crop"):
     if (width, height) == (target_width, target_height):
         return image
     interpolation = cv2.INTER_AREA  \
-        if width > target_width else cv2.INTER_LINEAR
+        if width >= 2 * target_width else cv2.INTER_LINEAR  # AREA: slow
     if mode == "crop":
         crop_width = min(width, int(round(height * target_width /
                                           target_height)))
@@ -338,6 +386,31 @@ class SettleMonitor:
             self.done = True
         return self.done
 
+class CameraAutoSettle:
+    """A camera's own auto exposure and white balance: done once the
+    frame's "auto_status" and "white_balance" are no longer converging
+    (a stuck status counts: it is as far as the camera can go), or when
+    max_frames were fed.  Same shape as SettleMonitor"""
+
+    def __init__(self, max_frames):
+        self.max_frames = int(max_frames)
+        self.frames = 0
+        self.timed_out = False
+        self.done = self.max_frames <= 0
+
+    def feed(self, metadata) -> bool:
+        if self.done:
+            return True
+        self.frames += 1
+        auto_status = metadata.get("auto_status")
+        if auto_status and auto_status not in AUTO_ACTIVE  \
+            and metadata.get("white_balance") not in AUTO_ACTIVE:
+            self.done = True
+        elif self.frames >= self.max_frames:
+            self.timed_out = True
+            self.done = True
+        return self.done
+
 class CountdownSettle:
     """Discard a fixed number of frames, for example after an exposure
     change; same shape as SettleMonitor"""
@@ -375,12 +448,14 @@ def focus_sharpness(image):
     return float(laplacian.var())
 
 def auto_expose(camera, logger=None, target_p99=225, max_exposure_us=250000,
-    max_iterations=8, timeout_s=None):
+    max_iterations=8, timeout_s=None, discard_frames=0):
     """Highlight-based auto-exposure for cameras without one: a generator
     whose every step captures a frame, meters the 99th percentile and
     adjusts exposure first (clean signal), then gain past the exposure cap.
     Yields (done, exposure_us, gain); done is True when within 7 % of the
-    target or after max_iterations.  Capture errors propagate"""
+    target or after max_iterations.  Capture errors propagate.
+    discard_frames: after each change, frames captured and skipped (one
+    step each) because a free-running camera exposed them before it"""
 
     exposure = gain = None
     for iteration in range(max_iterations):
@@ -400,6 +475,12 @@ def auto_expose(camera, logger=None, target_p99=225, max_exposure_us=250000,
         exposure = float(camera.set_exposure(min(total, max_exposure_us)))
         gain = float(camera.set_gain(max(total / exposure, 1.0)))
         yield False, exposure, gain
+        for _ in range(discard_frames):
+            if timeout_s:
+                camera.capture(timeout_s)
+            else:
+                camera.capture()
+            yield False, exposure, gain
     if logger:
         logger.warning("auto-expose did not converge: scene too dark at "
                        f"{max_exposure_us / 1000:.0f} ms and maximum gain, "
