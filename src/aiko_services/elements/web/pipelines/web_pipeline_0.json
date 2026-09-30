@@ -1,0 +1,47 @@
+{
+  "version": 0,
+  "name":    "p_web_0",
+  "runtime": "python",
+
+  "#": ["No camera: synthetic frames shown in a browser for 10 minutes.",
+        "Open http://<this-host>:8090 on the same network.  A camera",
+        "Pipeline puts VideoShowWeb in the same place: after the camera,",
+        "before the element that writes the frames"],
+
+  "graph": ["(SyntheticVideoRead CaptureLimit VideoShowWeb)"],
+
+  "parameters": {
+    "_create_stream_":       "1",
+    "_destroy_stream_exit_": "1"
+  },
+
+  "elements": [
+    { "name":   "SyntheticVideoRead",
+      "parameters": {
+        "data_sources": "(synth://video/plain?width=1280&height=720)",
+        "rate":         8.0
+      },
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.media.synthetic_io"}
+      }
+    },
+    { "name":   "CaptureLimit",
+      "parameters": {"duration": "10m"},
+      "input":  [],
+      "output": [],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.control.elements"}
+      }
+    },
+    { "name":   "VideoShowWeb",
+      "parameters": {"port": 8090, "max_fps": 4.0, "width": 960},
+      "input":  [{"name": "images", "type": "[image]"}],
+      "output": [{"name": "images", "type": "[image]"}],
+      "deploy": {
+        "local": {"module": "aiko_services.elements.web.web_io"}
+      }
+    }
+  ]
+}
