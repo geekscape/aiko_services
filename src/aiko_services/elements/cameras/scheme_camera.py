@@ -30,6 +30,7 @@
 #   device_id, address, sdk_version
 #   settled          waiting | <n>_frames | timeout_<n>_frames | off
 #   frames           frames delivered         measured_fps  over 2 s
+#   frames_dropped   captured but not delivered: the Pipeline fell behind
 #   capture_timeouts last_frame_utc           last_error  <token>@UTC
 #   sensor.*         what the device reports: resolution (delivered WxH),
 #                    exposure_us, gain, iso_sensitivity, lens_position,
@@ -46,9 +47,19 @@
 #   next Stream
 #
 # Threads: create_sources() / destroy_sources() and the share handler run
-# on the event-loop thread and publish directly.  frame_generator() runs
-# on the frame generator thread and never touches share: it records into a
-# pending dictionary that an event-loop timer publishes once a second.
+# on the event-loop thread and publish directly.  A capture thread per
+# Stream owns the camera: warm-up steps, captures, settle, timeouts, the
+# focus and status readouts.  It queues delivered frames on a short host
+# queue (FRAME_QUEUE_SIZE, the oldest dropped and counted in
+# frames_dropped).  frame_generator() runs on the frame generator thread
+# and only takes a ready frame, so the Stream lock is held for
+# microseconds: a camera wait inside the generator would hold that lock
+# for most of each frame period, each frame's process_frame() would wait
+# for it, the frame mailbox would never empty, and the event loop would
+# never reach its MQTT messages (dashboard share requests and updates).
+# Neither the capture thread nor frame_generator() touches share: they
+# record into a pending dictionary that an event-loop timer publishes once
+# a second.
 # A process abort (KeyboardInterrupt in the event loop) exits without
 # destroying the Streams, and a generator thread blocked inside the SDK
 # when the interpreter finalizes aborts the process (C++ terminate), so
@@ -56,14 +67,11 @@
 #
 # To Do
 # ~~~~~
-# - Capture on a dedicated thread into a bounded host queue: the
-#   Pipeline holds the Stream lock while an element processes a
-#   frame, so a slow element (an encoder) stops the capture and the
-#   device queue overflows.  A host queue would absorb the jitter
 # - "data_batch_size" > 1
 # - Device-clock timestamps
 
 import atexit
+from collections import deque
 import threading
 import time
 
@@ -73,6 +81,7 @@ from aiko_services.elements.cameras import camera
 __all__ = ["DataSchemeCamera"]
 
 PUBLISH_PERIOD_S = 1.0
+FRAME_QUEUE_SIZE = 2                   # captured, not yet delivered
 METADATA_KEYS = ("exposure_us", "gain", "iso_sensitivity", "lens_position",
                  "color_temperature_k", "auto_status", "white_balance")
 
@@ -83,6 +92,8 @@ class DataSchemeCamera(aiko.DataScheme):
     scheme = "camera"                  # subclass: the URL scheme name
     camera_name = "camera"             # subclass: for log and diagnostics
     default_settle = "0"               # subclass: warm-up frames
+    CAPTURE_THREAD = True              # False: frame_generator() captures
+                                       # (step by step unit tests)
 
     def __init__(self, pipeline_element):
         super().__init__(pipeline_element)
@@ -104,6 +115,12 @@ class DataSchemeCamera(aiko.DataScheme):
         self._timer_armed = False
         self._handler_armed = False
         self._atexit_armed = False
+        self._frames = deque(maxlen=FRAME_QUEUE_SIZE)
+        self._frames_lock = threading.Lock()
+        self.frames_dropped = 0
+        self._stop_reason = None       # set by a capture step: ends Stream
+        self._pace_s = None            # software trigger: 1 / frame_rate
+        self._capture_thread = None
 
     # Subclass hooks ------------------------------------------------------- #
 
@@ -245,12 +262,24 @@ class DataSchemeCamera(aiko.DataScheme):
         pipeline_element.ec_producer.add_handler(
             self._ec_producer_change_handler)
         self._handler_armed = True
+        self._frames.clear()
+        self.frames_dropped = 0
+        self._stop_reason = None
+        self._pace_s = 1.0 / settings["frame_rate"]  \
+            if settings.get("trigger") == "software" else None
+        self._publish("frames_dropped", 0)
+        if self.CAPTURE_THREAD:
+            self._capture_thread = threading.Thread(
+                target=self._capture_loop, daemon=True,
+                name=f"{self.scheme}_capture")
+            self._capture_thread.start()
         pipeline_element.create_frames(stream,
             frame_generator or self.frame_generator, rate=settings["rate"])
         return aiko.StreamEvent.OKAY, {}
 
     def destroy_sources(self, stream):
         self.stopped = True             # frame_generator() returns STOP next
+        self._join_capture_thread()     # before the camera closes
         if self._atexit_armed:
             atexit.unregister(self._close_at_exit)
             self._atexit_armed = False
@@ -276,6 +305,7 @@ class DataSchemeCamera(aiko.DataScheme):
         the SDK while the interpreter finalizes.  No logging, no share"""
 
         self.stopped = True
+        self._join_capture_thread()
         camera_instance, self.camera = self.camera, None
         if camera_instance:
             try:
@@ -283,12 +313,33 @@ class DataSchemeCamera(aiko.DataScheme):
             except Exception:
                 pass
 
-    # Frame generator (frame generator thread) ------------------------------ #
+    def _join_capture_thread(self):
+        """The capture thread ends within one capture: at most the capture
+        timeout"""
 
-    def frame_generator(self, stream, frame_id):
-        if self.stopped:
-            diagnostic = f"{self.camera_name} sources destroyed"
-            return aiko.StreamEvent.STOP, {"diagnostic": diagnostic}
+        thread, self._capture_thread = self._capture_thread, None
+        if thread and thread.is_alive()  \
+            and thread is not threading.current_thread():
+            thread.join(timeout=self.capture_timeout + 1.0)
+
+    # Capture (the capture thread; frame_generator() without it) ---------- #
+
+    def _capture_loop(self):
+        """The capture thread: the camera's own pace, or frame_rate for a
+        software trigger, until the Stream stops or a step fails"""
+
+        while not self.stopped and self._stop_reason is None:
+            started = time.monotonic()
+            self._capture_step()
+            if self._pace_s:
+                remaining = self._pace_s - (time.monotonic() - started)
+                if remaining > 0 and not self.stopped:
+                    time.sleep(remaining)
+
+    def _capture_step(self):
+        """One warm-up step, or one capture that is either discarded while
+        the camera settles or queued for delivery.  A failure that must
+        end the Stream sets self._stop_reason"""
 
         if self.warm_up_steps is not None:      # e.g auto-expose, no frames
             try:
@@ -297,13 +348,14 @@ class DataSchemeCamera(aiko.DataScheme):
                 done, values = True, {}
             except Exception as exception:
                 self._pend_error(type(exception).__name__)
-                diagnostic = f"{self.camera_name} warm-up failed: {exception}"
-                return aiko.StreamEvent.STOP, {"diagnostic": diagnostic}
+                self._stop_reason =  \
+                    f"{self.camera_name} warm-up failed: {exception}"
+                return
             for key, value in values.items():
                 self._pend(key, value)
             if done:
                 self.warm_up_steps = None
-            return aiko.StreamEvent.NO_FRAME, {}
+            return
 
         try:
             image, metadata = self.camera.capture(self.capture_timeout)
@@ -312,21 +364,18 @@ class DataSchemeCamera(aiko.DataScheme):
             self._pend("capture_timeouts", self.timeouts)
             if self.timeouts >= camera.CAPTURE_TIMEOUT_LIMIT:
                 self._pend_error("capture_timeout")
-                diagnostic = f"{self.camera_name}: no frame for "  \
+                self._stop_reason = f"{self.camera_name}: no frame for "  \
                     f"{self.timeouts * self.capture_timeout:.0f} s"
-                return aiko.StreamEvent.STOP, {"diagnostic": diagnostic}
-            return aiko.StreamEvent.NO_FRAME, {}
+            return
         except Exception as exception:
-            # STOP, not ERROR: an ERROR here destroys the Stream on the
-            # frame generator THREAD, where the _destroy_stream_exit_
-            # SystemExit only kills that thread and the process lingers;
-            # STOP posts a graceful destroy to the main event thread
+            if self.stopped:            # closed while a capture was in flight
+                return
             self._pend_error(type(exception).__name__)
-            diagnostic = f"{self.camera_name} capture failed: {exception}"
-            return aiko.StreamEvent.STOP, {"diagnostic": diagnostic}
-        if self.stopped:                # destroyed while capture was in flight
-            diagnostic = f"{self.camera_name} sources destroyed"
-            return aiko.StreamEvent.STOP, {"diagnostic": diagnostic}
+            self._stop_reason = f"{self.camera_name} capture failed: "  \
+                f"{exception}"
+            return
+        if self.stopped:
+            return
         self.timeouts = 0
         if time.monotonic() >= self._status_due:
             self._status_due = time.monotonic() + PUBLISH_PERIOD_S
@@ -363,9 +412,38 @@ class DataSchemeCamera(aiko.DataScheme):
                 if delivered:
                     self._pend("sensor.resolution",
                                f"{delivered[0]}x{delivered[1]}")
+            return
+
+        with self._frames_lock:
+            if len(self._frames) == self._frames.maxlen:
+                self.frames_dropped += 1       # the Pipeline is behind
+                self._pend("frames_dropped", self.frames_dropped)
+            self._frames.append((image, metadata, time.time()))
+
+    # Frame generator (frame generator thread) ------------------------------ #
+
+    def frame_generator(self, stream, frame_id):
+        """Takes a ready frame and returns at once: the framework holds
+        the Stream lock around this call"""
+
+        if self.stopped:
+            diagnostic = f"{self.camera_name} sources destroyed"
+            return aiko.StreamEvent.STOP, {"diagnostic": diagnostic}
+        if not self.CAPTURE_THREAD:
+            self._capture_step()
+        with self._frames_lock:
+            item = self._frames.popleft() if self._frames else None
+        if item is None:
+            if self._stop_reason:
+                # STOP, not ERROR: an ERROR here destroys the Stream on the
+                # frame generator THREAD, where the _destroy_stream_exit_
+                # SystemExit only kills that thread and the process lingers;
+                # STOP posts a graceful destroy to the main event thread
+                return aiko.StreamEvent.STOP,  \
+                    {"diagnostic": self._stop_reason}
             return aiko.StreamEvent.NO_FRAME, {}
 
-        now = time.time()
+        image, metadata, timestamp = item
         self.frames += 1
         self._pend("frames", self.frames)
         self._pend("measured_fps", f"{self.rate_meter.tick():.1f}")
@@ -374,7 +452,7 @@ class DataSchemeCamera(aiko.DataScheme):
             self.pipeline_element.logger.debug(
                 f"frame {frame_id}: {image.shape[1]}x{image.shape[0]} "
                 f"{metadata}")
-        stream.variables["timestamps"] = [now]
+        stream.variables["timestamps"] = [timestamp]
         return aiko.StreamEvent.OKAY, {"images": [image]}
 
     # Shared state --------------------------------------------------------- #

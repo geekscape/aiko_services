@@ -15,7 +15,7 @@
 import pytest
 
 import aiko_services as aiko
-from aiko_services.elements.cameras import scheme_gigev
+from aiko_services.elements.cameras import scheme_camera, scheme_gigev
 from aiko_services.elements.cameras.scheme_gigev import (
     DataSchemeGigE, select_backend
 )
@@ -44,6 +44,8 @@ class NoAravis(Unavailable):
 def fake(monkeypatch):
     do_fake_initialize()
     monkeypatch.setitem(scheme_gigev.BACKENDS, "fake", FakeCamera)
+    monkeypatch.setattr(scheme_camera.DataSchemeCamera, "CAPTURE_THREAD",
+                        False)          # frame_generator() captures: steps
     yield FakeCamera
     do_fake_initialize()
 

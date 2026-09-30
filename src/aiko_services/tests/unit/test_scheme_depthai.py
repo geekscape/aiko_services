@@ -12,6 +12,8 @@
 # ~~~~~
 # - None, yet !
 
+import time
+
 import pytest
 
 import aiko_services as aiko
@@ -43,6 +45,8 @@ class FakeAtexit:
 def fake(monkeypatch):
     do_fake_initialize()
     monkeypatch.setattr(scheme_depthai, "OakDCamera", FakeCamera)
+    monkeypatch.setattr(scheme_camera.DataSchemeCamera, "CAPTURE_THREAD",
+                        False)          # frame_generator() captures: steps
     FakeCamera.ATEXIT = FakeAtexit()
     monkeypatch.setattr(scheme_camera, "atexit", FakeCamera.ATEXIT)
     yield FakeCamera
@@ -311,3 +315,69 @@ def test_writable_keys(fake):
     element.ec_producer.send("unknown_key", "x")        # ignored
     stop(scheme, stream)
     assert element.ec_producer.handlers == []
+
+# The capture thread ------------------------------------------------------- #
+
+@pytest.fixture
+def threaded(fake, monkeypatch):
+    monkeypatch.setattr(scheme_camera.DataSchemeCamera, "CAPTURE_THREAD",
+                        True)
+    return fake
+
+def wait_for(condition, timeout_s=3.0):
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if condition():
+            return True
+        time.sleep(0.005)
+    return False
+
+def test_capture_thread_frees_the_generator(threaded):
+    """The camera waits a frame period in capture(), on the capture thread:
+    frame_generator() returns at once, so the Stream lock the framework
+    holds around it stays free"""
+
+    scheme, element, stream, event, _ = start({"settle": 0,
+                                               "frame_rate": 20})
+    assert event == aiko.StreamEvent.OKAY
+    assert scheme._capture_thread.is_alive()
+    delivered, slowest = [], 0.0
+    deadline = time.monotonic() + 1.0
+    while time.monotonic() < deadline and len(delivered) < 5:
+        started = time.perf_counter()
+        frame_event, data = scheme.frame_generator(stream, len(delivered))
+        slowest = max(slowest, time.perf_counter() - started)
+        if frame_event == aiko.StreamEvent.OKAY:
+            delivered.append(data["images"][0][0, 0, 0])
+        else:
+            assert frame_event == aiko.StreamEvent.NO_FRAME
+            time.sleep(0.02)                # as the framework does
+    assert len(delivered) == 5
+    assert slowest < 0.01                   # never a 50 ms camera wait
+    thread = scheme._capture_thread
+    stop(scheme, stream)
+    assert not thread.is_alive() and scheme._capture_thread is None
+    assert threaded.INSTANCES[-1].closed        # after the thread ended
+
+def test_capture_thread_drops_the_oldest_when_behind(threaded):
+    scheme, element, stream, event, _ = start({"settle": 0,
+                                               "frame_rate": 200})
+    assert wait_for(lambda: scheme.frames_dropped >= 3)
+    frame_event, data = scheme.frame_generator(stream, 0)
+    assert frame_event == aiko.StreamEvent.OKAY
+    newest = threaded.INSTANCES[-1].captured
+    assert data["images"][0][0, 0, 0] >= (newest - 4) % 256  # recent
+    scheme._publish_handler()
+    assert int(element.share["frames_dropped"]) >= 3
+    stop(scheme, stream)
+
+def test_capture_thread_failure_stops_after_the_queued_frames(threaded):
+    threaded.FRAME_LIMIT = 2
+    scheme, element, stream, event, _ = start({"settle": 0,
+                                               "frame_rate": 200})
+    assert wait_for(lambda: scheme._stop_reason is not None)
+    events = [scheme.frame_generator(stream, i)[0] for i in range(3)]
+    assert events == [aiko.StreamEvent.OKAY] * 2 + [aiko.StreamEvent.STOP]
+    assert wait_for(lambda: not scheme._capture_thread.is_alive())
+    stop(scheme, stream)
+    assert element.share["state"] == "stopped"
