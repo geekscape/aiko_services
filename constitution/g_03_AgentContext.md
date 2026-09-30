@@ -66,6 +66,9 @@ src/aiko_services/
     registrar.py             # discovery authority    process_manager.py  # process spawn/monitor
     lifecycle.py             # LifeCycleManager/Client    lease.py  hook.py  event.py  process.py
     category.py hyperspace.py storage/ transport/ message/ utilities/ dashboard.py
+  actors/                    # ACTOR TIER — shipped Actor packages with their own protocols
+    display/                 # display:0 (ADR-025): Canvas/Screen/Interaction aspects, outputs,
+                             #   applets, keys console, Dashboard page, aiko_display CLI
   elements/                  # PipelineElement LIBRARY — how to build processing nodes
     media/ (image_io, video_io, audio_io, text_io, webcam_io)  control/ observe/ utilities/
   examples/                  # HOW TO USE — read these to learn idioms
@@ -284,7 +287,21 @@ aiko_registrar  aiko_dashboard  aiko_pipeline  aiko_process  aiko_hyperspace   #
   several timers — use distinct bound methods per timer (Lease uses this pattern).
 - **Registrar election is fragile under partition** (stale retained `(primary found …)`,
   simultaneous self-promotion). Also, registrar timestamps use `time.monotonic()` — this
-  value is meaningless across hosts.
+  value is meaningless across hosts. After a power cycle of the host that runs the broker
+  and the Registrar, the persisted announcement blocks discovery until an operator clears
+  it (`mosquitto_pub -t NAMESPACE/service/registrar -r -n`). A liveness probe is specified
+  in s_00 §1.4 (2026-09-27).
+- **A `.local` host name can resolve to an unroutable IPv6 address first** — paho tries
+  it for 5 s before IPv4. Thus discovery from a client times out at random. Use an IPv4
+  literal in `AIKO_MQTT_HOST` until the IPv4-first connect lands.
+- **`process.py remove_message_handler()` raises `TypeError`** for the last handler of a
+  binary or wildcard topic and never unsubscribes. Design around it: one subscription per
+  process, never removed, and stop the traffic at the source (a lease).
+- **`mqtt.publish()` busy-waits up to 2 s when disconnected** — guard publishes with the
+  connection state. Timers added before `process.run()` are re-based when the loop starts.
+- **`compose_class()` reads `PROTOCOL` from the seed class only** — a `PROTOCOL` on a mixed-in
+  Interface is documentary. A default Impl's methods must work without its constructor
+  (s_02 §4).
 - **Placeholders, not bugs to "fix" casually**: `utilities/metrics.py` does not compile.
   `utilities/probe.py` is a zero-byte file. The `utilities/thread.py` ThreadManager is
   implemented but unwired (ProcessManager carries the `TODO: Use ThreadManager`).

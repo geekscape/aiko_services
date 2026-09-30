@@ -152,6 +152,9 @@ two Registrars racing to become primary → exactly one wins, no split-brain. A 
 (intermittent responses) → clients do not thrash registrations, discovery re-stabilizes. Registrar
 restart → services re-register, consumers re-converge. This is the crux of the "self-healing"
 claims elsewhere and cannot be reached by any successful single-Registrar run.
+Scenario added 2026-09-27: the broker and the primary die together (a power cycle). The
+broker's persisted retained announcement survives. A fresh Registrar probes, publishes
+`(primary absent)` and takes over (s_00 §1.4).
 
 ### 3.3 S-expression parser/generator failure cases
 M3 property tests + explicit malformed corpus: unbalanced parens, unterminated strings, bad escapes,
@@ -241,6 +244,11 @@ version-divergence hole §3.7.
   sequences, assert invariants (round-trip, eventual convergence). Hypothesis-style.
 - **Swallowed-error probe** — a hook (using the existing Hooks AOP) that records every caught
   dispatch exception, so tests and chaos runs can assert "no error was silently absorbed."
+- **Fixtures reset process-global state** — `aiko.message`, `aiko.registrar` and the event
+  loop's timers outlive a test. A test that terminates the process (a CLI `run` test)
+  leaves the message layer unset, and later tests in the same session fail on order
+  (observed 2026-09-27 in the display tests). Broker-backed integration tests need a
+  mosquitto service in CI. Without one they must skip visibly, never pass vacuously.
 - **The test fabric** (bench + proving-ground + Pi, per g_02_ClaudeCodeOperatingGuide) hosts multi-host, scale, and
   cross-language runs. Three real heterogeneous hosts are the honest environment for a
   distributed framework. The fabric is itself a credibility artifact.
