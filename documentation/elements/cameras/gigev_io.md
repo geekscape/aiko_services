@@ -93,16 +93,20 @@ per second need a NIC MTU of 9000 and a larger receive buffer.
 
 | Class | Kind | Inputs → Outputs | Parameters |
 |-------|------|------------------|------------|
-| `VideoReadGigE` | DataSource | `images: [image]` → `images: [image]` | `data_sources` (`(gigev://)` or `(gigev://<address>)`), `backend` (`auto`), `resolution` (`1920x1080`), `frame_rate` (`8.0`), `trigger` (`auto`), `exposure_us` (`auto`), `gain`, `max_exposure_us` (`auto`), `settle` (`2`), `resize_mode`, `rate`, `capture_timeout`, `log_frames`, `focus_assist` (`false`), `media_type` |
+| `VideoReadGigE` | DataSource | `images: [image]` → `images: [image]` | `data_sources` (`(gigev://)` or `(gigev://<address>)`), `backend` (`auto`), `resolution` (`1920x1080`), `frame_rate` (`8.0`), `trigger` (`auto`), `exposure_us` (`auto`: the camera's own when it has one), `gain`, `max_exposure_us` (`auto`), `brightness_target` (`auto`), `white_balance` (`auto`), `settle` (`2`), `resize_mode`, `rate`, `capture_timeout`, `log_frames`, `focus_assist` (`false`), `media_type` |
 
 Service protocol: `video_read_gigev:0`.
 
 Live shared state: the keys of the [camera scheme base](scheme_camera.md)
-plus `backend`, `trigger`, `exposure_us`, `gain` and `max_exposure_us`.
-Writable keys: `exposure_us` (a number, or `auto` to run the auto-expose
-again), `gain`, `max_exposure_us`, `capture_timeout`, `log_frames` and
-`focus_assist`. A written exposure or gain acts on the open camera at
-once, and the value the camera accepted is published back.
+plus `backend`, `trigger`, `exposure_mode`, `exposure_us`, `gain`,
+`max_exposure_us`, `brightness_target` and `white_balance`. The camera's
+live values add `sensor.auto_status`, `sensor.white_balance`,
+`sensor.temperature_c` and `sensor.packets_dropped`. Writable keys:
+`exposure_us` (a number, `auto`, `camera` or `host`), `gain`,
+`max_exposure_us`, `brightness_target`, `white_balance`,
+`capture_timeout`, `log_frames` and `focus_assist`. A written value acts
+on the open camera at once, and what the camera accepted is published
+back.
 
 **Stream lifecycle behavior:**
 

@@ -103,6 +103,17 @@ sections are.
   The old fixed 250 ms ceiling slowed a camera in a dim scene below its
   *frame_rate*
 
+* *VideoReadGigE* uses a camera's own image features when it has them.
+  *exposure_us* *auto* is now the camera's continuous auto exposure and
+  gain.  *max_exposure_us* caps it, and *frame_rate* is held.  *host* is
+  the one-shot auto-expose.  It now skips the frames that a free-running
+  camera had queued.  New *brightness_target* and *white_balance*.  In
+  *crop* mode the camera delivers the target size itself when that keeps
+  90 % of the view.  On an embedded ARM computer at 1920x1080 this took
+  the IDS camera from 7.0 to 8.00 fps, with neutral color.  The camera's
+  *sensor.auto_status*, *sensor.white_balance*, *sensor.temperature_c*
+  and *sensor.packets_dropped* are on the dashboard
+
 * New DataSchemes *depthai* (*elements/cameras/scheme_depthai.py*) and
   *gigev* (*elements/cameras/scheme_gigev.py*), on the shared
   *DataSchemeCamera* base (*elements/cameras/scheme_camera.py*).  A

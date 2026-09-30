@@ -101,7 +101,7 @@ Shared state on the dashboard, and through an `ECConsumer`:
 | `settled` | `waiting`, `<n>_frames`, `timeout_<n>_frames` or `off` |
 | `frames`, `measured_fps` | Frames delivered, and the rate over the last two seconds |
 | `capture_timeouts`, `last_frame_utc`, `last_error` | Is it delivering, when did it last, what failed last (`<token>@UTC`) |
-| `sensor.*` | What the device reports: `resolution` (delivered), `exposure_us`, `gain`, `iso_sensitivity`, `lens_position`, `color_temperature_k`, and `sharpness` with `focus_assist` (`-` when it is turned off) |
+| `sensor.*` | What the device reports: `resolution` (delivered), `exposure_us`, `gain`, `iso_sensitivity`, `lens_position`, `color_temperature_k`, `auto_status` and `white_balance` (a camera's own auto features), `temperature_c` and `packets_dropped` (once a second, from `Camera.status()`), and `sharpness` with `focus_assist` (`-` when it is turned off) |
 | `resolution`, `frame_rate`, `settle`, `resize_mode`, `capture_timeout`, `log_frames`, `focus_assist` | The configuration in force, as valid parameter values |
 
 The configuration keys carry the parameter names on purpose. The

@@ -5,9 +5,10 @@
 
   "#": ["GigE Vision camera (gigev://) recorded, no display needed:",
         "1920x1080 at 8 fps for 30 s into data_out/gigev_0.mp4, the video",
-        "regime of a store / forward Pipeline.  Auto-expose runs first,",
-        "never longer than 30 ms per exposure, so a moving scene stays",
-        "sharp.  Longer recording: -p CaptureLimit.duration 10m.  Lens",
+        "regime of a store / forward Pipeline.  The camera's own auto",
+        "exposure (or the host's, for a camera without one) never exposes",
+        "longer than 30 ms, so a moving scene stays sharp, and its white",
+        "balance runs.  Longer recording: -p CaptureLimit.duration 10m.  Lens",
         "focus: -p VideoReadGigE.focus_assist true, then watch",
         "sensor.sharpness on aiko_dashboard"],
 

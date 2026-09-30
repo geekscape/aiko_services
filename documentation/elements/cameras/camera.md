@@ -71,6 +71,10 @@ The device contract:
 | `device_id()` | The device's own identifier, or `None` |
 | `resolution()`, `frame_rate()` | The actual values, known after `open()` or the first frame |
 | `set_exposure(exposure_us)`, `set_gain(gain)` | Return the actual value the camera accepted |
+| `camera_auto_available()`, `set_camera_auto(enable, max_exposure_us, brightness_target)` | Optional: the camera's own continuous auto exposure and gain. The base class has none |
+| `set_white_balance(mode)` | Optional: `continuous`, `once` or `off`. Returns the mode applied, or `None` when the camera has no white balance |
+| `status()` | Optional: slow readouts for about once a second, for example `temperature_c` and `packets_dropped` |
+| `queued_frames()` | Optional: the frames a free-running camera may hold that predate a change of setting |
 | `available()`, `diagnostic()`, `sdk_version()` | Class methods: did the SDK import, what to install, which version |
 
 A bounded `capture()` matters. The frame generator holds the Stream lock
@@ -87,10 +91,10 @@ The pure helpers, each raising `ValueError` with the parameter name:
 | `parse_frame_rate(value)` | `25`, `"25"`, `"25.0"` or a fraction `"25/1"` → a float above zero |
 | `parse_settle(value, frame_rate)` | A frame count `"30"`, a time `"3s"`, or `0` / `"none"` → frames |
 | `parse_bool(value)`, `parse_resize_mode(value)` | `true` / `false` forms; `crop`, `letterbox` or `stretch` |
-| `plan_resolution(native, target, mode, decimations)` | How a sensor delivers `target`: an area of interest, a decimation factor and a host resize size, or `None` |
+| `plan_resolution(native, target, mode, decimations)` | How a sensor delivers `target`: an area of interest, a decimation factor and a host resize size, or `None`. In `crop` mode, a region of exactly the target times the decimation when it keeps 90 % of the crop, so the camera delivers the target itself |
 | `resize_image(image, size, mode)` | Host-side resize: `crop` keeps the aspect ratio and crops, `letterbox` pads black, `stretch` ignores the aspect ratio |
-| `auto_expose(camera, logger, ...)` | A generator: each step captures, meters the 99th percentile and adjusts exposure first, then gain. Yields `(done, exposure_us, gain)` |
-| `SettleMonitor(max_frames)`, `CountdownSettle(frames)` | Warm-up objects with `feed(metadata) -> done`. The monitor is done once `lens_position` and `iso_sensitivity` are stable over three frames |
+| `auto_expose(camera, logger, ..., discard_frames)` | A generator: each step captures, meters the 99th percentile and adjusts exposure first, then gain. After each change it skips `discard_frames` frames, one step each. Yields `(done, exposure_us, gain)` |
+| `SettleMonitor(max_frames)`, `CameraAutoSettle(max_frames)`, `CountdownSettle(frames)` | Warm-up objects with `feed(metadata) -> done`. The monitor is done once `lens_position` and `iso_sensitivity` are stable over three frames. `CameraAutoSettle` is done once a camera's `auto_status` and `white_balance` stop converging |
 | `RateMeter(window_s)` | `tick()` returns frames per second over a sliding window |
 | `share_token(text)`, `utc_now()` | One share token; ISO 8601 UTC to the second with a `Z` |
 
@@ -123,7 +127,10 @@ higher rates are proven on each camera and link),
 - **Resolution planning is pure.** `plan_resolution()` decides the area
   of interest, the decimation factor and the host resize with no device
   access. The device layer applies the plan and reports what it could
-  do.
+  do. A host resize is expensive on an embedded computer. At a scale
+  near 1, OpenCV's area filter took 74 ms per 1080p frame on one. So in
+  `crop` mode the plan gives up to 10 % of the view to avoid a resize.
+  And `resize_image()` uses the area filter only from 2:1 down.
 
 ### Implementation notes
 

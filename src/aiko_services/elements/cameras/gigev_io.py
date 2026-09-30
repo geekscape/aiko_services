@@ -39,9 +39,10 @@ INITIAL_SHARE = {                  # never a parameter name: the framework
 # parameter: "resolution"   "WxH" (default "1920x1080"), "native" / "full"
 # parameter: "frame_rate"   frames per second (default 8.0), "25/1" form
 # parameter: "trigger"      auto | software | off
-# parameter: "exposure_us", "gain", "max_exposure_us", "settle",
-#            "resize_mode", "capture_timeout", "focus_assist": see
-#            scheme_gigev.py and scheme_camera.py
+# parameter: "exposure_us" (auto | camera | host | a number), "gain",
+#            "max_exposure_us", "brightness_target", "white_balance",
+#            "settle", "resize_mode", "capture_timeout", "focus_assist":
+#            see scheme_gigev.py and scheme_camera.py
 # parameter: "media_type"   optional "numpy" or "pil" conversion
 #
 # Note: Only supports Streams with "data_sources" parameter
