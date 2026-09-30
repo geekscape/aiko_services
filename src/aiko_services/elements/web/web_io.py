@@ -360,7 +360,7 @@ document.getElementById("focus").addEventListener("click", () => {
 });
 function table(values) {
   const rows = document.createElement("table");
-  const keys = Object.keys(values);
+  const keys = Object.keys(values).filter(k => k !== "#");  // comments
   const ordered = FIRST.filter(k => k in values)
     .concat(keys.filter(k => !FIRST.includes(k)).sort());
   for (const key of ordered) {

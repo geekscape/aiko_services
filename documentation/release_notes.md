@@ -121,6 +121,14 @@ sections are.
   reached its MQTT messages, so a dashboard showed no variables for the
   Pipeline.  New share key *frames_dropped*
 
+* New *elements/web* package.  *VideoShowWeb*
+  (*elements/web/web_io.py*) is a pass-through element that shows the
+  latest image in a browser as a live MJPEG stream.  The page also shows
+  the shared state of chosen elements, aiming overlays and a
+  *focus_assist* switch.  It costs nothing while nobody watches.  One
+  browser at 4 fps cost 8 % of one core on an embedded ARM computer.
+  Example *web_pipeline_0.json*
+
 * New DataSchemes *depthai* (*elements/cameras/scheme_depthai.py*) and
   *gigev* (*elements/cameras/scheme_gigev.py*), on the shared
   *DataSchemeCamera* base (*elements/cameras/scheme_camera.py*).  A
