@@ -266,6 +266,16 @@ remote callers are unaffected.  For Python code:
   reader, for example *VideoReadRTSP*, with *AttributeError:
   'StructureWrapper' object has no attribute 'get_value'*
 
+* The MQTT client connects to the IP address of the MQTT server that
+  answered, IPv4 first.  A host name can resolve to an IPv6 address that
+  is not routable (on macOS, a *.local* name of a Linux SBC), and paho
+  tried each address for 5 s.  The discovery of the command line then
+  timed out at random.  Each probe now has a 2 s limit, and paho gets the
+  address when TLS is off over TCP.  TLS and websockets keep the name.
+  New *get_mqtt_host_address()*.  *get_mqtt_configuration()* gives the
+  address as element 7.  New tests: *test_configuration.py* and
+  *test_mqtt.py*
+
 ---
 
 ## Release Notes v0.7

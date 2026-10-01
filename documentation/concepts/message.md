@@ -16,7 +16,7 @@ source:
 related: [design_overview, process, transport, connection, service, event,
   registrar]
 version: "0.6"
-last_updated: 2026-08-01
+last_updated: 2026-09-28
 ---
 
 # Message
@@ -227,9 +227,18 @@ Key design points:
   [Connection](connection.md) state machine (`NONE → TRANSPORT`, and
   later `→ REGISTRAR` when the Registrar is discovered).
 - **Server selection before connection.** `get_mqtt_configuration()`
-  probes candidate `(host, port)` pairs with a raw TCP connect. It tries
-  `AIKO_MQTT_HOST` first, then a built-in host list, then `localhost`.
-  Only then does it hand a known-up server to paho.
+  probes candidate `(host, port)` pairs with a raw TCP connect, IPv4
+  addresses first, 2 s at most for each. It tries `AIKO_MQTT_HOST`
+  first, then a built-in host list, then `localhost`. Only then does it
+  hand a known-up server to paho.
+- **The address, not the name.** When TLS is off and the transport is
+  TCP, `MQTT._connect()` gives paho the IP address that answered the
+  probe. Thus paho does not try an IPv6 address that is not routable,
+  and it does not resolve the name again at each reconnection. TLS keeps
+  the name, because the certificate check and SNI use it. Websockets
+  keep the name too. The address stays the same for the life of the
+  process. An INFO line names the host, the port and the address. Any
+  `OSError` from the connection becomes a `SystemError`.
 
 ### Implementation notes
 

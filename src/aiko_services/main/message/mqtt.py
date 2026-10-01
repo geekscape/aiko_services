@@ -42,7 +42,6 @@
 
 import os
 import paho.mqtt.client as mqtt
-import socket
 import time
 from typing import Any, List
 
@@ -92,6 +91,7 @@ class MQTT(Message):
         self.mqtt_username = mqtt_configuration[4]
         self.mqtt_password = mqtt_configuration[5]
         self.mqtt_tls_enabled = mqtt_configuration[6]
+        self.mqtt_address = mqtt_configuration[7]
         tls_state = "TLS enabled" if self.mqtt_tls_enabled else "TLS disabled"
         self.mqtt_info = f"{self.mqtt_host}:{self.mqtt_port}:{tls_state}"
 
@@ -124,17 +124,25 @@ class MQTT(Message):
             self.mqtt_client.username_pw_set(
                 self.mqtt_username, self.mqtt_password)
 
+        # The address that answered (IPv4 first), so that paho neither tries
+        # an unroutable IPv6 address for 5 seconds nor resolves the name
+        # again on every reconnect.  TLS keeps the name: the certificate
+        # check and SNI use it.  Websockets keep it too (the HTTP Host).
+        # Trade-off: the address is fixed for the life of the process
+        connect_host = self.mqtt_host
+        if self.mqtt_address and not self.mqtt_tls_enabled  \
+                and self.mqtt_transport == "tcp":
+            connect_host = self.mqtt_address
+        _LOGGER.info(f"MQTT server {self.mqtt_host}:{self.mqtt_port} "
+                     f"connecting to {connect_host}")
+
         diagnostic = f"Couldn't connect to MQTT server {self.mqtt_info}"
         try:
             self.mqtt_client.connect(
-                host=self.mqtt_host, port=self.mqtt_port, keepalive=60)
+                host=connect_host, port=self.mqtt_port, keepalive=60)
             self.mqtt_client.loop_start()  # Handles MQTT reconnections
-        except socket.gaierror:
-            raise SystemError(diagnostic)
-        except ConnectionRefusedError:
-            raise SystemError(diagnostic)
-    #   except ConnectionResetError:  # TODO: Is this required as well ?
-    #       raise SystemError(diagnostic)
+        except OSError as error:  # unresolved, refused, reset or timed out
+            raise SystemError(f"{diagnostic}: {error}")
 
     def _disconnect(self: Any) -> None:
         _LOGGER.debug(f"disconnect from {self.mqtt_info}")
