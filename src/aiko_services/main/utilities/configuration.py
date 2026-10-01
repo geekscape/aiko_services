@@ -11,7 +11,15 @@
 # mqtt_configuration = get_mqtt_configuration(tls_enabled=True)
 #
 # Where mqtt_configuration is a tuple ...
-#     (mqtt_host, mqtt_port, mqtt_transport, username, password, tls_enabled)
+#     (server_up, mqtt_host, mqtt_port, mqtt_transport,
+#      username, password, tls_enabled, mqtt_address)
+#
+# mqtt_address is the IP address of mqtt_host that accepted a connection,
+# IPv4 before IPv6, or None.  A host name can resolve to an IPv6 address
+# that isn't routable from here (e.g. an IPv6 ULA for a ".local" name on
+# macOS), and paho tries each address for 5 seconds: so the MQTT client
+# connects to this address instead (see message/mqtt.py).  Each address
+# is tried for _MQTT_PROBE_TIMEOUT seconds at most.
 #
 # Resources
 # ~~~~~~~~~
@@ -45,7 +53,8 @@ from .logger import get_logger
 
 __all__ = [
     "create_password",
-    "get_hostname", "get_mqtt_configuration", "get_mqtt_host", "get_mqtt_port",
+    "get_hostname", "get_mqtt_configuration", "get_mqtt_host",
+    "get_mqtt_host_address", "get_mqtt_port",
     "get_namespace", "get_namespace_prefix", "get_pid", "get_username"
 ]
 
@@ -55,6 +64,7 @@ _AIKO_MQTT_HOST = "localhost"
 _AIKO_MQTT_PORT = 1883        # TCP/IP: 9883, WebSockets: 9884
 _AIKO_MQTT_TRANSPORT = "tcp"  # "websockets"
 _AIKO_NAMESPACE = "aiko"
+_MQTT_PROBE_TIMEOUT = 2.0     # seconds to connect to each address of a host
 
 _LOCALHOST_IP = "127.0.0.1"
 _LOGGER = get_logger(__name__)
@@ -78,15 +88,34 @@ def _get_lan_ip_address():
         ip_address = _LOCALHOST_IP
     return ip_address
 
-def _host_server_up(host, port):
+def _resolve_mqtt_host(host, port):
+    """The first address of HOST that accepts a TCP connection on PORT:
+    IPv4 addresses before IPv6, each tried for _MQTT_PROBE_TIMEOUT seconds.
+    None when the name doesn't resolve or no address answers"""
+
     try:
-        _socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        _socket.connect((host, port))
-        _socket.close()
-        result = True
-    except socket.error as exception:
-        result = False
-    return result
+        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except (socket.gaierror, UnicodeError) as error:
+        _LOGGER.warning(f"MQTT host {host}: can't resolve the name: {error}")
+        return None
+    candidates = []                     # (family, sockaddr), IPv4 first
+    for family, _, _, _, sockaddr in sorted(
+            infos, key=lambda info: info[0] != socket.AF_INET):
+        if all(sockaddr[0] != known[1][0] for known in candidates):
+            candidates.append((family, sockaddr))
+    for family, sockaddr in candidates:
+        probe = socket.socket(family, socket.SOCK_STREAM)
+        probe.settimeout(_MQTT_PROBE_TIMEOUT)
+        try:
+            probe.connect(sockaddr)
+            _LOGGER.info(f"MQTT host {host}:{port} answers on {sockaddr[0]}")
+            return sockaddr[0]
+        except OSError as error:
+            _LOGGER.warning(
+                f"MQTT host {host}:{port} address {sockaddr[0]}: {error}")
+        finally:
+            probe.close()
+    return None
 
 def get_hostname():
     hostname = socket.gethostname()
@@ -99,7 +128,7 @@ def get_hostname():
     return hostname.removesuffix(".local")
 
 def get_mqtt_configuration(tls_enabled=None):
-    server_up, mqtt_host, mqtt_port = get_mqtt_host()
+    server_up, mqtt_host, mqtt_port, mqtt_address = get_mqtt_host_address()
     mqtt_transport = os.environ.get("AIKO_MQTT_TRANSPORT", _AIKO_MQTT_TRANSPORT)
     username = os.environ.get("AIKO_USERNAME", None)
     password = os.environ.get("AIKO_PASSWORD", None)
@@ -111,7 +140,7 @@ def get_mqtt_configuration(tls_enabled=None):
         else:
             tls_enabled = (username is not None) and (len(username) > 0)
     return (server_up, mqtt_host, mqtt_port,  \
-            mqtt_transport, username, password, tls_enabled)
+            mqtt_transport, username, password, tls_enabled, mqtt_address)
 
 # Try in order ...
 # - Environment variables: AIKO_MQTT_HOST and AIKO_MQTT_PORT
@@ -119,6 +148,14 @@ def get_mqtt_configuration(tls_enabled=None):
 # - _AIKO_MQTT_HOST and _AIKO_MQTT_PORT
 
 def get_mqtt_host():
+    """(server_up, mqtt_host, mqtt_port): see get_mqtt_host_address()"""
+
+    return get_mqtt_host_address()[:3]
+
+def get_mqtt_host_address():
+    """(server_up, mqtt_host, mqtt_port, mqtt_address): the first host
+    whose MQTT server answers, and the address that answered"""
+
     mqtt_hosts = _AIKO_MQTT_HOSTS.copy()
 
     mqtt_host = os.environ.get("AIKO_MQTT_HOST", None)
@@ -129,16 +166,18 @@ def get_mqtt_host():
     mqtt_hosts.append((_AIKO_MQTT_HOST, mqtt_port))
 
     server_up = False
+    mqtt_address = None
     for host, port in mqtt_hosts:
         time_start = time.time()
-        if _host_server_up(host, port):
+        mqtt_address = _resolve_mqtt_host(host, port)
+        if mqtt_address:
             server_up = True
             mqtt_host = host
             mqtt_port = port
             break
         delay = time.time() - time_start
         _LOGGER.warning(f"MQTT host {host} timeout after {delay:.02f} seconds")
-    return server_up, mqtt_host, mqtt_port
+    return server_up, mqtt_host, mqtt_port, mqtt_address
 
 def get_mqtt_port():
     return int(os.environ.get("AIKO_MQTT_PORT", _AIKO_MQTT_PORT))

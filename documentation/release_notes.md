@@ -270,6 +270,18 @@ remote callers are unaffected.  For Python code:
 
 ### Bug Fixes
 
+* A Registrar now probes a primary that the retained bootstrap topic
+  announces, before it becomes a secondary.  A retained *(primary found
+  ...)* can outlive its Registrar after a power cycle, because the MQTT
+  server keeps the retained message but never sends the will.  When the
+  probe gets no reply in 3 s, the Registrar publishes *(primary absent)*
+  and becomes the primary, in about 5 s.  Before, every new Registrar
+  stayed secondary, and the stale announcement had to be cleared by hand.
+  *ServicesCache* also logs one WARNING when the Registrar does not reply
+  in 5 s.  New tests: 11 unit tests, and
+  *tests/integration/test_registrar_election.py*, which needs an MQTT
+  server
+
 * Hook state is now per-component.  *HooksImpl* previously kept its hooks
   in a class-level dictionary that every Service in the process shared.
   Thus a hook added on one component was added to all.  Code that relied on
@@ -293,6 +305,16 @@ remote callers are unaffected.  For Python code:
   direct *get_value()* call failed on the first frame of each GStreamer
   reader, for example *VideoReadRTSP*, with *AttributeError:
   'StructureWrapper' object has no attribute 'get_value'*
+
+* The MQTT client connects to the IP address of the MQTT server that
+  answered, IPv4 first.  A host name can resolve to an IPv6 address that
+  is not routable (on macOS, a *.local* name of a Linux SBC), and paho
+  tried each address for 5 s.  The discovery of the command line then
+  timed out at random.  Each probe now has a 2 s limit, and paho gets the
+  address when TLS is off over TCP.  TLS and websockets keep the name.
+  New *get_mqtt_host_address()*.  *get_mqtt_configuration()* gives the
+  address as element 7.  New tests: *test_configuration.py* and
+  *test_mqtt.py*
 
 ---
 
