@@ -59,7 +59,22 @@ dependencies = [
     "wrapt>=1.17.3; python_version >= '3.14'"
 ]
 
-# [project.optional-dependencies]
+# Camera SDKs are optional: each camera module imports without its SDK
+# and reports a diagnostic when its DataScheme is used
+[project.optional-dependencies]
+# Luxonis OAK cameras (elements/cameras/scheme_depthai.py): wheels for
+# Python 3.9 to 3.14 on macOS, Linux x86_64 / aarch64 and Windows
+depthai = ["depthai>=3.9"]
+# GenICam GigE Vision cameras through IDS peak
+# (elements/cameras/scheme_gigev.py): Linux and Windows, Python 3.10 and
+# later, plus the native IDS peak SDK (GenTL producer) installed separately
+ids_peak = [
+    "ids_peak; platform_system == 'Linux' and python_version >= '3.10'",
+    "ids_peak_ipl; platform_system == 'Linux' and python_version >= '3.10'",
+    "ids_peak_common; platform_system == 'Linux' and python_version >= '3.10'"
+]
+# Aravis (the experimental GigE backend) is not a pip extra: the Aravis
+# library and its introspection data come from the system package manager
 # opencv-python = ["opencv-python~=4.10.0.84"]
 # opencv-contrib-python = ["opencv-contrib-python~=4.10.0.84"]
 # linux = ["PyAudio~=0.2.14"]
