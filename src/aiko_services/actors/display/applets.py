@@ -1,0 +1,626 @@
+#!/usr/bin/env python3
+#
+# Aiko Services: OLED applets
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# The higher-level features of the OLED Actor: an applet is a source
+# of frames, the size of its Host (128x64 on one panel), that the Actor
+# steps from its event-loop timer at the applet's frame rate (times the
+# "speed" setting).  Applets never
+# sleep, never block and never touch the Actor: they get a Host with just
+# what they may use.  Keys reach interactive applets through key().
+#
+# Wire form:  (applet NAME [WORDS ...] [key=value ...])
+#             (applet none)
+#
+# Applets
+# ~~~~~~~~~~~~
+#   status.py: status  the host's status or the Wi-Fi link, as text or charts.
+#                     The default, and the main purpose of the Actor: a
+#                     display for headless hosts
+#   log               the last eight (log ...) lines; clears the "L" annunciator
+#   help [page=N] [hold=8]
+#                     help pages: console keys, Dashboard variables, LISP
+#   pattern           the test pattern: shifted, missing or stretched rows show
+#   text [WORDS]      the words centred; without words a screen full of digits
+#   blink [rate=2]    the panel's power off and on: a hardware test
+#   demo [random=on] [count=N] [seed=N]
+#                     a tour of the applets and settings, a few seconds
+#                     each, at random or the fixed TOUR
+#   games.py: pong asteroids invaders games forklift forklift_game
+#   drawings.py: draw
+#
+# Not part of the Interface composition pattern (ADR-022 category
+# Presentation and CLI shells) — see e_10 §2.16: plain presentation
+# classes owned by the Actor, not Services.
+#
+# To Do
+# ~~~~~
+# - None, yet !
+
+import itertools
+import math
+import random
+import socket
+
+from PIL import Image, ImageDraw
+
+from aiko_services.actors.display.graphics import (
+    HEIGHT, INK, WIDTH, blank, paste_centred, pixels, stamp,
+)
+
+__all__ = [
+    "APPLETS", "OPTION_LENGTH_MAXIMUM", "TOUR", "Applet",
+    "AppletDone", "BlinkApplet", "DemoApplet", "HelpApplet",
+    "Host", "LogApplet", "PatternApplet", "TextApplet", "fits",
+    "on_off", "parse_applet_args", "pattern_image", "random_steps",
+]
+
+OPTION_LENGTH_MAXIMUM = 64  # characters per word or option value (P9 bound)
+
+class AppletDone(Exception):
+    """The applet finished: the Actor goes back to its default"""
+
+class Host:
+    """What an applet may use.  The Actor implements this; tests can
+    pass a plain one.  Every call takes and returns S-expression values
+    (tokens, integers, words), never a Python object to call into: the
+    surface a sandboxed evaluator could expose to applets written in LISP"""
+
+    name = "oled"
+    depth = 1  # bits per pixel
+
+    def __init__(self, font, rng=None, speed=1.0, width=WIDTH, height=HEIGHT):
+        self.font = font
+        self.rng = rng or random.Random()
+        self.speed = speed
+        self.width, self.height = width, height
+
+    def columns(self):
+        """Characters per text row in the font (21 for 5x7 on 128 pixels);
+        an average for a proportional font"""
+
+        cell = self.font.cell_width  \
+            or max(1, round(self.font.render_line("0123456789").width / 10))
+        return max(1, self.width // cell)
+
+    def title_rows(self):
+        """Pixel rows at the top that the Actor's title row covers (0: none)"""
+
+        return 0
+
+    def connection(self):
+        """The Actor's connection state: NONE, NETWORK, TRANSPORT, REGISTRAR"""
+
+        return "NONE"
+
+    def log_lines(self):
+        """The most recent (log ...) lines, oldest first"""
+
+        return []
+
+    def log_seen(self):
+        """The log lines have been shown (clears the "L" annunciator)"""
+
+    def keys_held(self):
+        """The keys held down now: "up", "down", "left", "right", characters"""
+
+        return set()
+
+    def status(self, token):
+        """Tell observers what the applet is doing (share
+        "applet_detail"); one token, no spaces"""
+
+    def setting(self, name):
+        """The current value of a setting, e.g. setting("font")"""
+
+        return None
+
+    def control(self, name, value):
+        """Change a display setting, e.g. control("power", "off")"""
+
+def fits(applet_class, width, height):
+    """Whether the applet's MIN_SIZE fits a host of the size"""
+
+    minimum_width, minimum_height = applet_class.MIN_SIZE
+    return width >= minimum_width and height >= minimum_height
+
+class Applet:
+    """A source of frames.  Subclasses set "name", "fps" (frames per second
+    at speed 1) and "OPTIONS" (key: type), and implement step()"""
+
+    name = "base"
+    fps = 30
+    wants_title = False  # True: the title row is drawn over the frame
+    MIN_SIZE = (0, 0)    # the smallest host (width, height) that fits: games
+    OPTIONS = {}         # option name: type, e.g. {"seed": int}
+    description = ""     # one token for observers
+    summary = ""         # one line for "aiko_display applet --list"
+
+    def __init__(self, host, words=(), options=None):
+        self.host = host
+        self.words = list(words)
+        self.options = options or {}
+
+    def step(self):
+        """The next frame (a "1" PIL image: the host's size, or the fixed
+        field of MIN_SIZE that the Actor centers), or None for no change.
+        Raise AppletDone when finished"""
+
+        return None
+
+    def key(self, name, state):
+        """A key event: name "up", "down", "left", "right" or a character;
+        state "tap", "down" or "up" """
+
+    def stop(self):
+        """The applet is being replaced: undo any settings it changed"""
+
+    def frame(self):
+        """A blank frame to draw on, the host's size"""
+
+        return Image.new("1", (self.host.width, self.host.height))
+
+    def write_lines(self, lines, top=None):
+        """A frame with the lines of text, one per text row, from the top
+        (below the title row) down; lines that don't fit are dropped"""
+
+        frame = self.frame()
+        font = self.host.font
+        y = self.host.title_rows() if top is None else top
+        for line in lines:
+            if y + font.line_height > self.host.height:
+                break
+            stamp(frame, font.render_line(line), 0, y)
+            y += font.cell_height
+        return frame
+
+def parse_applet_args(args, spec):
+    """Split wire arguments into plain words and key=value options, coercing
+    each option with the type in spec.  Raises ValueError for an unknown
+    option, a bad value or an over-long argument"""
+
+    words, options = [], {}
+    for arg in args:
+        if not isinstance(arg, str):
+            raise ValueError(f"argument {arg!r} isn't a string")
+        if len(arg) > OPTION_LENGTH_MAXIMUM:
+            raise ValueError(f"argument longer than {OPTION_LENGTH_MAXIMUM}")
+        if "=" in arg:
+            key, value = arg.split("=", 1)
+            if key not in spec:
+                raise ValueError(f"unknown option {key!r}")
+            try:
+                options[key] = spec[key](value)
+            except (TypeError, ValueError):
+                raise ValueError(f"bad value for {key}: {value!r}")
+        else:
+            words.append(arg)
+    return words, options
+
+# --------------------------------------------------------------------------- #
+
+def ip_address():
+    """The address of the interface that reaches the network, else "none" """
+
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp:
+        try:
+            udp.connect(("10.254.254.254", 1))  # sends nothing: picks the route
+            return udp.getsockname()[0]
+        except OSError:
+            return "none"
+
+def per_second(count):
+    """A rate in four characters, three for the number and one for the unit
+    (space, k, M, G), so that columns don't move: "950 ", "1.2k", " 12k" """
+
+    for unit in (" ", "k", "M", "G"):
+        if count < 999.5:
+            if unit != " " and count < 9.95:
+                return f"{count:3.1f}{unit}"
+            return f"{count:3.0f}{unit}"
+        count /= 1000
+    return f"{count:3.0f}T"
+
+def on_off(text):
+    """True for on/true/1/yes, False for off/false/0/no; ValueError otherwise"""
+
+    if text in ("on", "true", "1", "yes"):
+        return True
+    if text in ("off", "false", "0", "no"):
+        return False
+    raise ValueError(text)
+
+class LogApplet(Applet):
+    """The last eight (log ...) lines, oldest first, as they arrive; showing
+    them clears the "L" annunciator"""
+
+    name = "log"
+    fps = 2
+    wants_title = True
+    description = "log"
+    summary = "The last eight (log ...) lines, as they arrive"
+
+    def __init__(self, host, words=(), options=None):
+        super().__init__(host, words, options)
+        self._shown = None
+
+    def step(self):
+        lines = self.host.log_lines()
+        shown = (self.host.font, tuple(lines))
+        if shown == self._shown:
+            return None
+        self._shown = shown
+        font = self.host.font
+        rows = max(1, (self.host.height - self.host.title_rows()) // font.cell_height)
+        self.host.log_seen()
+        return self.write_lines(lines[-rows:])
+
+class HelpApplet(Applet):
+    """Help on the display, in pages that fit it: the keys of the console
+    (applets, then actions), the Dashboard settings and state, and the LISP
+    wire commands.  The pages turn every "hold" seconds, or "page=N" holds
+    one; the arrow keys turn them too"""
+
+    name = "help"
+    fps = 2
+    wants_title = True
+    OPTIONS = {"page": int, "hold": float}
+    summary = "Help pages: console keys, Dashboard variables, LISP commands"
+    PAGES = [  # (heading, up to six lines of 21 characters)
+        ("Keys: applets", [
+            "s status l log h help",
+            "p pattern t text",
+            "d draw D demo",
+            "g games G forklift",
+            "P blink C clock",
+            "e eyes  S status view",
+        ]),
+        ("Keys: actions", [
+            "arrows: applet keys",
+            "0-9 speed f F font",
+            "T title  i invert",
+            "o power  a all_on",
+            "+/- contrast c clear",
+            "b B color R reset x X",
+        ]),
+        ("Dashboard: set", [
+            "applet contrast font",
+            "invert power all_on",
+            "title speed",
+            "blank_after",
+            "mirror_rate",
+            "foreground background",
+        ]),
+        ("Dashboard: state", [
+            "backend device panels",
+            "size depth settings",
+            "keys.* connection fps",
+            "applets applet_detail",
+            "heartbeat last_error",
+            "log_count metrics.*",
+        ]),
+        ("LISP on topic/in", [
+            "(text X Y WORDS)",
+            "(log WORDS) (clear)",
+            "(pixel X Y) (pixels)",
+            "(line X0 Y0 X1 Y1)",
+            "(applet NAME ARGS)",
+            "(key NAME) (exit)",
+        ]),
+        ("LISP: notes", [
+            "(oled:text)=(text)",
+            "origin bottom-left",
+            "y=0 is the bottom row",
+            "aiko_display set K V",
+            "aiko_display applet",
+            "mosquitto_pub -t T/in",
+        ]),
+    ]
+
+    def __init__(self, host, words=(), options=None):
+        super().__init__(host, words, options)
+        pages = len(self.PAGES)
+        self.page = max(1, min(pages, self.options.get("page", 1))) - 1
+        self.auto = "page" not in self.options
+        self.hold = max(1.0, self.options.get("hold", 8.0))
+        self._left = round(self.hold * self.fps)
+        self._shown = None
+        self._describe()
+
+    def _describe(self):
+        self.description = f"help_{self.page + 1}_of_{len(self.PAGES)}"
+        self.host.status(self.description)
+
+    def turn(self, pages):
+        self.page = (self.page + pages) % len(self.PAGES)
+        self._left = round(self.hold * self.fps)
+        self._describe()
+
+    def key(self, name, state):
+        if state != "up" and name in ("right", "down", " "):
+            self.turn(1)
+        elif state != "up" and name in ("left", "up"):
+            self.turn(-1)
+
+    def step(self):
+        if self.auto:
+            self._left -= 1
+            if self._left <= 0:
+                self.turn(1)
+        shown = (self.page, self.host.font)
+        if shown == self._shown:
+            return None
+        self._shown = shown
+        heading, lines = self.PAGES[self.page]
+        heading = f"{heading:16.16s} {self.page + 1}/{len(self.PAGES)}"
+        return self.write_lines([heading] + lines)
+
+# --------------------------------------------------------------------------- #
+
+def pattern_image(font, width=WIDTH, height=HEIGHT):
+    """The test pattern: a border on all four edges; ruler ticks every 8
+    pixels (longer every 32) along the top and left; corner-to-corner
+    diagonals; a circle; blocks of even rows only and odd rows only (left),
+    a solid block and a 1-pixel checkerboard (right); "centre" in the middle"""
+
+    image = blank(width=width, height=height)
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, width - 1, height - 1), outline=INK)
+    for x in range(8, width, 8):
+        draw.line((x, 1, x, 4 if x % 32 == 0 else 2), fill=INK)
+    for y in range(8, height, 8):
+        draw.line((1, y, 4 if y % 32 == 0 else 2, y), fill=INK)
+    draw.line((0, 0, width - 1, height - 1), fill=INK)
+    draw.line((0, height - 1, width - 1, 0), fill=INK)
+    cx, cy, radius = width // 2, height // 2, min(width, height) // 2 - 8
+    draw.ellipse((cx - radius, cy - radius, cx + radius - 1, cy + radius - 1),
+                 outline=INK)
+    blocks = [
+        (8, cy - 14, lambda x, y: y % 2 == 0),
+        (8, cy + 2, lambda x, y: y % 2 == 1),
+        (width - 24, cy - 14, lambda x, y: True),
+        (width - 24, cy + 2, lambda x, y: (x + y) % 2 == 0),
+    ]
+    for left, top, lit in blocks:
+        top = max(1, top)
+        image.paste(pixels(lit, width, height).crop(
+            (left, top, left + 16, top + 12)), (left, top))
+    paste_centred(image, "centre", font)
+    return image
+
+def digits_image(font, width=WIDTH, height=HEIGHT):
+    """A screen full of digits: each row counts 0123456789012... across every
+    column, starting one digit later than the row above"""
+
+    image = blank(width=width, height=height)
+    font = font.mono()
+    digits = [font.render_line(str(digit)) for digit in range(10)]
+    _, top, _, bottom = font.render("0123456789").getbbox()
+    digits = [digit.crop((0, top - font.top, digit.width, bottom - font.top))
+              for digit in digits]
+    cell = 6 if font.truetype is None else round(font.truetype.getlength("0"))
+    pitch = bottom - top + 1
+    for row in range(math.ceil(height / pitch)):
+        for column in range(math.ceil(width / cell)):
+            stamp(image, digits[(row + column) % 10], column * cell, row * pitch)
+    return image
+
+class StillApplet(Applet):
+    """One picture, drawn again only when the font changes"""
+
+    fps = 2
+
+    def __init__(self, host, words=(), options=None):
+        super().__init__(host, words, options)
+        self._font = None
+
+    def picture(self):
+        return self.frame()
+
+    def step(self):
+        if self._font is self.host.font:
+            return None
+        self._font = self.host.font
+        return self.picture()
+
+class PatternApplet(StillApplet):
+    """The test pattern, to check a panel for shifted, missing, stretched or
+    interleaved rows and columns"""
+
+    name = "pattern"
+    description = "pattern"
+    summary = "The test pattern for a panel"
+
+    def picture(self):
+        return pattern_image(self.host.font, self.host.width, self.host.height)
+
+class TextApplet(StillApplet):
+    """WORDS centred in the current font, or without words the screen full
+    of digits"""
+
+    name = "text"
+    summary = "WORDS centred, or without words a screen full of digits"
+
+    def __init__(self, host, words=(), options=None):
+        super().__init__(host, words, options)
+        self.description = "message" if self.words else "digits"
+
+    def picture(self):
+        if not self.words:
+            return digits_image(self.host.font, self.host.width, self.host.height)
+        frame = self.frame()
+        paste_centred(frame, " ".join(self.words), self.host.font)
+        return frame
+
+class BlinkApplet(Applet):
+    """The panel's power switched off and on, "rate" times a second, over
+    the test pattern: a hardware test.  Stopping it leaves the power on"""
+
+    name = "blink"
+    fps = 2
+    OPTIONS = {"rate": float}
+    description = "blink"
+    summary = "The panel's power off and on: a hardware test"
+
+    def __init__(self, host, words=(), options=None):
+        super().__init__(host, words, options)
+        self.fps = max(0.5, min(10.0, self.options.get("rate", 2.0)))
+        self._on = True
+        self._shown = False
+
+    def step(self):
+        self._on = not self._on
+        self.host.control("power", "on" if self._on else "off")
+        if self._shown:
+            return None
+        self._shown = True
+        return pattern_image(self.host.font, self.host.width, self.host.height)
+
+    def stop(self):
+        self.host.control("power", "on")
+
+# The fixed tour: (seconds, applet, arguments, settings for the step)
+TOUR = [
+    (3, "blink", ["rate=4"], {}),
+    (4, "pattern", [], {}),
+    (3, "pattern", [], {"invert": "on"}),
+    (3, "pattern", [], {"contrast": "16"}),
+    (4, "text", [], {}),
+    (4, "text", [], {"font": "10"}),
+    (3, "text", ["Hello!"], {"font": "20"}),
+    (5, "status", [], {}),
+    (4, "status", [], {"font": "12"}),
+    (13, "draw", ["subject=forklift", "count=1", "hold=3"], {}),
+    (8, "draw", ["shade=off", "speed=4", "count=1", "hold=2"], {}),
+    (13, "draw", ["style=hatch", "count=1", "hold=3"], {}),
+    (10, "pong", [], {}),
+    (10, "asteroids", [], {}),
+    (10, "invaders", [], {}),
+    (25, "forklift", [], {}),
+]
+
+def random_steps(rng):
+    """Endless demo steps like those in TOUR, chosen at random; never the
+    same kind twice in a row"""
+
+    def font():
+        return {"font": rng.choice(["5x7", "10", "12", "16"])}
+
+    def seed():
+        return [f"seed={rng.randrange(1000000)}"]
+
+    def screen():
+        return rng.choice([
+            (3, "pattern", [], {"invert": "on"}),
+            (3, "blink", [f"rate={rng.choice('248')}"], {}),
+            (3, "pattern", [], {"contrast": rng.choice(["8", "64", "160"])}),
+        ])
+
+    def draw():
+        speed = rng.choice((4, 6, 8))
+        options = rng.choice([[], ["shade=off"], [f"style={rng.choice(('outline', 'hatch', 'stipple'))}"]])
+        subject = [f"subject={rng.choice(('house', 'tree', 'pine', 'cat', 'dog', 'bicycle', 'flower', 'forklift'))}"]  \
+            if rng.random() < 0.5 else []
+        return (speed + 5, "draw", ["count=1", f"speed={speed}", "hold=3", *options, *subject, *seed()], {})
+
+    makers = [
+        screen,
+        lambda: (4, "pattern", [], font()),
+        lambda: (4, "text", [], font()),
+        lambda: (3, "text", [rng.choice(["Hello!", "SSD1306", "128x64", "OLED", "Pi 4B"])],
+                 {"font": rng.choice(["10", "16", "24"])}),
+        lambda: (5, "status", [f"rate={rng.choice('124')}"], font()),
+        draw,
+        lambda: (10, rng.choice(["pong", "asteroids", "invaders"]), seed(), font()),
+        lambda: (25, "forklift", seed(), font()),
+    ]
+    previous = None
+    while True:
+        maker = rng.choice([maker for maker in makers if maker is not previous])
+        previous = maker
+        yield maker()
+
+class DemoApplet(Applet):
+    """A tour of the applets and settings, a few seconds each: at
+    random (default) or the fixed TOUR ("random=off"); "count" steps, 0 for
+    ever.  Settings a step changes are put back after it"""
+
+    name = "demo"
+    fps = 30
+    OPTIONS = {"random": lambda text: text not in ("off", "false", "0", "no"),
+               "count": int, "seed": int}
+    description = "demo"
+    summary = "A tour of the applets and settings, a few seconds each"
+
+    def __init__(self, host, words=(), options=None):
+        super().__init__(host, words, options)
+        rng = host.rng if "seed" not in self.options  \
+            else random.Random(self.options["seed"])
+        steps = random_steps(rng) if self.options.get("random", True)  \
+            else itertools.cycle(TOUR)
+        count = self.options.get("count", 0)
+        self._steps = itertools.islice(steps, count) if count else steps
+        self._sub = None
+        self._saved = {}
+        self._left = 0
+
+    @property
+    def wants_title(self):
+        return self._sub.wants_title if self._sub else False
+
+    def _restore(self):
+        if self._sub is not None:
+            self._sub.stop()
+            self._sub = None
+        for key, value in self._saved.items():
+            if value is not None:
+                self.host.control(key, value)
+        self._saved = {}
+
+    def _next_step(self):
+        self._restore()
+        while True:
+            seconds, name, args, settings = next(self._steps)  # StopIteration: done
+            applet_class = APPLETS.get(name)
+            if applet_class is None  \
+                    or not fits(applet_class, self.host.width, self.host.height):
+                continue
+            try:
+                words, options = parse_applet_args(args, applet_class.OPTIONS)
+                self._sub = applet_class(self.host, words, options)
+                break
+            except ValueError:
+                continue
+        for key, value in settings.items():
+            self._saved.setdefault(key, self.host.setting(key))
+            self.host.control(key, value)
+        self._left = round(seconds * self.fps)
+        self._every = max(1, round(self.fps / max(self._sub.fps, 0.001)))
+        self._tick = 0
+        self.description = f"demo_{name}"
+        self.host.status(self.description)
+
+    def step(self):
+        if self._sub is None or self._left <= 0:
+            try:
+                self._next_step()
+            except StopIteration:
+                self._restore()
+                raise AppletDone
+            return self._sub.step()
+        self._left -= 1
+        self._tick += 1
+        if self._tick % self._every:
+            return None
+        try:
+            return self._sub.step()
+        except AppletDone:
+            self._left = 0
+            return None
+
+    def stop(self):
+        self._restore()
+
+APPLETS = {applet.name: applet for applet in (
+    LogApplet, HelpApplet, PatternApplet, TextApplet,
+    BlinkApplet, DemoApplet)}

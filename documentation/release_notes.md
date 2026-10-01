@@ -19,7 +19,7 @@ and bug fixes.
 
 **Language rule (adopted 2026-07-31).** Write each new release section in
 ASD-STE100 Simplified Technical English, at the `adapted` level of
-[constitution/t_04_SimplifiedTechnicalEnglish.md](constitution/t_04_SimplifiedTechnicalEnglish.md).
+the project STE profile [Privately maintained].
 This rule applies to v0.8 and to each release after it. The v0.6
 (human-written) and v0.7 (A.I-written) sections stay unchanged, because
 they are a historical record. Thus the front-matter `ste:` field of this
@@ -33,6 +33,36 @@ sections are.
 **Full Changelog**: https://github.com/geekscape/aiko_services/compare/v0.7...v0.8
 
 ### Features
+
+* Display Actor, *src/aiko_services/actors/display*, the first package of
+  the actors tier (in the wheel): an SSD1306 128x64 OLED as an Actor with
+  the protocol *display:0*.  The protocol is the composite of the *Canvas*,
+  *Screen* and *Interaction* aspects.  The Actor shows the status of a
+  headless host (IP address, connection state, time, load, the last log
+  lines).  It accepts the same S-expressions as the aiko_engine_mp OLED,
+  for example *(oled:text 0 0 hello)*.  Its settings are shared state that
+  the Dashboard edits.  The *aiko_display* command runs the Actor or sends
+  it one command, and *aiko_display keys* is an interactive console.  A
+  Dashboard plug-in page mirrors the panel live, in Unicode or in ASCII,
+  and drives it with the same keys.  The key map is on the Actor.  Applets
+  run on the display: games, a forklift, pencil drawings, a clock face,
+  animated eyes and a demo tour.  Without the panel, a desktop window, the
+  terminal or a PNG file emulates it.  See
+  *documentation/actors/display/ReadMe.md*: the Actor, the protocol, the
+  Dashboard page, the design record and a step-by-step test guide
+
+* A *(key NAME down)* holds a key for 2 s at most.  A client that holds a
+  key sends *down* again.  The Dashboard page and the emulator window do
+  this
+
+* Simple example, *src/aiko_services/examples/oled/oled_actor.py*: one
+  small Actor that draws on an SSD1306.  It accepts *clear*, *log* and
+  *text* of the *display:0* protocol, so the *aiko_display* command and
+  the Dashboard page drive it
+
+* Proposal for e_03 task T6, *documentation/actors/display/parameters_streams_shape.md*:
+  Parameters and Streams as aspects of an Actor, with the Display Actor as
+  the pilot.  No code change
 
 * Classes may now omit the *__init__()* method entirely when they need no
   constructor arguments beyond *context* and no explicit super-class
@@ -227,6 +257,16 @@ remote callers are unaffected.  For Python code:
   running it.
   These tests skip when OpenCV is absent, because *video_io.py* needs
   *cv2* at import time
+
+* New *test_display.py*, *test_display_cli.py*, *test_display_applets.py*
+  and *test_display_dashboard_plugin.py*: 142 tests for the Display Actor.
+  They cover graphics, the composed outputs, dispatch and validation, the
+  settings and the mirror.  They also cover the command line, the applets
+  at three canvas sizes and the Dashboard page.  A pseudo-terminal test
+  runs the page for 4 terminal types, 3 locales and 2 sizes.  The 6
+  *vt100* cases are expected failures, because asciimatics cannot start
+  there.  A fake output stands in for the panel, so no broker and no panel
+  are needed.  New *test_example_oled.py*: 4 tests for the simple example
 
 ### Bug Fixes
 

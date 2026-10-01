@@ -9,9 +9,9 @@ audience: [project-lead, architects, developers, application-developers,
 status: operational
 ste: adapted
 related: [../constitution/ReadMe, ../constitution/adr/ReadMe,
-  concepts/ReadMe, elements/ReadMe, examples/ReadMe, tools/ReadMe,
+  concepts/ReadMe, actors/ReadMe, elements/ReadMe, examples/ReadMe, tools/ReadMe,
   ../constitution/t_03_IdentifierGlossary]
-last_updated: 2026-08-27
+last_updated: 2026-09-26
 ---
 
 # Aiko Services documentation — reading guide and index
@@ -30,8 +30,9 @@ terminology that links to the owning descriptions.
 | Area | What it holds | Start at |
 |------|---------------|----------|
 | [concepts/](concepts/ReadMe.md) | The framework itself — 46 OKF concept documents (32 plus 14 in the utilities sub-index), from the per-process event loop to the distributed structural model | [design_overview.md](concepts/design_overview.md) |
+| [actors/](actors/ReadMe.md) | The actors tier (`src/aiko_services/actors/`) — packages of Actors with their own protocols, shipped in the wheel; the `display:0` protocol design and evaluation is the first | [display/](actors/display/ReadMe.md) |
 | [elements/](elements/ReadMe.md) | The PipelineElement library (`src/aiko_services/elements/`) — one document per module, plus the example PipelineDefinitions | its reading paths |
-| [examples/](examples/ReadMe.md) | The example applications (`src/aiko_services/examples/`) — hello-world Actor tutorial through vision, speech, LLM and robots | [aloha_honua/](examples/aloha_honua/ReadMe.md) |
+| [examples/](examples/ReadMe.md) | The example applications (`src/aiko_services/examples/`) — hello-world Actor tutorial through vision, speech, LLM, robots and an OLED status display | [aloha_honua/](examples/aloha_honua/ReadMe.md) |
 | [../constitution/](../constitution/ReadMe.md) | The documents that govern development — principles (p), specifications (s), plans (e), operating guides (g), analyses (a), templates (t), plus the ADR registry, diagrams and the public journal | its index |
 | [tools/](tools/ReadMe.md) | The ASD-STE100 command-line tools — `asd_ste100_lint.py` (the gate), `asd_ste100_fix.py` (the mechanical pass) and `asd_ste100_semisplit.py` | its ReadMe |
 | [release_notes.md](release_notes.md) | Per-release features, testing and bug fixes | the newest release |
@@ -93,7 +94,7 @@ document in this tree carries an `ste:` front-matter field, and
    which follow its *Reading paths* (first Pipeline → cameras and video →
    writing a new PipelineElement). Then read the remaining module
    documents, package by package.
-7. [examples/ReadMe.md](examples/ReadMe.md) and its eleven package
+7. [examples/ReadMe.md](examples/ReadMe.md) and its twelve package
    indexes, which follow its *Reading paths*.
 
 ### Stage 4 — Governance
@@ -164,7 +165,7 @@ The rules most often forgotten, each one owned by the linked document:
   cited bare ([t_03](../constitution/t_03_IdentifierGlossary.md)).
 - An `ste:` declaration is earned, never claimed. Set it to `adapted` only
   when `asd_ste100_lint.py` reads zero on all seven counts
-  ([tools/](tools/ReadMe.md); profile privately maintained).
+  ([tools/](tools/ReadMe.md), profile privately maintained).
 - An exemption is declared in the document, with an
   `<!-- ste-exempt: reason -->` marker, and it covers the smallest region
   that quotes the standard [STE profile privately maintained].

@@ -9,9 +9,10 @@ ste: adapted
 source:
   - src/aiko_services/main/dashboard_plugins.py
   - src/aiko_services/main/dashboard.py
+  - src/aiko_services/actors/display/dashboard_plugin.py
 related: [design_overview, dashboard, service, share, registrar]
 version: "0.6"
-last_updated: 2026-08-01
+last_updated: 2026-09-28
 ---
 
 # Dashboard plug-in
@@ -203,6 +204,37 @@ Key design points:
   `history_limit` argument only takes effect for whoever creates it
   first).
 
+### Lessons from the Display Actor page
+
+The Display Actor page
+(`src/aiko_services/actors/display/dashboard_plugin.py`) is the first
+large plug-in. Its lessons apply to any page:
+
+- The key of `plugins` is the protocol type, the text before the `:`
+  of the protocol (`display` for `display:0`).
+- `__init__()` ends with `fix()`, and it runs again on each resize. Keep
+  it fast, and do not subscribe in it.
+- Do not create a second ECConsumer with id 0. Read the cache of the
+  consumer that the Dashboard gives, in `_update()`.
+- A message handler runs on the event-loop thread and must only store
+  data. `_update()` draws, on the TUI thread.
+- The Dashboard keeps the keys `D`, `?`, `x`, `X` and `Tab`. Give a page
+  action another key.
+- curses reports a key press and its auto-repeats, but never a release.
+  To hold a key, send `down` on the first press and `up` after a short
+  pause without a repeat.
+- A pure page model and a pure renderer keep the tests free of a screen.
+  A pseudo-terminal (`pty.fork()` and `TIOCSWINSZ`) runs a page with no
+  person at the keyboard.
+- For a binary feed, subscribe one time for each Dashboard process, on
+  the topic path of the Dashboard, and never remove the subscription. A
+  lease on the Service stops the traffic.
+- asciimatics decides Unicode from the locale only. With `LC_ALL=C`, a
+  page must draw with ASCII characters.
+
+The [Display Actor design record](../actors/display/design.md) gives the
+details.
+
 ### CRC card
 
 | Class | Responsibilities | Collaborators |
@@ -237,3 +269,5 @@ Key design points:
 - [Share](share.md) — the `ECConsumer` handed to
   `_service_frame_start()`
 - [Registrar](registrar.md) — subject of the built-in example plug-in
+- [Display Actor page](../actors/display/display_dashboard.md) — a large
+  plug-in: a live mirror, editable settings and keys
