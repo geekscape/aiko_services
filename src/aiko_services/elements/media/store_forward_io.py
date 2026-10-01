@@ -52,8 +52,9 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
 
 _LOGGER = aiko.process.logger(__name__)
 
-DEFAULT_FORMAT = "mp4v"         # the fourcc tag OpenCV uses for MP4
-DEFAULT_FRAME_RATE = 15.0       # must match the source "rate"
+DEFAULT_FORMAT = "avc1"         # H.264 in MP4: 35 ms per 1080p frame on
+                                # an embedded ARM computer, mp4v 111 ms
+DEFAULT_FRAME_RATE = 8.0        # must match the source "rate"
 DEFAULT_SEGMENT_SECONDS = 10.0  # close a segment after this many seconds
 DEFAULT_SEGMENT_FRAMES = 0      # or after this many frames (0: unused)
 
@@ -75,8 +76,14 @@ def segment_file_name(prefix="", now=None):
 # parameter: "data_targets"     "(store_forward://OUTBOX_DIRECTORY)"
 # parameter: "segment_seconds"  close a segment after N seconds (10.0)
 # parameter: "segment_frames"   or after N frames (0: unused); either bound
-# parameter: "frame_rate"       encoded frames per second (15.0)
-# parameter: "format"           OpenCV fourcc tag ("mp4v")
+# parameter: "frame_rate"       encoded frames per second (8.0)
+# parameter: "format"           OpenCV fourcc tag ("avc1": H.264).  The
+#                               Pipeline holds the Stream lock while a
+#                               frame is encoded, so the source is not
+#                               read meanwhile: keep the encode well
+#                               under the frame period (mp4v takes
+#                               111 ms per 1080p frame on an embedded
+#                               ARM computer, avc1 35 ms)
 # parameter: "resolution"       "WxH", default: the first frame's shape
 # parameter: "segment_prefix"   optional file name prefix (""), see the scheme
 #
