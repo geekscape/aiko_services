@@ -12,7 +12,7 @@ source:
 related: [design_overview, process, service, discovery, share, connection,
   state, event, message, transport, dashboard, lifecycle]
 version: "0.6"
-last_updated: 2026-08-01
+last_updated: 2026-09-28
 ---
 
 # Registrar
@@ -177,8 +177,9 @@ with service id `0` means the whole *process* terminated, and all of that
 process's Services are removed together.
 
 **Shared state** (visible on the Dashboard through `ECProducer`): `aiko_id`,
-`lifecycle` (the election state: `start` → `primary_search` → `secondary` |
-`primary`), `log_level`, `source_file`, `service_count`.
+`lifecycle` (the election state: `start` → `primary_search` →
+`primary_probe` → `secondary` | `primary`), `log_level`, `source_file`,
+`service_count`.
 
 ## For framework developers (internals)
 
@@ -189,6 +190,7 @@ process's Services are removed together.
               │ RegistrarImpl (Service)                    │
               │                                            │
    /in ──────►│ _topic_in_handler: add/remove/share/history│
+   /probe ───►│ _probe_handler: (item_count 0) → alive     │
    +/+/+/state│ _service_state_handler: (absent) → remove  │
    boot topic►│ _registrar_handler: found/absent           │
               │                                            │
@@ -198,7 +200,11 @@ process's Services are removed together.
               │                                            │
               │ StateMachine:                              │
               │  start ─initialize─► primary_search        │
-              │   primary_search ─primary_found─► secondary│
+              │   primary_search ─primary_found─►          │
+              │                        primary_probe       │
+              │   primary_probe ─primary_alive─► secondary │
+              │   primary_probe ─primary_dead|absent─►     │
+              │                        primary_search      │
               │   primary_search ─primary_promotion─►      │
               │                              primary       │
               │   primary|secondary ─primary_failed─►      │
@@ -215,8 +221,27 @@ Key design points:
 - **Election by retained message**: on `initialize` the state machine
   enters `primary_search` and starts a 2-second timer
   (`_PRIMARY_SEARCH_TIMEOUT`). If the bootstrap topic delivers
-  `(primary found ...)` first, this Registrar becomes a *secondary*.
-  If not, the timer fires `primary_promotion`. On promotion the new
+  `(primary found ...)` first, this Registrar probes the announced
+  primary (see the next item). If not, the timer fires
+  `primary_promotion`.
+- **A found primary is probed before this Registrar yields.** A retained
+  announcement can outlive its Registrar: when the MQTT server and the
+  Registrar stop together (a power cycle), the server keeps the retained
+  message, but it never sends the will. So in `primary_probe` the
+  Registrar sends `(history TOPIC_PATH/probe 0)` to the primary's
+  `topic_in`. That request has exactly one reply, `(item_count 0)`. A
+  reply makes this Registrar a *secondary*. No reply in 3 s
+  (`_PRIMARY_PROBE_TIMEOUT`, plus up to 0.5 s of jitter) means that the
+  announcement is stale. The Registrar logs a WARNING, publishes the
+  retained `(primary absent)` that the dead primary never sent, and
+  returns to `primary_search`. The echo of that `absent` then promotes
+  it, or the search timer does, when the echo is lost.
+- **Special cases of the probe.** An announcement of this Registrar's
+  own topic path, from before it was ever primary, is stale (a process
+  id used again after a reboot): the Registrar publishes `absent`
+  without a probe. A newer announcement during a probe is probed
+  instead. An `absent` during a probe returns the Registrar to
+  `primary_search`, and it publishes nothing. On promotion the new
   primary clears the retained topic, installs the `(primary absent)` LWT,
   then publishes the retained `(primary found ...)` announcement. If the
   primary fails (`(primary absent)` observed), survivors drop their
@@ -237,6 +262,10 @@ Key design points:
 - `on_enter_primary()` wraps LWT installation in `try/except SystemError`
   — if the MQTT server is unavailable the transition rolls back through
   `primary_failed`.
+- The model keeps a set of the timers that are pending, and each
+  `on_exit_*` callback removes its own timer. This matters because
+  `event.remove_timer_handler()` decreases the handler count even when it
+  removes nothing.
 - `_service_add()` ignores duplicate `add`s for a known `topic_path`, and
   re-publishes the *original inbound payload* on `topic_out` rather than
   regenerating it.
@@ -254,16 +283,19 @@ Key design points:
 |-------|------------------|---------------|
 | `Registrar` (Interface) | Declare the Registrar Service type (no Python methods yet — the contract is the wire protocol) | `Service` (parent Interface) |
 | `RegistrarImpl` | Maintain the `Services` directory and removal history; handle `add` / `remove` / `share` / `history`; re-broadcast changes on `topic_out`; watch `+/+/+/state` for deaths; run the primary election | `Services` / `ServiceTopicPath` ([Service](service.md)); `ECProducer` ([Share](share.md)); `StateMachineOld` ([State](state.md)); `event` timers ([Event](event.md)); `aiko.message` ([Message](message.md)) |
-| `StateMachineModel` | Define states / transitions; on promotion publish the retained announcement and install the `(primary absent)` LWT | `StateMachineOld`, `ECProducer`, `aiko.message` |
+| `StateMachineModel` | Define states / transitions; probe a found primary and publish `(primary absent)` when it does not reply; on promotion publish the retained announcement and install the `(primary absent)` LWT | `StateMachineOld`, `ECProducer`, `aiko.message`, `event` timers |
 
 ## Current limitations and roadmap
 
 From the source `To Do` list — highlights (the source marks several as
 **BUG**):
 
-- **BUG**: a stale retained `(primary found ...)` on the bootstrap topic
-  (for example, after a system crash where no LWT fired) prevents a fresh
-  Registrar from ever becoming primary
+- **Fixed (2026-09-28)**: a stale retained `(primary found ...)` on the
+  bootstrap topic (for example, after a system crash where no LWT fired)
+  prevented a new Registrar from ever becoming primary. The liveness
+  probe replaces it within about 5 s. The integration test
+  `tests/integration/test_registrar_election.py` needs an MQTT server,
+  so it skips in CI until CI has one
 - **BUG**: with multiple secondaries, when the primary fails *all*
   secondaries promote themselves to primary
 - **BUG** (noted at `_service_remove()`): process-level removal of all of
@@ -280,6 +312,8 @@ From the source `To Do` list — highlights (the source marks several as
 - Proper protocol matching (interface-style, with inheritance) instead of
   exact string comparison. Allow Services to update their details (for example
   tags) on the fly
+- A primary does not announce itself again after an MQTT server restart
+  without persistence, where the retained announcement is lost.
 - Robustness: handle MQTT server restart or migration to another host.
   Add real consensus (the source cites Raft and CRDTs) for
   primary / secondary replication

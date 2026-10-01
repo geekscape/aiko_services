@@ -230,6 +230,18 @@ remote callers are unaffected.  For Python code:
 
 ### Bug Fixes
 
+* A Registrar now probes a primary that the retained bootstrap topic
+  announces, before it becomes a secondary.  A retained *(primary found
+  ...)* can outlive its Registrar after a power cycle, because the MQTT
+  server keeps the retained message but never sends the will.  When the
+  probe gets no reply in 3 s, the Registrar publishes *(primary absent)*
+  and becomes the primary, in about 5 s.  Before, every new Registrar
+  stayed secondary, and the stale announcement had to be cleared by hand.
+  *ServicesCache* also logs one WARNING when the Registrar does not reply
+  in 5 s.  New tests: 11 unit tests, and
+  *tests/integration/test_registrar_election.py*, which needs an MQTT
+  server
+
 * Hook state is now per-component.  *HooksImpl* previously kept its hooks
   in a class-level dictionary that every Service in the process shared.
   Thus a hook added on one component was added to all.  Code that relied on

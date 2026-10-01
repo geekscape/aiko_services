@@ -29,7 +29,24 @@
 # Registrar subscribes to ...
 # - TOPIC_REGISTRAR_BOOT:    (primary found ...), (primary absent)
 # - {topic_path}/in:         (add ...), (history ...), (remove ...), (share ...)
+# - {topic_path}/probe:      (item_count 0), the primary's reply to a probe
 # - {namespace}/+/+/+/state: (absent)
+#
+# Primary election
+# ~~~~~~~~~~~~~~~~
+# start --> primary_search --found--> primary_probe --alive--> secondary
+#                  |                        |
+#                  |                        +--dead--> primary_search
+#                  +--timeout or absent--> primary
+#
+# A retained "(primary found ...)" can outlive its Registrar: when the MQTT
+# server and the Registrar stop together (a power cycle), the server keeps
+# the retained announcement but never sends the Registrar's will.  So a
+# found primary is probed before this Registrar yields: "(history
+# {topic_path}/probe 0)" to its topic_in, which costs one reply.  No reply
+# in _PRIMARY_PROBE_TIMEOUT seconds: this Registrar publishes the will the
+# dead primary never sent, "(primary absent)" retained, and searches again.
+# Its own echo of that "absent" then promotes it.
 #
 # Protocol
 # ~~~~~~~~
@@ -44,10 +61,6 @@
 # * BUG: "service_remove()" if Process, then remove *all* Process' Services
 #
 # * BUG: When ECProducer updates "service_count", need to int(services_count) !
-#
-# * BUG: Registrar won't become primary when there isn't another Registrar
-#        and retained topic "aiko.TOPIC_REGISTRAR_BOOT" incorrectly indicates
-#        that a primary Registrar is running and should say "(primary absent)"
 #
 # * BUG: If there are multiple secondaries, when the primary fails, then all
 #        secondaries end up being primaries :(
@@ -87,10 +100,10 @@
 #
 # - Handle MQTT restart
 # - Handle MQTT stop and start on a different host
-# - Handle if system crashes, then mosquitto doesn't get to send a LWT messages
-#   for the Registrar leaving a stale reference to a Registrar now longer exists
-#   If a new Registrar isn't started when the system restarts, then Aiko Clients
-#   try to use the defunct Registrar
+# - If no Registrar is started after a system crash, then Aiko Clients still
+#   try to use the defunct Registrar that the stale announcement names (a new
+#   Registrar replaces it: see "Primary election").  ServicesCache warns
+#   when the Registrar doesn't reply
 # - Consider the ability to add, change or remove a Service's details, e.g tags
 # - When Service fails with LWT, publish timestamp on "topic_path/state"
 #   - Maybe ProcessController should do this, rather than Registrar ?
@@ -122,6 +135,7 @@
 from abc import abstractmethod
 import click
 from collections import deque
+import random
 import time
 
 from aiko_services.main import *
@@ -133,6 +147,8 @@ _LOGGER = aiko.logger(__name__)
 
 _HISTORY_LIMIT_DEFAULT = 16
 _HISTORY_RING_BUFFER_SIZE = 4096
+_PRIMARY_PROBE_JITTER = 0.5    # seconds, at most: Registrars probe apart
+_PRIMARY_PROBE_TIMEOUT = 3.0   # seconds a found primary has to reply
 _PRIMARY_SEARCH_TIMEOUT = 2.0  # seconds
 _SERVICE_STATE_TOPIC = f"{get_namespace()}/+/+/+/state"
 _TIME_STARTED = time.monotonic()
@@ -140,13 +156,21 @@ _TIME_STARTED = time.monotonic()
 # --------------------------------------------------------------------------- #
 
 class StateMachineModel():
-    states = ["start", "primary_search", "secondary", "primary"]
+    states = ["start", "primary_search", "primary_probe", "secondary", "primary"]
 
     transitions = [
         {"source":
           "start", "trigger": "initialize", "dest": "primary_search"},
         {"source":
-          "primary_search", "trigger": "primary_found", "dest": "secondary"},
+          "primary_search", "trigger": "primary_found", "dest": "primary_probe"},
+        {"source":
+          "primary_probe", "trigger": "primary_found", "dest": "primary_probe"},
+        {"source":
+          "primary_probe", "trigger": "primary_alive", "dest": "secondary"},
+        {"source":
+          "primary_probe", "trigger": "primary_dead", "dest": "primary_search"},
+        {"source":
+          "primary_probe", "trigger": "primary_absent", "dest": "primary_search"},
         {"source":
           "primary_search", "trigger": "primary_promotion", "dest": "primary"},
         {"source":
@@ -157,29 +181,71 @@ class StateMachineModel():
 
     def __init__(self, service):
         self.service = service
+        self.probe_target = None       # the found primary's topic_path
+        self._timers = set()           # the timer handlers pending
+
+    def _timer_add(self, handler, period):
+        if handler not in self._timers:
+            self._timers.add(handler)
+            event.add_timer_handler(handler, period)
+
+    def _timer_remove(self, handler):
+        # remove_timer_handler() counts down even when nothing is removed
+        if handler in self._timers:
+            self._timers.discard(handler)
+            event.remove_timer_handler(handler)
 
     def on_enter_primary_search(self, event_data):
-#       parameters = event_data.kwargs.get("parameters", {})
         self.service.ec_producer.update("lifecycle", "primary_search")
         _LOGGER.debug("do primary_search add_timer")
 
 # TODO: If oldest known secondary, then immediately become the primary
 # TODO: Choose timer period as _PRIMARY_SEARCH_TIMEOUT +/- delta to avoid collisions
-        event.add_timer_handler(
-            self.primary_search_timer, _PRIMARY_SEARCH_TIMEOUT)
+        self._timer_add(self.primary_search_timer, _PRIMARY_SEARCH_TIMEOUT)
+
+    def on_exit_primary_search(self, event_data):
+        self._timer_remove(self.primary_search_timer)
 
     def primary_search_timer(self):
         timer_valid = self.service.state_machine.get_state() == "primary_search"
         _LOGGER.debug(f"timer primary_search {timer_valid}")
-        event.remove_timer_handler(self.primary_search_timer)
+        self._timer_remove(self.primary_search_timer)
         if timer_valid:
             self.service.state_machine.transition("primary_promotion", None)
+
+    def on_enter_primary_probe(self, event_data):
+        """Ask the found primary for nothing: "(history TOPIC 0)" has
+        exactly one reply, "(item_count 0)", on this Registrar's probe topic"""
+
+        parameters = event_data.kwargs.get("parameters") or {}
+        self.probe_target = parameters.get("topic_path")
+        self.service.ec_producer.update("lifecycle", "primary_probe")
+        _LOGGER.debug(f"do primary_probe {self.probe_target}")
+        aiko.message.publish(f"{self.probe_target}/in",
+            f"(history {self.service.topic_probe} 0)")
+        self._timer_add(self.primary_probe_timer, _PRIMARY_PROBE_TIMEOUT +
+                        random.uniform(0, _PRIMARY_PROBE_JITTER))
+
+    def on_exit_primary_probe(self, event_data):
+        self._timer_remove(self.primary_probe_timer)
+
+    def primary_probe_timer(self):
+        self._timer_remove(self.primary_probe_timer)
+        if self.service.state_machine.get_state() != "primary_probe":
+            return
+        _LOGGER.warning(f"Primary Registrar {self.probe_target} didn't reply "
+            f"in {_PRIMARY_PROBE_TIMEOUT:g} s: its announcement is stale, "
+            f"publishing (primary absent)")
+        aiko.message.publish(
+            aiko.TOPIC_REGISTRAR_BOOT, "(primary absent)", retain=True)
+        self.service.state_machine.transition("primary_dead", None)
 
     def on_enter_secondary(self, event_data):
         self.service.ec_producer.update("lifecycle", "secondary")
         _LOGGER.debug("do enter_secondary")
 
     def on_enter_primary(self, event_data):
+        self.service.announced = True
         self.service.ec_producer.update("lifecycle", "primary")
         _LOGGER.debug("do enter_primary")
         # Clear LWT, so this registrar doesn't receive another LWT on reconnect
@@ -244,8 +310,10 @@ class RegistrarImpl(Registrar):
         state_machine_model = StateMachineModel(self)
         self.state_machine = StateMachineOld(state_machine_model)
 
+        self.announced = False           # has been the primary
         self.history = deque(maxlen=_HISTORY_RING_BUFFER_SIZE)
         self.services = Services()
+        self.topic_probe = f"{self.topic_path}/probe"
 
         self.share = {
             "aiko_id": aiko.id,
@@ -261,6 +329,7 @@ class RegistrarImpl(Registrar):
         self.add_message_handler(
             self._service_state_handler, _SERVICE_STATE_TOPIC)
         self.add_message_handler(self._topic_in_handler, self.topic_in)
+        self.add_message_handler(self._probe_handler, self.topic_probe)
         self.set_registrar_handler(self._registrar_handler)
 
         self.state_machine.transition("initialize", None)
@@ -270,16 +339,40 @@ class RegistrarImpl(Registrar):
             _LOGGER.setLevel(str(item_value).upper())
 
     def _registrar_handler(self, action, registrar):
+        state = self.state_machine.get_state()
         if action == "found":
-            if self.state_machine.get_state() == "primary_search":
-                self.state_machine.transition("primary_found", None)
+            target = registrar.get("topic_path") if registrar else None
+            if state == "primary_search":
+                if target == self.topic_path:
+                    if self.announced:           # this Registrar, still primary
+                        self.state_machine.transition("primary_promotion", None)
+                    else:                        # a reused PID: stale
+                        _LOGGER.warning(f"Primary Registrar {target} is this "
+                            "Registrar's own topic path, never announced: "
+                            "stale, publishing (primary absent)")
+                        aiko.message.publish(aiko.TOPIC_REGISTRAR_BOOT,
+                            "(primary absent)", retain=True)
+                else:
+                    self.state_machine.transition(
+                        "primary_found", {"topic_path": target})
+            elif state == "primary_probe" and target != self.state_machine.model.probe_target:
+                self.state_machine.transition(       # a newer primary: probe it
+                    "primary_found", {"topic_path": target})
 
         if action == "absent":
-            if self.state_machine.get_state() == "primary_search":
+            if state == "primary_search":
                 self.state_machine.transition("primary_promotion", None)
-            else:
+            elif state == "primary_probe":
+                self.state_machine.transition("primary_absent", None)
+            elif state in ("primary", "secondary"):
                 self.services = Services()
                 self.state_machine.transition("primary_failed", None)
+
+    def _probe_handler(self, _, topic, payload_in):
+        command, _ = parse(payload_in)
+        if command == "item_count" and  \
+                self.state_machine.get_state() == "primary_probe":
+            self.state_machine.transition("primary_alive", None)
 
     def _service_state_handler(self, _, topic, payload_in):
         command, parameters = parse(payload_in)
