@@ -33,7 +33,6 @@ Navigation: [elements index](../ReadMe.md) ·
 | [audio_io](audio_io.md) | Audio elements — working `AudioOutput`, an `AudioReadFile` scaffold, and a disabled legacy microphone / FFT / speaker suite |
 | [elements](elements.md) | `Mock` and `NoOp` — minimal placeholder elements for scaffolding and wiring tests |
 | [image_io](image_io.md) | Image sources, transforms (convert / resize / crop / overlay) and targets — files or ZeroMQ, PIL or NumPy |
-| [images_to_video](images_to_video.md) | Legacy Pipeline_2020 script for images → video; superseded by `images_to_video_pipeline.json` |
 | [scheme_file](scheme_file.md) | `file:` DataScheme — files, directories and `{}` glob/format templates; the default scheme |
 | [scheme_store_forward](scheme_store_forward.md) | `store_forward://` DataScheme — target-only; names the outbox that a SegmentStoreForward Actor watches, so a Pipeline hands finished segments to the store / forward custodian |
 | [scheme_synth](scheme_synth.md) | `synth://` DataScheme — synthesized video frames with the frame id and a timestamp, no camera; an extensible kind/pattern URL grammar |
@@ -42,7 +41,6 @@ Navigation: [elements index](../ReadMe.md) ·
 | [store_forward_io](store_forward_io.md) | `VideoWriteStoreForward` — DataTarget that groups frames into MP4 segments and writes each closed one into a store / forward outbox |
 | [synthetic_io](synthetic_io.md) | `SyntheticVideoRead` — camera-less video DataSource built on the `synth://` scheme |
 | [text_io](text_io.md) | Text sources, transforms and targets — files, terminal REPL or ZeroMQ; the exemplar element family |
-| [video_example](video_example.md) | Legacy Pipeline_2020 branching-video demonstration with a StateMachine; dormant |
 | [video_io](video_io.md) | Video file decode / sample / display / encode elements, plus `open_video_capture()` |
 | [webcam_io](webcam_io.md) | `VideoReadWebcam` — live camera DataSource with hot-swappable device and live share controls |
 
