@@ -225,7 +225,7 @@ class ProcessImplementation(ProcessData):
             if len(self._message_handlers[topic]) == 0:
                 del self._message_handlers[topic]
                 if topic in self._message_handlers_binary_topics:
-                    del self._message_handlers_wildcard_topics[topic]
+                    del self._message_handlers_binary_topics[topic]
                 if topic in self._message_handlers_wildcard_topics:
                     del self._message_handlers_wildcard_topics[topic]
                 if self.message:
