@@ -165,3 +165,12 @@ def test_timer_removes_itself(clean_event):
 
     assert other_fired, "Other timer never fired"
     assert other_fired[0] < 0.35, "Other timer delayed by an extra period"
+
+def test_remove_timer_handler_twice(clean_event):
+    def timer_handler():
+        pass
+    event.add_timer_handler(timer_handler, 1.0)
+    assert event._handler_count == 1
+    event.remove_timer_handler(timer_handler)
+    event.remove_timer_handler(timer_handler)  # not found: count unchanged
+    assert event._handler_count == 0

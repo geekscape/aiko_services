@@ -278,8 +278,8 @@ def add_timer_handler(handler, time_period, immediate=False):
 
 def remove_timer_handler(handler):
     global _handler_count
-    event_list.remove(handler)
-    _handler_count -= 1
+    if event_list.remove(handler):  # only count a timer that was removed
+        _handler_count -= 1
 
 # Each timer that is due fires at most once per event.loop() pass
 

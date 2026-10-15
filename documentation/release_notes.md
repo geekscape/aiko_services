@@ -335,6 +335,19 @@ remote callers are unaffected.  For Python code:
   *generate()*, thus a filter that is a list arrives as a list.  New tests
   in *test_share.py*
 
+* *do_command()* and *do_request()* now accept *timeout* (seconds) and
+  *timeout_handler*.  Without *timeout*, the environment variable
+  *AIKO_DISCOVERY_TIMEOUT* gives the value.  Without either, they wait
+  until a Service is discovered, as before.  The *do_request()* timeout
+  includes the wait for the response.  When the time expires, the
+  *timeout_handler* is called, or a diagnostic is printed.  With
+  *terminate=True*, the process then terminates with exit status 1.  Thus
+  a command line tool does not wait forever for a Service that is not
+  there.  *event.remove_timer_handler()* now changes the handler count
+  only when it removes a timer.  Before, *do_command()* removed its timer
+  two times, and an event loop could stop while handlers remained.  New
+  tests: *test_discovery.py*
+
 ---
 
 ## Release Notes v0.7
