@@ -316,6 +316,17 @@ remote callers are unaffected.  For Python code:
   address as element 7.  New tests: *test_configuration.py* and
   *test_mqtt.py*
 
+* *event.loop()* now limits the work of each pass.  Each mailbox, which
+  includes the priority mailbox, handles 16 items at most per pass.  The
+  event queue handles 64 items at most per pass.  Before, a mailbox that
+  was filled again as fast as it was emptied stopped all other work: the
+  timers (thus the Leases), the MQTT messages and the other mailboxes.  A
+  priority mailbox item is still handled before the next item of each
+  other mailbox.  The timers now use *time.monotonic()* for each check.
+  Each timer that is due fires once per pass.  The loop does not sleep
+  when work is pending.  A timer handler that removes its timer no longer
+  delays the next timer by one period.  New tests: *test_event.py*
+
 ---
 
 ## Release Notes v0.7
