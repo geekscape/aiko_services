@@ -327,6 +327,14 @@ remote callers are unaffected.  For Python code:
   when work is pending.  A timer handler that removes its timer no longer
   delays the next timer by one period.  New tests: *test_event.py*
 
+* An ECProducer now encodes each incremental *update* and *remove* with
+  *generate()*, as the *sync* of the full share does.  Before, an f-string
+  made the S-expression.  Thus a value with a space, a parenthesis, a list
+  or an empty string arrived damaged or was ignored at each ECConsumer
+  and Dashboard.  The *(share ...)* request of an ECConsumer now also uses
+  *generate()*, thus a filter that is a list arrives as a list.  New tests
+  in *test_share.py*
+
 ---
 
 ## Release Notes v0.7
