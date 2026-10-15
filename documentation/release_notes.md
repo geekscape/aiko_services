@@ -372,7 +372,10 @@ remote callers are unaffected.  For Python code:
   server when the server becomes available.  Before, when the MQTT server
   was not available at start, the process stayed isolated (*Castaway*)
   until it stopped.  Now paho tries the first connection again in the
-  background, each 1 s to 30 s.  After a disconnection, paho connects
+  background, each 1 s to 30 s.  It tries *AIKO_MQTT_HOST*, else
+  *localhost*: when no MQTT server answers,
+  *get_mqtt_host_address()* now gives this host, not *None*.  After a
+  disconnection, paho connects
   again, as before.  Thus the ProcessManager can start before the MQTT
   server that it starts.  With *mqtt_connection_required=True* (the
   default), a process still stops when the MQTT server is not available
