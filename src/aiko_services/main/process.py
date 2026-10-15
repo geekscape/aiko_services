@@ -161,13 +161,16 @@ class ProcessImplementation(ProcessData):
             self.add_message_handler(
                 self.on_registrar, aiko.TOPIC_REGISTRAR_BOOT)
 
+        # With mqtt_connection_required=False and no MQTT server available,
+        # MQTT keeps retrying in the background and connects when it can
             aiko.message = Castaway()  # standalone and isolated :(
             mqtt_connected = False
             try:
                 aiko.message = MQTT(
                     self.on_message, self._message_handlers,
                     aiko.topic_lwt, aiko.payload_lwt, False,
-                    self.on_mqtt_state_change
+                    self.on_mqtt_state_change,
+                    connection_required=mqtt_connection_required
                 )
                 mqtt_connected = True
             except SystemError as system_error:

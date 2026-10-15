@@ -348,6 +348,33 @@ remote callers are unaffected.  For Python code:
   two times, and an event loop could stop while handlers remained.  New
   tests: *test_discovery.py*
 
+* A process with *mqtt_connection_required=False* now connects to the MQTT
+  server when the server becomes available.  Before, when the MQTT server
+  was not available at start, the process stayed isolated (*Castaway*)
+  until it stopped.  Now paho tries the first connection again in the
+  background, each 1 s to 30 s.  After a disconnection, paho connects
+  again, as before.  Thus the ProcessManager can start before the MQTT
+  server that it starts.  With *mqtt_connection_required=True* (the
+  default), a process still stops when the MQTT server is not available
+  at start
+
+* While the MQTT client is disconnected, *publish()* now drops the message
+  (QoS 0) at once.  Before, each *publish()* waited for 2 s, thus the
+  event loop stopped during an MQTT server restart.  *publish()* still
+  waits for the first connection after *connect()*, for 2 s at most
+
+* The MQTT client now ignores a refused connection (for example, a bad
+  user name or password).  It logs an error and is not *connected*.
+  Before, a refused connection was set as *connected*
+
+* *set_last_will_and_testament()* now sends DISCONNECT before it stops the
+  paho loop, in the order that paho specifies.  Before, it stopped the
+  loop first and waited for a disconnection that did not occur: about
+  0.9 s on the event loop thread.  Now it takes 2 ms.  A subscription
+  to *#* is also restored after a disconnection.  New tests: in
+  *test_mqtt.py*, and *tests/integration/test_mqtt_reconnect.py*, which
+  starts and stops its own *mosquitto*
+
 ---
 
 ## Release Notes v0.7
