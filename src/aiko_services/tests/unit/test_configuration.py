@@ -109,3 +109,14 @@ def test_falls_back_to_localhost(network, monkeypatch):
     FakeSocket.outcomes = {"10.0.0.9": TimeoutError(), "127.0.0.1": None}
     monkeypatch.setenv("AIKO_MQTT_HOST", "down")
     assert configuration.get_mqtt_host_address() == (True, "localhost", 1883, "127.0.0.1")
+
+def test_server_down_reports_the_host_to_keep_trying(monkeypatch):
+    monkeypatch.setattr(configuration, "_resolve_mqtt_host", lambda host, port: None)
+    monkeypatch.setattr(configuration._LOGGER, "warning", lambda message: None)
+    monkeypatch.delenv("AIKO_MQTT_HOST", raising=False)
+    monkeypatch.delenv("AIKO_MQTT_PORT", raising=False)
+    up, host, port, address = configuration.get_mqtt_host_address()
+    assert (up, host, port, address) == (False, "localhost", 1883, None)
+    monkeypatch.setenv("AIKO_MQTT_HOST", "broker.example")
+    up, host, port, address = configuration.get_mqtt_host_address()
+    assert (up, host, address) == (False, "broker.example", None)

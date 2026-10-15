@@ -23,9 +23,9 @@
 # * Fix: Use of do_request(), before starting, may need to wait for ...
 #        Connection.is_connected(ConnectionState.REGISTRAR) ?
 #
-# * Implement timeouts ...
-#   * do_command(), do_request(): Timeout waiting for discovery for request
-#   * do_request(): Timeout waiting for response
+# * Timeouts: do_command() and do_request() accept "timeout" (seconds) or
+#   use AIKO_DISCOVERY_TIMEOUT.  Default is no timeout (wait indefinitely)
+#   - Consider a default timeout for command line tools (terminate=True)
 #
 # * Improve ExampleImpl.request() by implementing DiscoveryResponse
 # * Improve ExampleImpl.request() to handle multiple response items
@@ -68,6 +68,7 @@
 from abc import abstractmethod
 import click
 from inspect import getmembers, isfunction
+import os
 
 from aiko_services.main import *
 from aiko_services.main.utilities import *
@@ -84,6 +85,11 @@ ACTOR_TYPE = "discovery"
 PROTOCOL = f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE}:{_VERSION}"
 
 _RESPONSE_TOPIC = f"{aiko.topic_in}"
+
+_TIMEOUT_ENVIRONMENT_VARIABLE = "AIKO_DISCOVERY_TIMEOUT"  # seconds
+_TIMEOUT_EXIT_STATUS = 1
+
+_LOGGER = aiko.logger(__name__)
 
 # --------------------------------------------------------------------------- #
 
@@ -197,12 +203,44 @@ def do_discovery(
     service_discovery.add_handler(service_discovery_handler, service_filter)
     return service_discovery, service_discovery_handler
 
+# Timeout in seconds: None uses AIKO_DISCOVERY_TIMEOUT, if that is defined.
+# A timeout of 0 (or less) means no timeout, i.e wait indefinitely
+
+def _get_timeout(timeout):
+    if timeout is None:
+        timeout_value = os.environ.get(_TIMEOUT_ENVIRONMENT_VARIABLE)
+        if timeout_value:
+            try:
+                timeout = float(timeout_value)
+            except ValueError:
+                _LOGGER.warning(f"{_TIMEOUT_ENVIRONMENT_VARIABLE} must be "
+                                f"a number: {timeout_value}")
+    if timeout is not None and timeout > 0:
+        return timeout
+    return None
+
+def _timeout_expired(diagnostic, timeout_handler, terminate):
+    if timeout_handler:
+        timeout_handler()
+    else:
+        print(diagnostic)
+    if terminate:
+        aiko.process.terminate(_TIMEOUT_EXIT_STATUS)
+
 def do_command(
     service_interface, service_filter,
-    command_handler, terminate=False):
+    command_handler, terminate=False, timeout=None, timeout_handler=None):
+
+    timeout = _get_timeout(timeout)
+    discovered = False
 
     def discovery_add_handler(service_details, service):
-        event.remove_timer_handler(waiting_timer_handler)
+        nonlocal discovered
+        if not discovered:
+            discovered = True
+            event.remove_timer_handler(waiting_timer_handler)
+            if timeout:
+                event.remove_timer_handler(timeout_timer_handler)
         command_handler(service)
         if terminate:
             aiko.process.terminate()
@@ -211,23 +249,42 @@ def do_command(
         event.remove_timer_handler(waiting_timer_handler)
         print(f"Waiting for {service_filter.summary()}")
 
+    def timeout_timer_handler():
+        event.remove_timer_handler(timeout_timer_handler)
+        if not discovered:
+            service_discovery.remove_handler(
+                service_discovery_handler, service_filter)
+            diagnostic = f"Timeout: {timeout} seconds waiting for "  \
+                         f"{service_filter.summary()}"
+            _timeout_expired(diagnostic, timeout_handler, terminate)
+
     event.add_timer_handler(waiting_timer_handler, 0.5)
-    do_discovery(service_interface, service_filter, discovery_add_handler)
+    if timeout:
+        event.add_timer_handler(timeout_timer_handler, timeout)
+    service_discovery, service_discovery_handler = do_discovery(
+        service_interface, service_filter, discovery_add_handler)
+
+# The "timeout" covers both Service discovery and receiving the response
 
 def do_request(
     service_interface, service_filter,
-    request_handler, response_handler, response_topic, terminate=False):
+    request_handler, response_handler, response_topic, terminate=False,
+    timeout=None, timeout_handler=None):
 
+    timeout = _get_timeout(timeout)
     item_count = 0
     items_received = 0
     response = []
+    finished = False
 
 # TODO: The "response_handler" should implement the DiscoveryResponse interface
 #       Use remote function calls, rather than message payload parsing !
 
     def response_handler_internal(_aiko, topic, payload_in):
-        nonlocal item_count, items_received, response
+        nonlocal item_count, items_received, response, finished
 
+        if finished:
+            return
         command, arguments = parse(payload_in)
         if command == "item_count" and len(arguments) == 1:
             item_count = int(arguments[0])
@@ -237,13 +294,27 @@ def do_request(
             response.append(arguments)
             items_received += 1
         if items_received == item_count:
+            finished = True
+            if timeout:
+                event.remove_timer_handler(timeout_timer_handler)
             response_handler(response)
             if terminate:
                 aiko.process.terminate()
 
+    def timeout_timer_handler():
+        nonlocal finished
+        event.remove_timer_handler(timeout_timer_handler)
+        if not finished:
+            finished = True
+            diagnostic = f"Timeout: {timeout} seconds waiting for a "  \
+                         f"response from {service_filter.summary()}"
+            _timeout_expired(diagnostic, timeout_handler, terminate)
+
+    if timeout:
+        event.add_timer_handler(timeout_timer_handler, timeout)
     aiko.process.add_message_handler(response_handler_internal, response_topic)
-    do_command(
-        service_interface, service_filter, request_handler, terminate=False)
+    do_command(service_interface, service_filter, request_handler,
+        terminate=False, timeout=0)  # do_request() handles the timeout
 
 # --------------------------------------------------------------------------- #
 

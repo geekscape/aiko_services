@@ -154,7 +154,9 @@ def get_mqtt_host():
 
 def get_mqtt_host_address():
     """(server_up, mqtt_host, mqtt_port, mqtt_address): the first host
-    whose MQTT server answers, and the address that answered"""
+    whose MQTT server answers, and the address that answered.  When none
+    answers, mqtt_host is the host to keep trying: AIKO_MQTT_HOST, else
+    the default host"""
 
     mqtt_hosts = _AIKO_MQTT_HOSTS.copy()
 
@@ -177,6 +179,8 @@ def get_mqtt_host_address():
             break
         delay = time.time() - time_start
         _LOGGER.warning(f"MQTT host {host} timeout after {delay:.02f} seconds")
+    if not server_up and not mqtt_host:
+        mqtt_host = _AIKO_MQTT_HOST
     return server_up, mqtt_host, mqtt_port, mqtt_address
 
 def get_mqtt_port():

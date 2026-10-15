@@ -1,6 +1,6 @@
 [project]
 name = "aiko_services"
-version = "0.7"
+version = "0.8.dev0"  # PEP 440 form of __version__ "0.8-dev"
 readme = "ReadMe.md"
 description = "Distributed embedded service framework for A.I and robotics"
 requires-python = ">=3.9.0,<3.15"
@@ -50,7 +50,6 @@ dependencies = [
     "psutil~=6.0.0; python_version < '3.14'",
     "psutil>=7.0; python_version >= '3.14'",
     "pyperclip~=1.9.0",
-    "pytest~=8.3.4",
     "pyzmq~=26.2.0; python_version < '3.14'",
     "pyzmq>=27.0; python_version >= '3.14'",
     "requests~=2.32.3",
@@ -75,6 +74,13 @@ ids_peak = [
 ]
 # Aravis (the experimental GigE backend) is not a pip extra: the Aravis
 # library and its introspection data come from the system package manager
+#
+# StoreForward HTTP server role (main/store_forward/store_forward_http.py)
+server = ["flask>=2.3"]
+# Video and image elements (elements/media/*_io.py, elements/cameras)
+video = ["opencv-python>=4.10.0.84"]
+# Unit and integration tests
+test = ["pytest~=8.3.4"]
 # opencv-python = ["opencv-python~=4.10.0.84"]
 # opencv-contrib-python = ["opencv-contrib-python~=4.10.0.84"]
 # linux = ["PyAudio~=0.2.14"]
@@ -130,6 +136,9 @@ exclude = [
     "src/aiko_services/examples",
     "venv*"
 ]
+
+[tool.hatch.envs.default]
+features = ["test"]
 
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:src/aiko_services/tests/unit}"
