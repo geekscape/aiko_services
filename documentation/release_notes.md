@@ -116,6 +116,19 @@ sections are.
   *calibration_path*.  Three example PipelineDefinitions use placeholder
   URLs that discover the first camera
 
+* StoreForward, *src/aiko_services/main/store_forward*: the
+  *SegmentStoreForward* Actor, one for each host, moves segments (files:
+  video segments, images, tensors) between two hosts across a link that
+  is not reliable.  It takes custody of each file that is put in its
+  outbox.  It sends the file to the inbox of the peer, verifies it with
+  sha256 and continues after an interruption.  The *server* role has the
+  HTTP routes.  The *edge* role is always the client and needs no inbound
+  port.  The state (*link*, *queue.\**, *metrics.\**) is shared, thus the
+  Dashboard shows it.  The command is *aiko_store_forward server | edge*.
+  The protocol is *store_forward:0*.  The *store_forward://* DataScheme
+  and the *VideoWriteStoreForward* DataTarget put video segments from a
+  Pipeline in the outbox.  See *documentation/concepts/store_forward.md*
+
 * *VideoWriteStoreForward* defaults are now *format* *avc1* (H.264 in
   MP4) and *frame_rate* *8.0*.  Measured on an embedded ARM computer,
   OpenCV's *mp4v* takes 111 ms per 1920x1080 frame and *avc1* 35 ms.
@@ -220,6 +233,13 @@ remote callers are unaffected.  For Python code:
 * Identity checks *type(x) is ECProducer* are no longer true, because the
   instances are composed Implementations.  Use *isinstance(x,
   ECProducer)*
+
+* *pytest* is no longer a dependency of the package.  Install the new
+  *test* extra for the tests: *pip install -e ".[test]"*.  The new
+  *server* extra installs *flask* for the StoreForward *server* role.  The
+  new *video* extra installs *opencv-python* for the video and image
+  elements.  The project version is now *0.8.dev0*, the PEP 440 form of
+  *\_\_version\_\_* *0.8-dev*
 
 ### Testing
 
