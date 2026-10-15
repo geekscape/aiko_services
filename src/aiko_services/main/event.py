@@ -35,9 +35,8 @@
 #
 # * Make function names consistently verb_noun() or noun_verb(), but not both !
 #
-# * Improve event.loop() to check timer in-between every mailbox check
-#
 # - Provide unit tests !  For all add / remove all the various handler types.
+#   - See "tests/unit/test_event.py" for event.loop() starvation tests
 #
 # - BUG: With multiple timer handlers using the same handler function,
 #        then remove_timer_handler() make remove the wrong one.
@@ -85,6 +84,14 @@ __all__ = [
 
 _MAILBOX_INCREMENT_WARNING = 4
 
+# Bound the work done by each event.loop() pass, so that a mailbox or queue
+# that is refilled as fast as it is drained can't starve timers (and Leases),
+# the event queue (MQTT messages) or the other mailboxes
+
+_MAILBOX_ITEMS_PER_PASS = 16  # per mailbox, including the priority mailbox
+_QUEUE_ITEMS_PER_PASS = 64
+_SLEEP_TIME = 0.01            # seconds, maximum sleep when no work is pending
+
 _handler_count = 0
 _timer_counter = 0
 
@@ -126,10 +133,13 @@ class EventList:
             current = current.next
 
     def remove(self, handler):
+        return self._remove(lambda current: current.handler == handler)
+
+    def _remove(self, match):
         previous = None
         current = self.head
         while current:
-            if current.handler == handler:
+            if match(current):
                 if previous:
                     previous.next = current.next
                 else:
@@ -139,6 +149,14 @@ class EventList:
             previous = current
             current = current.next
         return current
+
+# Advance an Event that has just fired, if its handler didn't remove it
+
+    def reschedule(self, event):
+        if self._remove(lambda current: current is event):
+            event.time_next += event.time_period
+            event.next = None
+            self.add(event)
 
     def reset(self):
         current = self.head
@@ -263,8 +281,79 @@ def remove_timer_handler(handler):
     event_list.remove(handler)
     _handler_count -= 1
 
+# Each timer that is due fires at most once per event.loop() pass
+
+def _handle_timers():
+    fired = set()
+    while True:
+        event = event_list.head
+        if not event or event in fired or time.monotonic() < event.time_next:
+            return len(fired)
+        fired.add(event)
+        event.handler()
+        event_list.reschedule(event)
+
+def _handle_queue():
+    count = 0
+    while count < _QUEUE_ITEMS_PER_PASS:
+        try:
+            item, item_type = event_queue.get_nowait()
+        except queue.Empty:
+            break
+        count += 1
+        if item_type in queue_handlers:
+            for queue_handler in queue_handlers[item_type]:
+                queue_handler(item, item_type)
+    return count
+
+def _mailbox_get(mailbox_name, mailbox):
+    try:
+        item, time_posted = mailbox.queue.get_nowait()
+    except queue.Empty:
+        return False
+    mailbox.handler(mailbox_name, item, time_posted)
+    return True
+
+# The first mailbox added has priority: Before handling each item from any
+# other mailbox, a pending priority mailbox item is handled first.
+# Every mailbox, including the priority mailbox, handles at most
+# _MAILBOX_ITEMS_PER_PASS items per pass
+
+def _handle_mailboxes():
+    if not mailboxes:
+        return 0
+    count = 0
+    priority_name, priority_mailbox = next(iter(mailboxes.items()))
+    priority_count = 0
+    for mailbox_name, mailbox in mailboxes.copy().items():
+        if mailbox is priority_mailbox:
+            while priority_count < _MAILBOX_ITEMS_PER_PASS:
+                if not _mailbox_get(priority_name, priority_mailbox):
+                    break
+                priority_count += 1
+            continue
+        mailbox_count = 0
+        while mailbox_count < _MAILBOX_ITEMS_PER_PASS:
+            if priority_count < _MAILBOX_ITEMS_PER_PASS:
+                if _mailbox_get(priority_name, priority_mailbox):
+                    priority_count += 1
+                    continue
+            if not _mailbox_get(mailbox_name, mailbox):
+                break
+            mailbox_count += 1
+        count += mailbox_count
+    return count + priority_count
+
+def _is_work_pending():
+    if not event_queue.empty():
+        return True
+    for mailbox in mailboxes.copy().values():
+        if not mailbox.queue.empty():
+            return True
+    return False
+
 def loop(loop_when_no_handlers=False):
-    global event_enabled, event_loop_running, _timer_counter
+    global event_enabled, event_loop_running
 
     try:
         event_loop_lock.acquire("loop() #1")
@@ -279,44 +368,24 @@ def loop(loop_when_no_handlers=False):
     try:
         event_enabled = True
         while event_enabled and (loop_when_no_handlers or _handler_count):
-            event = event_list.head
-            if event and _timer_counter <= 0:
-                if time.monotonic() >= event.time_next:
-                    event.handler()
-                    event_list.update()
-            sleep_time = 0.01
+            _handle_timers()
+            _handle_queue()
+            _handle_mailboxes()
 
-            if event_queue.qsize():
-                (item, item_type) = event_queue.get()
-                if item_type in queue_handlers:
-                    for queue_handler in queue_handlers[item_type]:
-                        queue_handler(item, item_type)
-
-            if len(mailboxes) > 0:
-                priority_mailbox = mailboxes[list(mailboxes)[0]]
-                handle_mailboxes = True
-                while handle_mailboxes:
-                # TODO: Determine performance impact of "mailboxes.copy()"
-                    for mailbox_name, mailbox in mailboxes.copy().items():
-                        while mailbox.queue.qsize() > 0:
-                            item, time_posted = mailbox.queue.get()
-                            mailbox.handler(mailbox_name, item, time_posted)
-                            if mailbox.queue != priority_mailbox.queue:
-                                if priority_mailbox.queue.qsize() > 0:
-                                    break
-                        if priority_mailbox.queue.qsize() > 0:
-                            break
-                    handle_mailboxes = False
-
+            sleep_time = _SLEEP_TIME
             if len(flatout_handlers):
                 time_start = time.monotonic()
                 for flatout_handler in flatout_handlers:
                     flatout_handler()
                 sleep_time = sleep_time - (time.monotonic() - time_start)
-# TODO:         _timer_counter -= sleep_time  # and don't sleep !
+
+            if _is_work_pending():
+                sleep_time = 0
+            elif event_list.head:
+                time_timer = event_list.head.time_next - time.monotonic()
+                sleep_time = min(sleep_time, time_timer)
             if sleep_time > 0:
                 time.sleep(sleep_time)
-                _timer_counter -= sleep_time
     except KeyboardInterrupt:
         raise SystemExit("KeyboardInterrupt: abort !")
     finally:
