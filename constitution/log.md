@@ -6,6 +6,15 @@ Every substantive change appends an entry under its date heading
 This journal begins at the constitution's first public release. The
 pre-publication history is maintained privately.
 
+## 2026-10-21
+
+- **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+  section 9: three failure modes seen during the aiko01 WhisPlay HAT audio
+  work on 2026-10-20 — an inherited diagnosis that named the symptom and
+  guessed the mechanism, an output file that nothing writes any more, and a
+  recovery path that was never exercised against the real fault. The
+  machine-specific findings stay out of this tree.
+
 ## 2026-09-27
 
 - **Creation** — [adr/ADR-025_RemoteDisplayAbstraction.md](adr/ADR-025_RemoteDisplayAbstraction.md):
