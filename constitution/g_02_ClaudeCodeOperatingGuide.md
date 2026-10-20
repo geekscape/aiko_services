@@ -289,8 +289,8 @@ makes the guess look confirmed. Reproduce the *mechanism* before you build on it
 you write a fix that depends on it: change one variable that the stated cause predicts, then
 check the prediction. A symptom that matches is not a cause that matches.
 
-**An output file that nothing writes any more** — when you replace the component that wrote a
-log, neutralize the old file in the same change. A file frozen at the moment of replacement
+**An output file that nothing writes any more.** When you replace the component that wrote
+a log, neutralize the old file in the same change. A file frozen at the moment of replacement
 reads as current and describes the behavior that you removed. One such file cost a second
 session a full re-diagnosis of a fault that was already fixed.
 
