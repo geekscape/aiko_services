@@ -7,7 +7,7 @@ audience: [project-lead, ai-coding-agents]
 status: operational
 ste: adapted
 related: [e_06_TestingStrategy]
-last_updated: 2026-08-01
+last_updated: 2026-10-21
 ---
 
 # Aiko Services — Claude Code Operating Guide
@@ -282,3 +282,19 @@ the end of the Epic (project-lead direction, 2026-09-27). Links must not dangle 
 
 **A package move in one commit** — git loses the history. Move in three commits: renames
 only (git records 100% renames), then the names and imports, then any splits.
+
+**An inherited diagnosis** (observed 2026-10-20, three times in one session) — a handover
+names the symptom correctly and guesses the mechanism. The symptom then reproduces, which
+makes the guess look confirmed. Reproduce the *mechanism* before you build on it, and before
+you write a fix that depends on it: change one variable that the stated cause predicts, then
+check the prediction. A symptom that matches is not a cause that matches.
+
+**An output file that nothing writes any more** — when you replace the component that wrote a
+log, neutralize the old file in the same change. A file frozen at the moment of replacement
+reads as current and describes the behavior that you removed. One such file cost a second
+session a full re-diagnosis of a fault that was already fixed.
+
+**A recovery path that you did not exercise** — code written against a fault that you cannot
+reproduce holds your assumptions about that fault. One such path assumed that `timeout` bounds
+a blocking operation. It does not bound an uninterruptible one, so the "safe" wrapper could
+itself stop the boot. Prefer a loud, exact diagnosis to automation that you cannot test.
