@@ -1,4 +1,4 @@
 [ 
-  "aiko_pipeline create pipeline_webcam.json -ll DEBUG_ALL --windows",
-  "aiko_pipeline create pipeline_yoloe.json  -ll DEBUG_ALL"
+  "true aiko_pipeline create pipeline_webcam.json -ll DEBUG_ALL --windows",
+  "true aiko_pipeline create pipeline_yoloe.json  -ll DEBUG_ALL"
 ]

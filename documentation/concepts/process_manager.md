@@ -51,12 +51,24 @@ aiko_process dump [--name NAME]
 aiko_process exit [--name NAME] [--grace_time SECONDS]   # default 5 s
 ```
 
-`DEFINITION_PATHNAME` must be a `.json` file containing an array of command
-strings, launched at startup:
+`DEFINITION_PATHNAME` must be a `.json` file that contains an array of
+command strings, started at startup. Each string starts with an `enabled`
+flag, `true` or `false`, and then the command and its arguments:
 
 ```json
-["aiko_registrar", "aiko_pipeline create pipeline.json -ll debug"]
+[
+  "true  mosquitto -c 0_mosquitto.conf",
+  "true  aiko_registrar",
+  "false aiko_pipeline create pipeline.json -ll debug"
+]
 ```
+
+The flag lets you disable a process, but keep it in the definition. The
+flag is necessary. An entry without a flag is an error. The ProcessManager
+reports the error, then skips that entry. A command that does not start,
+and gives no diagnostic, is worse. One bad entry does not stop the other
+processes. The flag applies to the definition file only. Thus
+`aiko_process create true` still runs the `true` command.
 
 Manage processes:
 
@@ -150,8 +162,9 @@ requester's topic (see [Category](category.md) for the general pattern):
                                └── metrics: created, running  (ECProducer)
 ```
 
-A **definition file** (JSON array of command strings) can pre-populate the
-process table at startup — the `init`-style "boot this host" use case.
+A **definition file** (JSON array of command strings, each with an
+`enabled` flag) can pre-populate the process table at startup — the
+`init`-style "boot this host" use case.
 ProcessManager registers *itself* in its own table as UID `000000`
 (self-aware 🤔), wrapped in a `ProcessCurrent` shim so uniform bookkeeping
 applies. It is protected from `destroy()`.
