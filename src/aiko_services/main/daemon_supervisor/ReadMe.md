@@ -17,6 +17,9 @@ something that cannot work.
 `render` changes nothing, so you can read the service description before you
 install it. `install` is the only command that changes the host.
 
+Design record:
+[ADR-026](../../../../constitution/adr/ADR-026_DaemonSupervision.md).
+
 "Supervisor" rather than "Launcher": it starts, stops, installs, removes and
 reports, which is more than launching, and "Launcher" reads as the macOS
 `launchd` daemon. A daemon is the first thing to supervise, not necessarily
@@ -31,7 +34,9 @@ aiko_supervisor --help
 
 ## Run
 
-Render the service description for a host, which writes nothing:
+`aiko_supervisor.json` beside this ReadMe is an example definition file: it is
+what `aiko01` runs. Render the service description for a host, which writes
+nothing:
 
 ```bash
 aiko_supervisor render --name aiko01 --user claude \
@@ -206,3 +211,4 @@ command, so they are exercised by the demonstration above, not by the tests.
 | `systemd.py` | `SystemdDaemonSupervisorImpl`: a unit in `/etc/systemd/system` |
 | `launchd.py` | `LaunchdDaemonSupervisorImpl`: a user agent in `~/Library/LaunchAgents` |
 | `cli.py` | The `aiko_supervisor` command |
+| `aiko_supervisor.json` | An example ProcessManager definition file |

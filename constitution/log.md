@@ -8,6 +8,16 @@ pre-publication history is maintained privately.
 
 ## 2026-10-21
 
+- **Creation** — [adr/ADR-026_DaemonSupervision.md](adr/ADR-026_DaemonSupervision.md):
+  the operating system starts one daemon for each host, the ProcessManager, and
+  the ProcessManager definition file starts the rest. A `DaemonSupervisor`
+  Interface has one Implementation for each platform, `render` changes nothing
+  and `install` is the only privileged operation. The Interface stays off the
+  message bus for now. Supervisor as an aspect is recorded as the direction, with
+  the authority question that composition must answer. Registry row 026
+  claimed in the same change (024 stays reserved). Reference implementation
+  `src/aiko_services/main/daemon_supervisor/`.
+
 - **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
   section 9: three failure modes seen during the aiko01 WhisPlay HAT audio
   work on 2026-10-20 — an inherited diagnosis that named the symptom and
