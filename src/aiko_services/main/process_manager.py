@@ -16,6 +16,24 @@
 #
 # aiko_process enable | disable | start | status | stop hyperspace_path
 #
+# Definition file
+# ~~~~~~~~~~~~~~~
+# The "definition_pathname" is a JSON file, which holds a list of strings.
+# Each string starts with an "enabled" flag, "true" or "false", and then
+# the command and its arguments ...
+#
+#   [
+#     "true  mosquitto -c 0_mosquitto.conf",
+#     "true  aiko_registrar",
+#     "false aiko_dashboard"
+#   ]
+#
+# The flag lets a process be disabled, but stay in the definition.
+# The flag is required: an entry without one is reported and then skipped,
+# because a command that silently doesn't start is worse than a diagnostic.
+# Note that the flag applies to the definition file only, so that
+# "aiko_process create true" still runs the "true" command.
+#
 # Shell and Python scripts
 # ~~~~~~~~~~~~~~~~~~~~~~~~
 # aiko_process create -u uid:0 date
@@ -312,15 +330,46 @@ class ProcessManagerImpl(ProcessManager):
             aiko.message.publish(
                 topic_path_response, f"(response {response})")
 
+    def _parse_definition_entry(self, entry):
+        """Parse one definition entry: "enabled command [arguments ...]"
+
+        The leading "true" or "false" flag is required, so that a process
+        can be disabled without being removed from the definition.
+        Returns (enabled, command, arguments).  The command is None when
+        the entry can't be used, which is reported and then skipped,
+        so that one bad entry doesn't stop the other processes"""
+
+        tokens = str(entry).split()
+        if not tokens:
+            self.logger.error("Definition entry is empty, skipped")
+            return False, None, None
+        enabled = tokens[0].lower()
+        if enabled not in ["true", "false"]:
+            self.logger.error('Definition entry must start with "true" or '
+                f'"false", skipped: {entry}')
+            return False, None, None
+        if len(tokens) < 2:
+            self.logger.error(
+                f"Definition entry has no command, skipped: {entry}")
+            return False, None, None
+        return enabled == "true", tokens[1], tokens[2:]
+
     def _parse_definition(self, definition_pathname):
         diagnostic = None
         if definition_pathname:
             if definition_pathname.endswith(".json"):
                 try:
-                    commands = json.load(open(definition_pathname, "r"))
-                    for command in commands:
-                        command = command.split()
-                        self.create(command[0], command[1:])
+                    entries = json.load(open(definition_pathname, "r"))
+                    for entry in entries:
+                        enabled, command, arguments =  \
+                            self._parse_definition_entry(entry)
+                        if command is None:
+                            continue
+                        if enabled:
+                            self.create(command, arguments)
+                        else:
+                            self.logger.info(
+                                f"Disabled: {' '.join([command, *arguments])}")
                 except json.decoder.JSONDecodeError as json_decode_error:
                     diagnostic = f"Definition format: {json_decode_error}"
             else:
