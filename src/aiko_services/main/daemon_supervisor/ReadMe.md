@@ -37,14 +37,14 @@ Render the service description for a host, which writes nothing:
 aiko_supervisor render --name aiko01 --user claude \
   --mqtt_host localhost --after network-online.target --after mosquitto.service \
   --executable /home/claude/venvs/venv_3.13/bin/aiko_process \
-  /home/claude/aiko01.json
+  /home/claude/aiko01_supervisor.json
 ```
 
 Install it, which needs root on Linux, because the unit is written to
 `/etc/systemd/system`:
 
 ```bash
-sudo aiko_supervisor install --name aiko01 --user claude ... /home/claude/aiko01.json
+sudo aiko_supervisor install --name aiko01 --user claude ... /home/claude/aiko01_supervisor.json
 sudo systemctl start aiko01
 ```
 
@@ -135,10 +135,10 @@ for the same reason the installed service sets it.
 aiko_supervisor render --platform systemd --name aiko01 --user claude \
   --mqtt_host localhost --after network-online.target --after mosquitto.service \
   --executable /home/claude/venvs/venv_3.13/bin/aiko_process \
-  /home/claude/aiko01.json
+  /home/claude/aiko01_supervisor.json
 
 aiko_supervisor render --platform launchd --name aiko01 \
-  --mqtt_host localhost /home/claude/aiko01.json
+  --mqtt_host localhost /home/claude/aiko01_supervisor.json
 ```
 
 The same `DaemonDefinition` becomes a systemd unit and a launchd property

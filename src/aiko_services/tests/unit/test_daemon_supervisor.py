@@ -26,7 +26,7 @@ from aiko_services.main.daemon_supervisor import (
 def make_spec(**parameters):
     return DaemonDefinition.for_process_manager(
         name="aiko01",
-        definition_pathname="/home/claude/aiko01.json",
+        definition_pathname="/home/claude/aiko01_supervisor.json",
         executable="/home/claude/venvs/venv_3.13/bin/aiko_process",
         user="claude",
         working_directory="/home/claude",
@@ -41,7 +41,7 @@ def make_supervisor(impl, **parameters):
 def test_spec_builds_the_process_manager_command_line():
     assert make_spec().command_line() == [
         "/home/claude/venvs/venv_3.13/bin/aiko_process",
-        "run", "--name", "aiko01", "/home/claude/aiko01.json"
+        "run", "--name", "aiko01", "/home/claude/aiko01_supervisor.json"
     ]
 
 def test_spec_stop_timeout_allows_for_the_grace_time():
@@ -94,7 +94,7 @@ def test_systemd_render():
     assert "WorkingDirectory=/home/claude" in unit
     assert "Environment=AIKO_MQTT_HOST=localhost" in unit
     assert "ExecStart=/home/claude/venvs/venv_3.13/bin/aiko_process run " \
-        "--name aiko01 /home/claude/aiko01.json" in unit
+        "--name aiko01 /home/claude/aiko01_supervisor.json" in unit
     assert "KillSignal=SIGTERM" in unit
     assert f"TimeoutStopSec={GRACE_TIME + 25}" in unit
     assert "Restart=always" in unit
@@ -125,7 +125,7 @@ def test_launchd_render():
     assert "<key>Label</key>" in plist
     assert "<string>io.aiko_services.aiko01</string>" in plist
     assert "<string>run</string>" in plist
-    assert "<string>/home/claude/aiko01.json</string>" in plist
+    assert "<string>/home/claude/aiko01_supervisor.json</string>" in plist
     assert "<key>AIKO_MQTT_HOST</key><string>localhost</string>" in plist
     assert "<key>RunAtLoad</key>" in plist
     assert "<key>KeepAlive</key>" in plist

@@ -15,8 +15,8 @@
 #
 # Examples
 # ~~~~~~~~
-# aiko_supervisor render ~/aiko01.json              # Look, before you install
-# sudo aiko_supervisor install ~/aiko01.json \
+# aiko_supervisor render ~/aiko01_supervisor.json              # Look, before you install
+# sudo aiko_supervisor install ~/aiko01_supervisor.json \
 #   --user claude --executable ~/venvs/venv_3.13/bin/aiko_process
 #
 # This module is a command line shell: ADR-022 "presentation/CLI shell"
