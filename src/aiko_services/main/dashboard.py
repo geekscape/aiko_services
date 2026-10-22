@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 #
+# Usage
+# ~~~~~
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
 # Set-up ssh X11 forwarding for copy-paste support
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # # Requires Python package "pyperclip-1.8.2"
@@ -885,6 +889,12 @@ def update_plugins(plugins):
     default=["aiko_services.main.dashboard_plugins"])
 
 def main(plugin, history_limit):
+    """Aiko Services Dashboard
+
+    \b
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optonal)
+    """
+
     global _HISTORY_LIMIT
     _HISTORY_LIMIT = history_limit
 

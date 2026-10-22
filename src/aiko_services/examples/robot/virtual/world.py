@@ -27,6 +27,8 @@
 #
 # Usage over the network
 # ~~~~~~~~~~~~~~~~~~~~~~
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
 # aiko_pipeline create ../../../elements/media/webcam_zmq_pipeline_0.json  \
 #               -s 1 -p resolution 640x480  # produce images, like "world.py"
 #
@@ -594,7 +596,7 @@ class World(aiko.PipelineElement):  # TODO: Should be a DataSource
             return aiko.StreamEvent.OKAY, {"images": [image]}
         return aiko.StreamEvent.OKAY, {"images": []}
 
-@click.command("main", help="Create World Pipeline")
+@click.command("main")
 @click.option("--collision_mask", "-cm", type=int,
     default=_COLLISION_MASK, required=False,
     help="Show various collision diagnostics (bits 0, 1, 2)")
@@ -629,6 +631,12 @@ class World(aiko.PipelineElement):  # TODO: Should be a DataSource
 def main(collision_mask, data_targets, definition_pathname,
          frame_rate_pipeline, frame_rate_world, graph_path,
          log_level, log_mqtt, name, stream_id):
+
+    """Create World Pipeline
+
+    \b
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts
+    """
 
     os.environ["AIKO_LOG_LEVEL"] = log_level.upper()
     os.environ["AIKO_LOG_MQTT"] = log_mqtt

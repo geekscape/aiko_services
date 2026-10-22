@@ -14,6 +14,8 @@
 #
 # Usage: Distributed Actor
 # ~~~~~~~~~~~~~~~~~~~~~~~~
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
 # export STORAGE_RANDOM_UID=False  # debug using predictable incrementing UIDs
 #
 # aiko_storage_file initialize [STORAGE_URL]
@@ -537,7 +539,11 @@ class StorageFileImpl(Storage):
 @click.group()
 
 def main():
-    """Create, Read/List, Update and Destroy Storage"""
+    """Create, Read/List, Update and Destroy Storage
+
+    \b
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optonal)
+    """
 
     subcommand = click.get_current_context().invoked_subcommand
     subcommands_which_work_anywhere =  \
@@ -556,7 +562,7 @@ def main():
 
 # aiko_storage_file dump [--sort_by_name]
 
-@main.command(name="dump", help="Dump Storage entries and paths")       
+@main.command(name="dump", help="Dump Storage entries and paths")
 @click.option("--bootstrap", "-b", default=False, is_flag=True,
     help="Operate standalone (no Storage Service)")
 @click.option("--sort_by_name", "-s", default=False, is_flag=True,
@@ -799,14 +805,14 @@ def run_command(storage_name, storage_url):
 @click.option("--storage_name", "-sn", type=str, default=None,
     help="Storage name, default is the local hostname")
 @click.option("--new_entry_name", "-n", type=str, default="None",
-    help="New entry name")  
+    help="New entry name")
 @click.option("--lifecycle_manager_url", "-lcm", type=str, default=None,
     help="LifeCycleManager URL")
 @click.option("--storage_url", "-s", type=str, default=None,
     help="Storage URL")
 
 def update_command(entry_path, bootstrap, storage_name,
-    new_entry_name, lifecycle_manager_url, storage_url):        
+    new_entry_name, lifecycle_manager_url, storage_url):
 
     """Update StorageFile Entry
 

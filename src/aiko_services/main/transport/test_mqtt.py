@@ -2,6 +2,8 @@
 #
 # Usage
 # ~~~~~
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
 # AIKO_LOG_LEVEL=DEBUG ./transport/test_mqtt.py create
 #
 # AIKO_LOG_LEVEL=DEBUG ./transport/test_mqtt.py test hello
@@ -72,6 +74,11 @@ class MQTTTestImpl(MQTTTest):
 @click.group()
 
 def main():
+    """Transport MQTT Test
+
+    \b
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+    """
     pass
 
 @main.command(help="Transport MQTT Test Actor")

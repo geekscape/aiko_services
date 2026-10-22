@@ -23,6 +23,11 @@
 #   sp AudioResample.rate ?????                              \
 #   sp AudioWriteFile.data_targets file:data_out/out_00.mp3
 #
+# Notes
+# ~~~~~
+# PE_Speaker uses "do_discovery()", which may require ...
+#   export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts
+#
 # Resources
 # ~~~~~~~~~
 # https://people.csail.mit.edu/hubert/pyaudio/#downloads  # Install PyAudio
