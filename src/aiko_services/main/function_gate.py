@@ -11,7 +11,7 @@
 #
 # The default allows every function, which is what every Actor did before
 # this aspect existed, so composing the aspect changes nothing by itself.
-# An Implementation that wants deny by default gives the filter a list ...
+# An Implementation that wants deny by default gives the gate a list ...
 #
 #     class ExampleImpl(Example):
 #         def __init__(self, context):
@@ -32,10 +32,10 @@
 # from aiko_services.main import *
 #
 # FUNCTIONS = interface_functions(Example)   # the Interface's own functions
-# filter = compose_instance(FunctionGateImpl, {"context": Context(),
+# gate = compose_instance(FunctionGateImpl, {"context": Context(),
 #     "functions": FUNCTIONS})
-# filter.deny_function("example", [])      # None: allowed
-# filter.deny_function("exit", [])         # "function": denied
+# gate.deny_function("example", [])      # None: allowed
+# gate.deny_function("exit", [])         # "function": denied
 #
 # To Do
 # ~~~~~
@@ -93,7 +93,7 @@ class FunctionGate(Interface):
     """
     Which functions a Service accepts from the message bus (P12, ADR-023).
     An aspect: "Actor" composes it, and any other Implementation may do the
-    same.  Local API only -- the filter itself does not cross the wire
+    same.  Local API only -- the gate itself does not cross the wire
     """
     Interface.default("FunctionGate",
         "aiko_services.main.function_gate.FunctionGateImpl")

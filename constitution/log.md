@@ -8,6 +8,18 @@ pre-publication history is maintained privately.
 
 ## 2026-10-23
 
+- **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md):
+  the `FunctionGate` aspect joins the runtime Interface list. It holds which
+  functions a Service accepts from the message bus (P12, ADR-023). `Actor`
+  composes it, so `PipelineElement`, `Pipeline` and an Agent have one, and
+  the default allows every function, so no Service changed behaviour.
+  `interface_functions()` derives an allow list from the Interfaces and
+  removes what `Actor` and `Service` declare, which enforces ADR-025
+  decision 1 instead of only documenting it. ADR-023 already holds the
+  deny-by-default decision, so the aspect needs no ADR of its own
+  (project-lead direction). Reference implementation
+  `src/aiko_services/main/function_gate.py`.
+
 - **Update** — [adr/ADR-025_RemoteDisplayAbstraction.md](adr/ADR-025_RemoteDisplayAbstraction.md)
   decision 1, amended: function name aliases are dropped (project-lead
   direction). The `oled:` names and `(exit)` were aliases, and one function

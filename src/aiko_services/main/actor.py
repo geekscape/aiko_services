@@ -273,15 +273,24 @@ class ActorImpl(Actor):
         self._post_message(ActorTopic.IN, name, parameters)
 
     def _function_denied(self, name, reason, detail=""):
-        """Report a function the FunctionGate denied.  Here, and not in
-        the filter, because the Actor owns the logger and the shared state.
-        An Implementation may replace this to count the denial as well"""
+        """Report a function the FunctionGate denied.  Here, and not in the
+        gate, because the Actor owns the logger and the shared state.
+
+        An Actor that publishes "last_error" or "metrics.denied" gets both
+        kept current, and an Actor that publishes neither only logs.  So a
+        denial is observable (ADR-023 decision 3) with no override.  An
+        Implementation may still define its own, as the Display Actor does"""
 
         denied = f"{self.name}: function denied: {reason}: {name}"
         self.logger.warning(f"{denied} ({detail})" if detail else denied)
-        if hasattr(self, "ec_producer") and "last_error" in self.share:
+        if not hasattr(self, "ec_producer"):
+            return
+        if "last_error" in self.share:
             token = f"{reason} {name}" if name else reason
             self.ec_producer.update("last_error", token[:40])
+        metrics = self.share.get("metrics")
+        if isinstance(metrics, dict) and "denied" in metrics:
+            self.ec_producer.update("metrics.denied", metrics["denied"] + 1)
 
     def _post_message(
         self, topic, command, args, delay=None, target_function=None):

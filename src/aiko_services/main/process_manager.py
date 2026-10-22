@@ -126,7 +126,10 @@ import time
 from aiko_services.main import *
 from aiko_services.main.utilities import *
 
-__all__ = ["ProcessManager", "ProcessManagerImpl"]
+__all__ = [
+    "FUNCTIONS", "SAFE", "SAFE_FUNCTIONS", "ProcessManager",
+    "ProcessManagerImpl", "coerce_response_topic"
+]
 
 ACTOR_TYPE = "process_manager"
 VERSION = 0
@@ -137,6 +140,45 @@ _MY_UID="000000"  # self-aware 🤔
 _PROCESS_POLL_TIME = 1.0  # seconds
 _RESPONSE_TOPIC = f"{aiko.topic_in}"
 _THREAD_NAME=f"aiko-{ACTOR_TYPE}"
+
+SAFE = True              # the default posture of "aiko_process run"
+
+# A ProcessManager starts and stops processes on its host, so what it
+# accepts from the message bus is not a small matter.  Safe mode allows the
+# two functions that cannot start or stop anything: "list", and the log
+# level the Dashboard sets.  ADR-023 decision 6 allows this posture for an
+# isolated deployment, as long as the policy is explicit and advertised
+SAFE_FUNCTIONS = frozenset({"list", "set_log_level"})
+
+# The suffixes a response topic may end with.  A caller asks for a reply on
+# its own "in" topic, so this is not a list of topics to refuse
+_RESPONSE_SUFFIXES = ("in", "out", "control")
+_RESPONSE_TOPIC_LENGTH = 256
+
+def coerce_response_topic(topic_path_response, topic_path_own):
+    """The response topic a caller asked for, or None when it is not
+    allowed.  A caller names the topic that "list" publishes to, so without
+    this an unknown client makes a ProcessManager publish where it likes.
+
+    Pure, so each rule is tested without an Actor:
+    a wildcard is never a publication topic, the suffix must be one a
+    Service owns, the rest must parse as a Service topic path, and the
+    namespace must be the one this Service is in"""
+
+    if not isinstance(topic_path_response, str):
+        return None
+    if len(topic_path_response) > _RESPONSE_TOPIC_LENGTH:
+        return None
+    if "+" in topic_path_response or "#" in topic_path_response:
+        return None
+    path, _, suffix = topic_path_response.rpartition("/")
+    if suffix not in _RESPONSE_SUFFIXES:
+        return None
+    asked = ServiceTopicPath.parse(path)
+    own = ServiceTopicPath.parse(topic_path_own)
+    if not asked or not own or asked.namespace != own.namespace:
+        return None
+    return topic_path_response
 
 # --------------------------------------------------------------------------- #
 
@@ -166,6 +208,10 @@ class ProcessManager(Actor):
 
 # --------------------------------------------------------------------------- #
 
+# Everything the Interface declares, plus the framework's two.  Derived, so
+# that the allow list and the contract cannot drift apart (P12, ADR-023)
+FUNCTIONS = interface_functions(ProcessManager)
+
 class ProcessCurrent:
     def __init__(self):
         self.pid = os.getpid()
@@ -182,8 +228,14 @@ class ProcessCurrent:
 
 class ProcessManagerImpl(ProcessManager):
     def __init__(self, context, definition_pathname=None,
-        watchdog=False, process_exit_handler=None):
+        watchdog=False, process_exit_handler=None, safe=SAFE):
 
+    # The FunctionGate aspect, configured before the Actor initializes it.
+    # Safe mode is the default, so a ProcessManager reached by an unknown
+    # client cannot be asked to start or stop a process
+        self._safe = bool(safe)
+        functions = FUNCTIONS & SAFE_FUNCTIONS if self._safe else FUNCTIONS
+        context.call_init(self, "FunctionGate", context, functions=functions)
         context.call_init(self, "Actor", context)
 
         if process_exit_handler:
@@ -206,9 +258,17 @@ class ProcessManagerImpl(ProcessManager):
             "metrics": {
                 "created": 1,  # Including self, i.e this ProcessManager 😅
                 "running": len(self.processes),
+                "denied": 0,
             #   "runtime": 0                                    # TODO: Runtime
             },
-            "watchdog": watchdog
+            "last_error": "-",
+            "safe": self._safe,   # ADR-023 decision 3: an observable policy
+            "watchdog": watchdog,
+        # One entry for each process, so that a consumer follows the table
+        # live instead of polling "list".  The ProcessManagerCache reads it
+            "process": {
+                uid: self._process_share(uid) for uid in self.processes
+            }
         }
         self.ec_producer = compose_instance(
             ECProducerImpl, ec_producer_args(self, self.share))
@@ -218,6 +278,12 @@ class ProcessManagerImpl(ProcessManager):
         self.thread.start()                           # TODO: Use ThreadManager
 
         self._parse_definition(definition_pathname)
+
+    def _process_share(self, uid):
+        """One process as one share value: its pid and its command line"""
+
+        command, pid = self._get_process_info(uid)
+        return f"{pid} {' '.join(command)}"
 
     def __str__(self):
         result = ""
@@ -259,6 +325,7 @@ class ProcessManagerImpl(ProcessManager):
                 "command_line": command_line,
                 "process": process
             }
+            self.ec_producer.update(f"process.{uid}", self._process_share(uid))
             self.ec_producer.update("metrics.running", len(self.processes))
             self.ec_producer.update("metrics.created",
                 self.share["metrics"]["created"] + 1)
@@ -322,6 +389,10 @@ class ProcessManagerImpl(ProcessManager):
         return self._get_return_code(uid) is None
 
     def list(self, topic_path_response, uid=None):
+        topic_path_response = coerce_response_topic(
+            topic_path_response, self.topic_path)
+        if not topic_path_response:
+            return self._function_denied("list", "topic")
         responses = []
         for uid_key in self.processes.keys():
             if uid is None or uid == uid_key:
@@ -395,6 +466,7 @@ class ProcessManagerImpl(ProcessManager):
                 if self.process_exit_handler:
                     self.process_exit_handler(uid)
                 del self.processes[uid]
+                self.ec_producer.remove(f"process.{uid}")
         self.ec_producer.update("metrics.running", len(self.processes))
 
 ############################################################################
@@ -530,16 +602,30 @@ def list_command(name, uid):
     help="ProcessManager name, default is the local hostname")
 @click.option("--watchdog", "-w", is_flag=True,
     help="Monitor ProcessManager, if required relauch it")
+@click.option("--safe/--unsafe", "safe", default=SAFE,
+    help="Accept only (list) and (set_log_level) from the message bus "
+         "[default: --safe]")
 @click.argument("definition_pathname", required=False, default=None)
 
-def run_command(name, watchdog, definition_pathname):
+def run_command(name, watchdog, safe, definition_pathname):
     """Run ProcessManager
 
-    aiko_process run [--name NAME] [--watchdog] [HYPERSPACE_PATHNAME]
+    aiko_process run [--name NAME] [--watchdog] [--unsafe]
+    [HYPERSPACE_PATHNAME]
 
     \b
     • NAME:                ProcessManager name, default is the local hostname
     • HYPERSPACE_PATHNAME: HyperSpace storage file-system location
+
+    \b
+    A ProcessManager starts and stops processes on its host, so --safe is
+    the default: it accepts (list) and (set_log_level) from the message bus,
+    and denies every other function, (create) and (exit) among them.  The
+    command line is unaffected, because it does not go through the bus.
+    --unsafe accepts every function the Interface declares, which is only
+    appropriate where the broker is not reachable from outside a trusted
+    network (ADR-023 decision 6).  The posture is published as "safe" in
+    the shared state, and a denial counts in "metrics.denied".
     """
 
     name = name if name else get_hostname()
@@ -548,6 +634,7 @@ def run_command(name, watchdog, definition_pathname):
     init_args = actor_args(name, None, None, PROTOCOL, tags)
     init_args["definition_pathname"] = definition_pathname
     init_args["watchdog"] = watchdog
+    init_args["safe"] = safe
     process_manager = compose_instance(ProcessManagerImpl, init_args)
     aiko.process.run()
 

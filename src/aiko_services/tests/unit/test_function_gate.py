@@ -2,7 +2,7 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # No hardware, no message broker, no event loop.
 #
-# The filter itself is pure, so most of these tests compose it alone.  The
+# The gate itself is pure, so most of these tests compose it alone.  The
 # composition tests use the framework's own ActorTest, because the aspect's
 # whole point is that it reaches every Actor.
 #
@@ -111,7 +111,7 @@ def test_what_the_framework_declares_is_never_in_the_allow_list():
     assert "run" not in interface_functions(aiko.Actor)
     assert "add_message_handler" not in interface_functions(aiko.Service)
 
-# The filter, alone ------------------------------------------------------- #
+# The gate, alone ------------------------------------------------------- #
 
 def test_an_unconfigured_filter_allows_everything():
     """D13: every Actor that does not configure the aspect keeps the
@@ -140,7 +140,7 @@ def test_parameters_that_are_not_a_list_are_denied():
             DENY_PARAMETERS
 
 def test_parameters_are_checked_before_the_allow_list():
-    """Even an unconfigured filter denies parameters it cannot dispatch"""
+    """Even an unconfigured gate denies parameters it cannot dispatch"""
 
     assert make_gate().deny_function("test", "not a list") ==  \
         DENY_PARAMETERS

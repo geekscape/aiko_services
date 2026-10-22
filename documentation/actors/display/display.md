@@ -156,7 +156,8 @@ aiko_display -n oledit -t 2 exit
 ```
 
 On the SBC with the panel, run `aiko_display run -a 0x3C`. Append `&` to
-run it in the background, or start it with `aiko_process create`. For a
+run it in the background, or start it with `aiko_process create`, which
+needs a ProcessManager started with `--unsafe`. For a
 display that comes up with the host, install `aiko_display.service` from
 the source directory with systemd. `systemctl stop` sends SIGTERM, and
 the Actor blanks the panel. With `--standalone`, the status display

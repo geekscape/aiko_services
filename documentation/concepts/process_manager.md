@@ -10,8 +10,8 @@ source:
   - src/aiko_services/main/process_manager.py
 related: [design_overview, hyperspace, dependency, storage, actor, share,
   lifecycle]
-version: "0.6"
-last_updated: 2026-08-01
+version: "0.7"
+last_updated: 2026-10-23
 ---
 
 # ProcessManager
@@ -46,10 +46,47 @@ defaulting to the local hostname.
 Lifecycle:
 
 ```bash
-aiko_process run  [--name NAME] [--watchdog] [DEFINITION_PATHNAME]
+aiko_process run  [--name NAME] [--watchdog] [--unsafe] [DEFINITION_PATHNAME]
 aiko_process dump [--name NAME]
 aiko_process exit [--name NAME] [--grace_time SECONDS]   # default 5 s
 ```
+
+### What a ProcessManager accepts from the message bus
+
+A ProcessManager starts and stops processes on its host. Any client on the
+broker can reach it, so `run` is `--safe` by default. In that posture it
+accepts two functions from the bus: `(list ...)` and `(set_log_level ...)`.
+Neither one starts or stops a process. It denies every other function,
+`(create ...)`, `(destroy ...)`, `(exit ...)` and `(stop)` among them.
+
+So `aiko_process create`, `destroy` and `exit` work only against a
+ProcessManager that was started with `--unsafe`:
+
+```bash
+aiko_process run --unsafe            # accepts create, destroy, dump, exit
+```
+
+`--unsafe` is appropriate where the broker is not reachable from outside a
+trusted network. ADR-023 decision 6 allows that posture for an isolated
+deployment, as long as the policy is explicit and advertised.
+
+The command line and the definition file are not affected, because neither
+one goes through the bus. A ProcessManager that starts the processes in its
+definition file needs nothing but the default.
+
+Two shared-state keys make the posture observable. `safe` is `true` or
+`false`, and `metrics.denied` counts each denied function. `last_error`
+holds the reason and the name of the last one.
+
+The `FunctionGate` aspect applies the policy. Its allow list is derived
+from the `ProcessManager` Interface, so the list and the contract cannot
+drift apart.
+
+One more rule applies to `(list TOPIC)`, in each posture. The caller names
+the topic that the reply goes to, so the ProcessManager checks it: no
+wildcard, a suffix that a Service owns, a well-formed Service topic path,
+and the namespace this ProcessManager is in. A topic that fails any of
+these is denied, and nothing is published.
 
 `DEFINITION_PATHNAME` must be a `.json` file that contains an array of
 command strings, started at startup. Each string starts with an `enabled`
@@ -71,6 +108,9 @@ processes. The flag applies to the definition file only. Thus
 `aiko_process create true` still runs the `true` command.
 
 Manage processes:
+
+`create` and `destroy` travel on the message bus, so they need a
+ProcessManager started with `--unsafe`. `list` works in each posture.
 
 ```bash
 aiko_process create [--name NAME] [--uid UID] COMMAND [ARGUMENTS ...]
