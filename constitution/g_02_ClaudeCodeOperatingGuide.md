@@ -7,7 +7,7 @@ audience: [project-lead, ai-coding-agents]
 status: operational
 ste: adapted
 related: [e_06_TestingStrategy]
-last_updated: 2026-10-21
+last_updated: 2026-10-23
 ---
 
 # Aiko Services — Claude Code Operating Guide
@@ -298,3 +298,24 @@ session a full re-diagnosis of a fault that was already fixed.
 reproduce holds your assumptions about that fault. One such path assumed that `timeout` bounds
 a blocking operation. It does not bound an uninterruptible one, so the "safe" wrapper could
 itself stop the boot. Prefer a loud, exact diagnosis to automation that you cannot test.
+
+**A guard that refuses everything** (observed 2026-10-22) — a deny-by-default dispatch
+guard called a function that does not exist. It then refused every command, including the
+allowed ones. All of the refusal tests passed, because a refusal was what they asked for.
+A deny-by-default guard needs one test that lets a command through. Write that test
+together with the first refusal test.
+
+**A measurement that was itself broken** (observed 2026-10-22, three times in one session)
+— each surprising result came from a fault in the measurement, not in the system. Shell
+quoting gave the command the wrong argument. A subscription started after the announcement
+that it waited for. An ECProducer publishes only to the consumers that attach to it, and
+nothing had attached. When a measurement tells you something surprising, check the
+measurement before you change the system. This is the sibling of "an inherited diagnosis"
+above.
+
+**A vendor driver read only for its constants** (observed 2026-10-23) — one session copied
+the pins, the SPI mode and the initialization sequence correctly. A comment beside the
+button handler, written in Chinese, gave the button polarity. The session missed that
+line. Inverted polarity does not stop the program. It
+gives behavior that looks correct, until a person holds the button down and then lets it
+go. Read the comments in the file that you copy from, in each language that the file uses.
