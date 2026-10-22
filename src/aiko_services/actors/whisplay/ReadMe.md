@@ -9,7 +9,7 @@ Shared variables, changed while it runs:
 | Name | Default | Meaning |
 |---|---|---|
 | `action` | `power_off` | What a long button press does: `power_off` or `none` |
-| `rate` | `3.0` | Frames each second, 0.1 to 30.0 |
+| `rate` | `8.0` | Frames each second, 0.1 to 30.0 |
 | `resolution` | `240x180` | What is read from the camera |
 
 ## The screen layout
@@ -18,6 +18,10 @@ Shared variables, changed while it runs:
 horizontal scaling, and it leaves **240x100 underneath for text**: the host name,
 the address, the frame count and the time. The panel is an image area above a
 text area, not a full screen image.
+
+The glass has **rounded corners with no pixels**, so the text is inset from
+the sides and nothing important goes in a corner. The font size is derived
+from the text area and the line count, so four lines fill the 100 pixels.
 
 ## The camera needs a virtual environment with system packages
 

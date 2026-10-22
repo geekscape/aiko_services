@@ -4,6 +4,11 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # The WhisPlay button, on BOARD pin 11, which is BCM GPIO 17.
 #
+# The button is **active HIGH**: the pin is at 3.3V while it is held, and
+# at 0V when it is not.  So gpiozero needs pull_up=False.  With pull_up=True
+# every event arrives inverted: a press reports a release, and the press
+# itself is never seen.
+#
 # classify() is a pure function of one duration, so the rule that decides a
 # long press is tested without a button.  The Impls below only measure the
 # duration and hand it over.
@@ -23,12 +28,17 @@ import time
 import aiko_services as aiko
 
 __all__ = [
-    "BUTTON_GPIO", "Button", "FakeButtonImpl", "GpioButtonImpl",
+    "BUTTON_ACTIVE_HIGH", "BUTTON_GPIO", "Button", "FakeButtonImpl",
+    "GpioButtonImpl",
     "LONG_PRESS_SECONDS", "button_args", "choose_button", "classify"
 ]
 
 BUTTON_GPIO = 17               # BOARD pin 11
 LONG_PRESS_SECONDS = 3.0
+# The pin is at 3.3V while the button is held, so gpiozero takes
+# pull_up=False.  Named here so the reason survives, because the cost of
+# getting it wrong is silent: every event arrives inverted
+BUTTON_ACTIVE_HIGH = True
 
 def classify(seconds, long_press_seconds=LONG_PRESS_SECONDS):
     """"long" when the press lasted longer than long_press_seconds, else
@@ -51,7 +61,8 @@ class Button(aiko.Interface):
 
     @abstractmethod
     def add_handler(self, handler):
-        """handler(kind, seconds), called on each release"""
+        """handler(kind, seconds): "down" when the button goes down, then
+        "short" or "long" when it comes up, with how long it was held"""
 
     @abstractmethod
     def close(self):
@@ -77,12 +88,20 @@ class FakeButtonImpl(Button):
         self._handlers = []
 
     def press(self, seconds):
-        """Report a press of this duration, as a real button would"""
+        """Report a press of this duration, as a real button would: down
+        first, then up"""
 
+        self.press_down()
         kind = classify(seconds, self.long_press_seconds)
         for handler in self._handlers:
             handler(kind, seconds)
         return kind
+
+    def press_down(self):
+        """Report that the button went down, and stayed down"""
+
+        for handler in self._handlers:
+            handler("down", 0.0)
 
 class GpioButtonImpl(Button):
     """The WhisPlay button through gpiozero.  The press is timed here and
@@ -102,7 +121,11 @@ class GpioButtonImpl(Button):
     def open(self):
         from gpiozero import Button as GpioZeroButton   # only needed here
 
-        self._button = GpioZeroButton(self.gpio, pull_up=True, bounce_time=0.05)
+        # Active HIGH: the vendor driver says "pressed is 5V, released is
+        # 0V".  With pull_up=True every event arrives inverted, so a press
+        # looks like a release and the press is never seen
+        self._button = GpioZeroButton(
+            self.gpio, pull_up=not BUTTON_ACTIVE_HIGH, bounce_time=0.05)
         self._button.when_pressed = self._on_pressed
         self._button.when_released = self._on_released
 
@@ -117,6 +140,8 @@ class GpioButtonImpl(Button):
 
     def _on_pressed(self):
         self._pressed_at = time.monotonic()
+        for handler in self._handlers:
+            handler("down", 0.0)
 
     def _on_released(self):
         if self._pressed_at is None:

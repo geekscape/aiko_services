@@ -91,6 +91,124 @@ def test_frame_takes_no_more_lines_than_fit():
     assert compose(None, many).tobytes() ==  \
         compose(None, many[:TEXT_LINES]).tobytes()
 
+def test_rows_fill_the_text_area():
+    """Five rows of ROW_HEIGHT come to exactly the 100 pixels under the
+    image"""
+
+    from aiko_services.actors.whisplay.frame import ROW_HEIGHT, TEXT_SIZE
+
+    assert TEXT_LINES * ROW_HEIGHT == TEXT_SIZE[1]
+
+def test_the_bottom_rows_are_inset_for_the_rounded_corners():
+    """The glass curve takes about the bottom 25 pixels, which is the last
+    row and the end of the row above it"""
+
+    from aiko_services.actors.whisplay.frame import (
+        CORNER_ROWS, MARGIN, row_margin)
+
+    for row in range(TEXT_LINES - CORNER_ROWS):
+        assert row_margin(row) == MARGIN
+    for row in range(TEXT_LINES - CORNER_ROWS, TEXT_LINES):
+        assert row_margin(row) > MARGIN
+
+def test_a_row_takes_left_centre_and_right_parts():
+    plain = compose(None, [(), (), (), (), ()])
+    left = compose(None, [("L", None, None)])
+    centre = compose(None, [(None, "C", None)])
+    right = compose(None, [(None, None, "R")])
+    assert len({frame.tobytes() for frame in (plain, left, centre, right)}) == 4
+
+def _rightmost_lit_column(image, top, height):
+    """The last column holding a lit pixel, in one band of the picture"""
+
+    band = image.crop((0, top, image.width, top + height))
+    lit = [x for x in range(band.width)
+           for y in range(band.height) if band.getpixel((x, y)) != (0, 0, 0)]
+    return max(lit) if lit else None
+
+def _lit_columns(image, top, height):
+    """The first and last columns holding a lit pixel, in one band"""
+
+    band = image.crop((0, top, image.width, top + height))
+    lit = [x for x in range(band.width)
+           for y in range(band.height) if band.getpixel((x, y)) != (0, 0, 0)]
+    return (min(lit), max(lit)) if lit else (None, None)
+
+def _fields_row(cpu, memory, temperature):
+    from aiko_services.actors.whisplay.frame import IMAGE_SIZE, ROW_HEIGHT
+
+    frame = compose(None, [(("C:", cpu, "%"), ("M:", memory, "%"),
+                            ("", temperature, "C"))], aligns=["fields"])
+    return _lit_columns(frame, IMAGE_SIZE[1], ROW_HEIGHT)
+
+def test_the_letters_never_move():
+    """"C:" starts in the same place and the temperature "C" ends in the
+    same place, whether a reading has one digit or three"""
+
+    assert _fields_row("1", "3", "7") == _fields_row("100", "100", "100")
+
+def test_the_letters_never_move_for_any_width():
+    widths = [_fields_row(value, value, value)
+              for value in ("1", "30", "100", "-")]
+    assert len(set(widths)) == 1
+
+def test_the_numbers_are_right_aligned():
+    """One digit or three, the last digit ends in the same place.
+
+    "30" and "100" end in the same glyph, so their ink matches exactly.
+    "1" is narrower than its cell, which is how tabular figures are drawn,
+    so its ink stops two pixels earlier while its cell still lines up"""
+
+    from aiko_services.actors.whisplay.frame import IMAGE_SIZE, ROW_HEIGHT
+
+    def right_edge(value):
+        frame = compose(None, [(("", value, ""), (), ())], aligns=["fields"])
+        return _lit_columns(frame, IMAGE_SIZE[1], ROW_HEIGHT)[1]
+
+    assert right_edge("30") == right_edge("100")
+    assert abs(right_edge("1") - right_edge("100")) <= 3
+
+def test_a_spread_row_moves_with_its_width():
+    """The contrast: a spread row's right part is at the margin, so its
+    own width decides where it starts"""
+
+    from aiko_services.actors.whisplay.frame import IMAGE_SIZE, ROW_HEIGHT
+
+    narrow = compose(None, [(None, None, "7C")])
+    wide = compose(None, [(None, None, "100C")])
+    assert _lit_columns(narrow, IMAGE_SIZE[1], ROW_HEIGHT)[0] !=  \
+        _lit_columns(wide, IMAGE_SIZE[1], ROW_HEIGHT)[0]
+
+def test_the_widest_readings_do_not_touch():
+    """Measured at 20 point, the three fields at their widest leave 12 and
+    15 pixels between them"""
+
+    from PIL import ImageFont
+    from aiko_services.actors.whisplay.frame import (
+        FIELD_PLACES, MARGIN, TEXT_SIZE_POINTS)
+
+    font = ImageFont.load_default(size=TEXT_SIZE_POINTS)
+    widest = font.getlength("100")
+    for index, (prefix, suffix) in enumerate([("C:", "%"), ("M:", "%"),
+                                              ("", "C")]):
+        prefix_x, value_x = FIELD_PLACES[index]
+        assert prefix_x + font.getlength(prefix) <= value_x - widest
+        if index < 2:
+            ends = value_x + font.getlength(suffix)
+            assert ends + 4 <= FIELD_PLACES[index + 1][0]
+    assert FIELD_PLACES[0][0] >= MARGIN
+
+def test_an_overlay_is_drawn_over_the_image():
+    from aiko_services.actors.whisplay.frame import IMAGE_SIZE, ROW_HEIGHT
+
+    plain = compose(Image.new("RGB", IMAGE_SIZE, (40, 40, 40)))
+    marked = compose(Image.new("RGB", IMAGE_SIZE, (40, 40, 40)),
+                     overlay=("1234", None, "12:00:00"))
+    assert plain.tobytes() != marked.tobytes()
+    # The difference is inside the image, above where the rows begin
+    band = (0, IMAGE_SIZE[1] - ROW_HEIGHT, IMAGE_SIZE[0], IMAGE_SIZE[1])
+    assert plain.crop(band).tobytes() != marked.crop(band).tobytes()
+
 def test_rgb565_is_two_bytes_for_each_pixel():
     data = to_rgb565(compose())
     assert len(data) == PANEL_SIZE[0] * PANEL_SIZE[1] * 2
@@ -135,12 +253,83 @@ def test_classify_at_the_boundary_is_short():
 def test_classify_takes_another_threshold():
     assert classify(1.5, long_press_seconds=1.0) == "long"
 
+def test_the_button_is_active_high():
+    """The vendor driver says "pressed is 5V, released is 0V".  With the
+    opposite setting every event arrives inverted: a press reports a
+    release, the press is never seen, and a countdown started by a release
+    never stops.  That cost a debugging session, so it is asserted"""
+
+    from aiko_services.actors.whisplay.button import BUTTON_ACTIVE_HIGH
+
+    assert BUTTON_ACTIVE_HIGH is True
+
 def test_fake_button_reports_a_press():
+    """Down first, so the countdown can start, then the release"""
+
     button = choose_button("none")
     seen = []
     button.add_handler(lambda kind, seconds: seen.append((kind, seconds)))
     button.press(4.0)
-    assert seen == [("long", 4.0)]
+    assert seen == [("down", 0.0), ("long", 4.0)]
+
+# The countdown ------------------------------------------------------------ #
+
+def test_the_countdown_is_absent_while_the_button_is_up():
+    actor, _, _ = make_actor()
+    assert actor._countdown(None) is None
+
+def test_the_countdown_runs_three_two_one_zero():
+    """At 0 the press is long enough, and letting go acts"""
+
+    import time as _time
+
+    actor, _, _ = make_actor(long_press=3.0)
+    now = _time.monotonic()
+    assert actor._countdown(now) == 3                  # just pressed
+    assert actor._countdown(now - 1.0) == 2
+    assert actor._countdown(now - 2.0) == 1
+    assert actor._countdown(now - 3.0) == 0
+    assert actor._countdown(now - 9.0) == 0            # never goes negative
+
+def test_the_countdown_follows_the_long_press_setting():
+    import time as _time
+
+    actor, _, _ = make_actor(long_press=5.0)
+    assert actor._countdown(_time.monotonic()) == 5
+
+def test_the_overlay_shows_the_countdown():
+    actor, _, _ = make_actor()
+    assert actor._overlay(7, 3)[1] == "Off: 3"
+    assert actor._overlay(7, 0)[1] == "Off: 0"
+    assert actor._overlay(7, None)[1] is None
+
+def test_the_countdown_takes_the_whole_overlay_row():
+    """Beside the time it had four pixels of room, which read as one word"""
+
+    actor, _, _ = make_actor()
+    assert actor._overlay(1234, 3) == (None, "Off: 3", None)
+    frames, _, clock = actor._overlay(1234, None)
+    assert frames == "1234" and ":" in clock
+
+def test_pressing_down_starts_the_countdown():
+    """P11: the handler runs on the event-loop thread and hands the worker
+    a time through the queue, rather than sharing a variable"""
+
+    actor, _, _ = make_actor()
+    actor._button_press("down", "0.00")
+    queued = actor._queue.get_nowait()
+    assert "pressed_at" in queued and queued["pressed_at"] is not None
+
+def test_releasing_ends_the_countdown(monkeypatch):
+    actor, _, _ = make_actor()
+    monkeypatch.setattr(
+        "aiko_services.actors.whisplay.whisplay.subprocess.Popen", lambda c: None)
+    monkeypatch.setattr(actor, "stop", lambda: None)
+
+    actor._button_press("short", "0.20")
+    assert actor._queue.get_nowait() == {"pressed_at": None}
+    actor._button_press("long", "3.40")
+    assert actor._queue.get_nowait() == {"pressed_at": None}
 
 # The seams ---------------------------------------------------------------- #
 
@@ -194,7 +383,7 @@ def test_actor_shares_its_settings():
     for name in SETTINGS:
         assert name in actor.share
     assert actor.share["action"] == "power_off"
-    assert actor.share["rate"] == "3.0"
+    assert actor.share["rate"] == "8.0"
     assert actor.share["resolution"] == "240x180"
 
 def test_actor_denies_every_command_but_the_allow_list():

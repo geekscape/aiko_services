@@ -47,7 +47,7 @@ def main():
     help="The button to listen to")
 @click.option("--action", "-a", type=click.Choice(ACTIONS), default="power_off",
     help="What a long button press does")
-@click.option("--rate", "-r", type=str, default="3.0",
+@click.option("--rate", "-r", type=str, default="8.0",
     help="Frames each second")
 @click.option("--resolution", "-R", type=str, default="240x180",
     help="What is read from the camera")
@@ -72,7 +72,7 @@ def run_command(name, panel, camera, button, action, rate, resolution,
     init_args.update({
         "panel": panel_impl, "camera": camera_impl, "button": button_impl,
         "action": action, "rate": rate, "resolution": resolution,
-        "rotate": rotate
+        "rotate": rotate, "long_press": long_press
     })
     aiko.compose_instance(WhisPlayImpl, init_args)
     try:

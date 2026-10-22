@@ -11,7 +11,8 @@
 # Usage: aiko_whisplay --help  (see cli.py)
 
 from aiko_services.actors.whisplay.button import (  # noqa: F401
-    BUTTON_GPIO, Button, FakeButtonImpl, GpioButtonImpl, LONG_PRESS_SECONDS,
+    BUTTON_ACTIVE_HIGH, BUTTON_GPIO, Button, FakeButtonImpl,
+    GpioButtonImpl, LONG_PRESS_SECONDS,
     choose_button, classify,
 )
 from aiko_services.actors.whisplay.camera import (  # noqa: F401
@@ -30,7 +31,8 @@ from aiko_services.actors.whisplay.whisplay import (  # noqa: F401
 )
 
 __all__ = [
-    "ACTIONS", "BUTTON_GPIO", "Button", "Camera", "CameraNotFound",
+    "ACTIONS", "BUTTON_ACTIVE_HIGH", "BUTTON_GPIO", "Button", "Camera",
+    "CameraNotFound",
     "FakeButtonImpl", "FakeCameraImpl", "GpioButtonImpl", "IMAGE_SIZE",
     "LONG_PRESS_SECONDS", "NullPanelImpl", "PANEL_SIZE", "PROTOCOL", "Panel",
     "Picamera2CameraImpl", "SETTINGS", "St7789PanelImpl", "TEXT_LINES",
