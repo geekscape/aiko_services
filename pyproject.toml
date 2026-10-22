@@ -77,8 +77,13 @@ ids_peak = [
 #
 # StoreForward HTTP server role (main/store_forward/store_forward_http.py)
 server = ["flask>=2.3"]
-# Video and image elements (elements/media/*_io.py, elements/cameras)
-video = ["opencv-python>=4.10.0.84"]
+# Video and image elements (elements/media/*_io.py, elements/cameras).
+# The lower bound is deliberately loose, so that an operating system's own
+# OpenCV satisfies it.  Raspberry Pi OS trixie ships python3-opencv 4.10.0,
+# which a tighter bound would shadow with a fresh build, in a virtual
+# environment created with "--system-site-packages".  Lower bounds state what
+# the source needs, not what one distribution happens to ship
+video = ["opencv-python>=4.10"]
 # Unit and integration tests
 test = ["pytest~=8.3.4"]
 # opencv-python = ["opencv-python~=4.10.0.84"]
