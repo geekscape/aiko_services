@@ -366,7 +366,7 @@ def set_command(options, key, value):
     """Change a setting: shared state that the Aiko Dashboard also edits
 
     Sends "(update KEY VALUE)" on the Actor's control topic, exactly what
-    the Dashboard does when a variable is edited.  A bad value is rejected
+    the Dashboard does when a variable is edited.  A bad value is denied
     (last_error tells why) and the value in force is published again.
     Values are single tokens: _ stands for a space in a title.
     """
@@ -512,7 +512,7 @@ _STATE_REFERENCE = _block([
     "  mirrors applets applet applet_detail fps",
     "  speed font contrast invert power all_on title blank_after foreground",
     "  background heartbeat last_error log_count log_pending metrics.commands",
-    "  metrics.rejected metrics.frames metrics.frame_ms metrics.errors",
+    "  metrics.denied metrics.frames metrics.frame_ms metrics.errors",
     "  metrics.mirrored",
 ])
 _WIRE_REFERENCE = _block([
@@ -530,7 +530,7 @@ _WIRE_REFERENCE = _block([
     "                                             any other goes to the applet",
     "  (mirror TOPIC SECONDS)                     a leased feed of raw frames to",
     "                                             TOPIC (the Dashboard plug-in)",
-    "  Anything else is rejected (last_error, metrics.rejected).",
+    "  Anything else is denied (last_error, metrics.denied).",
 ])
 
 def _preset_text(commands):

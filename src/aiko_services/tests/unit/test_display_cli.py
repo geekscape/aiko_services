@@ -10,7 +10,7 @@ from click.testing import CliRunner
 import aiko_services as aiko
 from aiko_services.main.utilities import get_hostname
 
-from aiko_services.actors.display import PROTOCOL, SETTINGS, WIRE_COMMANDS
+from aiko_services.actors.display import PROTOCOL, SETTINGS, FUNCTIONS
 from aiko_services.actors.display import cli as cli_module
 from aiko_services.actors.display.outputs import fake_output
 from aiko_services.actors.display.cli import main
@@ -186,9 +186,9 @@ def test_key_map_parity():
                 if command[0] == "update":
                     assert command[1] in SETTINGS, (key, command)
                 elif command[0] == "clear":
-                    assert "clear" in WIRE_COMMANDS
+                    assert "clear" in FUNCTIONS
                 else:
-                    assert command[0] in ("applet", "key") and command[0] in WIRE_COMMANDS
+                    assert command[0] in ("applet", "key") and command[0] in FUNCTIONS
     for command in reset_commands(state):
         assert command[0] == "applet" or command[1] in SETTINGS
     legend_keys = set(legend()) - {"digits", "plus", "minus", "arrows"}
@@ -199,7 +199,7 @@ def test_cli_covers_every_wire_command():
     subcommands = set(main.commands)
     covered = {"clear", "log", "pixels", "line", "text", "applet", "key", "mirror"}
     assert covered <= subcommands
-    assert WIRE_COMMANDS - {"pixel", "stop", "set_log_level"} == covered   # pixel: pixels
+    assert FUNCTIONS - {"pixel", "stop", "set_log_level"} == covered   # pixel: pixels
     assert {"exit", "stop", "set", "list", "run", "keys"} <= subcommands   # stop: exit
     help_text = invoke("set", "--help").output
     for name in SETTINGS:

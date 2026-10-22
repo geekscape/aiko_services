@@ -195,7 +195,7 @@ class ActorTopic:
     def __init__(self, topic_name):  # TODO: Implement user defined topics
         self.topic_name = topic_name
 
-class Actor(Service):
+class Actor(Service, FunctionFilter):
     Interface.default("Actor", "aiko_services.main.actor.ActorImpl")
 
     @abstractmethod
@@ -221,6 +221,12 @@ class ActorImpl(Actor):
     def __init__(self, context, register_service=True):
         context.call_init(self, "Service", context,
             register_service=register_service)
+    # The FunctionFilter aspect: an Implementation that wants deny by
+    # default calls this first, with its own allow list.  call_init() is
+    # idempotent, so this call then leaves that configuration alone
+        context.call_init(self, "FunctionFilter", context)
+        if not hasattr(self, "function_aliases"):
+            self.function_aliases = {}
 
         if not hasattr(self, "logger"):
             self.logger = aiko.logger(context.name)
@@ -255,12 +261,30 @@ class ActorImpl(Actor):
         message.invoke()
 
     def _topic_in_handler(self, _aiko, topic, payload_in):
-        command, parameters = parse(payload_in)
+        try:
+            name, parameters = parse(payload_in)
+        except Exception:         # the parser raises on an odd payload
+            return self._function_denied("", DENY_PARSE, payload_in[:80])
+        name = self.function_aliases.get(name, name)
     #   if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
     #       _LOGGER.debug(
-    #           f"{self.name}: topic_in_handler(): {command}:{parameters}"
+    #           f"{self.name}: topic_in_handler(): {name}:{parameters}"
     #       )
-        self._post_message(ActorTopic.IN, command, parameters)
+        reason = self.filter_function(name, parameters)
+        if reason:
+            return self._function_denied(name, reason)
+        self._post_message(ActorTopic.IN, name, parameters)
+
+    def _function_denied(self, name, reason, detail=""):
+        """Report a function the FunctionFilter denied.  Here, and not in
+        the filter, because the Actor owns the logger and the shared state.
+        An Implementation may replace this to count the denial as well"""
+
+        denied = f"{self.name}: function denied: {reason}: {name}"
+        self.logger.warning(f"{denied} ({detail})" if detail else denied)
+        if hasattr(self, "ec_producer") and "last_error" in self.share:
+            token = f"{reason} {name}" if name else reason
+            self.ec_producer.update("last_error", token[:40])
 
     def _post_message(
         self, topic, command, args, delay=None, target_function=None):

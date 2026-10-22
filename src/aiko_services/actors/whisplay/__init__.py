@@ -26,17 +26,17 @@ from aiko_services.actors.whisplay.panel import (  # noqa: F401
     choose_panel,
 )
 from aiko_services.actors.whisplay.whisplay import (  # noqa: F401
-    ACTIONS, PROTOCOL, SETTINGS, WIRE_COMMANDS, WhisPlay, WhisPlayImpl,
+    ACTIONS, FUNCTIONS, PROTOCOL, SETTINGS, WhisPlay, WhisPlayImpl,
     service_tags,
 )
 
 __all__ = [
     "ACTIONS", "BUTTON_ACTIVE_HIGH", "BUTTON_GPIO", "Button", "Camera",
-    "CameraNotFound",
+    "CameraNotFound", "FUNCTIONS",
     "FakeButtonImpl", "FakeCameraImpl", "GpioButtonImpl", "IMAGE_SIZE",
     "LONG_PRESS_SECONDS", "NullPanelImpl", "PANEL_SIZE", "PROTOCOL", "Panel",
     "Picamera2CameraImpl", "SETTINGS", "St7789PanelImpl", "TEXT_LINES",
-    "WIRE_COMMANDS", "WhisPlay", "WhisPlayImpl", "WindowPanelImpl", "Y_OFFSET",
+    "WhisPlay", "WhisPlayImpl", "WindowPanelImpl", "Y_OFFSET",
     "choose_button", "choose_camera", "choose_panel", "classify", "compose",
     "parse_resolution", "service_tags", "to_rgb565",
 ]

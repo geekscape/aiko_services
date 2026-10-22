@@ -23,7 +23,7 @@ import pytest
 import aiko_services as aiko
 from aiko_services.actors.whisplay import (
     ACTIONS, IMAGE_SIZE, PANEL_SIZE, PROTOCOL, SETTINGS, TEXT_LINES,
-    WIRE_COMMANDS, WhisPlayImpl, Y_OFFSET, choose_button, choose_camera,
+    FUNCTIONS, WhisPlayImpl, Y_OFFSET, choose_button, choose_camera,
     choose_panel, classify, compose, parse_resolution, to_rgb565,
 )
 
@@ -400,17 +400,17 @@ def test_actor_shares_its_settings():
     assert actor.share["rate"] == "8.0"
     assert actor.share["resolution"] == "240x180"
 
-def test_actor_denies_every_command_but_the_allow_list():
+def test_actor_denies_every_function_but_the_allow_list():
     """P12: the surface is exactly this, and nothing else"""
 
-    assert WIRE_COMMANDS == frozenset({"set_log_level", "stop"})
+    assert FUNCTIONS == frozenset({"set_log_level", "stop"})
     for name in ["_power_off", "_button_press", "_frames", "_worker_error", "run",
                  "_run", "create", "_topic_in_handler"]:
-        assert name not in WIRE_COMMANDS
+        assert name not in FUNCTIONS
 
-def test_actor_passes_an_allowed_command_to_the_mailbox():
-    """The deny-list must not deny everything: an earlier version called a
-    function that does not exist, so every command was refused as a parse
+def test_actor_passes_an_allowed_function_to_the_mailbox():
+    """The allow list must not deny everything: an earlier version called a
+    function that does not exist, so every function was denied as a parse
     error, including the allowed ones"""
 
     actor, _, _ = make_actor()
@@ -421,15 +421,15 @@ def test_actor_passes_an_allowed_command_to_the_mailbox():
     actor._topic_in_handler(None, "topic/in", "(set_log_level DEBUG)")
     assert posted == [("set_log_level", ["DEBUG"])]
 
-def test_actor_refuses_an_unknown_wire_command():
+def test_actor_denies_an_unknown_wire_function():
     actor, _, _ = make_actor()
     actor._topic_in_handler(None, "topic/in", "(_power_off)")
-    assert actor.share["last_error"] == "unknown_command"
+    assert actor.share["last_error"] == "function _power_off"
 
-def test_actor_refuses_a_payload_it_cannot_parse():
+def test_actor_denies_a_payload_it_cannot_parse():
     actor, _, _ = make_actor()
     actor._topic_in_handler(None, "topic/in", "(((")
-    assert actor.share["last_error"] == "parse_error"
+    assert actor.share["last_error"] == "parse"
 
 def test_actor_acts_on_a_long_press(monkeypatch):
     actor, panel, _ = make_actor()

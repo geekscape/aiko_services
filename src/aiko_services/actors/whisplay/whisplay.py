@@ -39,7 +39,7 @@ import time
 from threading import Thread
 
 import aiko_services as aiko
-from aiko_services.main.utilities import get_hostname, parse
+from aiko_services.main.utilities import get_hostname
 
 from aiko_services.actors.whisplay.button import LONG_PRESS_SECONDS
 from aiko_services.actors.whisplay.camera import CameraNotFound
@@ -52,7 +52,7 @@ except ImportError:                                      # pragma: no cover
 
 __all__ = [
     "ACTIONS", "COUNTDOWN_LABEL", "PROTOCOL", "ROW_ALIGNS", "SETTINGS",
-    "WIRE_COMMANDS", "WhisPlay", "WhisPlayImpl"
+    "FUNCTIONS", "WhisPlay", "WhisPlayImpl"
 ]
 
 PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/whisplay:0"
@@ -80,14 +80,17 @@ class WhisPlay(aiko.Actor):
     aiko.Interface.default(
         "WhisPlay", "aiko_services.actors.whisplay.whisplay.WhisPlayImpl")
 
-# P12, ADR-023: deny by default.  This Actor adds no wire command of its own
-WIRE_COMMANDS = frozenset({"set_log_level", "stop"})
+# P12, ADR-023: deny by default.  This Actor adds no function of its own,
+# so the allow list is the framework's two and nothing else
+FUNCTIONS = aiko.interface_functions()
 
 class WhisPlayImpl(WhisPlay):
     def __init__(self, context, panel=None, camera=None, button=None,
         action="power_off", rate="8.0", resolution="240x180", rotate=0,
         long_press=LONG_PRESS_SECONDS, worker=True):
 
+        context.call_init(
+            self, "FunctionFilter", context, functions=FUNCTIONS)
         context.call_init(self, "Actor", context)
 
         self._panel, self._camera, self._button = panel, camera, button
@@ -118,22 +121,6 @@ class WhisPlayImpl(WhisPlay):
             self._thread = Thread(
                 target=self._run, daemon=True, name=_THREAD_NAME)
             self._thread.start()
-
-# Dispatch: deny by default (P12) ------------------------------------------ #
-
-    def _topic_in_handler(self, _aiko, topic, payload_in):
-        command, parameters = None, None
-        try:
-            command, parameters = parse(payload_in)
-        except Exception:                                # noqa: BLE001
-            return self._reject("parse_error", payload_in)
-        if command not in WIRE_COMMANDS or not isinstance(parameters, list):
-            return self._reject("unknown_command", command)
-        self._post_message(aiko.ActorTopic.IN, command, parameters)
-
-    def _reject(self, reason, detail):
-        self.logger.warning(f"Refused: {reason}: {detail}")
-        self.ec_producer.update("last_error", f"{reason}")
 
 # The worker thread: it owns the camera and the panel --------------------- #
 

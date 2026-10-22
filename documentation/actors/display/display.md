@@ -493,11 +493,12 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
 - **Coalescing.** A frame is shown only when its bytes changed, and at
   most once per tick. Thus a flood of `pixels` commands costs
   microseconds each and one device write.
-- **Deny by default (P12).** `_topic_in_handler` replaces the
-  framework's. The parser is guarded, because a token such as `12:30`
-  raises inside it. The `oled:` names and `exit` are aliased. Only
-  `WIRE_COMMANDS` reach the mailbox: the abstract methods of the three
-  aspects, plus `stop` and `set_log_level`. Inherited public methods
+- **Deny by default (P12).** The `FunctionFilter` aspect holds the allow
+  list, and the framework's `_topic_in_handler` asks it. The parser is
+  guarded, because a token such as `12:30` raises inside it. The `oled:`
+  names and `exit` are aliased through `function_aliases`. Only
+  `FUNCTIONS` reach the mailbox: the abstract methods of the three
+  aspects, plus `stop` and `set_log_level`. Inherited public functions
   such as `run` are unreachable.
 - **The key map on the device.** `key()` runs a mapped key's preset, or
   changes its setting, and passes any other key to the running applet.
