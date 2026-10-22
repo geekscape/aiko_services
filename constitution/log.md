@@ -6,6 +6,17 @@ Every substantive change appends an entry under its date heading
 This journal begins at the constitution's first public release. The
 pre-publication history is maintained privately.
 
+## 2026-10-23
+
+- **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+  section 9: three failure modes seen during the aiko01 WhisPlay Actor work on
+  2026-10-22 and 2026-10-23 — a deny-by-default dispatch guard that refused
+  every command, because it called a function that does not exist, and whose
+  refusal tests all passed; three conclusions drawn from measurements that were
+  themselves broken; and a vendor driver read for its constants but not for the
+  comment that gave the button polarity. The machine-specific findings stay out
+  of this tree.
+
 ## 2026-10-21
 
 - **Creation** — [adr/ADR-026_DaemonSupervision.md](adr/ADR-026_DaemonSupervision.md):
