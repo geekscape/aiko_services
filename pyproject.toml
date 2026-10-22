@@ -103,6 +103,7 @@ aiko_registrar = "aiko_services.main.registrar:main"
 aiko_storage_file = "aiko_services.main.storage.storage_file:main"
 aiko_store_forward = "aiko_services.main.store_forward.store_forward:main"
 aiko_supervisor = "aiko_services.main.daemon_supervisor.cli:main"
+aiko_whisplay = "aiko_services.actors.whisplay.cli:main"
 
 [tool.hatch]
 
