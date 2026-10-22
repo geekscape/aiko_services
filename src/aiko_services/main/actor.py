@@ -195,7 +195,7 @@ class ActorTopic:
     def __init__(self, topic_name):  # TODO: Implement user defined topics
         self.topic_name = topic_name
 
-class Actor(Service, FunctionFilter):
+class Actor(Service, FunctionGate):
     Interface.default("Actor", "aiko_services.main.actor.ActorImpl")
 
     @abstractmethod
@@ -221,12 +221,10 @@ class ActorImpl(Actor):
     def __init__(self, context, register_service=True):
         context.call_init(self, "Service", context,
             register_service=register_service)
-    # The FunctionFilter aspect: an Implementation that wants deny by
+    # The FunctionGate aspect: an Implementation that wants deny by
     # default calls this first, with its own allow list.  call_init() is
     # idempotent, so this call then leaves that configuration alone
-        context.call_init(self, "FunctionFilter", context)
-        if not hasattr(self, "function_aliases"):
-            self.function_aliases = {}
+        context.call_init(self, "FunctionGate", context)
 
         if not hasattr(self, "logger"):
             self.logger = aiko.logger(context.name)
@@ -265,18 +263,17 @@ class ActorImpl(Actor):
             name, parameters = parse(payload_in)
         except Exception:         # the parser raises on an odd payload
             return self._function_denied("", DENY_PARSE, payload_in[:80])
-        name = self.function_aliases.get(name, name)
     #   if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
     #       _LOGGER.debug(
     #           f"{self.name}: topic_in_handler(): {name}:{parameters}"
     #       )
-        reason = self.filter_function(name, parameters)
+        reason = self.deny_function(name, parameters)
         if reason:
             return self._function_denied(name, reason)
         self._post_message(ActorTopic.IN, name, parameters)
 
     def _function_denied(self, name, reason, detail=""):
-        """Report a function the FunctionFilter denied.  Here, and not in
+        """Report a function the FunctionGate denied.  Here, and not in
         the filter, because the Actor owns the logger and the shared state.
         An Implementation may replace this to count the denial as well"""
 

@@ -27,9 +27,9 @@ from .component import compose_class, compose_instance
 
 from .hook import DEFAULT_HOOK, Hook, Hooks
 
-from .function_filter import (
+from .function_gate import (
     DENY_FUNCTION, DENY_PARAMETERS, DENY_PARSE,
-    FunctionFilter, FunctionFilterImpl, interface_functions
+    FunctionGate, FunctionGateImpl, interface_functions
 )
 
 from .connection import ConnectionState, Connection

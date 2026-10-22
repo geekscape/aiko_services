@@ -52,13 +52,14 @@ power, the title row, the font, the speed and the blanking. The Aiko
 [Dashboard](../../concepts/dashboard.md), or any client, writes a
 setting with `(update KEY VALUE)`.
 
-The wire commands are the ones that the MicroPython
+The functions are the ones that the MicroPython
 [aiko_engine_mp](https://github.com/geekscape/aiko_engine_mp) OLED
-accepts. `(oled:text 0 0 hello)` and `(text 0 0 hello)` are one command,
-and the origin is the bottom-left corner on both:
+accepts, and the origin is the bottom-left corner on both. The `oled:`
+prefix was an alias until 2026-10-23. One function now has one name, so
+send `(text 0 0 hello)`:
 
 ```bash
-mosquitto_pub -t $TOPIC_PATH/in -m "(oled:text 0 0 hello)"
+mosquitto_pub -t $TOPIC_PATH/in -m "(text 0 0 hello)"
 ```
 
 Without the panel, the same Actor shows its frames in a desktop window
@@ -106,7 +107,7 @@ preset cycles. Every subcommand's `--help` explains it in full.
 | Subcommand | Arguments and options | What it does |
 |------------|----------------------|--------------|
 | `run` | The table below | Run the Actor |
-| `exit` | `--all` | `(exit)`, an alias of the framework's `(stop)`: the Actor terminates and the display blanks. `-n '*'` needs `--all` |
+| `exit` | `--all` | Publishes the framework's `(stop)`: the Actor terminates and the display blanks. `-n '*'` needs `--all`. To be renamed `stop` |
 | `list` | | Every `display:0` Actor on the broker, or the one named with `-n`: name, topic path, tags |
 | `clear` | | `(clear)` |
 | `log WORDS...` | | `(log WORDS ...)` |
@@ -144,7 +145,7 @@ export AIKO_MQTT_HOST=localhost
 aiko_registrar &
 aiko_display -n oledit run -o png --png /tmp/oled.png --title Aiko_v0.8 &
 # Display Actor oledit: aiko/nomad/92920/1/in
-mosquitto_pub -t aiko/nomad/92920/1/in -m "(oled:text 0 0 hello)"
+mosquitto_pub -t aiko/nomad/92920/1/in -m "(text 0 0 hello)"
 aiko_display -n oledit text 0 8 second row
 aiko_display -n oledit set contrast 32
 aiko_display list
@@ -345,20 +346,20 @@ right, y 0..63 bottom to top. The decisions are recorded in
 | `Canvas` — drawing on a canvas | `.../canvas:0` | `clear()`, `log(*words)`, `pixel(x, y)`, `pixels(*coordinates)`, `line(x0, y0, x1, y1)`, `text(x, y, *words)` | RW `font`, `title`. R `size`, `origin`, `depth`, `log_count`, `log_pending` |
 | `Screen` — controlling the screen | `.../screen:0` | `mirror(topic, seconds)` | RW `contrast`, `invert`, `power`, `all_on`, `blank_after`, `foreground`, `background`, `mirror_rate`. R `backend`, `device`, `panels`, `fps`, `mirrors` |
 | `Interaction` — what runs on the display | `.../interaction:0` | `applet(name, *args)`, `key(name, state="tap")` | RW `applet`, `speed`. R `applets`, `applet_detail`, `keys.*` |
-| `Display` — the composite | `.../display:0`, registered | the framework's `stop` (`exit` is its alias), `set_log_level` | R `settings`, `connection`, `heartbeat`, `last_error`, `metrics.*` |
+| `Display` — the composite | `.../display:0`, registered | the framework's `stop`, `set_log_level` | R `settings`, `connection`, `heartbeat`, `last_error`, `metrics.*` |
 
 | Method | Wire form | Effect |
 |--------|-----------|--------|
-| `clear()` | `(clear)`, `(oled:clear)` | Erase the canvas. The title row stays |
-| `log(*words)` | `(log WORDS ...)`, `(oled:log ...)` | Scroll the canvas up one text row and write the words on the bottom row. Keep the line (the last eight) for the status and log applets |
-| `pixel(x, y)` | `(pixel X Y)`, `(oled:pixel X Y)` | Light one pixel |
-| `pixels(*coordinates)` | `(pixels X Y X Y ...)`, `(oled:pixels ...)` | Light pixels, at most 256 pairs, all or nothing |
+| `clear()` | `(clear)` | Erase the canvas. The title row stays |
+| `log(*words)` | `(log WORDS ...)` | Scroll the canvas up one text row and write the words on the bottom row. Keep the line (the last eight) for the status and log applets |
+| `pixel(x, y)` | `(pixel X Y)` | Light one pixel |
+| `pixels(*coordinates)` | `(pixels X Y X Y ...)` | Light pixels, at most 256 pairs, all or nothing |
 | `line(x0, y0, x1, y1)` | `(line X0 Y0 X1 Y1)` | Draw a line |
-| `text(x, y, *words)` | `(text X Y WORDS ...)`, `(oled:text ...)` | Write the words with the text cell's bottom-left at (X, Y) |
+| `text(x, y, *words)` | `(text X Y WORDS ...)` | Write the words with the text cell's bottom-left at (X, Y) |
 | `applet(name, *args)` | `(applet NAME [WORDS ...] [key=value ...])` | Run an applet, which replaces the running one. `none` shows the canvas |
 | `key(name, state="tap")` | `(key NAME [tap\|down\|up])` | A key in the key map runs its preset, or changes its setting, on `tap` or `down`. Any other key goes to the running applet. `down` holds the key for 2 s at most, so a client that holds a key sends `down` again |
 | `mirror(topic, seconds)` | `(mirror TOPIC SECONDS)` | Create or extend a leased feed of the panel's frames to TOPIC, raw bytes on change at most `mirror_rate` a second. 0 destroys it. At most 4 holders |
-| `stop()` | `(stop)`, `(exit)` | Terminate the process. The display blanks on the way out |
+| `stop()` | `(stop)` | Terminate the process. The display blanks on the way out |
 
 **The control model.** "Control" means four things, and every client
 speaks one vocabulary. The last column names the framework concept each
@@ -453,7 +454,7 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
                                              │
    ┌─────────────────────────────────────────┴────────────────────────┐
    │ DisplayImpl                                                       │
-   │  _topic_in_handler: parse guard → oled: aliases → allow-list      │
+   │  _topic_in_handler: parse guard → FunctionGate allow list        │
    │  wire methods ─► FrameBuffer (PIL "1", canvas size, wire coords)  │
    │  _tick 30 Hz  ─► applet.step() → frame (centered if smaller)      │
    │  _present(frame): + title row, skip if unchanged ─► Output.show   │
@@ -493,13 +494,13 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
 - **Coalescing.** A frame is shown only when its bytes changed, and at
   most once per tick. Thus a flood of `pixels` commands costs
   microseconds each and one device write.
-- **Deny by default (P12).** The `FunctionFilter` aspect holds the allow
+- **Deny by default (P12).** The `FunctionGate` aspect holds the allow
   list, and the framework's `_topic_in_handler` asks it. The parser is
-  guarded, because a token such as `12:30` raises inside it. The `oled:`
-  names and `exit` are aliased through `function_aliases`. Only
+  guarded, because a token such as `12:30` raises inside it. Only
   `FUNCTIONS` reach the mailbox: the abstract methods of the three
   aspects, plus `stop` and `set_log_level`. Inherited public functions
-  such as `run` are unreachable.
+  such as `run` are unreachable, and there are no function name
+  aliases.
 - **The key map on the device.** `key()` runs a mapped key's preset, or
   changes its setting, and passes any other key to the running applet.
   Thus the console, the emulator window, `aiko_display key` and the
@@ -533,7 +534,7 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
 - A callback from another thread, such as the connection state handler,
   only posts a message to the mailbox.
 - The CLI's `run` installs a SIGTERM handler and blanks the display in a
-  `finally` block. Ctrl-C, `(exit)`, `aiko_display exit` and
+  `finally` block. Ctrl-C, `(stop)`, `aiko_display exit` and
   `systemctl stop` all leave the panel blank.
 - With `-o terminal`, console logging would scribble on the picture.
   `run` sets `AIKO_LOG_MQTT=true` unless it is already set.

@@ -8,6 +8,17 @@ pre-publication history is maintained privately.
 
 ## 2026-10-23
 
+- **Update** — [adr/ADR-025_RemoteDisplayAbstraction.md](adr/ADR-025_RemoteDisplayAbstraction.md)
+  decision 1, amended: function name aliases are dropped (project-lead
+  direction). The `oled:` names and `(exit)` were aliases, and one function
+  now has one name, so a client that sends either is denied. `aiko_display
+  exit` publishes `(stop)`. A client of the MicroPython `aiko_engine_mp`
+  vocabulary must send the plain names. The `out`-topic candidate event is
+  `(denied FUNCTION REASON)`, because allow and deny are now the project's
+  words for this, in place of reject and refuse. Registry row 025 records
+  the amendment. The `FunctionGate` aspect that `Actor` composes holds the
+  allow list: `src/aiko_services/main/function_gate.py`.
+
 - **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
   section 9: three failure modes seen during the aiko01 WhisPlay Actor work on
   2026-10-22 and 2026-10-23 — a deny-by-default dispatch guard that refused

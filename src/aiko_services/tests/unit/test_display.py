@@ -278,16 +278,20 @@ def test_composition_and_wire_commands(actor_display):
     assert actor.share["applet"] == "none"
     assert display.opened and len(display.frames) == 1   # the blank canvas
 
-def test_dispatch_aliases_allow_list_and_parse_guard(actor_display):
+def test_dispatch_allow_list_and_parse_guard(actor_display):
+    """Every one of these is denied: a prefixed name (no aliases since
+    2026-10-23), a framework function, an unknown name, two payloads the
+    parser cannot read, and an inherited public function"""
+
     actor, display = actor_display
     for payload in ("(oled:text 0 0 hello)", "(run)", "(bogus 1)",
                     "(log 12:30 lunch)", "(text x: 1 y: 2)", "(add_tags t)"):
         actor._topic_in_handler(None, actor.topic_in, payload)
     run_loop()
-    assert lit_rows(display.frames[-1]) == list(range(56, 63))
-    assert actor._metrics["denied"] == 5
+    assert actor._metrics["denied"] == 6
+    assert actor._metrics["commands"] == 0
     assert actor.share["last_error"].startswith("dispatch_")
-    assert actor._metrics["commands"] == 1
+    assert len(display.frames) == 1              # nothing was drawn
 
 # --------------------------------------------------------------------------- #
 # The Actor: wire commands
@@ -359,13 +363,22 @@ def test_log_scrolls_and_keeps_eight_lines(actor_display):
     actor.log(["nested"])
     assert len(display.frames) == frames and actor._metrics["denied"] == 2
 
-def test_exit_is_stop_and_terminates(actor_display, monkeypatch):
+def test_stop_terminates_and_exit_is_denied(actor_display, monkeypatch):
+    """(stop) is the only name for it.  (exit) was an alias until the
+    aliases were dropped on 2026-10-23, so it is now denied like any other
+    function that is not in the allow list"""
+
     actor, _ = actor_display
     calls, posted = [], []
     monkeypatch.setattr(aiko.process, "terminate", lambda *args: calls.append(args))
     monkeypatch.setattr(actor, "_post_message", lambda *args: posted.append(args))
+
     actor._topic_in_handler(None, actor.topic_in, "(exit)")
-    assert posted[-1][1:] == ("stop", [])                # the alias
+    assert posted == []
+
+    actor._topic_in_handler(None, actor.topic_in, "(stop)")
+    assert posted[-1][1:] == ("stop", [])
+
     actor.stop()
     assert calls == [()]
 

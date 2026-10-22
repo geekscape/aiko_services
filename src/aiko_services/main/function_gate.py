@@ -1,6 +1,6 @@
 # Description
 # ~~~~~~~~~~~
-# Which functions a Service accepts from the message bus: the FunctionFilter
+# Which functions a Service accepts from the message bus: the FunctionGate
 # aspect (P12, ADR-023 deny by default).
 #
 # An aspect, in the way that "Hooks" is an aspect of Service: its own
@@ -15,14 +15,14 @@
 #
 #     class ExampleImpl(Example):
 #         def __init__(self, context):
-#             context.call_init(self, "FunctionFilter", context,
+#             context.call_init(self, "FunctionGate", context,
 #                 functions=interface_functions(Example))
 #             context.call_init(self, "Actor", context)
 #
 # "call_init()" is idempotent, so an Implementation configures the aspect
 # before the Actor initializes it, and the Actor then leaves it alone.
 #
-# filter_function() is pure: a function of the name and the parameters, with
+# deny_function() is pure: a function of the name and the parameters, with
 # no logging and no state of its own.  So a policy is tested with no Actor,
 # no composition and no message broker.  The Actor reports a denial, because
 # the Actor owns the logger and the shared state.
@@ -32,10 +32,10 @@
 # from aiko_services.main import *
 #
 # FUNCTIONS = interface_functions(Example)   # the Interface's own functions
-# filter = compose_instance(FunctionFilterImpl, {"context": Context(),
+# filter = compose_instance(FunctionGateImpl, {"context": Context(),
 #     "functions": FUNCTIONS})
-# filter.filter_function("example", [])      # None: allowed
-# filter.filter_function("exit", [])         # "function": denied
+# filter.deny_function("example", [])      # None: allowed
+# filter.deny_function("exit", [])         # "function": denied
 #
 # To Do
 # ~~~~~
@@ -50,7 +50,7 @@ from aiko_services.main.context import Interface
 
 __all__ = [
     "DENY_FUNCTION", "DENY_PARAMETERS", "DENY_PARSE",
-    "FunctionFilter", "FunctionFilterImpl", "interface_functions"
+    "FunctionGate", "FunctionGateImpl", "interface_functions"
 ]
 
 DENY_FUNCTION = "function"        # the function is not in the allow list
@@ -89,22 +89,22 @@ def interface_functions(*interfaces, extra=FUNCTIONS_FRAMEWORK):
         and not name.startswith("_")}
     return frozenset((names - _functions_framework()) | set(extra))
 
-class FunctionFilter(Interface):
+class FunctionGate(Interface):
     """
     Which functions a Service accepts from the message bus (P12, ADR-023).
     An aspect: "Actor" composes it, and any other Implementation may do the
     same.  Local API only -- the filter itself does not cross the wire
     """
-    Interface.default("FunctionFilter",
-        "aiko_services.main.function_filter.FunctionFilterImpl")
+    Interface.default("FunctionGate",
+        "aiko_services.main.function_gate.FunctionGateImpl")
 
     @abstractmethod
-    def filter_function(self, name, parameters):
+    def deny_function(self, name, parameters):
         """None when "name" may be called with "parameters".  Otherwise a
         short reason token, for the log and for "last_error" in the shared
         state.  Pure: no logging, no state change, no message published"""
 
-class FunctionFilterImpl(FunctionFilter):
+class FunctionGateImpl(FunctionGate):
     """
     Allow every function, or allow only the functions in a list.
 
@@ -117,7 +117,7 @@ class FunctionFilterImpl(FunctionFilter):
     def __init__(self, context, functions=None, **_):
         self.functions = None if functions is None else frozenset(functions)
 
-    def filter_function(self, name, parameters):
+    def deny_function(self, name, parameters):
         if not isinstance(parameters, list):
             return DENY_PARAMETERS
         if self.functions is None:

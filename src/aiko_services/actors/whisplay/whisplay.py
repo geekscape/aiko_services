@@ -90,7 +90,7 @@ class WhisPlayImpl(WhisPlay):
         long_press=LONG_PRESS_SECONDS, worker=True):
 
         context.call_init(
-            self, "FunctionFilter", context, functions=FUNCTIONS)
+            self, "FunctionGate", context, functions=FUNCTIONS)
         context.call_init(self, "Actor", context)
 
         self._panel, self._camera, self._button = panel, camera, button

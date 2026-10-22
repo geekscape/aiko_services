@@ -1,4 +1,4 @@
-# Aiko Services tests: the FunctionFilter aspect
+# Aiko Services tests: the FunctionGate aspect
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # No hardware, no message broker, no event loop.
 #
@@ -14,7 +14,7 @@
 # To Do
 # ~~~~~
 # - A test for a policy Implementation that reads the HyperSpace, when the
-#   To Do in "function_filter.py" is done
+#   To Do in "function_gate.py" is done
 
 from abc import abstractmethod
 import itertools
@@ -23,9 +23,9 @@ import pytest
 
 import aiko_services as aiko
 from aiko_services.main.actor import ActorTest, ActorTestImpl
-from aiko_services.main.function_filter import (
+from aiko_services.main.function_gate import (
     DENY_FUNCTION, DENY_PARAMETERS, DENY_PARSE,
-    FunctionFilter, FunctionFilterImpl, interface_functions,
+    FunctionGate, FunctionGateImpl, interface_functions,
 )
 
 FRAMEWORK = frozenset({"set_log_level", "stop"})
@@ -50,13 +50,13 @@ class _Two(aiko.Interface):
     def two(self):
         pass
 
-def make_filter(functions=None):
+def make_gate(functions=None):
     """The aspect alone: no Actor, no Service, no composition of either"""
 
     init_args = {"context": aiko.Context()}
     if functions is not None:
         init_args["functions"] = functions
-    return aiko.compose_instance(FunctionFilterImpl, init_args)
+    return aiko.compose_instance(FunctionGateImpl, init_args)
 
 def make_actor(impl=ActorTestImpl):
     """A composed Actor whose posted messages are collected, not run"""
@@ -73,17 +73,10 @@ class _FilteredActorTestImpl(ActorTestImpl):
     is how every Actor that wants deny by default does it"""
 
     def __init__(self, context):
-        context.call_init(self, "FunctionFilter", context,
+        context.call_init(self, "FunctionGate", context,
             functions=interface_functions(ActorTest))
         context.call_init(self, "Actor", context)
         self.test_count = None
-
-class _AliasActorTestImpl(_FilteredActorTestImpl):
-    """The same, with one alias, as the Display Actor has"""
-
-    def __init__(self, context):
-        self.function_aliases = {"actor_test:test": "test"}
-        super().__init__(context)
 
 # The allow list, derived from the contract ------------------------------- #
 
@@ -124,44 +117,44 @@ def test_an_unconfigured_filter_allows_everything():
     """D13: every Actor that does not configure the aspect keeps the
     behaviour it had before the aspect existed"""
 
-    function_filter = make_filter()
+    function_gate = make_gate()
     for name in ("test", "exit", "_remove", "anything at all"):
-        assert function_filter.filter_function(name, []) is None
+        assert function_gate.deny_function(name, []) is None
 
 def test_a_configured_filter_allows_a_listed_function():
     """The test that an earlier guard did not have: something gets through"""
 
-    assert make_filter({"test"}).filter_function("test", ["1"]) is None
+    assert make_gate({"test"}).deny_function("test", ["1"]) is None
 
 def test_a_configured_filter_denies_an_unlisted_function():
-    assert make_filter({"test"}).filter_function("exit", []) == DENY_FUNCTION
+    assert make_gate({"test"}).deny_function("exit", []) == DENY_FUNCTION
 
 def test_an_empty_allow_list_denies_every_function():
-    function_filter = make_filter(frozenset())
+    function_gate = make_gate(frozenset())
     for name in ("test", "set_log_level", "stop"):
-        assert function_filter.filter_function(name, []) == DENY_FUNCTION
+        assert function_gate.deny_function(name, []) == DENY_FUNCTION
 
 def test_parameters_that_are_not_a_list_are_denied():
     for parameters in ("a string", {"a": "dict"}, None, 7):
-        assert make_filter({"test"}).filter_function("test", parameters) ==  \
+        assert make_gate({"test"}).deny_function("test", parameters) ==  \
             DENY_PARAMETERS
 
 def test_parameters_are_checked_before_the_allow_list():
     """Even an unconfigured filter denies parameters it cannot dispatch"""
 
-    assert make_filter().filter_function("test", "not a list") ==  \
+    assert make_gate().deny_function("test", "not a list") ==  \
         DENY_PARAMETERS
 
 def test_the_filter_is_an_interface_with_a_default():
-    assert issubclass(FunctionFilterImpl, FunctionFilter)
-    assert "FunctionFilter" in aiko.Interface.get_implementations()
+    assert issubclass(FunctionGateImpl, FunctionGate)
+    assert "FunctionGate" in aiko.Interface.get_implementations()
 
 # The aspect, composed into an Actor -------------------------------------- #
 
 def test_every_actor_has_the_aspect():
     actor, _ = make_actor()
 
-    assert callable(actor.filter_function)
+    assert callable(actor.deny_function)
     assert actor.functions is None            # unconfigured: allow all
 
 def test_pipeline_and_pipeline_element_inherit_the_aspect():
@@ -171,7 +164,7 @@ def test_pipeline_and_pipeline_element_inherit_the_aspect():
     from aiko_services.main.pipeline import Pipeline, PipelineElement
 
     for interface in (aiko.Actor, PipelineElement, Pipeline):
-        assert FunctionFilter in interface.__mro__
+        assert FunctionGate in interface.__mro__
 
 def test_an_unconfigured_actor_posts_any_function():
     actor, posted = make_actor()
@@ -205,15 +198,13 @@ def test_the_impl_configuration_survives_the_actors_own_call_init():
 
     assert actor.functions == interface_functions(ActorTest)
 
-def test_an_alias_is_mapped_before_the_filter_sees_it():
-    actor, posted = make_actor(_AliasActorTestImpl)
+def test_a_prefixed_name_is_not_an_alias_of_an_allowed_function():
+    """Function name aliases were dropped (project-lead direction,
+    2026-10-23): one function has one name, and a prefixed form is simply
+    a function that is not in the allow list"""
+
+    actor, posted = make_actor(_FilteredActorTestImpl)
     actor._topic_in_handler(None, "topic/in", "(actor_test:test 7)")
-
-    assert posted == [("test", ["7"])]        # the canonical name is posted
-
-def test_an_alias_of_an_unlisted_function_is_still_denied():
-    actor, posted = make_actor(_AliasActorTestImpl)
-    actor._topic_in_handler(None, "topic/in", "(actor_test:exit)")
 
     assert posted == []
 

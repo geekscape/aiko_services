@@ -111,10 +111,6 @@ PROTOCOL_TYPE = "display"
 PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/{PROTOCOL_TYPE}:{_VERSION}"
 
 # aiko_engine_mp names its commands "oled:clear" etc: the same methods
-_ALIASES = {f"oled:{name}": name
-    for name in ("clear", "log", "pixel", "pixels", "text")}
-_ALIASES["exit"] = "stop"       # the framework's stop() terminates; the CLI blanks
-
 LOG_LINES = 8                 # the log ring: oldest line dropped
 PIXEL_PAIRS_MAXIMUM = 256     # per (pixels ...) command
 TEXT_LENGTH_MAXIMUM = 128     # characters per (text ...) or (log ...)
@@ -380,7 +376,7 @@ def service_filter(name):
 
 # The functions accepted on the "in" topic: the abstract methods of the
 # aspects (never the framework's Actor and Service methods), plus the
-# framework's log level and stop (P12: deny by default).  The FunctionFilter
+# framework's log level and stop (P12: deny by default).  The FunctionGate
 # aspect applies it; interface_functions() derives it from the contract
 FUNCTIONS = aiko.interface_functions(*ASPECTS)
 
@@ -443,9 +439,8 @@ class _Host(Host):
 
 class DisplayImpl(Display):
     def __init__(self, context):
-        self.function_aliases = _ALIASES      # read by the Actor's dispatch
         context.call_init(
-            self, "FunctionFilter", context, functions=FUNCTIONS)
+            self, "FunctionGate", context, functions=FUNCTIONS)
         context.call_init(self, "Actor", context)
         parameters = context.get_parameters() or {}
 
@@ -544,8 +539,8 @@ class DisplayImpl(Display):
         self.logger.info(f"{self.name}: output {self.share['backend']} "
                          f"{self.share['device']}, topic {self.topic_in}")
 
-    # Dispatch: the FunctionFilter aspect decides, the Actor's handler
-    # applies "function_aliases" and reports a denial through _deny() ------ #
+    # Dispatch: the FunctionGate aspect decides, and the Actor's handler
+    # reports a denial through _deny() ------------------------------------- #
 
     def _function_denied(self, name, reason, detail=""):
         """The Actor's report of a denial, counted as this Actor counts its
