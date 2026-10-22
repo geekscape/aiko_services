@@ -1,5 +1,7 @@
 # Usage
 # ~~~~~
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
 # grep -A8 '"graph"' ../robot_pipeline.json  # Show PipelineDefinition Graph
 # grep   '{ "name"'  ../robot_pipeline.json  # Show PipelineElements list  }
 #

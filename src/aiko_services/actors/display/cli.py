@@ -7,11 +7,20 @@
 # -n (default: this host's name) and sends it one command, giving up after
 # -t seconds.  "keys" is the interactive console (console.py).
 #
-# Usage: aiko_display --help
+# Usage
+# ~~~~~
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
+# aiko_display --help
 #
 # Not part of the Interface composition pattern (ADR-022 category
 # Presentation and CLI shells) — see e_10 §2.16: a CLI shell over the
 # Display Actor's Interfaces.
+#
+# To Do
+# ~~~~~
+# - Discovery: do_command() and do_discovery() support remote call timeouts.
+#   - Should just use that ... and not replicate timeout functionality here.
 
 import os
 import signal
@@ -92,9 +101,7 @@ def _display_hint(bus):
         + ": check the wiring and that I2C is enabled")
 
 @click.group()
-@click.option("--name", "-n", type=str, default=None,
-    help="The Display Actor: the one to run, or the one to command  "
-         "[default: the local hostname]")
+@click.option("--name", "-n", type=str, default=None)
 @click.option("--timeout", "-t", type=float, default=TIMEOUT, show_default=True,
     help="Seconds to wait for the Display Actor (for list: to collect them)")
 @click.pass_context
@@ -109,15 +116,17 @@ def main(ctx, name, timeout):
     a demo) that run on the display.  Without the panel, a desktop window,
     the terminal or a PNG file emulates it.
 
+    export AIKO_MQTT_HOST=localhost    # the broker; aiko_registrar must run
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+
     \b
-    export AIKO_MQTT_HOST=localhost       # the broker; aiko_registrar must run
-    aiko_display run -a 0x3C                 # the OLED, or emulated on a desktop
-    aiko_display text 0 0 hello            # from another terminal: the bottom row
-    aiko_display log Hello from nomad        # scrolls; the status applet shows it
-    aiko_display set contrast 64           # a setting: the Dashboard edits it too
-    aiko_display applet pong                 # an applet; applet -l lists them
-    aiko_display keys                        # an interactive console
-    aiko_display -n w3029f1 -t 3 applet eyes  # another host, 3 s to find it
+    aiko_display run -a 0x3C           # the OLED, or emulated on a desktop
+    aiko_display text 0 0 hello        # from another terminal: the bottom row
+    aiko_display log Hello from nomad  # scrolls; the status applet shows it
+    aiko_display set contrast 64       # a setting: the Dashboard edits it too
+    aiko_display applet pong           # an applet; applet -l lists them
+    aiko_display keys                  # an interactive console
+    aiko_display -n w3029f1 -t 3 applet eyes  # another host, 3s to find it
     aiko_display exit
     """
 

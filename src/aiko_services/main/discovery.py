@@ -4,6 +4,8 @@
 # ~~~~~
 # AIKO_LOG_LEVEL=DEBUG ./discovery.py start &
 #
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
 # AIKO_LOG_LEVEL=DEBUG ./discovery.py test_discovery
 #   Add:    name: topic_path
 #   Remove: name: topic_path
@@ -86,6 +88,7 @@ PROTOCOL = f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE}:{_VERSION}"
 
 _RESPONSE_TOPIC = f"{aiko.topic_in}"
 
+_TIMEOUT_DEFAULT = 1.0  # seconds
 _TIMEOUT_ENVIRONMENT_VARIABLE = "AIKO_DISCOVERY_TIMEOUT"  # seconds
 _TIMEOUT_EXIT_STATUS = 1
 
@@ -258,7 +261,7 @@ def do_command(
                          f"{service_filter.summary()}"
             _timeout_expired(diagnostic, timeout_handler, terminate)
 
-    event.add_timer_handler(waiting_timer_handler, 0.5)
+    event.add_timer_handler(waiting_timer_handler, _TIMEOUT_DEFAULT)
     if timeout:
         event.add_timer_handler(timeout_timer_handler, timeout)
     service_discovery, service_discovery_handler = do_discovery(
@@ -358,6 +361,11 @@ class ExampleImpl(Example):
 @click.group()
 
 def main():
+    """Discovery example
+
+    \b
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+    """
     pass
 
 @main.command(help="Example start")

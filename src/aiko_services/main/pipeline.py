@@ -4,6 +4,8 @@
 #
 # Usage: aiko_pipeline create
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
 # DEFINITION=pipeline_definition.json
 # aiko_pipeline create  [--name $PIPELINE_NAME] $DEFINITION
 # aiko_pipeline destroy $PIPELINE_NAME
@@ -27,6 +29,8 @@
 #
 #   Update and create Stream and/or Frame
 #   -------------------------------------
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
 # aiko_pipeline create ../examples/pipeline/pipeline_local.json -ll debug
 #
 # aiko_pipeline update p_local -fd "(b: 0)"           # Create Frame
@@ -1855,7 +1859,11 @@ class PipelineDefinitionSchema:
 @click.group()
 
 def main():
-    """Create, list, update and destroy Pipelines"""
+    """Create, list, update and destroy Pipelines
+
+    \b
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optonal)
+    """
     pass
 
 def do_show_response(topic_response=None):  # default is to use a queue_response

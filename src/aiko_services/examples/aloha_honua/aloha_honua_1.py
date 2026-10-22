@@ -11,6 +11,8 @@
 #
 # Usage
 # ~~~~~
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
 #   Terminal session 1
 #   ~~~~~~~~~~~~~~~~~~
 #   ../../../../scripts/system_start.sh  # Start mosquitto and Aiko Registrar
@@ -36,10 +38,16 @@ import click
 import aiko_services as aiko
 from aloha_honua_0 import AlohaHonua
 
-@click.command("main", help="Remote call AlohaHonua Actor")
+@click.command("main")
 @click.argument("name", default="hoaloha", required=False)
 
 def main(name):
+    """Remote AlohaHonua Actor command
+
+    \b
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts
+    """
+
     aiko.do_command(
         AlohaHonua,
         aiko.ServiceFilter("*", "aloha_honua", "*", "*", "*", "*"),

@@ -6,6 +6,8 @@
 #
 # Usage
 # ~~~~~
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
 # aiko_process run  [--name name] [--watchdog] [definition_pathname]
 # aiko_process dump [--name name]
 # aiko_process exit [--name name] [--grace_time seconds]
@@ -16,6 +18,8 @@
 #
 # aiko_process enable | disable | start | status | stop hyperspace_path
 #
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts
+#
 # Definition file
 # ~~~~~~~~~~~~~~~
 # The "definition_pathname" is a JSON file, which holds a list of strings.
@@ -25,7 +29,7 @@
 #   [
 #     "true  mosquitto -c 0_mosquitto.conf",
 #     "true  aiko_registrar",
-#     "false aiko_dashboard"
+#     "false aiko_recorder"
 #   ]
 #
 # The flag lets a process be disabled, but stay in the definition.
@@ -416,7 +420,11 @@ def get_service_filter(name=None, owner="*"):
 @click.group()
 
 def main():
-    """Create, Read/List, Update and Destroy Processes"""
+    """Create, Read/List, Update and Destroy Processes
+
+    \b
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optonal)
+    """
     pass
 
 @main.command(name="create",

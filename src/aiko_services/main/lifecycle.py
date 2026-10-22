@@ -2,6 +2,8 @@
 #
 # Usage
 # ~~~~~
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
 # ./lifecycle.py manager [client_count]
 #
 # ./lifecycle.py client client_id lifecycle_manager_topic
@@ -443,6 +445,11 @@ class LifeCycleClientTestImpl(LifeCycleClientTest):
 @click.group()
 
 def main():
+    """LifeCycleManager and LifeCycleManager Tests
+
+    \b
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optonal)
+    """
     pass
 
 @main.command(help="LifeCycleManager Actor")
