@@ -15,6 +15,7 @@
 
 import itertools
 import queue
+import time
 
 from PIL import Image
 import pytest
@@ -39,15 +40,28 @@ def make_actor(**parameters):
         **parameters})
     return aiko.compose_instance(WhisPlayImpl, init_args), panel, button
 
-def run_loop(seconds=0.4):
-    """Run the event loop for a moment: mailboxes and timers"""
+def run_until(predicate, timeout=5.0):
+    """Run the event loop, with its mailboxes and timers, until predicate()
+    is true.  Two things make a single timed call unreliable here.  A fixed
+    window makes the test depend on wall-clock speed.  And the event loop is
+    a global that earlier tests leave timer handlers in, so a handler that
+    is not ours can terminate the loop after one pass.  So the loop is
+    entered again until the predicate holds, or the deadline passes"""
 
-    def stop():
-        aiko.event.remove_timer_handler(stop)
-        aiko.process.terminate()
+    deadline = time.monotonic() + timeout
 
-    aiko.event.add_timer_handler(stop, seconds)
-    aiko.process.run(mqtt_connection_required=False)
+    def check():
+        if predicate() or time.monotonic() > deadline:
+            aiko.event.remove_timer_handler(check)
+            aiko.process.terminate()
+
+    aiko.event.add_timer_handler(check, 0.02)
+    try:
+        while not predicate() and time.monotonic() < deadline:
+            aiko.process.run(mqtt_connection_required=False)
+            time.sleep(0.01)         # a loop that exits at once must not spin
+    finally:
+        aiko.event.remove_timer_handler(check)
 
 # The frame ---------------------------------------------------------------- #
 
@@ -460,7 +474,8 @@ def test_worker_reports_frames_through_the_mailbox():
         "action": "none", "rate": "30.0"})        # worker=True, on purpose
     actor = aiko.compose_instance(WhisPlayImpl, init_args)
     try:
-        run_loop(0.6)
+        run_until(lambda: camera.captures > 0 and panel.frame is not None
+            and int(actor.share["frames"]) > 0)
         assert camera.captures > 0                # the thread ran
         assert panel.frame is not None            # and drew something
         assert int(actor.share["frames"]) > 0     # applied on the loop thread
