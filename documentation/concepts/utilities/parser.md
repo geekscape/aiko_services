@@ -124,9 +124,15 @@ Rendering rules, in order:
   | `*` | "match anything", in a filter | a `ServiceFilter` field, a share filter |
   | `-` | "no value yet", in a field or a share item | `time_remove` of a running Service, `last_error` of an Actor that has none |
 
-  A new wire form uses `-` for an absent value, and not `0:`. Thus a
-  reader in another language needs no null of its own (project-lead
-  direction, 2026-10-23).
+  The rule has two halves, and a reader needs both. **Read `0:`, and
+  never write it into a new wire form.** `generate(None)` still emits it,
+  and an older wire form still carries it, so a reader keeps a None of its
+  own to read it with. A new wire form uses `-` for an absent value. Thus
+  no reader has to make `0:` mean something in a language that has no
+  None (project-lead direction, 2026-10-23, with the Go port).
+
+  This is the same posture as the minimum-arity rule for the Registrar's
+  `(add ...)`: tolerant where it reads, exact where it writes.
 - Everything else (int, float, bool, ...) is emitted through its `str()` form.
 
 **Parsing.** `parse()` scans the payload character by character,

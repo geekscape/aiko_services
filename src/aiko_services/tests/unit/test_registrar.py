@@ -453,3 +453,12 @@ def test_a_full_date_time_needs_no_length_prefix():
     assert generate("add", ["t", "08:17:40"]) == "(add t 8:08:17:40)"
 
 # --------------------------------------------------------------------------- #
+
+def test_a_reader_still_reads_the_codecs_none():
+    """The other half of the rule: "0:" is never written into a new wire
+    form, and a reader keeps a None to read it with, because
+    generate(None) still emits it and an older form still carries it"""
+
+    from aiko_services.main.utilities import generate
+
+    assert parse(generate("add", ["t", None]))[1][1] is None
