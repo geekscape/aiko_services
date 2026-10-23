@@ -99,7 +99,7 @@ asks for. The spike refined `Service`, so a filter could be given only
 at construction. A client adds one while it runs:
 
 ```bash
-mosquitto_pub -t <topic_path>/in -m "(record aiko/+/+/+/out)"
+mosquitto_pub -t <topic_path>/in -m "(record_start aiko/+/+/+/out)"
 ```
 
 The filter is the identity of a recording, so recording one twice
@@ -207,7 +207,7 @@ Key design points:
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
-| `Recorder` (Interface) | Declare `record` and `record_stop` | `Actor` (parent Interface) |
+| `Recorder` (Interface) | Declare `record_start` and `record_stop` | `Actor` (parent Interface) |
 | `RecorderImpl` | Subscribe to each filter; hold an LRU cache of per-topic ring buffers; remove an evicted topic's shared state; republish the newest record of each topic | `LRUCache` (utilities); `collections.deque`; `ECProducer` ([Share](share.md)); `FunctionGate` |
 
 ## Current limitations and roadmap

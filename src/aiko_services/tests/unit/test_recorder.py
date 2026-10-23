@@ -73,7 +73,7 @@ def recorder():
         return actor
     return make
 
-def record(actor, topic, text):
+def deliver(actor, topic, text):
     actor.recorder_handler(None, topic, text)
 
 # A log record is stored as it arrived ----------------------------------- #
@@ -105,7 +105,7 @@ def test_the_parser_carries_an_awkward_log_record(record_text):
     ids=[repr(text) for text in AWKWARD])
 def test_an_awkward_record_is_stored_as_it_arrived(recorder, record_text):
     actor = recorder()
-    record(actor, TOPIC, record_text)
+    deliver(actor, TOPIC, record_text)
 
     assert actor.get_records(TOPIC) == [record_text]
     assert actor.share["lru_cache"][TOPIC] == record_text
@@ -114,7 +114,7 @@ def test_an_awkward_record_is_stored_as_it_arrived(recorder, record_text):
 
 def test_the_newest_record_reaches_the_shared_state(recorder):
     actor = recorder()
-    record(actor, TOPIC, "first")
+    deliver(actor, TOPIC, "first")
 
     assert actor.share["lru_cache"][TOPIC] == "first"
     assert actor.get_records(TOPIC) == ["first"]
@@ -122,15 +122,15 @@ def test_the_newest_record_reaches_the_shared_state(recorder):
 def test_the_ring_buffer_keeps_the_newest_records(recorder):
     actor = recorder(ring_buffer_size=3)
     for text in ("one", "two", "three", "four"):
-        record(actor, TOPIC, text)
+        deliver(actor, TOPIC, text)
 
     assert actor.get_records(TOPIC) == ["two", "three", "four"]
     assert actor.share["lru_cache"][TOPIC] == "four"
 
 def test_each_topic_has_its_own_ring_buffer(recorder):
     actor = recorder()
-    record(actor, TOPIC, "mine")
-    record(actor, OTHER, "theirs")
+    deliver(actor, TOPIC, "mine")
+    deliver(actor, OTHER, "theirs")
 
     assert actor.get_records(TOPIC) == ["mine"]
     assert actor.get_records(OTHER) == ["theirs"]
@@ -145,9 +145,9 @@ def test_an_evicted_topic_loses_its_shared_state(recorder):
     the evicted topic's last log record for ever"""
 
     actor = recorder(lru_cache_size=2)
-    record(actor, "a/1/1/1/log", "first")
-    record(actor, "b/1/1/1/log", "second")
-    record(actor, "c/1/1/1/log", "third")        # evicts a/1/1/1/log
+    deliver(actor, "a/1/1/1/log", "first")
+    deliver(actor, "b/1/1/1/log", "second")
+    deliver(actor, "c/1/1/1/log", "third")        # evicts a/1/1/1/log
 
     assert "lru_cache.a/1/1/1/log" in actor.ec_producer.removes
     assert "a/1/1/1/log" not in actor.share["lru_cache"]
@@ -158,18 +158,18 @@ def test_recording_a_topic_again_keeps_it(recorder):
     the one evicted"""
 
     actor = recorder(lru_cache_size=2)
-    record(actor, "a/1/1/1/log", "first")
-    record(actor, "b/1/1/1/log", "second")
-    record(actor, "a/1/1/1/log", "again")        # a is now the most recent
-    record(actor, "c/1/1/1/log", "third")        # so b is evicted
+    deliver(actor, "a/1/1/1/log", "first")
+    deliver(actor, "b/1/1/1/log", "second")
+    deliver(actor, "a/1/1/1/log", "again")        # a is now the most recent
+    deliver(actor, "c/1/1/1/log", "third")        # so b is evicted
 
     assert "b/1/1/1/log" not in actor.share["lru_cache"]
     assert "a/1/1/1/log" in actor.share["lru_cache"]
 
 def test_an_eviction_is_counted(recorder):
     actor = recorder(lru_cache_size=1)
-    record(actor, "a/1/1/1/log", "first")
-    record(actor, "b/1/1/1/log", "second")
+    deliver(actor, "a/1/1/1/log", "first")
+    deliver(actor, "b/1/1/1/log", "second")
 
     assert actor.share["metrics"]["evicted"] == 1
     assert actor.share["metrics"]["topics"] == 1
@@ -178,9 +178,9 @@ def test_an_eviction_is_counted(recorder):
 
 def test_the_records_and_topics_are_counted(recorder):
     actor = recorder()
-    record(actor, TOPIC, "one")
-    record(actor, TOPIC, "two")
-    record(actor, OTHER, "three")
+    deliver(actor, TOPIC, "one")
+    deliver(actor, TOPIC, "two")
+    deliver(actor, OTHER, "three")
 
     assert actor.share["metrics"]["records"] == 3
     assert actor.share["metrics"]["topics"] == 2
@@ -190,10 +190,10 @@ def test_a_counter_a_client_falsified_is_corrected(recorder):
     held by the Recorder, so "string + 1" is never evaluated"""
 
     actor = recorder()
-    record(actor, TOPIC, "one")
+    deliver(actor, TOPIC, "one")
     actor.ec_producer.update("metrics.records", "0")     # falsified
 
-    record(actor, TOPIC, "two")
+    deliver(actor, TOPIC, "two")
 
     assert actor.share["metrics"]["records"] == 2
 
@@ -211,12 +211,12 @@ def test_the_sizes_are_published(recorder):
 def test_a_larger_ring_buffer_takes_effect(recorder):
     actor = recorder(ring_buffer_size=2)
     for text in ("one", "two", "three"):
-        record(actor, TOPIC, text)
+        deliver(actor, TOPIC, text)
     assert actor.get_records(TOPIC) == ["two", "three"]
 
     actor._ec_producer_change_handler("update", "ring_buffer_size", "4")
     for text in ("four", "five"):
-        record(actor, TOPIC, text)
+        deliver(actor, TOPIC, text)
 
     assert actor.get_records(TOPIC) == ["two", "three", "four", "five"]
     assert actor.share["ring_buffer_size"] == 4
@@ -224,7 +224,7 @@ def test_a_larger_ring_buffer_takes_effect(recorder):
 def test_a_smaller_ring_buffer_keeps_the_newest(recorder):
     actor = recorder(ring_buffer_size=4)
     for text in ("one", "two", "three", "four"):
-        record(actor, TOPIC, text)
+        deliver(actor, TOPIC, text)
 
     actor._ec_producer_change_handler("update", "ring_buffer_size", "2")
 
@@ -233,7 +233,7 @@ def test_a_smaller_ring_buffer_keeps_the_newest(recorder):
 def test_a_smaller_lru_cache_evicts_at_once(recorder):
     actor = recorder(lru_cache_size=3)
     for name in "abc":
-        record(actor, f"{name}/1/1/1/log", name)
+        deliver(actor, f"{name}/1/1/1/log", name)
 
     actor._ec_producer_change_handler("update", "lru_cache_size", "1")
 
@@ -281,7 +281,7 @@ def test_only_the_recorders_own_functions_are_allowed():
     from aiko_services.main.recorder import FUNCTIONS
 
     assert FUNCTIONS == frozenset(
-        {"record", "record_stop", "set_log_level", "stop"})
+        {"record_start", "record_stop", "set_log_level", "stop"})
 
 def test_the_gate_denies_what_is_not_a_function(recorder):
     actor = recorder()
@@ -292,8 +292,8 @@ def test_the_gate_denies_what_is_not_a_function(recorder):
         actor._topic_in_handler(None, "t/in", payload)
     assert posted == []
 
-    actor._topic_in_handler(None, "t/in", "(record aiko/+/+/+/out)")
-    assert posted == ["record"]
+    actor._topic_in_handler(None, "t/in", "(record_start aiko/+/+/+/out)")
+    assert posted == ["record_start"]
 
 # Recording a filter while it runs --------------------------------------- #
 
@@ -304,19 +304,19 @@ def test_the_filter_given_at_construction_is_recorded(recorder):
 
 def test_another_filter_is_added(recorder):
     actor = recorder()
-    actor.record("aiko/+/+/+/out")
+    actor.record_start("aiko/+/+/+/out")
 
     assert actor.share["filters"] == [TOPIC, "aiko/+/+/+/out"]
 
 def test_recording_the_same_filter_twice_changes_nothing(recorder):
     actor = recorder()
-    actor.record(TOPIC)
+    actor.record_start(TOPIC)
 
     assert actor.share["filters"] == [TOPIC]
 
 def test_a_filter_is_stopped(recorder):
     actor = recorder()
-    actor.record("aiko/+/+/+/out")
+    actor.record_start("aiko/+/+/+/out")
     actor.record_stop(TOPIC)
 
     assert actor.share["filters"] == ["aiko/+/+/+/out"]

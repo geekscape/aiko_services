@@ -178,7 +178,7 @@ diffs it against this document.
   `remove(topic_path)`, `share(topic_response, …filter…)`, `history(topic_response, count)` —
   no `query`. Contract promotion in e_10 §2.2.)*
 - `ProcessManager` (refines `Actor`) — `spawn(command, specification)`, `terminate(process_id)`.
-- `Recorder` (refines `Actor`) — `record(topic_filter)`, `stop(recording_id)`. Replay lands
+- `Recorder` (refines `Actor`) — `record_start(topic_filter)`, `stop(recording_id)`. Replay lands
   here. *(Amended 2026-10-23: the Recorder refines `Actor` from this date, as this entry
   always said it should. `stop(recording_id)` cannot be written, because `stop` is the
   framework's control verb and takes no argument, so the function is `record_stop(filter)`.

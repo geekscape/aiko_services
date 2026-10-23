@@ -30,7 +30,7 @@
 #
 # An Actor, so a client adds a filter while it runs ...
 #
-#   mosquitto_pub -t <topic_path>/in -m "(record aiko/+/+/+/out)"
+#   mosquitto_pub -t <topic_path>/in -m "(record_start aiko/+/+/+/out)"
 #   mosquitto_pub -t <topic_path>/in -m "(record_stop aiko/+/+/+/out)"
 #
 # Deny by default (P12, ADR-023): record, record_stop, set_log_level and
@@ -88,12 +88,12 @@ class Recorder(Actor):
 
     An Actor since 2026-10-23, as s_02_InterfaceComposition says it should
     be: the spike refined Service, which is why a filter could only be set
-    at construction.  record() adds one while it runs
+    at construction.  record_start() adds one while it runs
     """
     Interface.default("Recorder", "aiko_services.main.recorder.RecorderImpl")
 
     @abstractmethod
-    def record(self, topic_path_filter):
+    def record_start(self, topic_path_filter):
         """Record the log topics that match this filter as well.  The
         filter is the identity of a recording, so recording one twice
         changes nothing.  Projection: command"""
@@ -150,7 +150,7 @@ class RecorderImpl(Recorder):
         })
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
-        self.record(topic_path_filter)
+        self.record_start(topic_path_filter)
 
     def _ec_producer_change_handler(self, command, item_name, item_value):
     # "log_level" is the Actor's, which handles it through self.logger.
@@ -186,7 +186,7 @@ class RecorderImpl(Recorder):
         self._publish_metrics()
         self.logger.info(f"{item_name}: {size}")
 
-    def record(self, topic_path_filter):
+    def record_start(self, topic_path_filter):
         """Record the topics that match this filter as well"""
 
         if topic_path_filter in self._filters:
