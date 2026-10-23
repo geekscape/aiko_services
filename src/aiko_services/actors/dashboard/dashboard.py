@@ -210,7 +210,7 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             screen.height // 3,
             ["<28", "<14", "<8", "<20", ">0"],  # Transport: <10 columns
             options=[],
-            titles=["Service Topic", "Name", "Owner", "Protocol", "Transport"],
+            titles=["Active: Topic", "Name", "Owner", "Protocol", "Transport"],
             on_change=self._on_change_services,
             parser=AnsiTerminalParser()
         )
@@ -218,15 +218,14 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             screen.height // 2,
             ["<24", "<0"],
             options=[],
-            titles=["Variable name", "Value"],
+            titles=["Shared variable: Name", "Value"],
             on_select=self._on_select_variable
         )
         self._history_widget = MultiColumnListBox(  # Transport: <10 columns
             Widget.FILL_FRAME,
             ["<28", "<14", "<8", "<20", ">0"],
             options=[],
-            titles=["Service history: Topic",
-                    "Name", "Owner", "Protocol", "Transport"]
+            titles=["History: Topic", "Name", "Owner", "Protocol", "Transport"]
         )
         self._add_title_bar()
         layout_0 = Layout([1], fill_frame=True)
