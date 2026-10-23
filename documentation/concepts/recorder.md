@@ -11,7 +11,7 @@ source:
   - src/aiko_services/main/recorder.py
 related: [design_overview, service, share, registrar, dashboard, message]
 version: "0.6"
-last_updated: 2026-08-01
+last_updated: 2026-10-23
 ---
 
 # Recorder
@@ -37,8 +37,7 @@ individually:
 ```bash
 mosquitto_sub -t '#' -v          # raw firehose, for comparison
 aiko_registrar &
-cd src/aiko_services/main
-./recorder.py &                  # curated: recent logs per topic,
+aiko_recorder &                  # curated: recent logs per topic,
                                  # visible as shared state
 ```
 
@@ -46,12 +45,10 @@ cd src/aiko_services/main
 
 ### Command-line usage
 
-There is no console script for this concept (no `aiko_recorder` entry
-point in `pyproject.toml`). Run the module directly:
+The console script is `aiko_recorder`:
 
 ```bash
-cd src/aiko_services/main
-./recorder.py [TOPIC_PATH_FILTER] &
+aiko_recorder [--lru_cache_size N] [--ring_buffer_size N] [TOPIC_PATH_FILTER] &
 ```
 
 `TOPIC_PATH_FILTER` defaults to `{namespace}/+/+/+/log` (for example
@@ -65,10 +62,27 @@ A typical session, following the source header:
 ```bash
 mosquitto_sub -t '#' -v &        # observe everything (optional)
 aiko_registrar &
-./recorder.py &
+aiko_recorder &
 aiko_dashboard                   # select the recorder Service and inspect
                                  # its "lru_cache.<topic>" shared state
 ```
+
+Both sizes are shared variables as well as options, so the Dashboard
+changes them while the Recorder runs. The default of each one is 128,
+which is what the source always intended. A smaller LRU cache evicts the
+least recently used topics at once, and a smaller ring buffer keeps the
+newest records. A value out of range leaves the one in force alone, and
+the Recorder publishes it again and says so in its log.
+
+The shared state carries `metrics.records`, `metrics.topics` and
+`metrics.evicted`, so a client sees how much the Recorder holds and how
+much it has let go.
+
+A log record is stored and published as it arrived. The parser gives a
+length prefix to a value that holds a space, a parenthesis, a quote, a
+newline or a non-breaking space. It then returns that value exactly, so
+the Recorder changes nothing. Before 2026-10-23 it turned each
+parenthesis into a brace, which reported a log record that nobody wrote.
 
 ### Public API
 

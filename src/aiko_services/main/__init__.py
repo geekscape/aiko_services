@@ -81,6 +81,10 @@ from .category import Category, CategoryImpl
 
 from .hyperspace import HyperSpace, HyperSpaceImpl
 
+from .recorder import (
+    LRU_CACHE_SIZE, RING_BUFFER_SIZE, Recorder, RecorderImpl
+)
+
 from .process_manager import (
     ProcessManager, ProcessManagerCache, ProcessManagerImpl,
     parse_process_share

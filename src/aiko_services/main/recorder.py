@@ -1,26 +1,38 @@
 #!/usr/bin/env python3
 #
-# Aiko Service: Recorder
-# ~~~~~~~~~~~~~~~~~~~~~~
+# Aiko Services: Recorder
+# ~~~~~~~~~~~~~~~~~~~~~~~
+# Records the log records of other Services, and republishes them as
+# shared state, so that the Dashboard and any other client reads the
+# recent log of a Service it did not watch at the time.
+#
+# One ring buffer for each topic, held in an LRU cache of topics.  A busy
+# system has more log topics than a Recorder should hold, so the least
+# recently used topic is evicted, and its shared state goes with it.
 #
 # Usage
 # ~~~~~
-# mosquitto_sub -t '#' -v
-# REGISTRAR=0 registrar &
-# RECORDER=0 ./recorder.py [topic_path_filter] &
+# aiko_recorder [--lru_cache_size N] [--ring_buffer_size N] [TOPIC_FILTER]
 #
-# Where "topic_path_filter" default: "aiko/+/+/+/log"
+# Where TOPIC_FILTER defaults to "<namespace>/+/+/+/log"
+#
+#   mosquitto_sub -t '#' -v        # watch everything, in another terminal
+#   aiko_registrar &
+#   aiko_recorder &
+#   aiko_dashboard                 # select the Recorder, then press S
+#
+# Both sizes are shared variables as well as options, so a Dashboard
+# changes them while the Recorder runs.  A smaller LRU cache evicts at
+# once, and a smaller ring buffer keeps the newest records.
 #
 # To Do
 # ~~~~~
-# - Improve CLI to record multiple different topic paths
-# - On-the-fly configuration parameter updates ...
-#   - _RING_BUFFER_SIZE, _TOPIC_LRU_CACHE_SIZE
-#   - topic_path_filter causes unsubscribe and resubscribe to correct topic
-# - Keep statistics for ...
-#   - Topic LRU cache length
-#   - Total messages received / sent, messages received / sent per second
-# - Why doesn't Python MQTT client subscribe("+/+/+/+/log") work ?
+# - Record several topic path filters, instead of one
+# - A filter change should unsubscribe and resubscribe
+# - Publish the whole ring buffer, not only the newest record.  Measured:
+#   a depth of 128 is about 8 KB for each record published, for each
+#   attached consumer, so this waits on a decision about coalescing
+# - Why doesn't the Python MQTT client subscribe("+/+/+/+/log") work ?
 
 import click
 from abc import abstractmethod
@@ -29,7 +41,10 @@ from collections import deque
 from aiko_services.main import *
 from aiko_services.main.utilities import *
 
-__all__ = ["Recorder"]
+__all__ = [
+    "LRU_CACHE_SIZE", "PROTOCOL", "RING_BUFFER_SIZE", "Recorder",
+    "RecorderImpl", "SERVICE_TYPE",
+]
 
 _VERSION = 0
 
@@ -38,8 +53,14 @@ PROTOCOL = f"{SERVICE_PROTOCOL_AIKO}/{SERVICE_TYPE}:{_VERSION}"
 
 _LOGGER = aiko.logger(__name__)
 
-_LRU_CACHE_SIZE = 2    # 128
-_RING_BUFFER_SIZE = 2  # 128
+LRU_CACHE_SIZE = 128     # topics held at once
+RING_BUFFER_SIZE = 128   # log records held for each topic
+
+# The shared variables a client may change, and the bounds on each
+SIZES = {
+    "lru_cache_size": (1, 4096),
+    "ring_buffer_size": (1, 4096),
+}
 
 # --------------------------------------------------------------------------- #
 
@@ -59,21 +80,34 @@ class Recorder(Service):
         subscription to topic_path_filter.  Projection: command"""
 
 class RecorderImpl(Recorder):
-    def __init__(self, context, topic_path_filter):
+    def __init__(self, context, topic_path_filter,
+        lru_cache_size=LRU_CACHE_SIZE, ring_buffer_size=RING_BUFFER_SIZE):
+
         context.call_init(self, "Service", context)
 
-# TODO: Add LRUCache popitem() handler to remove oldest ring buffer ?
-#       And send ECProducer.remove(topic) to update the ECConsumer
-        self.lru_cache = LRUCache(_LRU_CACHE_SIZE)
+        self.ring_buffer_size = int(ring_buffer_size)
+        self.lru_cache = LRUCache(int(lru_cache_size))
+    # The counters are held here and published from here, never read back
+    # from the share: a share item is writable from the "control" topic,
+    # so a count taken from the share is a count a client can set, and it
+    # is a string once they have
+        self._records = 0
+        self._evicted = 0
 
         self.share = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
-            "source_file": f"v{_VERSION}⇒ {__file__}",
-            "lru_cache": {},                                             # HACK
-            "lru_cache_size": _LRU_CACHE_SIZE,
-            "ring_buffer_size": _RING_BUFFER_SIZE,
-            "topic_path_filter": topic_path_filter
+            "source_file": f"v{_VERSION}⇒ {__file__}",
+        # One item for each recorded topic, holding its newest log record
+            "lru_cache": {},
+            "lru_cache_size": self.lru_cache.size,
+            "ring_buffer_size": self.ring_buffer_size,
+            "topic_path_filter": topic_path_filter,
+            "metrics": {
+                "records": 0,     # log records recorded
+                "topics": 0,      # topics held, which is the LRU cache length
+                "evicted": 0,     # topics evicted, each one losing its records
+            },
         }
         self.ec_producer = compose_instance(
             ECProducerImpl, ec_producer_args(self, self.share))
@@ -84,39 +118,92 @@ class RecorderImpl(Recorder):
     def _ec_producer_change_handler(self, command, item_name, item_value):
         if item_name == "log_level":
             _LOGGER.setLevel(str(item_value).upper())
+        elif item_name in SIZES:
+            self._set_size(item_name, item_value)
+
+    def _set_size(self, item_name, item_value):
+        """Apply a size a client changed, or publish the one still in
+        force, so that a bad Dashboard edit converges back"""
+
+        minimum, maximum = SIZES[item_name]
+        size = parse_int(item_value, 0)
+        in_force = (self.ring_buffer_size
+            if item_name == "ring_buffer_size" else self.lru_cache.size)
+        if size == in_force:
+            return                              # our own publication
+        if not minimum <= size <= maximum:
+            _LOGGER.warning(f"{item_name} must be {minimum} to {maximum}, "
+                            f"not {item_value}: unchanged")
+            self.ec_producer.update(item_name, in_force)
+            return
+        if item_name == "lru_cache_size":
+            for topic, _ in self.lru_cache.resize(size):
+                self._forget(topic)
+        else:
+            self.ring_buffer_size = size
+            for topic in list(self.lru_cache):
+                records = self.lru_cache.get(topic)
+                self.lru_cache.put(topic, deque(records, maxlen=size))
+        self.ec_producer.update(item_name, size)
+        self._publish_metrics()
+        _LOGGER.info(f"{item_name}: {size}")
+
+    def _forget(self, topic):
+        """Remove an evicted topic's shared state, or a consumer keeps its
+        last log record for ever"""
+
+        self.ec_producer.remove(f"lru_cache.{topic}")
+        self._evicted += 1
+        self.ec_producer.update("metrics.evicted", self._evicted)
+
+    def _publish_metrics(self):
+        self.ec_producer.update("metrics.topics", len(self.lru_cache))
 
     def recorder_handler(self, aiko, topic, payload_in):
-        if topic in self.lru_cache:
-            ring_buffer = self.lru_cache.get(topic)
-        else:
-            ring_buffer = deque(maxlen=_RING_BUFFER_SIZE)
-# TODO: If LRUCache popitem(), then manually remove oldest ring buffer ?
-#       And send ECProducer.remove(topic) to update the ECConsumer
-            self.lru_cache.put(topic, ring_buffer)
+        ring_buffer = self.lru_cache.get(topic)
+        if ring_buffer is None:
+            ring_buffer = deque(maxlen=self.ring_buffer_size)
+            evicted = self.lru_cache.put(topic, ring_buffer)
+            if evicted:
+                self._forget(evicted[0])
+            self._publish_metrics()
 
-# TODO: "utilities/parser.py": generate() and parse() need to handle
-#       log messages with special characters ... use Canonical S-Expressions ?
+    # The record is stored and published as it arrived.  It used to have
+    # its parentheses turned into braces, and a replace() that was meant
+    # to remove a non-breaking space but had an ordinary space on both
+    # sides, so it did nothing at all.  Neither is necessary: generate()
+    # gives a value with a space, a parenthesis, a quote, a newline or a
+    # non-breaking space a length prefix, and parse() returns it exactly.
+    # Measured over ten awkward records, and the tests hold that
+        ring_buffer.append(payload_in)
+        self.ec_producer.update(f"lru_cache.{topic}", payload_in)
+        self._records += 1
+        self.ec_producer.update("metrics.records", self._records)
 
-        log_record = payload_in.replace(" ", " ")  # Unicode U00A0 (NBSP)
-        log_record = log_record.replace("(", "{")
-        log_record = log_record.replace(")", "}")
-        ring_buffer.append(log_record)
-        self.ec_producer.update(f"lru_cache.{topic}", log_record)        # HACK
+    def get_records(self, topic):
+        """The ring buffer of one topic, oldest first.  A local read: the
+        shared state carries only the newest record of each topic, until
+        the To Do above is settled"""
 
-# TODO: "share.py:ECConsumer._consumer_handler()" needs to handle list and dict
-#       Appears that the "(add ...)" fails, but "(update ...)" works ?
-#       Dashboard being updated with dict of entries that are lists ... works !
+        ring_buffer = self.lru_cache.get(topic)
+        return list(ring_buffer) if ring_buffer else []
 
 # --------------------------------------------------------------------------- #
 
 @click.command("main", help="Recorder Service")
+@click.option("--lru_cache_size", "-l", type=click.INT,
+    default=LRU_CACHE_SIZE, help="Topics held at once")
+@click.option("--ring_buffer_size", "-r", type=click.INT,
+    default=RING_BUFFER_SIZE, help="Log records held for each topic")
 @click.argument("topic_path_filter", nargs=1, required=False,
     default=f"{get_namespace()}/+/+/+/log")
 
-def main(topic_path_filter):
+def main(lru_cache_size, ring_buffer_size, topic_path_filter):
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
     init_args = service_args(SERVICE_TYPE, None, None, PROTOCOL, tags)
     init_args["topic_path_filter"] = topic_path_filter
+    init_args["lru_cache_size"] = lru_cache_size
+    init_args["ring_buffer_size"] = ring_buffer_size
     recorder = compose_instance(RecorderImpl, init_args)
     aiko.process.run()
 
