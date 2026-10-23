@@ -116,8 +116,13 @@ An `ssh` command does not activate a virtual environment, so give
 ssh claude@aiko01.local 'mkdir -p ~/demo && cd ~/demo && \
   printf "[\n  \"true  sleep 300\",\n  \"false sleep 400\",\n  \"sleep 500\"\n]\n" > demo.json && \
   PYTHONUNBUFFERED=1 AIKO_MQTT_HOST=localhost \
-  ~/venvs/venv_3.13/bin/aiko_process run -n demo demo.json'
+  ~/venvs/venv_3.13/bin/aiko_process run -n demo --unsafe demo.json'
 ```
+
+`--unsafe` is here only so that the demonstration stops itself with
+`aiko_process exit`, which travels on the message bus. A ProcessManager
+runs `--safe` by default, and denies `exit`. See the ProcessManager
+concept document.
 
 The log shows what happened to each entry:
 

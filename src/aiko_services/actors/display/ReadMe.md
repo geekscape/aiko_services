@@ -71,7 +71,7 @@ on every interface (`listener 1883 0.0.0.0` and `allow_anonymous true` in
 aiko_engine_mp style, with `mosquitto_pub` on the Actor's `in` topic:
 
 ```bash
-mosquitto_pub -t aiko/HOST/PID/1/in -m "(oled:text 0 0 hello)"
+mosquitto_pub -t aiko/HOST/PID/1/in -m "(text 0 0 hello)"
 ```
 
 For a display that comes up with the host, install `aiko_display.service`

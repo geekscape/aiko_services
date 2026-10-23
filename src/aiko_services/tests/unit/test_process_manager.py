@@ -155,3 +155,261 @@ def test_create_still_runs_the_true_command(process_manager):
 
     process_manager.create("true", ["sleep", "300"])
     assert process_manager.created == [("true", ["sleep", "300"])]
+
+# The FunctionGate posture: "aiko_process run --safe" ---------------------- #
+#
+# A ProcessManager starts and stops processes on its host, so what it
+# accepts from the message bus is the point of these tests.  Safe mode is
+# the default.  The allow lists are derived, and the response topic rule is
+# a pure function, so most of this needs no Actor and no broker.
+
+import itertools
+
+import aiko_services as aiko
+from aiko_services.main.process_manager import (
+    FUNCTIONS, SAFE, SAFE_FUNCTIONS, PROTOCOL, coerce_response_topic,
+)
+
+_counter = itertools.count()
+OWN = "aiko/host/1000/1/in"
+
+def make_process_manager(safe=SAFE):
+    """A composed ProcessManager whose posted messages are collected"""
+
+    name = f"process_manager_test_{next(_counter)}"
+    init_args = aiko.actor_args(name, protocol=PROTOCOL)
+    init_args["safe"] = safe
+    actor = aiko.compose_instance(ProcessManagerImpl, init_args)
+    posted = []
+    actor._post_message = lambda topic, name, args: posted.append((name, args))
+    return actor, posted
+
+def test_the_allow_list_is_the_interface_and_the_framework():
+    assert FUNCTIONS == frozenset({
+        "create", "destroy", "dump", "exit", "list", "set_log_level", "stop"})
+
+def test_safe_mode_allows_only_what_cannot_start_or_stop_a_process():
+    assert SAFE_FUNCTIONS == frozenset({"list", "set_log_level"})
+    assert SAFE_FUNCTIONS < FUNCTIONS
+    for function in ("create", "destroy", "exit", "stop"):
+        assert function not in SAFE_FUNCTIONS
+
+def test_safe_is_the_default():
+    assert SAFE is True
+    actor, _ = make_process_manager()
+    assert actor.share["safe"] is True
+    assert actor.functions == FUNCTIONS & SAFE_FUNCTIONS
+
+def test_unsafe_accepts_every_declared_function():
+    actor, _ = make_process_manager(safe=False)
+    assert actor.share["safe"] is False
+    assert actor.functions == FUNCTIONS
+
+def test_safe_mode_allows_list_and_the_log_level():
+    """The test that matters most: safe mode must not deny everything"""
+
+    actor, posted = make_process_manager()
+    actor._topic_in_handler(None, "t/in", f"(list {actor.topic_path}/in)")
+    actor._topic_in_handler(None, "t/in", "(set_log_level DEBUG)")
+
+    assert [name for name, _ in posted] == ["list", "set_log_level"]
+
+@pytest.mark.parametrize("payload", [
+    "(create date)", "(destroy 000001)", "(exit 0)", "(stop)", "(dump)"])
+def test_safe_mode_denies_everything_that_acts(payload):
+    actor, posted = make_process_manager()
+    actor._topic_in_handler(None, "t/in", payload)
+
+    assert posted == []
+    assert actor.share["metrics"]["denied"] == 1
+
+@pytest.mark.parametrize("payload", [
+    "(_remove 000001)", "(_run)", "(_parse_definition x)", "(run)",
+    "(add_message_handler a b)", "(set_registrar_handler h)"])
+def test_a_private_or_framework_function_is_denied_in_either_mode(payload):
+    """These reached Message.invoke() by name before the gate existed"""
+
+    for safe in (True, False):
+        actor, posted = make_process_manager(safe=safe)
+        actor._topic_in_handler(None, "t/in", payload)
+        assert posted == [], payload
+
+def test_a_denial_is_observable():
+    """ADR-023 decision 3: a client sees the policy and sees a denial"""
+
+    actor, _ = make_process_manager()
+    actor._topic_in_handler(None, "t/in", "(exit 0)")
+
+    assert actor.share["metrics"]["denied"] == 1
+    assert actor.share["last_error"] == "function exit"
+
+# The response topic "list" publishes to ----------------------------------- #
+
+def test_the_callers_own_in_topic_is_allowed():
+    """The real caller asks for its own "in" topic, so this must work"""
+
+    assert coerce_response_topic(OWN, "aiko/host/2000/1") == OWN
+
+def test_another_suffix_a_service_owns_is_allowed():
+    for suffix in ("in", "out", "control"):
+        topic = f"aiko/host/1000/1/{suffix}"
+        assert coerce_response_topic(topic, "aiko/host/2000/1") == topic
+
+@pytest.mark.parametrize("topic", [
+    "aiko/host/1000/1/+", "aiko/+/1000/1/in", "aiko/#/1000/1/in",
+    "aiko/host/1000/1/#"])
+def test_a_wildcard_is_never_a_response_topic(topic):
+    assert coerce_response_topic(topic, "aiko/host/2000/1") is None
+
+@pytest.mark.parametrize("topic", [
+    "aiko/host/1000/1/log", "aiko/host/1000/1", "aiko/host/1000/1/in/extra",
+    "", "in", "/in"])
+def test_a_topic_that_is_not_a_service_topic_is_denied(topic):
+    assert coerce_response_topic(topic, "aiko/host/2000/1") is None
+
+def test_another_namespace_is_denied():
+    """The boundary that matters: inside the namespace a caller publishes
+    for itself, so the ProcessManager adds no reach.  Outside it, this is
+    the only thing that stops a stranger using it to publish anywhere"""
+
+    assert coerce_response_topic(
+        "elsewhere/host/1000/1/in", "aiko/host/2000/1") is None
+
+def test_a_topic_that_is_not_a_string_is_denied():
+    for topic in (None, 7, ["aiko/host/1000/1/in"]):
+        assert coerce_response_topic(topic, "aiko/host/2000/1") is None
+
+def test_a_very_long_topic_is_denied():
+    assert coerce_response_topic(
+        "aiko/host/1000/" + "x" * 300 + "/in", "aiko/host/2000/1") is None
+
+class _FakeMessage:
+    """Collects what the Actor publishes, instead of reaching a broker"""
+
+    def __init__(self):
+        self.published = []
+
+    def publish(self, topic, payload=None, **_):
+        self.published.append((topic, payload))
+
+def fake_message(monkeypatch):
+    """Replace the process data the module publishes through.  list() uses
+    only "aiko.message.publish", so a stub of that is enough"""
+
+    import aiko_services.main.process_manager as module
+
+    message = _FakeMessage()
+    monkeypatch.setattr(
+        module, "aiko", type("_Aiko", (), {"message": message})())
+    return message
+
+def test_list_denies_a_foreign_response_topic(monkeypatch):
+    actor, _ = make_process_manager()
+    message = fake_message(monkeypatch)
+
+    actor.list("elsewhere/host/1000/1/in")
+
+    assert message.published == []            # it replies to nothing at all
+    assert actor.share["metrics"]["denied"] == 1
+
+def test_list_publishes_to_a_topic_in_its_own_namespace(monkeypatch):
+    actor, _ = make_process_manager()
+    own = f"{actor.topic_path}/in"
+    message = fake_message(monkeypatch)
+
+    actor.list(own)
+
+    assert message.published
+    assert all(topic == own for topic, _ in message.published)
+    assert message.published[0][1].startswith("(item_count")
+
+# The process table in the shared state ------------------------------------ #
+
+def test_the_table_holds_the_process_manager_itself():
+    """Each process is one share entry, so a consumer follows the table
+    live instead of polling "list" """
+
+    actor, _ = make_process_manager()
+    table = actor.share["process"]
+
+    assert list(table) == ["000000"]          # self-aware
+    assert table["000000"].endswith("aiko_process run")
+
+def test_a_process_leaves_the_table_when_it_is_removed():
+    """The leak this closes: a destroyed process stayed in the share for
+    ever, because nothing called ECProducer.remove()"""
+
+    actor, _ = make_process_manager()
+    actor.processes["000001"] = {
+        "command_line": ["date"], "process": _FakeProcess()}
+    actor.ec_producer.update("process.000001", "4242 date")
+    assert "000001" in actor.share["process"]
+
+    actor._remove(["000001"])
+
+    assert "000001" not in actor.share["process"]
+    assert actor.share["metrics"]["running"] == 1
+
+class _FakeProcess:
+    pid = 4242
+
+    def poll(self):
+        return 0                              # it has exited
+
+# --------------------------------------------------------------------------- #
+
+# The shared state is a report, not a control ------------------------------ #
+#
+# Any client can write any share item through the Actor's "control" topic:
+# ECProducerImpl._producer_handler() accepts (update K V), (remove K) and a
+# key that did not exist, with no allow list.  The FunctionGate guards the
+# "in" topic, not that one.  These tests hold the two consequences this
+# Actor must survive.
+
+def test_a_write_to_safe_does_not_change_what_is_enforced():
+    """The question worth asking of a Dashboard: can an edit turn the gate
+    off?  It cannot.  The gate holds its own allow list, decided at
+    construction from the command line"""
+
+    actor, posted = make_process_manager(safe=True)
+    before = set(actor.functions)
+
+    actor.ec_producer.update("safe", "false")   # as the control topic does
+
+    assert set(actor.functions) == before
+    actor._topic_in_handler(None, "t/in", "(create date)")
+    assert posted == []                         # still denied
+
+def test_a_write_to_safe_is_reverted_and_counted():
+    """So the report cannot be made to lie either"""
+
+    actor, _ = make_process_manager(safe=True)
+
+    actor.ec_producer.update("safe", "false")
+
+    assert actor.share["safe"] is True
+    assert actor.share["last_error"] == "read_only safe"
+
+def test_writing_the_posture_it_already_has_is_not_a_denial():
+    actor, _ = make_process_manager(safe=True)
+
+    actor.ec_producer.update("safe", True)
+
+    assert actor.share["safe"] is True
+    assert actor.share["last_error"] == "-"
+
+def test_a_falsified_denial_count_is_corrected_by_the_next_denial():
+    """A client wrote (update metrics.denied 0), which made the item the
+    string "0".  The count is held by the Actor, so "string + 1" is never
+    evaluated and the published count is right again"""
+
+    actor, _ = make_process_manager(safe=True)
+    actor._topic_in_handler(None, "t/in", "(exit 0)")
+    assert actor.share["metrics"]["denied"] == 1
+
+    actor.ec_producer.update("metrics.denied", "0")      # falsified
+    actor._topic_in_handler(None, "t/in", "(exit 0)")    # no TypeError
+
+    assert actor.share["metrics"]["denied"] == 2
+
+# --------------------------------------------------------------------------- #
