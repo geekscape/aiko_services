@@ -281,6 +281,51 @@ def test_a_service_from_an_older_registrar_has_neither():
 
     assert service_duration(OLD) == ("-", "-", "-")
 
+# A registrar:2 Registrar's history reply, which is where this first went
+# wrong.  Its "(share ...)" reply carries six fields, so the test above
+# covered it, and its "(history ...)" reply carries eight -- with both
+# times as time.monotonic() floats.  So the guard that tested only for an
+# absent field let a number through to the ISO 8601 parser, and
+# "aiko_registrar list --history" raised ValueError.
+
+OLD_HISTORY = ["aiko/h/1/1", "svc", "p:0", "mqtt", "owner", [],
+               "4672447.229599291", "4672450.100000000"]
+
+def test_a_monotonic_time_from_an_older_registrar_is_not_a_time():
+    """There is no origin another process can know, so there is no
+    wall-clock time to show"""
+
+    assert service_duration(OLD_HISTORY) == ("-", "-", "-")
+
+def test_a_monotonic_time_that_is_still_running():
+    details = OLD_HISTORY[:7] + ["-"]
+
+    assert service_duration(details) == ("-", "-", "-")
+
+@pytest.mark.parametrize("value", [
+    "4672447.229599291", "0", "-1", "", "not a time", "2026-10-23",
+    "2026-10-23T08:00:00", "08:17:40", None, 4672447.2, 0,
+])
+def test_anything_that_is_not_a_utc_iso_string_reads_as_absent(value):
+    """Absence and unreadability are the same thing to a person reading a
+    column, and neither may raise"""
+
+    details = ["aiko/h/1/1", "svc", "p:0", "mqtt", "owner", [], value, "-"]
+
+    assert service_duration(details) == ("-", "-", "-")
+
+def test_a_readable_time_with_an_unreadable_remove():
+    """Half of registrar:3 and half of something else: the start is still
+    worth showing, and the duration is not"""
+
+    details = ["aiko/h/1/1", "svc", "p:0", "mqtt", "owner", [],
+               "2026-10-23T08:00:00.000000+00:00", "4672450.1"]
+
+    start, uptime, duration = service_duration(
+        details, now_utc_iso="2026-10-23T08:00:10.000000+00:00")
+    assert start.startswith("2026-10-23")
+    assert uptime == "10s" and duration == "-"    # read as still running
+
 def test_the_uptime_of_a_service_that_just_started():
     now = datetime_now_utc_iso()
     details = RUNNING[:6] + [now, "-"]

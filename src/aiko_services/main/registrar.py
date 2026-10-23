@@ -508,6 +508,24 @@ class RegistrarImpl(Registrar):
 
 # --------------------------------------------------------------------------- #
 
+def _utc_iso(value):
+    """The value when it is a UTC ISO 8601 string this code can read, and
+    None when it is not.
+
+    A registrar:2 Registrar answers "(history ...)" with eight fields,
+    and its two times are time.monotonic() floats such as
+    "4672447.229599291".  That is a number whose origin no other process
+    knows, so there is no wall-clock time to show and "-" is the honest
+    answer.  Absence and unreadability are the same thing here"""
+
+    if value is None or value == _TIME_ABSENT:
+        return None
+    try:
+        utc_iso_to_datetime(str(value))
+    except (ValueError, TypeError):
+        return None
+    return str(value)
+
 def service_duration(service_details, now_utc_iso=None):
     """(start, uptime, duration) of one Service, each as a string.
 
@@ -515,15 +533,15 @@ def service_duration(service_details, now_utc_iso=None):
     duration, and a terminated one has a duration and no uptime.  Pure, so
     the arithmetic is tested without a Registrar"""
 
-    time_add = service_details[6] if len(service_details) > 6  \
-        else _TIME_ABSENT
-    time_remove = service_details[7] if len(service_details) > 7  \
-        else _TIME_ABSENT
-    if time_add == _TIME_ABSENT:
+    time_add = _utc_iso(
+        service_details[6] if len(service_details) > 6 else None)
+    time_remove = _utc_iso(
+        service_details[7] if len(service_details) > 7 else None)
+    if time_add is None:
         return _TIME_ABSENT, _TIME_ABSENT, _TIME_ABSENT  # registrar:2
     start = utc_iso_to_local(time_add)
     added = utc_iso_since_epoch(time_add)
-    if time_remove == _TIME_ABSENT:
+    if time_remove is None:
         now = now_utc_iso or datetime_now_utc_iso()
         return start, _seconds_terse(
             utc_iso_since_epoch(now) - added), _TIME_ABSENT
@@ -542,35 +560,37 @@ def _seconds_terse(seconds):
         return f"{seconds // 3600}h{(seconds % 3600) // 60:02d}m"
     return f"{seconds // 86400}d{(seconds % 86400) // 3600:02d}h"
 
+# --------------------------------------------------------------------------- #
+
 @click.group(invoke_without_command=True)
 @click.pass_context
 
 def main(context):
-    """Registrar Service
+    """Maintain active and historical Service Lists
 
-    aiko_registrar          # run it, which is what it has always done
-    aiko_registrar list     # the Services it knows about
+    \b
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optonal)
     """
 
-# "aiko_registrar" with no sub-command runs the Registrar, because that is
-# what the ReadMe, four documents and every ProcessManager definition file
-# say to type
+# "aiko_registrar" with no sub-command runs the Registrar (convenient)
+
     if context.invoked_subcommand is None:
         context.invoke(run_command)
 
-@main.command(name="run", help="Run the Registrar Service")
+@main.command(name="run")
 
 def run_command():
+    """Run Registrar (default sub-command)"""
+
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
     init_args = service_args(
         REGISTRAR_SERVICE_TYPE, None, None, REGISTRAR_PROTOCOL, tags)
     registrar = compose_instance(RegistrarImpl, init_args)
     aiko.process.run(True)
 
-@main.command(name="list", help="List the Services the Registrar knows")
-@click.option("--history", "-h", is_flag=True,
-    help="The Services that have terminated, instead of those running")
-@click.option("--timeout", "-t", type=click.FLOAT, default=2.0,
+@main.command(name="list")
+@click.option("--history", "-h", is_flag=True, help="Terminated Services")
+@click.option("--timeout", "-t", type=click.FLOAT, default=5.0,
     help="Seconds to wait for the Registrar")
 
 def list_command(history, timeout):
@@ -583,8 +603,9 @@ def list_command(history, timeout):
     Terminated: start time and how long it ran
 
     Each time comes from the Registrar, which stamps an "(add ...)" and a
-    "(remove ...)" in UTC.  A Registrar older than registrar:3 sends no
-    time, and each column is then "-".
+    "(remove ...)" in UTC.  A Registrar older than registrar:3 sends
+    either no time, or a time.monotonic() number that no other process
+    can read, and each column is then "-".
     """
 
     services_cache = services_cache_create_singleton(
