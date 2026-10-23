@@ -8,71 +8,38 @@ pre-publication history is maintained privately.
 
 ## 2026-10-23
 
-- **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md)
-  the `Registrar` entry, amended for `registrar:3`: what the Registrar
-  publishes appends `time_add` and `time_remove` to the six fields, each a
-  UTC ISO 8601 string, as
-  [s_03_SelfAwarenessTelemetry](s_03_SelfAwarenessTelemetry.md) REQ-9 has
-  every other timestamp. They were `time.monotonic()`, which no other
-  process can read and which a restart begins again. A Service that
-  registers sends no time, because the Registrar is the clock. A reader
-  accepts six fields or more, so a client of either version works, and the
-  version in the boot announcement says which form to expect. The
-  protocol version is the declaration of the change (project-lead
-  direction). Reference implementation
-  `src/aiko_services/main/registrar.py`.
-
-- **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md)
-  the `Recorder` entry, amended: the Recorder refines `Actor` from this
-  date, as the entry always said it should. The spike refined `Service`,
-  which is why it could record only the filter it was given at
-  construction. `stop(recording_id)` cannot be written, because `stop` is
-  the framework's control verb and takes no argument, so the function is
-  `record_stop(filter)`. ADR-025 decision 1 resolved the same clash for
-  the Display Actor's `exit`. Reference implementation
-  `src/aiko_services/main/recorder.py`.
-
-- **Update** — [s_01_RepositoryLayout.md](s_01_RepositoryLayout.md)
-  migration step 5: the Dashboard moved to `actors/dashboard/` on this date,
-  ahead of the other steps, because its files were reorganized anyway. The
-  package holds the application, the plug-in interface and the pages of the
-  framework's own Services. The top-level facade re-exports that interface,
-  so `main/` does not import `actors/` and the layering contract of step 7
-  stays reachable. The move is three commits, as
-  [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
-  section 9 directs, so git keeps the history of each file.
-
+- **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md): the `Registrar`
+  entry amended for `registrar:3`. What the Registrar publishes appends `time_add` and
+  `time_remove`, each UTC ISO 8601 per [s_03_SelfAwarenessTelemetry](s_03_SelfAwarenessTelemetry.md)
+  REQ-9, in place of `time.monotonic()`, which no other process can read. A reader accepts
+  six fields or more. Reference implementation `src/aiko_services/main/registrar.py`.
+- **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md): the `Recorder`
+  entry amended. It refines `Actor`, and its functions are `record_start(topic_filter)` and
+  `record_stop(topic_filter)`, because `stop` is the framework's control verb. Reference
+  implementation `src/aiko_services/main/recorder.py`.
+- **Update** — [s_01_RepositoryLayout.md](s_01_RepositoryLayout.md): migration step 5's
+  `dashboard` move, done ahead of the other steps. The root façade re-exports the plug-in
+  interface, so `main/` does not import `actors/`.
 - **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md):
   the `FunctionGate` aspect joins the runtime Interface list. It holds which
   functions a Service accepts from the message bus (P12, ADR-023). `Actor`
-  composes it, so `PipelineElement`, `Pipeline` and an Agent have one, and
-  the default allows every function, so no Service changed behaviour.
-  `interface_functions()` derives an allow list from the Interfaces and
-  removes what `Actor` and `Service` declare, which enforces ADR-025
-  decision 1 instead of only documenting it. ADR-023 already holds the
-  deny-by-default decision, so the aspect needs no ADR of its own
-  (project-lead direction). Reference implementation
-  `src/aiko_services/main/function_gate.py`.
-
+  composes it, and its default allows every function, so no Service changed
+  behavior. `interface_functions()` removes what `Actor` and `Service`
+  declare, which enforces ADR-025 decision 1. ADR-023 holds the
+  deny-by-default decision, so the aspect needs no ADR of its own. Reference
+  implementation `src/aiko_services/main/function_gate.py`.
 - **Update** — [adr/ADR-025_RemoteDisplayAbstraction.md](adr/ADR-025_RemoteDisplayAbstraction.md)
-  decision 1, amended: function name aliases are dropped (project-lead
-  direction). The `oled:` names and `(exit)` were aliases, and one function
-  now has one name, so a client that sends either is denied. `aiko_display
-  exit` publishes `(stop)`. A client of the MicroPython `aiko_engine_mp`
-  vocabulary must send the plain names. The `out`-topic candidate event is
-  `(denied FUNCTION REASON)`, because allow and deny are now the project's
-  words for this, in place of reject and refuse. Registry row 025 records
-  the amendment. The `FunctionGate` aspect that `Actor` composes holds the
-  allow list: `src/aiko_services/main/function_gate.py`.
-
+  decision 1, amended: function name aliases are dropped, so one function has
+  one name and a client that sends `(oled:text ...)` or `(exit)` is denied. A
+  client of the MicroPython `aiko_engine_mp` vocabulary must send the plain
+  names. Registry row 025 records the amendment. Reference implementation
+  `src/aiko_services/main/function_gate.py`.
 - **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
-  section 9: three failure modes seen during the aiko01 WhisPlay Actor work on
-  2026-10-22 and 2026-10-23 — a deny-by-default dispatch guard that refused
-  every command, because it called a function that does not exist, and whose
-  refusal tests all passed; three conclusions drawn from measurements that were
-  themselves broken; and a vendor driver read for its constants but not for the
-  comment that gave the button polarity. The machine-specific findings stay out
-  of this tree.
+  section 9: three failure modes from the aiko01 WhisPlay Actor work, 2026-10-22
+  and 2026-10-23. A deny-by-default guard that called a function which does not
+  exist, with refusal tests that all passed. Three conclusions drawn from broken
+  measurements. A vendor driver read for its constants and not for its comments.
+  The machine-specific findings stay out of this tree.
 
 ## 2026-10-21
 
@@ -87,11 +54,11 @@ pre-publication history is maintained privately.
   `src/aiko_services/main/daemon_supervisor/`.
 
 - **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
-  section 9: three failure modes seen during the aiko01 WhisPlay HAT audio
-  work on 2026-10-20 — an inherited diagnosis that named the symptom and
-  guessed the mechanism, an output file that nothing writes any more, and a
-  recovery path that was never exercised against the real fault. The
-  machine-specific findings stay out of this tree.
+  section 9: three failure modes from the aiko01 WhisPlay HAT audio work,
+  2026-10-20. An inherited diagnosis that named the symptom and guessed the
+  mechanism. An output file that nothing writes any more. A recovery path never
+  exercised against the real fault. The machine-specific findings stay out of
+  this tree.
 
 ## 2026-09-27
 

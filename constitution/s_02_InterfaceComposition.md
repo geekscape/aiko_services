@@ -177,20 +177,16 @@ diffs it against this document.
   The actual wire commands are `add(topic_path, name, protocol, transport, owner, tags)`,
   `remove(topic_path)`, `share(topic_response, …filter…)`, `history(topic_response, count)` —
   no `query`. Contract promotion in e_10 §2.2.)* *(Amended 2026-10-23, `registrar:3`: what
-  the Registrar publishes, on its `out` topic and in each reply, appends `time_add` and
-  `time_remove` to the six fields. Each one is a UTC ISO 8601 string, as
-  [s_03_SelfAwarenessTelemetry](s_03_SelfAwarenessTelemetry.md) REQ-9 has every other
-  timestamp, and `time_remove` is `-` while the Service runs. A Service that registers sends
-  no time, because the Registrar is the clock. A reader accepts six fields or more. The
-  version in the boot announcement says which form to expect, and a client reports a
-  mismatch.)*
+  the Registrar publishes appends `time_add` and `time_remove` to the six fields, each a UTC
+  ISO 8601 string per [s_03_SelfAwarenessTelemetry](s_03_SelfAwarenessTelemetry.md) REQ-9,
+  and `time_remove` is `-` while the Service runs. A registering Service sends no time. A
+  reader accepts six fields or more.)*
 - `ProcessManager` (refines `Actor`) — `spawn(command, specification)`, `terminate(process_id)`.
-- `Recorder` (refines `Actor`) — `record_start(topic_filter)`, `stop(recording_id)`. Replay lands
-  here. *(Amended 2026-10-23: the Recorder refines `Actor` from this date, as this entry
-  always said it should. `stop(recording_id)` cannot be written, because `stop` is the
-  framework's control verb and takes no argument, so the function is `record_stop(filter)`.
-  ADR-025 decision 1 resolved the same clash for the Display Actor's `exit`. The filter is
-  the identity of a recording until replay needs one of its own.)*
+- `Recorder` (refines `Actor`) — `record(topic_filter)`, `stop(recording_id)`. Replay lands
+  here. *(Amended 2026-10-23: refines `Actor` from this date.
+  The functions are `record_start(topic_filter)` and `record_stop(topic_filter)`: `stop` is
+  the framework's control verb and takes no argument, the clash ADR-025 decision 1 resolved
+  for `exit`. The filter identifies a recording until replay needs its own.)*
 
 **pipeline/**
 

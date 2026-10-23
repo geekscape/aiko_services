@@ -140,10 +140,9 @@ The shim keeps the `aiko_services.main.*` imports operational through all the st
 4. **Service layer:** move `service`, `share`, `proxy`, `lifecycle`, `transport/`.
 5. **Actor split:** move `actor.py` to `actors/`. Move `registrar`, `process_manager`,
    `recorder` and `dashboard` to `actors/`. Introduce the protocol/implementation seam from §3.
-   *(`dashboard` moved on 2026-10-23, ahead of the other steps, because its files were being
-   reorganized anyway. `actors/dashboard/` holds the application, the plug-in interface and
-   the pages of the framework's own Services. The facade in the top-level `__init__.py`
-   re-exports that interface, so `main/` does not import `actors/`.)*
+   *(`dashboard` moved 2026-10-23, ahead of the other steps.
+   The root `__init__.py` façade re-exports the plug-in interface, so `main/` does not
+   import `actors/`.)*
 6. **Dataflow:** move `pipeline` and `stream` (+ new `element.py`, `schema.py` split) to
    `pipeline/`. Update the imports of `elements/` and `examples/`.
 7. **Enforce:** turn on the import-linter layering contract and the interface-drift check. The
