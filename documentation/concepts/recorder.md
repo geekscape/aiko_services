@@ -87,28 +87,51 @@ parenthesis into a brace, which reported a log record that nobody wrote.
 ### Public API
 
 ```python
-class Recorder(Service):
+class Recorder(Actor):
     Interface.default("Recorder", "aiko_services.main.recorder.RecorderImpl")
+
+    record(topic_path_filter)       # record these topics as well
+    record_stop(topic_path_filter)  # stop, and forget what it recorded
 ```
 
-The Recorder Interface currently declares no methods (a placeholder
-`@abstractmethod` is commented out in the source) — the public surface is
-its **shared state**, consumed through `ECConsumer` / the Dashboard:
+An Actor since 2026-10-23, which is what `s_02_InterfaceComposition`
+asks for. The spike refined `Service`, so a filter could be given only
+at construction. A client adds one while it runs:
+
+```bash
+mosquitto_pub -t <topic_path>/in -m "(record aiko/+/+/+/out)"
+```
+
+The filter is the identity of a recording, so recording one twice
+changes nothing. `record_stop` is not `stop(recording_id)`, which
+`s_02` asks for and which cannot be written: `stop` is the framework's
+control verb and takes no argument. ADR-025 decision 1 resolved the same
+clash for the Display Actor's `exit`.
+
+Deny by default (P12, ADR-023): the Recorder accepts `record`,
+`record_stop`, `set_log_level` and `stop`, and denies every other
+function. `recorder_handler` is the subscription callback, which no
+client calls, so it is not on the list.
+
+The rest of the surface is its **shared state**, consumed through
+`ECConsumer` or the Dashboard:
 
 | Share item | Meaning |
 |------------|---------|
-| `lifecycle`, `log_level`, `source_file` | Standard Service health items |
-| `topic_path_filter` | The MQTT filter being recorded |
-| `lru_cache_size`, `ring_buffer_size` | Configured capacities |
-| `lru_cache.<topic>` | Most recent (sanitized) record seen on `<topic>` |
+| `lifecycle`, `log_level`, `source_file` | Standard Actor health items |
+| `filters` | Each MQTT filter being recorded |
+| `lru_cache_size`, `ring_buffer_size` | The capacities in force |
+| `lru_cache.<topic>` | The newest record seen on `<topic>` |
+| `metrics.records` | Log records recorded |
+| `metrics.topics` | Topics held, which is the LRU cache length |
+| `metrics.evicted` | Topics evicted, each one losing its records |
 
 Service protocol: `.../recorder:0` (under `SERVICE_PROTOCOL_AIKO`).
 
-**Wire behavior.** Inbound, the Recorder is a passive subscriber to
-`topic_path_filter`. Outbound, each received payload is republished
-through the standard `ECProducer` update protocol, as an update to
-`lru_cache.<topic>`. Sanitization occurs first, so that arbitrary log
-text survives S-expression parsing:
+**Wire behavior.** Inbound, the Recorder subscribes to each filter, and
+accepts the four functions above on its `in` topic. Outbound, each
+received payload is republished through the standard `ECProducer` update
+protocol, as an update to `lru_cache.<topic>`, exactly as it arrived:
 
 ```
 " "  (space)  →  " "  (Unicode U+00A0, no-break space)
@@ -184,20 +207,19 @@ Key design points:
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
-| `Recorder` (Interface) | Declare the Recorder Service type (no methods yet) | `Service` (parent Interface) |
-| `RecorderImpl` | Subscribe to `topic_path_filter`; maintain LRU cache of per-topic ring buffers; sanitize records; republish latest record per topic as shared state | `LRUCache` (utilities); `collections.deque`; `ECProducer` ([Share](share.md)); `aiko.message` ([Message](message.md)) |
+| `Recorder` (Interface) | Declare `record` and `record_stop` | `Actor` (parent Interface) |
+| `RecorderImpl` | Subscribe to each filter; hold an LRU cache of per-topic ring buffers; remove an evicted topic's shared state; republish the newest record of each topic | `LRUCache` (utilities); `collections.deque`; `ECProducer` ([Share](share.md)); `FunctionGate` |
 
 ## Current limitations and roadmap
 
 From the source `To Do` list and inline notes:
 
-- Only one `topic_path_filter` per Recorder — improve the CLI to record
-  multiple different topic paths
-- On-the-fly configuration updates: `_RING_BUFFER_SIZE`,
-  `_TOPIC_LRU_CACHE_SIZE`, and changing `topic_path_filter` should
-  unsubscribe / resubscribe accordingly
-- Capacities are hard-coded at debug size (2) rather than the intended
-  128
+- Replay, which `s_02_InterfaceComposition` says lands here
+- A recording identity of its own, instead of the filter
+- The shared state carries the newest record of each topic, and not the
+  whole ring buffer. A depth of 128 is about 8 KB for each record
+  published, to each attached consumer. Thus this waits on a design that
+  sends no large message for each log record
 - LRU eviction does not remove the evicted topic's shared-state entry
   (needs a `popitem()` handler plus `ECProducer.remove(topic)`)
 - Statistics: LRU cache length, total and per-second message rates

@@ -179,7 +179,11 @@ diffs it against this document.
   no `query`. Contract promotion in e_10 §2.2.)*
 - `ProcessManager` (refines `Actor`) — `spawn(command, specification)`, `terminate(process_id)`.
 - `Recorder` (refines `Actor`) — `record(topic_filter)`, `stop(recording_id)`. Replay lands
-  here.
+  here. *(Amended 2026-10-23: the Recorder refines `Actor` from this date, as this entry
+  always said it should. `stop(recording_id)` cannot be written, because `stop` is the
+  framework's control verb and takes no argument, so the function is `record_stop(filter)`.
+  ADR-025 decision 1 resolved the same clash for the Display Actor's `exit`. The filter is
+  the identity of a recording until replay needs one of its own.)*
 
 **pipeline/**
 

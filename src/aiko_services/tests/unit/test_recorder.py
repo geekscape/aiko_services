@@ -252,21 +252,80 @@ def test_a_bad_size_leaves_the_one_in_force(recorder, item_name, value):
     assert actor.share[item_name] == in_force
     assert (item_name, in_force) in actor.ec_producer.updates
 
-def test_the_log_level_is_still_a_shared_variable(recorder, monkeypatch):
-    """The handler that was there before this Epic, still working"""
+def test_the_log_level_is_the_actors_now(recorder):
+    """The Recorder had its own log_level handler and its own module
+    logger, when it refined Service.  The Actor does both"""
 
-    import aiko_services.main.recorder as module
+    import logging
 
-    levels = []
-    monkeypatch.setattr(module._LOGGER, "setLevel", levels.append)
+    actor = recorder()
+    actor._ec_producer_change_handler("update", "log_level", "debug")
+    assert actor.logger.level != logging.DEBUG      # not the Recorder's job
+
+    actor.ec_producer_change_handler("update", "log_level", "DEBUG")
+    assert actor.logger.level == logging.DEBUG      # the Actor's
+
+def test_the_recorder_is_an_actor():
+    """s_02_InterfaceComposition says Recorder refines Actor.  The spike
+    refined Service, which is why a filter could only be set once"""
+
+    from aiko_services.main.recorder import Recorder
+
+    assert issubclass(Recorder, aiko.Actor)
+    assert aiko.FunctionGate in Recorder.__mro__
+
+def test_only_the_recorders_own_functions_are_allowed():
+    """P12: and "recorder_handler" is a subscription callback, which no
+    client calls, so it is not on the list"""
+
+    from aiko_services.main.recorder import FUNCTIONS
+
+    assert FUNCTIONS == frozenset(
+        {"record", "record_stop", "set_log_level", "stop"})
+
+def test_the_gate_denies_what_is_not_a_function(recorder):
+    actor = recorder()
+    posted = []
+    actor._post_message = lambda topic, name, args: posted.append(name)
+
+    for payload in ("(recorder_handler a b c)", "(_forget t)", "(run)"):
+        actor._topic_in_handler(None, "t/in", payload)
+    assert posted == []
+
+    actor._topic_in_handler(None, "t/in", "(record aiko/+/+/+/out)")
+    assert posted == ["record"]
+
+# Recording a filter while it runs --------------------------------------- #
+
+def test_the_filter_given_at_construction_is_recorded(recorder):
     actor = recorder()
 
-    # ec_producer.add_handler() replays the whole share, so the level in
-    # the share is applied once at construction
-    assert levels == ["INFO"]
+    assert actor.share["filters"] == [TOPIC]
 
-    actor._ec_producer_change_handler("update", "log_level", "debug")
-    assert levels == ["INFO", "DEBUG"]
+def test_another_filter_is_added(recorder):
+    actor = recorder()
+    actor.record("aiko/+/+/+/out")
+
+    assert actor.share["filters"] == [TOPIC, "aiko/+/+/+/out"]
+
+def test_recording_the_same_filter_twice_changes_nothing(recorder):
+    actor = recorder()
+    actor.record(TOPIC)
+
+    assert actor.share["filters"] == [TOPIC]
+
+def test_a_filter_is_stopped(recorder):
+    actor = recorder()
+    actor.record("aiko/+/+/+/out")
+    actor.record_stop(TOPIC)
+
+    assert actor.share["filters"] == ["aiko/+/+/+/out"]
+
+def test_stopping_a_filter_that_was_never_recorded(recorder):
+    actor = recorder()
+    actor.record_stop("aiko/+/+/+/out")
+
+    assert actor.share["filters"] == [TOPIC]
 
 # The LRU cache utility it depends on ------------------------------------ #
 

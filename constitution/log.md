@@ -8,6 +8,16 @@ pre-publication history is maintained privately.
 
 ## 2026-10-23
 
+- **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md)
+  the `Recorder` entry, amended: the Recorder refines `Actor` from this
+  date, as the entry always said it should. The spike refined `Service`,
+  which is why it could record only the filter it was given at
+  construction. `stop(recording_id)` cannot be written, because `stop` is
+  the framework's control verb and takes no argument, so the function is
+  `record_stop(filter)`. ADR-025 decision 1 resolved the same clash for
+  the Display Actor's `exit`. Reference implementation
+  `src/aiko_services/main/recorder.py`.
+
 - **Update** — [s_01_RepositoryLayout.md](s_01_RepositoryLayout.md)
   migration step 5: the Dashboard moved to `actors/dashboard/` on this date,
   ahead of the other steps, because its files were reorganized anyway. The
