@@ -128,7 +128,8 @@ from aiko_services.main.utilities import *
 
 __all__ = [
     "FUNCTIONS", "SAFE", "SAFE_FUNCTIONS", "ProcessManager",
-    "ProcessManagerImpl", "coerce_response_topic"
+    "ProcessManagerCache", "ProcessManagerImpl", "coerce_response_topic",
+    "parse_process_share"
 ]
 
 ACTOR_TYPE = "process_manager"
@@ -496,6 +497,92 @@ def get_service_filter(name=None, owner="*"):
     name = name if name else get_hostname()
     return ServiceFilter("*", name, PROTOCOL, "*", owner, "*")
 
+# --------------------------------------------------------------------------- #
+# The client side: one live replica of what a ProcessManager publishes, for
+# every client that wants the process table without asking for it.
+#
+# The Registrar has the ServicesCache, which many clients share instead of
+# each one speaking to the Registrar.  This is the same idea for a
+# ProcessManager, and it is thin, because ECCache already does the work:
+# discovery through the ServicesCache, one leased ECConsumer for each
+# ProcessManager that matches, and a local replica of each one's shared
+# state.  So a remote getter becomes a local, non-blocking read.
+#
+# This is ECCache's first client.  The share carries one "process.<uid>"
+# item for each process, so the table arrives and stays current with no
+# polling of "list"
+
+def parse_process_share(value):
+    """One "process.<uid>" share item as (pid, command).  The Actor writes
+    "<pid> <command line>".  Pure, so the format is tested on its own"""
+
+    pid, _, command = str(value).partition(" ")
+    return pid, command
+
+class ProcessManagerCache:
+    """A live replica of what one or more ProcessManagers publish.
+
+    get_processes() and the rest read the replica, never the network.  A
+    handler is called for each change.  terminate() cancels the leases.
+
+    "service" is the local Service, or "aiko.process" for a client that is
+    not a Service (see the note in share.py)
+    """
+
+    def __init__(self, service, name=None, owner="*"):
+        self.cache = compose_instance(ECCacheImpl, ec_cache_args(
+            service, get_service_filter(name, owner)))
+
+    def topic_paths(self):
+        """Each ProcessManager the cache has a replica of"""
+
+        return sorted(self.cache.caches)
+
+    def get_processes(self, topic_path=None):
+        """{uid: (pid, command)}, as the share holds it.  Empty until a
+        ProcessManager is discovered and its state arrives"""
+
+        processes = self.cache.get("process", default={},
+            topic_path=topic_path) or {}
+        return {uid: parse_process_share(value)
+            for uid, value in sorted(processes.items())}
+
+    def get_safe(self, topic_path=None):
+        """The posture a ProcessManager advertises: True, False, or None
+        when it has not said (an older Actor, or no replica yet)"""
+
+        safe = self.cache.get("safe", default=None, topic_path=topic_path)
+        if safe is None or isinstance(safe, bool):
+            return safe
+        return str(safe).lower() == "true"
+
+    def get_denied(self, topic_path=None):
+        """How many functions a ProcessManager has denied"""
+
+        return parse_int(self.cache.get(
+            "metrics.denied", default=0, topic_path=topic_path), 0)
+
+    def get(self, item_name, default=None, topic_path=None):
+        """Any other share item, for a client that wants one this class
+        does not name"""
+
+        return self.cache.get(item_name, default=default,
+            topic_path=topic_path)
+
+    def add_handler(self, handler, filter=None):
+        """handler(topic_path, command, item_name, item_value) for each
+        change, with the current replica replayed first"""
+
+        self.cache.add_handler(handler, filter)
+
+    def remove_handler(self, handler):
+        self.cache.remove_handler(handler)
+
+    def terminate(self):
+        self.cache.terminate()
+
+# --------------------------------------------------------------------------- #
+
 @click.group()
 
 def main():
@@ -575,17 +662,28 @@ def exit_command(grace_time, name):
 @main.command(name="list")
 @click.option("--name", "-n", type=str, default=None,
     help="ProcessManager name, default is the local hostname")
+@click.option("--watch", "-w", is_flag=True,
+    help="Follow the process table live, through the ProcessManagerCache")
 @click.argument("uid", type=str, required=False, default=None)
 
-def list_command(name, uid):
+def list_command(name, uid, watch):
     """List Processes
 
-    aiko_process list [--name NAME] [UID]
+    aiko_process list [--name NAME] [--watch] [UID]
 
     \b
     • NAME: ProcessManager name, default is the local hostname
     • UID:  Unique IDentifier to match
+
+    \b
+    One list is a request, which safe mode allows.  --watch instead keeps a
+    live replica of the shared state, so the table stays current with no
+    further requests.  Any client can hold that replica: the Dashboard page
+    does, through the ProcessManagerCache.
     """
+
+    if watch:
+        return _list_watch(name, uid)
 
     def response_handler(response):
         if len(response):

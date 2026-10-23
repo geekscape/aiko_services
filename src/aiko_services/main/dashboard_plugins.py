@@ -1,6 +1,7 @@
 from asciimatics.widgets import Layout, MultiColumnListBox, Widget
 
 import aiko_services as aiko  # designed to be external to the main framework
+from aiko_services.main.process_manager_dashboard import ProcessManagerFrame
 
 __all__ = []
 
@@ -48,5 +49,6 @@ class RegistrarFrame(aiko.ServiceFrame):
 # plugin key can be either the Service "name" or "protocol"
 
 plugins = {
+    "process_manager": ProcessManagerFrame,
     "registrar": RegistrarFrame
 }

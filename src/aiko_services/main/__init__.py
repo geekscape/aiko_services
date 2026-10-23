@@ -81,7 +81,10 @@ from .category import Category, CategoryImpl
 
 from .hyperspace import HyperSpace, HyperSpaceImpl
 
-from .process_manager import ProcessManager, ProcessManagerImpl
+from .process_manager import (
+    ProcessManager, ProcessManagerCache, ProcessManagerImpl,
+    parse_process_share
+)
 
 from .lifecycle import LifeCycleClient, LifeCycleManager
 

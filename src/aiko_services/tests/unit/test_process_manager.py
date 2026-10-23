@@ -413,3 +413,115 @@ def test_a_falsified_denial_count_is_corrected_by_the_next_denial():
     assert actor.share["metrics"]["denied"] == 2
 
 # --------------------------------------------------------------------------- #
+
+# The ProcessManagerCache: a live replica, with no broker --------------- #
+#
+# The cache is thin, because ECCache does the work: discovery through the
+# ServicesCache, one leased ECConsumer for each ProcessManager, and a local
+# replica.  These tests simulate a discovery event and write the replica
+# directly, the way test_share.py exercises ECCache.
+
+from aiko_services.main.process_manager import (
+    ProcessManagerCache, parse_process_share,
+)
+
+TOPIC = "aiko/host/1234/1"
+
+def make_cache(name="review"):
+    """A cache, plus a discovered ProcessManager and its replica"""
+
+    actor, _ = make_process_manager()
+    cache = ProcessManagerCache(actor, name)
+    cache.cache._service_change_handler(
+        "add", [TOPIC, name, "*", "*", "*", []])
+    return cache, cache.cache.caches[TOPIC]
+
+def test_a_process_share_item_is_a_pid_and_a_command():
+    assert parse_process_share("4242 sleep 60") == ("4242", "sleep 60")
+    assert parse_process_share("4242 /bin/sh -c echo a; sleep 1") ==  \
+        ("4242", "/bin/sh -c echo a; sleep 1")
+
+def test_a_process_share_item_without_a_command():
+    assert parse_process_share("4242") == ("4242", "")
+
+def test_an_empty_cache_reads_as_empty_and_not_as_an_error():
+    actor, _ = make_process_manager()
+    cache = ProcessManagerCache(actor, "nobody")
+
+    assert cache.topic_paths() == []
+    assert cache.get_processes() == {}
+    assert cache.get_safe() is None
+    assert cache.get_denied() == 0
+
+def test_discovery_gives_the_cache_a_replica():
+    cache, _ = make_cache()
+
+    assert cache.topic_paths() == [TOPIC]
+    assert isinstance(cache.cache.consumers[TOPIC], aiko.ECConsumerImpl)
+
+def test_the_process_table_is_read_from_the_replica():
+    cache, replica = make_cache()
+    replica["process"] = {
+        "000000": "4242 aiko_process run", "000001": "4301 sleep 60"}
+
+    assert cache.get_processes() == {
+        "000000": ("4242", "aiko_process run"),
+        "000001": ("4301", "sleep 60")}
+
+def test_the_posture_is_read_as_a_boolean_either_way():
+    """A share value is a bool from the Actor, and a string once a client
+    has written it through the control topic"""
+
+    cache, replica = make_cache()
+    for value, expected in (
+        (True, True), (False, False), ("true", True), ("false", False)):
+        replica["safe"] = value
+        assert cache.get_safe() is expected
+
+def test_the_denial_count_survives_a_string():
+    cache, replica = make_cache()
+    replica["metrics"] = {"denied": "7"}
+    assert cache.get_denied() == 7
+
+    replica["metrics"] = {"denied": "not a number"}
+    assert cache.get_denied() == 0
+
+def test_any_other_share_item_is_readable_too():
+    cache, replica = make_cache()
+    replica["watchdog"] = "False"
+    assert cache.get("watchdog") == "False"
+    assert cache.get("absent", default="fallback") == "fallback"
+
+def test_a_handler_is_replayed_and_then_relayed():
+    cache, replica = make_cache()
+    replica["process"] = {"000001": "4301 sleep 60"}
+    seen = []
+    cache.add_handler(lambda *event: seen.append(event))
+
+    assert ("aiko/host/1234/1", "add", "process.000001", "4301 sleep 60")  \
+        in seen
+
+    cache.remove_handler(seen.append)             # a handler never attached
+    assert len(cache.cache.handlers) == 1
+
+def test_terminate_empties_the_cache():
+    cache, _ = make_cache()
+    cache.terminate()
+
+    assert cache.topic_paths() == []
+    assert cache.get_processes() == {}
+
+def test_two_process_managers_are_separate_replicas():
+    cache, replica = make_cache()
+    other = "aiko/host/5678/1"
+    cache.cache._service_change_handler(
+        "add", [other, "review", "*", "*", "*", []])
+    replica["process"] = {"000001": "1 one"}
+    cache.cache.caches[other]["process"] = {"000002": "2 two"}
+
+    assert cache.topic_paths() == sorted([TOPIC, other])
+    assert cache.get_processes(TOPIC) == {"000001": ("1", "one")}
+    assert cache.get_processes(other) == {"000002": ("2", "two")}
+    assert cache.get_processes() == {}            # ambiguous: no sole producer
+
+# --------------------------------------------------------------------------- #
