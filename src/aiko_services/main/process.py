@@ -342,18 +342,6 @@ class ProcessImplementation(ProcessData):
                         parse_okay = True
             if parse_okay:
                 if action == "found":
-                    found = registrar.get("version")
-                    if str(found) != str(REGISTRAR_VERSION):
-                    # The boot announcement has carried the version all
-                    # along, and nothing read it.  A mismatch used to show
-                    # up as a Registrar that registered nothing, with one
-                    # debug line.  Reported, and not refused: a person
-                    # decides what to do, and a reader of registrar:3 also
-                    # reads registrar:2
-                        _LOGGER.error(
-                            f"Registrar protocol version {found}, this "
-                            f"Service expects {REGISTRAR_VERSION}: "
-                            "update whichever is older")
                     aiko.registrar = registrar
                     try:
                         self.connection.lock_acquire("on_registrar(): found")
@@ -371,6 +359,24 @@ class ProcessImplementation(ProcessData):
                             self._add_service_to_registrar(service)
                     finally:
                         self._services_lock.release()
+
+                # The boot announcement has carried the Registrar's version
+                # all along, and nothing read it.  A mismatch used to show
+                # up as a Registrar that registered nothing, with one debug
+                # line.  Reported, and never refused.
+                #
+                # Reported *last*, after the Service has registered, and
+                # not before it.  The enclosing "except" turns anything
+                # raised here into "Exception raised when adding to
+                # Registrar", so a fault in the report would stop every
+                # Service registering.  It did: the first version of this
+                # named a logger that does not exist in this module
+                    found = registrar.get("version")
+                    if str(found) != str(REGISTRAR_VERSION):
+                        _LOGGER_PROCESS.error(
+                            f"Registrar protocol version {found}, this "
+                            f"Service expects {REGISTRAR_VERSION}: "
+                            "update whichever is older")
 
                 if action == "absent":
                     aiko.registrar = None

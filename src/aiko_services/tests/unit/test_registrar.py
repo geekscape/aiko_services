@@ -306,32 +306,36 @@ def test_a_negative_duration_is_not_shown_as_negative():
 
 # The live stream accepts a Registrar that knows more than this client --- #
 
+def cache_accepts(payload, topic_path):
+    """Feed one "(add ...)" to a ServicesCache and say whether it landed.
+
+    The cache is a per-process singleton that every composed Service
+    registers into, so the count is whatever the tests before this one
+    left behind.  Asserting a count made this test pass alone and fail in
+    the suite.  What matters is that this topic path arrived"""
+
+    cache = aiko.services_cache_create_singleton(aiko.process)
+    try:
+        before = cache.get_services().get_service(topic_path)
+        cache.registrar_out_handler(None, "t/out", payload)
+        after = cache.get_services().get_service(topic_path)
+        return before is None and after is not None
+    finally:
+        aiko.services_cache_delete()
+
 def test_the_services_cache_accepts_eight_fields():
     """share.py used to demand exactly six, so a newer Registrar's every
     registration was dropped with one debug line and nothing else"""
 
-    cache = aiko.services_cache_create_singleton(aiko.process)
-    try:
-        cache.registrar_out_handler(
-            None, "t/out", "(add aiko/h/1/1 svc p:0 mqtt owner ()"
-            " 2026-10-23T08:00:00.000000+00:00 -)")
-
-        services = cache.get_services()
-        assert services.count == 1
-    finally:
-        aiko.services_cache_delete()
+    assert cache_accepts(
+        "(add aiko/h/1/1 svc p:0 mqtt owner ()"
+        " 2026-10-23T08:00:00.000000+00:00 -)", "aiko/h/1/1")
 
 def test_the_services_cache_still_accepts_six_fields():
     """A client of registrar:3 reading an older Registrar"""
 
-    cache = aiko.services_cache_create_singleton(aiko.process)
-    try:
-        cache.registrar_out_handler(
-            None, "t/out", "(add aiko/h/2/1 svc p:0 mqtt owner ())")
-
-        assert cache.get_services().count == 1
-    finally:
-        aiko.services_cache_delete()
+    assert cache_accepts(
+        "(add aiko/h/2/1 svc p:0 mqtt owner ())", "aiko/h/2/1")
 
 # The command line ------------------------------------------------------- #
 
@@ -462,3 +466,75 @@ def test_a_reader_still_reads_the_codecs_none():
     from aiko_services.main.utilities import generate
 
     assert parse(generate("add", ["t", None]))[1][1] is None
+
+# The client side of the version check ---------------------------------- #
+#
+# This branch had no test, and it shipped calling a logger that does not
+# exist in process.py.  The NameError raised before "process_data.registrar" was
+# set, so the enclosing "except" turned it into "Exception raised when
+# adding to Registrar" and every Service failed to register against a
+# registrar:2 Registrar.  The same shape as the deny-by-default guard that
+# called a function that does not exist: a guard nothing executes.
+
+import aiko_services.main.process as process_module
+
+FOUND_V2 = "(primary found aiko/host/1/1 2 1234.5)"
+FOUND_V3 = f"(primary found aiko/host/1/1 {REGISTRAR_VERSION} 1234.5)"
+
+@pytest.fixture
+def on_registrar(monkeypatch):
+    """Drive ProcessImplementation.on_registrar() with no broker, and
+    collect what it logged as an error"""
+
+    errors = []
+    monkeypatch.setattr(
+        process_module._LOGGER_PROCESS, "error", errors.append)
+    saved_message, saved_registrar = process_data.message, process_data.registrar
+    process_data.message = _StubMessage()
+
+    def drive(payload):
+        aiko.process.on_registrar(None, BOOT, payload)
+        return errors
+
+    yield drive
+    process_data.message = saved_message
+    process_data.registrar = saved_registrar
+
+def test_a_matching_version_is_not_reported(on_registrar):
+    assert on_registrar(FOUND_V3) == []
+    assert process_data.registrar["version"] == str(REGISTRAR_VERSION)
+
+def test_an_older_registrar_is_reported_and_still_used(on_registrar):
+    """Report, never refuse: the Service registers with a registrar:2
+    Registrar and says so, because a reader of registrar:3 reads
+    registrar:2"""
+
+    errors = on_registrar(FOUND_V2)
+
+    assert len(errors) == 1
+    assert "version 2" in errors[0] and str(REGISTRAR_VERSION) in errors[0]
+    assert process_data.registrar["version"] == "2"      # used, not refused
+
+def test_the_report_cannot_stop_a_service_registering(on_registrar):
+    """The report runs after the Service has registered, so a fault in it
+    leaves the registration alone.  This is what went wrong"""
+
+    def raise_anything(_message):
+        raise RuntimeError("a fault in the report")
+
+    process_module._LOGGER_PROCESS.error = raise_anything
+    try:
+        aiko.process.on_registrar(None, BOOT, FOUND_V2)
+    except RuntimeError:
+        pass                                     # swallowed by on_registrar
+    assert process_data.registrar is not None
+    assert process_data.registrar["topic_path"] == "aiko/host/1/1"
+
+def test_an_absent_registrar_still_clears_it(on_registrar):
+    on_registrar(FOUND_V3)
+    assert process_data.registrar is not None
+
+    on_registrar("(primary absent)")
+    assert process_data.registrar is None
+
+# --------------------------------------------------------------------------- #
