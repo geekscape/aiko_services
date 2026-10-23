@@ -30,10 +30,7 @@
 # - Runtime for each process, when "metrics.runtime" exists
 # - A create dialogue that remembers the last command, like a shell history
 
-import time
-
 from asciimatics.event import KeyboardEvent
-from asciimatics.exceptions import NextScene
 from asciimatics.widgets import (
     Label, Layout, MultiColumnListBox, PopUpDialog, Text,
 )

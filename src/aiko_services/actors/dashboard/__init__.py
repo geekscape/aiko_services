@@ -16,8 +16,13 @@ application module, "actors.dashboard.dashboard:main", so that the click
 group and this package do not compete for one name.
 """
 
+from aiko_services.actors.dashboard.frames import (  # noqa: F401
+    FrameCommon, LogUI, ServiceFrame,
+)
+# LogLevelPopupMenu asks DashboardFrame for the singleton, so it lives with
+# the application.  A plug-in does not need to know that
 from aiko_services.actors.dashboard.dashboard import (  # noqa: F401
-    FrameCommon, LogLevelPopupMenu, LogUI, ServiceFrame,
+    LogLevelPopupMenu,
 )
 
 __all__ = ["FrameCommon", "LogLevelPopupMenu", "LogUI", "ServiceFrame"]

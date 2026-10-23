@@ -1,52 +1,30 @@
-from asciimatics.widgets import Layout, MultiColumnListBox, Widget
+#!/usr/bin/env python3
+#
+# Aiko Services: the Aiko Dashboard's default plug-in registry
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# "aiko_dashboard" loads this module when no "--plugin" is given, so these
+# are the pages that are always there.  Each key is the Service name or
+# the protocol type, which is what the Dashboard derives from a selected
+# Service.
+#
+# A page lives in its own module, and this file only names them, so that a
+# page is added or removed in one line and nothing else moves.
+#
+# A page for an Actor that is not part of the framework lives with that
+# Actor, and a person adds it with "--plugin", e.g
+#
+#   aiko_dashboard -p aiko_services.actors.display.dashboard_plugin
+#
+# To Do
+# ~~~~~
+# - Discover the pages, instead of naming them here
 
-import aiko_services as aiko  # designed to be external to the main framework
 from aiko_services.actors.dashboard.process_manager_plugin import (
     ProcessManagerFrame
 )
+from aiko_services.actors.dashboard.registrar_plugin import RegistrarFrame
 
-__all__ = []
-
-class RegistrarFrame(aiko.ServiceFrame):
-    def __init__(self, screen, dashboard):
-        super(RegistrarFrame, self).__init__(
-            screen, dashboard, name="registrar_frame")
-
-        self.services_cache = aiko.services_cache_create_singleton(
-            aiko.process, True, history_limit=screen.height)
-
-        self._registrar_widget = MultiColumnListBox(
-            screen.height * 1 // 2, ["<0"], options=[],
-            titles=["Registrar: Discovered Services topic paths"]
-        )
-        layout_0 = Layout([1])
-        self.add_layout(layout_0)
-        layout_0.add_widget(self._registrar_widget)
-        self.log_ui = aiko.LogUI(self)
-        self.fix()  # Prepare asciimatics_Frame for use
-
-    def _service_frame_start(self, service, service_ec_consumer):
-        self.log_ui._service_frame_start(service, service_ec_consumer)
-
-    def _service_frame_stop(self, service):
-        self.log_ui._service_frame_stop(service)
-
-    def _update(self, frame_no):
-        super(RegistrarFrame, self)._update(frame_no)
-
-        services = self.services_cache.get_services().copy()
-        services_formatted = []
-        for service in services:
-            topic_path = str(aiko.ServiceTopicPath.parse(service[0]))
-            protocol = service[2]  # self._short_name(service[2])
-            services_formatted.append(
-                (topic_path, service[1], service[4], protocol, service[3]))
-        self._registrar_widget.options = [
-            (service_info, row_index)
-            for row_index, service_info in enumerate(services_formatted)
-        ]
-
-        self.log_ui._update(frame_no)
+__all__ = ["plugins"]
 
 # plugin key can be either the Service "name" or "protocol"
 
@@ -54,3 +32,5 @@ plugins = {
     "process_manager": ProcessManagerFrame,
     "registrar": RegistrarFrame
 }
+
+# --------------------------------------------------------------------------- #
