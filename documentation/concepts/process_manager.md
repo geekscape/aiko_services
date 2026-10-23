@@ -70,6 +70,12 @@ aiko_process run --unsafe            # accepts create, destroy, dump, exit
 trusted network. ADR-023 decision 6 allows that posture for an isolated
 deployment, as long as the policy is explicit and advertised.
 
+A diagnostic function is not a safe function. `dump` starts and stops
+nothing, and it is denied in safe mode. It writes the process table to the
+log, and internal data that a client reads is internal data that helps a
+client compromise the system. A function becomes safe after a design and a
+test campaign, not because it looks harmless.
+
 The command line and the definition file are not affected, because neither
 one goes through the bus. A ProcessManager that starts the processes in its
 definition file needs nothing but the default.

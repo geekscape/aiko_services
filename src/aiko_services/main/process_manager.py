@@ -129,7 +129,7 @@ from aiko_services.main.utilities import *
 __all__ = [
     "FUNCTIONS", "SAFE", "SAFE_FUNCTIONS", "ProcessManager",
     "ProcessManagerCache", "ProcessManagerImpl", "coerce_response_topic",
-    "parse_process_share"
+    "parse_process_share", "print_processes"
 ]
 
 ACTOR_TYPE = "process_manager"
@@ -148,7 +148,14 @@ SAFE = True              # the default posture of "aiko_process run"
 # accepts from the message bus is not a small matter.  Safe mode allows the
 # two functions that cannot start or stop anything: "list", and the log
 # level the Dashboard sets.  ADR-023 decision 6 allows this posture for an
-# isolated deployment, as long as the policy is explicit and advertised
+# isolated deployment, as long as the policy is explicit and advertised.
+#
+# A diagnostic function stays out of this set, even though it starts and
+# stops nothing.  "dump" writes the process table to the log, and internal
+# data that a client reads is internal data that helps a client compromise
+# the system.  Only a design and a test campaign make a function safe, not
+# the observation that it looks harmless (project-lead direction,
+# 2026-10-23).  So this set grows deliberately, or not at all
 SAFE_FUNCTIONS = frozenset({"list", "set_log_level"})
 
 # The suffixes a response topic may end with.  A caller asks for a reply on
@@ -657,6 +664,46 @@ def dump_command(name):
 def exit_command(grace_time, name):
     do_command(ProcessManager, get_service_filter(name),
         lambda actor: actor.exit(grace_time), terminate=True)
+    aiko.process.run()
+
+def print_processes(cache, uid=None, topic_path=None):
+    """One ProcessManager's table, as "list" prints it.  Pure except for
+    the printing, so a test gives it a cache double"""
+
+    safe = cache.get_safe(topic_path)
+    posture = "safe" if safe else ("unsafe" if safe is False else "unknown")
+    print(f"\n{topic_path}  posture: {posture}"
+          f"  denied: {cache.get_denied(topic_path)}")
+    processes = cache.get_processes(topic_path)
+    matched = {process_uid: value
+        for process_uid, value in processes.items()
+        if uid is None or uid == process_uid}
+    if not matched:
+        print("  no processes")
+    for process_uid, (pid, command_line) in matched.items():
+        print(f"  uid: {process_uid}, pid: {pid}, {command_line}")
+
+def _list_watch(name, uid):
+    """Follow the process table live, through the ProcessManagerCache.
+
+    The ProcessManager publishes one "process.<uid>" item for each process,
+    so this needs no polling of "list", and no request at all"""
+
+    cache = ProcessManagerCache(aiko.process, name)
+    shown = {}
+
+    def changed(topic_path, command, item_name, item_value):
+        if not item_name.startswith("process") and item_name != "safe":
+            return
+        processes = cache.get_processes(topic_path)
+        if processes == shown.get(topic_path):
+            return                        # a change to something else
+        shown[topic_path] = processes
+        print_processes(cache, uid, topic_path)
+
+    cache.add_handler(changed)
+    print(f'Watching ProcessManager "{name or get_hostname()}"'
+          " ... Ctrl-C to stop")
     aiko.process.run()
 
 @main.command(name="list")
