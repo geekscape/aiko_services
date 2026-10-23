@@ -23,7 +23,10 @@ import aiko_services as aiko
 from aiko_services.main import aiko as process_data
 from aiko_services.main import event
 import aiko_services.main.registrar as registrar_module
-from aiko_services.main.registrar import Registrar, RegistrarImpl
+from aiko_services.main.registrar import (
+    Registrar, RegistrarImpl, service_duration, _seconds_terse,
+)
+from aiko_services.main.utilities import parse, utc_iso_since_epoch
 
 
 class _StubMessage:
@@ -66,7 +69,15 @@ def test_registrar_add_remove_share():
         assert registrar.share["service_count"] == 1
         topic, payload = stub.published[-1]
         assert topic == registrar.topic_out
-        assert payload == "(add aiko/host/9999/9 t_svc t_proto:0 mqtt o (x=1))"
+    # registrar:3 appends time_add and time_remove, and a Service that is
+    # still running has no time_remove.  registrar:2 published six fields
+        command, parameters = parse(payload)
+        assert command == "add" and len(parameters) == 8
+        assert parameters[:6] == [
+            "aiko/host/9999/9", "t_svc", "t_proto:0", "mqtt", "o", ["x=1"]]
+        assert parameters[7] == "-"
+        time_add = parameters[6]
+        assert utc_iso_since_epoch(time_add) > 0      # a real UTC stamp
 
         registrar.services_share(
             "t/response", "t_svc", "*", "*", "*", "*")
@@ -82,9 +93,14 @@ def test_registrar_add_remove_share():
         assert stub.published[-1][1] == "(remove aiko/host/9999/9)"
 
         registrar.services_history("t/response", 16)
-        assert any(payload and "time_add" not in payload
-            and payload.startswith("(add aiko/host/9999/9")
-            for _, payload in stub.published[-2:])
+        history = [payload for _, payload in stub.published[-2:]
+            if payload.startswith("(add aiko/host/9999/9")]
+        assert history, "the history reply holds the terminated Service"
+        parameters = parse(history[-1])[1]
+        assert len(parameters) == 8
+        assert parameters[6] == time_add               # the same stamp
+        assert utc_iso_since_epoch(parameters[7]) >=  \
+            utc_iso_since_epoch(time_add)              # removed after added
 
         # The wire handler is parse-and-delegate onto the same methods
         registrar._topic_in_handler(None, registrar.topic_in,
@@ -223,3 +239,187 @@ def test_probe_timeout_on_the_real_event_loop(election, monkeypatch):
     assert stub.retained[0] == (BOOT, "(primary absent)")
     assert state(registrar) == "primary"                 # the search timer promoted
     assert model._timers == set()
+
+# registrar:3 — the timestamps, and what a client makes of them ---------- #
+#
+# "time_add" and "time_remove" used to be time.monotonic(): no other
+# process could read them, and a restart began the clock again.  They are
+# UTC ISO 8601 now, as s_03_SelfAwarenessTelemetry REQ-9 has every other
+# timestamp, so the Registrar's version is 3 and not 2.
+
+from aiko_services.main import REGISTRAR_PROTOCOL, REGISTRAR_VERSION
+from aiko_services.main.utilities import datetime_now_utc_iso
+
+RUNNING = ["aiko/h/1/1", "svc", "p:0", "mqtt", "owner", [],
+           "2026-10-23T08:00:00.000000+00:00", "-"]
+GONE = ["aiko/h/1/1", "svc", "p:0", "mqtt", "owner", [],
+        "2026-10-23T08:00:00.000000+00:00",
+        "2026-10-23T09:30:00.000000+00:00"]
+OLD = ["aiko/h/1/1", "svc", "p:0", "mqtt", "owner", []]   # registrar:2
+
+def test_the_version_says_the_wire_form_changed():
+    assert REGISTRAR_VERSION == 3
+    assert REGISTRAR_PROTOCOL.endswith("/registrar:3")
+
+def test_a_running_service_has_an_uptime_and_no_duration():
+    start, uptime, duration = service_duration(
+        RUNNING, now_utc_iso="2026-10-23T08:45:30.000000+00:00")
+
+    assert uptime == "45m30s"
+    assert duration == "-"
+    assert start.startswith("2026-10-23")      # local time, for a person
+
+def test_a_terminated_service_has_a_duration_and_no_uptime():
+    start, uptime, duration = service_duration(GONE)
+
+    assert duration == "1h30m"
+    assert uptime == "-"
+
+def test_a_service_from_an_older_registrar_has_neither():
+    """registrar:2 sent six fields, and a client of registrar:3 must show
+    that rather than fail"""
+
+    assert service_duration(OLD) == ("-", "-", "-")
+
+def test_the_uptime_of_a_service_that_just_started():
+    now = datetime_now_utc_iso()
+    details = RUNNING[:6] + [now, "-"]
+
+    _, uptime, _ = service_duration(details, now_utc_iso=now)
+
+    assert uptime == "0s"
+
+@pytest.mark.parametrize("seconds,expected", [
+    (0, "0s"), (3, "3s"), (59, "59s"), (60, "1m00s"), (124, "2m04s"),
+    (3599, "59m59s"), (3600, "1h00m"), (3720, "1h02m"), (86399, "23h59m"),
+    (86400, "1d00h"), (273600, "3d04h"),
+])
+def test_a_duration_a_person_reads_at_a_glance(seconds, expected):
+    assert _seconds_terse(seconds) == expected
+
+def test_a_negative_duration_is_not_shown_as_negative():
+    """Two hosts' clocks disagree, so a remove can look earlier than its
+    add.  s_03 says never to compare clocks across hosts, and this is what
+    that looks like when it happens anyway"""
+
+    assert _seconds_terse(-5) == "0s"
+
+# The live stream accepts a Registrar that knows more than this client --- #
+
+def test_the_services_cache_accepts_eight_fields():
+    """share.py used to demand exactly six, so a newer Registrar's every
+    registration was dropped with one debug line and nothing else"""
+
+    cache = aiko.services_cache_create_singleton(aiko.process)
+    try:
+        cache.registrar_out_handler(
+            None, "t/out", "(add aiko/h/1/1 svc p:0 mqtt owner ()"
+            " 2026-10-23T08:00:00.000000+00:00 -)")
+
+        services = cache.get_services()
+        assert services.count == 1
+    finally:
+        aiko.services_cache_delete()
+
+def test_the_services_cache_still_accepts_six_fields():
+    """A client of registrar:3 reading an older Registrar"""
+
+    cache = aiko.services_cache_create_singleton(aiko.process)
+    try:
+        cache.registrar_out_handler(
+            None, "t/out", "(add aiko/h/2/1 svc p:0 mqtt owner ())")
+
+        assert cache.get_services().count == 1
+    finally:
+        aiko.services_cache_delete()
+
+# The command line ------------------------------------------------------- #
+
+def test_the_bare_command_still_runs_the_registrar(monkeypatch):
+    """"aiko_registrar" with no sub-command is what the ReadMe, four
+    documents and every ProcessManager definition file say to type"""
+
+    from click.testing import CliRunner
+
+    ran = []
+    monkeypatch.setattr(registrar_module, "compose_instance",
+        lambda *args, **kwargs: ran.append("composed"))
+    monkeypatch.setattr(aiko.process, "run", lambda *args, **kwargs: None)
+
+    result = CliRunner().invoke(registrar_module.main, [])
+
+    assert result.exit_code == 0, result.output
+    assert ran == ["composed"]
+
+def test_the_run_subcommand_does_the_same(monkeypatch):
+    from click.testing import CliRunner
+
+    ran = []
+    monkeypatch.setattr(registrar_module, "compose_instance",
+        lambda *args, **kwargs: ran.append("composed"))
+    monkeypatch.setattr(aiko.process, "run", lambda *args, **kwargs: None)
+
+    result = CliRunner().invoke(registrar_module.main, ["run"])
+
+    assert result.exit_code == 0, result.output
+    assert ran == ["composed"]
+
+def test_the_list_subcommand_exists():
+    from click.testing import CliRunner
+
+    result = CliRunner().invoke(registrar_module.main, ["list", "--help"])
+
+    assert result.exit_code == 0
+    assert "--history" in result.output
+
+# --------------------------------------------------------------------------- #
+
+# The UTC utility the timestamps rest on --------------------------------- #
+#
+# It had no tests, and utc_iso_since_epoch() raised TypeError on every
+# call: it subtracted a naive epoch from an aware datetime.  Nothing
+# called it, so nothing reported it.
+
+from aiko_services.main.utilities import (
+    epoch_to_utc_iso, local_iso_now, utc_iso_to_datetime, utc_iso_to_local,
+)
+
+def test_a_stamp_converts_to_seconds_and_back():
+    stamp = datetime_now_utc_iso()
+    seconds = utc_iso_since_epoch(stamp)
+
+    assert utc_iso_since_epoch(epoch_to_utc_iso(seconds)) ==  \
+        pytest.approx(seconds, abs=0.001)
+
+def test_the_epoch_itself():
+    assert utc_iso_since_epoch("1970-01-01T00:00:00.000000+00:00") == 0.0
+
+def test_a_stamp_with_no_microseconds():
+    """utc_iso_to_datetime() branches on the length of the string"""
+
+    assert utc_iso_since_epoch("2026-10-23T08:00:00+00:00") > 0
+
+def test_a_stamp_is_a_single_wire_token():
+    """It holds a "+" and colons, and no space or parenthesis, so the
+    generator needs no length prefix and a reader gets it back exactly"""
+
+    from aiko_services.main.utilities import generate
+
+    stamp = datetime_now_utc_iso()
+    payload = generate("update", ["time_add", stamp])
+
+    assert " " not in stamp
+    assert parse(payload)[1][1] == stamp
+
+def test_the_local_form_is_for_a_person():
+    local = utc_iso_to_local("2026-10-23T08:00:00.000000+00:00")
+
+    assert len(local) == 19 and "T" not in local       # "YYYY-MM-DD HH:MM:SS"
+
+def test_the_utilities_still_work_for_their_one_caller():
+    """local_iso_now() is what pipeline.py stamps a frame with"""
+
+    assert len(local_iso_now()) == 19
+    assert utc_iso_to_datetime(datetime_now_utc_iso()).tzinfo is not None
+
+# --------------------------------------------------------------------------- #

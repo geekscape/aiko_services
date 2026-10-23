@@ -342,6 +342,18 @@ class ProcessImplementation(ProcessData):
                         parse_okay = True
             if parse_okay:
                 if action == "found":
+                    found = registrar.get("version")
+                    if str(found) != str(REGISTRAR_VERSION):
+                    # The boot announcement has carried the version all
+                    # along, and nothing read it.  A mismatch used to show
+                    # up as a Registrar that registered nothing, with one
+                    # debug line.  Reported, and not refused: a person
+                    # decides what to do, and a reader of registrar:3 also
+                    # reads registrar:2
+                        _LOGGER.error(
+                            f"Registrar protocol version {found}, this "
+                            f"Service expects {REGISTRAR_VERSION}: "
+                            "update whichever is older")
                     aiko.registrar = registrar
                     try:
                         self.connection.lock_acquire("on_registrar(): found")

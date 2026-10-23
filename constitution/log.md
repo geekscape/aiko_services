@@ -9,6 +9,20 @@ pre-publication history is maintained privately.
 ## 2026-10-23
 
 - **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md)
+  the `Registrar` entry, amended for `registrar:3`: what the Registrar
+  publishes appends `time_add` and `time_remove` to the six fields, each a
+  UTC ISO 8601 string, as
+  [s_03_SelfAwarenessTelemetry](s_03_SelfAwarenessTelemetry.md) REQ-9 has
+  every other timestamp. They were `time.monotonic()`, which no other
+  process can read and which a restart begins again. A Service that
+  registers sends no time, because the Registrar is the clock. A reader
+  accepts six fields or more, so a client of either version works, and the
+  version in the boot announcement says which form to expect. The
+  protocol version is the declaration of the change (project-lead
+  direction). Reference implementation
+  `src/aiko_services/main/registrar.py`.
+
+- **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md)
   the `Recorder` entry, amended: the Recorder refines `Actor` from this
   date, as the entry always said it should. The spike refined `Service`,
   which is why it could record only the filter it was given at

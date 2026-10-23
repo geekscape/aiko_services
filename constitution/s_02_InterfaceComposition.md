@@ -176,7 +176,14 @@ diffs it against this document.
   `query(filters, reply_topic)`. *(Verified 2026-07-13: the Interface is an empty marker.
   The actual wire commands are `add(topic_path, name, protocol, transport, owner, tags)`,
   `remove(topic_path)`, `share(topic_response, …filter…)`, `history(topic_response, count)` —
-  no `query`. Contract promotion in e_10 §2.2.)*
+  no `query`. Contract promotion in e_10 §2.2.)* *(Amended 2026-10-23, `registrar:3`: what
+  the Registrar publishes, on its `out` topic and in each reply, appends `time_add` and
+  `time_remove` to the six fields. Each one is a UTC ISO 8601 string, as
+  [s_03_SelfAwarenessTelemetry](s_03_SelfAwarenessTelemetry.md) REQ-9 has every other
+  timestamp, and `time_remove` is `-` while the Service runs. A Service that registers sends
+  no time, because the Registrar is the clock. A reader accepts six fields or more. The
+  version in the boot announcement says which form to expect, and a client reports a
+  mismatch.)*
 - `ProcessManager` (refines `Actor`) — `spawn(command, specification)`, `terminate(process_id)`.
 - `Recorder` (refines `Actor`) — `record_start(topic_filter)`, `stop(recording_id)`. Replay lands
   here. *(Amended 2026-10-23: the Recorder refines `Actor` from this date, as this entry

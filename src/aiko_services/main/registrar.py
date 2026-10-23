@@ -147,6 +147,7 @@ _LOGGER = aiko.logger(__name__)
 
 _HISTORY_LIMIT_DEFAULT = 16
 _HISTORY_RING_BUFFER_SIZE = 4096
+_TIME_ABSENT = "-"     # a Service that is still running has no time_remove
 _PRIMARY_PROBE_JITTER = 0.5    # seconds, at most: Registrars probe apart
 _PRIMARY_PROBE_TIMEOUT = 3.0   # seconds a found primary has to reply
 _PRIMARY_SEARCH_TIMEOUT = 2.0  # seconds
@@ -278,8 +279,15 @@ class Registrar(Service):
 
     @abstractmethod
     def service_add(self, topic_path, name, protocol, transport, owner, tags):
-        """Register a Service.  Wire form: "(add topic_path name protocol
-        transport owner (tags))" on topic_in.  Projection: command"""
+        """Register a Service.  Wire form on topic_in: "(add topic_path
+        name protocol transport owner (tags))" -- a Service sends no time,
+        because the Registrar is the clock.
+
+        Wire form on topic_out, and in a share or history reply: the same,
+        with "time_add" and "time_remove" appended, each a UTC ISO 8601
+        string, and "time_remove" is "-" while the Service runs.  That is
+        registrar:3, and registrar:2 published six fields with no time.
+        Projection: command"""
 
     @abstractmethod
     def service_remove(self, topic_path):
@@ -290,18 +298,34 @@ class Registrar(Service):
     @abstractmethod
     def services_history(self, topic_response, count):
         """Reply with up to "count" most-recently removed Services:
-        "(item_count n)" then one "(add ... time_add time_remove)" per
-        Service, to topic_response.  Wire form:
-        "(history topic_response count)".  Projection: request"""
+        "(item_count n)" then one eight-field "(add ...)" for each one, to
+        topic_response.  Wire form: "(history topic_response count)".
+        "count" is a limit and not a cursor, so a client cannot ask for
+        the Services after the ones it holds.  Projection: request"""
 
     @abstractmethod
     def services_share(self, topic_response,
         name, protocol, transport, owner, tags):
         """Reply with the running Services matching the filter:
-        "(item_count n)" then one "(add ...)" per Service to
+        "(item_count n)" then one eight-field "(add ...)" for each one to
         topic_response, then "(sync topic_response)" on topic_out.
         Wire form: "(share topic_response name protocol transport owner
         tags)".  Projection: request"""
+
+def _service_add_payload(service_details):
+    """The "(add ...)" of one Service: the same eight fields whether it
+    comes from the live stream, a share reply or a history reply.
+
+    Three paths built this by hand, and the share reply left the two times
+    out, so a client learned different things about one Service depending
+    on how it heard.  generate() also length-prefixes a field that holds a
+    space, which the hand-built strings did not"""
+
+    return generate("add", [
+        service_details["topic_path"], service_details["name"],
+        service_details["protocol"], service_details["transport"],
+        service_details["owner"], service_details["tags"],
+        service_details["time_add"], service_details["time_remove"]])
 
 class RegistrarImpl(Registrar):
     def __init__(self, context):
@@ -407,16 +431,7 @@ class RegistrarImpl(Registrar):
         for service_details in self.history:
             if count < 1:
                 break
-            service_tags = " ".join(service_details["tags"])
-            payload_out =  "(add"                                \
-                          f" {service_details['topic_path']}"    \
-                          f" {service_details['name']}"          \
-                          f" {service_details['protocol']}"      \
-                          f" {service_details['transport']}"     \
-                          f" {service_details['owner']}"         \
-                          f" ({service_tags})"                   \
-                          f" {service_details['time_add']}"      \
-                          f" {service_details['time_remove']})"
+            payload_out = _service_add_payload(service_details)
             aiko.message.publish(topic_response, payload_out)
             count -= 1
 
@@ -430,15 +445,8 @@ class RegistrarImpl(Registrar):
         aiko.message.publish(topic_response, payload=payload_out)
 
         for service_details in services_out:
-            service_tags = " ".join(service_details["tags"])
-            payload_out =  "(add"                              \
-                          f" {service_details['topic_path']}"  \
-                          f" {service_details['name']}"        \
-                          f" {service_details['protocol']}"    \
-                          f" {service_details['transport']}"   \
-                          f" {service_details['owner']}"       \
-                          f" ({service_tags}))"
-            aiko.message.publish(topic_response, payload_out)
+            aiko.message.publish(
+                topic_response, _service_add_payload(service_details))
 
         payload_out = f"(sync {topic_response})"
         aiko.message.publish(self.topic_out, payload_out)
@@ -446,11 +454,15 @@ class RegistrarImpl(Registrar):
     def service_add(self,
         topic_path, name, protocol, transport, owner, tags):
 
-        payload_out = generate(
-            "add", [topic_path, name, protocol, transport, owner, tags])
         if not self.services.get_service(topic_path):
             _LOGGER.debug(f"Service add: {topic_path}")
 
+        # The Registrar is the clock, so a Service that registers sends no
+        # time of its own and needs no change.  UTC ISO 8601, as
+        # s_03_SelfAwarenessTelemetry REQ-9 has it for every other
+        # timestamp, and not time.monotonic(), which no other process can
+        # read and which a restart begins again
+            time_add = datetime_now_utc_iso()
             service_details = {
                 "topic_path": topic_path,
                 "name": name,
@@ -458,9 +470,10 @@ class RegistrarImpl(Registrar):
                 "transport": transport,
                 "owner": owner,
                 "tags": tags,
-                "time_add": time.monotonic(),
-                "time_remove": 0
+                "time_add": time_add,
+                "time_remove": _TIME_ABSENT
             }
+            payload_out = _service_add_payload(service_details)
 
             self.services.add_service(topic_path, service_details)
             self.ec_producer.update("service_count", self.services.count)
@@ -483,7 +496,7 @@ class RegistrarImpl(Registrar):
                 if service_details:
                     _LOGGER.debug(f"Service remove: {topic_path}")
 
-                    service_details["time_remove"] = time.monotonic()
+                    service_details["time_remove"] = datetime_now_utc_iso()
                     self.history.appendleft(service_details)
 
                     self.services.remove_service(topic_path)
@@ -495,14 +508,104 @@ class RegistrarImpl(Registrar):
 
 # --------------------------------------------------------------------------- #
 
-@click.command("main", help="Registrar Service")
+def service_duration(service_details, now_utc_iso=None):
+    """(start, uptime, duration) of one Service, each as a string.
 
-def main():
+    "start" is its local time.  A running Service has an uptime and no
+    duration, and a terminated one has a duration and no uptime.  Pure, so
+    the arithmetic is tested without a Registrar"""
+
+    time_add = service_details[6] if len(service_details) > 6  \
+        else _TIME_ABSENT
+    time_remove = service_details[7] if len(service_details) > 7  \
+        else _TIME_ABSENT
+    if time_add == _TIME_ABSENT:
+        return _TIME_ABSENT, _TIME_ABSENT, _TIME_ABSENT  # registrar:2
+    start = utc_iso_to_local(time_add)
+    added = utc_iso_since_epoch(time_add)
+    if time_remove == _TIME_ABSENT:
+        now = now_utc_iso or datetime_now_utc_iso()
+        return start, _seconds_terse(
+            utc_iso_since_epoch(now) - added), _TIME_ABSENT
+    return start, _TIME_ABSENT, _seconds_terse(
+        utc_iso_since_epoch(time_remove) - added)
+
+def _seconds_terse(seconds):
+    """A duration a person reads at a glance: 3s, 2m04s, 1h02m, 3d04h"""
+
+    seconds = int(max(0, seconds))
+    if seconds < 60:
+        return f"{seconds}s"
+    if seconds < 3600:
+        return f"{seconds // 60}m{seconds % 60:02d}s"
+    if seconds < 86400:
+        return f"{seconds // 3600}h{(seconds % 3600) // 60:02d}m"
+    return f"{seconds // 86400}d{(seconds % 86400) // 3600:02d}h"
+
+@click.group(invoke_without_command=True)
+@click.pass_context
+
+def main(context):
+    """Registrar Service
+
+    aiko_registrar          # run it, which is what it has always done
+    aiko_registrar list     # the Services it knows about
+    """
+
+# "aiko_registrar" with no sub-command runs the Registrar, because that is
+# what the ReadMe, four documents and every ProcessManager definition file
+# say to type
+    if context.invoked_subcommand is None:
+        context.invoke(run_command)
+
+@main.command(name="run", help="Run the Registrar Service")
+
+def run_command():
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
     init_args = service_args(
         REGISTRAR_SERVICE_TYPE, None, None, REGISTRAR_PROTOCOL, tags)
     registrar = compose_instance(RegistrarImpl, init_args)
     aiko.process.run(True)
+
+@main.command(name="list", help="List the Services the Registrar knows")
+@click.option("--history", "-h", is_flag=True,
+    help="The Services that have terminated, instead of those running")
+@click.option("--timeout", "-t", type=click.FLOAT, default=2.0,
+    help="Seconds to wait for the Registrar")
+
+def list_command(history, timeout):
+    """List Services
+
+    aiko_registrar list [--history] [--timeout SECONDS]
+
+    \b
+    Running:    start time and uptime
+    Terminated: start time and how long it ran
+
+    Each time comes from the Registrar, which stamps an "(add ...)" and a
+    "(remove ...)" in UTC.  A Registrar older than registrar:3 sends no
+    time, and each column is then "-".
+    """
+
+    services_cache = services_cache_create_singleton(
+        aiko.process, True, history_limit=_HISTORY_RING_BUFFER_SIZE)
+    services_cache.wait_ready()
+    records = services_cache.get_history() if history  \
+        else services_cache.get_services()
+    rows = []
+    for service_details in records:
+        start, uptime, duration = service_duration(service_details)
+        rows.append((str(ServiceTopicPath.parse(service_details[0])),
+            service_details[1], start, duration if history else uptime))
+    services_cache_delete()
+
+    if not rows:
+        print("No Services" if not history else "No terminated Services")
+        return
+    heading = "Ran for" if history else "Uptime"
+    print(f"{'Topic path':<28} {'Name':<18} {'Started':<20} {heading}")
+    for topic_path, name, start, elapsed in rows:
+        print(f"{topic_path:<28} {name:<18} {start:<20} {elapsed}")
 
 if __name__ == "__main__":
     main()
