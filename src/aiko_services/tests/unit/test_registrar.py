@@ -423,3 +423,33 @@ def test_the_utilities_still_work_for_their_one_caller():
     assert utc_iso_to_datetime(datetime_now_utc_iso()).tzinfo is not None
 
 # --------------------------------------------------------------------------- #
+
+# The sentinel, as a decision rather than an accident ------------------- #
+#
+# The Go port asked whether "-" was deliberate, because the codec's own
+# None is "0:".  It is: "0:" says None in Python, and each other language
+# must then choose what None is, where "-" is a value every language reads
+# the same way.  documentation/concepts/utilities/parser.md records the
+# three sentinels.
+
+def test_a_running_service_uses_the_dash_and_not_the_codecs_none():
+    from aiko_services.main.registrar import _TIME_ABSENT
+    from aiko_services.main.utilities import generate
+
+    assert _TIME_ABSENT == "-"
+    assert generate("add", ["t", _TIME_ABSENT]) == "(add t -)"
+    assert generate("add", ["t", None]) == "(add t 0:)"   # the codec's None
+    assert parse("(add t 0:)")[1][1] is None
+    assert parse("(add t -)")[1][1] == "-"
+
+def test_a_full_date_time_needs_no_length_prefix():
+    """A bare clock time begins with "digits:", which the generator reads
+    as a canonical symbol and prefixes.  The full form does not"""
+
+    from aiko_services.main.utilities import generate
+
+    full = "2026-10-23T08:17:40.845965+00:00"
+    assert generate("add", ["t", full]) == f"(add t {full})"
+    assert generate("add", ["t", "08:17:40"]) == "(add t 8:08:17:40)"
+
+# --------------------------------------------------------------------------- #

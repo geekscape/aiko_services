@@ -133,7 +133,15 @@ current without polling. The `add` there carries two more fields:
 ```
 
 Each time is a UTC ISO 8601 string, and `TIME_REMOVE` is `-` while the
-Service runs. That is `registrar:3`. `registrar:2` published six fields
+Service runs. `-` is deliberate, and not the codec's own `0:` None
+sentinel. `0:` says "None" in Python, and each other language must then
+choose what None is. `-` is a value that each language reads the same
+way. The [Parser](utilities/parser.md) records the three sentinels and
+which does what.
+
+The full date and time is deliberate as well. A bare clock time such as
+`08:17:40` begins with `digits:`, so the generator gives it a length
+prefix. That is `registrar:3`. `registrar:2` published six fields
 and no time, so a reader must accept six fields or more. A reader that
 demanded exactly six dropped every registration from a newer Registrar,
 and said so only in a debug line.
