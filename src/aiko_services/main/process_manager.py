@@ -354,6 +354,13 @@ class ProcessManagerImpl(ProcessManager):
     def _ec_producer_change_handler(self, command, item_name, item_value):
         if item_name == "log_level":
             self.logger.setLevel(str(item_value).upper())
+    # "safe" is a report of the posture, not a control for it.  The posture
+    # is decided by the command line, and the FunctionGate holds its own
+    # allow list, so a write here never changed what is enforced -- it only
+    # made the report lie.  Revert it, count it, and say so
+        if item_name == "safe" and item_value != self._safe:
+            self._function_denied("safe", "read_only", str(item_value)[:20])
+            self.ec_producer.update("safe", self._safe)
 
     def exit(self, grace_time):
         grace_time = parse_int(grace_time, _GRACE_TIME)

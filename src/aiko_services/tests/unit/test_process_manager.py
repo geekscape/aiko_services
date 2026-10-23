@@ -357,3 +357,59 @@ class _FakeProcess:
         return 0                              # it has exited
 
 # --------------------------------------------------------------------------- #
+
+# The shared state is a report, not a control ------------------------------ #
+#
+# Any client can write any share item through the Actor's "control" topic:
+# ECProducerImpl._producer_handler() accepts (update K V), (remove K) and a
+# key that did not exist, with no allow list.  The FunctionGate guards the
+# "in" topic, not that one.  These tests hold the two consequences this
+# Actor must survive.
+
+def test_a_write_to_safe_does_not_change_what_is_enforced():
+    """The question worth asking of a Dashboard: can an edit turn the gate
+    off?  It cannot.  The gate holds its own allow list, decided at
+    construction from the command line"""
+
+    actor, posted = make_process_manager(safe=True)
+    before = set(actor.functions)
+
+    actor.ec_producer.update("safe", "false")   # as the control topic does
+
+    assert set(actor.functions) == before
+    actor._topic_in_handler(None, "t/in", "(create date)")
+    assert posted == []                         # still denied
+
+def test_a_write_to_safe_is_reverted_and_counted():
+    """So the report cannot be made to lie either"""
+
+    actor, _ = make_process_manager(safe=True)
+
+    actor.ec_producer.update("safe", "false")
+
+    assert actor.share["safe"] is True
+    assert actor.share["last_error"] == "read_only safe"
+
+def test_writing_the_posture_it_already_has_is_not_a_denial():
+    actor, _ = make_process_manager(safe=True)
+
+    actor.ec_producer.update("safe", True)
+
+    assert actor.share["safe"] is True
+    assert actor.share["last_error"] == "-"
+
+def test_a_falsified_denial_count_is_corrected_by_the_next_denial():
+    """A client wrote (update metrics.denied 0), which made the item the
+    string "0".  The count is held by the Actor, so "string + 1" is never
+    evaluated and the published count is right again"""
+
+    actor, _ = make_process_manager(safe=True)
+    actor._topic_in_handler(None, "t/in", "(exit 0)")
+    assert actor.share["metrics"]["denied"] == 1
+
+    actor.ec_producer.update("metrics.denied", "0")      # falsified
+    actor._topic_in_handler(None, "t/in", "(exit 0)")    # no TypeError
+
+    assert actor.share["metrics"]["denied"] == 2
+
+# --------------------------------------------------------------------------- #

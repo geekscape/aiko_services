@@ -78,6 +78,15 @@ Two shared-state keys make the posture observable. `safe` is `true` or
 `false`, and `metrics.denied` counts each denied function. `last_error`
 holds the reason and the name of the last one.
 
+These keys are a report of the posture, not a control for it. Each one is
+writable from the Actor's `control` topic, which the `FunctionGate` does
+not guard, so the ProcessManager defends the report. A write to `safe` is
+reverted to the value in force, and counted as a denial with the reason
+`read_only`. The Actor holds the count of denials, and publishes it again
+at the next denial. Thus a value that a client wrote is corrected.
+A write could never change what is enforced, because the gate holds its
+own allow list.
+
 The `FunctionGate` aspect applies the policy. Its allow list is derived
 from the `ProcessManager` Interface, so the list and the contract cannot
 drift apart.

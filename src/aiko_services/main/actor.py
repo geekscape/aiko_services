@@ -279,8 +279,14 @@ class ActorImpl(Actor):
         An Actor that publishes "last_error" or "metrics.denied" gets both
         kept current, and an Actor that publishes neither only logs.  So a
         denial is observable (ADR-023 decision 3) with no override.  An
-        Implementation may still define its own, as the Display Actor does"""
+        Implementation may still define its own, as the Display Actor does.
 
+        The count is held here, and never read back from the share.  A
+        share item is writable from the "control" topic, so a count taken
+        from the share is a count that a client can set.  It is also a
+        string once a client has written it, and "string + 1" raises"""
+
+        self._denied_count = getattr(self, "_denied_count", 0) + 1
         denied = f"{self.name}: function denied: {reason}: {name}"
         self.logger.warning(f"{denied} ({detail})" if detail else denied)
         if not hasattr(self, "ec_producer"):
@@ -290,7 +296,7 @@ class ActorImpl(Actor):
             self.ec_producer.update("last_error", token[:40])
         metrics = self.share.get("metrics")
         if isinstance(metrics, dict) and "denied" in metrics:
-            self.ec_producer.update("metrics.denied", metrics["denied"] + 1)
+            self.ec_producer.update("metrics.denied", self._denied_count)
 
     def _post_message(
         self, topic, command, args, delay=None, target_function=None):
