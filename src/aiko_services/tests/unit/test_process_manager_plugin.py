@@ -39,7 +39,7 @@ def test_the_default_plugin_module_registers_it():
 
     from aiko_services.actors.dashboard.plugins import plugins as default
 
-    assert sorted(default) == ["process_manager", "registrar"]
+    assert sorted(default) == ["process_manager", "recorder", "registrar"]
 
 # The keys ---------------------------------------------------------------- #
 

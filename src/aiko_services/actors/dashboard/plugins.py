@@ -22,6 +22,7 @@
 from aiko_services.actors.dashboard.process_manager_plugin import (
     ProcessManagerFrame
 )
+from aiko_services.actors.dashboard.recorder_plugin import RecorderFrame
 from aiko_services.actors.dashboard.registrar_plugin import RegistrarFrame
 
 __all__ = ["plugins"]
@@ -30,6 +31,7 @@ __all__ = ["plugins"]
 
 plugins = {
     "process_manager": ProcessManagerFrame,
+    "recorder": RecorderFrame,
     "registrar": RegistrarFrame
 }
 

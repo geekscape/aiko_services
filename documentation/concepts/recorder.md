@@ -84,6 +84,26 @@ newline or a non-breaking space. It then returns that value exactly, so
 the Recorder changes nothing. Before 2026-10-23 it turned each
 parenthesis into a brace, which reported a log record that nobody wrote.
 
+### The Dashboard page
+
+`aiko_dashboard` has a page for each Recorder. Select the Service, then
+press `S`. The page needs no `--plugin` flag, because
+`actors/dashboard/plugins.py` is the default module and registers it.
+
+The page shows each recorded topic, how many records the shared state
+holds for it, and the newest one. `Enter` on a topic shows those records.
+The title bar carries the count of topics, records and evictions. Below
+the topics are the filters, both sizes and the metrics.
+
+The keys are `r` to record a filter, `R` to stop one, `L` for the log
+level and `H` for help. Each of those functions is one the Recorder
+allows in every posture, so this page has no posture to explain, which
+the ProcessManager's page does.
+
+A `lru_cache.<topic>` item is either the newest record, as a string, or
+every record the ring buffer holds, as a list. The page reads both, so it
+needs no change when that question is settled.
+
 ### Public API
 
 ```python

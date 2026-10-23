@@ -67,7 +67,8 @@ def test_the_plugin_default_actually_resolves():
 def test_the_registry_holds_a_frame_for_each_page():
     module = load_module(PLUGIN_DEFAULT)
 
-    assert sorted(module.plugins) == ["process_manager", "registrar"]
+    assert sorted(module.plugins) ==  \
+        ["process_manager", "recorder", "registrar"]
     for name, frame_class in module.plugins.items():
         assert issubclass(frame_class, dashboard.ServiceFrame), name
 
@@ -152,10 +153,11 @@ def test_the_page_key_is_derived_from_the_protocol(protocol, expected):
 
 def test_each_shipped_service_has_a_page_under_a_derived_key():
     from aiko_services.main.process_manager import PROTOCOL as PROCESS_MANAGER
+    from aiko_services.main.recorder import PROTOCOL as RECORDER
     from aiko_services.main import REGISTRAR_PROTOCOL
 
     module = load_module(PLUGIN_DEFAULT)
-    for protocol in (PROCESS_MANAGER, REGISTRAR_PROTOCOL):
+    for protocol in (PROCESS_MANAGER, RECORDER, REGISTRAR_PROTOCOL):
         key = dashboard.FrameCommon._short_name(None, protocol).split(":")[0]
         assert key in module.plugins, protocol
 
@@ -174,6 +176,7 @@ FRAMES = [
     ("aiko_services.actors.dashboard.registrar_plugin", "RegistrarFrame"),
     ("aiko_services.actors.dashboard.process_manager_plugin",
      "ProcessManagerFrame"),
+    ("aiko_services.actors.dashboard.recorder_plugin", "RecorderFrame"),
 ]
 
 @needs_pty

@@ -15,8 +15,9 @@ aiko_dashboard --plugin MODULE ...   # and the pages that MODULE registers
 | `dashboard.py` | The application: the Dashboard page, the Log page, the plug-in registry and the `aiko_dashboard` console script |
 | `frames.py` | The plug-in interface: `FrameCommon`, `ServiceFrame` and `LogUI` |
 | `plugins.py` | The default registry. It names the pages and holds no code of its own |
-| `registrar_plugin.py` | The Registrar's page: the Services it knows about |
 | `process_manager_plugin.py` | The ProcessManager's page: the process table, the posture and its functions |
+| `recorder_plugin.py` | The Recorder's page: the topics it records, the newest record of each one, and the filters |
+| `registrar_plugin.py` | The Registrar's page: the Services it knows about |
 
 ## Writing a page
 
@@ -68,7 +69,8 @@ Three rules that the existing pages follow:
 
 ```bash
 pytest src/aiko_services/tests/unit/test_dashboard.py \
-       src/aiko_services/tests/unit/test_process_manager_plugin.py
+       src/aiko_services/tests/unit/test_process_manager_plugin.py \
+       src/aiko_services/tests/unit/test_recorder_plugin.py
 ```
 
 `tests/unit/dashboard_screen.py` builds a frame on a real curses screen,
