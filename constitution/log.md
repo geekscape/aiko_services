@@ -8,6 +8,16 @@ pre-publication history is maintained privately.
 
 ## 2026-10-23
 
+- **Update** — [s_01_RepositoryLayout.md](s_01_RepositoryLayout.md)
+  migration step 5: the Dashboard moved to `actors/dashboard/` on this date,
+  ahead of the other steps, because its files were reorganized anyway. The
+  package holds the application, the plug-in interface and the pages of the
+  framework's own Services. The top-level facade re-exports that interface,
+  so `main/` does not import `actors/` and the layering contract of step 7
+  stays reachable. The move is three commits, as
+  [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+  section 9 directs, so git keeps the history of each file.
+
 - **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md):
   the `FunctionGate` aspect joins the runtime Interface list. It holds which
   functions a Service accepts from the message bus (P12, ADR-023). `Actor`

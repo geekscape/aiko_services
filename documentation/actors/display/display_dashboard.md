@@ -43,7 +43,7 @@ The plug-in is in the wheel, in the actors tier. Any `-p` replaces the
 Dashboard's default plug-ins, so give both:
 
 ```bash
-aiko_dashboard -p aiko_services.main.dashboard_plugins \
+aiko_dashboard -p aiko_services.actors.dashboard.plugins \
                -p aiko_services.actors.display.dashboard_plugin
 ```
 

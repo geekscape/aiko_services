@@ -886,7 +886,7 @@ def update_plugins(plugins):
 @click.option("--history_limit", "-hl", type=click.INT, default=32,
     help="History length requested from Registrar")
 @click.option("--plugin", "-p", multiple=True, required=False,
-    default=["aiko_services.main.dashboard_plugins"])
+    default=["aiko_services.actors.dashboard.plugins"])
 
 def main(plugin, history_limit):
     """Aiko Services Dashboard

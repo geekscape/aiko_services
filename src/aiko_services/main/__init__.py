@@ -109,6 +109,5 @@ from .registrar import *                  # TODO: Narrow to required references
 
 # from .cli import *
 
-from .dashboard import LogUI, ServiceFrame
 
 aiko.process = process_create()

@@ -94,7 +94,7 @@ test = ["pytest~=8.3.4"]
 
 [project.scripts]
 # aiko = "aiko_services.main.cli:main"
-aiko_dashboard = "aiko_services.main.dashboard:main"
+aiko_dashboard = "aiko_services.actors.dashboard.dashboard:main"
 aiko_display = "aiko_services.actors.display.cli:main"
 aiko_hyperspace = "aiko_services.main.hyperspace:main"
 aiko_pipeline = "aiko_services.main.pipeline:main"

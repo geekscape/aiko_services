@@ -6,7 +6,7 @@
 # process table, the posture, and the functions create, destroy, dump and
 # exit.
 #
-# Registered through "dashboard_plugins.py", which is the Dashboard's
+# Registered through "plugins.py", which is the Dashboard's
 # default "--plugin" module, so this page needs no flag.  The key is the
 # protocol type, "process_manager".
 #
@@ -40,7 +40,9 @@ from asciimatics.widgets import (
 
 import aiko_services as aiko
 from aiko_services.main.connection import ConnectionState
-from aiko_services.main.dashboard import LogLevelPopupMenu, LogUI, ServiceFrame
+from aiko_services.actors.dashboard import (
+    LogLevelPopupMenu, LogUI, ServiceFrame,
+)
 from aiko_services.main.process_manager import (
     ProcessManager, SAFE_FUNCTIONS, parse_process_share,
 )

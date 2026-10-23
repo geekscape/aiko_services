@@ -169,7 +169,7 @@ SBC's broker must listen on every interface. The
 [test guide](testing.md) gives the mosquitto configuration and the two
 discovery traps.
 
-**The Dashboard page.** `aiko_dashboard -p aiko_services.main.dashboard_plugins
+**The Dashboard page.** `aiko_dashboard -p aiko_services.actors.dashboard.plugins
 -p aiko_services.actors.display.dashboard_plugin`, then `S` on the Actor.
 The page shows a live mirror of the panel through the leased frame feed,
 and the shared state with editable settings. It shows the process log,
