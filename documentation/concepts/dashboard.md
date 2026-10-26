@@ -7,7 +7,7 @@ audience: [architects, developers, end-users]
 status: work-in-progress
 ste: adapted
 source:
-  - src/aiko_services/actors/dashboard/dashboard.py
+  - src/aiko_services/ide/tui/dashboard/dashboard.py
 related: [design_overview, dashboard_plugin, service, share, registrar,
   connection, recorder]
 version: "0.6"
@@ -18,7 +18,7 @@ last_updated: 2026-08-01
 
 ## Overview
 
-Source code: [`src/aiko_services/actors/dashboard/dashboard.py`](../../src/aiko_services/actors/dashboard/dashboard.py)
+Source code: [`src/aiko_services/ide/tui/dashboard/dashboard.py`](../../src/aiko_services/ide/tui/dashboard/dashboard.py)
 
 The **Dashboard** is the Aiko Services terminal user interface (TUI) —
 built on the `asciimatics` library — for watching and operating a running
@@ -58,8 +58,8 @@ aiko_dashboard            # full-screen TUI appears
 ### Command-line usage
 
 The console script is `aiko_dashboard` (defined in `pyproject.toml` as
-`aiko_services.actors.dashboard.dashboard:main`). The module can also be
-run directly (`./dashboard.py` in `src/aiko_services/actors/dashboard`).
+`aiko_services.ide.tui.dashboard.dashboard:main`). The module can also be
+run directly (`./dashboard.py` in `src/aiko_services/ide/tui/dashboard`).
 
 ```bash
 aiko_dashboard [--history_limit N] [--plugin MODULE]...
@@ -67,7 +67,7 @@ aiko_dashboard [--history_limit N] [--plugin MODULE]...
 # -hl, --history_limit N   History length requested from the Registrar
 #                          (default: 32)
 # -p,  --plugin MODULE     Dashboard plug-in module(s) to load
-#                          (default: aiko_services.actors.dashboard.plugins)
+#                          (default: aiko_services.ide.tui.dashboard.plugins)
 ```
 
 Keyboard commands on the Dashboard page (press `?` for this list):

@@ -11,6 +11,6 @@ process = aiko.process
 # plug-in interface is re-exported here, in the facade, and not by
 # "main/__init__.py".  A plug-in keeps using "aiko.ServiceFrame", and
 # "main" does not import "actors"
-from aiko_services.actors.dashboard import (  # noqa: E402, F401
+from aiko_services.ide.tui.dashboard import (  # noqa: E402, F401
     FrameCommon, LogLevelPopupMenu, LogUI, ServiceFrame,
 )

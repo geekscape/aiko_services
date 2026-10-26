@@ -164,7 +164,7 @@ from asciimatics.widgets import (
 import aiko_services as aiko  # designed to be external to the main framework
 from aiko_services.main.utilities import load_module
 
-from aiko_services.actors.dashboard.frames import (
+from aiko_services.ide.tui.dashboard.frames import (
     FrameCommon, LogUI, NICE_COLORS, ServiceFrame,
 )
 
@@ -590,7 +590,7 @@ def update_plugins(plugins):
 @click.option("--history_limit", "-hl", type=click.INT, default=32,
     help="History length requested from Registrar")
 @click.option("--plugin", "-p", multiple=True, required=False,
-    default=["aiko_services.actors.dashboard.plugins"])
+    default=["aiko_services.ide.tui.dashboard.plugins"])
 
 def main(plugin, history_limit):
     """Aiko Services Dashboard

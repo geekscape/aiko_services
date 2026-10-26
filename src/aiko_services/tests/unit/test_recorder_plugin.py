@@ -19,7 +19,7 @@ import pytest
 
 asciimatics = pytest.importorskip("asciimatics")
 
-from aiko_services.actors.dashboard.recorder_plugin import (  # noqa: E402
+from aiko_services.ide.tui.dashboard.recorder_plugin import (  # noqa: E402
     KEYS, RECORD_WIDTH, RecorderPage, plugins,
 )
 from aiko_services.tests.unit.dashboard_screen import (       # noqa: E402
@@ -59,12 +59,12 @@ def test_the_plugin_key_is_the_protocol_type():
     assert list(plugins) == ["recorder"]
 
 def test_the_default_plugin_module_registers_it():
-    from aiko_services.actors.dashboard.plugins import plugins as default
+    from aiko_services.ide.tui.dashboard.plugins import plugins as default
 
     assert sorted(default) == ["process_manager", "recorder", "registrar"]
 
 def test_the_dashboard_derives_that_key_from_the_protocol():
-    from aiko_services.actors.dashboard.dashboard import FrameCommon
+    from aiko_services.ide.tui.dashboard.dashboard import FrameCommon
     from aiko_services.main.recorder import PROTOCOL
 
     assert FrameCommon._short_name(None, PROTOCOL).split(":")[0] == "recorder"
@@ -177,7 +177,7 @@ def test_the_title_of_a_recorder_that_has_recorded_nothing(page):
 @pytest.mark.parametrize("cache,label", [(NEWEST, "newest"), (RING, "ring")],
     ids=["a record for each topic", "a whole ring for each topic"])
 def test_the_page_is_built_and_drawn(cache, label, tmp_path):
-    drawn = draw_frame("aiko_services.actors.dashboard.recorder_plugin",
+    drawn = draw_frame("aiko_services.ide.tui.dashboard.recorder_plugin",
         "RecorderFrame", cache, tmp_path)
 
     assert drawn["ok"], drawn.get("traceback") or drawn.get("error")
@@ -190,7 +190,7 @@ def test_the_page_is_built_and_drawn(cache, label, tmp_path):
 @pytest.mark.parametrize("size", [(80, 24), (132, 48)],
     ids=["80x24", "132x48"])
 def test_the_page_fits_a_small_terminal(size, tmp_path):
-    drawn = draw_frame("aiko_services.actors.dashboard.recorder_plugin",
+    drawn = draw_frame("aiko_services.ide.tui.dashboard.recorder_plugin",
         "RecorderFrame", NEWEST, tmp_path, size=size)
 
     assert drawn["ok"], drawn.get("traceback") or drawn.get("error")
@@ -200,7 +200,7 @@ def test_the_page_fits_a_small_terminal(size, tmp_path):
 def test_the_page_draws_with_an_empty_shared_state(tmp_path):
     """The state arrives after the page opens"""
 
-    drawn = draw_frame("aiko_services.actors.dashboard.recorder_plugin",
+    drawn = draw_frame("aiko_services.ide.tui.dashboard.recorder_plugin",
         "RecorderFrame", {}, tmp_path)
 
     assert drawn["ok"], drawn.get("traceback") or drawn.get("error")

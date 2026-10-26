@@ -5,7 +5,7 @@
 #
 # A plug-in imports these from the package, not from this module ...
 #
-#   from aiko_services.actors.dashboard import LogUI, ServiceFrame
+#   from aiko_services.ide.tui.dashboard import LogUI, ServiceFrame
 #
 # ... so that this file can be reorganized without touching a plug-in.
 #

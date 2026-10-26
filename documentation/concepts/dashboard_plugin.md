@@ -7,8 +7,8 @@ audience: [architects, developers, end-users]
 status: work-in-progress
 ste: adapted
 source:
-  - src/aiko_services/actors/dashboard/plugins.py
-  - src/aiko_services/actors/dashboard/dashboard.py
+  - src/aiko_services/ide/tui/dashboard/plugins.py
+  - src/aiko_services/ide/tui/dashboard/dashboard.py
   - src/aiko_services/actors/display/dashboard_plugin.py
 related: [design_overview, dashboard, service, share, registrar]
 version: "0.6"
@@ -19,7 +19,7 @@ last_updated: 2026-09-28
 
 ## Overview
 
-Source code: [`src/aiko_services/actors/dashboard/plugins.py`](../../src/aiko_services/actors/dashboard/plugins.py), [`src/aiko_services/actors/dashboard/dashboard.py`](../../src/aiko_services/actors/dashboard/dashboard.py)
+Source code: [`src/aiko_services/ide/tui/dashboard/plugins.py`](../../src/aiko_services/ide/tui/dashboard/plugins.py), [`src/aiko_services/ide/tui/dashboard/dashboard.py`](../../src/aiko_services/ide/tui/dashboard/dashboard.py)
 
 A **Dashboard plug-in** adds a custom page to the Aiko Services
 [Dashboard](dashboard.md) for a particular kind of
@@ -31,7 +31,7 @@ appears.
 
 A plug-in is simply a Python module with a `plugins` dictionary mapping a
 Service name or protocol to a subclass of `aiko.ServiceFrame`. The
-built-in module `aiko_services.actors.dashboard.plugins` gives one
+built-in module `aiko_services.ide.tui.dashboard.plugins` gives one
 example. That example is `RegistrarFrame`, a page for the
 [Registrar](registrar.md). It lists all discovered Service topic paths
 above a live log tail.
@@ -57,7 +57,7 @@ Plug-ins have no CLI of their own. They are loaded by `aiko_dashboard`:
 aiko_dashboard [--plugin MODULE]...   # -p MODULE, may be repeated
 ```
 
-- The default is the single module `aiko_services.actors.dashboard.plugins`
+- The default is the single module `aiko_services.ide.tui.dashboard.plugins`
   (which registers the `registrar` page). Supplying any `--plugin` option
   *replaces* that default — list the built-in module explicitly if you
   want to keep the Registrar page alongside your own.

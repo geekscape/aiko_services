@@ -19,11 +19,11 @@
 # ~~~~~
 # - Discover the pages, instead of naming them here
 
-from aiko_services.actors.dashboard.process_manager_plugin import (
+from aiko_services.ide.tui.dashboard.process_manager_plugin import (
     ProcessManagerFrame
 )
-from aiko_services.actors.dashboard.recorder_plugin import RecorderFrame
-from aiko_services.actors.dashboard.registrar_plugin import RegistrarFrame
+from aiko_services.ide.tui.dashboard.recorder_plugin import RecorderFrame
+from aiko_services.ide.tui.dashboard.registrar_plugin import RegistrarFrame
 
 __all__ = ["plugins"]
 

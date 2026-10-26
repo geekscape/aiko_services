@@ -2,7 +2,7 @@
 #
 # Aiko Services tests: the Aiko Dashboard application
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The first tests for "actors/dashboard/dashboard.py", which had none.
+# The first tests for "ide/tui/dashboard/dashboard.py", which had none.
 #
 # What they aim at is the class of bug that is tricky and not obviously
 # visible, rather than coverage:
@@ -32,12 +32,12 @@ import pytest
 asciimatics = pytest.importorskip("asciimatics")
 
 from aiko_services.main.utilities import load_module            # noqa: E402
-from aiko_services.actors.dashboard import dashboard            # noqa: E402
+from aiko_services.ide.tui.dashboard import dashboard            # noqa: E402
 from aiko_services.tests.unit.dashboard_screen import (         # noqa: E402
     draw_frame, pty_available,
 )
 
-PLUGIN_DEFAULT = "aiko_services.actors.dashboard.plugins"
+PLUGIN_DEFAULT = "aiko_services.ide.tui.dashboard.plugins"
 
 needs_pty = pytest.mark.skipif(
     not pty_available(), reason="needs a POSIX pseudo-terminal")
@@ -97,10 +97,10 @@ def test_the_package_presents_the_whole_plugin_interface():
     can be reorganized without touching a plug-in.  This asserts the names
     are the same objects, not merely that they exist"""
 
-    from aiko_services.actors.dashboard import (
+    from aiko_services.ide.tui.dashboard import (
         FrameCommon, LogLevelPopupMenu, LogUI, ServiceFrame,
     )
-    from aiko_services.actors.dashboard import frames
+    from aiko_services.ide.tui.dashboard import frames
 
     assert FrameCommon is frames.FrameCommon
     assert LogUI is frames.LogUI
@@ -112,7 +112,7 @@ def test_the_facade_still_offers_the_interface():
     the Registrar's page still does"""
 
     import aiko_services as aiko
-    from aiko_services.actors.dashboard import frames
+    from aiko_services.ide.tui.dashboard import frames
 
     assert aiko.ServiceFrame is frames.ServiceFrame
     assert aiko.LogUI is frames.LogUI
@@ -130,7 +130,7 @@ def test_the_service_hooks_default_to_doing_nothing():
     """A page overrides what it needs, so the base class must accept both
     hooks and do nothing"""
 
-    from aiko_services.actors.dashboard import ServiceFrame
+    from aiko_services.ide.tui.dashboard import ServiceFrame
 
     assert ServiceFrame._service_frame_start(None, ["t"], None) is None
     assert ServiceFrame._service_frame_stop(None, ["t"]) is None
@@ -172,11 +172,11 @@ CACHE = {
 }
 
 FRAMES = [
-    ("aiko_services.actors.dashboard.dashboard", "LogFrame"),
-    ("aiko_services.actors.dashboard.registrar_plugin", "RegistrarFrame"),
-    ("aiko_services.actors.dashboard.process_manager_plugin",
+    ("aiko_services.ide.tui.dashboard.dashboard", "LogFrame"),
+    ("aiko_services.ide.tui.dashboard.registrar_plugin", "RegistrarFrame"),
+    ("aiko_services.ide.tui.dashboard.process_manager_plugin",
      "ProcessManagerFrame"),
-    ("aiko_services.actors.dashboard.recorder_plugin", "RecorderFrame"),
+    ("aiko_services.ide.tui.dashboard.recorder_plugin", "RecorderFrame"),
 ]
 
 @needs_pty
@@ -194,7 +194,7 @@ def test_a_shipped_frame_is_built_and_drawn(module_name, class_name, tmp_path):
 @needs_pty
 def test_the_process_manager_page_draws_what_it_promises(tmp_path):
     drawn = draw_frame(
-        "aiko_services.actors.dashboard.process_manager_plugin",
+        "aiko_services.ide.tui.dashboard.process_manager_plugin",
         "ProcessManagerFrame", CACHE, tmp_path)
     assert drawn["ok"], drawn.get("traceback") or drawn.get("error")
     text = "\n".join(drawn["lines"])
@@ -210,7 +210,7 @@ def test_the_process_manager_page_fits_a_small_terminal(size, tmp_path):
     """A widget taller than its frame raises, and only at this moment"""
 
     drawn = draw_frame(
-        "aiko_services.actors.dashboard.process_manager_plugin",
+        "aiko_services.ide.tui.dashboard.process_manager_plugin",
         "ProcessManagerFrame", CACHE, tmp_path, size=size)
 
     assert drawn["ok"], drawn.get("traceback") or drawn.get("error")

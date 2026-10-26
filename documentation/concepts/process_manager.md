@@ -131,7 +131,7 @@ ProcessManager started with `--unsafe`. `list` works in each posture.
 
 `aiko_dashboard` has a page for each ProcessManager. Select the Service,
 then press `S`. The page needs no `--plugin` flag, because
-`actors/dashboard/plugins.py` is the default module and registers it.
+`ide/tui/dashboard/plugins.py` is the default module and registers it.
 
 The page shows the process table, the shared state and the log. The title
 bar carries the posture and the count of denied functions, which is what an

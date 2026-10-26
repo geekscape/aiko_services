@@ -17,7 +17,7 @@ import pytest
 
 asciimatics = pytest.importorskip("asciimatics")
 
-from aiko_services.actors.dashboard.process_manager_plugin import (  # noqa: E402
+from aiko_services.ide.tui.dashboard.process_manager_plugin import (  # noqa: E402
     FUNCTIONS_DENIED_WHEN_SAFE, KEYS, ProcessManagerPage, plugins,
 )
 
@@ -37,7 +37,7 @@ def test_the_plugin_key_is_the_protocol_type():
 def test_the_default_plugin_module_registers_it():
     """It loads with no --plugin flag, beside the Registrar's page"""
 
-    from aiko_services.actors.dashboard.plugins import plugins as default
+    from aiko_services.ide.tui.dashboard.plugins import plugins as default
 
     assert sorted(default) == ["process_manager", "recorder", "registrar"]
 

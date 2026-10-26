@@ -88,7 +88,7 @@ parenthesis into a brace, which reported a log record that nobody wrote.
 
 `aiko_dashboard` has a page for each Recorder. Select the Service, then
 press `S`. The page needs no `--plugin` flag, because
-`actors/dashboard/plugins.py` is the default module and registers it.
+`ide/tui/dashboard/plugins.py` is the default module and registers it.
 
 The page shows each recorded topic, how many records the shared state
 holds for it, and the newest one. `Enter` on a topic shows those records.

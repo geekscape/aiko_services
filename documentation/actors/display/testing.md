@@ -249,7 +249,7 @@ The Dashboard's own pages first, then the display page (step 6 on).
    132x48 for the half-block mirror (80x24 gives the Braille mirror):
 
    ```bash
-   aiko_dashboard -p aiko_services.actors.dashboard.plugins -p aiko_services.actors.display.dashboard_plugin
+   aiko_dashboard -p aiko_services.ide.tui.dashboard.plugins -p aiko_services.actors.display.dashboard_plugin
    ```
 
    Select the Actor and press `S`. Expect: the mirror shows the status

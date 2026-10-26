@@ -10,7 +10,7 @@
 #
 # Usage
 # ~~~~~
-#   aiko_dashboard -p aiko_services.actors.dashboard.plugins \
+#   aiko_dashboard -p aiko_services.ide.tui.dashboard.plugins \
 #                  -p aiko_services.actors.display.dashboard_plugin
 #   Select the Display Actor, press S.  D or Esc: back to the Dashboard.
 #
@@ -59,7 +59,7 @@ from PIL import Image, ImageColor
 
 import aiko_services as aiko
 from aiko_services.main.connection import ConnectionState
-from aiko_services.actors.dashboard import (
+from aiko_services.ide.tui.dashboard import (
     LogLevelPopupMenu, LogUI, ServiceFrame,
 )
 

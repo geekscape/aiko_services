@@ -37,7 +37,7 @@ from asciimatics.widgets import (
 
 import aiko_services as aiko
 from aiko_services.main.connection import ConnectionState
-from aiko_services.actors.dashboard import (
+from aiko_services.ide.tui.dashboard import (
     LogLevelPopupMenu, LogUI, ServiceFrame,
 )
 from aiko_services.main.process_manager import (

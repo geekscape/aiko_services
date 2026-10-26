@@ -3,6 +3,10 @@
 A terminal user interface for every Service on the message bus: what is
 running, what each one publishes, and a page for each kind of Service.
 
+It lives under `ide/`, and not in an Actor tier, because it is something
+a person uses rather than something a running system is made of. `tui/`
+says which kind of interface it is.
+
 ```bash
 aiko_dashboard                       # the pages below, with no flag
 aiko_dashboard --plugin MODULE ...   # and the pages that MODULE registers
@@ -27,7 +31,7 @@ Service, so `.../process_manager:0` selects the page registered as
 `process_manager`.
 
 ```python
-from aiko_services.actors.dashboard import LogUI, ServiceFrame
+from aiko_services.ide.tui.dashboard import LogUI, ServiceFrame
 
 class ExampleFrame(ServiceFrame):
     def __init__(self, screen, dashboard):

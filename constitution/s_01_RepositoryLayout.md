@@ -8,7 +8,7 @@ audience: [architects, developers, ai-coding-agents]
 status: proposal
 ste: adapted
 related: [e_00_TransitionPlan, s_00_Specifications]
-last_updated: 2026-10-23
+last_updated: 2026-10-26
 ---
 
 # Aiko Services — Python Reference Implementation: Repository Layout
@@ -68,7 +68,6 @@ shipped test imports only shipped packages.
             registrar.py
             process_manager.py
             recorder.py
-            dashboard/              # observer UI (optional-dependency group)
             display/                # display:0 protocol Actor (in place since 2026-09-27)
         pipeline/
             __init__.py
@@ -88,6 +87,9 @@ shipped test imports only shipped packages.
             media/                  # image/video/audio/webcam I/O, codecs…
             ml/                     # inference elements
             utilities/              # general-purpose elements
+        ide/                        # what a person uses, not what a system is made of
+            tui/
+                dashboard/          # the Aiko Dashboard (in place since 2026-10-26)
         cli/
             __init__.py             # aiko_dashboard, aiko_pipeline, aiko_registrar entry points
     docs/
@@ -138,11 +140,12 @@ The shim keeps the `aiko_services.main.*` imports operational through all the st
 2. **Leaves first:** move `utilities/` and `message/` into `runtime/` (they import nothing else).
 3. **Mechanism core:** move `event`, `process`, `component`, `state`, `lease`, `connection`.
 4. **Service layer:** move `service`, `share`, `proxy`, `lifecycle`, `transport/`.
-5. **Actor split:** move `actor.py` to `actors/`. Move `registrar`, `process_manager`,
-   `recorder` and `dashboard` to `actors/`. Introduce the protocol/implementation seam from §3.
-   *(`dashboard` moved 2026-10-23, ahead of the other steps.
-   The root `__init__.py` façade re-exports the plug-in interface, so `main/` does not
-   import `actors/`.)*
+5. **Actor split:** move `actor.py` to `actors/`. Move `registrar`, `process_manager`
+   and `recorder` to `actors/`. Introduce the protocol/implementation seam from §3.
+   *Amended 2026-10-26: `dashboard` leaves this step, because the Dashboard is a development
+   environment for a person and not an Actor tier Service (project-lead direction). It moved
+   to `actors/dashboard/` on 2026-10-23 and to `ide/tui/dashboard/` on 2026-10-26. The root
+   `__init__.py` façade re-exports the plug-in interface, so `main/` imports neither tier.*
 6. **Dataflow:** move `pipeline` and `stream` (+ new `element.py`, `schema.py` split) to
    `pipeline/`. Update the imports of `elements/` and `examples/`.
 7. **Enforce:** turn on the import-linter layering contract and the interface-drift check. The

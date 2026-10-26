@@ -45,7 +45,7 @@ mosquitto_pub -t TOPIC_PATH/in -m "(text 0 0 hello)"
 ```
 
 The Dashboard page of the Display Actor also shows this Actor
-(`aiko_dashboard -p aiko_services.actors.dashboard.plugins -p
+(`aiko_dashboard -p aiko_services.ide.tui.dashboard.plugins -p
 aiko_services.actors.display.dashboard_plugin`). The page shows
 "mirror: not supported by this Actor". Its keys reach the Actor, which
 has no `key` command: the Actor logs an ERROR, "Function not found", on

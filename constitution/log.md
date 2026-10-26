@@ -6,6 +6,20 @@ Every substantive change appends an entry under its date heading
 This journal begins at the constitution's first public release. The
 pre-publication history is maintained privately.
 
+## 2026-10-26
+
+- **Update** — [s_01_RepositoryLayout.md](s_01_RepositoryLayout.md): the
+  Dashboard moved again, to `ide/tui/dashboard/`, and an `ide/` tier joins
+  the tree. The Dashboard is a development environment for a person, not
+  an Actor tier Service, so `actors/dashboard/` of 2026-10-23 was the
+  wrong home (project-lead direction). Migration step 5 is amended,
+  because `dashboard` is no longer part of the Actor split. The root
+  `__init__.py` facade re-exports the plug-in interface, so `main/`
+  imports neither tier. The move is two commits, as
+  [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+  section 9 directs, so git keeps the history of each file through a
+  second move.
+
 ## 2026-10-23
 
 - **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md): the `Registrar`

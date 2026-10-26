@@ -9,19 +9,19 @@ no "--plugin" is given.
 The names below are the plug-in interface, so a plug-in imports them from
 this package rather than from the application module:
 
-    from aiko_services.actors.dashboard import LogUI, ServiceFrame
+    from aiko_services.ide.tui.dashboard import LogUI, ServiceFrame
 
 "main" is deliberately not re-exported here: the console script names the
-application module, "actors.dashboard.dashboard:main", so that the click
+application module, "ide.tui.dashboard.dashboard:main", so that the click
 group and this package do not compete for one name.
 """
 
-from aiko_services.actors.dashboard.frames import (  # noqa: F401
+from aiko_services.ide.tui.dashboard.frames import (  # noqa: F401
     FrameCommon, LogUI, ServiceFrame,
 )
 # LogLevelPopupMenu asks DashboardFrame for the singleton, so it lives with
 # the application.  A plug-in does not need to know that
-from aiko_services.actors.dashboard.dashboard import (  # noqa: F401
+from aiko_services.ide.tui.dashboard.dashboard import (  # noqa: F401
     LogLevelPopupMenu,
 )
 
