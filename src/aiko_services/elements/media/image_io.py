@@ -147,10 +147,7 @@ def convert_image(image, media_type):
     return convert_image_handlers[media_type](image)
 
 def convert_images(images, media_type):
-    images_converted = []
-    for image in images:
-        images_converted.append(convert_image(image, media_type))
-    return(images_converted)
+    return [convert_image(image, media_type) for image in images]
 
 # --------------------------------------------------------------------------- #
 
