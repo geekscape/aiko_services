@@ -13,7 +13,7 @@ ste: adapted
 related: [ReadMe, ADR-022_CompositionBoundary, ADR-023_GuardedEvalDefaultDeny,
   ../p_00_DesignPrinciples, ../p_02_CandidatePrinciples,
   ../s_02_InterfaceComposition]
-last_updated: 2026-09-27
+last_updated: 2026-10-23
 ---
 
 # ADR-025 — Remote display abstraction: the `display:0` composite, aspect tags, the key map on the device, a bounded in-band mirror
@@ -55,9 +55,15 @@ the `out` topic, and a frame is bulk data in CP-F's terms, so the feed needed a 
    are `canvas:0`, `screen:0` and `interaction:0`. `Display(Actor, Canvas, Screen, Interaction)`
    has no methods of its own and registers the protocol
    `github.com/geekscape/aiko_services/protocol/display:0`. `oled:0` is withdrawn before any
-   release, and every `oled:` alias and wire form stays. `exit` leaves the Interfaces: `(exit)`
-   is an alias of the framework's `(stop)`. The allow-list of ADR-023 derives from the aspects'
+   release. `exit` leaves the Interfaces, and `(stop)` stops the Actor. The allow list of
+   ADR-023 derives from the aspects'
    abstract methods only, never from the framework's Actor and Service methods.
+
+   *Amended 2026-10-23 (project-lead direction): function name aliases are dropped. The
+   `oled:` names and `(exit)` were aliases until this date. One function now has one name,
+   so a client that sends `(oled:text ...)` or `(exit)` is denied. `aiko_display exit`
+   publishes `(stop)`, and the sub-command keeps its name until a later change renames it.
+   A client of the MicroPython `aiko_engine_mp` vocabulary must send the plain names.*
 2. **Aspects are advertised as tags.** The Actor registers with the tags `device=<backend>
    canvas=0 screen=0 interaction=0 ec=true`, derived from the aspects' contract ids. A client
    filters on a tag, for example `canvas=0`. When the Registrar matches several protocols per
@@ -106,7 +112,7 @@ the `out` topic, and a frame is bulk data in CP-F's terms, so the feed needed a 
 - The applet Host contract is shaped for a later step: applets, and other UI/UX, defined
   purely in S-expressions and run by the sandboxed evaluator of ADR-023. Every Host call takes
   S-expression-representable arguments, and no Host method returns a Python object.
-- Events on the `out` topic (`(applet NAME started)`, `(rejected METHOD REASON)`) are a
+- Events on the `out` topic (`(applet NAME started)`, `(denied FUNCTION REASON)`) are a
   recorded candidate for a later Epic. State stays in the share (P3). The frame feed is not
   an `out` event, because `out` is a text topic.
 - Evidence trail:

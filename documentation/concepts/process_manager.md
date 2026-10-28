@@ -10,8 +10,8 @@ source:
   - src/aiko_services/main/process_manager.py
 related: [design_overview, hyperspace, dependency, storage, actor, share,
   lifecycle]
-version: "0.6"
-last_updated: 2026-08-01
+version: "0.7"
+last_updated: 2026-10-23
 ---
 
 # ProcessManager
@@ -46,19 +46,80 @@ defaulting to the local hostname.
 Lifecycle:
 
 ```bash
-aiko_process run  [--name NAME] [--watchdog] [DEFINITION_PATHNAME]
+aiko_process run  [--name NAME] [--watchdog] [--unsafe] [DEFINITION_PATHNAME]
 aiko_process dump [--name NAME]
 aiko_process exit [--name NAME] [--grace_time SECONDS]   # default 5 s
 ```
 
-`DEFINITION_PATHNAME` must be a `.json` file containing an array of command
-strings, launched at startup:
+### What a ProcessManager accepts from the message bus
 
-```json
-["aiko_registrar", "aiko_pipeline create pipeline.json -ll debug"]
+A ProcessManager starts and stops processes on its host. Any client on the
+broker can reach it, so `run` is `--safe` by default. In that posture it
+accepts two functions from the bus: `(list ...)` and `(set_log_level ...)`.
+Neither one starts or stops a process. It denies every other function,
+`(create ...)`, `(destroy ...)`, `(exit ...)` and `(stop)` among them.
+
+So `aiko_process create`, `destroy` and `exit` work only against a
+ProcessManager that was started with `--unsafe`:
+
+```bash
+aiko_process run --unsafe            # accepts create, destroy, dump, exit
 ```
 
+`--unsafe` is appropriate where the broker is not reachable from outside a
+trusted network. ADR-023 decision 6 allows that posture for an isolated
+deployment, as long as the policy is explicit and advertised.
+
+The command line and the definition file are not affected, because neither
+one goes through the bus. A ProcessManager that starts the processes in its
+definition file needs nothing but the default.
+
+Two shared-state keys make the posture observable. `safe` is `true` or
+`false`, and `metrics.denied` counts each denied function. `last_error`
+holds the reason and the name of the last one.
+
+These keys are a report of the posture, not a control for it. Each one is
+writable from the Actor's `control` topic, which the `FunctionGate` does
+not guard, so the ProcessManager defends the report. A write to `safe` is
+reverted to the value in force, and counted as a denial with the reason
+`read_only`. The Actor holds the count of denials, and publishes it again
+at the next denial. Thus a value that a client wrote is corrected.
+A write could never change what is enforced, because the gate holds its
+own allow list.
+
+The `FunctionGate` aspect applies the policy. Its allow list is derived
+from the `ProcessManager` Interface, so the list and the contract cannot
+drift apart.
+
+One more rule applies to `(list TOPIC)`, in each posture. The caller names
+the topic that the reply goes to, so the ProcessManager checks it: no
+wildcard, a suffix that a Service owns, a well-formed Service topic path,
+and the namespace this ProcessManager is in. A topic that fails any of
+these is denied, and nothing is published.
+
+`DEFINITION_PATHNAME` must be a `.json` file that contains an array of
+command strings, started at startup. Each string starts with an `enabled`
+flag, `true` or `false`, and then the command and its arguments:
+
+```json
+[
+  "true  mosquitto -c 0_mosquitto.conf",
+  "true  aiko_registrar",
+  "false aiko_pipeline create pipeline.json -ll debug"
+]
+```
+
+The flag lets you disable a process, but keep it in the definition. The
+flag is necessary. An entry without a flag is an error. The ProcessManager
+reports the error, then skips that entry. A command that does not start,
+and gives no diagnostic, is worse. One bad entry does not stop the other
+processes. The flag applies to the definition file only. Thus
+`aiko_process create true` still runs the `true` command.
+
 Manage processes:
+
+`create` and `destroy` travel on the message bus, so they need a
+ProcessManager started with `--unsafe`. `list` works in each posture.
 
 ```bash
 aiko_process create [--name NAME] [--uid UID] COMMAND [ARGUMENTS ...]
@@ -150,8 +211,9 @@ requester's topic (see [Category](category.md) for the general pattern):
                                └── metrics: created, running  (ECProducer)
 ```
 
-A **definition file** (JSON array of command strings) can pre-populate the
-process table at startup — the `init`-style "boot this host" use case.
+A **definition file** (JSON array of command strings, each with an
+`enabled` flag) can pre-populate the process table at startup — the
+`init`-style "boot this host" use case.
 ProcessManager registers *itself* in its own table as UID `000000`
 (self-aware 🤔), wrapped in a `ProcessCurrent` shim so uniform bookkeeping
 applies. It is protected from `destroy()`.

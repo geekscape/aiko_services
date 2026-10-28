@@ -12,6 +12,8 @@
 #
 # Usage: Distributed Actor
 # ~~~~~~~~~~~~~~~~~~~~~~~~
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
 # aiko_hyperspace.py run     [storage_url]  # file in-memory sqlite mqtt valkey
 # aiko_hyperspace.py dump                   # Not recursive, top-level only
 # aiko_hyperspace.py exit
@@ -487,7 +489,11 @@ class HyperSpaceImpl(HyperSpace):
 @click.group()
 
 def main():
-    """Create, Read/List, Update and Destroy HyperSpace"""
+    """Create, Read/List, Update and Destroy HyperSpace
+
+    \b
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optonal)
+    """
 
     subcommand = click.get_current_context().invoked_subcommand
     subcommands_which_work_anywhere = [

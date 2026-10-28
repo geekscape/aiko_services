@@ -8,7 +8,7 @@ audience: [project-lead, architects, developers, ai-coding-agents]
 status: operational
 ste: adapted
 related: [../p_01_PrinciplesGovernance, ../p_00_DesignPrinciples]
-last_updated: 2026-09-01
+last_updated: 2026-10-23
 ---
 
 # Aiko Services Architectural Decision Records
@@ -60,5 +60,6 @@ deferral promotion, retirement). Use one for any decision worth a durable ration
 | [022](ADR-022_CompositionBoundary.md) | The composition boundary (three exempt categories) and retrospective normalization of pre-gate source through e_10 | normative (accepted 2026-07-13) | p_00 P7 amendment 2026-07-13 [rollout privately maintained] |
 | [023](ADR-023_GuardedEvalDefaultDeny.md) | Guarded evaluation and default-deny method exposure — adopts CP-E (mobile code only through the sandboxed interpreter, never unguarded `eval()`) and mints **P12**; per-method allow/deny lists, CRUD at runtime under governed control | normative (accepted 2026-07-13; decision 6 added at acceptance — isolated dev deployments may run allow-all, policy only, advertised, never externally reachable) | p_00 P12 / p_02 CP-E adoption record |
 | 024 | Reserved by another session's pending proposal | claimed | [Privately maintained] |
-| [025](ADR-025_RemoteDisplayAbstraction.md) | Remote display abstraction — the `display:0` composite of three aspect Interfaces, aspects advertised as tags, the key map on the device, settings as one Parameters-shaped declaration, a bounded leased in-band frame mirror (CP-F gray area) | proposal (2026-09-27) | `src/aiko_services/actors/display/` (Epic 1 of the display work) |
-| 026+ | next free numbers | free | |
+| [025](ADR-025_RemoteDisplayAbstraction.md) | Remote display abstraction — the `display:0` composite of three aspect Interfaces, aspects advertised as tags, the key map on the device, settings as one Parameters-shaped declaration, a bounded leased in-band frame mirror (CP-F gray area) | proposal (2026-09-27; amended 2026-10-23) | `src/aiko_services/actors/display/` (Epic 1 of the display work) |
+| [026](ADR-026_DaemonSupervision.md) | Daemon supervision — the operating system starts one daemon for each host (the ProcessManager), a `DaemonSupervisor` Interface with one Implementation for each platform, `render` before `install`, and Supervisor recorded as an aspect for composition later | proposal (2026-10-21) | `src/aiko_services/main/daemon_supervisor/` (Epic 0 of the aiko01 work) |
+| 027+ | next free numbers | free | |

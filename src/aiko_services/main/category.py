@@ -8,6 +8,8 @@
 #
 # Usage
 # ~~~~~
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
 # ./category.py --help
 # ./category.py run     CATEGORY_NAME  # Creates Category instance for testing
 # ./category.py exit    CATEGORY_NAME  # Terminates running Category instance
@@ -282,7 +284,11 @@ class CategoryImpl(Category):
 @click.group()
 
 def main():
-    """Create, Read/List, Update and Destroy Categories"""
+    """Create, Read/List, Update and Destroy Categories
+
+    \b
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optonal)
+    """
     pass
 
 @main.command(name="add", no_args_is_help=True)

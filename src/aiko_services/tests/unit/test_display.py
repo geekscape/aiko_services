@@ -18,7 +18,7 @@ from aiko_services.main.utilities import parse
 
 from aiko_services.actors.display import (
     Canvas, Display, Interaction, DisplayImpl, PROTOCOL, SETTINGS,
-    SETTINGS_SPEC, Screen, WIRE_COMMANDS, service_tags,
+    SETTINGS_SPEC, Screen, FUNCTIONS, service_tags,
 )
 from aiko_services.actors.display import applets
 from aiko_services.actors.display.applets import (
@@ -261,7 +261,7 @@ def test_composition_and_wire_commands(actor_display):
     actor, display = actor_display
     for aspect in (Display, Canvas, Screen, Interaction):
         assert isinstance(actor, aspect)
-    assert WIRE_COMMANDS == {"clear", "log", "pixel", "pixels", "line", "text",
+    assert FUNCTIONS == {"clear", "log", "pixel", "pixels", "line", "text",
         "applet", "key", "mirror", "set_log_level", "stop"}
     assert PROTOCOL.endswith("/display:0")
     assert service_tags("fake") == ["ec=true", "device=fake", "canvas=0", "screen=0",
@@ -271,23 +271,27 @@ def test_composition_and_wire_commands(actor_display):
     assert actor.share["keys"]["g"] == "pong|asteroids|invaders|forklift"
     assert [setting.name for setting in SETTINGS_SPEC] == list(SETTINGS)
     for name in ("run", "add_tags", "_tick", "_shutdown", "ec_producer_change_handler"):
-        assert name not in WIRE_COMMANDS
+        assert name not in FUNCTIONS
     assert "oled_test" not in sys.modules                 # R0: never imported
     assert actor.share["backend"] == "fake" and actor.share["device"] == "fake"
     assert actor.share["size"] == "128x64" and actor.share["origin"] == "bottom"
     assert actor.share["applet"] == "none"
     assert display.opened and len(display.frames) == 1   # the blank canvas
 
-def test_dispatch_aliases_allow_list_and_parse_guard(actor_display):
+def test_dispatch_allow_list_and_parse_guard(actor_display):
+    """Every one of these is denied: a prefixed name (no aliases since
+    2026-10-23), a framework function, an unknown name, two payloads the
+    parser cannot read, and an inherited public function"""
+
     actor, display = actor_display
     for payload in ("(oled:text 0 0 hello)", "(run)", "(bogus 1)",
                     "(log 12:30 lunch)", "(text x: 1 y: 2)", "(add_tags t)"):
         actor._topic_in_handler(None, actor.topic_in, payload)
     run_loop()
-    assert lit_rows(display.frames[-1]) == list(range(56, 63))
-    assert actor._metrics["rejected"] == 5
+    assert actor._metrics["denied"] == 6
+    assert actor._metrics["commands"] == 0
     assert actor.share["last_error"].startswith("dispatch_")
-    assert actor._metrics["commands"] == 1
+    assert len(display.frames) == 1              # nothing was drawn
 
 # --------------------------------------------------------------------------- #
 # The Actor: wire commands
@@ -302,7 +306,7 @@ def test_pixel(actor_display):
     actor.pixel("128", "0")
     actor.pixel("a", "0")
     actor.pixel("0", "-1")
-    assert len(display.frames) == frames and actor._metrics["rejected"] == 3
+    assert len(display.frames) == frames and actor._metrics["denied"] == 3
     assert actor.share["last_error"].startswith("pixel_y_range@")
 
 def test_pixels_is_atomic(actor_display):
@@ -313,7 +317,7 @@ def test_pixels_is_atomic(actor_display):
     actor.pixels("1", "1", "200")             # odd count
     actor.pixels("1", "1", "5", "64")         # one out of range: nothing lit
     actor.pixels()
-    assert len(display.frames) == frames and actor._metrics["rejected"] == 3
+    assert len(display.frames) == frames and actor._metrics["denied"] == 3
     assert not display.frames[-1].getpixel((1, 62))
 
 def test_line(actor_display):
@@ -322,7 +326,7 @@ def test_line(actor_display):
     assert lit_count(display.frames[-1]) == HEIGHT
     frames = len(display.frames)
     actor.line("0", "0", "128", "0")
-    assert len(display.frames) == frames and actor._metrics["rejected"] == 1
+    assert len(display.frames) == frames and actor._metrics["denied"] == 1
 
 def test_text(actor_display):
     actor, display = actor_display
@@ -333,7 +337,7 @@ def test_text(actor_display):
     actor.text("0", "0")                      # no words
     actor.text("0", "0", ["nested"])
     actor.text("0", "0", "x" * 129)
-    assert len(display.frames) == frames and actor._metrics["rejected"] == 4
+    assert len(display.frames) == frames and actor._metrics["denied"] == 4
     assert actor.share["last_error"].startswith("text_too_long@")
 
 def test_clear(actor_display):
@@ -357,15 +361,24 @@ def test_log_scrolls_and_keeps_eight_lines(actor_display):
     frames = len(display.frames)
     actor.log()
     actor.log(["nested"])
-    assert len(display.frames) == frames and actor._metrics["rejected"] == 2
+    assert len(display.frames) == frames and actor._metrics["denied"] == 2
 
-def test_exit_is_stop_and_terminates(actor_display, monkeypatch):
+def test_stop_terminates_and_exit_is_denied(actor_display, monkeypatch):
+    """(stop) is the only name for it.  (exit) was an alias until the
+    aliases were dropped on 2026-10-23, so it is now denied like any other
+    function that is not in the allow list"""
+
     actor, _ = actor_display
     calls, posted = [], []
     monkeypatch.setattr(aiko.process, "terminate", lambda *args: calls.append(args))
     monkeypatch.setattr(actor, "_post_message", lambda *args: posted.append(args))
+
     actor._topic_in_handler(None, actor.topic_in, "(exit)")
-    assert posted[-1][1:] == ("stop", [])                # the alias
+    assert posted == []
+
+    actor._topic_in_handler(None, actor.topic_in, "(stop)")
+    assert posted[-1][1:] == ("stop", [])
+
     actor.stop()
     assert calls == [()]
 
@@ -399,7 +412,7 @@ def test_applet_rejections(actor_display, test_applets):
     actor.applet("bouncer", "seed=abc")
     actor.applet("bouncer", "colour=red")
     actor.applet("bouncer", "x" * 65)
-    assert actor._metrics["rejected"] == 4 and actor._applet is None
+    assert actor._metrics["denied"] == 4 and actor._applet is None
 
 def test_finished_applet_returns_to_default(actor_display, test_applets):
     actor, _ = actor_display
@@ -431,7 +444,7 @@ def test_keys(actor_display, test_applets):
     assert actor._keys_held() == {"up"}
     actor.key("select")
     actor.key("up", "sideways")
-    assert actor._metrics["rejected"] == 2
+    assert actor._metrics["denied"] == 2
     for name in "jkmnuvw":                                 # keys the map ignores
         actor.key(name, "down")
     assert len(actor._held) == 5                           # bounded
@@ -527,7 +540,7 @@ def test_settings_apply_and_bad_values_converge(actor_display):
     assert actor._blank_after == 30
     remote_update(actor, "blank_after", "-1")
     assert actor.share["blank_after"] == "30"
-    assert actor._metrics["rejected"] == 5
+    assert actor._metrics["denied"] == 5
     for key in SETTINGS:
         assert actor.share[key] == actor._applied[key]
 
@@ -602,7 +615,7 @@ def test_mirror_publishes_on_change_and_caps_rate(actor_display, monkeypatch):
     actor, display = actor_display
     published = mirror_setup(actor, monkeypatch)
     actor.mirror("aiko/probe/mirror", "30")
-    assert actor.share["mirrors"] == "1" and actor._metrics["rejected"] == 0
+    assert actor.share["mirrors"] == "1" and actor._metrics["denied"] == 0
     actor._step()                                          # the holder sees the panel now
     assert published[-1][0] == "aiko/probe/mirror" and len(published[-1][1]) == 1024
     assert published[-1][1] == display.frames[-1].tobytes()
@@ -646,7 +659,7 @@ def test_mirror_rejections_and_bounds(actor_display, monkeypatch):
         actor.mirror(f"aiko/probe/{holder}", "30")
     assert actor.share["mirrors"] == "4"                   # bounded
     assert actor.share["last_error"].startswith("mirror_full@")
-    assert actor._metrics["rejected"] == 4
+    assert actor._metrics["denied"] == 4
     actor._shutdown()
     assert not actor._mirrors                              # leases terminated
 
@@ -672,7 +685,7 @@ def test_title_setting(actor_display):
     assert actor.share["title"] == "Aiko_v0.8" and actor._title_text == "Aiko v0.8"
     remote_update(actor, "title", "off")
     remote_update(actor, "title", "x" * 33)
-    assert actor.share["title"] == "off" and actor._metrics["rejected"] == 1
+    assert actor.share["title"] == "off" and actor._metrics["denied"] == 1
 
 def test_own_updates_do_not_loop_and_replay_is_ignored(actor_display, monkeypatch):
     actor, display = actor_display
@@ -760,7 +773,7 @@ def test_heartbeat_and_metrics_flush(actor_display):
     actor.pixel(999, 0)
     actor._flush_metrics()
     assert actor.share["metrics"]["commands"] == "1"
-    assert actor.share["metrics"]["rejected"] == "1"
+    assert actor.share["metrics"]["denied"] == "1"
     assert actor.share["metrics"]["frames"] == "2"
     published = []
     actor.ec_producer.add_handler(lambda *args: published.append(args))

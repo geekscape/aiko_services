@@ -9,7 +9,7 @@ status: draft-for-verification
 ste: adapted
 related: [p_00_DesignPrinciples, s_00_Specifications, e_03_FirstClassAgents,
   ../adr/ADR-021_SynthesizedDefaultInit, ../adr/ADR-022_CompositionBoundary]
-last_updated: 2026-07-31
+last_updated: 2026-10-23
 ---
 
 # Aiko Services — Design by Composition of Interfaces
@@ -138,6 +138,15 @@ diffs it against this document.
 - `Service` — the discoverable unit. `add_tags(tags)` and `set_protocol(...)` at
   construction. The lifecycle drives the registration add/remove. Properties (local, not
   wire): ServiceFields, topic paths.
+- `FunctionGate` — `deny_function(name, parameters)`: which functions a Service accepts from
+  the message bus (P12, ADR-023). An aspect, in the way that `Hooks` is an aspect of
+  `Service`: its own Interface, its own default Implementation, and one `context.call_init()`.
+  `Actor` composes it, so `PipelineElement`, `Pipeline` and an Agent have one. The default
+  allows every function, and an Implementation that wants deny by default gives the gate its
+  own allow list. `interface_functions(*interfaces)` derives that list from the contract, and
+  removes what `Actor` and `Service` declare (ADR-025 decision 1). The gate is pure, and the
+  Actor reports a denial, because the Actor owns the logger and the shared state. *(Written
+  2026-10-23. Reference implementation `main/function_gate.py`.)*
 - `ServiceDiscovery` / Registrar-client — `find(filters, reply_topic)`, standing-query attach through
   ECConsumer on the Registrar.
 - `Transport` — `connect()`, `disconnect()`, `publish(topic, payload)`,

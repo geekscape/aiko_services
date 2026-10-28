@@ -399,10 +399,9 @@ class ECProducerImpl(ECProducer):
         for handler in self.handlers:
             handler(command, item_name, item_value)
         if command == "remove":
-            payload_out = f"({command} {item_name})"
+            payload_out = generate(command, [item_name])
         else:
-            # TODO: Use "generate()" on item_value
-            payload_out = f"({command} {item_name} {item_value})"
+            payload_out = generate(command, [item_name, item_value])
         for lease in self.leases.values():
             if self._filter_compare(lease.filter, item_name):
                 response_topic = lease.lease_uuid
@@ -520,7 +519,7 @@ class ECConsumerImpl(ECConsumer):
     def _share_request(self, lease_time=_LEASE_TIME, lease_uuid=None):
         aiko.message.publish(
             self.ec_producer_topic_control,
-            f"(share {self.topic_share_in} {lease_time} {self.filter})"
+            generate("share", [self.topic_share_in, lease_time, self.filter])
         )
 
     def _update_handlers(self, command, item_name, item_value):

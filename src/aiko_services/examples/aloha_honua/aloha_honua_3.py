@@ -7,6 +7,8 @@
 #
 # Usage
 # ~~~~~
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
 #   Terminal session 1
 #   ~~~~~~~~~~~~~~~~~~
 #   ../../../../scripts/system_start.sh  # Start mosquitto and Aiko Registrar
@@ -69,6 +71,12 @@ class AlohaHonuaResponse(aiko.Actor):
 @click.group
 
 def main():
+    """Remote AlohaHonua Actor command and request
+
+    \b
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts
+    """
+
     pass
 
 @main.command(help="Start AlohaHonua Actor")
@@ -78,7 +86,7 @@ def hoomaka():  # start
     aloha_honua = aiko.compose_instance(AlohaHonua, init_args)
     aiko.process.run()
 
-@main.command(help='Remote request AlohaHonua Actor to say "hello"')
+@main.command(help='Remote AlohaHonua Actor request to say "hello"')
 @click.argument("name", default="hoaloha", required=False)
 
 def aloha(name):
@@ -93,7 +101,7 @@ def aloha(name):
 
     aiko.process.run(loop_when_no_handlers=True)  # Keep event loop running
 
-@main.command(help="Remote call AlohaHonua to stop the Actor")
+@main.command(help="Remote AlohaHonua command to stop the Actor")
 
 def ku():  # stop
     aiko.do_command(

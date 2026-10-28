@@ -7,11 +7,23 @@
 # -n (default: this host's name) and sends it one command, giving up after
 # -t seconds.  "keys" is the interactive console (console.py).
 #
-# Usage: aiko_display --help
+# Usage
+# ~~~~~
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
+# aiko_display --help
 #
 # Not part of the Interface composition pattern (ADR-022 category
 # Presentation and CLI shells) — see e_10 §2.16: a CLI shell over the
 # Display Actor's Interfaces.
+#
+# To Do
+# ~~~~~
+# - Rename the "exit" sub-command to "stop".  The function it publishes is
+#   "(stop)", and the function name aliases were dropped on 2026-10-23, so
+#   "exit" is the last place where one thing has two names
+# - Discovery: do_command() and do_discovery() support remote call timeouts.
+#   - Should just use that ... and not replicate timeout functionality here.
 
 import os
 import signal
@@ -92,9 +104,7 @@ def _display_hint(bus):
         + ": check the wiring and that I2C is enabled")
 
 @click.group()
-@click.option("--name", "-n", type=str, default=None,
-    help="The Display Actor: the one to run, or the one to command  "
-         "[default: the local hostname]")
+@click.option("--name", "-n", type=str, default=None)
 @click.option("--timeout", "-t", type=float, default=TIMEOUT, show_default=True,
     help="Seconds to wait for the Display Actor (for list: to collect them)")
 @click.pass_context
@@ -109,15 +119,17 @@ def main(ctx, name, timeout):
     a demo) that run on the display.  Without the panel, a desktop window,
     the terminal or a PNG file emulates it.
 
+    export AIKO_MQTT_HOST=localhost    # the broker; aiko_registrar must run
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+
     \b
-    export AIKO_MQTT_HOST=localhost       # the broker; aiko_registrar must run
-    aiko_display run -a 0x3C                 # the OLED, or emulated on a desktop
-    aiko_display text 0 0 hello            # from another terminal: the bottom row
-    aiko_display log Hello from nomad        # scrolls; the status applet shows it
-    aiko_display set contrast 64           # a setting: the Dashboard edits it too
-    aiko_display applet pong                 # an applet; applet -l lists them
-    aiko_display keys                        # an interactive console
-    aiko_display -n w3029f1 -t 3 applet eyes  # another host, 3 s to find it
+    aiko_display run -a 0x3C           # the OLED, or emulated on a desktop
+    aiko_display text 0 0 hello        # from another terminal: the bottom row
+    aiko_display log Hello from nomad  # scrolls; the status applet shows it
+    aiko_display set contrast 64       # a setting: the Dashboard edits it too
+    aiko_display applet pong           # an applet; applet -l lists them
+    aiko_display keys                  # an interactive console
+    aiko_display -n w3029f1 -t 3 applet eyes  # another host, 3s to find it
     aiko_display exit
     """
 
@@ -185,7 +197,7 @@ def run_command(options, output, address, bus, applet, font_size, title,
     --standalone runs without an MQTT broker: the status display still
     works.  --strict exits when the display can't be opened, instead of
     reporting "device absent" and retrying every 10 s.  Ctrl-C, SIGTERM,
-    "(exit)" and "aiko_display exit" all blank the display on the way out.
+    "(stop)" and "aiko_display exit" all blank the display on the way out.
     """
 
     name = options["name"] or get_hostname()
@@ -223,8 +235,9 @@ def exit_command(options, every):
 
     The Actor named with -n (default: the local hostname).  -n '*' with
     --all exits every Display Actor on the broker.  Exit status 1 after -t
-    seconds when no Actor answers.  The same as "(exit)", the framework's
-    "(stop)", on the in topic: the display blanks on the way out.
+    seconds when no Actor answers.  It publishes the framework's "(stop)"
+    on the in topic: the display blanks on the way out.  "(exit)" is not a
+    function any more, because one function has one name.
     """
 
     if options["name"] == "*" and not every:
@@ -271,7 +284,7 @@ def clear_command(options):
 
     Drawing commands (clear, text, pixels, line) stop a running applet so
     that the canvas shows; "aiko_display applet status" brings the status
-    display back.  The same as "(clear)" or aiko_engine_mp's "(oled:clear)".
+    display back.  The same as "(clear)" on the in topic.
     """
 
     _remote(Canvas, options, lambda oled: oled.clear())
@@ -288,7 +301,7 @@ def log_command(options, words):
     shows the newest, and the log applet, which shows them all; until one
     of them shows it, the title row's L annunciator is on (shared state
     log_pending).  A running applet keeps running.  At most 128 characters.
-    The same as "(log WORDS ...)" or aiko_engine_mp's "(oled:log ...)".
+    The same as "(log WORDS ...)" on the in topic.
     """
 
     _remote(Canvas, options, lambda oled: oled.log(*words))
@@ -308,7 +321,7 @@ def text_command(options, x, y, words):
     the row above with the 5x7 font (8 pixel rows, 21 characters across).
     The font is the "font" setting.  Quote a word that starts with digits
     and a colon ("12:30").  Stops a running applet so the canvas shows.
-    The same as "(text X Y WORDS ...)" or "(oled:text ...)".
+    The same as "(text X Y WORDS ...)" on the in topic.
     """
 
     _remote(Canvas, options, lambda oled: oled.text(x, y, *words))
@@ -322,8 +335,8 @@ def pixels_command(options, coordinates):
     """Light pixels at X Y pairs, origin bottom-left
 
     X 0..127, Y 0..63; at most 256 pairs; all or nothing when a coordinate
-    is out of range.  The same as "(pixels X Y X Y ...)" or "(oled:pixels
-    ...)"; one pixel is "(pixel X Y)".
+    is out of range.  The same as "(pixels X Y X Y ...)" on the in topic;
+    one pixel is "(pixel X Y)".
     """
 
     if len(coordinates) % 2 or len(coordinates) > 2 * PIXEL_PAIRS_MAXIMUM:
@@ -357,7 +370,7 @@ def set_command(options, key, value):
     """Change a setting: shared state that the Aiko Dashboard also edits
 
     Sends "(update KEY VALUE)" on the Actor's control topic, exactly what
-    the Dashboard does when a variable is edited.  A bad value is rejected
+    the Dashboard does when a variable is edited.  A bad value is denied
     (last_error tells why) and the value in force is published again.
     Values are single tokens: _ stands for a space in a title.
     """
@@ -503,25 +516,25 @@ _STATE_REFERENCE = _block([
     "  mirrors applets applet applet_detail fps",
     "  speed font contrast invert power all_on title blank_after foreground",
     "  background heartbeat last_error log_count log_pending metrics.commands",
-    "  metrics.rejected metrics.frames metrics.frame_ms metrics.errors",
+    "  metrics.denied metrics.frames metrics.frame_ms metrics.errors",
     "  metrics.mirrored",
 ])
 _WIRE_REFERENCE = _block([
-    "Wire commands on the in topic  (mosquitto_pub -t TOPIC/in -m '...')",
-    "  origin bottom-left; the aiko_engine_mp names in brackets",
-    "  (clear)                  [(oled:clear)]    erase the canvas",
-    "  (log WORDS ...)          [(oled:log ..)]   scroll up, write the bottom row",
-    "  (pixel X Y)              [(oled:pixel ..)] light a pixel",
-    "  (pixels X Y X Y ...)     [(oled:pixels .)] at most 256 pairs",
+    "Functions on the in topic  (mosquitto_pub -t TOPIC/in -m '...')",
+    "  origin bottom-left; one function has one name, so there are no aliases",
+    "  (clear)                                    erase the canvas",
+    "  (log WORDS ...)                            scroll up, write the bottom row",
+    "  (pixel X Y)                                light a pixel",
+    "  (pixels X Y X Y ...)                       at most 256 pairs",
     "  (line X0 Y0 X1 Y1)                         draw a line",
-    "  (text X Y WORDS ...)     [(oled:text ..)]  text with its bottom-left at X Y",
-    "  (exit)                   = (stop)          blank the display and terminate",
+    "  (text X Y WORDS ...)                       text with its bottom-left at X Y",
+    "  (stop)                                     blank the display and terminate",
     "  (applet NAME [ARGS ...])                   run an applet; none: the canvas",
     "  (key NAME [tap|down|up])                   a mapped key runs its preset,",
     "                                             any other goes to the applet",
     "  (mirror TOPIC SECONDS)                     a leased feed of raw frames to",
     "                                             TOPIC (the Dashboard plug-in)",
-    "  Anything else is rejected (last_error, metrics.rejected).",
+    "  Anything else is denied (last_error, metrics.denied).",
 ])
 
 def _preset_text(commands):

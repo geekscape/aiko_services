@@ -6,6 +6,59 @@ Every substantive change appends an entry under its date heading
 This journal begins at the constitution's first public release. The
 pre-publication history is maintained privately.
 
+## 2026-10-23
+
+- **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md):
+  the `FunctionGate` aspect joins the runtime Interface list. It holds which
+  functions a Service accepts from the message bus (P12, ADR-023). `Actor`
+  composes it, so `PipelineElement`, `Pipeline` and an Agent have one, and
+  the default allows every function, so no Service changed behaviour.
+  `interface_functions()` derives an allow list from the Interfaces and
+  removes what `Actor` and `Service` declare, which enforces ADR-025
+  decision 1 instead of only documenting it. ADR-023 already holds the
+  deny-by-default decision, so the aspect needs no ADR of its own
+  (project-lead direction). Reference implementation
+  `src/aiko_services/main/function_gate.py`.
+
+- **Update** — [adr/ADR-025_RemoteDisplayAbstraction.md](adr/ADR-025_RemoteDisplayAbstraction.md)
+  decision 1, amended: function name aliases are dropped (project-lead
+  direction). The `oled:` names and `(exit)` were aliases, and one function
+  now has one name, so a client that sends either is denied. `aiko_display
+  exit` publishes `(stop)`. A client of the MicroPython `aiko_engine_mp`
+  vocabulary must send the plain names. The `out`-topic candidate event is
+  `(denied FUNCTION REASON)`, because allow and deny are now the project's
+  words for this, in place of reject and refuse. Registry row 025 records
+  the amendment. The `FunctionGate` aspect that `Actor` composes holds the
+  allow list: `src/aiko_services/main/function_gate.py`.
+
+- **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+  section 9: three failure modes seen during the aiko01 WhisPlay Actor work on
+  2026-10-22 and 2026-10-23 — a deny-by-default dispatch guard that refused
+  every command, because it called a function that does not exist, and whose
+  refusal tests all passed; three conclusions drawn from measurements that were
+  themselves broken; and a vendor driver read for its constants but not for the
+  comment that gave the button polarity. The machine-specific findings stay out
+  of this tree.
+
+## 2026-10-21
+
+- **Creation** — [adr/ADR-026_DaemonSupervision.md](adr/ADR-026_DaemonSupervision.md):
+  the operating system starts one daemon for each host, the ProcessManager, and
+  the ProcessManager definition file starts the rest. A `DaemonSupervisor`
+  Interface has one Implementation for each platform, `render` changes nothing
+  and `install` is the only privileged operation. The Interface stays off the
+  message bus for now. Supervisor as an aspect is recorded as the direction, with
+  the authority question that composition must answer. Registry row 026
+  claimed in the same change (024 stays reserved). Reference implementation
+  `src/aiko_services/main/daemon_supervisor/`.
+
+- **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+  section 9: three failure modes seen during the aiko01 WhisPlay HAT audio
+  work on 2026-10-20 — an inherited diagnosis that named the symptom and
+  guessed the mechanism, an output file that nothing writes any more, and a
+  recovery path that was never exercised against the real fault. The
+  machine-specific findings stay out of this tree.
+
 ## 2026-09-27
 
 - **Creation** — [adr/ADR-025_RemoteDisplayAbstraction.md](adr/ADR-025_RemoteDisplayAbstraction.md):

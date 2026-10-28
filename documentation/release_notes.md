@@ -116,6 +116,19 @@ sections are.
   *calibration_path*.  Three example PipelineDefinitions use placeholder
   URLs that discover the first camera
 
+* StoreForward, *src/aiko_services/main/store_forward*: the
+  *SegmentStoreForward* Actor, one for each host, moves segments (files:
+  video segments, images, tensors) between two hosts across a link that
+  is not reliable.  It takes custody of each file that is put in its
+  outbox.  It sends the file to the inbox of the peer, verifies it with
+  sha256 and continues after an interruption.  The *server* role has the
+  HTTP routes.  The *edge* role is always the client and needs no inbound
+  port.  The state (*link*, *queue.\**, *metrics.\**) is shared, thus the
+  Dashboard shows it.  The command is *aiko_store_forward server | edge*.
+  The protocol is *store_forward:0*.  The *store_forward://* DataScheme
+  and the *VideoWriteStoreForward* DataTarget put video segments from a
+  Pipeline in the outbox.  See *documentation/concepts/store_forward.md*
+
 * *VideoWriteStoreForward* defaults are now *format* *avc1* (H.264 in
   MP4) and *frame_rate* *8.0*.  Measured on an embedded ARM computer,
   OpenCV's *mp4v* takes 111 ms per 1920x1080 frame and *avc1* 35 ms.
@@ -221,6 +234,13 @@ remote callers are unaffected.  For Python code:
   instances are composed Implementations.  Use *isinstance(x,
   ECProducer)*
 
+* *pytest* is no longer a dependency of the package.  Install the new
+  *test* extra for the tests: *pip install -e ".[test]"*.  The new
+  *server* extra installs *flask* for the StoreForward *server* role.  The
+  new *video* extra installs *opencv-python* for the video and image
+  elements.  The project version is now *0.8.dev0*, the PEP 440 form of
+  *\_\_version\_\_* *0.8-dev*
+
 ### Testing
 
 * Unit test baseline raised from 5 to 25 tests.  All of them run without
@@ -315,6 +335,68 @@ remote callers are unaffected.  For Python code:
   New *get_mqtt_host_address()*.  *get_mqtt_configuration()* gives the
   address as element 7.  New tests: *test_configuration.py* and
   *test_mqtt.py*
+
+* *event.loop()* now limits the work of each pass.  Each mailbox, which
+  includes the priority mailbox, handles 16 items at most per pass.  The
+  event queue handles 64 items at most per pass.  Before, a mailbox that
+  was filled again as fast as it was emptied stopped all other work: the
+  timers (thus the Leases), the MQTT messages and the other mailboxes.  A
+  priority mailbox item is still handled before the next item of each
+  other mailbox.  The timers now use *time.monotonic()* for each check.
+  Each timer that is due fires once per pass.  The loop does not sleep
+  when work is pending.  A timer handler that removes its timer no longer
+  delays the next timer by one period.  New tests: *test_event.py*
+
+* An ECProducer now encodes each incremental *update* and *remove* with
+  *generate()*, as the *sync* of the full share does.  Before, an f-string
+  made the S-expression.  Thus a value with a space, a parenthesis, a list
+  or an empty string arrived damaged or was ignored at each ECConsumer
+  and Dashboard.  The *(share ...)* request of an ECConsumer now also uses
+  *generate()*, thus a filter that is a list arrives as a list.  New tests
+  in *test_share.py*
+
+* *do_command()* and *do_request()* now accept *timeout* (seconds) and
+  *timeout_handler*.  Without *timeout*, the environment variable
+  *AIKO_DISCOVERY_TIMEOUT* gives the value.  Without either, they wait
+  until a Service is discovered, as before.  The *do_request()* timeout
+  includes the wait for the response.  When the time expires, the
+  *timeout_handler* is called, or a diagnostic is printed.  With
+  *terminate=True*, the process then terminates with exit status 1.  Thus
+  a command line tool does not wait forever for a Service that is not
+  there.  *event.remove_timer_handler()* now changes the handler count
+  only when it removes a timer.  Before, *do_command()* removed its timer
+  two times, and an event loop could stop while handlers remained.  New
+  tests: *test_discovery.py*
+
+* A process with *mqtt_connection_required=False* now connects to the MQTT
+  server when the server becomes available.  Before, when the MQTT server
+  was not available at start, the process stayed isolated (*Castaway*)
+  until it stopped.  Now paho tries the first connection again in the
+  background, each 1 s to 30 s.  It tries *AIKO_MQTT_HOST*, else
+  *localhost*: when no MQTT server answers,
+  *get_mqtt_host_address()* now gives this host, not *None*.  After a
+  disconnection, paho connects
+  again, as before.  Thus the ProcessManager can start before the MQTT
+  server that it starts.  With *mqtt_connection_required=True* (the
+  default), a process still stops when the MQTT server is not available
+  at start
+
+* While the MQTT client is disconnected, *publish()* now drops the message
+  (QoS 0) at once.  Before, each *publish()* waited for 2 s, thus the
+  event loop stopped during an MQTT server restart.  *publish()* still
+  waits for the first connection after *connect()*, for 2 s at most
+
+* The MQTT client now ignores a refused connection (for example, a bad
+  user name or password).  It logs an error and is not *connected*.
+  Before, a refused connection was set as *connected*
+
+* *set_last_will_and_testament()* now sends DISCONNECT before it stops the
+  paho loop, in the order that paho specifies.  Before, it stopped the
+  loop first and waited for a disconnection that did not occur: about
+  0.9 s on the event loop thread.  Now it takes 2 ms.  A subscription
+  to *#* is also restored after a disconnection.  New tests: in
+  *test_mqtt.py*, and *tests/integration/test_mqtt_reconnect.py*, which
+  starts and stops its own *mosquitto*
 
 ---
 

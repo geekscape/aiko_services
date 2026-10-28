@@ -150,3 +150,82 @@ def test_services_cache_warns_once_when_the_registrar_is_silent(monkeypatch):
     finally:
         process_data.connection.remove_handler(cache._connection_state_handler)
         cache._reply_timer_cancel()
+
+# ECProducer incremental updates must survive the wire: values that contain
+# white space, parenthesis, nested lists or are empty, round-trip through an
+# ECConsumer cache unchanged
+
+class _FakeMessage:
+    def __init__(self):
+        self.published = []
+
+    def publish(self, topic, payload, retain=False, wait=False):
+        self.published.append((topic, payload))
+
+    def subscribe(self, topics):
+        pass
+
+    def unsubscribe(self, topics):
+        pass
+
+class _FakeLease:
+    def __init__(self, lease_uuid, filter="*"):
+        self.lease_uuid = lease_uuid
+        self.filter = filter
+
+def test_ec_producer_incremental_update_round_trip(monkeypatch):
+    from aiko_services.main import share as share_module
+
+    fake_message = _FakeMessage()
+    monkeypatch.setattr(share_module.aiko, "message", fake_message)
+
+    actor = _make_actor("t_share_round_trip")
+    producer = actor.ec_producer
+    producer.leases["consumer/in"] = _FakeLease("consumer/in")
+    cache = {}
+    consumer = aiko.ECConsumer(actor, 0, cache, f"{actor.topic_path}/control")
+
+    values = {
+        "words": "two words",
+        "parens": "f(x) = (y)",
+        "listed": ["a", "b c"],
+        "empty": "",
+        "number": "42",
+        "nested.item": "deep value",
+    }
+    for item_name, item_value in values.items():
+        producer.update(item_name, item_value)
+    producer.remove("number")
+
+    for topic, payload in fake_message.published:
+        if topic == "consumer/in":
+            consumer._consumer_handler(None, topic, payload)
+
+    assert cache["words"] == "two words"
+    assert cache["parens"] == "f(x) = (y)"
+    assert cache["listed"] == ["a", "b c"]
+    assert cache["empty"] == ""
+    assert "number" not in cache
+    assert cache["nested"]["item"] == "deep value"
+    consumer.terminate()
+
+def test_ec_consumer_share_request_filter_list(monkeypatch):
+    from aiko_services.main import share as share_module
+
+    fake_message = _FakeMessage()
+    monkeypatch.setattr(share_module.aiko, "message", fake_message)
+
+    actor = _make_actor("t_share_request")
+    consumer = aiko.ECConsumer(actor, 0, {}, "producer/control")
+    consumer.filter = ["lifecycle", "metrics.running"]
+    consumer._share_request(lease_time=60)
+
+    topic, payload = fake_message.published[-1]
+    assert topic == "producer/control"
+    command, parameters = share_module.parse(payload)
+    response_topic, lease_time, filter = \
+        actor.ec_producer._ec_parse_share(command, parameters)
+    assert response_topic == consumer.topic_share_in
+    assert lease_time == 60
+    assert filter == ["lifecycle", "metrics.running"]
+    consumer.terminate()
