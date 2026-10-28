@@ -60,7 +60,7 @@
 #
 # - Metrics: Determine what to metrics to capture, e.g frame rates ?
 
-from PIL import Image
+from PIL import Image, ImageColor
 import io
 from typing import Tuple
 import zlib
@@ -177,21 +177,52 @@ class ImageOutput(aiko.PipelineElement):
         return aiko.StreamEvent.OKAY, {"images": images}
 
 # --------------------------------------------------------------------------- #
-# TODO: Change color (text, boxes face / YOLO), font, line thickness
 # TODO: Display camera name/path, date/time, FPS
 # TODO: Display specified elipses, lines, mask, rectangles, polygons, text
 # TODO: Display metrics
 # TODO: Display pose stick figures
 
 class ImageOverlay(aiko.PipelineElement):
+    DEFAULT_COLOR = (0, 255, 255)
+    DEFAULT_FONT = "FONT_HERSHEY_SIMPLEX"
+    DEFAULT_FONT_SCALE = 0.75
+    DEFAULT_THICKNESS = 2
+    DEFAULT_THRESHOLD = 0.0
+
     def __init__(self, context):
         context.set_protocol("image_overlay:0")
         context.call_init(self, "PipelineElement", context)
-        self.color = (0, 255, 255)
-        self.font = cv2.FONT_HERSHEY_SIMPLEX
-        self.font_scale = 0.75
-        self.thickness = 2
-        self.threshold = 0.0
+        self.color = self._set_color()
+        self.font = self._set_font()
+        self.font_scale, _ = self.get_parameter("font_scale",self.DEFAULT_FONT_SCALE)
+        self.thickness, _ = self.get_parameter("thickness", self.DEFAULT_THICKNESS)
+        self.threshold, _ = self.get_parameter("threshold", self.DEFAULT_THRESHOLD)
+
+    def _set_color(self):
+        color, found = self.get_parameter("color", self.DEFAULT_COLOR)
+        if not found:
+            return color
+
+        # NOTE(nic): attempt user-friendliness and accept this parameter in CSS
+        #  notation (`#rgb`, `#rrggbb`, `rgb()`, etc.) If the parameter is a non-
+        #  string, assume it's a list of RGB values and shoehorn it into an `rgb()`
+        if not isinstance(color, str):
+            color = f"rgb{tuple(color)}"
+
+        # We don't care about the alpha channel, quietly drop it if it's provided
+        try:
+            return ImageColor.getrgb(color)[:3]
+        except ValueError:
+            _LOGGER.warning("invalid parameter 'color: %s', using default %s", color, self.DEFAULT_COLOR)
+            return self.DEFAULT_COLOR
+
+    def _set_font(self):
+        font, found = self.get_parameter("font", self.DEFAULT_FONT)
+        font = str(font)  # belt-and-braces
+        if found and not (font.startswith("FONT_") and hasattr(cv2, font)):
+            _LOGGER.warning("invalid parameter 'font: %s', using default %s", font, self.DEFAULT_FONT)
+            font = self.DEFAULT_FONT
+        return getattr(cv2, font)
 
     def process_frame(self, stream, images, overlay)  \
         -> Tuple[aiko.StreamEvent, dict]:
