@@ -233,7 +233,7 @@ def probe_terminal(term, locale_env, size, path, timeout=20.0):
     import termios
 
     environment = {name: value for name, value in os.environ.items()
-                   if not name.startswith("LC_") and name not in ("LANG", "TERM")}
+                   if not name.startswith("LC_") and name not in ("LANG", "TERM", "COLUMNS", "LINES")}
     environment.update(locale_env, TERM=term)
     pid, fd = pty.fork()
     if pid == 0:                                  # the child: set the size first
