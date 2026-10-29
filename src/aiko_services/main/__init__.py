@@ -81,7 +81,14 @@ from .category import Category, CategoryImpl
 
 from .hyperspace import HyperSpace, HyperSpaceImpl
 
-from .process_manager import ProcessManager, ProcessManagerImpl
+from .recorder import (
+    LRU_CACHE_SIZE, RING_BUFFER_SIZE, Recorder, RecorderImpl
+)
+
+from .process_manager import (
+    ProcessManager, ProcessManagerCache, ProcessManagerImpl,
+    parse_process_share
+)
 
 from .lifecycle import LifeCycleClient, LifeCycleManager
 
@@ -106,6 +113,5 @@ from .registrar import *                  # TODO: Narrow to required references
 
 # from .cli import *
 
-from .dashboard import LogUI, ServiceFrame
 
 aiko.process = process_create()

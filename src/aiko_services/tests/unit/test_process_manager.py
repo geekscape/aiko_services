@@ -413,3 +413,197 @@ def test_a_falsified_denial_count_is_corrected_by_the_next_denial():
     assert actor.share["metrics"]["denied"] == 2
 
 # --------------------------------------------------------------------------- #
+
+# The ProcessManagerCache: a live replica, with no broker --------------- #
+#
+# The cache is thin, because ECCache does the work: discovery through the
+# ServicesCache, one leased ECConsumer for each ProcessManager, and a local
+# replica.  These tests simulate a discovery event and write the replica
+# directly, the way test_share.py exercises ECCache.
+
+from aiko_services.main.process_manager import (
+    ProcessManagerCache, parse_process_share,
+)
+
+TOPIC = "aiko/host/1234/1"
+
+def make_cache(name="review"):
+    """A cache, plus a discovered ProcessManager and its replica"""
+
+    actor, _ = make_process_manager()
+    cache = ProcessManagerCache(actor, name)
+    cache.cache._service_change_handler(
+        "add", [TOPIC, name, "*", "*", "*", []])
+    return cache, cache.cache.caches[TOPIC]
+
+def test_a_process_share_item_is_a_pid_and_a_command():
+    assert parse_process_share("4242 sleep 60") == ("4242", "sleep 60")
+    assert parse_process_share("4242 /bin/sh -c echo a; sleep 1") ==  \
+        ("4242", "/bin/sh -c echo a; sleep 1")
+
+def test_a_process_share_item_without_a_command():
+    assert parse_process_share("4242") == ("4242", "")
+
+def test_an_empty_cache_reads_as_empty_and_not_as_an_error():
+    actor, _ = make_process_manager()
+    cache = ProcessManagerCache(actor, "nobody")
+
+    assert cache.topic_paths() == []
+    assert cache.get_processes() == {}
+    assert cache.get_safe() is None
+    assert cache.get_denied() == 0
+
+def test_discovery_gives_the_cache_a_replica():
+    cache, _ = make_cache()
+
+    assert cache.topic_paths() == [TOPIC]
+    assert isinstance(cache.cache.consumers[TOPIC], aiko.ECConsumerImpl)
+
+def test_the_process_table_is_read_from_the_replica():
+    cache, replica = make_cache()
+    replica["process"] = {
+        "000000": "4242 aiko_process run", "000001": "4301 sleep 60"}
+
+    assert cache.get_processes() == {
+        "000000": ("4242", "aiko_process run"),
+        "000001": ("4301", "sleep 60")}
+
+def test_the_posture_is_read_as_a_boolean_either_way():
+    """A share value is a bool from the Actor, and a string once a client
+    has written it through the control topic"""
+
+    cache, replica = make_cache()
+    for value, expected in (
+        (True, True), (False, False), ("true", True), ("false", False)):
+        replica["safe"] = value
+        assert cache.get_safe() is expected
+
+def test_the_denial_count_survives_a_string():
+    cache, replica = make_cache()
+    replica["metrics"] = {"denied": "7"}
+    assert cache.get_denied() == 7
+
+    replica["metrics"] = {"denied": "not a number"}
+    assert cache.get_denied() == 0
+
+def test_any_other_share_item_is_readable_too():
+    cache, replica = make_cache()
+    replica["watchdog"] = "False"
+    assert cache.get("watchdog") == "False"
+    assert cache.get("absent", default="fallback") == "fallback"
+
+def test_a_handler_is_replayed_and_then_relayed():
+    cache, replica = make_cache()
+    replica["process"] = {"000001": "4301 sleep 60"}
+    seen = []
+    cache.add_handler(lambda *event: seen.append(event))
+
+    assert ("aiko/host/1234/1", "add", "process.000001", "4301 sleep 60")  \
+        in seen
+
+    cache.remove_handler(seen.append)             # a handler never attached
+    assert len(cache.cache.handlers) == 1
+
+def test_terminate_empties_the_cache():
+    cache, _ = make_cache()
+    cache.terminate()
+
+    assert cache.topic_paths() == []
+    assert cache.get_processes() == {}
+
+def test_two_process_managers_are_separate_replicas():
+    cache, replica = make_cache()
+    other = "aiko/host/5678/1"
+    cache.cache._service_change_handler(
+        "add", [other, "review", "*", "*", "*", []])
+    replica["process"] = {"000001": "1 one"}
+    cache.cache.caches[other]["process"] = {"000002": "2 two"}
+
+    assert cache.topic_paths() == sorted([TOPIC, other])
+    assert cache.get_processes(TOPIC) == {"000001": ("1", "one")}
+    assert cache.get_processes(other) == {"000002": ("2", "two")}
+    assert cache.get_processes() == {}            # ambiguous: no sole producer
+
+# --------------------------------------------------------------------------- #
+
+# "aiko_process list --watch" ---------------------------------------------- #
+#
+# This path had no test, and the whole suite passed while the function it
+# calls was missing from the file.  A command line is code too.
+
+from click.testing import CliRunner
+
+from aiko_services.main.process_manager import main, print_processes
+
+class _CacheDouble:
+    def __init__(self, processes, safe=True, denied=0):
+        self._processes, self._safe, self._denied = processes, safe, denied
+
+    def get_processes(self, topic_path=None):
+        return self._processes
+
+    def get_safe(self, topic_path=None):
+        return self._safe
+
+    def get_denied(self, topic_path=None):
+        return self._denied
+
+def test_the_watch_output_names_the_posture_and_each_process(capsys):
+    cache = _CacheDouble(
+        {"000000": ("4242", "aiko_process run"),
+         "000001": ("4301", "sleep 60")}, safe=False, denied=2)
+
+    print_processes(cache, topic_path="aiko/host/1/1")
+    output = capsys.readouterr().out
+
+    assert "aiko/host/1/1  posture: unsafe  denied: 2" in output
+    assert "uid: 000000, pid: 4242, aiko_process run" in output
+    assert "uid: 000001, pid: 4301, sleep 60" in output
+
+def test_the_watch_output_says_so_when_there_is_nothing(capsys):
+    print_processes(_CacheDouble({}), topic_path="aiko/host/1/1")
+    output = capsys.readouterr().out
+
+    assert "posture: safe" in output and "no processes" in output
+
+def test_an_unreported_posture_prints_as_unknown(capsys):
+    print_processes(_CacheDouble({}, safe=None), topic_path="t")
+    assert "posture: unknown" in capsys.readouterr().out
+
+def test_a_uid_narrows_the_watch_output(capsys):
+    cache = _CacheDouble(
+        {"000000": ("4242", "run"), "000001": ("4301", "sleep 60")})
+
+    print_processes(cache, uid="000001", topic_path="t")
+    output = capsys.readouterr().out
+
+    assert "000001" in output and "000000" not in output
+
+def test_the_watch_flag_reaches_the_watch_path(monkeypatch):
+    """Without this, the flag could call a function that does not exist --
+    which is how it shipped the first time"""
+
+    called = []
+    monkeypatch.setattr(
+        "aiko_services.main.process_manager._list_watch",
+        lambda name, uid: called.append((name, uid)))
+
+    result = CliRunner().invoke(main, ["list", "-n", "review", "--watch"])
+
+    assert result.exit_code == 0, result.output
+    assert called == [("review", None)]
+
+def test_list_without_the_flag_does_not_take_the_watch_path(monkeypatch):
+    monkeypatch.setattr(
+        "aiko_services.main.process_manager._list_watch",
+        lambda name, uid: pytest.fail("the request path was expected"))
+    monkeypatch.setattr(
+        "aiko_services.main.process_manager.do_request",
+        lambda *args, **kwargs: None)
+    monkeypatch.setattr(aiko.process, "run", lambda *args, **kwargs: None)
+
+    result = CliRunner().invoke(main, ["list", "-n", "review"])
+
+    assert result.exit_code == 0, result.output
+
+# --------------------------------------------------------------------------- #

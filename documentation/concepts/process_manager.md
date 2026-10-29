@@ -10,7 +10,7 @@ source:
   - src/aiko_services/main/process_manager.py
 related: [design_overview, hyperspace, dependency, storage, actor, share,
   lifecycle]
-version: "0.7"
+version: "0.8"
 last_updated: 2026-10-23
 ---
 
@@ -70,6 +70,12 @@ aiko_process run --unsafe            # accepts create, destroy, dump, exit
 trusted network. ADR-023 decision 6 allows that posture for an isolated
 deployment, as long as the policy is explicit and advertised.
 
+A diagnostic function is not a safe function. `dump` starts and stops
+nothing, and it is denied in safe mode. It writes the process table to the
+log, and internal data that a client reads is internal data that helps a
+client compromise the system. A function becomes safe after a design and a
+test campaign, not because it looks harmless.
+
 The command line and the definition file are not affected, because neither
 one goes through the bus. A ProcessManager that starts the processes in its
 definition file needs nothing but the default.
@@ -120,6 +126,40 @@ Manage processes:
 
 `create` and `destroy` travel on the message bus, so they need a
 ProcessManager started with `--unsafe`. `list` works in each posture.
+
+### The Dashboard page
+
+`aiko_dashboard` has a page for each ProcessManager. Select the Service,
+then press `S`. The page needs no `--plugin` flag, because
+`ide/tui/dashboard/plugins.py` is the default module and registers it.
+
+The page shows the process table, the shared state and the log. The title
+bar carries the posture and the count of denied functions, which is what an
+operator looks for first. The keys are `c` create, `d` destroy with SIGTERM,
+`k` destroy with SIGKILL, `u` dump, `K` exit, `L` log level and `H` help.
+
+A ProcessManager in the default posture denies each of those functions.
+Thus the page says which posture it is in, and why a key does nothing,
+instead of appearing to act. It reads the posture from the shared state.
+
+### The ProcessManagerCache
+
+Each client that wants the process table can hold a live replica of it,
+instead of a request for each look:
+
+```python
+cache = ProcessManagerCache(aiko.process, name="aiko01")
+cache.get_processes()    # {uid: (pid, command)}
+cache.get_safe()         # True, False, or None when not reported
+cache.get_denied()       # how many functions this ProcessManager denied
+```
+
+The replica is local, and a read of it does not use the network. The
+Registrar's ServicesCache is the same idea for Services. `ECCache` does the
+work: discovery, one leased `ECConsumer` for each ProcessManager that
+matches, and the replica of each one. `add_handler()` reports each change.
+
+`aiko_process list --watch` is the same cache on the command line.
 
 ```bash
 aiko_process create [--name NAME] [--uid UID] COMMAND [ARGUMENTS ...]

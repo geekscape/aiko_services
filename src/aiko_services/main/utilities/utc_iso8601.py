@@ -72,8 +72,14 @@ def local_iso_now():
   return utc_iso_to_local(datetime_now_utc_iso())
 
 def utc_iso_since_epoch(datetime_utc_iso):
-    datetime_utc = utc_iso_to_datetime(datetime_utc_iso)
-    return (datetime_utc - datetime_epoch()[0]).total_seconds()
+    """Seconds since the epoch, for an aware UTC ISO 8601 string.
+
+    It used to subtract datetime_epoch(), which is naive, from an aware
+    datetime, and every call raised TypeError.  Nothing called it, so
+    nothing reported it.  datetime.timestamp() is exact and needs no
+    epoch of our own"""
+
+    return utc_iso_to_datetime(datetime_utc_iso).timestamp()
 
 def utc_iso_to_datetime(datetime_utc_iso):
 #   datetime_utc = date.fromisoformat(datetime_utc_iso)  # should work :(

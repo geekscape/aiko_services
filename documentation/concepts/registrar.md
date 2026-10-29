@@ -12,7 +12,7 @@ source:
 related: [design_overview, process, service, discovery, share, connection,
   state, event, message, transport, dashboard, lifecycle]
 version: "0.6"
-last_updated: 2026-09-28
+last_updated: 2026-10-29
 ---
 
 # Registrar
@@ -123,9 +123,9 @@ protocol):
 (remove TOPIC_PATH)
 ```
 
-Every accepted `add` / `remove` is re-broadcast verbatim on the Registrar's
-`topic_out` — subscribing to `{registrar topic_path}/out` is how caches
-stay current without polling.
+Every accepted `add` / `remove` is re-broadcast unchanged on the
+Registrar's `topic_out`. Subscribe to `{registrar topic_path}/out` to
+keep a cache current without polling.
 
 **Queries.** `share` returns the current directory filtered by
 ServiceFilter fields (`*` matches anything). `history` returns recently
@@ -141,8 +141,14 @@ Responses use the standard item-count grammar on `RESPONSE_TOPIC`:
 ```
 (item_count N)
 (add TOPIC_PATH NAME PROTOCOL TRANSPORT OWNER (TAG ...))              × N
-      # history records append two fields: TIME_ADD TIME_REMOVE
+      # a history record appends two fields: TIME_ADD TIME_REMOVE
 ```
+
+A `history` record appends the Registrar's own record of when the Service
+arrived and left. Both are `time.monotonic()` floats, which order events
+within one Registrar process and mean nothing outside it, so a reader
+cannot show them as a time. A reader therefore accepts six fields or
+more, never exactly six.
 
 After a `share` response, the Registrar publishes `(sync RESPONSE_TOPIC)`
 on its `topic_out`. A `ServicesCache` uses that marker to know two facts:
@@ -269,9 +275,14 @@ Key design points:
 - `_service_add()` ignores duplicate `add`s for a known `topic_path`, and
   re-publishes the *original inbound payload* on `topic_out` rather than
   regenerating it.
-- Timestamps (`time_add`, `time_remove`, and the boot announcement's
-  `TIME_STARTED`) use `time.monotonic()` — meaningful for ordering within
-  a host, not wall-clock time.
+- `time_add`, `time_remove` and the boot announcement's `TIME_STARTED`
+  are `time.monotonic()`: they order events within one process and mean
+  nothing outside it. Giving the Registrar a wall-clock record of each
+  Service is deferred work, and `s_03_SelfAwarenessTelemetry` REQ-9 sets
+  the convention it will use.
+- The boot announcement has always carried the Registrar's version, and
+  no client read it. A client now reports a mismatch, because the symptom
+  of one is a Registrar that appears to register nothing.
 - The client-side counterparts live elsewhere and are worth reading
   together with this file: `process.py` (`on_registrar()`,
   `_add_service_to_registrar()`) and `share.py` (`ServicesCache`

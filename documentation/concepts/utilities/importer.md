@@ -64,7 +64,7 @@ element_class = getattr(module, element_name)
 # src/aiko_services/main/component.py — Interface default implementations
 module = load_module(module_name)
 
-# src/aiko_services/main/dashboard.py — optional Dashboard plugin
+# ide/tui/dashboard/dashboard.py — optional Dashboard plugin
 module = load_module(plugin_name) if plugin_name else None
 ```
 
