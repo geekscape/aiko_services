@@ -147,7 +147,6 @@ _LOGGER = aiko.logger(__name__)
 
 _HISTORY_LIMIT_DEFAULT = 16
 _HISTORY_RING_BUFFER_SIZE = 4096
-_TIME_ABSENT = "-"     # a Service that is still running has no time_remove
 _PRIMARY_PROBE_JITTER = 0.5    # seconds, at most: Registrars probe apart
 _PRIMARY_PROBE_TIMEOUT = 3.0   # seconds a found primary has to reply
 _PRIMARY_SEARCH_TIMEOUT = 2.0  # seconds
@@ -279,15 +278,9 @@ class Registrar(Service):
 
     @abstractmethod
     def service_add(self, topic_path, name, protocol, transport, owner, tags):
-        """Register a Service.  Wire form on topic_in: "(add topic_path
-        name protocol transport owner (tags))" -- a Service sends no time,
-        because the Registrar is the clock.
-
-        Wire form on topic_out, and in a share or history reply: the same,
-        with "time_add" and "time_remove" appended, each a UTC ISO 8601
-        string, and "time_remove" is "-" while the Service runs.  That is
-        registrar:3, and registrar:2 published six fields with no time.
-        Projection: command"""
+        """Register a Service.  Wire form: "(add topic_path name protocol
+        transport owner (tags))" on topic_in, re-broadcast unchanged on
+        topic_out.  Projection: command"""
 
     @abstractmethod
     def service_remove(self, topic_path):
@@ -298,34 +291,33 @@ class Registrar(Service):
     @abstractmethod
     def services_history(self, topic_response, count):
         """Reply with up to "count" most-recently removed Services:
-        "(item_count n)" then one eight-field "(add ...)" for each one, to
-        topic_response.  Wire form: "(history topic_response count)".
-        "count" is a limit and not a cursor, so a client cannot ask for
-        the Services after the ones it holds.  Projection: request"""
+        "(item_count n)" then one "(add ... time_add time_remove)" for
+        each one, to topic_response.  Both times are time.monotonic(), so
+        they order events within this process and mean nothing outside
+        it.  Wire form: "(history topic_response count)".  "count" is a
+        limit and not a cursor, so a client cannot ask for the Services
+        after the ones it holds.  Projection: request"""
 
     @abstractmethod
     def services_share(self, topic_response,
         name, protocol, transport, owner, tags):
         """Reply with the running Services matching the filter:
-        "(item_count n)" then one eight-field "(add ...)" for each one to
+        "(item_count n)" then one "(add ...)" for each one to
         topic_response, then "(sync topic_response)" on topic_out.
         Wire form: "(share topic_response name protocol transport owner
         tags)".  Projection: request"""
 
 def _service_add_payload(service_details):
-    """The "(add ...)" of one Service: the same eight fields whether it
-    comes from the live stream, a share reply or a history reply.
+    """The "(add ...)" of one Service: the six registered fields.
 
-    Three paths built this by hand, and the share reply left the two times
-    out, so a client learned different things about one Service depending
-    on how it heard.  generate() also length-prefixes a field that holds a
-    space, which the hand-built strings did not"""
+    The live stream and the share reply share this, so the two cannot
+    diverge.  generate() length-prefixes a field that holds a space, which
+    the hand-built payload it replaced did not"""
 
     return generate("add", [
         service_details["topic_path"], service_details["name"],
         service_details["protocol"], service_details["transport"],
-        service_details["owner"], service_details["tags"],
-        service_details["time_add"], service_details["time_remove"]])
+        service_details["owner"], service_details["tags"]])
 
 class RegistrarImpl(Registrar):
     def __init__(self, context):
@@ -431,7 +423,16 @@ class RegistrarImpl(Registrar):
         for service_details in self.history:
             if count < 1:
                 break
-            payload_out = _service_add_payload(service_details)
+            service_tags = " ".join(service_details["tags"])
+            payload_out =  "(add"                                \
+                          f" {service_details['topic_path']}"    \
+                          f" {service_details['name']}"          \
+                          f" {service_details['protocol']}"      \
+                          f" {service_details['transport']}"     \
+                          f" {service_details['owner']}"         \
+                          f" ({service_tags})"                   \
+                          f" {service_details['time_add']}"      \
+                          f" {service_details['time_remove']})"
             aiko.message.publish(topic_response, payload_out)
             count -= 1
 
@@ -457,12 +458,6 @@ class RegistrarImpl(Registrar):
         if not self.services.get_service(topic_path):
             _LOGGER.debug(f"Service add: {topic_path}")
 
-        # The Registrar is the clock, so a Service that registers sends no
-        # time of its own and needs no change.  UTC ISO 8601, as
-        # s_03_SelfAwarenessTelemetry REQ-9 has it for every other
-        # timestamp, and not time.monotonic(), which no other process can
-        # read and which a restart begins again
-            time_add = datetime_now_utc_iso()
             service_details = {
                 "topic_path": topic_path,
                 "name": name,
@@ -470,8 +465,8 @@ class RegistrarImpl(Registrar):
                 "transport": transport,
                 "owner": owner,
                 "tags": tags,
-                "time_add": time_add,
-                "time_remove": _TIME_ABSENT
+                "time_add": time.monotonic(),
+                "time_remove": 0
             }
             payload_out = _service_add_payload(service_details)
 
@@ -496,7 +491,7 @@ class RegistrarImpl(Registrar):
                 if service_details:
                     _LOGGER.debug(f"Service remove: {topic_path}")
 
-                    service_details["time_remove"] = datetime_now_utc_iso()
+                    service_details["time_remove"] = time.monotonic()
                     self.history.appendleft(service_details)
 
                     self.services.remove_service(topic_path)
@@ -505,60 +500,6 @@ class RegistrarImpl(Registrar):
 
                     payload_out = f"(remove {topic_path})"
                     aiko.message.publish(self.topic_out, payload_out)
-
-# --------------------------------------------------------------------------- #
-
-def _utc_iso(value):
-    """The value when it is a UTC ISO 8601 string this code can read, and
-    None when it is not.
-
-    A registrar:2 Registrar answers "(history ...)" with eight fields,
-    and its two times are time.monotonic() floats such as
-    "4672447.229599291".  That is a number whose origin no other process
-    knows, so there is no wall-clock time to show and "-" is the honest
-    answer.  Absence and unreadability are the same thing here"""
-
-    if value is None or value == _TIME_ABSENT:
-        return None
-    try:
-        utc_iso_to_datetime(str(value))
-    except (ValueError, TypeError):
-        return None
-    return str(value)
-
-def service_duration(service_details, now_utc_iso=None):
-    """(start, uptime, duration) of one Service, each as a string.
-
-    "start" is its local time.  A running Service has an uptime and no
-    duration, and a terminated one has a duration and no uptime.  Pure, so
-    the arithmetic is tested without a Registrar"""
-
-    time_add = _utc_iso(
-        service_details[6] if len(service_details) > 6 else None)
-    time_remove = _utc_iso(
-        service_details[7] if len(service_details) > 7 else None)
-    if time_add is None:
-        return _TIME_ABSENT, _TIME_ABSENT, _TIME_ABSENT  # registrar:2
-    start = utc_iso_to_local(time_add)
-    added = utc_iso_since_epoch(time_add)
-    if time_remove is None:
-        now = now_utc_iso or datetime_now_utc_iso()
-        return start, _seconds_terse(
-            utc_iso_since_epoch(now) - added), _TIME_ABSENT
-    return start, _TIME_ABSENT, _seconds_terse(
-        utc_iso_since_epoch(time_remove) - added)
-
-def _seconds_terse(seconds):
-    """A duration a person reads at a glance: 3s, 2m04s, 1h02m, 3d04h"""
-
-    seconds = int(max(0, seconds))
-    if seconds < 60:
-        return f"{seconds}s"
-    if seconds < 3600:
-        return f"{seconds // 60}m{seconds % 60:02d}s"
-    if seconds < 86400:
-        return f"{seconds // 3600}h{(seconds % 3600) // 60:02d}m"
-    return f"{seconds // 86400}d{(seconds % 86400) // 3600:02d}h"
 
 # --------------------------------------------------------------------------- #
 
@@ -594,18 +535,9 @@ def run_command():
     help="Seconds to wait for the Registrar")
 
 def list_command(history, timeout):
-    """List Services
+    """List Services: topic path, name and protocol
 
     aiko_registrar list [--history] [--timeout SECONDS]
-
-    \b
-    Running:    start time and uptime
-    Terminated: start time and how long it ran
-
-    Each time comes from the Registrar, which stamps an "(add ...)" and a
-    "(remove ...)" in UTC.  A Registrar older than registrar:3 sends
-    either no time, or a time.monotonic() number that no other process
-    can read, and each column is then "-".
     """
 
     services_cache = services_cache_create_singleton(
@@ -613,20 +545,17 @@ def list_command(history, timeout):
     services_cache.wait_ready()
     records = services_cache.get_history() if history  \
         else services_cache.get_services()
-    rows = []
-    for service_details in records:
-        start, uptime, duration = service_duration(service_details)
-        rows.append((str(ServiceTopicPath.parse(service_details[0])),
-            service_details[1], start, duration if history else uptime))
+    rows = [(str(ServiceTopicPath.parse(service_details[0])),
+        service_details[1], service_details[2])
+        for service_details in records]
     services_cache_delete()
 
     if not rows:
         print("No Services" if not history else "No terminated Services")
         return
-    heading = "Ran for" if history else "Uptime"
-    print(f"{'Topic path':<28} {'Name':<18} {'Started':<20} {heading}")
-    for topic_path, name, start, elapsed in rows:
-        print(f"{topic_path:<28} {name:<18} {start:<20} {elapsed}")
+    print(f"{'Topic path':<28} {'Name':<18} Protocol")
+    for topic_path, name, protocol in rows:
+        print(f"{topic_path:<28} {name:<18} {protocol}")
 
 if __name__ == "__main__":
     main()

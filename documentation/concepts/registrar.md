@@ -12,7 +12,7 @@ source:
 related: [design_overview, process, service, discovery, share, connection,
   state, event, message, transport, dashboard, lifecycle]
 version: "0.6"
-last_updated: 2026-10-23
+last_updated: 2026-10-29
 ---
 
 # Registrar
@@ -87,7 +87,7 @@ class Registrar(Service):
 
 The Registrar Interface currently declares no Python methods. To define
 the public API on the Interface is the first item on the source To Do
-list. The public contract *is* the wire protocol (currently version 3,
+list. The public contract *is* the wire protocol (currently version 2,
 `REGISTRAR_VERSION`). Application code usually reaches that protocol
 through `do_discovery()`, `do_command()`, `do_request()` and the
 `ServicesCache`, and not directly (refer to [Discovery](discovery.md) and
@@ -123,28 +123,9 @@ protocol):
 (remove TOPIC_PATH)
 ```
 
-A Service sends no time of its own, because the Registrar is the clock.
-Every accepted `add` / `remove` is re-broadcast on the Registrar's
-`topic_out`. Subscribe to `{registrar topic_path}/out` to keep a cache
-current without polling. The `add` there carries two more fields:
-
-```
-(add TOPIC_PATH NAME PROTOCOL TRANSPORT OWNER (TAG ...) TIME_ADD TIME_REMOVE)
-```
-
-Each time is a UTC ISO 8601 string, and `TIME_REMOVE` is `-` while the
-Service runs. `-` is deliberate, and not the codec's own `0:` None
-sentinel. `0:` says "None" in Python, and each other language must then
-choose what None is. `-` is a value that each language reads the same
-way. The [Parser](utilities/parser.md) records the three sentinels and
-which does what.
-
-The full date and time is deliberate as well. A bare clock time such as
-`08:17:40` begins with `digits:`, so the generator gives it a length
-prefix. That is `registrar:3`. `registrar:2` published six fields
-and no time, so a reader must accept six fields or more. A reader that
-demanded exactly six dropped every registration from a newer Registrar,
-and said so only in a debug line.
+Every accepted `add` / `remove` is re-broadcast unchanged on the
+Registrar's `topic_out`. Subscribe to `{registrar topic_path}/out` to
+keep a cache current without polling.
 
 **Queries.** `share` returns the current directory filtered by
 ServiceFilter fields (`*` matches anything). `history` returns recently
@@ -159,13 +140,15 @@ Responses use the standard item-count grammar on `RESPONSE_TOPIC`:
 
 ```
 (item_count N)
-(add TOPIC_PATH NAME PROTOCOL TRANSPORT OWNER (TAG ...) TIME_ADD TIME_REMOVE)
+(add TOPIC_PATH NAME PROTOCOL TRANSPORT OWNER (TAG ...))              × N
+      # a history record appends two fields: TIME_ADD TIME_REMOVE
 ```
 
-A `share` reply and a `history` reply carry the same eight fields as the
-live stream. Before `registrar:3` the `share` reply left both times out,
-so a client learned different things about one Service depending on how
-it heard.
+A `history` record appends the Registrar's own record of when the Service
+arrived and left. Both are `time.monotonic()` floats, which order events
+within one Registrar process and mean nothing outside it, so a reader
+cannot show them as a time. A reader therefore accepts six fields or
+more, never exactly six.
 
 After a `share` response, the Registrar publishes `(sync RESPONSE_TOPIC)`
 on its `topic_out`. A `ServicesCache` uses that marker to know two facts:
@@ -292,11 +275,11 @@ Key design points:
 - `_service_add()` ignores duplicate `add`s for a known `topic_path`, and
   re-publishes the *original inbound payload* on `topic_out` rather than
   regenerating it.
-- `time_add` and `time_remove` are UTC ISO 8601, as
-  `s_03_SelfAwarenessTelemetry` REQ-9 has every other timestamp. They were
-  `time.monotonic()` until `registrar:3`, which no other process could
-  read and which a restart began again. The boot announcement's
-  `TIME_STARTED` is still `time.monotonic()`.
+- `time_add`, `time_remove` and the boot announcement's `TIME_STARTED`
+  are `time.monotonic()`: they order events within one process and mean
+  nothing outside it. Giving the Registrar a wall-clock record of each
+  Service is deferred work, and `s_03_SelfAwarenessTelemetry` REQ-9 sets
+  the convention it will use.
 - The boot announcement has always carried the Registrar's version, and
   no client read it. A client now reports a mismatch, because the symptom
   of one is a Registrar that appears to register nothing.

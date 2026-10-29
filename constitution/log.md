@@ -23,10 +23,11 @@ pre-publication history is maintained privately.
 ## 2026-10-23
 
 - **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md): the `Registrar`
-  entry amended for `registrar:3`. What the Registrar publishes appends `time_add` and
-  `time_remove`, each UTC ISO 8601 per [s_03_SelfAwarenessTelemetry](s_03_SelfAwarenessTelemetry.md)
-  REQ-9, in place of `time.monotonic()`, which no other process can read. A reader accepts
-  six fields or more. Reference implementation `src/aiko_services/main/registrar.py`.
+  entry records that a `history` record appends `time_add` and `time_remove`, both
+  `time.monotonic()`, so a reader accepts six fields or more. Giving the Registrar a
+  wall-clock record of each Service is deferred, because the design needs the Registrar to
+  be the one source of that time. Reference implementation
+  `src/aiko_services/main/registrar.py`.
 - **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md): the `Recorder`
   entry amended. It refines `Actor`, and its functions are `record_start(topic_filter)` and
   `record_stop(topic_filter)`, because `stop` is the framework's control verb. Reference

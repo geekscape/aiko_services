@@ -9,7 +9,7 @@ status: draft-for-verification
 ste: adapted
 related: [p_00_DesignPrinciples, s_00_Specifications, e_03_FirstClassAgents,
   ../adr/ADR-021_SynthesizedDefaultInit, ../adr/ADR-022_CompositionBoundary]
-last_updated: 2026-10-23
+last_updated: 2026-10-29
 ---
 
 # Aiko Services — Design by Composition of Interfaces
@@ -176,11 +176,9 @@ diffs it against this document.
   `query(filters, reply_topic)`. *(Verified 2026-07-13: the Interface is an empty marker.
   The actual wire commands are `add(topic_path, name, protocol, transport, owner, tags)`,
   `remove(topic_path)`, `share(topic_response, …filter…)`, `history(topic_response, count)` —
-  no `query`. Contract promotion in e_10 §2.2.)* *(Amended 2026-10-23, `registrar:3`: what
-  the Registrar publishes appends `time_add` and `time_remove` to the six fields, each a UTC
-  ISO 8601 string per [s_03_SelfAwarenessTelemetry](s_03_SelfAwarenessTelemetry.md) REQ-9,
-  and `time_remove` is `-` while the Service runs. A registering Service sends no time. A
-  reader accepts six fields or more.)*
+  no `query`. Contract promotion in e_10 §2.2.)* *(Amended 2026-10-29: a `history` record
+  appends `time_add` and `time_remove`, both `time.monotonic()`, so a reader accepts six
+  fields or more. A wall-clock record of each Service is deferred work.)*
 - `ProcessManager` (refines `Actor`) — `spawn(command, specification)`, `terminate(process_id)`.
 - `Recorder` (refines `Actor`) — `record(topic_filter)`, `stop(recording_id)`. Replay lands
   here. *(Amended 2026-10-23: refines `Actor` from this date.

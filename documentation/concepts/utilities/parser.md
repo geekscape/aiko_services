@@ -12,7 +12,7 @@ source:
 related: [design_overview, service, actor, share, registrar, graph,
   ../../adr/ADR-002_SExpressionWireEncoding, ../../z_hy_assessment]
 version: "0.6"
-last_updated: 2026-10-23
+last_updated: 2026-10-29
 ---
 
 # Parser utility (S-expressions)
@@ -122,7 +122,7 @@ Rendering rules, in order:
   |---|---|---|
   | `0:` | the codec's None, a type | any payload, from `generate(None)` |
   | `*` | "match anything", in a filter | a `ServiceFilter` field, a share filter |
-  | `-` | "no value yet", in a field or a share item | `time_remove` of a running Service, `last_error` of an Actor that has none |
+  | `-` | "no value yet", in a field or a share item | `last_error` of an Actor that has had no error |
 
   The rule has two halves, and a reader needs both. **Read `0:`, and
   never write it into a new wire form.** `generate(None)` still emits it,
