@@ -12,7 +12,7 @@ source:
 related: [design_overview, service, actor, share, registrar, graph,
   ../../adr/ADR-002_SExpressionWireEncoding, ../../z_hy_assessment]
 version: "0.6"
-last_updated: 2026-08-14
+last_updated: 2026-10-29
 ---
 
 # Parser utility (S-expressions)
@@ -100,7 +100,10 @@ Rendering rules, in order:
 - Two kinds of string become a **canonical S-expression symbol**: a
   string that contains a delimiter (whitespace, `(`, `)`), and a string
   that *starts with* `digits:`. The byte length prefixes the symbol, so
-  `has space` becomes `9:has space`
+  `has space` becomes `9:has space`. A clock time trips the second rule:
+  `08:17:40` becomes `8:08:17:40`, which is correct and round-trips, and
+  reads badly. A full ISO 8601 date and time does not trip it, because it
+  begins `2026-` and not `2026:`
   (see [Canonical S-expressions](https://en.wikipedia.org/wiki/Canonical_S-expressions)).
 - A dict becomes alternating `keyword:` / value tokens. A list or tuple
   becomes a nested `( ... )`.
@@ -109,6 +112,27 @@ Rendering rules, in order:
   This is how *None* travels inside S-expressions, and why framework
   CLIs such as the [Category](../category.md) `update` command use `0:`
   to mean "leave unchanged".
+- **`0:` is a type, and a protocol's own sentinel is a value.** `0:` says
+  "this is None" in Python, and each other language must then choose what
+  None is. So a wire form that needs "there is no value here" uses a value
+  that each language reads the same way. Aiko Services has three of these,
+  and they do different work:
+
+  | Sentinel | Meaning | Where |
+  |---|---|---|
+  | `0:` | the codec's None, a type | any payload, from `generate(None)` |
+  | `*` | "match anything", in a filter | a `ServiceFilter` field, a share filter |
+  | `-` | "no value yet", in a field or a share item | `last_error` of an Actor that has had no error |
+
+  The rule has two halves, and a reader needs both. **Read `0:`, and
+  never write it into a new wire form.** `generate(None)` still emits it,
+  and an older wire form still carries it, so a reader keeps a None of its
+  own to read it with. A new wire form uses `-` for an absent value. Thus
+  no reader has to make `0:` mean something in a language that has no
+  None (project-lead direction, 2026-10-23, with the Go port).
+
+  This is the same posture as the minimum-arity rule for the Registrar's
+  `(add ...)`: tolerant where it reads, exact where it writes.
 - Everything else (int, float, bool, ...) is emitted through its `str()` form.
 
 **Parsing.** `parse()` scans the payload character by character,

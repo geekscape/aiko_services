@@ -58,7 +58,7 @@ aiko_display applet --list       # the applets and their options
 aiko_display key g               # the key map lives on the Actor: pong
 aiko_display keys                # interactive: every key goes to the Actor (the window too)
 aiko_display mirror aiko/probe 20 # a leased feed of raw frames to a topic, 20 s
-aiko_dashboard -p aiko_services.main.dashboard_plugins -p aiko_services.actors.display.dashboard_plugin
+aiko_dashboard -p aiko_services.ide.tui.dashboard.plugins -p aiko_services.actors.display.dashboard_plugin
 aiko_display list
 aiko_display exit
 ```
