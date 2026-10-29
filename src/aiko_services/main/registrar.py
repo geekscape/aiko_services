@@ -279,7 +279,8 @@ class Registrar(Service):
     @abstractmethod
     def service_add(self, topic_path, name, protocol, transport, owner, tags):
         """Register a Service.  Wire form: "(add topic_path name protocol
-        transport owner (tags))" on topic_in.  Projection: command"""
+        transport owner (tags))" on topic_in, re-broadcast unchanged on
+        topic_out.  Projection: command"""
 
     @abstractmethod
     def service_remove(self, topic_path):
@@ -290,18 +291,33 @@ class Registrar(Service):
     @abstractmethod
     def services_history(self, topic_response, count):
         """Reply with up to "count" most-recently removed Services:
-        "(item_count n)" then one "(add ... time_add time_remove)" per
-        Service, to topic_response.  Wire form:
-        "(history topic_response count)".  Projection: request"""
+        "(item_count n)" then one "(add ... time_add time_remove)" for
+        each one, to topic_response.  Both times are time.monotonic(), so
+        they order events within this process and mean nothing outside
+        it.  Wire form: "(history topic_response count)".  "count" is a
+        limit and not a cursor, so a client cannot ask for the Services
+        after the ones it holds.  Projection: request"""
 
     @abstractmethod
     def services_share(self, topic_response,
         name, protocol, transport, owner, tags):
         """Reply with the running Services matching the filter:
-        "(item_count n)" then one "(add ...)" per Service to
+        "(item_count n)" then one "(add ...)" for each one to
         topic_response, then "(sync topic_response)" on topic_out.
         Wire form: "(share topic_response name protocol transport owner
         tags)".  Projection: request"""
+
+def _service_add_payload(service_details):
+    """The "(add ...)" of one Service: the six registered fields.
+
+    The live stream and the share reply share this, so the two cannot
+    diverge.  generate() length-prefixes a field that holds a space, which
+    the hand-built payload it replaced did not"""
+
+    return generate("add", [
+        service_details["topic_path"], service_details["name"],
+        service_details["protocol"], service_details["transport"],
+        service_details["owner"], service_details["tags"]])
 
 class RegistrarImpl(Registrar):
     def __init__(self, context):
@@ -430,15 +446,8 @@ class RegistrarImpl(Registrar):
         aiko.message.publish(topic_response, payload=payload_out)
 
         for service_details in services_out:
-            service_tags = " ".join(service_details["tags"])
-            payload_out =  "(add"                              \
-                          f" {service_details['topic_path']}"  \
-                          f" {service_details['name']}"        \
-                          f" {service_details['protocol']}"    \
-                          f" {service_details['transport']}"   \
-                          f" {service_details['owner']}"       \
-                          f" ({service_tags}))"
-            aiko.message.publish(topic_response, payload_out)
+            aiko.message.publish(
+                topic_response, _service_add_payload(service_details))
 
         payload_out = f"(sync {topic_response})"
         aiko.message.publish(self.topic_out, payload_out)
@@ -446,8 +455,6 @@ class RegistrarImpl(Registrar):
     def service_add(self,
         topic_path, name, protocol, transport, owner, tags):
 
-        payload_out = generate(
-            "add", [topic_path, name, protocol, transport, owner, tags])
         if not self.services.get_service(topic_path):
             _LOGGER.debug(f"Service add: {topic_path}")
 
@@ -461,6 +468,7 @@ class RegistrarImpl(Registrar):
                 "time_add": time.monotonic(),
                 "time_remove": 0
             }
+            payload_out = _service_add_payload(service_details)
 
             self.services.add_service(topic_path, service_details)
             self.ec_producer.update("service_count", self.services.count)
@@ -495,14 +503,59 @@ class RegistrarImpl(Registrar):
 
 # --------------------------------------------------------------------------- #
 
-@click.command("main", help="Registrar Service")
+@click.group(invoke_without_command=True)
+@click.pass_context
 
-def main():
+def main(context):
+    """Maintain active and historical Service Lists
+
+    \b
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optonal)
+    """
+
+# "aiko_registrar" with no sub-command runs the Registrar (convenient)
+
+    if context.invoked_subcommand is None:
+        context.invoke(run_command)
+
+@main.command(name="run")
+
+def run_command():
+    """Run Registrar (default sub-command)"""
+
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
     init_args = service_args(
         REGISTRAR_SERVICE_TYPE, None, None, REGISTRAR_PROTOCOL, tags)
     registrar = compose_instance(RegistrarImpl, init_args)
     aiko.process.run(True)
+
+@main.command(name="list")
+@click.option("--history", "-h", is_flag=True, help="Terminated Services")
+@click.option("--timeout", "-t", type=click.FLOAT, default=5.0,
+    help="Seconds to wait for the Registrar")
+
+def list_command(history, timeout):
+    """List Services: topic path, name and protocol
+
+    aiko_registrar list [--history] [--timeout SECONDS]
+    """
+
+    services_cache = services_cache_create_singleton(
+        aiko.process, True, history_limit=_HISTORY_RING_BUFFER_SIZE)
+    services_cache.wait_ready()
+    records = services_cache.get_history() if history  \
+        else services_cache.get_services()
+    rows = [(str(ServiceTopicPath.parse(service_details[0])),
+        service_details[1], service_details[2])
+        for service_details in records]
+    services_cache_delete()
+
+    if not rows:
+        print("No Services" if not history else "No terminated Services")
+        return
+    print(f"{'Topic path':<28} {'Name':<18} Protocol")
+    for topic_path, name, protocol in rows:
+        print(f"{topic_path:<28} {name:<18} {protocol}")
 
 if __name__ == "__main__":
     main()
