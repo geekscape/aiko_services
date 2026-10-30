@@ -388,8 +388,7 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             self._adjust_palette()
 
         parent = (None, None)
-        services_count = self.services_cache.get_services().count   # correct
-        services = self.services_cache.get_services().copy()  # count is zero
+        services = self.services_cache.get_services().copy()
         services_formatted = []
         for service in services:
             topic_path = aiko.ServiceTopicPath.parse(service[0])
