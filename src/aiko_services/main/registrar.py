@@ -510,7 +510,7 @@ def main(context):
     """Maintain active and historical Service Lists
 
     \b
-    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optonal)
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
     """
 
 # "aiko_registrar" with no sub-command runs the Registrar (convenient)

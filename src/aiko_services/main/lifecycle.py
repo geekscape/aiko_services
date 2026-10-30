@@ -448,7 +448,7 @@ def main():
     """LifeCycleManager and LifeCycleManager Tests
 
     \b
-    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optonal)
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
     """
     pass
 

@@ -596,7 +596,7 @@ def main(plugin, history_limit):
     """Aiko Services Dashboard
 
     \b
-    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optonal)
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
     """
 
     global _HISTORY_LIMIT
