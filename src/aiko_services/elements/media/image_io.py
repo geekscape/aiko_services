@@ -147,10 +147,7 @@ def convert_image(image, media_type):
     return convert_image_handlers[media_type](image)
 
 def convert_images(images, media_type):
-    images_converted = []
-    for image in images:
-        images_converted.append(convert_image(image, media_type))
-    return(images_converted)
+    return [convert_image(image, media_type) for image in images]
 
 # --------------------------------------------------------------------------- #
 
@@ -423,9 +420,7 @@ class ImageSquareCenterCrop(aiko.PipelineElement):
         context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
-        images_cropped = []
-        for image in images:
-            images_cropped.append(square_center_crop(image))
+        images_cropped = [square_center_crop(image) for image in images]
         return aiko.StreamEvent.OKAY, {"images": images_cropped}
 
 # --------------------------------------------------------------------------- #
