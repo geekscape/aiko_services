@@ -11,7 +11,7 @@ source:
 related: [design_overview, hyperspace, dependency, storage, actor, share,
   lifecycle]
 version: "0.8"
-last_updated: 2026-10-23
+last_updated: 2026-11-01
 ---
 
 # ProcessManager
@@ -122,6 +122,43 @@ and gives no diagnostic, is worse. One bad entry does not stop the other
 processes. The flag applies to the definition file only. Thus
 `aiko_process create true` still runs the `true` command.
 
+An entry is either that string, or an object. The object form carries a
+working directory. It also keeps an argument that contains a space, which
+the string form cannot do:
+
+```json
+[
+  {"enabled": true, "command": "aiko_hyperspace run",
+   "cwd": "/home/claude/hyperspace"},
+  {"enabled": true, "command": ["aiko_chat", "run"],
+   "cwd": "/home/claude/chat_server"}
+]
+```
+
+The string form splits on whitespace. The object form splits the command
+with `shlex`, which keeps a quoted argument together. A command given as a
+list needs no quoting rules at all. The `enabled` flag is necessary in
+both forms, and `cwd` is optional. An unknown key is an error. The
+ProcessManager reports the error, then skips that entry, because a key
+that is nearly correct is the one worth a diagnostic.
+
+### The working directory
+
+A process inherits the ProcessManager's working directory. The `--cwd`
+option, and the `cwd` key in a definition entry, give it a different one.
+
+Some Services find their state by the working directory and nothing else.
+HyperSpace file [Storage](storage.md) is one. It resolves `_hyperspace_`
+and `.root` against the working directory. Thus `aiko_hyperspace run`
+reads the storage of the directory it starts in, and a Service of this
+type needs `cwd`.
+
+The ProcessManager makes sure that the directory exists before it starts
+the process. If the directory does not exist, the ProcessManager reports
+the error and starts no process. `Popen` reports this condition as a file
+not found error. That error names the command, not the directory. Thus
+the ProcessManager does the check itself.
+
 Manage processes:
 
 `create` and `destroy` travel on the message bus, so they need a
@@ -162,7 +199,8 @@ matches, and the replica of each one. `add_handler()` reports each change.
 `aiko_process list --watch` is the same cache on the command line.
 
 ```bash
-aiko_process create [--name NAME] [--uid UID] COMMAND [ARGUMENTS ...]
+aiko_process create [--name NAME] [--uid UID] [--cwd CWD]
+                    COMMAND [ARGUMENTS ...]
 aiko_process list   [--name NAME] [UID]
 aiko_process destroy [--name NAME] [--kill] UID
 ```
@@ -173,6 +211,7 @@ Examples from the source header — shell and Python scripts:
 aiko_process create -u uid:0 date
 aiko_process create -u uid:1 sleep 5
 aiko_process create -u uid:2 aiko_process exit -gt 0   # self terminate !
+aiko_process create -u uid:3 -c /home/claude/hyperspace aiko_hyperspace run
 ```
 
 Simultaneous processes terminating at different times:
@@ -285,14 +324,23 @@ touching `self.processes` from another thread.
 
 **Process creation details:**
 
-- Commands ending in `.py` / `.sh` run as given. Any other command is
-  first resolved as a *Python module name* through
-  `importlib.util.find_spec()`. If found, the module's file path is
-  executed instead — so `aiko_process create my_package.my_module` works
-  without knowing the installation path.
-- `Popen(command_line, bufsize=0, shell=False)` does no shell
+- Commands ending in `.py` / `.sh` run as given. For any other command, an
+  executable on `PATH` wins. A command that is not on `PATH` is resolved as
+  a *Python module name* through `importlib.util.find_spec()`. The module's
+  own file runs, but only if the name is a module and that file is
+  executable. Thus `aiko_process create my_package.my_module` needs no
+  knowledge of the installation path. A command that is neither runs as
+  given, so that `Popen` reports the command it did not find.
+- `PATH` wins because a console script and an importable package often
+  share a name. `aiko_chat` is both, and the package resolved to its
+  `__init__.py`, so the process ran a file nobody asked for.
+- A package is never that file. The file mode does not decide this,
+  because some installations give every library file the execute bit. The
+  hosted Python of the CI runner is one, for Python 3.11 and later.
+- `Popen(command_line, bufsize=0, shell=False, cwd=cwd)` does no shell
   interpretation. To use shell features, invoke the shell explicitly
-  (`/bin/sh -c "…"`, refer to the command-line examples above).
+  (`/bin/sh -c "…"`, refer to the command-line examples above). A `cwd` of
+  `None` is the inherited working directory.
 - Duplicate UIDs are rejected with a warning, and the process does not
   start. `FileNotFoundError` and other exceptions are logged, not
   raised.
@@ -309,7 +357,7 @@ population of every host in real time.
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `ProcessManager` (Interface) | Declare the process-table contract: `create()`, `list()`, `destroy()`, `dump()`, `exit()`; is-an Actor | `Actor` (parent Interface) |
-| `ProcessManagerImpl` | Maintain the `uid → (command_line, Popen)` table; launch through `Popen` with module-name resolution; reap exits on the reaper thread and marshal them back to the main thread; publish metrics through ECProducer; load definition files; graceful `exit()` escalation (SIGTERM → SIGKILL) | `ProcessCurrent` (self-entry shim); `ECProducer` (shared state); [HyperSpace](hyperspace.md) / [Storage](storage.md) (planned lifecycle-driving structure); [Dependency](dependency.md) (`lifecycle_manager_url` target) |
+| `ProcessManagerImpl` | Maintain the `uid → (command_line, Popen)` table; launch through `Popen` with the given working directory, and command resolution that prefers `PATH`; reap exits on the reaper thread and marshal them back to the main thread; publish metrics through ECProducer; load definition files; graceful `exit()` escalation (SIGTERM → SIGKILL) | `ProcessCurrent` (self-entry shim); `ECProducer` (shared state); [HyperSpace](hyperspace.md) / [Storage](storage.md) (planned lifecycle-driving structure); [Dependency](dependency.md) (`lifecycle_manager_url` target) |
 | `ProcessCurrent` | Present the ProcessManager's own OS process with the same interface as a `Popen` child, so UID `000000` gets uniform bookkeeping | `ProcessManagerImpl` (sole user) |
 
 ## Current limitations and roadmap

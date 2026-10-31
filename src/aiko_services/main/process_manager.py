@@ -12,7 +12,8 @@
 # aiko_process dump [--name name]
 # aiko_process exit [--name name] [--grace_time seconds]
 #
-# aiko_process create  [--name name] [--uid uid] command [arguments ...]
+# aiko_process create  [--name name] [--uid uid] [--cwd pathname]
+#                      command [arguments ...]
 # aiko_process list    [--name name] [uid]
 # aiko_process destroy [--name name] [--kill] uid
 #
@@ -37,6 +38,30 @@
 # because a command that silently doesn't start is worse than a diagnostic.
 # Note that the flag applies to the definition file only, so that
 # "aiko_process create true" still runs the "true" command.
+#
+# An entry is either that string, or an object, which carries a working
+# directory and keeps an argument that contains a space ...
+#
+#   [
+#     {"enabled": true, "command": "aiko_hyperspace run",
+#      "cwd": "/home/claude/hyperspace"},
+#     {"enabled": true, "command": ["aiko_chat", "run"],
+#      "cwd": "/home/claude/chat_server"}
+#   ]
+#
+# The string form splits on whitespace, so it cannot express an argument
+# that contains a space.  The object form splits with "shlex", and takes a
+# list as the command when even that is unwanted.  The "enabled" flag is
+# required in both forms, "cwd" is optional, and an unknown key is
+# reported and the entry skipped.
+#
+# Working directory
+# ~~~~~~~~~~~~~~~~~
+# A process inherits the ProcessManager's working directory, unless "cwd"
+# names one.  Some Services locate their state by the working directory
+# and nothing else.  HyperSpace file Storage resolves "_hyperspace_" and
+# ".root" against it, so "aiko_hyperspace run" reads the storage of
+# whichever directory it starts in.
 #
 # Shell and Python scripts
 # ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -115,9 +140,11 @@
 
 from abc import abstractmethod
 import click
-import importlib
+import importlib.util
 import json
 import os
+import shlex
+import shutil
 from subprocess import Popen
 import sys
 from threading import Thread
@@ -136,6 +163,7 @@ ACTOR_TYPE = "process_manager"
 VERSION = 0
 PROTOCOL = f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE}:{VERSION}"
 
+_DEFINITION_KEYS = frozenset({"enabled", "command", "cwd"})
 _GRACE_TIME=5.0  # seconds
 _MY_UID="000000"  # self-aware 🤔
 _PROCESS_POLL_TIME = 1.0  # seconds
@@ -195,7 +223,7 @@ class ProcessManager(Actor):
         "aiko_services.main.process_manager.ProcessManagerImpl")
 
     @abstractmethod
-    def create(self, command, arguments=None, uid=None):
+    def create(self, command, arguments=None, uid=None, cwd=None):
         pass
 
     @abstractmethod
@@ -301,7 +329,51 @@ class ProcessManagerImpl(ProcessManager):
             result += f"{new_line}  {uid_str}"
         return result
 
-    def create(self, command, arguments=None, uid=None):
+    def _resolve_command(self, command):
+        """The pathname to run for a command, which is the command itself
+        unless it names an importable module script.
+
+        An executable on PATH wins, because a console script and an
+        importable package often share a name.  "aiko_chat" is both, and
+        the module resolved to its "__init__.py", so the process ran a
+        file nobody asked for.  A package is never that file, and a module
+        is used only when its own file is executable, which is how a
+        module script runs without a console script of its own.  Anything
+        else is left as it is, so that Popen reports the command it could
+        not find"""
+
+        file_extension = os.path.splitext(command)[-1]
+        if file_extension in [".py", ".sh"]:         # TODO: Other extensions ?
+            return command
+        if shutil.which(command):
+            return command
+        try:
+            specification = importlib.util.find_spec(command)
+        except (ImportError, ValueError):      # not a usable module name
+            return command
+        if specification is None:
+            return command
+    # A package is a directory, and its "__init__.py" is not a script to
+    # run.  The file mode does not decide this, because some installations
+    # give every library file the execute bit
+        if specification.submodule_search_locations is not None:
+            return command
+        origin = specification.origin
+        if origin and os.access(origin, os.X_OK):
+            self.logger.info(f'Module path resolved to: "{origin}"')
+            return origin
+        return command
+
+    def create(self, command, arguments=None, uid=None, cwd=None):
+    # Popen reports a working directory that is not one as a file not found
+    # error which names the command, not the directory, so check it here.
+    # Before the uid is allocated, so that nothing starting leaves no gap
+    # in the sequence of uids
+        if cwd is not None and not os.path.isdir(cwd):
+            self.logger.error(
+                f"Create: not a directory, process not started: {cwd}")
+            return
+
         if not uid:
             uid = f"{self.uid_default:06d}"
             self.uid_default += 1
@@ -310,27 +382,16 @@ class ProcessManagerImpl(ProcessManager):
                 f"Create: <{uid}> exists, process not started: {command}")
             return
 
-        command_line = [command]
-        file_extension = os.path.splitext(command)[-1]
-        if file_extension not in [".py", ".sh"]:     # TODO: Other extensions ?
-            specification = None
-            try:
-                importlib.util.find_spec
-            except AttributeError:  # Python < 3.4
-                specification = importlib.find_loader(command)  # pylint: disable=deprecated-method
-            else:
-                specification = importlib.util.find_spec(command)
-            if specification:
-                command_line = [specification.origin]
-                self.logger.info(f'Module path resolved to: "{command_line}"')
-
+        command_line = [self._resolve_command(command)]
         if arguments:
             command_line.extend(arguments)
-        self.logger.info(f"Create: <{uid}> {command_line}")
+        where = f" cwd: {cwd}" if cwd else ""
+        self.logger.info(f"Create: <{uid}>{where} {command_line}")
         try:
-            process = Popen(command_line, bufsize=0, shell=False)
+            process = Popen(command_line, bufsize=0, shell=False, cwd=cwd)
             self.processes[uid] = {
                 "command_line": command_line,
+                "cwd": cwd,
                 "process": process
             }
             self.ec_producer.update(f"process.{uid}", self._process_share(uid))
@@ -398,7 +459,9 @@ class ProcessManagerImpl(ProcessManager):
 
     def _get_uid_str(self, uid):
         command, pid = self._get_process_info(uid)
-        return f"<{uid}> PID: {pid} {command[0]}"
+        cwd = self.processes.get(uid, {}).get("cwd")
+        where = f" cwd: {cwd}" if cwd else ""
+        return f"<{uid}> PID: {pid} {command[0]}{where}"
 
     def _is_running(self, uid):
         return self._get_return_code(uid) is None
@@ -421,28 +484,80 @@ class ProcessManagerImpl(ProcessManager):
                 topic_path_response, f"(response {response})")
 
     def _parse_definition_entry(self, entry):
-        """Parse one definition entry: "enabled command [arguments ...]"
+        """Parse one definition entry, in either of its two forms.
 
-        The leading "true" or "false" flag is required, so that a process
-        can be disabled without being removed from the definition.
-        Returns (enabled, command, arguments).  The command is None when
-        the entry can't be used, which is reported and then skipped,
+        A string is "enabled command [arguments ...]", split on
+        whitespace.  An object is {"enabled": ..., "command": ...,
+        "cwd": ...}, which carries a working directory and keeps an
+        argument that contains a space.  The leading flag is required in
+        both forms, so that a process can be disabled without being
+        removed from the definition.
+
+        Returns (enabled, command, arguments, cwd).  The command is None
+        when the entry can't be used, which is reported and then skipped,
         so that one bad entry doesn't stop the other processes"""
 
+        if isinstance(entry, dict):
+            return self._parse_definition_object(entry)
         tokens = str(entry).split()
         if not tokens:
             self.logger.error("Definition entry is empty, skipped")
-            return False, None, None
+            return False, None, None, None
         enabled = tokens[0].lower()
         if enabled not in ["true", "false"]:
             self.logger.error('Definition entry must start with "true" or '
                 f'"false", skipped: {entry}')
-            return False, None, None
+            return False, None, None, None
         if len(tokens) < 2:
             self.logger.error(
                 f"Definition entry has no command, skipped: {entry}")
-            return False, None, None
-        return enabled == "true", tokens[1], tokens[2:]
+            return False, None, None, None
+        return enabled == "true", tokens[1], tokens[2:], None
+
+    def _parse_definition_object(self, entry):
+        """Parse one definition entry in its object form.
+
+        Returns the same four values as _parse_definition_entry(), which
+        is the only caller"""
+
+        skipped = False, None, None, None
+        unknown = sorted(set(entry) - _DEFINITION_KEYS)
+        if unknown:
+            self.logger.error("Definition entry has unknown key "
+                f"{', '.join(unknown)}, skipped: {entry}")
+            return skipped
+        enabled = entry.get("enabled")
+        if not isinstance(enabled, bool):
+            self.logger.error('Definition entry must have "enabled" true '
+                f"or false, skipped: {entry}")
+            return skipped
+
+        command = entry.get("command")
+        if isinstance(command, str):
+            try:
+                tokens = shlex.split(command)
+            except ValueError as value_error:          # an unbalanced quote
+                self.logger.error("Definition entry command "
+                    f"{value_error}, skipped: {entry}")
+                return skipped
+        elif isinstance(command, list) and  \
+            all(isinstance(token, str) for token in command):
+            tokens = list(command)
+        else:
+            self.logger.error('Definition entry "command" must be a string '
+                f"or a list of strings, skipped: {entry}")
+            return skipped
+        if not tokens:
+            self.logger.error(
+                f"Definition entry has no command, skipped: {entry}")
+            return skipped
+
+        cwd = entry.get("cwd")
+        if cwd is not None and not isinstance(cwd, str):
+            self.logger.error('Definition entry "cwd" must be a string, '
+                f"skipped: {entry}")
+            return skipped
+        return enabled, tokens[0], tokens[1:], cwd
 
     def _parse_definition(self, definition_pathname):
         diagnostic = None
@@ -451,12 +566,12 @@ class ProcessManagerImpl(ProcessManager):
                 try:
                     entries = json.load(open(definition_pathname, "r"))
                     for entry in entries:
-                        enabled, command, arguments =  \
+                        enabled, command, arguments, cwd =  \
                             self._parse_definition_entry(entry)
                         if command is None:
                             continue
                         if enabled:
-                            self.create(command, arguments)
+                            self.create(command, arguments, cwd=cwd)
                         else:
                             self.logger.info(
                                 f"Disabled: {' '.join([command, *arguments])}")
@@ -606,23 +721,29 @@ def main():
     help="ProcessManager name, default is the local hostname")
 @click.option("--uid", "-u", type=str, default=None,
     help="Unique name for referring to the process")
+@click.option("--cwd", "-c", type=str, default=None,
+    help="Working directory, default is the ProcessManager's")
 @click.argument("command", type=str)
 @click.argument("arguments", nargs=-1, type=click.UNPROCESSED)
 
-def create_command(name, uid, command, arguments):
+def create_command(name, uid, cwd, command, arguments):
     """Create Process
 
-    aiko_process create [--name NAME] [--uid UID] COMMAND [ARGUMENTS ...]
+    \b
+    aiko_process create [--name NAME] [--uid UID] [--cwd CWD]
+        COMMAND [ARGUMENTS ...]
 
     \b
     • NAME:       ProcessManager name, default is the local hostname
     • UID:        Unique IDentifier
+    • CWD:        Working directory, default is the ProcessManager's
     • COMMAND:    Command name
     • ARGUMENTS:  Command arguments
     """
 
     do_command(ProcessManager, get_service_filter(name),
-        lambda actor: actor.create(command, arguments, uid), terminate=True)
+        lambda actor: actor.create(command, arguments, uid, cwd),
+        terminate=True)
     aiko.process.run()
 
 @main.command(name="destroy", no_args_is_help=True)
