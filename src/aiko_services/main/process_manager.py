@@ -335,12 +335,12 @@ class ProcessManagerImpl(ProcessManager):
 
         An executable on PATH wins, because a console script and an
         importable package often share a name.  "aiko_chat" is both, and
-        the module resolved to its "__init__.py", which is not executable,
-        so the process failed with a permission error naming a file nobody
-        asked for.  A module is used only when its own file is executable,
-        which is how a module script runs without a console script of its
-        own.  Anything else is left as it is, so that Popen reports the
-        command it could not find"""
+        the module resolved to its "__init__.py", so the process ran a
+        file nobody asked for.  A package is never that file, and a module
+        is used only when its own file is executable, which is how a
+        module script runs without a console script of its own.  Anything
+        else is left as it is, so that Popen reports the command it could
+        not find"""
 
         file_extension = os.path.splitext(command)[-1]
         if file_extension in [".py", ".sh"]:         # TODO: Other extensions ?
@@ -351,7 +351,14 @@ class ProcessManagerImpl(ProcessManager):
             specification = importlib.util.find_spec(command)
         except (ImportError, ValueError):      # not a usable module name
             return command
-        origin = specification.origin if specification else None
+        if specification is None:
+            return command
+    # A package is a directory, and its "__init__.py" is not a script to
+    # run.  The file mode does not decide this, because some installations
+    # give every library file the execute bit
+        if specification.submodule_search_locations is not None:
+            return command
+        origin = specification.origin
         if origin and os.access(origin, os.X_OK):
             self.logger.info(f'Module path resolved to: "{origin}"')
             return origin

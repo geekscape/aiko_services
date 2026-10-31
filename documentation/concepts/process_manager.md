@@ -327,14 +327,16 @@ touching `self.processes` from another thread.
 - Commands ending in `.py` / `.sh` run as given. For any other command, an
   executable on `PATH` wins. A command that is not on `PATH` is resolved as
   a *Python module name* through `importlib.util.find_spec()`. The module's
-  own file runs, but only if that file is executable — so
-  `aiko_process create my_package.my_module` works without knowledge of the
-  installation path. A command that is neither runs as given, so that
-  `Popen` reports the command it did not find.
+  own file runs, but only if the name is a module and that file is
+  executable. Thus `aiko_process create my_package.my_module` needs no
+  knowledge of the installation path. A command that is neither runs as
+  given, so that `Popen` reports the command it did not find.
 - `PATH` wins because a console script and an importable package often
-  share a name. `aiko_chat` is both. The package resolved to its
-  `__init__.py`, which is not executable, so the process failed with a
-  permission error that named a file nobody asked for.
+  share a name. `aiko_chat` is both, and the package resolved to its
+  `__init__.py`, so the process ran a file nobody asked for.
+- A package is never that file. The file mode does not decide this,
+  because some installations give every library file the execute bit. The
+  hosted Python of the CI runner is one, for Python 3.11 and later.
 - `Popen(command_line, bufsize=0, shell=False, cwd=cwd)` does no shell
   interpretation. To use shell features, invoke the shell explicitly
   (`/bin/sh -c "…"`, refer to the command-line examples above). A `cwd` of

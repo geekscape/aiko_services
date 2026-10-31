@@ -326,13 +326,40 @@ def test_an_executable_on_the_path_wins_over_a_module(
     assert process_manager._resolve_command("aiko_module_0") ==  \
         "aiko_module_0"
 
-def test_a_package_that_is_not_executable_is_left_alone(process_manager):
+@pytest.mark.parametrize("mode", [0o644, 0o755],
+    ids=["__init__.py is not executable", "__init__.py is executable"])
+def test_a_package_is_left_alone(process_manager, tmp_path, monkeypatch, mode):
     """The "aiko_chat" failure: the package resolved to its "__init__.py",
-    which is not executable, so the process failed with a permission error
-    naming that file.  Left alone, Popen reports the command instead"""
+    and the process ran a file nobody asked for.  Left alone, Popen
+    reports the command instead.
 
-    assert process_manager._resolve_command("json") == "json"
+    Both file modes, because a library file carries the execute bit on
+    some installations.  The hosted Python of the CI runner is one, for
+    Python 3.11 and later, and the file mode decided this at first"""
+
+    package = tmp_path / "aiko_package_0"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "__init__.py").chmod(mode)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    importlib.invalidate_caches()
+
+    assert process_manager._resolve_command("aiko_package_0") ==  \
+        "aiko_package_0"
     assert process_manager.logger.infos == []
+
+def test_a_module_that_is_not_executable_is_left_alone(
+    process_manager, tmp_path, monkeypatch):
+    """Popen then reports the command, instead of a permission error"""
+
+    pathname = tmp_path / "aiko_module_1.py"
+    pathname.write_text("")
+    pathname.chmod(0o644)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    importlib.invalidate_caches()
+
+    assert process_manager._resolve_command("aiko_module_1") ==  \
+        "aiko_module_1"
 
 def test_a_command_that_is_neither_resolves_to_itself(process_manager):
     assert process_manager._resolve_command("no_such_command_0") ==  \
