@@ -6,6 +6,17 @@ Every substantive change appends an entry under its date heading
 This journal begins at the constitution's first public release. The
 pre-publication history is maintained privately.
 
+## 2026-11-01
+
+- **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md): the
+  `ProcessManager` entry records the functions the Interface declares. The entry
+  named `spawn` and `terminate`, which it never had. `create` takes a fourth
+  parameter, `cwd`. It is the working directory of the process. A Service that
+  finds its state by the working directory cannot start any other way.
+  HyperSpace file Storage is such a Service, and so is the Chat server that
+  embeds one. Reference implementation
+  `src/aiko_services/main/process_manager.py`.
+
 ## 2026-10-30
 
 - **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)

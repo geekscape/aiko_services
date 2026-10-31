@@ -9,7 +9,7 @@ status: draft-for-verification
 ste: adapted
 related: [p_00_DesignPrinciples, s_00_Specifications, e_03_FirstClassAgents,
   ../adr/ADR-021_SynthesizedDefaultInit, ../adr/ADR-022_CompositionBoundary]
-last_updated: 2026-10-29
+last_updated: 2026-11-01
 ---
 
 # Aiko Services — Design by Composition of Interfaces
@@ -180,6 +180,10 @@ diffs it against this document.
   appends `time_add` and `time_remove`, both `time.monotonic()`, so a reader accepts six
   fields or more. A wall-clock record of each Service is deferred work.)*
 - `ProcessManager` (refines `Actor`) — `spawn(command, specification)`, `terminate(process_id)`.
+  *(Verified 2026-11-01: the functions are `create(command, arguments, uid, cwd)`,
+  `destroy(uid, kill)`, `dump()`, `exit(grace_time)` and `list(topic_response, uid)`.
+  There is no `spawn`, and `terminate` is the Actor's own control verb. `cwd` is the
+  working directory of the process. A `cwd` of `None` inherits the ProcessManager's.)*
 - `Recorder` (refines `Actor`) — `record(topic_filter)`, `stop(recording_id)`. Replay lands
   here. *(Amended 2026-10-23: refines `Actor` from this date.
   The functions are `record_start(topic_filter)` and `record_stop(topic_filter)`: `stop` is
