@@ -6,6 +6,18 @@ Every substantive change appends an entry under its date heading
 This journal begins at the constitution's first public release. The
 pre-publication history is maintained privately.
 
+## 2026-10-30
+
+- **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+  section 9: each failure mode is compressed to the constitution register
+  (project-lead direction). The rule comes first. The narration around it is
+  gone. Three defects go with the compression. The `Agent-claimed "done"` and
+  `D starving` entries shared one paragraph, so neither read as a rule of its
+  own. The `inherited diagnosis` entry now names a note, a memory and a
+  session summary as handovers. A wrong mechanism reached this session from a
+  memory file. `A guard that refuses everything` says `function`, which is
+  the framework's word, not `command`.
+
 ## 2026-10-26
 
 - **Update** — [s_01_RepositoryLayout.md](s_01_RepositoryLayout.md): the

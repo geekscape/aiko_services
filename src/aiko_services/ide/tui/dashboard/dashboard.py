@@ -388,8 +388,7 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             self._adjust_palette()
 
         parent = (None, None)
-        services_count = self.services_cache.get_services().count   # correct
-        services = self.services_cache.get_services().copy()  # count is zero
+        services = self.services_cache.get_services().copy()
         services_formatted = []
         for service in services:
             topic_path = aiko.ServiceTopicPath.parse(service[0])
@@ -596,7 +595,7 @@ def main(plugin, history_limit):
     """Aiko Services Dashboard
 
     \b
-    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optonal)
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
     """
 
     global _HISTORY_LIMIT

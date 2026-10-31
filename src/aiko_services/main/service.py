@@ -359,6 +359,24 @@ class ServicesIterator:
         self._process_iterator = iter(self._services)
         self.iterate_process()
 
+# An iterator must also be iterable.  Without this, "ServicesIterator" has
+# "__next__" and no "__iter__", and "iter()" refuses it: "TypeError:
+# 'ServicesIterator' object is not iterable".  Which consumer that stops is
+# a function of the Python version, so measure it, as below (2026-10-30)
+#
+#   construct                          3.12.15   3.13.5   3.14.9
+#   plain "for" statement              ok        ok       ok
+#   list comprehension, generator      ok        raises   ok
+#   "list()", "sorted()", "tuple()"    ok        ok       ok
+#   "iter(iterator)"                   raises    raises   raises
+#
+# Python 3.13 alone refuses a comprehension, which is why
+# "registrar.py:list_command()" crashed on aiko01, on 3.13, and passed on a
+# 3.12 Mac.  Each other loop over a "Services" is a plain "for" statement
+
+    def __iter__(self):
+        return self
+
     def iterate_process(self):
         process_topic_path = self._process_iterator.__next__()
         self._process_services = self._services[process_topic_path]
@@ -398,13 +416,26 @@ class Services:
                 self._count += 1
 
     def copy(self):
+        """A snapshot, for a consumer that iterates whilst the message bus
+        thread adds and removes Services.  Each per process dict is copied
+        too, because "self._services.copy()" alone shares them: a Service
+        that arrived in a process the clone already held appeared in the
+        clone, and the count then disagreed with the contents
+        """
+
         clone = Services()
-        clone._services = self._services.copy()
+        clone._services = OrderedDict(
+            (process_topic_path, process_services.copy())
+            for process_topic_path, process_services
+            in self._services.items())
+        clone._count = self._count
         return clone
 
     @property
     def count(self):
-        return self._count  # TODO: Why is "len(self._services)" incorrect ?
+        # "_services" holds one entry for each process, not for each
+        # Service, so "len(self._services)" counts the processes
+        return self._count
 
     def filter_services(self, filter):
         results = self.filter_by_topic_paths(filter.topic_paths)
