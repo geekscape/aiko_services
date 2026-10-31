@@ -26,6 +26,7 @@
 # - Drive key events through the pseudo-terminal
 
 import os
+from types import SimpleNamespace
 
 import pytest
 
@@ -33,6 +34,9 @@ asciimatics = pytest.importorskip("asciimatics")
 
 from aiko_services.main.utilities import load_module            # noqa: E402
 from aiko_services.ide.tui.dashboard import dashboard            # noqa: E402
+from aiko_services.main.service import (                        # noqa: E402
+    Services, ServiceTopicPath,
+)
 from aiko_services.tests.unit.dashboard_screen import (         # noqa: E402
     draw_frame, pty_available,
 )
@@ -225,5 +229,197 @@ def test_a_page_draws_with_an_empty_shared_state(tmp_path):
         drawn = draw_frame(module_name, class_name, {}, tmp_path)
         assert drawn["ok"], (
             class_name, drawn.get("traceback") or drawn.get("error"))
+
+# Which Service the selection means ---------------------------------------- #
+#
+# "DashboardFrame" cannot be built here, which is why it is absent from
+# FRAMES above: its constructor calls "services_cache_create_singleton()",
+# and that needs a broker and a thread.  So these tests call the real
+# methods that read a selection back out of the widget, on an object that
+# carries only the state those methods touch.
+#
+# What they aim at: the first column of each row is
+# "ServiceTopicPath.terse", which abbreviates a topic path longer than 26
+# characters.  Identifying the selected Service by that column handed an
+# abbreviated path to "Services.get_service()", which keys on the full one,
+# so it answered None and the Dashboard raised "TypeError: 'NoneType'
+# object is not subscriptable" on the first frame that held a Service.  The
+# fault needed a Service whose topic path is long enough, so it appeared on
+# a remote broker and never on localhost
+
+TOPIC_PATH_LONG = "aiko/amr-instance/1727706/1"   # 27 characters, abbreviated
+TOPIC_PATH_SHORT = "aiko/nomad/5161/1"            # 17 characters, unchanged
+
+def service_details(topic_path, name="actor", tags=None):
+    return [topic_path, name, "protocol:0", "mqtt", "owner",
+        tags if tags else ["a=b"]]
+
+def services_holding(*topic_paths):
+    services = Services()
+    for topic_path in topic_paths:
+        services.add_service(topic_path, service_details(topic_path))
+    return services
+
+class _Selection:
+    """Just enough DashboardFrame for the methods under test, which are the
+    real ones, bound here as class attributes"""
+
+    _ec_consumer_reset = dashboard.DashboardFrame._ec_consumer_reset
+    _ec_consumer_set = dashboard.DashboardFrame._ec_consumer_set
+    _get_service_topic_path_next =  \
+        dashboard.DashboardFrame._get_service_topic_path_next
+    _on_change_services = dashboard.DashboardFrame._on_change_services
+
+    def __init__(self, services=None, rows=(), value=None):
+        self.ec_consumer = None
+        self.service_cache = {}
+        self.service_tags = None
+        self.selected_service = None
+        self.selected_topic_path = None
+        self.services_cache = SimpleNamespace(get_services=lambda: services)
+        # Each row as "_update()" builds it: the terse form on display,
+        # and the full topic path as the option's internal value
+        self._services_widget = SimpleNamespace(value=value, options=[
+            ((ServiceTopicPath.parse(topic_path).terse,), topic_path)
+            for topic_path in rows])
+
+def test_the_terse_form_is_not_a_cache_key():
+    """Why the display column cannot identify a Service.  Should this ever
+    fail, "terse" has stopped abbreviating and the tests below prove
+    nothing"""
+
+    services = services_holding(TOPIC_PATH_LONG)
+    terse = ServiceTopicPath.parse(TOPIC_PATH_LONG).terse
+
+    assert terse != TOPIC_PATH_LONG
+    assert services.get_service(terse) is None
+    assert services.get_service(TOPIC_PATH_LONG) is not None
+
+class _Stop(Exception):
+    """Ends "_update()" at the assignment under test, because everything
+    after it belongs to asciimatics and wants a real Frame"""
+
+class _Recorder:
+    def __init__(self):
+        self.options = []
+
+    def __setattr__(self, name, value):
+        object.__setattr__(self, name, value)
+        if name == "options" and value:
+            raise _Stop
+
+class _Update:
+    """Just enough DashboardFrame for the part of "_update()" that fills
+    the Services page"""
+
+    _filter = dashboard.DashboardFrame._filter
+    _service_selection_color =  \
+        dashboard.DashboardFrame._service_selection_color
+    _short_name = dashboard.DashboardFrame._short_name
+    YELLOW = dashboard.DashboardFrame.YELLOW
+
+    def __init__(self, services):
+        self.adjust_palette_required = False
+        self.filter_out = dashboard.DashboardFrame.FILTER_OUT.copy()
+        self.selected_services = {}
+        self.services_cache = SimpleNamespace(get_services=lambda: services)
+        self._services_widget = _Recorder()
+
+def test_each_row_carries_a_topic_path_the_cache_accepts():
+    """The real "_update()", at the site that built the identity.  Each row
+    must pair a display column with a value that selects its Service"""
+
+    services = services_holding(TOPIC_PATH_LONG, TOPIC_PATH_SHORT)
+    frame = _Update(services)
+
+    with pytest.raises(_Stop):
+        dashboard.DashboardFrame._update(frame, 0)
+
+    rows = frame._services_widget.options
+    assert len(rows) == 2
+    for columns, topic_path in rows:
+        assert services.get_service(topic_path) is not None, topic_path
+    assert [columns[0] for columns, _ in rows] ==  \
+        ["aiko/amr-inst+/1727706/1", TOPIC_PATH_SHORT]
+
+def test_a_changed_selection_is_the_full_topic_path():
+    selection = _Selection(rows=[TOPIC_PATH_LONG], value=TOPIC_PATH_LONG)
+    handed = []
+    selection._ec_consumer_set = handed.append
+
+    selection._on_change_services()
+
+    assert handed == [TOPIC_PATH_LONG]
+    assert selection.selected_topic_path == TOPIC_PATH_LONG
+
+def test_an_unchanged_selection_is_left_alone():
+    selection = _Selection(rows=[TOPIC_PATH_LONG], value=TOPIC_PATH_LONG)
+    selection.selected_topic_path = TOPIC_PATH_LONG
+    handed = []
+    selection._ec_consumer_set = handed.append
+
+    selection._on_change_services()
+
+    assert handed == []
+
+def test_a_long_topic_path_selects_its_service():
+    """The pairing, end to end: the value a row carries is accepted by the
+    cache, and the Service's tags reach the frame"""
+
+    selection = _Selection(services=services_holding(TOPIC_PATH_LONG),
+        rows=[TOPIC_PATH_LONG], value=TOPIC_PATH_LONG)
+
+    selection._on_change_services()
+
+    assert selection.selected_service[0] == TOPIC_PATH_LONG
+    assert selection.service_tags == ["a=b"]
+
+def test_the_last_service_leaving_clears_the_selection():
+    """The widget's value falls to None when no row is left, and a Service
+    that has gone must not stay selected"""
+
+    selection = _Selection(rows=[], value=None)
+    selection.selected_topic_path = TOPIC_PATH_LONG
+    selection.selected_service = service_details(TOPIC_PATH_LONG)
+    selection.service_tags = ["a=b"]
+
+    selection._on_change_services()
+
+    assert selection.selected_topic_path is None
+    assert selection.selected_service is None
+    assert selection.service_tags is None
+
+def test_a_service_that_exits_between_frames_does_not_raise():
+    """"_update()" reads a copy of the cache, so the message bus thread can
+    remove a Service before the selection is looked up"""
+
+    selection = _Selection(services=services_holding(TOPIC_PATH_SHORT))
+
+    selection._ec_consumer_set(TOPIC_PATH_LONG)
+
+    assert selection.selected_service is None
+    assert selection.service_tags is None
+    assert selection.ec_consumer is None
+
+def test_the_next_service_is_the_row_after_the_selected_one():
+    """What "K" uses to move the selection off the Service it kills"""
+
+    selection = _Selection(
+        rows=[TOPIC_PATH_SHORT, TOPIC_PATH_LONG], value=TOPIC_PATH_SHORT)
+    selection.selected_topic_path = TOPIC_PATH_SHORT
+
+    assert selection._get_service_topic_path_next() == TOPIC_PATH_LONG
+
+def test_there_is_no_next_service_after_the_last_row():
+    selection = _Selection(
+        rows=[TOPIC_PATH_SHORT, TOPIC_PATH_LONG], value=TOPIC_PATH_LONG)
+    selection.selected_topic_path = TOPIC_PATH_LONG
+
+    assert selection._get_service_topic_path_next() is None
+
+def test_there_is_no_next_service_when_nothing_is_selected():
+    selection = _Selection(rows=[TOPIC_PATH_SHORT])
+
+    assert selection._get_service_topic_path_next() is None
 
 # --------------------------------------------------------------------------- #

@@ -197,7 +197,7 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
         self.ec_consumer = None
         self._ec_consumer_reset()
         self.filter_out = DashboardFrame.FILTER_OUT.copy()
-        self.services_row = -1
+        self.selected_topic_path = None
         self.selected_service = None
         self.selected_services = {}  # TODO: Make this a set() ?
         self.subscribed_service = None
@@ -240,6 +240,8 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
         self._ec_consumer_reset()
         services = self.services_cache.get_services()
         self.selected_service = services.get_service(topic_path)
+        if not self.selected_service:  # it exited since the last _update()
+            return
         self.service_tags = self.selected_service[5]
         if aiko.ServiceTags.match_tags(self.service_tags, ["ec=true"]):
             topic_control = f"{topic_path}/control"
@@ -270,11 +272,12 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
 
     def _get_service_topic_path_next(self):
         service_topic_path_next = None
-        services_row_next = self.services_row + 1
-        services = self._services_widget.options
-        if len(services) > services_row_next:
-            service = services[services_row_next]
-            service_topic_path_next = str(service[0][0])  # remove color
+        topic_paths = [
+            topic_path for _, topic_path in self._services_widget.options]
+        if self.selected_topic_path in topic_paths:
+            row_next = topic_paths.index(self.selected_topic_path) + 1
+            if row_next < len(topic_paths):
+                service_topic_path_next = topic_paths[row_next]
         return service_topic_path_next
 
     def _kill_service(self, service):
@@ -291,11 +294,14 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
                 Popen(command_line, bufsize=0, shell=False)
 
     def _on_change_services(self):
-        row = self._services_widget.value
-        if row is not None and row != self.services_row:
-            self.services_row = row
-            topic_path_color = self._services_widget.options[row][0][0]
-            self._ec_consumer_set(str(topic_path_color))  # remove color
+        topic_path = self._services_widget.value
+        if topic_path != self.selected_topic_path:
+            self.selected_topic_path = topic_path
+            if topic_path is None:  # the last Service exited
+                self._ec_consumer_reset()
+                self.selected_service = None
+            else:
+                self._ec_consumer_set(topic_path)
 
     def _on_select_variable(self):
         text_box = TextBox(1, None, None, False, False)
@@ -397,11 +403,15 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             protocol = self._short_name(service[2])
             parent, show = self._filter(parent, service, topic_path, protocol)
             if show:
-                services_formatted.append(
-                    (topic_color, service[1], service[4], protocol, service[3]))
+                service_info = (
+                    topic_color, service[1], service[4], protocol, service[3])
+                services_formatted.append((str(topic_path), service_info))
+        # Each option carries the full topic path as its internal value,
+        # which is what identifies the selected Service.  The first column
+        # holds the terse form, for display, which the cache does not accept
         self._services_widget.options = [
-            (service_info, row_index)
-            for row_index, service_info in enumerate(services_formatted)
+            (service_info, service_topic_path)
+            for service_topic_path, service_info in services_formatted
         ]
 
         variables = []
