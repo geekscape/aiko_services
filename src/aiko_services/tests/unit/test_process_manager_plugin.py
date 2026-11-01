@@ -39,7 +39,9 @@ def test_the_default_plugin_module_registers_it():
 
     from aiko_services.ide.tui.dashboard.plugins import plugins as default
 
-    assert sorted(default) == ["process_manager", "recorder", "registrar"]
+    assert sorted(default) ==  \
+        ["category", "hyperspace",
+        "process_manager", "recorder", "registrar"]
 
 # The keys ---------------------------------------------------------------- #
 
@@ -148,5 +150,175 @@ def test_the_help_names_every_key_the_page_takes(page):
     for key in KEYS:
         assert key in text
     assert "--unsafe" in text
+
+# --------------------------------------------------------------------------- #
+# The definition, held in a Category --------------------------------------- #
+#
+# The page matches a definition Entry to a running process by its command
+# line, because the ProcessManager does not say which Entry a process came
+# from.  These hold that, and what each row says about an Entry
+
+from aiko_services.main.category_view import (                   # noqa: E402
+    CategoryTree, entry_of,
+)
+from aiko_services.main.process_definition import process_url    # noqa: E402
+
+WILDCARD = "*"
+
+def process_entry(name, enabled=True, command=None, cwd=None):
+    command = command if command else name
+    return entry_of(name, [[WILDCARD, name, WILDCARD, WILDCARD, WILDCARD, []],
+        "aiko01", process_url(enabled, command, cwd)])
+
+def category_entry(name):
+    from aiko_services.main import CATEGORY_PROTOCOL
+
+    return entry_of(name,
+        [[WILDCARD, name, CATEGORY_PROTOCOL, WILDCARD, WILDCARD, []],
+            "None", "None"])
+
+def tree_of(*entries):
+    tree = CategoryTree("definition")
+    tree.merge("", list(entries))
+    return tree
+
+LIVE = {"process": {"000000": "4242 aiko_registrar run",
+    "000001": "4301 sleep 60"}}
+
+def test_each_definition_key_asks_for_one_thing(page):
+    assert page.action(ord("n")) == ("definition",)
+    assert page.action(ord("s")) == ("start",)
+    assert page.action(ord("t")) == ("stop",)
+    assert page.action(ord("e")) == ("enabled",)
+    assert page.action(ord("J")) == ("json",)
+
+def test_starting_and_stopping_are_creating_and_destroying(page):
+    """So that safe mode denies them for the same reason"""
+
+    assert page.function_of("start") == "create"
+    assert page.function_of("stop") == "destroy"
+    assert page.may_send(SAFE, page.function_of("start"))[0] is False
+    assert page.may_send(SAFE, page.function_of("stop"))[0] is False
+    assert page.may_send(UNSAFE, page.function_of("start"))[0] is True
+
+def test_reading_a_definition_is_never_denied(page):
+    """It asks a HyperSpace, not this Actor"""
+
+    for kind in ("definition", "json", "enabled"):
+        assert page.function_of(kind) == kind
+        assert page.may_send(SAFE, kind)[0] is True
+
+def test_what_is_running_is_read_by_its_command_line(page):
+    assert page.live_processes(LIVE) == {
+        "aiko_registrar run": ("000000", "4242"),
+        "sleep 60": ("000001", "4301")}
+
+def test_nothing_is_running(page):
+    assert page.live_processes({}) == {}
+    assert page.live_processes({"process": "nonsense"}) == {}
+
+def test_two_entries_of_one_command_line_are_one_process(page):
+    """The ProcessManager cannot tell them apart either, so the first uid
+    is the one a person acts on"""
+
+    cache = {"process": {"1": "11 sleep 60", "0": "10 sleep 60"}}
+
+    assert page.live_processes(cache) == {"sleep 60": ("0", "10")}
+
+def test_a_definition_entry_that_is_running(page):
+    tree = tree_of(process_entry("registrar", command="aiko_registrar run"))
+
+    assert page.definition_rows(tree.rows(), LIVE) ==  \
+        [(("registrar", "yes", "pid 4242", "aiko_registrar run"),
+            "registrar")]
+
+def test_a_definition_entry_that_is_enabled_and_not_running(page):
+    tree = tree_of(process_entry("recorder", command="aiko_recorder"))
+
+    assert page.definition_rows(tree.rows(), LIVE) ==  \
+        [(("recorder", "yes", "stopped", "aiko_recorder"), "recorder")]
+
+def test_a_definition_entry_that_is_disabled(page):
+    tree = tree_of(process_entry("recorder", enabled=False))
+
+    columns, _ = page.definition_rows(tree.rows(), LIVE)[0]
+    assert columns[1:3] == ("no", "disabled")
+
+def test_a_definition_entry_that_says_nothing_usable(page):
+    """It says why, where the command line would be"""
+
+    tree = tree_of(entry_of("broken",
+        [[WILDCARD, "broken", WILDCARD, WILDCARD, WILDCARD, []],
+            "None", "process:{oops"]))
+
+    columns, _ = page.definition_rows(tree.rows(), LIVE)[0]
+    assert columns[2] == "-"
+    assert "not JSON" in columns[3]
+
+def test_an_entry_that_is_not_a_process_at_all(page):
+    tree = tree_of(entry_of("other",
+        [[WILDCARD, "other", WILDCARD, WILDCARD, WILDCARD, []],
+            "None", "None"]))
+
+    columns, _ = page.definition_rows(tree.rows(), LIVE)[0]
+    assert columns[3] == "not a process"
+
+def test_a_category_of_a_definition_is_a_row_of_its_own(page):
+    tree = tree_of(category_entry("hosts"))
+
+    assert page.definition_rows(tree.rows(), LIVE) ==  \
+        [(("hosts/", "", "", ""), "hosts")]
+
+def test_a_definition_below_a_category_is_indented(page):
+    tree = tree_of(category_entry("hosts"))
+    tree.node("hosts").expanded = True
+    tree.merge("hosts", [process_entry("registrar")])
+    rows = page.definition_rows(tree.rows(), LIVE)
+
+    assert [columns[0] for columns, _ in rows] == ["hosts/", "  registrar"]
+    assert [path for _, path in rows] == ["hosts", "hosts/registrar"]
+
+def test_no_definition_at_all(page):
+    assert page.definition_rows([], LIVE) == []
+    assert page.definition_processes([]) == []
+
+def test_the_definition_json_holds_each_process_in_the_order_shown(page):
+    import json
+
+    tree = tree_of(process_entry("b", command="sleep 60"),
+        process_entry("a", enabled=False, command="aiko_recorder",
+            cwd="/home/claude"))
+    text = page.definition_text(tree.rows())
+
+    assert json.loads(text) == [
+        {"enabled": True, "command": "sleep 60"},
+        {"enabled": False, "command": "aiko_recorder",
+            "cwd": "/home/claude"}]
+
+def test_the_definition_json_of_a_category_that_holds_no_process(page):
+    assert "no process Entry" in page.definition_text([])
+
+def test_only_a_hyperspace_or_a_category_can_hold_a_definition(page):
+    services = [
+        ["aiko/nomad/1/1", "hs_a", "x/protocol/hyperspace:0", "mqtt", "o", []],
+        ["aiko/nomad/2/1", "cat_a", "x/protocol/category:0", "mqtt", "o", []],
+        ["aiko/nomad/3/1", "nomad", "x/protocol/registrar:2", "mqtt", "o", []],
+    ]
+    options = page.hyperspace_options(services)
+
+    assert [value for _, value in options] ==  \
+        ["aiko/nomad/2/1", "aiko/nomad/1/1"]       # by label, so cat_a first
+    assert "hs_a" in dict((v, k) for k, v in options)["aiko/nomad/1/1"]
+
+def test_no_service_can_hold_a_definition(page):
+    assert page.hyperspace_options([]) == []
+
+def test_the_help_names_every_definition_key(page):
+    text = page.help_text()
+
+    for phrase in ("n  name the HyperSpace", "s  start", "t  stop",
+            "e  enable or disable", "J  the definition as the JSON",
+            "process:", "lifecycle manager URL"):
+        assert phrase in text
 
 # --------------------------------------------------------------------------- #

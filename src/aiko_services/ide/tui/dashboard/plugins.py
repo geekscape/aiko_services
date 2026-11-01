@@ -19,6 +19,8 @@
 # ~~~~~
 # - Discover the pages, instead of naming them here
 
+from aiko_services.ide.tui.dashboard.category_plugin import CategoryFrame
+from aiko_services.ide.tui.dashboard.hyperspace_plugin import HyperSpaceFrame
 from aiko_services.ide.tui.dashboard.process_manager_plugin import (
     ProcessManagerFrame
 )
@@ -30,6 +32,8 @@ __all__ = ["plugins"]
 # plugin key can be either the Service "name" or "protocol"
 
 plugins = {
+    "category": CategoryFrame,
+    "hyperspace": HyperSpaceFrame,
     "process_manager": ProcessManagerFrame,
     "recorder": RecorderFrame,
     "registrar": RegistrarFrame

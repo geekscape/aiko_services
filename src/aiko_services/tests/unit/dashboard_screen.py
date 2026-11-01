@@ -173,3 +173,26 @@ def draw_frame(module_name, class_name, cache, tmp_path,
         return json.load(file)
 
 # --------------------------------------------------------------------------- #
+
+# --------------------------------------------------------------------------- #
+# A FormFrame the fixture above can build, because draw_frame() calls a
+# class with the screen and a Dashboard, and a form takes its fields
+
+class FormProbe:
+    """Every kind of field, so that one draw shows each widget"""
+
+    def __new__(cls, screen, dashboard):
+        from aiko_services.ide.tui.dashboard import (
+            FormFrame, choice_field, radio_field, text_field,
+        )
+        cls.accepted = {}
+        return FormFrame(screen, "Probe the form", [
+            text_field("name", "Name", "a name"),
+            radio_field("kind", "Entry",
+                [("Dependency", "dependency"), ("Category", "category")]),
+            choice_field("field", "Field",
+                [("name", "name"), ("owner", "owner")]),
+            text_field("tags", "Tags"),
+        ], "Accept", cls.accepted.update, note="A note, above the fields")
+
+# --------------------------------------------------------------------------- #

@@ -81,7 +81,10 @@ import re
 import sys
 from typing import Any, Dict, List, Tuple, Union
 
-__all__ = ["generate", "parse", "parse_float", "parse_int", "parse_number"]
+__all__ = [
+    "generate", "generate_symbol", "parse", "parse_float", "parse_int",
+    "parse_number"
+]
 
 def generate(command: str, parameters: Union[Dict, List, Tuple]) -> str:
     if isinstance(parameters, dict):
@@ -100,13 +103,21 @@ def generate_dict_to_list(expression: Dict) -> list:
 
 RE_DELIMITERS = re.compile(r"^\d+:|[\s()]")
 
+def generate_symbol(element: str) -> str:
+    """One symbol of an S-expression, length-prefixed when it holds a
+    delimiter or could be read as a length itself.  It is what
+    generate_s_expression() does to each of its own symbols, for the
+    places that build an expression by hand"""
+
+    return f"{len(element)}:{element}"  \
+        if RE_DELIMITERS.search(element) else element
+
 def generate_s_expression(expression: List) -> str:
     character = ""
     payload = "("
     for element in expression:
         if isinstance(element, str):
-            if RE_DELIMITERS.search(element):
-                element = f"{len(element)}:{element}"
+            element = generate_symbol(element)
         if isinstance(element, dict):
             element = generate_dict_to_list(element)
         if isinstance(element, list) or isinstance(element, tuple):

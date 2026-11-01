@@ -212,6 +212,7 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             options=[],
             titles=["Active: Topic", "Name", "Owner", "Protocol", "Transport"],
             on_change=self._on_change_services,
+            on_select=self._on_select_service,
             parser=AnsiTerminalParser()
         )
         self._service_widget = MultiColumnListBox(
@@ -303,6 +304,12 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             else:
                 self._ec_consumer_set(topic_path)
 
+    def _on_select_service(self):
+        """Enter on a Service: its own page, which is what "S" does"""
+
+        if self.selected_service:
+            self._raise_next_scene(self.selected_service)
+
     def _on_select_variable(self):
         text_box = TextBox(1, None, None, False, False)
         variable_name = None
@@ -372,6 +379,25 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             text = f" Service: {service_name} \n Does not have a custom page "
             self.scene.add_effect(
                 PopUpDialog(self._screen, text, ["OK"], theme="nice"))
+
+    def select_service(self, topic_path):
+        """Select a Service, as if a person had chosen it on this page.
+
+        A page calls it to follow a reference from one Service to another,
+        e.g the Category page following an Entry to the Category Service
+        that it refers to.  Returns False when that Service is no longer
+        one the Registrar knows, and changes nothing
+        """
+
+        services = self.services_cache.get_services()
+        if not services.get_service(topic_path):
+            return False
+        self.selected_topic_path = topic_path
+        self._ec_consumer_set(topic_path)
+        topic_paths = [value for _, value in self._services_widget.options]
+        if topic_path in topic_paths:
+            self._services_widget.value = topic_path
+        return True
 
     def _service_selection_clear(self):
         self.selected_services = {}  # TODO: Make this a set() ?

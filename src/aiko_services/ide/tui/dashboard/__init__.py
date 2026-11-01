@@ -11,13 +11,18 @@ this package rather than from the application module:
 
     from aiko_services.ide.tui.dashboard import LogUI, ServiceFrame
 
+"FormFrame" is a dialogue of more than one field, because a PopUpDialog
+takes its height from its text and silently clips a Layout that does not
+fit.  "ListRequest" sends a "(list ...)" and collects the response.
+
 "main" is deliberately not re-exported here: the console script names the
 application module, "ide.tui.dashboard.dashboard:main", so that the click
 group and this package do not compete for one name.
 """
 
 from aiko_services.ide.tui.dashboard.frames import (  # noqa: F401
-    FrameCommon, LogUI, ServiceFrame,
+    Field, FormFrame, FrameCommon, ListRequest, LogUI, ServiceFrame,
+    choice_field, radio_field, text_field,
 )
 # LogLevelPopupMenu asks DashboardFrame for the singleton, so it lives with
 # the application.  A plug-in does not need to know that
@@ -25,4 +30,7 @@ from aiko_services.ide.tui.dashboard.dashboard import (  # noqa: F401
     LogLevelPopupMenu,
 )
 
-__all__ = ["FrameCommon", "LogLevelPopupMenu", "LogUI", "ServiceFrame"]
+__all__ = [
+    "Field", "FormFrame", "FrameCommon", "ListRequest", "LogLevelPopupMenu",
+    "LogUI", "ServiceFrame", "choice_field", "radio_field", "text_field",
+]

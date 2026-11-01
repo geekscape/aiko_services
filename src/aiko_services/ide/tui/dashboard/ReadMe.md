@@ -17,11 +17,27 @@ aiko_dashboard --plugin MODULE ...   # and the pages that MODULE registers
 | File | What it holds |
 |---|---|
 | `dashboard.py` | The application: the Dashboard page, the Log page, the plug-in registry and the `aiko_dashboard` console script |
-| `frames.py` | The plug-in interface: `FrameCommon`, `ServiceFrame` and `LogUI` |
+| `frames.py` | The plug-in interface: `FrameCommon`, `ServiceFrame`, `LogUI`, `FormFrame` and `ListRequest` |
 | `plugins.py` | The default registry. It names the pages and holds no code of its own |
-| `process_manager_plugin.py` | The ProcessManager's page: the process table, the posture and its functions |
+| `category_plugin.py` | The Category's page: its Entries as a tree, and the functions add, remove and update. The model it shows is `main/category_view.py` |
+| `hyperspace_plugin.py` | The HyperSpace's page: the Category page, where a whole Entry path opens in place |
+| `process_manager_plugin.py` | The ProcessManager's page: the process table, the posture, its functions, and a definition held in a Category |
 | `recorder_plugin.py` | The Recorder's page: the topics it records, the newest record of each one, and the filters |
 | `registrar_plugin.py` | The Registrar's page: the Services it knows about |
+
+The Dashboard hides Categories from its Service list, because a
+HyperSpace of any size has a great many of them. Press `f` then `c` on the
+Dashboard page to show them, then `Enter` to open the Category page.
+
+## The ProcessManager's definition
+
+The ProcessManager page shows a definition held in a Category beside the
+processes that are running, and matches them by command line. An Entry is
+a process when its storage URL begins with `process:`, and what follows is
+one definition entry as JSON; its lifecycle manager URL names the
+ProcessManager. `main/process_definition.py` holds that convention, and
+`aiko_process run` still reads its JSON file when it starts, so editing the
+Category changes what a person then starts, and never what is running.
 
 ## Writing a page
 
@@ -63,6 +79,21 @@ Three rules that the existing pages follow:
   key code or a replica of the shared state and returns what to do or
   what to show. asciimatics has no screen double, so a decision inside a
   frame is a decision no test reaches.
+- **Keep the model out of the page.** What a page shows of a Service is
+  often not about terminals at all, and a REPL, a web page or another
+  language's client each need it. `main/category_view.py` holds a
+  Category's Entries and the graph they form, and `category_plugin.py`
+  holds only what a terminal adds.
+- **A dialogue of more than one field is a `FormFrame`.** A
+  `PopUpDialog` takes its height from its text and does not grow for a
+  `Layout`: with one line of text it is five rows, and every widget after
+  the first is silently clipped. A `Text` widget whose value is never set
+  raises on its first draw, so give every one a value.
+- **Ask the Dashboard to change the selection**, with
+  `self.dashboard.select_service(topic_path)`, when a page follows a
+  reference from one Service to another. The Category page follows an
+  Entry that way. It returns False when the Registrar no longer knows
+  that Service, and changes nothing.
 - **Name the part the directory does not say.** A page for a framework
   Service lives here and names the Service, as
   `process_manager_plugin.py` does. A page for an Actor lives with that
@@ -73,6 +104,10 @@ Three rules that the existing pages follow:
 
 ```bash
 pytest src/aiko_services/tests/unit/test_dashboard.py \
+       src/aiko_services/tests/unit/test_category_view.py \
+       src/aiko_services/tests/unit/test_process_definition.py \
+       src/aiko_services/tests/unit/test_category_plugin.py \
+       src/aiko_services/tests/unit/test_hyperspace_plugin.py \
        src/aiko_services/tests/unit/test_process_manager_plugin.py \
        src/aiko_services/tests/unit/test_recorder_plugin.py
 ```
