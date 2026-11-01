@@ -7,12 +7,14 @@ audience: [architects, developers, end-users]
 status: work-in-progress
 ste: adapted
 source:
+  - src/aiko_services/ide/tui/dashboard/frames.py
   - src/aiko_services/ide/tui/dashboard/plugins.py
   - src/aiko_services/ide/tui/dashboard/dashboard.py
+  - src/aiko_services/ide/tui/dashboard/category_plugin.py
   - src/aiko_services/actors/display/dashboard_plugin.py
 related: [design_overview, dashboard, service, share, registrar]
-version: "0.6"
-last_updated: 2026-09-28
+version: "0.7"
+last_updated: 2026-11-02
 ---
 
 # Dashboard plug-in
@@ -102,6 +104,34 @@ class ServiceFrame(FrameCommon, asciimatics_Frame):
 | `_service_frame_stop(service)` | Called when the user presses `D` to return to the Dashboard — release everything acquired in start |
 | `_update(frame_no)` | Optional override to re-render at the frame rate (call `super()._update(frame_no)` first) |
 | `process_event(event)` | Optional override for extra keyboard commands |
+
+The rest of the plug-in interface. A page imports each of these from the
+package, `aiko_services.ide.tui.dashboard`, and not from the module that
+holds it:
+
+| Member | Responsibility |
+|--------|----------------|
+| `LogUI(parent)` | The log pane of the selected Service, reusable as it is |
+| `LogLevelPopupMenu(screen, widget, topic_path)` | Change the log level of the selected Service |
+| `FormFrame(screen, title, fields, button, on_accept, note="")` | A dialog of more than one field. `on_accept` receives `{name: value}` for each field, and only when a person accepts the form |
+| `text_field()` · `choice_field()` · `radio_field()` | One `Field` each, for a `FormFrame`: a text entry, a `DropdownList` and `RadioButtons` |
+| `ListRequest(timeout=None)` | One `(list ...)` request at a time, and the response that it collects |
+| `dashboard.select_service(topic_path)` | Show another Service, as if a person had selected it. Returns False if the [Registrar](registrar.md) does not know that Service, and then changes nothing |
+
+**A dialog of more than one field is a `FormFrame`.** A `PopUpDialog`
+takes its height from its text, and it does not grow for a `Layout`. With
+one line of text it is five rows high, and it hides each widget after the
+first. It gives no error. A `Text` widget also needs a value before the
+first time it is drawn. Without one it raises `TypeError`, which a person
+sees the first time they open the dialog. `FormFrame` gives each widget
+a value, and it takes its height from the fields.
+
+**`ListRequest` collects a response for the drawing thread.** A Category
+answers `(list ...)` with `(item_count N)` and then N `(response ...)`
+messages. These arrive on the event loop thread, while the page is drawn
+on another thread. `ListRequest.take()` gives the answer to the drawing
+thread, one time. `ListRequest.expired()` reports a request that got no
+answer. [Category](category.md) shows a page that uses it.
 
 Two rules from the source worth quoting:
 
@@ -241,6 +271,8 @@ details.
 |-------|------------------|---------------|
 | `ServiceFrame` (base) | Per-Service page lifecycle: service title bar, detect selection change, `_service_frame_start()` / `_service_frame_stop()` hooks, `D` navigation | `DashboardFrame` singleton ([Dashboard](dashboard.md)), `FrameCommon` |
 | `LogUI` | Embeddable log tail: subscribe / unsubscribe to the Service's log topic, ring buffer, scrolling | `aiko.process` message handlers, host frame |
+| `FormFrame` | A modal dialog of more than one field: size itself from the fields, give each widget a value, report the values one time on accept | `Field` (`text_field`/`choice_field`/`radio_field`), host frame's `Scene` |
+| `ListRequest` | One `(list ...)` at a time: publish it, collect `(item_count N)` and N `(response ...)` on the event loop thread, hand the answer to the drawing thread, expire a request that gets no answer | `aiko.process` message handlers, [Category](category.md) and [HyperSpace](hyperspace.md) pages |
 | `RegistrarFrame` (example plug-in) | Show all discovered Service topic paths plus the Registrar's log | `ServicesCache`, `LogUI`, [Registrar](registrar.md) |
 | `update_plugins()` / `_PLUGINS` | Registry mapping scene names (Service name or protocol) to frame classes | `run_dashboard()`, `DashboardFrame._raise_next_scene()` |
 

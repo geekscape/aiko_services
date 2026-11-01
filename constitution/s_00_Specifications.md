@@ -9,7 +9,7 @@ status: draft-for-verification
 ste: adapted
 related: [p_00_DesignPrinciples, s_01_RepositoryLayout,
   s_02_InterfaceComposition]
-last_updated: 2026-07-31
+last_updated: 2026-11-02
 ---
 
 # Aiko Services — Specifications: Runtime, Services, Actors, Agents
@@ -47,6 +47,15 @@ the tokenization, quoting and escaping rules. You MUST extract those rules here 
 (EBNF)
 rather than left implicit in `utilities/parser.py`. **[VERIFY: exact quoting/escape rules,
 treatment of binary payloads, maximum practical message size over MQTT.]**
+
+One rule is extracted already, because a deviation from it is silent.
+A value MUST carry a canonical length prefix (`LENGTH:DATA`) when it holds
+a delimiter (space, `(`, `)`) or begins `digits:`. A reader counts more
+arguments than the writer sent if a value has no prefix and holds a
+delimiter. The message is then lost, and no error is reported.
+`utilities/parser.py:generate()` applies this rule, and
+`generate_symbol()` applies it to one value, for code that assembles an
+expression itself (ADR-002 consequences).
 
 *Rationale (ADR-002):* S-expressions over JSON/protobuf — homoiconic, trivially parsed on
 microcontrollers, human-readable on the wire, LISP heritage. JSON appears only inside specific

@@ -84,7 +84,7 @@ Three rules that the existing pages follow:
   language's client each need it. `main/category_view.py` holds a
   Category's Entries and the graph they form, and `category_plugin.py`
   holds only what a terminal adds.
-- **A dialogue of more than one field is a `FormFrame`.** A
+- **A dialog of more than one field is a `FormFrame`.** A
   `PopUpDialog` takes its height from its text and does not grow for a
   `Layout`: with one line of text it is five rows, and every widget after
   the first is silently clipped. A `Text` widget whose value is never set
@@ -119,5 +119,5 @@ frame, or an attribute that `_update()` reads too early each raise the
 first time a person opens the page, and never before.
 
 It does not cover the update loop over time, key events through
-`process_event()`, the popup dialogues, or a terminal resize. Those still
+`process_event()`, the popup dialogs, or a terminal resize. Those still
 need a person to look.

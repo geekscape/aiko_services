@@ -11,8 +11,8 @@ source:
   - src/aiko_services/main/utilities/parser.py
 related: [design_overview, service, actor, share, registrar, graph,
   ../../adr/ADR-002_SExpressionWireEncoding, ../../z_hy_assessment]
-version: "0.6"
-last_updated: 2026-10-29
+version: "0.7"
+last_updated: 2026-11-02
 ---
 
 # Parser utility (S-expressions)
@@ -71,9 +71,13 @@ cd src/aiko_services/main/utilities
 ### Public API
 
 ```python
-__all__ = ["generate", "parse", "parse_float", "parse_int", "parse_number"]
+__all__ = [
+    "generate", "generate_symbol", "parse", "parse_float", "parse_int",
+    "parse_number"
+]
 
 def generate(command: str, parameters: Union[Dict, List, Tuple]) -> str
+def generate_symbol(element: str) -> str
 def parse(payload: str, car_cdr=True, dictionaries_flag=True)
 def parse_float(payload: str, default: float=0.0) -> float
 def parse_int(payload: str, default: int=0) -> int
@@ -94,6 +98,22 @@ generate("topic", {"a": 1, "b": [1, 2]})
 generate("cmd", ["has space", "", None, ["x", "y"]])
 # '(cmd 9:has space "" 0: (x y))'
 ```
+
+**One symbol at a time.** `generate_symbol()` applies the first rendering
+rule below to one string, and returns it. `generate()` uses it for each
+symbol that it emits. Code that builds an expression by hand must use it
+too, for each value that it puts into the expression:
+
+```python
+generate_symbol("plain")                       # "plain"
+generate_symbol("has space")                   # "9:has space"
+generate_symbol("7:seven")                     # "7:7:seven"
+```
+
+A hand-built expression that does not do this is not valid as soon as a
+value holds a delimiter. The reader then gets a different number of
+symbols than the writer sent. `Dependency.__repr__()` is such an
+expression (see [Dependency](../dependency.md)).
 
 Rendering rules, in order:
 
@@ -269,6 +289,14 @@ The module is purely functions. One row describes the module itself:
 | `parser` (module) | Define the S-expression wire grammar; `generate()` Python values into payloads (canonical escaping, `0:` for None, dict flattening); `parse()` payloads into `(command, parameters)` with dict reconstruction; tolerant numeric conversions (`parse_int/float/number`) | [Service](../service.md) / [Actor](../actor.md) / [Registrar](../registrar.md) / [Share](../share.md) topic handlers (parse); `discovery.py` proxies and [Share](../share.md) (generate); [Graph](graph.md) definitions (`car_cdr=False`) |
 
 ## Current limitations and roadmap
+
+**An expression built by hand must escape its own symbols.** `generate()`
+is not the only writer of S-expressions. `Dependency.__repr__()`,
+`ServiceFilter.__repr__()` and `Category._get_entry_records()` build one
+with an f-string. Each of these must use `generate_symbol()` for each
+value. `Dependency` does. `ServiceFilter` does not, so a tag that holds a
+space becomes two tags. Put a value that holds a space in a URL field, and
+not in a tag.
 
 From the source `To Do` list — all planned, none implemented:
 

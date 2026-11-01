@@ -8,7 +8,7 @@ audience: [ai-coding-agents]
 status: operational
 ste: adapted
 related: [a_00_ArchitectureReview_2026-06, p_00_DesignPrinciples]
-last_updated: 2026-07-31
+last_updated: 2026-11-02
 ---
 
 # CLAUDE.md / AGENTS.md — Aiko Services
@@ -253,6 +253,21 @@ aiko_registrar  aiko_dashboard  aiko_pipeline  aiko_process  aiko_hyperspace   #
   broker.
 - **Two proxy mechanisms** (`proxy.py` and `discovery.get_service_proxy`) — their
   consolidation is pending.
+- **`ServiceFilter.__repr__()` does not escape its tags** — it joins them with a space, so
+  one tag of `command=aiko_registrar run` arrives as `command=aiko_registrar` and `run`. A
+  standing deviation from ADR-002. Put a value that holds a space in `lifecycle_manager_url`
+  or `storage_url`, which `Dependency.__repr__()` passes through
+  `utilities/parser.py:generate_symbol()`. Any expression you assemble yourself must use that
+  function for each value.
+- **`pipeline.py` declares no `FUNCTIONS`** — so `Pipeline` has no FunctionGate allow list.
+  `create_stream(stream_id, graph_path, parameters, ...)` is reachable by name from the message
+  bus, with parameters of the caller's choosing. P12 / ADR-023 deny-by-default is not in force
+  there. Do not add a DataScheme that executes what a parameter names until it is.
+- **asciimatics hides what does not fit** — a `PopUpDialog` takes its height from its text and
+  does not grow for a `Layout`: with one line of text it is five rows and every widget after
+  the first is dropped, with no error. Use `ide/tui/dashboard/frames.py:FormFrame` for a
+  dialog of more than one field. A `Text` widget also raises `TypeError` on its first draw
+  unless its value is set.
 - **`discovery.do_command/do_request` lack timeouts** — with a missing responder, the call
   waits forever. Add timeouts when you build on these paths.
 - **Actor dispatch catches broad exceptions** — do not rely on exception propagation from
