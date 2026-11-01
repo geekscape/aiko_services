@@ -59,11 +59,10 @@
 #   the kind of Entry, instead of a name that ends in a delimiter
 
 from functools import partial
-import time
 
 from asciimatics.event import KeyboardEvent
 from asciimatics.widgets import (
-    Label, Layout, MultiColumnListBox, PopUpDialog, PopupMenu, Text,
+    Divider, Label, Layout, MultiColumnListBox, PopUpDialog, PopupMenu,
 )
 
 import aiko_services as aiko
@@ -73,13 +72,34 @@ from aiko_services.main.category_view import (
     CategoryTree, entries_of_cache, entry_path_parent, field_text,
     parse_entry_records, protocol_terse, protocol_type,
 )
+from aiko_services.main import CATEGORY_PROTOCOL
 from aiko_services.main.connection import ConnectionState
-from aiko_services.main.utilities import parse
 from aiko_services.ide.tui.dashboard import (
-    LogLevelPopupMenu, LogUI, ServiceFrame,
+    FormFrame, ListRequest, LogLevelPopupMenu, LogUI, ServiceFrame,
+    choice_field, radio_field, text_field,
 )
 
 __all__ = ["CategoryFrame", "CategoryPage", "plugins"]
+
+# How the Entries of each Category are ordered.  A field a person can see
+# is a field they can sort on, and the name breaks every tie, so that one
+# order is one order
+SORT_KEYS = {
+    "name": lambda node: node.name.lower(),
+    "type": lambda node: (node.kind, node.name.lower()),
+    "owner": lambda node: (node.entry.owner, node.name.lower()),
+    "protocol": lambda node:
+        (protocol_terse(node.entry.protocol), node.name.lower()),
+    "arrived": None,            # the order the Category sent them in
+}
+SORT_DEFAULT = "name"
+SORT_FIELDS = tuple((name, name) for name in SORT_KEYS)
+
+def form_tags(values):
+    """Every tag of a form's "tags" field: a word with an "=" in it, the
+    way a ServiceFilter holds one"""
+
+    return [word for word in values.get("tags", "").split() if "=" in word]
 
 class CategoryPage:
     """The page's decisions, with no screen and no network"""
@@ -91,6 +111,9 @@ class CategoryPage:
         "d": ("remove",),
         "u": ("update",),
         "r": ("refresh",),
+        "f": ("filter",),
+        "s": ("sort",),
+        "F": ("clear",),
         "g": ("follow",),
         "G": ("back",),
         "L": ("log_level",),
@@ -101,6 +124,9 @@ class CategoryPage:
 
     def __init__(self):
         self.tree = CategoryTree()
+        self.pattern = ""          # show only the Entries that match it
+        self.sort_field = SORT_DEFAULT
+        self.sort_reverse = False
 
     def action(self, key_code):
         """What a key asks for, or None when this page does not take it"""
@@ -139,12 +165,44 @@ class CategoryPage:
             return f"{CATEGORY} (cycle)"
         return node.kind
 
+    def matches(self, node):
+        """Whether an Entry matches the filter, on any field a person can
+        see, without regard to case"""
+
+        if not self.pattern:
+            return True
+        pattern = self.pattern.lower()
+        entry = node.entry
+        fields = [node.name, node.kind, entry.target, entry.protocol,
+            entry.transport, entry.owner] + list(entry.tags)
+        return any(pattern in str(field).lower() for field in fields)
+
+    def sort_key(self):
+        """How each Category's Entries are ordered, or None for the order
+        they arrived in"""
+
+        return SORT_KEYS.get(self.sort_field)
+
+    def keep(self):
+        """What the filter hides, or None when it hides nothing"""
+
+        return self.matches if self.pattern else None
+
+    def rows(self):
+        """Each row the viewer shows, filtered and ordered"""
+
+        return self.tree.rows(keep=self.keep(),
+            sort_key=self.sort_key(), reverse=self.sort_reverse)
+
+    def sort_direction(self):
+        return "descending" if self.sort_reverse else "ascending"
+
     def table_rows(self):
         """[(columns, path)] for the Entry table, one row for each Entry
         that the viewer shows"""
 
         rows = []
-        for node, level in self.tree.rows():
+        for node, level in self.rows():
             suffix = PATH_DELIMITER if node.kind == CATEGORY else ""
             label = f"{'  ' * level}{self.marker(node)} {node.name}{suffix}"
             columns = (label, self.row_type(node),
@@ -222,58 +280,50 @@ class CategoryPage:
         return rows
 
     def title(self, cache):
-        """What the page says beside the Service"""
+        """What the page says beside the Service: how much it holds, how
+        much of that is shown, and why"""
 
         entries = len(entries_of_cache(cache))
-        return f"entries: {entries}   shown: {len(self.tree.rows())}"
+        title = f"entries: {entries}   shown: {len(self.rows())}"
+        title += f"   sort: {self.sort_field}"
+        title += " v" if self.sort_reverse else " ^"
+        if self.pattern:
+            title += f'   filter: "{self.pattern}"'
+        return title
 
-    # The Entry syntax, which one text field carries ------------------ #
+    # What a form says about an Entry --------------------------------- #
 
     @staticmethod
-    def parse_add(words):
-        """(name, kind, protocol, owner, tags) from ...
+    def form_entry(values):
+        """(name, kind, protocol, owner, tags) from the values of an add
+        form, or None when it names nothing.  A field left empty matches
+        any, which a ServiceFilter writes as "*" """
 
-            NAME[/] [PROTOCOL] [OWNER] [TAG=VALUE ...]
-
-        A name that ends in "/" asks for a Category, as a trailing
-        delimiter means a directory everywhere else.  A field of "-" is
-        left unset, which a filter writes as "*"
-        """
-
-        words = [word for word in words if word]
-        if not words:
-            return None
-        name = words[0]
-        kind = CATEGORY if name.endswith(PATH_DELIMITER) else DEPENDENCY
-        name = name.rstrip(PATH_DELIMITER)
+        name = values.get("name", "").strip().strip(PATH_DELIMITER)
         if not name:
             return None
-        protocol, owner, tags = CategoryPage._fields(words[1:], WILDCARD)
+        kind = values.get("kind") or DEPENDENCY
+        protocol = values.get("protocol", "").strip() or WILDCARD
+        owner = values.get("owner", "").strip() or WILDCARD
         if kind == CATEGORY and protocol == WILDCARD:
-            protocol = aiko.CATEGORY_PROTOCOL
-        return name, kind, protocol, owner, tags
+            protocol = CATEGORY_PROTOCOL
+        return name, kind, protocol, owner, form_tags(values)
 
     @staticmethod
-    def parse_update(words):
-        """(protocol, owner, tags) from "[PROTOCOL] [OWNER] [TAG=VALUE
-        ...]".  A field of "-", and a field that is not there, keep the
-        value the Entry already has"""
+    def form_update(values):
+        """(protocol, owner, tags) from the values of an update form.  A
+        field left empty keeps the value the Entry has, because an update
+        says what to change and not what everything is"""
 
-        return CategoryPage._fields([word for word in words if word], KEEP)
-
-    @staticmethod
-    def _fields(words, absent):
-        protocol = words[0] if len(words) > 0 else absent
-        owner = words[1] if len(words) > 1 else absent
-        tags = [word for word in words[2:] if "=" in word]
-        return (absent if protocol == ABSENT else protocol,
-                absent if owner == ABSENT else owner, tags)
+        return (values.get("protocol", "").strip() or KEEP,
+            values.get("owner", "").strip() or KEEP, form_tags(values))
 
     @staticmethod
-    def update_words(entry):
-        """What the update dialogue starts with: the Entry as it is"""
+    def field_value(value):
+        """What a form field starts with: a field the Actor never set is
+        empty, rather than the dash that the table shows"""
 
-        return " ".join([entry.protocol, entry.owner] + list(entry.tags))
+        return "" if value in (ABSENT, WILDCARD, KEEP) else str(value)
 
     # The help -------------------------------------------------------- #
 
@@ -294,11 +344,16 @@ class CategoryPage:
             "The Category functions, sent on its in topic.  Each one acts",
             "on the Category named in the title bar:",
             "",
-            "  a add     NAME[/] [PROTOCOL] [OWNER] [TAG=VALUE ...]",
-            "            a name ending in / asks for a Category",
-            "  u update  [PROTOCOL] [OWNER] [TAG=VALUE ...]",
-            "            a field of - keeps the value it has",
+            "  a add     a Dependency, or a Category Entry",
+            "  u update  the selected Entry: a field left empty keeps",
+            "            the value it has",
             "  d remove  the selected Entry",
+            "",
+            "What the table shows:",
+            "",
+            "  f       show only the Entries that match, on any field",
+            "  s       order each Category's Entries, up or down",
+            "  F       show every Entry again, by name",
             "",
             "A Category marked ^ refers to one that is already open above",
             "it, and does not open again.",
@@ -316,6 +371,8 @@ class CategoryFrame(ServiceFrame):
     INTERFACE = Category
     FRAME_NAME = "category_frame"
     RESPONSE_TIMEOUT = 5.0                                    # seconds
+    ADD_NOTE = ("A Category Entry refers to a Category Service of its own"
+                "\nname, which this Category does not start.")
 
     def __init__(self, screen, dashboard):
         super().__init__(screen, dashboard, name=self.FRAME_NAME)
@@ -327,11 +384,7 @@ class CategoryFrame(ServiceFrame):
         self.trail = []                 # the Services followed to get here
         self._following = None          # the Service that "g" asked for
         self._diagnostic = ""
-        self._merged = None             # a response, for the drawing thread
-        self._pending = None            # the Entry path a "(list ...)" asks of
-        self._pending_time = 0.0
-        self._records = None
-        self._records_count = 0
+        self.request = ListRequest(self.RESPONSE_TIMEOUT)
 
         state_height = min(len(self.page.STATE_KEYS) + 4,
             max(5, screen.height // 4))
@@ -344,6 +397,10 @@ class CategoryFrame(ServiceFrame):
         layout = Layout([1])
         self.add_layout(layout)
         layout.add_widget(self.tree_widget)
+
+        layout = Layout([1])          # the Entries above, the state below
+        self.add_layout(layout)
+        layout.add_widget(Divider())
 
         self.state_widget = MultiColumnListBox(state_height,
             ["<22", "<0"], options=[], titles=["Variable", "Value"])
@@ -361,16 +418,12 @@ class CategoryFrame(ServiceFrame):
 
     # The Service ------------------------------------------------------ #
 
-    def _response_topic(self):
-        return aiko.process.topic_in
-
     def _service_frame_start(self, service, service_ec_consumer):
         topic_path = service[0]
         if topic_path == self.topic_path:
             return                                       # idempotent
         if self.topic_path is not None:                  # another Category
-            aiko.process.remove_message_handler(
-                self._response_handler, self._response_topic())
+            self.request.stop()
         if topic_path != self._following:
             self.trail = []                              # a fresh descent
         self._following = None
@@ -379,18 +432,14 @@ class CategoryFrame(ServiceFrame):
         self.proxy = aiko.get_service_proxy(
             f"{topic_path}/in", self.INTERFACE)
         self.page.tree.reset(service[1])
-        self._pending = None
-        self._merged = None
         self._diagnostic = ""
-        aiko.process.add_message_handler(
-            self._response_handler, self._response_topic())
+        self.request.start()
         self.log_ui._service_frame_start(service, service_ec_consumer)
 
     def _service_frame_stop(self, service):
         if self.topic_path is None:
             return
-        aiko.process.remove_message_handler(
-            self._response_handler, self._response_topic())
+        self.request.stop()
         self.log_ui._service_frame_stop(service)
         self.topic_path = None
         self.proxy = None
@@ -423,52 +472,21 @@ class CategoryFrame(ServiceFrame):
         if not self._connected():
             self._diagnostic = "not connected to the message bus"
             return
-        self._pending = path
-        self._pending_time = time.monotonic()
-        self._records, self._records_count = None, 0
-        self.proxy.list(self._response_topic(), path, True, False)
+        self.request.request(path, lambda topic:
+            self.proxy.list(topic, path, True, False))
 
-    def _response_handler(self, _aiko, topic, payload_in):
-        """The response arrives on the event loop's thread, so it is left
-        for the drawing thread to merge"""
-
-        if self._pending is None:
-            return False
-        command, arguments = parse(payload_in)
-        if command == "item_count" and len(arguments) == 1:
-            try:
-                self._records_count = int(arguments[0])
-            except (TypeError, ValueError):
-                return False
-            self._records = []
-        elif command == "response" and self._records is not None:
-            self._records.append(arguments)
-        if self._records is not None and  \
-            len(self._records) >= self._records_count:
-            self._merged = (self._pending, self._records)
-            self._pending, self._records = None, None
-        return False
+    def _close(self, path):
+        node = self.page.tree.node(path)
+        if node is not None:
+            node.expanded = False
 
     def _merge(self, path, records):
         entries, diagnostics = parse_entry_records(records)
-        node = self.page.tree.node(path)
         if diagnostics:
             self._diagnostic = f"{path}: {' '.join(diagnostics)}"
-            if node is not None:
-                node.expanded = False
+            self._close(path)
             return
         self.page.tree.merge(path, entries)
-
-    def _expire_request(self):
-        if self._pending is None:
-            return
-        if time.monotonic() - self._pending_time < self.RESPONSE_TIMEOUT:
-            return
-        node = self.page.tree.node(self._pending)
-        if node is not None:
-            node.expanded = False
-        self._diagnostic = f"{self._pending}: no answer"
-        self._pending, self._records = None, None
 
     # Keys ------------------------------------------------------------- #
 
@@ -495,6 +513,14 @@ class CategoryFrame(ServiceFrame):
             self._update_entry()
         elif kind == "refresh":
             self._refresh()
+        elif kind == "filter":
+            self._filter_form()
+        elif kind == "sort":
+            self._sort_form()
+        elif kind == "clear":
+            self.page.pattern = ""
+            self.page.sort_field = SORT_DEFAULT
+            self.page.sort_reverse = False
         elif kind == "follow":
             self._follow(self._selected_path())
         elif kind == "back":
@@ -504,23 +530,42 @@ class CategoryFrame(ServiceFrame):
         self.scene.add_effect(PopUpDialog(
             self._screen, text, buttons, on_close=on_close, theme="nice"))
 
-    def _text_dialog(self, prompt, button, send, value=""):
-        """One text field, as the ProcessManager's create dialogue has"""
+    def _form(self, title, fields, button, on_accept, note=""):
+        """A dialogue of more than one field, which a PopUpDialog cannot
+        hold: it takes its height from its text"""
 
-        text = Text("Entry:", "entry")
-        text.value = value
+        self.scene.add_effect(FormFrame(self._screen, title, fields,
+            button, on_accept, note=note))
 
-        def _on_close(button_index):
-            if button_index == 1 and text.value and self._connected():
-                send(text.value.split())
+    # Filtering and sorting -------------------------------------------- #
 
-        popup = PopUpDialog(self._screen, prompt + " " * 30,
-            ["Cancel", button], on_close=_on_close, theme="nice")
-        layout = Layout([1])
-        popup.add_layout(layout)
-        layout.add_widget(text)
-        popup.fix()
-        self.scene.add_effect(popup)
+    def _filter_form(self):
+        """Show only the Entries that match, on any field a person sees"""
+
+        def accept(values):
+            self.page.pattern = values["pattern"].strip()
+
+        self._form("Filter the Entries",
+            [text_field("pattern", "Matches", self.page.pattern)],
+            "Filter", accept,
+            note="An Entry is shown when any field it has contains this."
+                 "\nNothing shows every Entry.  A Category that is not open"
+                 "\nis matched on its own fields alone.")
+
+    def _sort_form(self):
+        """Order the Entries of each Category, up or down"""
+
+        def accept(values):
+            self.page.sort_field = values["field"]
+            self.page.sort_reverse = values["direction"] == "descending"
+
+        self._form("Sort the Entries", [
+            choice_field("field", "Field", list(SORT_FIELDS),
+                self.page.sort_field),
+            radio_field("direction", "Order",
+                [("Ascending", "ascending"), ("Descending", "descending")],
+                self.page.sort_direction()),
+        ], "Sort", accept)
 
     def _selected_path(self):
         path = self.tree_widget.value
@@ -564,9 +609,9 @@ class CategoryFrame(ServiceFrame):
     def _add_entry(self):
         category_path = self.page.current_category(self._selected_path())
 
-        def send(words):
-            fields = self.page.parse_add(words)
-            if fields is None:
+        def accept(values):
+            fields = self.page.form_entry(values)
+            if fields is None or not self._connected():
                 return
             name, kind, protocol, owner, tags = fields
             if kind == CATEGORY:
@@ -577,9 +622,14 @@ class CategoryFrame(ServiceFrame):
                     aiko.ServiceFilter(WILDCARD, name, protocol, WILDCARD,
                         owner, tags), None, None)
 
-        self._text_dialog(
-            f"Add to {self.page.breadcrumb(category_path)}"
-            "   NAME[/] [PROTOCOL] [OWNER] [TAG=VALUE ...]", "Add", send)
+        self._form(f"Add to {self.page.breadcrumb(category_path)}", [
+            text_field("name", "Name"),
+            radio_field("kind", "Entry",
+                [("Dependency", DEPENDENCY), ("Category", CATEGORY)]),
+            text_field("protocol", "Protocol"),
+            text_field("owner", "Owner"),
+            text_field("tags", "Tags"),
+        ], "Add", accept, note=self.ADD_NOTE)
 
     def _update_entry(self):
         node = self._selected_node()
@@ -587,16 +637,22 @@ class CategoryFrame(ServiceFrame):
             return self._popup("Select an Entry first.", ["OK"])
         path = node.path
         category_path = entry_path_parent(path)
+        value = self.page.field_value
 
-        def send(words):
-            protocol, owner, tags = self.page.parse_update(words)
+        def accept(values):
+            if not self._connected():
+                return
+            protocol, owner, tags = self.page.form_update(values)
             self.proxy.update(self._entry_path(category_path, node.name), None,
                 aiko.ServiceFilter(WILDCARD, KEEP, protocol, KEEP,
                     owner, tags), None, None)
 
-        self._text_dialog(f"Update {self.page.breadcrumb(path)}"
-            "   [PROTOCOL] [OWNER] [TAG=VALUE ...]", "Update", send,
-            self.page.update_words(node.entry))
+        self._form(f"Update {self.page.breadcrumb(path)}", [
+            text_field("protocol", "Protocol", value(node.entry.protocol)),
+            text_field("owner", "Owner", value(node.entry.owner)),
+            text_field("tags", "Tags", " ".join(node.entry.tags)),
+        ], "Update", accept,
+            note="A field left empty keeps the value the Entry has.")
 
     def _remove_entry(self):
         node = self._selected_node()
@@ -697,7 +753,8 @@ class CategoryFrame(ServiceFrame):
 
     def _legend_text(self):
         keys = "keys: Enter open  a add  u update  d remove  r refresh"  \
-               "  g follow  G back  L log level  H help"
+               "  f filter  s sort  F clear  g follow  G back"  \
+               "  L log level  H help"
         notes = [note for note in (self._trail_text(), self._diagnostic)
             if note]
         return f"{keys}   {'   '.join(notes)}" if notes else keys
@@ -712,11 +769,13 @@ class CategoryFrame(ServiceFrame):
         if self.topic_path is None:
             return
 
-        merged = self._merged
-        if merged is not None:
-            self._merged = None
-            self._merge(*merged)
-        self._expire_request()
+        answer = self.request.take()
+        if answer is not None:
+            self._merge(*answer)
+        expired = self.request.expired()
+        if expired is not None:
+            self._close(expired)
+            self._diagnostic = f"{expired}: no answer"
 
         cache = self._cache()
         self.page.refresh_root(cache, self.service[1])

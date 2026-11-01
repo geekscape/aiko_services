@@ -25,7 +25,7 @@ asciimatics = pytest.importorskip("asciimatics")
 
 from aiko_services.main import CATEGORY_PROTOCOL                # noqa: E402
 from aiko_services.main.category_view import (                  # noqa: E402
-    ABSENT, CATEGORY, DEPENDENCY, KEEP, WILDCARD, entry_of,
+    ABSENT, CATEGORY, DEPENDENCY, KEEP, PATH_DELIMITER, WILDCARD, entry_of,
 )
 from aiko_services.ide.tui.dashboard.category_plugin import (   # noqa: E402
     CategoryFrame, CategoryPage, plugins,
@@ -52,13 +52,6 @@ CACHE = {
     "entries": {"dep_one": dependency("dep_one"),
         "sub_cat": category("sub_cat")},
 }
-
-# What a "(list ...)" answers, with the codec's None as "0:"
-def record(level, name, protocol=FOO):
-    return [str(level), name,
-        [[WILDCARD, name, protocol, WILDCARD, WILDCARD, []], None, None]]
-
-RECORDS = [record(0, "nomad", CATEGORY_PROTOCOL), record(0, "sensor")]
 
 @pytest.fixture
 def page():
@@ -188,57 +181,150 @@ def test_a_cycle_is_never_the_one_the_cursor_is_in(page):
 
     assert page.current_category("a/back") == "a"
 
-# The Entry syntax, which one text field carries ------------------------- #
+# What a form says about an Entry ---------------------------------------- #
 
-def test_a_name_that_ends_in_a_delimiter_asks_for_a_category(page):
-    name, kind, protocol, owner, tags = page.parse_add(["devices/"])
-
-    assert (name, kind) == ("devices", CATEGORY)
-    assert protocol == CATEGORY_PROTOCOL       # a Category Entry's protocol
-    assert (owner, tags) == (WILDCARD, [])
-
-def test_a_name_on_its_own_asks_for_a_dependency(page):
-    assert page.parse_add(["sensor"]) ==  \
+def test_a_form_names_a_dependency(page):
+    assert page.form_entry({"name": "sensor", "kind": DEPENDENCY}) ==  \
         ("sensor", DEPENDENCY, WILDCARD, WILDCARD, [])
 
-def test_every_field_of_a_new_entry(page):
-    assert page.parse_add(["sensor", FOO, "andyg", "a=b", "c=d"]) ==  \
-        ("sensor", DEPENDENCY, FOO, "andyg", ["a=b", "c=d"])
+def test_a_form_names_a_category(page):
+    """A Category Entry needs the Category protocol, or nothing would
+    know that it is one"""
 
-def test_a_field_that_is_a_dash_is_left_unset(page):
-    assert page.parse_add(["sensor", ABSENT, "andyg"]) ==  \
-        ("sensor", DEPENDENCY, WILDCARD, "andyg", [])
+    name, kind, protocol, owner, tags =  \
+        page.form_entry({"name": "devices", "kind": CATEGORY})
 
-def test_a_word_that_is_not_a_tag_is_not_one(page):
-    assert page.parse_add(["sensor", FOO, "andyg", "nonsense"])[4] == []
+    assert (name, kind) == ("devices", CATEGORY)
+    assert protocol == CATEGORY_PROTOCOL
 
 def test_a_category_may_be_given_a_protocol_of_its_own(page):
-    assert page.parse_add(["devices/", FOO])[2] == FOO
+    assert page.form_entry(
+        {"name": "devices", "kind": CATEGORY, "protocol": FOO})[2] == FOO
 
-def test_an_entry_with_no_name_at_all(page):
-    assert page.parse_add([]) is None
-    assert page.parse_add(["/"]) is None
-    assert page.parse_add([""]) is None
+def test_every_field_of_a_new_entry(page):
+    assert page.form_entry({"name": "sensor", "kind": DEPENDENCY,
+        "protocol": FOO, "owner": "andyg", "tags": "a=b c=d"}) ==  \
+        ("sensor", DEPENDENCY, FOO, "andyg", ["a=b", "c=d"])
 
-def test_an_update_keeps_the_fields_it_does_not_name(page):
-    assert page.parse_update([]) == (KEEP, KEEP, [])
-    assert page.parse_update([ABSENT, "bob"]) == (KEEP, "bob", [])
-    assert page.parse_update([FOO]) == (FOO, KEEP, [])
+def test_a_field_left_empty_matches_any(page):
+    assert page.form_entry({"name": "sensor", "protocol": "  ",
+        "owner": ""})[2:4] == (WILDCARD, WILDCARD)
 
-def test_the_update_dialogue_starts_with_the_entry_as_it_is(page):
-    entry = entry_of("dep_one", dependency("dep_one"))
+def test_a_word_that_is_not_a_tag_is_not_one(page):
+    assert page.form_entry(
+        {"name": "sensor", "tags": "a=b nonsense c=d"})[4] == ["a=b", "c=d"]
 
-    assert page.update_words(entry) == f"{FOO} andyg key=value"
+def test_a_form_that_names_nothing(page):
+    assert page.form_entry({}) is None
+    assert page.form_entry({"name": "   "}) is None
+    assert page.form_entry({"name": PATH_DELIMITER}) is None
+
+def test_a_trailing_delimiter_is_not_part_of_a_name(page):
+    """A person who types a Category the way a directory is written"""
+
+    assert page.form_entry({"name": "devices/"})[0] == "devices"
+
+def test_an_update_keeps_the_fields_left_empty(page):
+    assert page.form_update({}) == (KEEP, KEEP, [])
+    assert page.form_update({"owner": "bob"}) == (KEEP, "bob", [])
+    assert page.form_update({"protocol": FOO}) == (FOO, KEEP, [])
+
+def test_an_update_form_starts_with_the_entry_as_it_is(page):
+    """A field the Actor never set starts empty, rather than showing the
+    dash that the table shows for it"""
+
+    assert page.field_value(FOO) == FOO
+    assert page.field_value(ABSENT) == ""
+    assert page.field_value(WILDCARD) == ""
+
+# Filtering and sorting --------------------------------------------------- #
+
+def test_every_entry_is_shown_until_a_filter_says_otherwise(page):
+    page.refresh_root(CACHE, "cat_a")
+
+    assert page.keep() is None
+    assert [path for _, path in page.table_rows()] == ["dep_one", "sub_cat"]
+
+def test_a_filter_matches_any_field_a_person_can_see(page):
+    page.refresh_root(CACHE, "cat_a")
+
+    for pattern, shown in (
+            ("dep", ["dep_one"]),               # the name
+            ("DEP", ["dep_one"]),               # without regard to case
+            ("category", ["sub_cat"]),          # the type, and the protocol
+            ("andyg", ["dep_one"]),             # the owner
+            ("key=value", ["dep_one"]),         # a tag
+            ("nothing", [])):
+        page.pattern = pattern
+        assert [path for _, path in page.table_rows()] == shown, pattern
+
+def test_a_filter_keeps_the_way_to_what_it_found(page):
+    """A Category that is open and holds a match is shown, so that the
+    Entry a person searched for can be reached"""
+
+    page.refresh_root(CACHE, "cat_a")
+    page.tree.node("sub_cat").expanded = True
+    page.tree.merge("sub_cat", [entry_of("camera", dependency("camera"))])
+    page.pattern = "camera"
+
+    assert [path for _, path in page.table_rows()] ==  \
+        ["sub_cat", "sub_cat/camera"]
+
+def test_the_entries_are_ordered_by_name_to_begin_with(page):
+    assert page.sort_field == "name"
+    assert page.sort_reverse is False
+    assert page.sort_direction() == "ascending"
+
+def test_the_entries_are_ordered_on_any_field(page):
+    page.refresh_root(CACHE, "cat_a")
+
+    for field, order in (
+            ("name", ["dep_one", "sub_cat"]),
+            ("type", ["sub_cat", "dep_one"]),      # category, dependency
+            ("owner", ["sub_cat", "dep_one"]),     # "*" before "andyg"
+            ("protocol", ["sub_cat", "dep_one"])):  # category:0, foo:0
+        page.sort_field = field
+        assert [path for _, path in page.table_rows()] == order, field
+
+def test_the_order_is_turned_around(page):
+    page.refresh_root(CACHE, "cat_a")
+    page.sort_reverse = True
+
+    assert [path for _, path in page.table_rows()] == ["sub_cat", "dep_one"]
+    assert page.sort_direction() == "descending"
+
+def test_the_order_a_category_sent_them_in(page):
+    page.refresh_root(CACHE, "cat_a")
+    page.sort_field = "arrived"
+
+    assert page.sort_key() is None
+    assert [path for _, path in page.table_rows()] == ["dep_one", "sub_cat"]
+
+def test_a_sort_field_that_is_not_one(page):
+    page.refresh_root(CACHE, "cat_a")
+    page.sort_field = "nonsense"
+
+    assert page.sort_key() is None            # the order they arrived in
+    assert len(page.table_rows()) == 2
 
 # What the page says ------------------------------------------------------ #
 
 def test_the_title_says_how_much_the_category_holds(page):
     page.refresh_root(CACHE, "cat_a")
 
-    assert page.title(CACHE) == "entries: 2   shown: 2"
+    assert page.title(CACHE) == "entries: 2   shown: 2   sort: name ^"
 
 def test_the_title_of_a_category_that_holds_nothing(page):
-    assert page.title({}) == "entries: 0   shown: 0"
+    assert page.title({}) == "entries: 0   shown: 0   sort: name ^"
+
+def test_the_title_says_what_is_hidden_and_how_it_is_ordered(page):
+    page.refresh_root(CACHE, "cat_a")
+    page.pattern = "dep"
+    page.sort_field = "owner"
+    page.sort_reverse = True
+
+    assert page.title(CACHE) ==  \
+        'entries: 2   shown: 1   sort: owner v   filter: "dep"'
 
 def test_the_state_table_names_what_the_category_is(page):
     assert [name for name, _ in page.state_rows(CACHE)] ==  \

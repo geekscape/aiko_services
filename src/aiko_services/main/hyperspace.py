@@ -42,6 +42,13 @@
 #
 # ** Update self.share["running" and "active"]  # total Category counts
 #
+# ** Storage keeps a Dependency's name and its place, and nothing else:
+#    "_hyperspace_load()" rebuilds each one with no "lifecycle_manager_url"
+#    and no "storage_url", and a ServiceFilter of defaults, so every field
+#    of an Entry but its name is lost when a HyperSpace restarts.  Measured
+#    on 2026-11-02: a Dependency added with a protocol and a storage URL
+#    comes back with neither
+#
 # * Registrar(HyperSpace(Category)): Filters(Code), Order(Sort), Pagination
 #   * Registrar is-a HyperSpace and also can (share) a Category for given query
 #     - Result is a Category that matches a specific Filter(Code)

@@ -237,23 +237,47 @@ class CategoryTree:
                 if key == path or key.startswith(prefix)]:
             del self.nodes[key]
 
-    def rows(self, path="", level=0):
-        """[(node, level)] for each row a client shows, from path down
-        through every node that is open.  The root's own row is not one
-        of them: a client names the Category it is at some other way"""
+    def children(self, path):
+        """Each node that the Category at path holds, in the order it was
+        merged, and only those still there"""
 
         node = self.nodes.get(path)
-        rows = []
         if node is None:
-            return rows
+            return []
+        children = []
         for name in node.children:
             child = self.nodes.get(entry_path_join(path, name))
-            if child is None:            # merged away while being drawn
-                continue
-            rows.append((child, level))
+            if child is not None:        # merged away while being drawn
+                children.append(child)
+        return children
+
+    def rows(self, path="", level=0, keep=None, sort_key=None, reverse=False):
+        """[(node, level)] for each row a client shows, from path down
+        through every node that is open.  The root's own row is not one
+        of them: a client names the Category it is at some other way.
+
+        "sort_key(node)" orders what each Category holds, and "reverse"
+        turns that order around.  "keep(node)" leaves a node out, unless
+        something below it is kept, so that the way to a node a person
+        searched for stays visible.  A Category that is not open holds
+        nothing a client knows of, so a filter hides it on its own fields
+        alone
+        """
+
+        rows = []
+        children = self.children(path)
+        if sort_key is not None:
+            children.sort(key=sort_key, reverse=reverse)
+        for child in children:
+            below = []
             if child.expanded and child.kind == CATEGORY  \
                 and child.cycle is None:
-                rows += self.rows(child.path, level + 1)
+                below = self.rows(
+                    child.path, level + 1, keep, sort_key, reverse)
+            if keep is not None and not below and not keep(child):
+                continue
+            rows.append((child, level))
+            rows += below
         return rows
 
 def entries_of_cache(cache):

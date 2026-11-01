@@ -39,6 +39,7 @@
 from aiko_services.main.category_view import (
     CATEGORY, PATH_DELIMITER, entry_path_join,
 )
+from aiko_services.ide.tui.dashboard import text_field
 from aiko_services.main.hyperspace import HyperSpace
 from aiko_services.ide.tui.dashboard.category_plugin import (
     CategoryFrame, CategoryPage,
@@ -69,6 +70,8 @@ class HyperSpacePage(CategoryPage):
             "",
             "  c create   CATEGORY_PATH",
             "  k destroy  the selected Category, when it holds nothing",
+            "             (a Category Entry is removed by d, which",
+            "             destroys it here, because a HyperSpace owns it)",
             "  U dump     its state, to its log",
             "  K exit     terminate the HyperSpace",
         ]
@@ -120,14 +123,16 @@ class HyperSpaceFrame(CategoryFrame):
     def _create(self):
         category_path = self.page.current_category(self._selected_path())
 
-        def send(words):
-            path = words[0].strip(PATH_DELIMITER)
-            if path:
+        def accept(values):
+            path = values["path"].strip().strip(PATH_DELIMITER)
+            if path and self._connected():
                 self.proxy.create(self._entry_path(category_path, path))
 
-        self._text_dialog(
-            f"Create a Category in {self.page.breadcrumb(category_path)}"
-            "   CATEGORY_PATH", "Create", send)
+        self._form(
+            f"Create a Category in {self.page.breadcrumb(category_path)}",
+            [text_field("path", "Path")], "Create", accept,
+            note="A path of more than one name creates each Category"
+                 "\nalong it, as \"mkdir -p\" does.")
 
     def _destroy(self):
         node = self._selected_node()
@@ -157,7 +162,8 @@ class HyperSpaceFrame(CategoryFrame):
 
     def _legend_text(self):
         keys = "keys: Enter open  a add  c create  u update  d remove"  \
-               "  k destroy  r refresh  U dump  K exit  L log level  H help"
+               "  k destroy  r refresh  f filter  s sort  F clear"  \
+               "  U dump  K exit  L log level  H help"
         notes = [note for note in (self._trail_text(), self._diagnostic)
             if note]
         return f"{keys}   {'   '.join(notes)}" if notes else keys

@@ -12,6 +12,8 @@
 # - FrameCommon   state, colours and helpers shared by every Dashboard frame
 # - ServiceFrame  the base class of a page for one selected Service
 # - LogUI         the log pane, reusable as it is
+# - Field/FormFrame  a dialogue of more than one field
+# - ListRequest   a "(list ...)" request, and the response it collects
 #
 # "LogLevelPopupMenu" is part of the interface as well, and a plug-in
 # imports it from the package in the same way.  It is in "dashboard.py",
@@ -27,22 +29,27 @@
 # - Give LogLevelPopupMenu the dashboard as an argument, so that it joins
 #   the rest of the interface here
 
-from collections import defaultdict, deque
+from collections import defaultdict, deque, namedtuple
+import time
 
 from asciimatics.event import KeyboardEvent
 from asciimatics.exceptions import NextScene, StopApplication
 from asciimatics.screen import Screen
 from asciimatics.widgets import Frame as asciimatics_Frame  # avoid confusion !
 from asciimatics.widgets import (
-    Label, Layout, MultiColumnListBox, PopUpDialog, Text, Widget
+    Button, Divider, DropdownList, Label, Layout, MultiColumnListBox,
+    PopUpDialog, RadioButtons, Text, Widget
 )
 from asciimatics.widgets.utilities import THEMES
 
 import aiko_services as aiko  # designed to be external to the main framework
 from aiko_services.main.connection import ConnectionState
-from aiko_services.main.utilities import get_mqtt_configuration
+from aiko_services.main.utilities import get_mqtt_configuration, parse
 
-__all__ = ["FrameCommon", "LogUI", "ServiceFrame"]
+__all__ = [
+    "Field", "FormFrame", "FrameCommon", "ListRequest", "LogUI",
+    "ServiceFrame", "choice_field", "radio_field", "text_field",
+]
 
 _FRAME_UPDATE_RATE = 20 / 4  # 5 Hz (assuming update rate is roughly 20 Hz)
 _LOG_RING_BUFFER_SIZE = 128
@@ -178,7 +185,8 @@ class FrameCommon:
             # TODO: [T] Terminate Actor
                 text = " Help   Aiko Services Dashboard\n"        \
                        " ----   -----------------------\n"        \
-                       " Enter  Update variable value\n"          \
+                       " Enter  Services: show Service page\n"    \
+                       "        Variables: update the value\n"     \
                        " Tab    Move to next section\n"           \
                        " c      Copy topic path to clipboard \n"  \
                        " f      Filter Service (toggle)\n"        \
@@ -341,3 +349,188 @@ class LogUI:
             for row_index, log_record in enumerate(log_records)
         ]
 
+
+# --------------------------------------------------------------------------- #
+# A dialogue of more than one field
+#
+# A PopUpDialog takes its height from its text and does not grow for a
+# Layout: with one line of text it is five rows, and every widget after
+# the first is silently clipped, which is worse than raising.  So a form
+# is a Frame of its own, sized from the fields it is given, and modal, so
+# that a key meant for the form does not reach the page behind it.
+#
+# A Text widget whose value is never set raises on its first draw, so
+# every widget here is given one.
+
+# One field of a form: "kind" is "text", "choice" (a DropdownList) or
+# "radio" (RadioButtons), and "options" is [(label, value)] for both of
+# those.  "value" is what the field starts with
+Field = namedtuple("Field", "name label kind options value")
+Field.__new__.__defaults__ = ("text", (), "")
+
+def text_field(name, label, value=""):
+    return Field(name, label, "text", (), value)
+
+def choice_field(name, label, options, value=None):
+    """options is [(label, value)], and the first is the default"""
+
+    value = options[0][1] if value is None and options else value
+    return Field(name, label, "choice", tuple(options), value)
+
+def radio_field(name, label, options, value=None):
+    value = options[0][1] if value is None and options else value
+    return Field(name, label, "radio", tuple(options), value)
+
+class FormFrame(asciimatics_Frame):
+    """A modal form.  "on_accept" is called with {name: value} for every
+    field, and only when a person accepts it.
+
+    It is not a FrameCommon: it has no Service, no title bar and no
+    connection to report, and FrameCommon probes the MQTT server, which a
+    dialogue has no reason to do
+    """
+
+    def __init__(self, screen, title, fields, button, on_accept, note=""):
+        self.fields = list(fields)
+        self.on_accept = on_accept
+        note_lines = len(note.split("\n")) if note else 0
+        height = min(screen.height - 2,
+            sum(self._field_height(field) for field in self.fields)
+            + note_lines + 5)
+        width = min(screen.width - 2, max(64, len(title) + 8))
+
+        super(FormFrame, self).__init__(screen, height, width,
+            has_border=True, is_modal=True, name="form_frame",
+            title=title[:width - 4], reduce_cpu=True)
+        self.set_theme("nice")
+
+        layout = Layout([1], fill_frame=True)
+        self.add_layout(layout)
+        if note:
+            for line in note.split("\n"):
+                layout.add_widget(Label(line))
+            layout.add_widget(Divider())
+        self.widgets = {}
+        for field in self.fields:
+            widget = self._widget_of(field)
+            self.widgets[field.name] = widget
+            layout.add_widget(widget)
+
+        buttons = Layout([1, 1])
+        self.add_layout(buttons)
+        buttons.add_widget(Button("Cancel", self._cancel), 0)
+        buttons.add_widget(Button(button, self._accept), 1)
+        self.fix()
+
+    @staticmethod
+    def _field_height(field):
+        return len(field.options) if field.kind == "radio" else 1
+
+    @staticmethod
+    def _widget_of(field):
+        label = f"{field.label}:"
+        if field.kind == "radio":
+            widget = RadioButtons(list(field.options), label, field.name)
+        elif field.kind == "choice":
+            widget = DropdownList(list(field.options), label, field.name)
+        else:
+            widget = Text(label, field.name)
+        widget.value = field.value          # never None: Text raises on one
+        return widget
+
+    @property
+    def values(self):
+        return {name: widget.value for name, widget in self.widgets.items()}
+
+    def _accept(self):
+        values = self.values
+        self._destroy()
+        self.on_accept(values)
+
+    def _cancel(self):
+        self._destroy()
+
+    def _destroy(self):
+        if self.scene:
+            self.scene.remove_effect(self)
+
+    def process_event(self, event):
+        if isinstance(event, KeyboardEvent)  \
+            and event.key_code == Screen.KEY_ESCAPE:
+            self._destroy()
+            return None
+        return super(FormFrame, self).process_event(event)
+
+# --------------------------------------------------------------------------- #
+# A "(list ...)" request, and the response it collects
+#
+# A Category answers for itself and a HyperSpace answers for any Entry
+# path, both as "(item_count n)" and then n "(response ...)" on a topic
+# that the request names.  The response arrives on the event loop's
+# thread, so what it carries is left for the drawing thread to take.
+
+class ListRequest:
+    """One request at a time, which is all a page shows at a time"""
+
+    TIMEOUT = 5.0                                           # seconds
+
+    def __init__(self, timeout=None):
+        self.timeout = self.TIMEOUT if timeout is None else timeout
+        self.topic = aiko.process.topic_in
+        self.pending = None               # what the request asked about
+        self._records = None
+        self._count = 0
+        self._started = 0.0
+        self._ready = None                # (asked, records), for the drawer
+
+    def start(self):
+        aiko.process.add_message_handler(self.handler, self.topic)
+
+    def stop(self):
+        aiko.process.remove_message_handler(self.handler, self.topic)
+        self.pending, self._records, self._ready = None, None, None
+
+    def request(self, asked, send):
+        """send(response_topic) publishes the request.  "asked" is what
+        the answer is about, and comes back with it"""
+
+        self.pending = asked
+        self._started = time.monotonic()
+        self._records, self._count = None, 0
+        send(self.topic)
+
+    def handler(self, _aiko, topic, payload_in):
+        if self.pending is None:
+            return False
+        command, arguments = parse(payload_in)
+        if command == "item_count" and len(arguments) == 1:
+            try:
+                self._count = int(arguments[0])
+            except (TypeError, ValueError):
+                return False
+            self._records = []
+        elif command == "response" and self._records is not None:
+            self._records.append(arguments)
+        if self._records is not None and len(self._records) >= self._count:
+            self._ready = (self.pending, self._records)
+            self.pending, self._records = None, None
+        return False
+
+    def take(self):
+        """(asked, records) once, when an answer has arrived"""
+
+        ready = self._ready
+        self._ready = None
+        return ready
+
+    def expired(self):
+        """What the request asked about, once, when no answer arrived"""
+
+        if self.pending is None:
+            return None
+        if time.monotonic() - self._started < self.timeout:
+            return None
+        asked, self.pending, self._records = self.pending, None, None
+        return asked
+
+# --------------------------------------------------------------------------- #

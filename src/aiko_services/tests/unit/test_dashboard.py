@@ -34,6 +34,7 @@ asciimatics = pytest.importorskip("asciimatics")
 
 from aiko_services.main.utilities import load_module            # noqa: E402
 from aiko_services.ide.tui.dashboard import dashboard            # noqa: E402
+from aiko_services.ide.tui.dashboard import ListRequest          # noqa: E402
 from aiko_services.main.service import (                        # noqa: E402
     Services, ServiceTopicPath,
 )
@@ -270,8 +271,14 @@ class _Selection:
     _get_service_topic_path_next =  \
         dashboard.DashboardFrame._get_service_topic_path_next
     _on_change_services = dashboard.DashboardFrame._on_change_services
+    _on_select_service = dashboard.DashboardFrame._on_select_service
+    select_service = dashboard.DashboardFrame.select_service
+
+    def _raise_next_scene(self, service):       # what "S" does
+        self.raised = service
 
     def __init__(self, services=None, rows=(), value=None):
+        self.raised = None
         self.ec_consumer = None
         self.service_cache = {}
         self.service_tags = None
@@ -422,5 +429,142 @@ def test_there_is_no_next_service_when_nothing_is_selected():
     selection = _Selection(rows=[TOPIC_PATH_SHORT])
 
     assert selection._get_service_topic_path_next() is None
+
+# Enter, on the Services pane --------------------------------------------- #
+#
+# Enter did nothing there, and "S" opened the selected Service's page.
+# Enter is the key a person reaches for, so it does what "S" does
+
+def test_enter_on_a_service_opens_its_page():
+    selection = _Selection(
+        services=services_holding(TOPIC_PATH_SHORT), rows=[TOPIC_PATH_SHORT])
+    selection._services_widget.value = TOPIC_PATH_SHORT
+    selection._on_change_services()
+    selection._on_select_service()
+
+    assert selection.raised == service_details(TOPIC_PATH_SHORT)
+
+def test_enter_with_nothing_selected_does_nothing():
+    selection = _Selection(services=services_holding(TOPIC_PATH_SHORT))
+    selection._on_select_service()
+
+    assert selection.raised is None
+
+# Following a reference from one page to another --------------------------- #
+#
+# A page calls "select_service()" to show another Service, which is how
+# the Category page follows an Entry.  A page that made its own ECConsumer
+# of that Service would hold a second lease on it
+
+def test_a_page_moves_the_dashboards_selection():
+    selection = _Selection(
+        services=services_holding(TOPIC_PATH_SHORT, TOPIC_PATH_LONG),
+        rows=[TOPIC_PATH_SHORT, TOPIC_PATH_LONG], value=TOPIC_PATH_SHORT)
+
+    assert selection.select_service(TOPIC_PATH_LONG) is True
+    assert selection.selected_topic_path == TOPIC_PATH_LONG
+    assert selection.selected_service == service_details(TOPIC_PATH_LONG)
+    assert selection._services_widget.value == TOPIC_PATH_LONG
+
+def test_a_service_the_registrar_no_longer_knows_is_refused():
+    """And nothing changes, because a page that was told False says so
+    rather than showing an empty page"""
+
+    selection = _Selection(services=services_holding(TOPIC_PATH_SHORT),
+        rows=[TOPIC_PATH_SHORT], value=TOPIC_PATH_SHORT)
+    selection.selected_topic_path = TOPIC_PATH_SHORT
+
+    assert selection.select_service("aiko/nomad/9999/1") is False
+    assert selection.selected_topic_path == TOPIC_PATH_SHORT
+    assert selection._services_widget.value == TOPIC_PATH_SHORT
+
+def test_a_service_that_is_not_a_row_is_still_selected():
+    """The Dashboard hides Categories from its own list, and a page
+    follows one anyway"""
+
+    selection = _Selection(
+        services=services_holding(TOPIC_PATH_SHORT, TOPIC_PATH_LONG),
+        rows=[TOPIC_PATH_SHORT], value=TOPIC_PATH_SHORT)
+
+    assert selection.select_service(TOPIC_PATH_LONG) is True
+    assert selection.selected_topic_path == TOPIC_PATH_LONG
+    assert selection._services_widget.value == TOPIC_PATH_SHORT   # unchanged
+
+# A "(list ...)" request, and the response it collects --------------------- #
+
+def test_a_request_collects_what_it_asked_for():
+    request = ListRequest()
+    sent = []
+    request.request("hosts", sent.append)
+
+    assert sent == [request.topic]
+    assert request.pending == "hosts"
+    request.handler(None, request.topic, "(item_count 2)")
+    request.handler(None, request.topic, "(response 0 a (x))")
+    assert request.take() is None                  # not every record yet
+    request.handler(None, request.topic, "(response 0 b (y))")
+
+    asked, records = request.take()
+    assert asked == "hosts"
+    assert [record[1] for record in records] == ["a", "b"]
+    assert request.take() is None                  # and only once
+    assert request.pending is None
+
+def test_an_answer_of_nothing_is_an_answer():
+    request = ListRequest()
+    request.request("", lambda topic: None)
+    request.handler(None, request.topic, "(item_count 0)")
+
+    assert request.take() == ("", [])
+
+def test_a_response_that_nothing_asked_for_is_left_alone():
+    request = ListRequest()
+
+    assert request.handler(None, request.topic, "(item_count 2)") is False
+    assert request.take() is None
+
+def test_a_count_that_is_not_a_number():
+    request = ListRequest()
+    request.request("hosts", lambda topic: None)
+    request.handler(None, request.topic, "(item_count many)")
+    request.handler(None, request.topic, "(response 0 a (x))")
+
+    assert request.take() is None
+    assert request.pending == "hosts"              # still waiting
+
+def test_a_request_that_is_never_answered():
+    request = ListRequest(timeout=0)
+    request.request("hosts", lambda topic: None)
+
+    assert request.expired() == "hosts"
+    assert request.expired() is None               # and only once
+    assert request.pending is None
+
+def test_a_request_that_is_answered_does_not_expire():
+    request = ListRequest(timeout=0)
+    request.request("hosts", lambda topic: None)
+    request.handler(None, request.topic, "(item_count 0)")
+
+    assert request.expired() is None
+
+# A form, on a real terminal ---------------------------------------------- #
+
+@needs_pty
+def test_a_form_shows_every_kind_of_field(tmp_path):
+    """A PopUpDialog takes its height from its text and clips a Layout
+    that does not fit, so a form is a Frame of its own.  Nothing but a
+    screen shows whether each field is on it"""
+
+    drawn = draw_frame("aiko_services.tests.unit.dashboard_screen",
+        "FormProbe", {}, tmp_path, passes=1)
+
+    assert drawn["ok"], drawn.get("traceback") or drawn.get("error")
+    text = "\n".join(drawn["lines"])
+    assert "Probe the form" in text              # the title
+    assert "A note, above the fields" in text
+    assert "Name:" in text and "a name" in text  # a Text, with its value
+    assert "Dependency" in text and "Category" in text      # RadioButtons
+    assert "Field:" in text                                 # a DropdownList
+    assert "Accept" in text and "Cancel" in text
 
 # --------------------------------------------------------------------------- #

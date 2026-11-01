@@ -90,6 +90,12 @@
 #
 # * ProcessManager as-a LifeCycleManager as-a Category
 #   * Design and use HyperSpace API and Storage SPI (file, SQL, MQTT, ValKey ?)
+#   * Read the definition from a Category of a HyperSpace, rather than from
+#     a JSON file, and keep that Category current as processes come and go.
+#     "process_definition.py" holds the convention that a Category Entry
+#     uses to say what to run, which the Dashboard page already reads and
+#     writes, and "_parse_definition_object()" already parses.  Until then,
+#     a definition in a Category is exported as the JSON file read here
 #
 # * CLI commands: CRUD Services in HyperSpace/Storage filesystem structure
 #   - Process LifeCycle: create, enable, start, status, stop, disable, destroy

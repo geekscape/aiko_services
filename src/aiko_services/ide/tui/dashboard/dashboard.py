@@ -212,6 +212,7 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             options=[],
             titles=["Active: Topic", "Name", "Owner", "Protocol", "Transport"],
             on_change=self._on_change_services,
+            on_select=self._on_select_service,
             parser=AnsiTerminalParser()
         )
         self._service_widget = MultiColumnListBox(
@@ -302,6 +303,12 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
                 self.selected_service = None
             else:
                 self._ec_consumer_set(topic_path)
+
+    def _on_select_service(self):
+        """Enter on a Service: its own page, which is what "S" does"""
+
+        if self.selected_service:
+            self._raise_next_scene(self.selected_service)
 
     def _on_select_variable(self):
         text_box = TextBox(1, None, None, False, False)

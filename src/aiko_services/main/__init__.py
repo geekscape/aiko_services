@@ -89,6 +89,10 @@ from .recorder import (
     LRU_CACHE_SIZE, RING_BUFFER_SIZE, Recorder, RecorderImpl
 )
 
+from .process_definition import (
+    PROCESS_SCHEME, Process, command_line, definition_json,
+    is_process_entry, process_of_entry, process_url
+)
 from .process_manager import (
     ProcessManager, ProcessManagerCache, ProcessManagerImpl,
     parse_process_share
