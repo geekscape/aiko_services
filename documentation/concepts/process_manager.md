@@ -8,10 +8,11 @@ status: work-in-progress
 ste: adapted
 source:
   - src/aiko_services/main/process_manager.py
+  - src/aiko_services/main/process_definition.py
 related: [design_overview, hyperspace, dependency, storage, actor, share,
   lifecycle]
-version: "0.8"
-last_updated: 2026-11-01
+version: "0.9"
+last_updated: 2026-11-02
 ---
 
 # ProcessManager
@@ -178,6 +179,41 @@ operator looks for first. The keys are `c` create, `d` destroy with SIGTERM,
 A ProcessManager in the default posture denies each of those functions.
 Thus the page says which posture it is in, and why a key does nothing,
 instead of appearing to act. It reads the posture from the shared state.
+
+### A definition held in a Category
+
+A ProcessManager reads its definition from a JSON file. A definition can
+also be held in a [Category](category.md), and
+`main/process_definition.py` is the convention that makes this possible.
+An Entry is a process when its `storage_url` starts with `process:`. What
+comes after is one definition entry, as JSON — the object form that
+`_parse_definition_object()` reads:
+
+```
+process:{"enabled": true, "command": "aiko_registrar run"}
+process:{"enabled": false, "command": "aiko_recorder", "cwd": "/home/x"}
+```
+
+The Entry's `lifecycle_manager_url` names the ProcessManager that runs the
+process. This is the use that [Dependency](dependency.md) gives that
+field: the Actor that manages the Service.
+
+The definition is in these two fields, and not in the Entry's tags,
+because a tag cannot hold a space. A command line and a working directory
+both can. The codec gives each URL field a canonical length prefix, so
+each one arrives complete (see [Dependency](dependency.md)).
+
+The ProcessManager page shows such a Category beside the processes that
+run, and it matches an Entry to a process by the command line. The keys
+are `n` to name the HyperSpace and the Category path, `s` start, `t` stop,
+and `e` enable or disable. `J` gives the JSON that `aiko_process run`
+reads.
+`s` and `t` create and destroy a process. Therefore the default posture
+denies them, for the same reason that it denies `c` and `d`.
+
+`aiko_process run` reads its JSON file at start. Thus a change to the
+Category changes what a person then starts. It does not change what runs.
+A ProcessManager that reads a Category itself is in the roadmap below.
 
 ### The ProcessManagerCache
 
@@ -361,6 +397,14 @@ population of every host in real time.
 | `ProcessCurrent` | Present the ProcessManager's own OS process with the same interface as a `Popen` child, so UID `000000` gets uniform bookkeeping | `ProcessManagerImpl` (sole user) |
 
 ## Current limitations and roadmap
+
+- Read the definition from a [Category](category.md), and keep that
+  Category current as processes start and stop. The convention is in
+  `main/process_definition.py`, and the Dashboard page reads and writes
+  it. A Category also does not keep an Entry's fields across a restart
+  today (see [HyperSpace](hyperspace.md)), which this needs first
+- `status`: say which Entry each process came from. A client matches them
+  by command line, so two Entries of one command line are one process
 
 Highlights from the source `To Do` list:
 

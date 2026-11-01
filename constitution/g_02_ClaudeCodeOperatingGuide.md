@@ -7,7 +7,7 @@ audience: [project-lead, ai-coding-agents]
 status: operational
 ste: adapted
 related: [e_06_TestingStrategy]
-last_updated: 2026-10-30
+last_updated: 2026-11-02
 ---
 
 # Aiko Services — Claude Code Operating Guide
@@ -287,6 +287,13 @@ before you build on it: change one variable that the stated cause predicts, then
 prediction. A handover — a note, a memory, a session summary — names the symptom correctly and
 guesses the mechanism. The symptom then reproduces, which makes the guess look confirmed. A
 symptom that matches is not a cause that matches.
+
+**A code path that only a person can reach.** A dialog, a key handler, a
+confirmation: no test opens one, so a fault there survives review, merge
+and a demonstration. Build the frame and draw it in the test, and give
+every widget the state that drawing needs. One dialog raised on its first
+draw, each time anyone pressed the key, for a Text widget whose value was
+never set.
 
 **An output file that nothing writes any more.** Neutralize the old file in the same change
 that replaces the component which wrote it. A file frozen at replacement reads as current and

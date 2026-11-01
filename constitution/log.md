@@ -6,6 +6,38 @@ Every substantive change appends an entry under its date heading
 This journal begins at the constitution's first public release. The
 pre-publication history is maintained privately.
 
+## 2026-11-02
+
+- **Update** — [adr/ADR-002_SExpressionWireEncoding.md](adr/ADR-002_SExpressionWireEncoding.md):
+  the consequence that a value holding a space must round-trip through
+  `generate()` now names each known deviation, and the helper that closes
+  one. `utilities/parser.py:generate_symbol()` applies the canonical rule
+  to a single value, for code that must assemble an expression itself.
+  `Dependency.__repr__()` was a deviation, closed the same day: a
+  `storage_url` holding a space broke every Category `(list ...)` response
+  that carried it. `ServiceFilter.__repr__()` is still one, for its tags.
+
+- **Update** — [s_00_Specifications.md](s_00_Specifications.md) section
+  1.1: the canonical length prefix is extracted as a rule, which the
+  section's `[VERIFY]` asks for. A value holding a delimiter, or beginning
+  `digits:`, must carry the prefix. A reader counts more arguments than the
+  writer sent otherwise, and loses the message with no error. The rest of
+  the grammar stays open.
+
+- **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+  section 9: a new failure mode. A code path that only a person can reach
+  survives review, merge and a demonstration. Build the frame and draw it
+  in the test. Evidence: a Dashboard dialog raised on its first draw,
+  every time anyone pressed the key, for a widget whose value was never
+  set.
+
+- **Update** — [g_03_AgentContext.md](g_03_AgentContext.md): four sharp
+  edges join the list. `ServiceFilter.__repr__()` does not escape its
+  tags. `pipeline.py` declares no `FUNCTIONS`, so `create_stream()` takes
+  its parameters from the message bus with no allow list. P12 / ADR-023 is
+  not in force there. A `PopUpDialog` hides a widget that does not fit it,
+  and a `Text` widget raises unless its value is set.
+
 ## 2026-11-01
 
 - **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md): the
