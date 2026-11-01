@@ -30,7 +30,8 @@ Because a Category **is-a** Dependency, Categories nest arbitrarily.
 Because a Category **is-an** [Actor](actor.md), every Category is
 independently discoverable and remotely operable over MQTT. Its entries
 are live shared state, visible in the Aiko Services
-[Dashboard](dashboard.md).
+[Dashboard](dashboard.md). Its own Dashboard page shows the Entries as a
+tree, and adds, removes and updates them.
 
 **Why to use it**: whenever a component needs to manage a queryable,
 observable collection of Service references. For example, a fleet of camera

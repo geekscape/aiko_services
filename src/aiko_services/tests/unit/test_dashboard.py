@@ -72,7 +72,8 @@ def test_the_registry_holds_a_frame_for_each_page():
     module = load_module(PLUGIN_DEFAULT)
 
     assert sorted(module.plugins) ==  \
-        ["process_manager", "recorder", "registrar"]
+        ["category", "hyperspace",
+        "process_manager", "recorder", "registrar"]
     for name, frame_class in module.plugins.items():
         assert issubclass(frame_class, dashboard.ServiceFrame), name
 

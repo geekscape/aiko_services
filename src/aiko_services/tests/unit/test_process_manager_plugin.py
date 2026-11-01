@@ -39,7 +39,9 @@ def test_the_default_plugin_module_registers_it():
 
     from aiko_services.ide.tui.dashboard.plugins import plugins as default
 
-    assert sorted(default) == ["process_manager", "recorder", "registrar"]
+    assert sorted(default) ==  \
+        ["category", "hyperspace",
+        "process_manager", "recorder", "registrar"]
 
 # The keys ---------------------------------------------------------------- #
 

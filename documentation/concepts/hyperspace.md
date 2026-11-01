@@ -283,8 +283,8 @@ Highlights from the source `To Do` list:
   [ProcessManager](process_manager.md) as the LifeCycleManager completing
   the Service lifecycle state machine
 - Maintain `running` / `active` Category counts. Add
-  `aiko_hyperspace export`, structure validation, a REPL and a Dashboard
-  plug-in (tree view)
+  `aiko_hyperspace export`, structure validation and a REPL. The Dashboard
+  tree view is `ide/tui/dashboard/hyperspace_plugin.py`
 - Primary/watchdog HyperSpace per host. Unify HyperSpaces across hosts in
   one namespace
 - Known issue: `do_command()` against a remote proxy fails for `create()`

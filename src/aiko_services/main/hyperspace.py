@@ -70,7 +70,8 @@
 # * HyperSpace(Actor) requires Category and Dependencies
 #   - Services that implement Category assign tag "category=true" (temporary)
 #
-# * Aiko Dashboard plug-in for HyperSpace(Actor), e.g REPL and tree view
+# * Aiko Dashboard plug-in for HyperSpace(Actor): a REPL.  The tree view
+#   is "ide/tui/dashboard/hyperspace_plugin.py"
 #
 # * Implement Category "owner" field and populate automatically
 #   * Implement "destroy --force" flag to destroy other owner's Categories
@@ -408,7 +409,7 @@ class HyperSpaceImpl(HyperSpace):
             entry = category_parent.share["entries"][entry_name]
         #   if entry.service_filter.protocol == CATEGORY_PROTOCOL: #REFACTOR
             if entry.is_type("Category"):
-                self._destroy(entry, path, category_parent, entry_name)
+                self._destroy(entry_path, category_parent, entry_name)
             else:
                 self.category.remove(category_parent, entry_name)
             # TODO: self.storage.remove()  # does destroy !
@@ -425,7 +426,8 @@ class HyperSpaceImpl(HyperSpace):
         service_filter=None, lifecycle_manager_url=None, storage_url=None):
 
         category_parent, entry_name = self._find_entry(entry_path)
-        if category_parent and entry_name in category_parent["entries"]:
+        if category_parent and  \
+            entry_name in category_parent.share["entries"]:
             self.category.update(category_parent, entry_name, service,
                 service_filter, lifecycle_manager_url, storage_url)
 

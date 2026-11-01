@@ -19,9 +19,15 @@ aiko_dashboard --plugin MODULE ...   # and the pages that MODULE registers
 | `dashboard.py` | The application: the Dashboard page, the Log page, the plug-in registry and the `aiko_dashboard` console script |
 | `frames.py` | The plug-in interface: `FrameCommon`, `ServiceFrame` and `LogUI` |
 | `plugins.py` | The default registry. It names the pages and holds no code of its own |
+| `category_plugin.py` | The Category's page: its Entries as a tree, and the functions add, remove and update |
+| `hyperspace_plugin.py` | The HyperSpace's page: the Category page, where a whole Entry path opens in place |
 | `process_manager_plugin.py` | The ProcessManager's page: the process table, the posture and its functions |
 | `recorder_plugin.py` | The Recorder's page: the topics it records, the newest record of each one, and the filters |
 | `registrar_plugin.py` | The Registrar's page: the Services it knows about |
+
+The Dashboard hides Categories from its Service list, because a
+HyperSpace of any size has a great many of them. Press `f` then `c` on the
+Dashboard page to show them, then `S` to open the Category page.
 
 ## Writing a page
 
@@ -63,6 +69,11 @@ Three rules that the existing pages follow:
   key code or a replica of the shared state and returns what to do or
   what to show. asciimatics has no screen double, so a decision inside a
   frame is a decision no test reaches.
+- **Ask the Dashboard to change the selection**, with
+  `self.dashboard.select_service(topic_path)`, when a page follows a
+  reference from one Service to another. The Category page follows an
+  Entry that way. It returns False when the Registrar no longer knows
+  that Service, and changes nothing.
 - **Name the part the directory does not say.** A page for a framework
   Service lives here and names the Service, as
   `process_manager_plugin.py` does. A page for an Actor lives with that
@@ -73,6 +84,8 @@ Three rules that the existing pages follow:
 
 ```bash
 pytest src/aiko_services/tests/unit/test_dashboard.py \
+       src/aiko_services/tests/unit/test_category_plugin.py \
+       src/aiko_services/tests/unit/test_hyperspace_plugin.py \
        src/aiko_services/tests/unit/test_process_manager_plugin.py \
        src/aiko_services/tests/unit/test_recorder_plugin.py
 ```
