@@ -19,7 +19,7 @@ aiko_dashboard --plugin MODULE ...   # and the pages that MODULE registers
 | `dashboard.py` | The application: the Dashboard page, the Log page, the plug-in registry and the `aiko_dashboard` console script |
 | `frames.py` | The plug-in interface: `FrameCommon`, `ServiceFrame` and `LogUI` |
 | `plugins.py` | The default registry. It names the pages and holds no code of its own |
-| `category_plugin.py` | The Category's page: its Entries as a tree, and the functions add, remove and update |
+| `category_plugin.py` | The Category's page: its Entries as a tree, and the functions add, remove and update. The model it shows is `main/category_view.py` |
 | `hyperspace_plugin.py` | The HyperSpace's page: the Category page, where a whole Entry path opens in place |
 | `process_manager_plugin.py` | The ProcessManager's page: the process table, the posture and its functions |
 | `recorder_plugin.py` | The Recorder's page: the topics it records, the newest record of each one, and the filters |
@@ -69,6 +69,11 @@ Three rules that the existing pages follow:
   key code or a replica of the shared state and returns what to do or
   what to show. asciimatics has no screen double, so a decision inside a
   frame is a decision no test reaches.
+- **Keep the model out of the page.** What a page shows of a Service is
+  often not about terminals at all, and a REPL, a web page or another
+  language's client each need it. `main/category_view.py` holds a
+  Category's Entries and the graph they form, and `category_plugin.py`
+  holds only what a terminal adds.
 - **Ask the Dashboard to change the selection**, with
   `self.dashboard.select_service(topic_path)`, when a page follows a
   reference from one Service to another. The Category page follows an
@@ -84,6 +89,7 @@ Three rules that the existing pages follow:
 
 ```bash
 pytest src/aiko_services/tests/unit/test_dashboard.py \
+       src/aiko_services/tests/unit/test_category_view.py \
        src/aiko_services/tests/unit/test_category_plugin.py \
        src/aiko_services/tests/unit/test_hyperspace_plugin.py \
        src/aiko_services/tests/unit/test_process_manager_plugin.py \

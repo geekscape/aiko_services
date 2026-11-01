@@ -2,17 +2,17 @@
 #
 # Aiko Services tests: the Category's Dashboard page
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# asciimatics has no screen double, so CategoryPage and CategoryTree hold
-# every decision and are pure, and the Frame is drawn by the shared
-# pseudo-terminal fixture.  No broker, no Category, no screen for the pure
-# part.
+# asciimatics has no screen double, so CategoryPage holds every decision
+# and is pure, and the Frame is drawn by the shared pseudo-terminal
+# fixture.  No broker, no Category, no screen for the pure part.
 #
-# The shared state and the "(list ...)" records below were measured from a
-# running Category and a running HyperSpace, rather than written from the
-# source, because the fields that a person sees come through the codec:
-# the codec's None arrives as the string "None" in shared state and as
-# "0:" on the wire, and a Dependency is three fields of which the first is
-# a ServiceFilter of six.
+# The model underneath — an Entry, the tree, and the cycle check — is
+# "main/category_view.py", and "test_category_view.py" covers it.  These
+# tests are what a terminal adds: which key does what, what each row
+# looks like, where a function applies, and the syntax of one text field.
+#
+# The shared state below was measured from a running Category, because
+# what a person sees comes through the codec.
 #
 # To Do
 # ~~~~~
@@ -24,11 +24,11 @@ import pytest
 asciimatics = pytest.importorskip("asciimatics")
 
 from aiko_services.main import CATEGORY_PROTOCOL                # noqa: E402
+from aiko_services.main.category_view import (                  # noqa: E402
+    ABSENT, CATEGORY, DEPENDENCY, KEEP, WILDCARD, entry_of,
+)
 from aiko_services.ide.tui.dashboard.category_plugin import (   # noqa: E402
-    ABSENT, CATEGORY, DEPENDENCY, KEEP, WILDCARD,
-    CategoryFrame, CategoryPage, CategoryTree,
-    entry_of, entry_path_join, entry_path_parent, field_text,
-    plugins, protocol_terse, protocol_type,
+    CategoryFrame, CategoryPage, plugins,
 )
 from aiko_services.tests.unit.dashboard_screen import (         # noqa: E402
     draw_frame, pty_available,
@@ -112,116 +112,6 @@ def test_the_help_names_every_key_the_page_takes(page):
     for word in ("add", "update", "remove", "refresh", "follow"):
         assert word in text
 
-# One field, as a person reads it ---------------------------------------- #
-
-def test_the_codecs_none_is_a_dash_in_both_of_its_forms():
-    assert field_text(None) == ABSENT          # parsed from the wire
-    assert field_text("None") == ABSENT        # the shared state's form
-    assert field_text(KEEP) == ABSENT
-    assert field_text("") == ABSENT
-
-def test_a_field_that_holds_something():
-    assert field_text("file:") == "file:"
-    assert field_text(["a=b", "c=d"]) == "a=b c=d"
-    assert field_text([]) == ABSENT
-
-def test_the_protocol_type_is_what_the_plugin_key_matches():
-    assert protocol_type(CATEGORY_PROTOCOL) == CATEGORY
-    assert protocol_type(FOO) == "foo"
-    assert protocol_type(WILDCARD) == ""
-    assert protocol_type(ABSENT) == ""
-    assert protocol_type("") == ""
-
-def test_the_protocol_is_shown_as_the_command_line_shows_it():
-    assert protocol_terse(CATEGORY_PROTOCOL) == "category:0"
-    assert protocol_terse(FOO) == "foo:0"
-    assert protocol_terse(ABSENT) == ABSENT
-
-def test_a_path_is_joined_and_taken_apart():
-    assert entry_path_join("", "hosts") == "hosts"
-    assert entry_path_join("hosts", "nomad") == "hosts/nomad"
-    assert entry_path_parent("hosts/nomad") == "hosts"
-    assert entry_path_parent("hosts") == ""
-
-# One Entry --------------------------------------------------------------- #
-
-def test_an_entry_carries_every_field_of_its_service_filter():
-    entry = entry_of("dep_one", dependency("dep_one"))
-
-    assert entry.name == "dep_one"
-    assert entry.kind == DEPENDENCY
-    assert entry.target == "dep_one"
-    assert entry.protocol == FOO
-    assert entry.transport == WILDCARD     # a filter matches any
-    assert entry.owner == "andyg"
-    assert entry.tags == ["key=value"]
-    assert entry.lcm_url == ABSENT and entry.storage_url == ABSENT
-
-def test_the_protocol_says_whether_an_entry_is_a_category():
-    assert entry_of("sub_cat", category("sub_cat")).kind == CATEGORY
-    assert entry_of("dep_one", dependency("dep_one")).kind == DEPENDENCY
-
-def test_the_target_is_what_the_entry_refers_to_not_what_holds_it():
-    """A Category Entry may name a Service of another name"""
-
-    entry = entry_of("devices", category("hosts"))
-
-    assert entry.name == "devices" and entry.target == "hosts"
-
-def test_an_entry_whose_name_is_a_wildcard_refers_to_itself():
-    assert entry_of("dep", dependency(WILDCARD)).target == "dep"
-
-def test_an_entry_of_nonsense():
-    """A field the Actor has never sent must not raise"""
-
-    for fields in (None, [], "text", [[]], [[WILDCARD]], [None, None, None]):
-        entry = entry_of("name", fields)
-        assert entry.name == "name" and entry.kind == DEPENDENCY
-
-# The Entries of the selected Category ----------------------------------- #
-
-def test_the_entries_come_from_the_shared_state_by_name(page):
-    assert [entry.name for entry in page.entries_from_cache(CACHE)] ==  \
-        ["dep_one", "sub_cat"]
-
-def test_no_shared_state_at_all(page):
-    assert page.entries_from_cache({}) == []
-    assert page.entries_from_cache({"entries": "nonsense"}) == []
-    assert page.table_rows() == []
-    assert page.state_rows({}) == []
-
-# What a "(list ...)" answers --------------------------------------------- #
-
-def test_the_records_of_one_category(page):
-    entries, diagnostics = page.parse_records(RECORDS)
-
-    assert [(entry.name, entry.kind) for entry in entries] ==  \
-        [("nomad", CATEGORY), ("sensor", DEPENDENCY)]
-    assert diagnostics == []
-
-def test_what_the_actor_says_went_wrong(page):
-    entries, diagnostics = page.parse_records(
-        [["text", "Entry path not found"]])
-
-    assert entries == [] and diagnostics == ["Entry path not found"]
-
-def test_a_recursive_listing_keeps_only_the_first_level(page):
-    """"(response -1 hosts)" names a nested Category without its path, so
-    a record below the first level cannot be placed"""
-
-    records = [record(0, "nomad", CATEGORY_PROTOCOL),
-        ["-1", "hosts"], record(1, "sensor")]
-    entries, _ = page.parse_records(records)
-
-    assert [entry.name for entry in entries] == ["nomad"]
-
-def test_records_of_nonsense(page):
-    records = [None, [], ["text"], ["x", "y"], ["0"], "string"]
-    entries, diagnostics = page.parse_records(records)
-
-    assert entries == []
-    assert diagnostics == ["no reason given"]
-
 # The tree ---------------------------------------------------------------- #
 
 def test_the_root_is_the_selected_service(page):
@@ -258,81 +148,19 @@ def test_a_category_page_marks_a_category_as_one_to_follow(page):
     assert page.toggle("dep_one") == "detail"
     assert page.toggle("absent") is None
 
-def test_merging_keeps_what_a_child_already_knows(page):
-    page.refresh_root(CACHE, "cat_a")
-    page.tree.node("sub_cat").expanded = True
-    page.tree.merge("sub_cat", [entry_of("leaf", dependency("leaf"))])
-    page.refresh_root(CACHE, "cat_a")               # the next frame
+# What a person sees of a cycle ------------------------------------------ #
 
-    assert page.tree.node("sub_cat").expanded
-    assert page.tree.node("sub_cat/leaf") is not None
+def test_a_cycle_is_shown_and_does_not_open(page):
+    """"test_category_view.py" holds how a cycle is found.  This is what
+    a person sees of one"""
 
-def test_an_entry_that_is_gone_takes_its_own_entries_with_it(page):
-    page.refresh_root(CACHE, "cat_a")
-    page.tree.merge("sub_cat", [entry_of("leaf", dependency("leaf"))])
-    page.refresh_root({"entries": {"dep_one": dependency("dep_one")}}, "cat_a")
-
-    assert page.tree.node("sub_cat") is None
-    assert page.tree.node("sub_cat/leaf") is None
-    assert [path for _, path in page.table_rows()] == ["dep_one"]
-
-def test_an_entry_that_changes_kind_is_a_different_entry(page):
-    page.refresh_root({"entries": {"x": category("x")}}, "cat_a")
-    page.tree.merge("x", [entry_of("leaf", dependency("leaf"))])
-    page.refresh_root({"entries": {"x": dependency("x")}}, "cat_a")
-
-    assert page.tree.node("x").kind == DEPENDENCY
-    assert page.tree.node("x/leaf") is None
-
-def test_merging_into_a_node_that_is_not_there(page):
-    assert page.tree.merge("absent", []) is False
-
-def test_the_ancestors_of_a_path(page):
-    page.refresh_root({"entries": {"a": category("a")}}, "root")
-    page.tree.merge("a", [entry_of("b", category("b"))])
-    page.tree.merge("a/b", [entry_of("c", dependency("c"))])
-
-    assert [node.name for node in page.tree.ancestors("a/b/c")] ==  \
-        ["root", "a", "b"]
-
-# Categories form a cyclic graph, not a tree ----------------------------- #
-
-def test_a_category_that_refers_to_one_of_its_own_ancestors(page):
     page.refresh_root({"entries": {"a": category("a")}}, "root")
     page.tree.merge("a", [entry_of("back", category("a"))])
 
     node = page.tree.node("a/back")
-    assert node.cycle == "a"                   # the ancestor it repeats
     assert page.marker(node) == "^"
     assert page.row_type(node) == "category (cycle)"
-    assert page.toggle("a/back") == "cycle"    # and it does not open
-
-def test_a_category_that_refers_back_to_the_root(page):
-    page.refresh_root({"entries": {"a": category("a")}}, "root")
-    page.tree.merge("a", [entry_of("home", category("root"))])
-
-    assert page.tree.node("a/home").cycle == ""      # the root's own path
-
-def test_the_same_category_in_two_branches_is_not_a_cycle(page):
-    """A graph that is not a tree is still shown, in full, under each
-    Category that refers to it.  Only an ancestor stops the descent"""
-
-    page.refresh_root(
-        {"entries": {"a": category("a"), "b": category("b")}}, "root")
-    page.tree.merge("a", [entry_of("shared", category("shared"))])
-    page.tree.merge("b", [entry_of("shared", category("shared"))])
-
-    assert page.tree.node("a/shared").cycle is None
-    assert page.tree.node("b/shared").cycle is None
-
-def test_a_cycle_is_closed_when_it_is_found(page):
-    page.refresh_root({"entries": {"a": category("a")}}, "root")
-    page.tree.node("a").expanded = True
-    page.tree.merge("a", [entry_of("back", category("a"))])
-    page.tree.node("a/back").expanded = True            # a stale open node
-    page.tree.merge("a", [entry_of("back", category("a"))])
-
-    assert page.tree.node("a/back").expanded is False
+    assert page.toggle("a/back") == "cycle"
 
 # Where the Category functions apply ------------------------------------- #
 

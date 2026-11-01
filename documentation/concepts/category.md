@@ -31,7 +31,9 @@ Because a Category **is-an** [Actor](actor.md), every Category is
 independently discoverable and remotely operable over MQTT. Its entries
 are live shared state, visible in the Aiko Services
 [Dashboard](dashboard.md). Its own Dashboard page shows the Entries as a
-tree, and adds, removes and updates them.
+tree, and adds, removes and updates them. `main/category_view.py` is the
+model that page shows, and has no user interface, so a REPL or a web page
+uses the same model.
 
 **Why to use it**: whenever a component needs to manage a queryable,
 observable collection of Service references. For example, a fleet of camera

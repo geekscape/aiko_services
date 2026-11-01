@@ -17,10 +17,11 @@
 # Registered through "plugins.py", the Dashboard's default "--plugin"
 # module, so this page needs no flag.  The key is the protocol type.
 #
-# Everything else — the tree, the cycle check, the Entry syntax, the
-# dialogues, the trail, the state table and the log — is
-# "category_plugin.py", which this module subclasses twice: once for the
-# decisions, once for the frame.  A HyperSpace Entry that refers to a
+# Everything else — the Entry syntax, the dialogues, the trail, the state
+# table and the log — is "category_plugin.py", which this module
+# subclasses twice: once for the decisions, once for the frame.  The tree
+# and the cycle check are "main/category_view.py", which neither page
+# knows more about than the other.  A HyperSpace Entry that refers to a
 # Category Service outside this HyperSpace is still followed by "g", as
 # it is on the Category page.
 #
@@ -35,9 +36,12 @@
 # - "destroy" only destroys an empty Category.  Offer to destroy what it
 #   holds, once "hyperspace.py" removes recursively
 
+from aiko_services.main.category_view import (
+    CATEGORY, PATH_DELIMITER, entry_path_join,
+)
 from aiko_services.main.hyperspace import HyperSpace
 from aiko_services.ide.tui.dashboard.category_plugin import (
-    CATEGORY, PATH_DELIMITER, CategoryFrame, CategoryPage, entry_path_join,
+    CategoryFrame, CategoryPage,
 )
 
 __all__ = ["HyperSpaceFrame", "HyperSpacePage", "plugins"]

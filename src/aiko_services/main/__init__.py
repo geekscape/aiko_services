@@ -77,6 +77,10 @@ from .discovery import (
 
 from .dependency import Dependency, dependency_args, DependencyImpl
 
+from .category_view import (
+    CategoryNode, CategoryTree, Entry, entries_of_cache, entry_of,
+    entry_path_join, entry_path_parent, parse_entry_records, root_entry
+)
 from .category import Category, CategoryImpl
 
 from .hyperspace import HyperSpace, HyperSpaceImpl

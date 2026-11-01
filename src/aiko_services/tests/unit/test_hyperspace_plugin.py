@@ -23,8 +23,11 @@ asciimatics = pytest.importorskip("asciimatics")
 
 from aiko_services.main import CATEGORY_PROTOCOL                  # noqa: E402
 from aiko_services.main.hyperspace import HyperSpace              # noqa: E402
+from aiko_services.main.category_view import (                    # noqa: E402
+    CATEGORY, DEPENDENCY, WILDCARD, entry_of,
+)
 from aiko_services.ide.tui.dashboard.category_plugin import (     # noqa: E402
-    CATEGORY, DEPENDENCY, WILDCARD, CategoryFrame, CategoryPage, entry_of,
+    CategoryFrame, CategoryPage,
 )
 from aiko_services.ide.tui.dashboard.hyperspace_plugin import (   # noqa: E402
     HyperSpaceFrame, HyperSpacePage, plugins,

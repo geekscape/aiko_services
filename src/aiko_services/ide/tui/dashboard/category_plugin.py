@@ -17,6 +17,11 @@
 #
 # Design
 # ~~~~~~
+# "main/category_view.py" holds the data model: an Entry, a tree of the
+# Entries discovered so far, and the cycle check that a graph needs.  It
+# is not a user interface, so a REPL or a web page uses the same model.
+# This module is what a terminal adds to it.
+#
 # Progressive discovery, in two steps, because a Category knows only its
 # own Entries:
 #
@@ -28,21 +33,15 @@
 #   this page there.  The Services followed so far are the trail, and "G"
 #   walks back along it.
 #
-# A HyperSpace resolves a whole Entry path itself, so its page expands a
-# node in place instead, with one "(list ...)" request for each node.
+# A HyperSpace resolves a whole Entry path itself, so its page opens a
+# node where it is instead, with one "(list ...)" request for each node.
 # "CategoryPage.resolves_paths" is the whole of that difference, and
 # "hyperspace_plugin.py" is the rest of what a HyperSpace adds.
 #
-# Categories form a cyclic graph, not a tree, so each descent is checked:
-#
-# - A node whose target repeats one of its own ancestors is marked "^",
-#   and does not open.
-# - A Service that is already on the trail is not followed again.
-#
-# asciimatics has no screen double, so the decisions live in CategoryPage
-# and CategoryTree, which are pure, and the Frame below is the thin part.
-# Unlike the other pages, these decisions are instance methods, because
-# the HyperSpace page overrides them.
+# asciimatics has no screen double, so the decisions live in CategoryPage,
+# which is pure, and the Frame below is the thin part.  Unlike the other
+# pages, those decisions are instance methods, because the HyperSpace page
+# overrides them.
 #
 # State comes from the Dashboard's own ECConsumer, never from a second
 # consumer of this page's own: two consumers of one producer would each
@@ -55,10 +54,10 @@
 #   Category
 # - Match an Entry to its Service by the whole ServiceFilter, rather than
 #   by the name and the protocol type
-# - An Entry that is a link to an existing Category, once "hyperspace.py"
-#   implements "link"
+# - A one-field dialogue is what a PopUpDialog fits, because it takes its
+#   height from its text.  A Frame of its own would take RadioButtons for
+#   the kind of Entry, instead of a name that ends in a delimiter
 
-from collections import namedtuple
 from functools import partial
 import time
 
@@ -69,214 +68,18 @@ from asciimatics.widgets import (
 
 import aiko_services as aiko
 from aiko_services.main.category import Category
+from aiko_services.main.category_view import (
+    ABSENT, CATEGORY, DEPENDENCY, KEEP, PATH_DELIMITER, WILDCARD,
+    CategoryTree, entries_of_cache, entry_path_parent, field_text,
+    parse_entry_records, protocol_terse, protocol_type,
+)
 from aiko_services.main.connection import ConnectionState
 from aiko_services.main.utilities import parse
 from aiko_services.ide.tui.dashboard import (
     LogLevelPopupMenu, LogUI, ServiceFrame,
 )
 
-__all__ = [
-    "CategoryFrame", "CategoryNode", "CategoryPage", "CategoryTree",
-    "Entry", "entry_of", "entry_path_join", "entry_path_parent",
-    "field_text", "plugins", "protocol_terse", "protocol_type",
-]
-
-PATH_DELIMITER = "/"
-CATEGORY = "category"
-DEPENDENCY = "dependency"
-
-ABSENT = "-"            # a field that the Actor sent as the codec's None
-WILDCARD = "*"
-KEEP = "0:"             # what an update sends for a field to leave alone
-
-# Every field of one Entry, as a person reads it.  "target" is what the
-# Entry refers to: the name in its ServiceFilter, or its own name
-Entry = namedtuple("Entry",
-    "name kind target protocol transport owner tags lcm_url storage_url")
-
-def entry_path_join(path, name):
-    """One Entry path from a Category path and an Entry name"""
-
-    return f"{path}{PATH_DELIMITER}{name}" if path else name
-
-def entry_path_parent(path):
-    """The Category that holds the Entry at path, "" being the root"""
-
-    return path.rpartition(PATH_DELIMITER)[0]
-
-def protocol_type(protocol):
-    """"category" from ".../protocol/category:0", and "" from nothing"""
-
-    if not protocol or protocol in (WILDCARD, ABSENT):
-        return ""
-    return protocol.rpartition(PATH_DELIMITER)[2].split(":")[0]
-
-def protocol_terse(protocol):
-    """"category:0" from ".../protocol/category:0", which is how the
-    command line and the Dashboard's own Service list show a protocol"""
-
-    return protocol.rpartition(PATH_DELIMITER)[2] if protocol else protocol
-
-def field_text(value):
-    """A field as a person reads it.  The shared state carries the codec's
-    None as the string "None", and a list as a list"""
-
-    if value is None:
-        return ABSENT
-    if isinstance(value, (list, tuple)):
-        return " ".join(str(item) for item in value) or ABSENT
-    value = str(value)
-    return ABSENT if value in ("None", KEEP, "") else value
-
-def entry_of(name, fields):
-    """One Entry from the fields that a Category holds for it ...
-
-    ((topic_paths name protocol transport owner (tags)) lcm storage)
-    """
-
-    fields = fields if isinstance(fields, (list, tuple)) else []
-    service_filter = fields[0] if fields else None
-    if not isinstance(service_filter, (list, tuple)):
-        service_filter = []
-
-    def filter_field(index):
-        return service_filter[index] if index < len(service_filter) else None
-
-    def field(index):
-        return fields[index] if index < len(fields) else None
-
-    tags = filter_field(5)
-    tags = [str(tag) for tag in tags]  \
-        if isinstance(tags, (list, tuple)) else []
-    protocol = field_text(filter_field(2))
-    filter_name = field_text(filter_field(1))
-    target = name if filter_name in (ABSENT, WILDCARD) else filter_name
-
-    return Entry(name,
-        CATEGORY if protocol_type(protocol) == CATEGORY else DEPENDENCY,
-        target, protocol, field_text(filter_field(3)),
-        field_text(filter_field(4)), tags,
-        field_text(field(1)), field_text(field(2)))
-
-def root_entry(name):
-    """The Entry of the Category that this page is rooted at"""
-
-    return Entry(name, CATEGORY, name,
-        aiko.CATEGORY_PROTOCOL, ABSENT, ABSENT, [], ABSENT, ABSENT)
-
-# --------------------------------------------------------------------------- #
-
-class CategoryNode:
-    """One Entry, and what the viewer knows about it"""
-
-    def __init__(self, path, entry):
-        self.path = path
-        self.entry = entry
-        self.children = []        # Entry names, in the order they are shown
-        self.expanded = False
-        self.loaded = False       # its children have arrived
-        self.cycle = None         # the path of the ancestor that it repeats
-
-    @property
-    def name(self):
-        return self.entry.name
-
-    @property
-    def kind(self):
-        return self.entry.kind
-
-class CategoryTree:
-    """Every node discovered so far, by Entry path.  The root is "" """
-
-    def __init__(self, name=""):
-        self.reset(name)
-
-    def reset(self, name=""):
-        root = CategoryNode("", root_entry(name))
-        root.expanded = True
-        self.nodes = {"": root}
-
-    def node(self, path):
-        return self.nodes.get(path)
-
-    def ancestors(self, path):
-        """Each node from the root down to the Category that holds path"""
-
-        names = [name for name in path.split(PATH_DELIMITER) if name]
-        chain, walk = [self.nodes[""]], ""
-        for name in names[:-1]:
-            walk = entry_path_join(walk, name)
-            node = self.nodes.get(walk)
-            if node is None:
-                break
-            chain.append(node)
-        return chain
-
-    def merge(self, path, entries):
-        """Attach entries as the children of path, keeping what a child
-        already knows: whether it is open, and what it holds.
-
-        Returns False when path is not a node of this tree
-        """
-
-        parent = self.nodes.get(path)
-        if parent is None:
-            return False
-
-        targets = {node.entry.target: node.path
-            for node in self.ancestors(path)}
-        targets.setdefault(parent.entry.target, parent.path)
-
-        names = []
-        for entry in entries:
-            child_path = entry_path_join(path, entry.name)
-            node = self.nodes.get(child_path)
-            if node is None or node.kind != entry.kind:
-                self.forget(child_path)
-                node = CategoryNode(child_path, entry)
-                self.nodes[child_path] = node
-            else:
-                node.entry = entry
-            node.cycle = None
-            if entry.kind == CATEGORY and entry.target in targets:
-                node.cycle = targets[entry.target]
-                node.expanded = False
-            names.append(entry.name)
-
-        for name in parent.children:
-            if name not in names:
-                self.forget(entry_path_join(path, name))
-        parent.children = names
-        parent.loaded = True
-        return True
-
-    def forget(self, path):
-        """Drop a node and everything below it"""
-
-        prefix = path + PATH_DELIMITER
-        for key in [key for key in self.nodes
-                if key == path or key.startswith(prefix)]:
-            del self.nodes[key]
-
-    def rows(self, path="", level=0):
-        """[(node, level)] for each row the viewer shows, from path down
-        through every node that is open.  The root's own row is not one of
-        them: the title bar says which Service this is"""
-
-        node = self.nodes.get(path)
-        rows = []
-        if node is None:
-            return rows
-        for name in node.children:
-            child = self.nodes.get(entry_path_join(path, name))
-            if child is None:            # merged away while being drawn
-                continue
-            rows.append((child, level))
-            if child.expanded and child.kind == CATEGORY:
-                rows += self.rows(child.path, level + 1)
-        return rows
-
-# --------------------------------------------------------------------------- #
+__all__ = ["CategoryFrame", "CategoryPage", "plugins"]
 
 class CategoryPage:
     """The page's decisions, with no screen and no network"""
@@ -308,54 +111,13 @@ class CategoryPage:
 
     # What a Category holds ------------------------------------------- #
 
-    @staticmethod
-    def entries_from_cache(cache):
-        """The Entries of the selected Category, from its shared state,
-        by name, as the command line also sorts them"""
-
-        entries = cache.get("entries")
-        if not isinstance(entries, dict):
-            return []
-        return [entry_of(name, entries[name]) for name in sorted(entries)]
-
-    @staticmethod
-    def parse_records(records):
-        """(entries, diagnostics) from the arguments of each "(response
-        ...)" of a "(list ...)".  A record is one of ...
-
-            level name ((topic_paths name protocol ...) lcm storage)
-            -level name            a Category, in a recursive listing
-            text "..."             what the Actor says went wrong
-
-        Only the Entries of the Category that was asked for, which are the
-        ones at level 0, are returned: a recursive listing names a nested
-        Category without its path, and this page asks for one path at a
-        time
-        """
-
-        entries, diagnostics = [], []
-        for record in records:
-            if not isinstance(record, (list, tuple)) or not record:
-                continue
-            if record[0] == "text":
-                diagnostics.append(
-                    str(record[1]) if len(record) > 1 else "no reason given")
-                continue
-            try:
-                level = int(record[0])
-            except (TypeError, ValueError):
-                continue
-            if level == 0 and len(record) > 2:
-                entries.append(entry_of(str(record[1]), record[2]))
-        return entries, diagnostics
-
     def refresh_root(self, cache, name=None):
         """The root's Entries, from the shared state.  A new name is a new
         Service, so the tree starts again"""
 
         if name is not None and name != self.tree.node("").name:
             self.tree.reset(name)
-        self.tree.merge("", self.entries_from_cache(cache))
+        self.tree.merge("", entries_of_cache(cache))
 
     # What the viewer shows ------------------------------------------- #
 
@@ -462,7 +224,7 @@ class CategoryPage:
     def title(self, cache):
         """What the page says beside the Service"""
 
-        entries = len(self.entries_from_cache(cache))
+        entries = len(entries_of_cache(cache))
         return f"entries: {entries}   shown: {len(self.tree.rows())}"
 
     # The Entry syntax, which one text field carries ------------------ #
@@ -688,7 +450,7 @@ class CategoryFrame(ServiceFrame):
         return False
 
     def _merge(self, path, records):
-        entries, diagnostics = self.page.parse_records(records)
+        entries, diagnostics = parse_entry_records(records)
         node = self.page.tree.node(path)
         if diagnostics:
             self._diagnostic = f"{path}: {' '.join(diagnostics)}"
