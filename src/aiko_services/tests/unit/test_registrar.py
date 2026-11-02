@@ -17,6 +17,8 @@
 # ~~~~~
 # - None, yet !
 
+import time
+
 import pytest
 
 import aiko_services as aiko
@@ -227,11 +229,17 @@ def test_probe_timeout_on_the_real_event_loop(election, monkeypatch):
     model._timer_remove(model.primary_search_timer)      # armed at 2 s: re-arm
     registrar.state_machine.transition("primary_found", {"topic_path": DEAD})
 
-    def stop():
-        event.remove_timer_handler(stop)
-        event.terminate()
+    # Wait for the outcome, not for a fixed time: in a full test run the
+    # event loop also carries timers that earlier tests left behind, and a
+    # Raspberry Pi 4 then needs more than 0.5 s for the two 0.05 s timers
+    deadline = time.monotonic() + 5.0
 
-    event.add_timer_handler(stop, 0.5)
+    def stop():
+        if state(registrar) == "primary" or time.monotonic() > deadline:
+            event.remove_timer_handler(stop)
+            event.terminate()
+
+    event.add_timer_handler(stop, 0.05)
     event.loop()
     assert stub.retained[0] == (BOOT, "(primary absent)")
     assert state(registrar) == "primary"                 # the search timer promoted
