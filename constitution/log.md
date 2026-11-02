@@ -8,6 +8,17 @@ pre-publication history is maintained privately.
 
 ## 2026-11-02
 
+- **Update** — [../documentation/ReadMe.md](../documentation/ReadMe.md):
+  the map gains the two areas it never listed, `quick_start_guide.md` and
+  `tutorials/`, and a fast path for deploying an instance. A new tutorial,
+  `tutorials/production_instance.md`, documents a 24x7 instance on Linux.
+  One ProcessManager starts with the operating system, and it owns the
+  Registrar, HyperSpace and the Aiko Chat Server. The same change marks the
+  sanctioned private-directory reference in
+  `tutorials/using_a_private_constitution.md`, which names the private
+  repository's own map. The self-containment check now reports an exception
+  there rather than a violation.
+
 - **Update** — [adr/ADR-002_SExpressionWireEncoding.md](adr/ADR-002_SExpressionWireEncoding.md):
   the consequence that a value holding a space must round-trip through
   `generate()` now names each known deviation, and the helper that closes
