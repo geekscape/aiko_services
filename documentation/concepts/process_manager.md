@@ -308,6 +308,11 @@ requester's topic (see [Category](category.md) for the general pattern):
 (response UID PID COMMAND ARG…)      # repeated
 ```
 
+Both replies are built with `generate()`. Thus an argument that holds a
+space, or that starts with digits and a colon, reaches the client
+unchanged. An example is the `-L 8080:127.0.0.1:8080` argument of an
+`ssh` tunnel.
+
 ## For framework developers (internals)
 
 ### Design

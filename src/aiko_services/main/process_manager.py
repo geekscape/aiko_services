@@ -477,17 +477,19 @@ class ProcessManagerImpl(ProcessManager):
             topic_path_response, self.topic_path)
         if not topic_path_response:
             return self._function_denied("list", "topic")
+        # generate() encodes each argument, so that one that starts with
+        # digits and a colon, such as "8080:127.0.0.1:8080", or that holds
+        # a space, reaches the client unchanged (ADR-002)
         responses = []
         for uid_key in self.processes.keys():
             if uid is None or uid == uid_key:
                 command, pid = self._get_process_info(uid_key)
-                response = f"{uid_key} {pid} {' '.join(command)}"
-                responses.append(response)
+                responses.append([str(uid_key), str(pid), *map(str, command)])
         aiko.message.publish(
-            topic_path_response, f"(item_count {len(responses)})")
+            topic_path_response, generate("item_count", [str(len(responses))]))
         for response in responses:
             aiko.message.publish(
-                topic_path_response, f"(response {response})")
+                topic_path_response, generate("response", response))
 
     def _parse_definition_entry(self, entry):
         """Parse one definition entry, in either of its two forms.
