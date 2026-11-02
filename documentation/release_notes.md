@@ -135,7 +135,42 @@ sections are.
   The Pipeline holds the Stream lock while a frame is encoded, so the
   source is not read meanwhile.  A slow encode thus loses frames at the
   source.  *store_forward_pipeline_0.json* and the cameras' recording
-  example *depthai_pipeline_2.json* encode *avc1*
+  examples *depthai_pipeline_2.json* and *gigev_pipeline_1.json* encode
+  *avc1*
+
+* Camera DataSources gain *focus_assist*: when true, *sensor.sharpness*
+  on the dashboard gives the Laplacian variance of the gray center third
+  of a frame, once a second.  Turn a manual focus ring until it peaks.
+  *VideoReadGigE* gains *max_exposure_us*, the auto-expose ceiling.  Its
+  default is 80 % of the frame period when free-running, 100 ms at 8 fps.
+  The old fixed 250 ms ceiling slowed a camera in a dim scene below its
+  *frame_rate*
+
+* *VideoReadGigE* uses a camera's own image features when it has them.
+  *exposure_us* *auto* is now the camera's continuous auto exposure and
+  gain.  *max_exposure_us* caps it, and *frame_rate* is held.  *host* is
+  the one-shot auto-expose.  It now skips the frames that a free-running
+  camera had queued.  New *brightness_target* and *white_balance*.  In
+  *crop* mode the camera delivers the target size itself when that keeps
+  90 % of the view.  On an embedded ARM computer at 1920x1080 this took
+  the IDS camera from 7.0 to 8.00 fps, with neutral color.  The camera's
+  *sensor.auto_status*, *sensor.white_balance*, *sensor.temperature_c*
+  and *sensor.packets_dropped* are on the dashboard
+
+* The camera DataSources capture on a thread of their own and queue two
+  frames.  *frame_generator()* only takes a ready frame, so the Stream
+  lock is free while the camera waits.  Before, a camera's wait held
+  that lock for most of each frame period.  The event loop then never
+  reached its MQTT messages, so a dashboard showed no variables for the
+  Pipeline.  New share key *frames_dropped*
+
+* New *elements/web* package.  *VideoShowWeb*
+  (*elements/web/web_io.py*) is a pass-through element that shows the
+  latest image in a browser as a live MJPEG stream.  The page also shows
+  the shared state of chosen elements, aiming overlays and a
+  *focus_assist* switch.  It costs nothing while nobody watches.  One
+  browser at 4 fps cost 8 % of one core on an embedded ARM computer.
+  Example *web_pipeline_0.json*
 
 * New DataSchemes *depthai* (*elements/cameras/scheme_depthai.py*) and
   *gigev* (*elements/cameras/scheme_gigev.py*), on the shared
