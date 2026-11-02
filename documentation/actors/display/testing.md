@@ -15,7 +15,7 @@ source:
 related: [display, display_protocol, display_dashboard, dashboard, share,
   discovery]
 version: "0.8-dev"
-last_updated: 2026-09-28
+last_updated: 2026-11-02
 ---
 
 # Display Actor test guide
@@ -162,42 +162,42 @@ on another host, put `-n NAME` before the subcommand.
 | 5.18b | `aiko_display mirror aiko/probe/mirror 20`, then `mosquitto_sub -t aiko/probe/mirror -C 3 \| wc -c` | 3072: three frames of 1024 bytes, one for each change of the panel (the clock changes it once a second). `aiko_display mirror aiko/probe/mirror 0` stops the feed, and `mirrors` in the shared state reads `0` |
 | 5.19 | `aiko_display stop` | The canvas from 5.7 is shown again |
 | 5.20 | `aiko_display set bogus 1` | A usage error, exit status 2. The key is checked locally |
-| 5.21 | `aiko_display exit` | The display blanks, the Actor process ends, exit status 0. On the wire `(exit)` is an alias of `(stop)` |
+| 5.21 | `aiko_display exit` | The display blanks, the Actor process ends, exit status 0. On the wire it sends `(stop)`. `(exit)` is denied |
 | 5.22 | `aiko_display -t 2 exit`, with nothing running | `Timeout after 2 s: no Display Actor named HOST`, exit status 1 |
 
 Start the Actor again (step 4) before you continue.
 
-## 6. Raw S-expressions (what an aiko_engine_mp client sends)
+## 6. Raw S-expressions
 
 ```bash
-mosquitto_pub -t $TOPIC/in -m "(oled:text 0 0 hello)"        # the bottom row
-mosquitto_pub -t $TOPIC/in -m "(oled:log This is a test !)"  # scrolls, the bottom row
-mosquitto_pub -t $TOPIC/in -m "(oled:pixels 0 0 127 63)"     # two corners
-mosquitto_pub -t $TOPIC/in -m "(text 0 16 native form)"      # the same command, no prefix
+mosquitto_pub -t $TOPIC/in -m "(text 0 0 hello)"             # the bottom row
+mosquitto_pub -t $TOPIC/in -m "(log This is a test !)"       # scrolls, the bottom row
+mosquitto_pub -t $TOPIC/in -m "(pixels 0 0 127 63)"          # two corners
 mosquitto_pub -t $TOPIC/in -m '(text 0 24 "quoted text is one word")'
-mosquitto_pub -t $TOPIC/in -m "(key g tap)"                    # the key map: pong
+mosquitto_pub -t $TOPIC/in -m "(key g tap)"                  # the key map: pong
 ```
 
 Expect: the same effects as the `aiko_display` commands. Now the
-rejections:
+denials:
 
 ```bash
-mosquitto_pub -t $TOPIC/in -m "(run)"                # not a wire command
-mosquitto_pub -t $TOPIC/in -m "(pixel 200 0)"        # out of range
-mosquitto_pub -t $TOPIC/in -m "(log 12:30 lunch)"    # unquoted digits and a colon
-mosquitto_pub -t $TOPIC/in -m '(log "12:30" lunch)'  # quoted: accepted
+mosquitto_pub -t $TOPIC/in -m "(run)"                  # not in the allow list
+mosquitto_pub -t $TOPIC/in -m "(oled:text 0 0 hello)"  # an aiko_engine_mp name
+mosquitto_pub -t $TOPIC/in -m "(pixel 200 0)"          # out of range
+mosquitto_pub -t $TOPIC/in -m "(log 12:30 lunch)"      # unquoted digits and a colon
+mosquitto_pub -t $TOPIC/in -m '(log "12:30" lunch)'    # quoted: accepted
 ```
 
-Expect: the first three change nothing on the display. The Actor's
-console logs a WARNING for each: `dispatch rejected: unknown_command
-(run)`, `pixel rejected: x_range` and `dispatch rejected: parse_error
-(...)`. The process keeps running. The fourth writes `12:30 lunch`.
+Expect: the first four change nothing on the display. The Actor logs a
+WARNING for each: `dispatch denied: function (run)`, `dispatch denied:
+function (oled:text)`, `pixel denied: x_range` and `dispatch denied:
+parse (...)`. The process keeps running. The fifth writes `12:30 lunch`.
 
 Settings, the way the Dashboard writes them:
 
 ```bash
 mosquitto_pub -t $TOPIC/control -m "(update contrast 64)"
-mosquitto_pub -t $TOPIC/control -m "(update contrast abc)"   # rejected, converges back to 64
+mosquitto_pub -t $TOPIC/control -m "(update contrast abc)"   # denied, converges back to 64
 mosquitto_pub -t $TOPIC/control -m "(update applet invaders)"
 mosquitto_pub -t $TOPIC/control -m "(update applet draw,subject=cat)"
 ```
