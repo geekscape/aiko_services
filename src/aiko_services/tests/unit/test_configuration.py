@@ -120,3 +120,16 @@ def test_server_down_reports_the_host_to_keep_trying(monkeypatch):
     monkeypatch.setenv("AIKO_MQTT_HOST", "broker.example")
     up, host, port, address = configuration.get_mqtt_host_address()
     assert (up, host, address) == (False, "broker.example", None)
+
+def test_the_answering_address_is_logged_at_debug_only(network, monkeypatch):
+    """A command line client connects on every run: the address line is
+    DEBUG, so that it does not print by default"""
+
+    network["broker"] = [info(socket.AF_INET, IPV4)]
+    FakeSocket.outcomes = {IPV4: None}
+    logged = {"info": [], "debug": []}
+    monkeypatch.setattr(configuration._LOGGER, "info", logged["info"].append)
+    monkeypatch.setattr(configuration._LOGGER, "debug", logged["debug"].append)
+    assert configuration._resolve_mqtt_host("broker", 1883) == IPV4
+    assert logged["info"] == []
+    assert any(IPV4 in line for line in logged["debug"])

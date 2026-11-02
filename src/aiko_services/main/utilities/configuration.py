@@ -108,7 +108,7 @@ def _resolve_mqtt_host(host, port):
         probe.settimeout(_MQTT_PROBE_TIMEOUT)
         try:
             probe.connect(sockaddr)
-            _LOGGER.info(f"MQTT host {host}:{port} answers on {sockaddr[0]}")
+            _LOGGER.debug(f"MQTT host {host}:{port} answers on {sockaddr[0]}")
             return sockaddr[0]
         except OSError as error:
             _LOGGER.warning(
