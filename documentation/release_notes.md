@@ -323,6 +323,14 @@ remote callers are unaffected.  For Python code:
   there.  A fake output stands in for the panel, so no broker and no panel
   are needed.  New *test_example_oled.py*: 4 tests for the simple example
 
+* New *tests/unit/conftest.py*: after each unit test, an autouse fixture
+  removes the event-loop timers and mailboxes that the test registered.
+  Before, a full unit run left about 490 mailboxes and 70 timers
+  registered, and every event-loop pass visited them all.  A timing test
+  then failed in each full run on a Raspberry Pi 4 and passed alone.  The
+  run is also 8 % faster on macOS.  *AIKO_TEST_REPORT_LEAKS=1* lists the
+  tests that leave registrations behind
+
 ### Bug Fixes
 
 * A Registrar now probes a primary that the retained bootstrap topic
