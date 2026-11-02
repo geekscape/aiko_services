@@ -12,6 +12,8 @@
 #
 # Usage: Distributed Actor
 # ~~~~~~~~~~~~~~~~~~~~~~~~
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
 # aiko_hyperspace.py run     [storage_url]  # file in-memory sqlite mqtt valkey
 # aiko_hyperspace.py dump                   # Not recursive, top-level only
 # aiko_hyperspace.py exit
@@ -39,6 +41,13 @@
 #   - Storage:    create(): Category or Dependency (Definition and Contents)
 #
 # ** Update self.share["running" and "active"]  # total Category counts
+#
+# ** Storage keeps a Dependency's name and its place, and nothing else:
+#    "_hyperspace_load()" rebuilds each one with no "lifecycle_manager_url"
+#    and no "storage_url", and a ServiceFilter of defaults, so every field
+#    of an Entry but its name is lost when a HyperSpace restarts.  Measured
+#    on 2026-11-02: a Dependency added with a protocol and a storage URL
+#    comes back with neither
 #
 # * Registrar(HyperSpace(Category)): Filters(Code), Order(Sort), Pagination
 #   * Registrar is-a HyperSpace and also can (share) a Category for given query
@@ -68,7 +77,8 @@
 # * HyperSpace(Actor) requires Category and Dependencies
 #   - Services that implement Category assign tag "category=true" (temporary)
 #
-# * Aiko Dashboard plug-in for HyperSpace(Actor), e.g REPL and tree view
+# * Aiko Dashboard plug-in for HyperSpace(Actor): a REPL.  The tree view
+#   is "ide/tui/dashboard/hyperspace_plugin.py"
 #
 # * Implement Category "owner" field and populate automatically
 #   * Implement "destroy --force" flag to destroy other owner's Categories
@@ -406,7 +416,7 @@ class HyperSpaceImpl(HyperSpace):
             entry = category_parent.share["entries"][entry_name]
         #   if entry.service_filter.protocol == CATEGORY_PROTOCOL: #REFACTOR
             if entry.is_type("Category"):
-                self._destroy(entry, path, category_parent, entry_name)
+                self._destroy(entry_path, category_parent, entry_name)
             else:
                 self.category.remove(category_parent, entry_name)
             # TODO: self.storage.remove()  # does destroy !
@@ -423,7 +433,8 @@ class HyperSpaceImpl(HyperSpace):
         service_filter=None, lifecycle_manager_url=None, storage_url=None):
 
         category_parent, entry_name = self._find_entry(entry_path)
-        if category_parent and entry_name in category_parent["entries"]:
+        if category_parent and  \
+            entry_name in category_parent.share["entries"]:
             self.category.update(category_parent, entry_name, service,
                 service_filter, lifecycle_manager_url, storage_url)
 
@@ -487,7 +498,11 @@ class HyperSpaceImpl(HyperSpace):
 @click.group()
 
 def main():
-    """Create, Read/List, Update and Destroy HyperSpace"""
+    """Create, Read/List, Update and Destroy HyperSpace
+
+    \b
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+    """
 
     subcommand = click.get_current_context().invoked_subcommand
     subcommands_which_work_anywhere = [

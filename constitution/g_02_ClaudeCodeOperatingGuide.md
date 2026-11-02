@@ -7,7 +7,7 @@ audience: [project-lead, ai-coding-agents]
 status: operational
 ste: adapted
 related: [e_06_TestingStrategy]
-last_updated: 2026-08-01
+last_updated: 2026-11-02
 ---
 
 # Aiko Services — Claude Code Operating Guide
@@ -255,30 +255,69 @@ By day 10 you have four things: the constitution in-repo and enforced by hooks. 
 three-tier CI with the first conformance traces. Maintenance that flows, with a canary. The
 demo build under way. All five streams are live, and none blocks another.
 
-## 9. Failure modes to expect (so they do not surprise you)
+## 9. Failure modes to expect
 
-**Too many sessions.** Attended sessions have a cap of three. More than that, and you do not
-review, you hope. Background/headless work does not count against the cap, but merges do.
+**Too many sessions.** Three attended sessions, at most. Above that you hope rather than
+review. Headless work is exempt from the cap. Merges are not.
 
-**Context drift in long sessions** — one task, one session. If a session is on its third
-unrelated topic, end it.
+**Context drift.** One task, one session. End a session that reaches its third unrelated
+topic.
 
-**The shared-history surprise** — worktrees share commits immediately. Two sessions on the
-*same branch* is the one configuration that still collides, and the `--worktree` flag exists
-to prevent it.
+**The shared-history surprise.** Worktrees share commits at once. Two sessions on the *same
+branch* is the one configuration that still collides. The `--worktree` flag prevents it.
 
-**Agent-claimed "done"** — hooks make the claim checkable. Never merge on
-assertion. **D starving** — conformance work has no demo and no deadline, so it loses every
-scheduling fight unless protected: the weekly trace and the weekly D-merge are appointments, not
-aspirations.
+**Agent-claimed "done".** Never merge on an assertion. Hooks make the claim checkable.
 
-**You, reviewing code instead of specs** — the leverage inversion (transition plan §3) fails
-quietly if you go back to diff-reading. The reviewer subagent and CI exist precisely
-so your reading hours stay on the normative documents.
+**D starving.** Conformance work has no demonstration and no deadline, so it loses each
+scheduling fight. The weekly trace and the weekly D-merge are appointments, not aspirations.
 
-**The STE gate on a moving document** — a document that changes every phase is rewritten
-at gate zero every phase. That burns tokens on prose that changes again. Gate it once, at
-the end of the Epic (project-lead direction, 2026-09-27). Links must not dangle meanwhile.
+**Code review in place of specification review.** The leverage inversion
+([e_00_TransitionPlan.md](e_00_TransitionPlan.md) §3) fails quietly when you return to diff
+reading. The reviewer subagent and CI keep your reading hours on the normative documents.
 
-**A package move in one commit** — git loses the history. Move in three commits: renames
-only (git records 100% renames), then the names and imports, then any splits.
+**The STE gate on a moving document.** Gate a document once, at the end of its Epic
+(project-lead direction, 2026-09-27). A document that changes each phase is otherwise
+rewritten at gate zero each phase. Links must not dangle meanwhile.
+
+**A package move in one commit.** Git loses the history. Move in three commits. First the
+renames only, so Git records 100% renames. Then the names and imports. Then any splits.
+
+**An inherited diagnosis** (2026-10-20, three times in one session). Reproduce the *mechanism*
+before you build on it: change one variable that the stated cause predicts, then test the
+prediction. A handover — a note, a memory, a session summary — names the symptom correctly and
+guesses the mechanism. The symptom then reproduces, which makes the guess look confirmed. A
+symptom that matches is not a cause that matches.
+
+**A code path that only a person can reach.** A dialog, a key handler, a
+confirmation: no test opens one, so a fault there survives review, merge
+and a demonstration. Build the frame and draw it in the test, and give
+every widget the state that drawing needs. One dialog raised on its first
+draw, each time anyone pressed the key, for a Text widget whose value was
+never set.
+
+**An output file that nothing writes any more.** Neutralize the old file in the same change
+that replaces the component which wrote it. A file frozen at replacement reads as current and
+describes behavior you removed. One cost a second session a full re-diagnosis of a fault that
+was already fixed.
+
+**A recovery path you did not exercise.** Prefer a loud, exact diagnosis to automation you
+cannot test. Code written against a fault you cannot reproduce holds your assumptions about
+that fault. One path assumed that `timeout` bounds a blocking operation. It does not bound an
+uninterruptible one, so the "safe" wrapper could itself stop the boot.
+
+**A guard that refuses everything** (2026-10-22). Write the test that lets one function
+through together with the first refusal test. A deny-by-default dispatch guard called a
+function that does not exist, and then refused every function, the allowed ones included. Each
+refusal test passed, because a refusal was what it asked for.
+
+**A measurement that was itself broken** (2026-10-22, three times in one session). Check the
+measurement before you change the system. Each surprising result came from a fault in the
+measurement. Shell quoting gave the wrong argument. A subscription started after the
+announcement that it waited for. An ECProducer publishes only to the consumers that attach to
+it, and nothing had attached. Sibling of *an inherited diagnosis*.
+
+**A vendor driver read only for its constants** (2026-10-23). Read the comments in the file
+you copy from, in each language that the file uses. One session copied the pins, the SPI mode
+and the initialization sequence correctly. It missed a Chinese comment beside the button
+handler, which gave the button polarity. Inverted polarity does not stop the program: it looks
+correct until a person holds the button down and then releases it.

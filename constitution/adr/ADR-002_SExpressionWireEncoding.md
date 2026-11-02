@@ -10,7 +10,7 @@ status: normative
 ste: adapted
 related: [ReadMe, ../constitution/s_00_Specifications,
   ../constitution/p_00_DesignPrinciples]
-last_updated: 2026-08-01
+last_updated: 2026-11-02
 ---
 
 # ADR-002 — S-expressions as the wire encoding
@@ -73,9 +73,17 @@ PipelineDefinition file's content), never for control messages themselves.
   of ADR-016. The exact quoting and escape rules must still be extracted
   as normative grammar (s_00 §1.1 [VERIFY]).
 - Values that contain spaces or nesting must always round-trip through
-  `generate()`, and never through f-string assembly. The known ECProducer
-  incremental-update deviation (g_03 sharp edge) is a bug against this
-  decision, and not a competing convention.
+  `generate()`, and never through f-string assembly. A deviation is a bug
+  against this decision, and not a competing convention.
+  `utilities/parser.py:generate_symbol()` applies the canonical rule to
+  one value, for the places that must assemble an expression themselves.
+  Known deviations, each one a g_03 sharp edge:
+  - the ECProducer incremental update
+  - `ServiceFilter.__repr__()` joins its tags with a space. Thus one tag
+    that holds a space arrives as two tags
+  - `Dependency.__repr__()` was a third, closed 2026-11-02. A
+    `storage_url` that held a space broke each Category `(list ...)`
+    response that carried it
 - Evidence trail: s_00 §1.1 (rationale as previously cited). P1, P8, P9,
   P10. e_05 (LISP shell). `utilities/parser.py`. `aiko_engine_mp`
   (MicroPython implementation as existence proof of the microcontroller

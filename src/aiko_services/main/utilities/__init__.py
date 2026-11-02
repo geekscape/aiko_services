@@ -6,7 +6,8 @@
 
 from .configuration import (
     create_password,
-    get_hostname, get_mqtt_configuration, get_mqtt_host, get_mqtt_port,
+    get_hostname, get_mqtt_configuration, get_mqtt_host,
+    get_mqtt_host_address, get_mqtt_port,
     get_namespace, get_namespace_prefix, get_pid, get_username
 )
 

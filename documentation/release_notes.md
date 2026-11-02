@@ -8,7 +8,7 @@ audience: [developers, end-users]
 status: operational
 ste: false
 version: "0.8-dev"
-last_updated: 2026-08-01
+last_updated: 2026-09-28
 ---
 
 # Aiko Services release notes
@@ -19,7 +19,7 @@ and bug fixes.
 
 **Language rule (adopted 2026-07-31).** Write each new release section in
 ASD-STE100 Simplified Technical English, at the `adapted` level of
-[constitution/t_04_SimplifiedTechnicalEnglish.md](constitution/t_04_SimplifiedTechnicalEnglish.md).
+the project STE profile [Privately maintained].
 This rule applies to v0.8 and to each release after it. The v0.6
 (human-written) and v0.7 (A.I-written) sections stay unchanged, because
 they are a historical record. Thus the front-matter `ste:` field of this
@@ -33,6 +33,36 @@ sections are.
 **Full Changelog**: https://github.com/geekscape/aiko_services/compare/v0.7...v0.8
 
 ### Features
+
+* Display Actor, *src/aiko_services/actors/display*, the first package of
+  the actors tier (in the wheel): an SSD1306 128x64 OLED as an Actor with
+  the protocol *display:0*.  The protocol is the composite of the *Canvas*,
+  *Screen* and *Interaction* aspects.  The Actor shows the status of a
+  headless host (IP address, connection state, time, load, the last log
+  lines).  It accepts the same S-expressions as the aiko_engine_mp OLED,
+  for example *(oled:text 0 0 hello)*.  Its settings are shared state that
+  the Dashboard edits.  The *aiko_display* command runs the Actor or sends
+  it one command, and *aiko_display keys* is an interactive console.  A
+  Dashboard plug-in page mirrors the panel live, in Unicode or in ASCII,
+  and drives it with the same keys.  The key map is on the Actor.  Applets
+  run on the display: games, a forklift, pencil drawings, a clock face,
+  animated eyes and a demo tour.  Without the panel, a desktop window, the
+  terminal or a PNG file emulates it.  See
+  *documentation/actors/display/ReadMe.md*: the Actor, the protocol, the
+  Dashboard page, the design record and a step-by-step test guide
+
+* A *(key NAME down)* holds a key for 2 s at most.  A client that holds a
+  key sends *down* again.  The Dashboard page and the emulator window do
+  this
+
+* Simple example, *src/aiko_services/examples/oled/oled_actor.py*: one
+  small Actor that draws on an SSD1306.  It accepts *clear*, *log* and
+  *text* of the *display:0* protocol, so the *aiko_display* command and
+  the Dashboard page drive it
+
+* Proposal for e_03 task T6, *documentation/actors/display/parameters_streams_shape.md*:
+  Parameters and Streams as aspects of an Actor, with the Display Actor as
+  the pilot.  No code change
 
 * Classes may now omit the *__init__()* method entirely when they need no
   constructor arguments beyond *context* and no explicit super-class
@@ -85,6 +115,19 @@ sections are.
   undistorts each image with an OpenCV calibration read from
   *calibration_path*.  Three example PipelineDefinitions use placeholder
   URLs that discover the first camera
+
+* StoreForward, *src/aiko_services/main/store_forward*: the
+  *SegmentStoreForward* Actor, one for each host, moves segments (files:
+  video segments, images, tensors) between two hosts across a link that
+  is not reliable.  It takes custody of each file that is put in its
+  outbox.  It sends the file to the inbox of the peer, verifies it with
+  sha256 and continues after an interruption.  The *server* role has the
+  HTTP routes.  The *edge* role is always the client and needs no inbound
+  port.  The state (*link*, *queue.\**, *metrics.\**) is shared, thus the
+  Dashboard shows it.  The command is *aiko_store_forward server | edge*.
+  The protocol is *store_forward:0*.  The *store_forward://* DataScheme
+  and the *VideoWriteStoreForward* DataTarget put video segments from a
+  Pipeline in the outbox.  See *documentation/concepts/store_forward.md*
 
 * *VideoWriteStoreForward* defaults are now *format* *avc1* (H.264 in
   MP4) and *frame_rate* *8.0*.  Measured on an embedded ARM computer,
@@ -226,6 +269,13 @@ remote callers are unaffected.  For Python code:
   instances are composed Implementations.  Use *isinstance(x,
   ECProducer)*
 
+* *pytest* is no longer a dependency of the package.  Install the new
+  *test* extra for the tests: *pip install -e ".[test]"*.  The new
+  *server* extra installs *flask* for the StoreForward *server* role.  The
+  new *video* extra installs *opencv-python* for the video and image
+  elements.  The project version is now *0.8.dev0*, the PEP 440 form of
+  *\_\_version\_\_* *0.8-dev*
+
 ### Testing
 
 * Unit test baseline raised from 5 to 25 tests.  All of them run without
@@ -263,7 +313,29 @@ remote callers are unaffected.  For Python code:
   These tests skip when OpenCV is absent, because *video_io.py* needs
   *cv2* at import time
 
+* New *test_display.py*, *test_display_cli.py*, *test_display_applets.py*
+  and *test_display_dashboard_plugin.py*: 142 tests for the Display Actor.
+  They cover graphics, the composed outputs, dispatch and validation, the
+  settings and the mirror.  They also cover the command line, the applets
+  at three canvas sizes and the Dashboard page.  A pseudo-terminal test
+  runs the page for 4 terminal types, 3 locales and 2 sizes.  The 6
+  *vt100* cases are expected failures, because asciimatics cannot start
+  there.  A fake output stands in for the panel, so no broker and no panel
+  are needed.  New *test_example_oled.py*: 4 tests for the simple example
+
 ### Bug Fixes
+
+* A Registrar now probes a primary that the retained bootstrap topic
+  announces, before it becomes a secondary.  A retained *(primary found
+  ...)* can outlive its Registrar after a power cycle, because the MQTT
+  server keeps the retained message but never sends the will.  When the
+  probe gets no reply in 3 s, the Registrar publishes *(primary absent)*
+  and becomes the primary, in about 5 s.  Before, every new Registrar
+  stayed secondary, and the stale announcement had to be cleared by hand.
+  *ServicesCache* also logs one WARNING when the Registrar does not reply
+  in 5 s.  New tests: 11 unit tests, and
+  *tests/integration/test_registrar_election.py*, which needs an MQTT
+  server
 
 * Hook state is now per-component.  *HooksImpl* previously kept its hooks
   in a class-level dictionary that every Service in the process shared.
@@ -288,6 +360,78 @@ remote callers are unaffected.  For Python code:
   direct *get_value()* call failed on the first frame of each GStreamer
   reader, for example *VideoReadRTSP*, with *AttributeError:
   'StructureWrapper' object has no attribute 'get_value'*
+
+* The MQTT client connects to the IP address of the MQTT server that
+  answered, IPv4 first.  A host name can resolve to an IPv6 address that
+  is not routable (on macOS, a *.local* name of a Linux SBC), and paho
+  tried each address for 5 s.  The discovery of the command line then
+  timed out at random.  Each probe now has a 2 s limit, and paho gets the
+  address when TLS is off over TCP.  TLS and websockets keep the name.
+  New *get_mqtt_host_address()*.  *get_mqtt_configuration()* gives the
+  address as element 7.  New tests: *test_configuration.py* and
+  *test_mqtt.py*
+
+* *event.loop()* now limits the work of each pass.  Each mailbox, which
+  includes the priority mailbox, handles 16 items at most per pass.  The
+  event queue handles 64 items at most per pass.  Before, a mailbox that
+  was filled again as fast as it was emptied stopped all other work: the
+  timers (thus the Leases), the MQTT messages and the other mailboxes.  A
+  priority mailbox item is still handled before the next item of each
+  other mailbox.  The timers now use *time.monotonic()* for each check.
+  Each timer that is due fires once per pass.  The loop does not sleep
+  when work is pending.  A timer handler that removes its timer no longer
+  delays the next timer by one period.  New tests: *test_event.py*
+
+* An ECProducer now encodes each incremental *update* and *remove* with
+  *generate()*, as the *sync* of the full share does.  Before, an f-string
+  made the S-expression.  Thus a value with a space, a parenthesis, a list
+  or an empty string arrived damaged or was ignored at each ECConsumer
+  and Dashboard.  The *(share ...)* request of an ECConsumer now also uses
+  *generate()*, thus a filter that is a list arrives as a list.  New tests
+  in *test_share.py*
+
+* *do_command()* and *do_request()* now accept *timeout* (seconds) and
+  *timeout_handler*.  Without *timeout*, the environment variable
+  *AIKO_DISCOVERY_TIMEOUT* gives the value.  Without either, they wait
+  until a Service is discovered, as before.  The *do_request()* timeout
+  includes the wait for the response.  When the time expires, the
+  *timeout_handler* is called, or a diagnostic is printed.  With
+  *terminate=True*, the process then terminates with exit status 1.  Thus
+  a command line tool does not wait forever for a Service that is not
+  there.  *event.remove_timer_handler()* now changes the handler count
+  only when it removes a timer.  Before, *do_command()* removed its timer
+  two times, and an event loop could stop while handlers remained.  New
+  tests: *test_discovery.py*
+
+* A process with *mqtt_connection_required=False* now connects to the MQTT
+  server when the server becomes available.  Before, when the MQTT server
+  was not available at start, the process stayed isolated (*Castaway*)
+  until it stopped.  Now paho tries the first connection again in the
+  background, each 1 s to 30 s.  It tries *AIKO_MQTT_HOST*, else
+  *localhost*: when no MQTT server answers,
+  *get_mqtt_host_address()* now gives this host, not *None*.  After a
+  disconnection, paho connects
+  again, as before.  Thus the ProcessManager can start before the MQTT
+  server that it starts.  With *mqtt_connection_required=True* (the
+  default), a process still stops when the MQTT server is not available
+  at start
+
+* While the MQTT client is disconnected, *publish()* now drops the message
+  (QoS 0) at once.  Before, each *publish()* waited for 2 s, thus the
+  event loop stopped during an MQTT server restart.  *publish()* still
+  waits for the first connection after *connect()*, for 2 s at most
+
+* The MQTT client now ignores a refused connection (for example, a bad
+  user name or password).  It logs an error and is not *connected*.
+  Before, a refused connection was set as *connected*
+
+* *set_last_will_and_testament()* now sends DISCONNECT before it stops the
+  paho loop, in the order that paho specifies.  Before, it stopped the
+  loop first and waited for a disconnection that did not occur: about
+  0.9 s on the event loop thread.  Now it takes 2 ms.  A subscription
+  to *#* is also restored after a disconnection.  New tests: in
+  *test_mqtt.py*, and *tests/integration/test_mqtt_reconnect.py*, which
+  starts and stops its own *mosquitto*
 
 ---
 

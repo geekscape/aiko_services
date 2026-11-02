@@ -13,7 +13,7 @@ source:
 related: [design_overview, service, actor, registrar, lease, connection,
   dashboard]
 version: "0.6"
-last_updated: 2026-08-01
+last_updated: 2026-09-28
 ---
 
 # Share (Eventual Consistency)
@@ -264,6 +264,11 @@ Key design points:
   `"ready"` only after the Registrar's `(sync ...)` confirmation. On
   Registrar loss the cache resets to `empty`, and the departed Registrar
   is pushed onto the history ring buffer (4096 entries).
+- **A silent Registrar is reported.** When the first request gets no
+  `(item_count ...)` in 5 s (`_REGISTRAR_REPLY_TIMEOUT`), the cache
+  logs one WARNING. The WARNING names the Registrar and the manual
+  correction: start a current Registrar, or clear the retained
+  announcement. The first reply or a cache reset cancels it.
 - `services_cache_create_singleton()` starts the cache's `run()` on a
   separate `Thread`. Only the instance that started the event loop
   terminates it.

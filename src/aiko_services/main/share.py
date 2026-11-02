@@ -399,10 +399,9 @@ class ECProducerImpl(ECProducer):
         for handler in self.handlers:
             handler(command, item_name, item_value)
         if command == "remove":
-            payload_out = f"({command} {item_name})"
+            payload_out = generate(command, [item_name])
         else:
-            # TODO: Use "generate()" on item_value
-            payload_out = f"({command} {item_name} {item_value})"
+            payload_out = generate(command, [item_name, item_value])
         for lease in self.leases.values():
             if self._filter_compare(lease.filter, item_name):
                 response_topic = lease.lease_uuid
@@ -520,7 +519,7 @@ class ECConsumerImpl(ECConsumer):
     def _share_request(self, lease_time=_LEASE_TIME, lease_uuid=None):
         aiko.message.publish(
             self.ec_producer_topic_control,
-            f"(share {self.topic_share_in} {lease_time} {self.filter})"
+            generate("share", [self.topic_share_in, lease_time, self.filter])
         )
 
     def _update_handlers(self, command, item_name, item_value):
@@ -684,6 +683,7 @@ from threading import Thread
 import time
 
 _HISTORY_RING_BUFFER_SIZE = 4096
+_REGISTRAR_REPLY_TIMEOUT = 5.0  # seconds: warn when the Registrar is silent
 
 class ServicesCache():
     def __init__(self, service, event_loop_start=False, history_limit=0):
@@ -691,6 +691,7 @@ class ServicesCache():
         self._event_loop_start = event_loop_start
         self._event_loop_owner = False
         self._history_limit = history_limit
+        self._reply_timer_pending = False
 
         self._cache_reset()
         self._handlers = set()
@@ -699,6 +700,7 @@ class ServicesCache():
         aiko.connection.add_handler(self._connection_state_handler)
 
     def _cache_reset(self):
+        self._reply_timer_cancel()
         self._begin_registration = False
         self._item_count = None
         self._registrar_service = None
@@ -735,6 +737,9 @@ class ServicesCache():
                 else:
                     self._publish_registrar_share()
                     self._state = "share"
+                self._reply_timer_pending = True
+                event.add_timer_handler(
+                    self._reply_timer, _REGISTRAR_REPLY_TIMEOUT)
         else:
             if self._registrar_topic_out:
                 self._service.remove_message_handler(
@@ -746,6 +751,24 @@ class ServicesCache():
                 if self._registrar_service:
                     self._history.appendleft(self._registrar_service)
                 self._cache_reset()
+
+    def _reply_timer(self):
+        """The first request got no "(item_count ...)": the Registrar that
+        the retained announcement names is probably gone.  Once, bounded"""
+
+        self._reply_timer_cancel()
+        registrar = aiko.registrar["topic_path"] if aiko.registrar else "?"
+        _LOGGER.warning(
+            f"Service cache: no reply from the Registrar {registrar} in "
+            f"{_REGISTRAR_REPLY_TIMEOUT:g} s: its announcement may be stale.  "
+            f"Start a Registrar (a current one replaces a stale announcement), "
+            f"or clear it: mosquitto_pub -t {aiko.TOPIC_REGISTRAR_BOOT} -r -n")
+
+    def _reply_timer_cancel(self):
+        # remove_timer_handler() counts down even when nothing is removed
+        if self._reply_timer_pending:
+            self._reply_timer_pending = False
+            event.remove_timer_handler(self._reply_timer)
 
     def _publish_registrar_history(self):
         aiko.message.publish(
@@ -782,6 +805,7 @@ class ServicesCache():
     def registrar_share_handler(self, aiko, topic_path, payload_in):
         command, parameters = parse(payload_in)
         if command == "item_count" and len(parameters) == 1:
+            self._reply_timer_cancel()
             self._item_count = int(parameters[0])
         elif command == "add" and len(parameters) >= 6:
             if self._item_count is None:
@@ -817,7 +841,12 @@ class ServicesCache():
             sync_topic = parameters[0]
             if sync_topic == self._registrar_topic_share and self._state == "loaded":
                 self._state = "ready"
-        elif command == "add" and len(parameters) == 6:
+        elif command == "add" and len(parameters) >= 6:
+        # ">=", as registrar_share_handler() already has it.  A Registrar
+        # that carries more fields than this client knows about is then a
+        # Registrar this client still works with, and the extra fields are
+        # there for the code that wants them.  "== 6" silently dropped
+        # every registration from a newer Registrar, with one debug line
             service_details = parameters
             self._services.add_service(service_details[0], service_details)
             self._update_handlers(command, service_details)

@@ -6,6 +6,141 @@ Every substantive change appends an entry under its date heading
 This journal begins at the constitution's first public release. The
 pre-publication history is maintained privately.
 
+## 2026-11-02
+
+- **Update** — [../documentation/ReadMe.md](../documentation/ReadMe.md):
+  the map gains the two areas it never listed, `quick_start_guide.md` and
+  `tutorials/`, and a fast path for deploying an instance. A new tutorial,
+  `tutorials/production_instance.md`, documents a 24x7 instance on Linux.
+  One ProcessManager starts with the operating system, and it owns the
+  Registrar, HyperSpace and the Aiko Chat Server. The same change marks the
+  sanctioned private-directory reference in
+  `tutorials/using_a_private_constitution.md`, which names the private
+  repository's own map. The self-containment check now reports an exception
+  there rather than a violation.
+
+- **Update** — [adr/ADR-002_SExpressionWireEncoding.md](adr/ADR-002_SExpressionWireEncoding.md):
+  the consequence that a value holding a space must round-trip through
+  `generate()` now names each known deviation, and the helper that closes
+  one. `utilities/parser.py:generate_symbol()` applies the canonical rule
+  to a single value, for code that must assemble an expression itself.
+  `Dependency.__repr__()` was a deviation, closed the same day: a
+  `storage_url` holding a space broke every Category `(list ...)` response
+  that carried it. `ServiceFilter.__repr__()` is still one, for its tags.
+
+- **Update** — [s_00_Specifications.md](s_00_Specifications.md) section
+  1.1: the canonical length prefix is extracted as a rule, which the
+  section's `[VERIFY]` asks for. A value holding a delimiter, or beginning
+  `digits:`, must carry the prefix. A reader counts more arguments than the
+  writer sent otherwise, and loses the message with no error. The rest of
+  the grammar stays open.
+
+- **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+  section 9: a new failure mode. A code path that only a person can reach
+  survives review, merge and a demonstration. Build the frame and draw it
+  in the test. Evidence: a Dashboard dialog raised on its first draw,
+  every time anyone pressed the key, for a widget whose value was never
+  set.
+
+- **Update** — [g_03_AgentContext.md](g_03_AgentContext.md): four sharp
+  edges join the list. `ServiceFilter.__repr__()` does not escape its
+  tags. `pipeline.py` declares no `FUNCTIONS`, so `create_stream()` takes
+  its parameters from the message bus with no allow list. P12 / ADR-023 is
+  not in force there. A `PopUpDialog` hides a widget that does not fit it,
+  and a `Text` widget raises unless its value is set.
+
+## 2026-11-01
+
+- **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md): the
+  `ProcessManager` entry records the functions the Interface declares. The entry
+  named `spawn` and `terminate`, which it never had. `create` takes a fourth
+  parameter, `cwd`. It is the working directory of the process. A Service that
+  finds its state by the working directory cannot start any other way.
+  HyperSpace file Storage is such a Service, and so is the Chat server that
+  embeds one. Reference implementation
+  `src/aiko_services/main/process_manager.py`.
+
+## 2026-10-30
+
+- **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+  section 9: each failure mode is compressed to the constitution register
+  (project-lead direction). The rule comes first. The narration around it is
+  gone. Three defects go with the compression. The `Agent-claimed "done"` and
+  `D starving` entries shared one paragraph, so neither read as a rule of its
+  own. The `inherited diagnosis` entry now names a note, a memory and a
+  session summary as handovers. A wrong mechanism reached this session from a
+  memory file. `A guard that refuses everything` says `function`, which is
+  the framework's word, not `command`.
+
+## 2026-10-26
+
+- **Update** — [s_01_RepositoryLayout.md](s_01_RepositoryLayout.md): the
+  Dashboard moved again, to `ide/tui/dashboard/`, and an `ide/` tier joins
+  the tree. The Dashboard is a development environment for a person, not
+  an Actor tier Service, so `actors/dashboard/` of 2026-10-23 was the
+  wrong home (project-lead direction). Migration step 5 is amended,
+  because `dashboard` is no longer part of the Actor split. The root
+  `__init__.py` facade re-exports the plug-in interface, so `main/`
+  imports neither tier. The move is two commits, as
+  [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+  section 9 directs, so git keeps the history of each file through a
+  second move.
+
+## 2026-10-23
+
+- **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md): the `Registrar`
+  entry records that a `history` record appends `time_add` and `time_remove`, both
+  `time.monotonic()`, so a reader accepts six fields or more. Giving the Registrar a
+  wall-clock record of each Service is deferred, because the design needs the Registrar to
+  be the one source of that time. Reference implementation
+  `src/aiko_services/main/registrar.py`.
+- **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md): the `Recorder`
+  entry amended. It refines `Actor`, and its functions are `record_start(topic_filter)` and
+  `record_stop(topic_filter)`, because `stop` is the framework's control verb. Reference
+  implementation `src/aiko_services/main/recorder.py`.
+- **Update** — [s_01_RepositoryLayout.md](s_01_RepositoryLayout.md): migration step 5's
+  `dashboard` move, done ahead of the other steps. The root façade re-exports the plug-in
+  interface, so `main/` does not import `actors/`.
+- **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md):
+  the `FunctionGate` aspect joins the runtime Interface list. It holds which
+  functions a Service accepts from the message bus (P12, ADR-023). `Actor`
+  composes it, and its default allows every function, so no Service changed
+  behavior. `interface_functions()` removes what `Actor` and `Service`
+  declare, which enforces ADR-025 decision 1. ADR-023 holds the
+  deny-by-default decision, so the aspect needs no ADR of its own. Reference
+  implementation `src/aiko_services/main/function_gate.py`.
+- **Update** — [adr/ADR-025_RemoteDisplayAbstraction.md](adr/ADR-025_RemoteDisplayAbstraction.md)
+  decision 1, amended: function name aliases are dropped, so one function has
+  one name and a client that sends `(oled:text ...)` or `(exit)` is denied. A
+  client of the MicroPython `aiko_engine_mp` vocabulary must send the plain
+  names. Registry row 025 records the amendment. Reference implementation
+  `src/aiko_services/main/function_gate.py`.
+- **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+  section 9: three failure modes from the aiko01 WhisPlay Actor work, 2026-10-22
+  and 2026-10-23. A deny-by-default guard that called a function which does not
+  exist, with refusal tests that all passed. Three conclusions drawn from broken
+  measurements. A vendor driver read for its constants and not for its comments.
+  The machine-specific findings stay out of this tree.
+
+## 2026-10-21
+
+- **Creation** — [adr/ADR-026_DaemonSupervision.md](adr/ADR-026_DaemonSupervision.md):
+  the operating system starts one daemon for each host, the ProcessManager, and
+  the ProcessManager definition file starts the rest. A `DaemonSupervisor`
+  Interface has one Implementation for each platform, `render` changes nothing
+  and `install` is the only privileged operation. The Interface stays off the
+  message bus for now. Supervisor as an aspect is recorded as the direction, with
+  the authority question that composition must answer. Registry row 026
+  claimed in the same change (024 stays reserved). Reference implementation
+  `src/aiko_services/main/daemon_supervisor/`.
+
+- **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+  section 9: three failure modes from the aiko01 WhisPlay HAT audio work,
+  2026-10-20. An inherited diagnosis that named the symptom and guessed the
+  mechanism. An output file that nothing writes any more. A recovery path never
+  exercised against the real fault. The machine-specific findings stay out of
+  this tree.
+
 ## 2026-09-27
 
 - **Creation** — [adr/ADR-025_RemoteDisplayAbstraction.md](adr/ADR-025_RemoteDisplayAbstraction.md):

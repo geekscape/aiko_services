@@ -11,7 +11,7 @@ source:
   - src/aiko_services/main/utilities/configuration.py
 related: [design_overview, logger]
 version: "0.6"
-last_updated: 2026-08-01
+last_updated: 2026-09-28
 ---
 
 # Configuration utility
@@ -63,8 +63,9 @@ AIKO_PASSWORD=password
 
 | Function | Effect |
 |----------|--------|
-| `get_mqtt_configuration(tls_enabled=None)` | Full connection tuple `(server_up, host, port, transport, username, password, tls_enabled)` |
+| `get_mqtt_configuration(tls_enabled=None)` | Full connection tuple `(server_up, host, port, transport, username, password, tls_enabled, address)` |
 | `get_mqtt_host()` | Probe candidates, return `(server_up, host, port)` |
+| `get_mqtt_host_address()` | Probe candidates, return `(server_up, host, port, address)`: the IP address that answered, or `None` |
 | `get_mqtt_port()` | `AIKO_MQTT_PORT` or 1883 |
 | `get_namespace()` / `get_namespace_prefix()` | `AIKO_NAMESPACE` (default `aiko`); prefix is the part up to and including `:` when present |
 | `get_hostname()` | Short hostname — strips `.local`, abbreviates AWS EC2 names |
@@ -72,8 +73,18 @@ AIKO_PASSWORD=password
 | `create_password(length=32)` | Random hex token (`length` is bytes, so 32 → 64 hex characters) |
 
 `get_mqtt_host()` tries, in order: `AIKO_MQTT_HOST`, the (currently empty)
-hard-coded `_AIKO_MQTT_HOSTS` list, then `localhost` — probing each with a
-plain TCP connect and logging a warning per failed candidate.
+hard-coded `_AIKO_MQTT_HOSTS` list, then `localhost`. For each host, it
+resolves the name one time. Then it tries the IPv4 addresses before the
+IPv6 addresses, with a TCP connect of 2 s at most for each
+(`_MQTT_PROBE_TIMEOUT`). It logs a WARNING for each address that fails,
+and an INFO line for the address that answers.
+
+A host name can resolve to an IPv6 address that is not routable from
+the client. For example, on macOS, a `.local` name can resolve to the
+IPv6 unique local address of a Linux SBC. The MQTT client then connects
+to the address that answered, not to the name (see
+[Message](../message.md)). To select an address yourself, set
+`AIKO_MQTT_HOST` to an IPv4 literal.
 
 Real call sites:
 
@@ -101,9 +112,9 @@ Other users include `dashboard.py` (shows "MQTT SERVER UNAVAILABLE"),
    AIKO_* environment variables
               │
               ▼
-   ┌────────────────────────┐   TCP probe   ┌──────────────┐
-   │ get_mqtt_configuration │──────────────►│ MQTT server  │
-   │ get_namespace/hostname │               └──────────────┘
+   ┌────────────────────────┐ TCP probe, IPv4 ┌────────────┐
+   │ get_mqtt_configuration │────────────────►│ MQTT server│
+   │ get_namespace/hostname │  first, 2 s max └────────────┘
    │ get_username/pid       │
    └────────────────────────┘
         used by: process.py, message/mqtt.py, dashboard.py, ...
@@ -124,9 +135,11 @@ configured.
   broadcast-request / unicast-reply responder (port 4149) so devices
   without DNS/mDNS can find the MQTT server. It is implemented but not in
   `__all__` and currently has **no callers** in the code base.
-- `_host_server_up()` fails fast on connection-refused. The "timeout
-  after N seconds" warning wording is only accurate for genuinely slow
-  hosts.
+- `_resolve_mqtt_host()` fails fast on connection-refused. Each TCP
+  connect has a 2 s limit. Thus a host that is switched off costs 2 s
+  for each address, not the operating system's timeout (about 75 s on
+  macOS). The "timeout after N seconds" WARNING gives the total
+  time for one host.
 
 ### CRC card
 
@@ -143,10 +156,10 @@ From the source `To Do` list:
 - Move discovery and bootstrap functions into `message/discovery.py`.
   Implement discovery of the default MQTT hostname and namespace
   (including a `Namespace` class)
-- Tests are listed in the header (`unset AIKO_MQTT_HOST`, bad hostname,
-  host without a broker) but none exist yet — the module has no unit tests
-- The header's return-tuple comment omits the leading `server_up` element
-  that `get_mqtt_configuration()` actually returns
+- `tests/unit/test_configuration.py` covers the address order, the
+  timeouts, an unknown name, a literal address and the configuration
+  tuple, with fake sockets. The header's other cases (no
+  `AIKO_MQTT_HOST`, a host without a server) have no tests yet
 
 ## Related concepts
 
