@@ -77,6 +77,10 @@ the `out` topic, and a frame is bulk data in CP-F's terms, so the feed needed a 
    plug-in and `aiko_display key`. A mapped letter cannot reach a running applet, which was the
    emulator window's rule already. A foreign device ships its own map and legend, and the
    same clients drive it.
+
+   *Amended 2026-09-28: a `down` holds a key for 2 s at most (`KEY_DOWN_MAXIMUM`), so that a
+   lost `up` cannot hold a key for ever (P9). A client that holds a key for longer sends
+   `down` again. The Dashboard page and the emulator window send it each second.*
 4. **Capabilities are traits in the share (P3).** `size`, `origin`, `depth`, `panels`,
    `backend`, `applets`, `settings` and `keys.*` tell a client what the display is, so a
    client adapts without code. The Actor validates every value (P12), and a client does not

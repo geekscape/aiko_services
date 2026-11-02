@@ -247,7 +247,9 @@ version-divergence hole §3.7.
 - **Fixtures reset process-global state** — `aiko.message`, `aiko.registrar` and the event
   loop's timers outlive a test. A test that terminates the process (a CLI `run` test)
   leaves the message layer unset, and later tests in the same session fail on order
-  (observed 2026-09-27 in the display tests). Broker-backed integration tests need a
+  (observed 2026-09-27 in the display tests). `tests/unit/conftest.py` restores the event
+  loop's timers and mailboxes after each unit test, and `AIKO_TEST_REPORT_LEAKS=1` lists the
+  tests that leave them behind (2026-11-02). Broker-backed integration tests need a
   mosquitto service in CI. Without one they must skip visibly, never pass vacuously.
 - **The test fabric** (bench + proving-ground + Pi, per g_02_ClaudeCodeOperatingGuide) hosts multi-host, scale, and
   cross-language runs. Three real heterogeneous hosts are the honest environment for a

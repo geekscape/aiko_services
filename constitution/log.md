@@ -8,6 +8,28 @@ pre-publication history is maintained privately.
 
 ## 2026-11-02
 
+- **Update** — the Display Actor's Epic 1 learning, brought up to date with the
+  work that merged after it:
+  - [adr/ADR-025_RemoteDisplayAbstraction.md](adr/ADR-025_RemoteDisplayAbstraction.md)
+    decision 3: an amendment records that a `down` holds a key for 2 s at most
+    (`KEY_DOWN_MAXIMUM`). A client that holds a key sends `down` again.
+  - [adr/ADR-002_SExpressionWireEncoding.md](adr/ADR-002_SExpressionWireEncoding.md):
+    the ProcessManager `(list ...)` reply is a fourth known deviation, closed
+    the same day. An argument such as `8080:127.0.0.1:8080` was read as a
+    length prefix.
+  - [g_03_AgentContext.md](g_03_AgentContext.md): the Registrar entry no longer
+    tells an operator to clear a stale announcement, because the s_00 §1.4
+    liveness probe replaces it (since 2026-10-01). The `.local` IPv6 entry is
+    removed, because the MQTT client tries IPv4 first and connects to the
+    address that answered (2026-10-01). The two `remove_message_handler()`
+    entries become one, which cites PR #55. A new entry: patch process-global
+    state on its class, not on `aiko.process`.
+  - [e_03_FirstClassAgents.md](e_03_FirstClassAgents.md) task T6 names the
+    shape document, `documentation/actors/display/parameters_streams_shape.md`.
+  - [e_06_TestingStrategy.md](e_06_TestingStrategy.md): the rule "Fixtures
+    reset process-global state" cites `tests/unit/conftest.py`, which restores
+    the event loop's timers and mailboxes after each unit test.
+
 - **Update** — [../documentation/ReadMe.md](../documentation/ReadMe.md):
   the map gains the two areas it never listed, `quick_start_guide.md` and
   `tutorials/`, and a fast path for deploying an instance. A new tutorial,
