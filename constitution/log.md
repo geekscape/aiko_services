@@ -8,6 +8,14 @@ pre-publication history is maintained privately.
 
 ## 2026-11-02
 
+- **Update** — [adr/ReadMe.md](adr/ReadMe.md),
+  [adr/ADR-025_RemoteDisplayAbstraction.md](adr/ADR-025_RemoteDisplayAbstraction.md)
+  and [adr/ADR-026_DaemonSupervision.md](adr/ADR-026_DaemonSupervision.md):
+  both ADRs become `normative`, accepted on the dates that their moves
+  merged. ADR-025 was accepted on 2026-09-27 (#108), and ADR-026 on
+  2026-10-21 (#119). Each move asked the lead to accept the ADR as written
+  or to amend it, and the lead merged it.
+
 - **Update** — [adr/ReadMe.md](adr/ReadMe.md) and
   [adr/ADR-025_RemoteDisplayAbstraction.md](adr/ADR-025_RemoteDisplayAbstraction.md):
   the registry row and the ADR's `last_updated` record the amendment of

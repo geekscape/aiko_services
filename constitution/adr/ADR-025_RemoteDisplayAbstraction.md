@@ -8,7 +8,7 @@ description: Splits the OLED example's protocol into three aspect Interfaces
   a documented CP-F gray area
 type: adr
 audience: [project-lead, architects, developers, ai-coding-agents]
-status: proposal
+status: normative
 ste: adapted
 related: [ReadMe, ADR-022_CompositionBoundary, ADR-023_GuardedEvalDefaultDeny,
   ../p_00_DesignPrinciples, ../p_02_CandidatePrinciples,
