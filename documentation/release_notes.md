@@ -441,6 +441,15 @@ remote callers are unaffected.  For Python code:
   *test_mqtt.py*, and *tests/integration/test_mqtt_reconnect.py*, which
   starts and stops its own *mosquitto*
 
+* The ProcessManager's *list* reply is built with *generate()*.  An
+  example of the problem is the *-L 8080:127.0.0.1:8080* argument of an
+  ssh tunnel.  Before, the client read an argument that starts with digits
+  and a colon as a length prefix.  The client's *parse()* then failed with a *TypeError*,
+  and *aiko_process list* timed out.  *parse()* now raises *ValueError* for
+  a malformed payload: a length prefix longer than the payload, or a list
+  without its closing parenthesis.  *do_request()* logs and drops a
+  response that does not parse.  New *test_parser.py*
+
 ---
 
 ## Release Notes v0.7

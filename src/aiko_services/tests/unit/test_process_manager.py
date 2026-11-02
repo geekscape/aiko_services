@@ -23,6 +23,8 @@ import json
 
 import pytest
 
+from aiko_services.main.utilities.parser import parse
+
 from aiko_services.main.process_manager import ProcessManagerImpl
 
 class FakeLogger:
@@ -669,6 +671,24 @@ def test_list_publishes_to_a_topic_in_its_own_namespace(monkeypatch):
     assert message.published
     assert all(topic == own for topic, _ in message.published)
     assert message.published[0][1].startswith("(item_count")
+
+def test_list_reply_round_trips_every_argument(monkeypatch):
+    """A definition entry can hold an argument that starts with digits and a
+    colon, such as ssh's "-L 8080:127.0.0.1:8080".  Before the reply used
+    generate(), the client read "8080:" as a length prefix and its parse()
+    failed (found on a Raspberry Pi, 2026-11-02)"""
+
+    actor, _ = make_process_manager()
+    command = ["ssh", "-N", "-L", "8080:127.0.0.1:8080", "two words", "devops@host"]
+    monkeypatch.setattr(actor, "processes", {"000003": None})
+    monkeypatch.setattr(actor, "_get_process_info", lambda uid: (command, 7216))
+    message = fake_message(monkeypatch)
+
+    actor.list(f"{actor.topic_path}/in")
+
+    payloads = [payload for _, payload in message.published]
+    assert parse(payloads[0]) == ("item_count", ["1"])
+    assert parse(payloads[1]) == ("response", ["000003", "7216", *command])
 
 # The process table in the shared state ------------------------------------ #
 

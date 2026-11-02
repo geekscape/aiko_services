@@ -134,7 +134,12 @@ def generate_s_expression(expression: List) -> str:
 RE_CANONICAL_SYMBOL = re.compile(r"^(\d+):(.+)", re.DOTALL)  # length:data
 RE_STRING = re.compile(r"""(['"])(.*?)\1""")                 # "text" or 'text'
 
-def parse(payload: str, car_cdr=True, dictionaries_flag=True):
+def parse(payload: str, car_cdr=True, dictionaries_flag=True, _nested=False):
+    """An S-expression payload as (car, cdr), or as one list when car_cdr
+    is False.  Raises ValueError for a payload that is not well formed: a
+    length prefix "N:" with fewer than N characters after it, or a list
+    without its closing parenthesis"""
+
     result = []
     token = ""
     i = 0
@@ -143,6 +148,10 @@ def parse(payload: str, car_cdr=True, dictionaries_flag=True):
             match = RE_CANONICAL_SYMBOL.match(payload[i:])
             if match:
                 token_length = match.group(1)
+                if int(token_length) > len(match.group(2)):
+                    raise ValueError(
+                        f'Length prefix "{token_length}:" is longer than the '
+                        f'{len(match.group(2))} characters that follow it')
                 if int(token_length) == 0:
                     token = None
                 else:
@@ -160,7 +169,7 @@ def parse(payload: str, car_cdr=True, dictionaries_flag=True):
 
         c = payload[i]
         if c == "(":
-            sublist, j = parse(payload[i+1:])
+            sublist, j = parse(payload[i+1:], _nested=True)
             i += j
             result.append(sublist)
         elif c == ")":
@@ -175,6 +184,8 @@ def parse(payload: str, car_cdr=True, dictionaries_flag=True):
         else:
             token += c
         i += 1
+    if _nested:
+        raise ValueError('A list has no closing ")"')
     if token:
         result.append(token)
 

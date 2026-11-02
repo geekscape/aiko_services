@@ -182,6 +182,20 @@ Mixing positional and keyword parameters is illegal and raises
 parse("(a b: 1 b)")    # ValueError: ... must have pairs of keywords and values
 ```
 
+A payload that is not well formed also raises `ValueError`. There are two
+cases. A length prefix `N:` can have fewer than `N` characters after it.
+For example, an unquoted `12:30` is read as a prefix of 12. A list can also
+have no closing `)`. Thus a caller catches one exception type for every
+malformed payload:
+
+```python
+parse("(log 12:30 lunch)")  # ValueError: Length prefix "12:" is longer than ...
+parse("(text 0 0 hello")    # ValueError: A list has no closing ")"
+```
+
+A payload that `generate()` wrote never raises, because `generate()`
+length-prefixes each symbol that starts with digits and a colon.
+
 By default the result is split into **car** (the command, first element)
 and **cdr** (the parameter list). Two keyword arguments change this:
 
