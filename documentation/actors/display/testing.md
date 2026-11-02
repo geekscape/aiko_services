@@ -54,10 +54,10 @@ for the commands. The whole guide takes about an hour.
 Two deployment traps:
 
 - A stale retained Registrar announcement stops discovery. The symptom
-  is "No Display Actors found" although the Actor runs. A Registrar with
-  the liveness probe (branch `andyg/registrar-liveness`) replaces the
-  stale announcement by itself, in about 5 s. With an older Registrar,
-  clear it, then restart the Registrar:
+  is "No Display Actors found" although the Actor runs. Since 2026-10-01
+  the Registrar's liveness probe replaces a stale announcement by itself,
+  in about 5 s. With a Registrar older than that, clear the announcement,
+  then restart the Registrar:
 
   ```bash
   mosquitto_pub -t aiko/service/registrar -r -n

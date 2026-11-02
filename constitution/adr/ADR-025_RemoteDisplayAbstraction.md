@@ -8,12 +8,12 @@ description: Splits the OLED example's protocol into three aspect Interfaces
   a documented CP-F gray area
 type: adr
 audience: [project-lead, architects, developers, ai-coding-agents]
-status: proposal
+status: normative
 ste: adapted
 related: [ReadMe, ADR-022_CompositionBoundary, ADR-023_GuardedEvalDefaultDeny,
   ../p_00_DesignPrinciples, ../p_02_CandidatePrinciples,
   ../s_02_InterfaceComposition]
-last_updated: 2026-10-23
+last_updated: 2026-11-02
 ---
 
 # ADR-025 — Remote display abstraction: the `display:0` composite, aspect tags, the key map on the device, a bounded in-band mirror

@@ -10,7 +10,7 @@ ste: adapted
 source:
   - src/aiko_services/main/utilities/parser.py
 related: [design_overview, service, actor, share, registrar, graph,
-  ../../adr/ADR-002_SExpressionWireEncoding, ../../z_hy_assessment]
+  ../../../constitution/adr/ADR-002_SExpressionWireEncoding]
 version: "0.7"
 last_updated: 2026-11-02
 ---
@@ -324,16 +324,19 @@ From the source `To Do` list — all planned, none implemented:
   `hyrule` Python modules — **narrowed 2026-08-14**: as helpers *beside*
   this module, never as a replacement for it. The wire grammar is
   canonical S-expressions, fixed by
-  [ADR-002](../../adr/ADR-002_SExpressionWireEncoding.md), with a second
+  [ADR-002](../../../constitution/adr/ADR-002_SExpressionWireEncoding.md), with a second
   implementation in MicroPython (`aiko_engine_mp`) that the ADR cites as
   its existence proof. Hy's reader is a different grammar. To adopt it as
   the codec would change the wire format and break that proof. Hy models
-  belong inside the e_05 operator shell and nowhere else. Evidence:
-  [z_hy_assessment](../../z_hy_assessment.md)
+  belong inside the e_05 operator shell and nowhere else. Evidence: the
+  Hy assessment of 2026-08-14 [Privately maintained]
 - Sweep the code base for hand-assembled payloads that should use
-  `generate()` — the header names `process.py`
-  (`_add_service_to_registrar()`), `recorder.py`, `share.py`
-  (`_update_consumers()`) and `transport/transport_mqtt.py` among others
+  `generate()` — `process.py` (`_add_service_to_registrar()`) still
+  assembles its `(add ...)` with an f-string. These are closed:
+  `share.py` (`_update_consumers()`, 2026-10-15), the ProcessManager's
+  `list` reply (2026-11-02), and `transport/transport_mqtt.py`. The
+  `recorder.py` stores and publishes each record through its ECProducer,
+  which encodes it
 
 Known behavioral sharp edges (implemented, but easy to trip over):
 numbers and booleans do not round-trip typed. Quoted strings are
