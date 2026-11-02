@@ -8,6 +8,12 @@ pre-publication history is maintained privately.
 
 ## 2026-11-02
 
+- **Update** — [adr/ReadMe.md](adr/ReadMe.md) and
+  [adr/ADR-025_RemoteDisplayAbstraction.md](adr/ADR-025_RemoteDisplayAbstraction.md):
+  the registry row and the ADR's `last_updated` record the amendment of
+  2026-11-02 (a `down` holds a key for 2 s at most), which the previous
+  move made without them.
+
 - **Update** — the operating lessons of the Display Actor session (CC6a), from
   bringing an edge host into production and from four framework pull requests:
   - [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
