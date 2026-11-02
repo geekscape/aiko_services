@@ -78,12 +78,16 @@ PipelineDefinition file's content), never for control messages themselves.
   `utilities/parser.py:generate_symbol()` applies the canonical rule to
   one value, for the places that must assemble an expression themselves.
   Known deviations, each one a g_03 sharp edge:
-  - the ECProducer incremental update
+  - the ECProducer incremental update was the first, closed 2026-10-15. It
+    is now built with `generate()`, as the snapshot is
   - `ServiceFilter.__repr__()` joins its tags with a space. Thus one tag
     that holds a space arrives as two tags
   - `Dependency.__repr__()` was a third, closed 2026-11-02. A
     `storage_url` that held a space broke each Category `(list ...)`
     response that carried it
+  - the ProcessManager `(list ...)` reply was a fourth, closed 2026-11-02.
+    A command argument that started with digits and a colon, such as
+    `8080:127.0.0.1:8080`, was read as a length prefix
 - Evidence trail: s_00 §1.1 (rationale as previously cited). P1, P8, P9,
   P10. e_05 (LISP shell). `utilities/parser.py`. `aiko_engine_mp`
   (MicroPython implementation as existence proof of the microcontroller
