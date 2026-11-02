@@ -78,7 +78,8 @@ PipelineDefinition file's content), never for control messages themselves.
   `utilities/parser.py:generate_symbol()` applies the canonical rule to
   one value, for the places that must assemble an expression themselves.
   Known deviations, each one a g_03 sharp edge:
-  - the ECProducer incremental update
+  - the ECProducer incremental update was the first, closed 2026-10-15. It
+    is now built with `generate()`, as the snapshot is
   - `ServiceFilter.__repr__()` joins its tags with a space. Thus one tag
     that holds a space arrives as two tags
   - `Dependency.__repr__()` was a third, closed 2026-11-02. A

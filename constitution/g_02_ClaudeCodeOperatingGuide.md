@@ -55,6 +55,11 @@ With the Pi from V4.1, the bench, the proving ground and the Pi form a genuinely
 test fabric. Three heterogeneous hosts are the honest test environment for a framework whose
 whole point is distribution.
 
+**A deployed host has two accounts.** Production runs under its own account, started by one
+systemd unit that runs one ProcessManager (ADR-026). Agent work uses a second, development
+account. On the w3029f edge hosts these are `pi` and `claude`. Test in a copy under `/tmp`,
+never in the production clone or its virtual environment.
+
 ## 3. Repositories and their roles
 
 - **aiko_services** — the center. All five workstreams touch it.
@@ -321,3 +326,33 @@ you copy from, in each language that the file uses. One session copied the pins,
 and the initialization sequence correctly. It missed a Chinese comment beside the button
 handler, which gave the button polarity. Inverted polarity does not stop the program: it looks
 correct until a person holds the button down and then releases it.
+
+**A pattern as the target** (2026-10-23, 2026-11-02). Resolve a kill, a removal or a publish to
+an exact process id, path or topic, and confirm that it is yours, before you act. The
+development host runs the lead's own long-lived Services in the default namespace. A pattern
+wide enough to match a test process matches them too. Run test Services in
+`AIKO_NAMESPACE=aikotest`.
+
+**An editable install that points elsewhere** (2026-11-02). Test a worktree with
+`PYTHONPATH=src`, or print `aiko_services.__file__` first. An editable install follows the
+checkout that last ran `pip install -e`. One test run passed against a different checkout,
+which held the lead's uncommitted changes.
+
+**A commit after the review push** (2026-11-02). Compare the pull request's head with the
+local branch before the lead merges. A commit added after the push is not in the pull request.
+One test fix missed its merge this way, and it needed a second pull request.
+
+**A copy that carries its host's metadata** (2026-11-02). Copy a tree to another host with
+`git archive`, `rsync` or `COPYFILE_DISABLE=1 tar --no-xattrs`. The macOS `tar` adds
+extended-attribute entries. On Linux their extracted leftovers were read as Pipeline
+definitions, and eight tests failed for no fault in the code. Sibling of *a measurement that
+was itself broken*.
+
+**A verb that names no object** (2026-11-01). Name what a command acts on: "restart the Aiko
+processes", "reboot the host". The word "restart" was read as a reboot, and the host went
+down during a change.
+
+**A sharp edge that outlives its fix** (2026-11-02). A pull request that fixes a g_03 sharp
+edge, or implements an s_00 requirement, names the constitution passage that it makes stale.
+The next move corrects it. Two fixes merged on 2026-10-01. For a month after them, g_03
+still told agents to clear a stale Registrar announcement by hand and to avoid `.local` names.

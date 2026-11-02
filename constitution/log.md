@@ -8,6 +8,24 @@ pre-publication history is maintained privately.
 
 ## 2026-11-02
 
+- **Update** — the operating lessons of the Display Actor session (CC6a), from
+  bringing an edge host into production and from four framework pull requests:
+  - [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+    section 2: a deployed host has a production account and a development
+    account, and an agent tests in a copy under `/tmp`. Section 9: six
+    failure modes. They are a pattern as the target, an editable install
+    that points elsewhere, a commit after the review push, a copy that
+    carries its host's metadata, a verb that names no object, and a sharp
+    edge that outlives its fix.
+  - [g_03_AgentContext.md](g_03_AgentContext.md): the ECProducer encoding
+    entry is removed, because incremental updates use `generate()` since
+    2026-10-15. New entries: the ProcessManager does not relaunch a process
+    that exits, and `CaptureLimit` has no unlimited mode.
+  - [adr/ADR-002_SExpressionWireEncoding.md](adr/ADR-002_SExpressionWireEncoding.md):
+    the ECProducer deviation is marked closed (2026-10-15).
+  - [e_06_TestingStrategy.md](e_06_TestingStrategy.md): two rules. A timing
+    test waits for its outcome, and the full suite runs on each target host.
+
 - **Update** — the Display Actor's Epic 1 learning, brought up to date with the
   work that merged after it:
   - [adr/ADR-025_RemoteDisplayAbstraction.md](adr/ADR-025_RemoteDisplayAbstraction.md)

@@ -297,9 +297,6 @@ aiko_registrar  aiko_dashboard  aiko_pipeline  aiko_process  aiko_hyperspace   #
 - **Never write `self.share[…]` directly** — always use `ec_producer.update()`. Direct writes
   (`ActorImpl.run()` "running", `PipelineImpl.set_parameter()`) are invisible to remote
   observers and the Dashboard.
-- **ECProducer incremental updates are f-string-built, not `generate()`-encoded** — values
-  that contain spaces or nesting do not round-trip. Snapshot and incremental encodings can
-  disagree for the same value.
 - **`event.py remove_timer_handler()` can remove the wrong timer** when one function backs
   several timers — use distinct bound methods per timer (Lease uses this pattern).
 - **Registrar election is fragile under partition** (simultaneous self-promotion). Also,
@@ -314,6 +311,13 @@ aiko_registrar  aiko_dashboard  aiko_pipeline  aiko_process  aiko_hyperspace   #
 - **`compose_class()` reads `PROTOCOL` from the seed class only** — a `PROTOCOL` on a mixed-in
   Interface is documentary. A default Impl's methods must work without its constructor
   (s_02 §4).
+- **The ProcessManager does not relaunch a process that exits** — `--watchdog` is recorded,
+  not acted on (ADR-026), and systemd restarts only the ProcessManager. Wrap a long-running
+  definition entry in a respawn loop until it does. A ProcessManager that exits outside
+  systemd leaves its children running (observed 2026-11-02, cause not found).
+- **`CaptureLimit` has no unlimited mode** — without a parameter it applies a default
+  duration. Continuous recording uses a long `duration` and a restart. Project-lead direction
+  (2026-11-02): replace it with a resource limit, probably on a Lease.
 - **Placeholders, not bugs to "fix" casually**: `utilities/metrics.py` does not compile.
   `utilities/probe.py` is a zero-byte file. The `utilities/thread.py` ThreadManager is
   implemented but unwired (ProcessManager carries the `TODO: Use ThreadManager`).
