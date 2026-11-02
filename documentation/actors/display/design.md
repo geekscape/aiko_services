@@ -13,7 +13,7 @@ source:
 related: [actor, dashboard, dashboard_plugin, registrar, share, lease,
   ../../../constitution/adr/ADR-025_RemoteDisplayAbstraction]
 version: "0.8-dev"
-last_updated: 2026-09-28
+last_updated: 2026-11-02
 ---
 
 # Display Actor design — what it proves, what it taught, where it goes
@@ -146,7 +146,7 @@ does not know is logged as an ERROR, "Function not found".
   in the protocol document. The 8x8 font (deferred phase 5) gives the
   same pixels.
 - **Epic 3.** Events on `out`: `(applet NAME started|finished)`,
-  `(rejected METHOD REASON)`, `(panel DEVICE ok|absent)`,
+  `(denied METHOD REASON)`, `(panel DEVICE ok|absent)`,
   `(mirror TOPIC created|destroyed)`, each also in the share. Promote
   `Canvas`, `Screen` and `Interaction` to framework Interfaces when
   Parameters and Streams compose with Actor
