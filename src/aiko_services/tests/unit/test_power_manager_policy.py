@@ -281,7 +281,8 @@ def test_no_threshold_is_the_cell_damage_limit():
     absolute = [name for name in THRESHOLDS
         if "volts" in name and name not in differences]
     assert sorted(absolute) == [
-        "battery_volts_floor", "battery_volts_low", "quiesce_volts"]
+        "battery_volts_charged", "battery_volts_floor", "battery_volts_low",
+        "quiesce_volts"]
     for name in absolute:
         assert float(THRESHOLDS[name]) > CELL_DAMAGE_VOLTS, name
 
@@ -609,3 +610,68 @@ def test_no_decision_reads_the_supply_warning():
     for name in ("decide", "decide_action", "_rows", "decide_mode"):
         source = inspect.getsource(getattr(policy, name))
         assert "supply_" not in source, name
+
+# A full battery pack shows no headroom either ------------------------------ #
+#
+# Found on 2026-11-06.  A larger supply charged the battery pack from
+# 9.9 V to
+# 11.13 V, and the headroom warning stayed on, because a charger that has
+# finished leaves no headroom.  So headroom alone cannot tell a healthy
+# host from a starved one, and on a properly sized supply it would warn for
+# ever: the very noise the warning was meant to avoid.
+
+def test_a_full_battery_pack_with_no_headroom_is_not_warned_about():
+    """The false positive.  The charger has stopped, which is why there is
+    no headroom, and nothing is wrong"""
+
+    assert supply_warning(12.5, 0.6, 12.3, True, THRESHOLDS) is None
+
+def test_a_starved_battery_pack_with_no_headroom_is_still_warned_about():
+    """The measurement that started all this: a supply 0.33 V above a
+    battery pack
+    that had never been charged"""
+
+    assert supply_warning(10.220, 1.20, 9.894, True, THRESHOLDS)  \
+        == "supply_headroom"
+
+def test_a_part_charged_battery_pack_is_still_warned_about():
+    """The state after the larger supply: charging, and capped well below
+    full by the supply's own voltage.  That is worth saying"""
+
+    assert supply_warning(11.434, 0.667, 11.116, True, THRESHOLDS)  \
+        == "supply_headroom"
+
+def test_the_boundary_is_the_charged_voltage():
+    charged = THRESHOLDS["battery_volts_charged"]
+    assert supply_warning(charged + 0.2, 0.6, charged - 0.01, True,
+        THRESHOLDS) == "supply_headroom"
+    assert supply_warning(charged + 0.2, 0.6, charged, True,
+        THRESHOLDS) is None
+
+def test_a_saturated_supply_is_warned_about_even_with_a_full_battery_pack():
+    """A supply at its rating has nothing spare, whatever the battery pack
+    reads.
+    That is a fact about the supply and not about the charging"""
+
+    thresholds = {**THRESHOLDS, "supply_amps_maximum": 1.5}
+    assert supply_warning(12.5, 1.5, 12.3, True, thresholds)  \
+        == "supply_current"
+
+def test_turning_the_charged_voltage_off_restores_the_noise():
+    """Documented rather than hidden: without it the headroom check cannot
+    tell the two apart, and says so about both"""
+
+    thresholds = {**THRESHOLDS, "battery_volts_charged": None}
+    assert supply_warning(12.5, 0.6, 12.3, True, thresholds)  \
+        == "supply_headroom"
+
+def test_the_charged_voltage_is_above_every_other_battery_pack_voltage():
+    """A battery pack counts as charged well above every voltage that means
+    trouble.  Each is asserted on its own, because the quiesce and low
+    pair is itself the wrong way round and a chain would read as though it
+    were not"""
+
+    charged = THRESHOLDS["battery_volts_charged"]
+    for name in ("quiesce_volts", "battery_volts_low",
+        "battery_volts_floor"):
+        assert charged > THRESHOLDS[name], name

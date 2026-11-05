@@ -446,3 +446,24 @@ def test_no_voltage_given_leaves_every_threshold_shipped(monkeypatch):
     actor, _ = run_with(monkeypatch)
     for name in ("quiesce_volts", "battery_volts_low", "battery_volts_floor"):
         assert actor.share["thresholds"][name] == str(THRESHOLDS[name]), name
+
+def test_the_rating_line_names_what_is_checked_not_the_rating(monkeypatch):
+    """The first version of this line printed the rating twice, so it read
+    "above 1.5 A of its 1.5 A rating": a threshold nothing reaches"""
+
+    _, result = run_with(monkeypatch, "--supply_amps_maximum", "1.5")
+    at = 1.5 * THRESHOLDS["supply_amps_fraction"]
+    assert f"above {at:g} A of its 1.5 A rating" in result.output
+
+def test_the_charged_voltage_reaches_the_policy(monkeypatch):
+    actor, _ = run_with(monkeypatch, "--battery_volts_charged", "12.2")
+    assert actor.share["thresholds"]["battery_volts_charged"] == "12.2"
+
+def test_a_charged_voltage_below_the_quiesce_voltage_is_refused(monkeypatch):
+    """A battery pack counts as charged well above the voltage at which
+    writing
+    stops, or the gate it provides means nothing"""
+
+    result = refused(monkeypatch, "--battery_volts_charged", "10.0")
+    assert result.exit_code != 0, result.output
+    assert "must be above" in result.output
