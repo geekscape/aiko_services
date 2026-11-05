@@ -10,7 +10,24 @@ says which kind of interface it is.
 ```bash
 aiko_dashboard                       # the pages below, with no flag
 aiko_dashboard --plugin MODULE ...   # and the pages that MODULE registers
+aiko_dashboard --utc                 # date/times as stored, not local
 ```
+
+## Date and time
+
+Every date/time on a page is shown in local time, because a person reads
+the Dashboard against the clock on their own wall. The value on the
+message bus does not change: it is stored and published in UTC, and the
+conversion is for display only.
+
+`--utc` turns the conversion off and shows what is stored, which is what
+comparing two hosts in different zones needs.
+
+A page gets this for free through `_update_field()`. A page that formats
+a value for itself must call `display_value()` for the same behavior.
+Only a date/time that carries an offset is converted: one without an
+offset states no zone, and guessing UTC for it would move a reading by
+hours.
 
 ## The files
 

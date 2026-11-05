@@ -22,7 +22,7 @@ group and this package do not compete for one name.
 
 from aiko_services.ide.tui.dashboard.frames import (  # noqa: F401
     Field, FormFrame, FrameCommon, ListRequest, LogUI, ServiceFrame,
-    choice_field, radio_field, text_field,
+    choice_field, display_value, radio_field, set_display_utc, text_field,
 )
 # LogLevelPopupMenu asks DashboardFrame for the singleton, so it lives with
 # the application.  A plug-in does not need to know that
@@ -32,5 +32,6 @@ from aiko_services.ide.tui.dashboard.dashboard import (  # noqa: F401
 
 __all__ = [
     "Field", "FormFrame", "FrameCommon", "ListRequest", "LogLevelPopupMenu",
-    "LogUI", "ServiceFrame", "choice_field", "radio_field", "text_field",
+    "LogUI", "ServiceFrame", "choice_field", "display_value",
+    "radio_field", "set_display_utc", "text_field",
 ]

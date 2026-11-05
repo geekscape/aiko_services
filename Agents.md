@@ -14,6 +14,14 @@ the git guard hooks are constitutional: never bypass them.
   is ambiguous.
 - **ReadMe files:** always name them `ReadMe.md` (CamelCase style), not
   `README.md`.
+- **Date and time:** store and publish in UTC. Display in local time.
+  Local time is the default everywhere a person reads a date/time: a
+  terminal interface, a command's output, a graph, a report. It is what
+  they compare against the clock on their own wall. A tool that shows
+  date/times offers `--utc` for the stored form, which is what comparing
+  hosts in different zones needs. `display_time()` in
+  `main/utilities/utc_iso8601.py` is the one conversion. It leaves
+  anything that is not a date/time with an offset exactly as it is.
 - **STE:** when writing plans or documentation, use ASD-STE100 Simplified
   Technical English (STE) at the level the document's `ste:` front-matter
   field declares. Rules digest, project profile and global switch:
