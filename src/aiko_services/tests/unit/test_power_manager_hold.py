@@ -26,7 +26,11 @@ from aiko_services.actors.power_manager.hold import hold_tool, run_tool
 
 _counter = itertools.count()
 
-# What the utility prints, as read from the hardware
+# What the utility prints, as read from the hardware.  ASSERTED is the one
+# that matters: it is what GPIO 5 reports after "set 5 op dh" on the board,
+# on 2026-11-05.  The drive column reads "--" and not "dh", so a parser that
+# looked for the drive would call an asserted hold "unknown"
+ASSERTED = " 5: op -- pu | hi // GPIO5 = output"
 DRIVEN_HIGH = " 5: op dh pu | hi // GPIO5 = output"
 DRIVEN_LOW = "14: op -- pn | lo // GPIO14 = output"
 INPUT_HIGH = " 5: ip    pu | hi // GPIO5 = input"
@@ -68,6 +72,12 @@ def test_a_platform_with_no_utility_raises_hold_not_available():
         set_hold(True, runner=refuse)
 
 # Reading the hold -------------------------------------------------------- #
+
+def test_the_line_as_the_board_reports_it_after_an_assert_is_a_hold():
+    """Read from the hardware on 2026-11-05.  The drive column is "--",
+    so the level after the bar is the only evidence of the state"""
+
+    assert hold_state(runner=runner_of(ASSERTED)) == HOLD_ON
 
 def test_a_driven_line_that_is_high_is_a_hold():
     assert hold_state(runner=runner_of(DRIVEN_HIGH)) == HOLD_ON
