@@ -11,7 +11,7 @@
 # and the dwell is what separates a sag from a reason.
 #
 # The one thing to read first is that nothing here names an application.
-# A client that needs the host asks for a power-up Lease and holds a Lease, so the
+# A client that needs the host asks for a powered-up Lease and holds a Lease, so the
 # rule counts claims (ADR-028 decision 13).  A host that nothing claims
 # stops after a grace, and a client that cannot be reached cannot hold a
 # claim, so "nobody answered" and "nobody needs me" are one thing.
@@ -30,8 +30,8 @@ def when(**changes):
 
     case = dict(
         volts=12.0, battery_pack_celsius=25.0, docked=False, properties=EVERY,
-        power_up_held=1, button_held=False,
-        undocked_s=10.0, battery_low_s=0.0, power_up_idle_s=0.0,
+        powered_up_held=1, button_held=False,
+        undocked_s=10.0, battery_low_s=0.0, powered_up_idle_s=0.0,
         thresholds=THRESHOLDS)
     case.update(changes)
     return decide(**case)
@@ -43,14 +43,14 @@ def test_the_button_beats_everything():
 
     assert when(button_held=True) == (SHUTDOWN, "button_held")
     assert when(button_held=True, docked=True) == (SHUTDOWN, "button_held")
-    assert when(button_held=True, power_up_held=9, volts=12.6)  \
+    assert when(button_held=True, powered_up_held=9, volts=12.6)  \
         == (SHUTDOWN, "button_held")
 
 def test_the_floor_beats_every_claim():
     """A battery pack that is damaged is damaged for good, and work can
     wait.  A Lease asks, and it never commands"""
 
-    assert when(volts=9.8, power_up_held=9) == (SHUTDOWN, "battery_floor")
+    assert when(volts=9.8, powered_up_held=9) == (SHUTDOWN, "battery_floor")
 
 def test_the_floor_is_a_boundary_not_a_range():
     assert when(volts=9.9)[0] == HOLD        # At the floor, not under it
@@ -85,21 +85,21 @@ def test_the_bound_applies_however_many_claims_are_held():
     """Otherwise a client that keeps extending its claim holds the power
     until the battery pack is empty"""
 
-    assert when(power_up_held=9, undocked_s=3601.0)  \
+    assert when(powered_up_held=9, undocked_s=3601.0)  \
         == (SHUTDOWN, "undocked_timeout")
 
 def test_a_host_that_nothing_claims_stops_after_its_grace():
-    assert when(power_up_held=0, power_up_idle_s=61.0)  \
-        == (SHUTDOWN, "power_up_idle")
+    assert when(powered_up_held=0, powered_up_idle_s=61.0)  \
+        == (SHUTDOWN, "powered_up_idle")
 
 def test_a_host_within_its_grace_holds_and_says_which():
-    assert when(power_up_held=0, power_up_idle_s=5.0) == (HOLD, "power_up_grace")
+    assert when(powered_up_held=0, powered_up_idle_s=5.0) == (HOLD, "powered_up_grace")
 
 def test_a_claim_that_is_held_holds_the_host():
-    assert when(power_up_held=1) == (HOLD, "power_up_held")
+    assert when(powered_up_held=1) == (HOLD, "powered_up_held")
 
 def test_many_claims_hold_the_host_as_one_does():
-    assert when(power_up_held=7) == (HOLD, "power_up_held")
+    assert when(powered_up_held=7) == (HOLD, "powered_up_held")
 
 def test_the_policy_names_no_application():
     """Every reason is about power, time or a claim.  None of them is the
@@ -134,8 +134,8 @@ def test_every_reason_is_a_declared_token():
         dict(button_held=True), dict(volts=9.0), dict(battery_pack_celsius=99.0),
         dict(properties=("readings",)), dict(docked=True),
         dict(volts=10.4, battery_low_s=99.0), dict(undocked_s=99999.0),
-        dict(power_up_held=0, power_up_idle_s=99.0), dict(),
-        dict(power_up_held=0, power_up_idle_s=0.0)):
+        dict(powered_up_held=0, powered_up_idle_s=99.0), dict(),
+        dict(powered_up_held=0, powered_up_idle_s=0.0)):
         reason = when(**case)[1]
         assert reason in REASONS, reason
         assert " " not in reason

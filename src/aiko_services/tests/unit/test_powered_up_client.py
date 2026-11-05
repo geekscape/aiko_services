@@ -1,9 +1,9 @@
 # Usage
 # ~~~~~
-# pytest [-s] unit/test_power_up_client.py
+# pytest [-s] unit/test_powered_up_client.py
 #
 # Unit tests for asking a host to stay powered up
-# (main/power_up_client.py).
+# (main/powered_up_client.py).
 #
 # No broker and no power manager.  The publish is injected, so a test
 # asserts the exact request that goes out.
@@ -16,8 +16,8 @@
 import pytest
 
 from aiko_services.main import event
-from aiko_services.main.power_up_client import (
-    POWER_UP_PROTOCOL, PowerUpClient
+from aiko_services.main.powered_up_client import (
+    POWERED_UP_PROTOCOL, PoweredUpClient
 )
 
 MANAGER = "aikotest/host/9/1"
@@ -31,7 +31,7 @@ def make_client(**parameters):
     settings = {"seconds": 120, "reason": "upload",
         "publish": lambda topic, payload: sent.append((topic, payload))}
     settings.update(parameters)
-    client = PowerUpClient(FakeService(), **settings)
+    client = PoweredUpClient(FakeService(), **settings)
     client._manager = MANAGER                   # Found, without discovery
     return client, sent
 
@@ -48,7 +48,7 @@ def test_a_claim_asks_the_power_manager_on_its_in_topic():
     client, sent = make_client()
     assert client.claim() is True
     assert sent == [
-        (f"{MANAGER}/in", f"(request_power_up {OWN}/in 120 upload)")]
+        (f"{MANAGER}/in", f"(request_powered_up {OWN}/in 120 upload)")]
     client.close()
 
 def test_the_claim_names_the_client_own_topic():
@@ -81,7 +81,7 @@ def test_a_release_asks_for_zero():
     client, sent = make_client()
     client.claim()
     assert client.release() is True
-    assert sent[-1][1] == f"(request_power_up {OWN}/in 0 upload)"
+    assert sent[-1][1] == f"(request_powered_up {OWN}/in 0 upload)"
 
 def test_releasing_what_was_never_claimed_is_not_an_error():
     client, sent = make_client()
@@ -152,11 +152,11 @@ def test_the_claims_are_counted_for_the_caller():
 
 def test_the_filter_names_the_power_manager_protocol():
     client, _ = make_client()
-    assert client._filter().protocol == POWER_UP_PROTOCOL
+    assert client._filter().protocol == POWERED_UP_PROTOCOL
     client.close()
 
 def test_the_protocol_is_the_one_the_actor_registers():
-    assert POWER_UP_PROTOCOL.endswith("/power_manager:0")
+    assert POWERED_UP_PROTOCOL.endswith("/power_manager:0")
 
 def test_a_power_manager_that_appears_is_remembered():
     client, _ = make_client()

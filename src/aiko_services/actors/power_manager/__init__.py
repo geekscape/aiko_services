@@ -26,9 +26,10 @@ from aiko_services.actors.power_manager.policy import (  # noqa: F401
     Dwell, HOLD, MODES, MODE_CONSERVE, MODE_NORMAL, MODE_QUIESCE, REASONS,
     SHUTDOWN, decide, decide_mode,
 )
-from aiko_services.actors.power_manager.power_up import (  # noqa: F401
-    BRIDGE_TOPIC, POWER_UP_MAXIMUM_S, POWER_UP_REQUESTS_MAXIMUM,
-    REFUSED_MAXIMUM, REFUSED_NO_RESOURCE, REFUSED_PARAMETERS,
+from aiko_services.actors.power_manager.powered_up import (  # noqa: F401
+    BRIDGE_TOPIC, CONSTRAINTS, CONSTRAINT_WATT_HOURS, LeaseConstraint,
+    POWERED_UP_MAXIMUM_S, POWERED_UP_REQUESTS_MAXIMUM, REFUSED_MAXIMUM,
+    REFUSED_NO_MEASUREMENT, REFUSED_NO_RESOURCE, REFUSED_PARAMETERS,
     PoweredUpLease, PoweredUpRegister,
 )
 from aiko_services.actors.power_manager.quiesce import (  # noqa: F401
@@ -81,8 +82,8 @@ __all__ = [
     "InstallRefused", "LOG_DIRECTORY", "MANUFACTURER_ID", "MODES",
     "MODE_CONSERVE", "MODE_NORMAL", "MODE_QUIESCE", "MockPowerManagerImpl",
     "PATTERNS", "PERIOD_DEVELOPMENT", "PERIOD_PRODUCTION",
-    "POLICY_ADVISORY", "POLICY_SHUTTING_DOWN", "POWER_UP_MAXIMUM_S",
-    "POWER_UP_REQUESTS_MAXIMUM", "PROPERTIES", "PROTOCOL",
+    "POLICY_ADVISORY", "POLICY_SHUTTING_DOWN", "POWERED_UP_MAXIMUM_S",
+    "POWERED_UP_REQUESTS_MAXIMUM", "PROPERTIES", "PROTOCOL",
     "PmmPowerManagerImpl", "PowerLog", "PowerManager",
     "PowerManagerCommon", "PowerReading", "PoweredUpLease",
     "PoweredUpRegister", "Quiesce", "REASONS", "REFUSED_MAXIMUM",

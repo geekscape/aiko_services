@@ -15,7 +15,7 @@
 # at all, and the undocked time bounds how long that can go on.
 #
 # Nothing here names an application.  A client that needs the host asks for
-# a power-up Lease and holds a Lease (power_up.py, ADR-028 decision 13), so this rule
+# a powered-up Lease and holds a Lease (powered_up.py, ADR-028 decision 13), so this rule
 # counts claims and never asks any Actor what work it has left.
 #
 # Dwell is the other half of the rule.  A load step makes the voltage sag
@@ -51,7 +51,7 @@ MODES = (MODE_NORMAL, MODE_CONSERVE, MODE_QUIESCE)
 REASONS = (
     "button_held", "battery_floor", "battery_pack_temperature",
     "no_hold_property", "docked", "battery_low", "undocked_timeout",
-    "power_up_held", "power_up_idle", "power_up_grace", "hook_missing",
+    "powered_up_held", "powered_up_idle", "powered_up_grace", "hook_missing",
 )
 
 class Dwell:
@@ -84,8 +84,8 @@ class Dwell:
 
         return self.since is not None and self.seconds(now) >= float(limit)
 
-def decide(volts, battery_pack_celsius, docked, properties, power_up_held,
-    button_held, undocked_s, battery_low_s, power_up_idle_s, thresholds):
+def decide(volts, battery_pack_celsius, docked, properties, powered_up_held,
+    button_held, undocked_s, battery_low_s, powered_up_idle_s, thresholds):
 
     """What to do now: (HOLD, reason) or (SHUTDOWN, reason).
 
@@ -104,7 +104,7 @@ def decide(volts, battery_pack_celsius, docked, properties, power_up_held,
       undocked for too long      -> shutdown, the bound on the hold
       undocked, a claim is held  -> hold, this is what the battery is for
       undocked, no claim is held -> shutdown, after its grace, and
-                                    "power_up_grace" until then
+                                    "powered_up_grace" until then
     """
 
     floor = _number(thresholds.get("battery_volts_floor"))
@@ -112,7 +112,7 @@ def decide(volts, battery_pack_celsius, docked, properties, power_up_held,
     hot = _number(thresholds.get("battery_pack_celsius_maximum"))
     dwell = _number(thresholds.get("battery_dwell_s"), 0.0)
     maximum = _number(thresholds.get("undocked_maximum_s"))
-    grace = _number(thresholds.get("power_up_grace_s"), 0.0)
+    grace = _number(thresholds.get("powered_up_grace_s"), 0.0)
 
     if button_held:
         return SHUTDOWN, "button_held"
@@ -132,11 +132,11 @@ def decide(volts, battery_pack_celsius, docked, properties, power_up_held,
     if maximum is not None and undocked_s is not None  \
         and undocked_s > maximum:
         return SHUTDOWN, "undocked_timeout"
-    if power_up_held:
-        return HOLD, "power_up_held"
-    if power_up_idle_s >= grace:
-        return SHUTDOWN, "power_up_idle"
-    return HOLD, "power_up_grace"
+    if powered_up_held:
+        return HOLD, "powered_up_held"
+    if powered_up_idle_s >= grace:
+        return SHUTDOWN, "powered_up_idle"
+    return HOLD, "powered_up_grace"
 
 def decide_mode(mode, decision, volts, docked, hook_state, thresholds):
     """The next mode: one of MODES, and the one word that says why.

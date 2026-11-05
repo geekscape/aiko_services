@@ -65,9 +65,9 @@
 #                   (each table keeps the last STATE_LIMIT segments)
 #   metrics.*       sent_bytes received_bytes resumes failures
 #                   rejected_commands out_dropped link_downs retries
-#   power_up        held | released: whether this Actor is asking its host
+#   powered_up      held | released: whether this Actor is asking its host
 #                   to stay powered up while segments wait (ADR-028)
-#   power_up_seconds  how long each claim asks for
+#   powered_up_seconds  how long each claim asks for
 #
 # Connection ladder: the link sensor drives aiko.process.connection with a
 # raise-only guard.  Link up sets ConnectionState.NETWORK only from NONE;
@@ -96,7 +96,7 @@ import uuid
 import click
 
 import aiko_services as aiko
-from aiko_services.main.power_up_client import PowerUpClient
+from aiko_services.main.powered_up_client import PoweredUpClient
 from aiko_services.main.utilities import get_hostname, parse
 
 from aiko_services import __version__
@@ -134,7 +134,7 @@ PARTIAL_MAX_AGE_S = 86400.0    # .part / .meta older than this are swept
 # extends itself, so this is how long the host would stay up if this Actor
 # stopped asking, and not how long the transfer may take.  Zero turns the
 # claim off, which is what a host on mains supply wants
-POWER_UP_SECONDS = 300.0
+POWERED_UP_SECONDS = 300.0
 SWEEP_PERIOD_S = 60.0          # how often the partial sweep runs
 _RETRY_STATES = ("failed_", "rejected_busy")  # send outcomes that retry
 
@@ -245,11 +245,11 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         # empty, so a power manager stops asking what work is left and
         # counts claims instead (ADR-028 decision 13).  Zero turns it off,
         # which is what a host on mains wants
-        self.power_up_seconds = float(
-            parameters.get("power_up_seconds", POWER_UP_SECONDS))
-        self._power_up = PowerUpClient(
-            self, seconds=self.power_up_seconds, reason="store_forward")  \
-            if self.power_up_seconds > 0 else None
+        self.powered_up_seconds = float(
+            parameters.get("powered_up_seconds", POWERED_UP_SECONDS))
+        self._powered_up = PoweredUpClient(
+            self, seconds=self.powered_up_seconds, reason="store_forward")  \
+            if self.powered_up_seconds > 0 else None
         self.loop_thread = threading.get_ident()      # asserted by tests
         self.last_event_thread = None                  # asserted by tests
 
@@ -282,8 +282,8 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             "link_cause": "startup",
             "link_changed_utc": utc_now(),
             "last_error": "-",
-            "power_up": "released",
-            "power_up_seconds": f"{self.power_up_seconds:.0f}",
+            "powered_up": "released",
+            "powered_up_seconds": f"{self.powered_up_seconds:.0f}",
             "queue": {"depth": "0", "oldest_s": "0", "bytes": "0"},
             "sampled_utc": utc_now(),
             "store_forwards": {}, "received": {}, "progress": {},
@@ -297,10 +297,10 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             if self.message.role == "server" else "server_url"
         self.ec_producer.update(endpoint_key, endpoint)
 
-        if self._power_up is not None:
+        if self._powered_up is not None:
             # Starts watching for a power manager.  It returns at once:
             # there may be none, and then a claim is simply never answered
-            self._power_up.open()
+            self._powered_up.open()
         if self.outbox_period > 0:
             aiko.event.add_timer_handler(self._outbox_scan, self.outbox_period)
         if self.message.role == "server":
@@ -700,9 +700,9 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             self.ec_producer.update("queue.oldest_s", str(oldest_s))
             self.ec_producer.update("queue.bytes", str(size_total))
         self.ec_producer.update("sampled_utc", utc_now())
-        self._claim_power_up(depth)
+        self._claim_powered_up(depth)
 
-    def _claim_power_up(self, depth):
+    def _claim_powered_up(self, depth):
         """Hold a claim on the host while segments wait to go, and give it
         up when none do.
 
@@ -710,17 +710,17 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         still work.  A host with no power manager is unaffected: the claim
         is simply never answered"""
 
-        if self._power_up is None:
+        if self._powered_up is None:
             return
         if depth > 0:
-            if self._power_up.claim():
+            if self._powered_up.claim():
                 self.logger.info(
-                    f"power up claimed: {self.power_up_seconds:.0f} s, "
+                    f"powered up claimed: {self.powered_up_seconds:.0f} s, "
                     f"{depth} segments wait")
-            self.ec_producer.update("power_up", "held")
-        elif self._power_up.release():
-            self.logger.info("power up released: the outbox is empty")
-            self.ec_producer.update("power_up", "released")
+            self.ec_producer.update("powered_up", "held")
+        elif self._powered_up.release():
+            self.logger.info("powered up released: the outbox is empty")
+            self.ec_producer.update("powered_up", "released")
 
     def _remember_sent(self, name, segment_id):
         _remember(self._sent_names, name, segment_id, SENT_NAMES_LIMIT)
@@ -853,14 +853,14 @@ def _check_partial_directory(inbox, outbox, partial_directory):
 
 def _run(name, role, message, inbox, outbox, outbox_period, link_timeout,
     partial_max_age, partial_directory=None,
-    power_up_seconds=POWER_UP_SECONDS):
+    powered_up_seconds=POWERED_UP_SECONDS):
 
     parameters = {
         "message": message, "inbox": inbox, "outbox": outbox,
         "outbox_period": outbox_period, "link_timeout": link_timeout,
         "partial_max_age": partial_max_age,
         "partial_directory": partial_directory,
-        "power_up_seconds": power_up_seconds
+        "powered_up_seconds": powered_up_seconds
     }
     init_args = aiko.actor_args(name,
         parameters=parameters, protocol=PROTOCOL, tags=[f"role={role}"])
@@ -894,7 +894,7 @@ def _common_options(function):
             show_default=True,
             help="Seconds before a stale part is swept from the partial "
                  "directory"),
-        click.option("--power_up_seconds", "-pu", default=POWER_UP_SECONDS,
+        click.option("--powered_up_seconds", "-pu", default=POWERED_UP_SECONDS,
             show_default=True,
             help="Seconds of host power to claim while segments wait "
                  "(0 does not claim, which suits a host on mains)")
@@ -924,7 +924,7 @@ def main():
     help="Seconds without an edge host poll before link is down")
 
 def server(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
-    partial_max_age, power_up_seconds, http_port_range, bind,
+    partial_max_age, powered_up_seconds, http_port_range, bind,
     advertise_host, link_timeout):
 
     _check_partial_directory(inbox, outbox, partial_directory)
@@ -937,7 +937,7 @@ def server(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
         partial_directory=partial_directory)
     _run(_default_name(name, "server"), "server", message,
         inbox, outbox, outbox_period, link_timeout, partial_max_age,
-        partial_directory, power_up_seconds)
+        partial_directory, powered_up_seconds)
 
 @main.command(help="Run the edge host Actor, polling the server host")
 @_common_options
@@ -953,7 +953,7 @@ def server(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
     help="Seconds between /out polls")
 
 def edge(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
-    partial_max_age, power_up_seconds, server_host, server_port, server_url,
+    partial_max_age, powered_up_seconds, server_host, server_port, server_url,
     poll_period):
 
     _check_partial_directory(inbox, outbox, partial_directory)
@@ -966,7 +966,7 @@ def edge(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
         partial_directory=partial_directory)
     _run(_default_name(name, "edge"), "edge", message,
         inbox, outbox, outbox_period, LINK_TIMEOUT, partial_max_age,
-        partial_directory, power_up_seconds)
+        partial_directory, powered_up_seconds)
 
 if __name__ == "__main__":
     main()

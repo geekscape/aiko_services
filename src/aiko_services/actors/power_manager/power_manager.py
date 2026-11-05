@@ -60,9 +60,9 @@ from aiko_services.actors.power_manager.reading import (
     PowerReading, boot_id, utc_now
 )
 from aiko_services.actors.power_manager.shutdown import power_off
-from aiko_services.actors.power_manager.power_up import (
-    BRIDGE_TOPIC, POWER_UP_MAXIMUM_S, POWER_UP_REQUESTS_MAXIMUM,
-    PoweredUpRegister
+from aiko_services.actors.power_manager.powered_up import (
+    BRIDGE_TOPIC, LeaseConstraint, POWERED_UP_MAXIMUM_S,
+    POWERED_UP_REQUESTS_MAXIMUM, PoweredUpRegister, REFUSED_PARAMETERS
 )
 
 try:
@@ -117,13 +117,13 @@ THRESHOLDS = {
     "battery_pack_celsius_maximum": 45.0,     # The battery pack, never the processor
     "battery_dwell_s": 30.0,       # The voltage must stay low this long
     "undocked_maximum_s": 3600.0,  # The bound on an undocked hold
-    "power_up_grace_s": 60.0,      # After the last Lease is released
+    "powered_up_grace_s": 60.0,      # After the last Lease is released
     "dock_dwell_s": DOCK_DWELL_S,  # Before an undock is believed
     # The limits on the request surface, which ADR-028 decision 13 makes
     # part of the design: a client can only ask a host to stay up, and
     # these bound what a client in a loop can ask for
-    "power_up_maximum_s": POWER_UP_MAXIMUM_S,
-    "power_up_requests_maximum": POWER_UP_REQUESTS_MAXIMUM,
+    "powered_up_maximum_s": POWERED_UP_MAXIMUM_S,
+    "powered_up_requests_maximum": POWERED_UP_REQUESTS_MAXIMUM,
 }
 
 class PowerManager(aiko.Actor):
@@ -179,7 +179,8 @@ class PowerManager(aiko.Actor):
         "sample_period_s", and a refused one in "last_error" """
 
     @abstractmethod
-    def request_power_up(self, response_topic, seconds, reason):
+    def request_powered_up(self, response_topic, seconds, reason,
+        constraint_name=None, constraint_value=None):
         """Ask this host to stay powered for "seconds", and say why.
 
         "response_topic" is the client's own topic, which identifies the
@@ -187,12 +188,22 @@ class PowerManager(aiko.Actor):
         takes or extends the request, and zero releases it.  "reason" is
         one token, for the operator.
 
+        A Lease has two conditions, and both must hold.  "seconds" is the
+        period for which it is valid, and a client extends it.  A
+        constraint is a quantity of a finite resource, in the unit that
+        measures it, and the host must still be able to meet it:
+        "watt_hours" is the one unit declared so far.  A constraint in a
+        unit this host cannot measure is refused, and never granted.
+
         Wire form:
-        "(request_power_up NAMESPACE/HOST/PID/SID/in 300 upload)".  The
-        answer is published to that topic as "(power_up_granted SECONDS)"
-        or "(power_up_refused WHY)", and a change of mode as
+        "(request_powered_up NAMESPACE/HOST/PID/SID/in 300 upload)", or
+        with a constraint,
+        "(request_powered_up NAMESPACE/HOST/PID/SID/in 300 upload
+        watt_hours 12.5)".  The
+        answer is published to that topic as "(powered_up_granted SECONDS)"
+        or "(powered_up_refused WHY)", and a change of mode as
         "(power_mode MODE REASON)".  The totals are observed in the shared
-        state as "power_up.held" and "power_up.reasons".
+        state as "powered_up.held" and "powered_up.reasons".
 
         A request asks, and never commands: it cannot outlive the bound on
         undocked time, the voltage floor or the battery pack temperature
@@ -247,13 +258,13 @@ SAFE = True                        # The default posture of "run"
 # and a sample period is the resolution of the evidence.  The
 # ProcessManager's rule applies: only a design and a test campaign make a
 # function safe, not the observation that it looks harmless
-# "request_power_up" is here because it can only ask a host to stay up, a
+# "request_powered_up" is here because it can only ask a host to stay up, a
 # refusal is always available, and two limits in THRESHOLDS bound what a
 # client in a loop can ask for.  The ProcessManager's rule is satisfied by
 # those limits being part of the design, and not found later.  Without it
 # the whole request surface would be unusable in the default posture
 SAFE_FUNCTIONS = frozenset(
-    {"request_power_up", "sample", "set_log_level"})
+    {"request_powered_up", "sample", "set_log_level"})
 
 class PowerManagerCommon:
     """What every Implementation does the same way: the shared state, the
@@ -297,16 +308,17 @@ class PowerManagerCommon:
         self._undocked = Dwell()       # How long the dock line has said no
         self._battery_low = Dwell()    # How long the battery pack has been
                                        #   under its low voltage
-        self._power_up_idle = Dwell()  # How long nothing has claimed it
+        self._powered_up_idle = Dwell()  # How long nothing has claimed it
+        self._unmet_told = set()       # Holders already told, told once
         # The expiry handler runs on the event-loop thread at the agreed
         # time, which is most of what a Lease is for: the last one to
         # expire is the event that lets a host stop
-        self._power_up = PoweredUpRegister(
+        self._powered_up = PoweredUpRegister(
             maximum_seconds=self._thresholds.get(
-                "power_up_maximum_s", POWER_UP_MAXIMUM_S),
+                "powered_up_maximum_s", POWERED_UP_MAXIMUM_S),
             maximum_requests=self._thresholds.get(
-                "power_up_requests_maximum", POWER_UP_REQUESTS_MAXIMUM),
-            expired_handler=self._power_up_expired)
+                "powered_up_requests_maximum", POWERED_UP_REQUESTS_MAXIMUM),
+            expired_handler=self._powered_up_expired)
         self._stopping = False
         self.add_hook(HOOK_QUIESCE)
 
@@ -335,14 +347,14 @@ class PowerManagerCommon:
             "metrics": {"samples": 0, "sensor_errors": 0, "signals": 0,
                 "hold_changes": 0, "denied": 0, "shutdowns": 0,
                 "quiesces": 0, "button_presses": 0,
-                "power_up_granted": 0, "power_up_refused": 0,
-                "power_up_expired": 0},
+                "powered_up_granted": 0, "powered_up_refused": 0,
+                "powered_up_expired": 0},
             # The share is a nested dictionary of at most two levels, and a
             # dotted name is a path into it, not a key (share.py).  So the
             # snapshot nests what _publish() later updates by path
             **_nest({**PowerReading().as_share(),
                 "battery.margin_volts": "-",
-                **self._power_up.as_share(),
+                **self._powered_up.as_share(),
                 **self._quiesce.done()}),
         })
         self.ec_producer.add_handler(self._power_change_handler)
@@ -382,9 +394,9 @@ class PowerManagerCommon:
                 "mode": mode,
                 "mode_reason": mode_reason,
                 "enforce": self._enforce,
-                "power_up_held": self._power_up.held(),
+                "powered_up_held": self._powered_up.held(),
                 "power_up_reasons": "+".join(
-                    self._power_up.reasons()) or "-",
+                    self._powered_up.reasons()) or "-",
                 "period_s": self._period,
             })
             if self._log.last_error:
@@ -426,7 +438,8 @@ class PowerManagerCommon:
 
         return "unknown"
 
-    def request_power_up(self, response_topic, seconds, reason="-"):
+    def request_powered_up(self, response_topic, seconds, reason="-",
+        constraint_name=None, constraint_value=None):
         """Take, extend or release one claim on this host.
 
         The client names its own topic, and that topic is checked before
@@ -438,23 +451,33 @@ class PowerManagerCommon:
         topic = coerce_response_topic(response_topic, str(self.topic_path))
         if topic is None or topic == BRIDGE_TOPIC:
             self.logger.warning(
-                f"request_power_up refused: {str(response_topic)[:60]} is not "
+                f"request_powered_up refused: {str(response_topic)[:60]} is not "
                 "a topic this Service may publish to")
             self._count("denied")
             return
-        outcome, detail = self._power_up.request(topic, seconds, reason)
+        # Coerced and checked at the boundary, never assumed away (P12)
+        try:
+            constraint = LeaseConstraint.of(constraint_name, constraint_value)
+        except ValueError as error:
+            self.logger.warning(f"request_powered_up refused: {error}")
+            self._answer(topic, "refused", REFUSED_PARAMETERS)
+            self._powered_up.refused += 1
+            self._publish_powered_up()
+            return
+        outcome, detail = self._powered_up.request(
+            topic, seconds, reason, constraint, self.available())
         self._answer(topic, outcome, detail)
-        self._publish_power_up()
-        self.logger.info(
-            f"Power up {outcome} {detail}: {reason} ({topic})")
+        self._publish_powered_up()
+        self.logger.info(f"Powered up {outcome} {detail}: {reason}"
+            f"{f' [{constraint}]' if constraint else ''} ({topic})")
 
     def _answer(self, topic, outcome, detail):
         """Tell one client what became of its request"""
 
         command = {
-            "granted": "power_up_granted",
-            "released": "power_up_released",
-            "refused": "power_up_refused",
+            "granted": "powered_up_granted",
+            "released": "powered_up_released",
+            "refused": "powered_up_refused",
         }[outcome]
         # The detail becomes separate arguments, so the wire form is
         # "(uptime_refused maximum_seconds 600)" and not one length-prefixed
@@ -484,18 +507,50 @@ class PowerManagerCommon:
         except Exception as error:                       # noqa: BLE001
             self.logger.warning(f"Could not answer {topic}: {error}")
 
-    def _publish_power_up(self):
+    def _publish_powered_up(self):
         """The register's totals, and the metrics it counts"""
 
-        for name, value in self._power_up.as_share().items():
+        for name, value in self._powered_up.as_share().items():
             self.ec_producer.update(name, value)
         for name, value in (
-            ("power_up_granted", self._power_up.granted),
-            ("power_up_refused", self._power_up.refused),
-            ("power_up_expired", self._power_up.expired)):
+            ("powered_up_granted", self._powered_up.granted),
+            ("powered_up_refused", self._powered_up.refused),
+            ("powered_up_expired", self._powered_up.expired)):
             self.ec_producer.update(f"metrics.{name}", value)
 
-    def _power_up_expired(self, topic):
+    def available(self):
+        """What this host can measure of its finite resources, as
+        {unit: quantity}.
+
+        A unit that is absent cannot be checked, so a Lease constrained in
+        it is refused rather than granted: a client must not plan on a
+        promise that nothing can keep.  Watt-hours arrive with the
+        characterization of phase 6, which is why this is empty today"""
+
+        return {}
+
+    def _tell_unmet(self, unmet):
+        """Tell each holder whose constraint can no longer be met.
+
+        Its time is still current and the Lease is not usable, so the
+        policy stops counting it and the holder hears why"""
+
+        if not unmet:
+            return
+        available = self.available()
+        for topic in unmet:
+            if topic == BRIDGE_TOPIC or topic in self._unmet_told:
+                continue
+            lease = self._powered_up._leases.get(topic)
+            name = lease.constraint.name if lease and lease.constraint  \
+                else "-"
+            left = available.get(name)
+            self._publish_to(topic, "powered_up_unmet", name,
+                "-" if left is None else f"{left:g}")
+            self.logger.warning(f"Powered up unmet: {name} ({topic})")
+        self._unmet_told = set(unmet)
+
+    def _powered_up_expired(self, topic):
         """One Lease reached the time that was agreed.
 
         The framework's Lease calls this on the event-loop thread, so the
@@ -503,11 +558,11 @@ class PowerManagerCommon:
         the next sample would hold a battery pack up for nobody, which is
         the opposite of what a Lease is for"""
 
-        self.logger.info(f"Power up expired: {topic}")
+        self.logger.info(f"Powered up expired: {topic}")
         if topic != BRIDGE_TOPIC:
-            self._publish_to(topic, "power_up_expired")
-        self._publish_power_up()
-        if self._power_up.held() == 0:
+            self._publish_to(topic, "powered_up_expired")
+        self._publish_powered_up()
+        if self._powered_up.held() == 0:
             self._evaluate(self.reading())
 
     @staticmethod
@@ -601,7 +656,7 @@ class PowerManagerCommon:
 
         # A Lease that runs out is dropped by its own timer, which tells
         # the holder and asks the policy again at that moment
-        # (_power_up_expired).  Nothing is swept here
+        # (_powered_up_expired).  Nothing is swept here
 
         # The dock line glitches, so the host counts as docked until it has
         # been undocked for its dwell.  Holding the power is the safe side
@@ -616,14 +671,17 @@ class PowerManagerCommon:
         battery_low_s = self._battery_low.update(
             reading.battery_volts is not None and low is not None
             and reading.battery_volts < low, now)
-        power_up_held = self._power_up.held()
-        power_up_idle_s = self._power_up_idle.update(
-            power_up_held == 0, now)
+        available = self.available()
+        met, unmet = self._powered_up.satisfied(available)
+        self._tell_unmet(unmet)
+        powered_up_held = len(met)
+        powered_up_idle_s = self._powered_up_idle.update(
+            powered_up_held == 0, now)
 
         decision, reason = decide(
             reading.battery_volts, reading.battery_pack_celsius, docked,
-            properties, power_up_held, self._button_held,
-            undocked_s, battery_low_s, power_up_idle_s, thresholds)
+            properties, powered_up_held, self._button_held,
+            undocked_s, battery_low_s, powered_up_idle_s, thresholds)
         mode, mode_reason = decide_mode(
             self._mode, decision, reading.battery_volts, docked,
             self.hook_state(), thresholds)
@@ -651,7 +709,7 @@ class PowerManagerCommon:
             "policy_reason": reason,
             "mode_reason": mode_reason,
             "docked": "yes" if docked else "no",
-            **self._power_up.as_share(),
+            **self._powered_up.as_share(),
             **self._quiesce.done(),
         }
         if not self._enforce:
@@ -670,7 +728,7 @@ class PowerManagerCommon:
         """Tell every client that holds a claim.  The bridge is not a
         client and has no topic to tell"""
 
-        for topic in self._power_up.topics():
+        for topic in self._powered_up.topics():
             self._publish_to(topic, command, *arguments)
 
     def _enter_mode(self, mode, reason, now):
@@ -851,7 +909,7 @@ class PowerManagerCommon:
         Every Lease carries two event-loop timers, so a register that is
         not terminated leaves them behind"""
 
-        self._power_up.terminate()
+        self._powered_up.terminate()
         if self._log:
             self._log.close()
 

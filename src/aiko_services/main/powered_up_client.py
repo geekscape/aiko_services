@@ -6,10 +6,23 @@
 # so a Service that needs its host to keep running asks for the time it
 # needs and holds a Lease (ADR-028 decision 13).
 #
-#     client = PowerUpClient(aiko.process, seconds=300, reason="upload")
+#     client = PoweredUpClient(aiko.process, seconds=300, reason="upload")
 #     client.open()
 #     client.claim()      # while there is work: takes it, or extends it
 #     client.release()    # when the work is done
+#
+# A Lease has two conditions.  The seconds are the period for which it is
+# valid, and this client extends them.  A constraint is a quantity of a
+# finite resource, in the unit that measures it, and the host must still be
+# able to meet it ...
+#
+#     PoweredUpClient(aiko.process, seconds=300, reason="upload",
+#         constraint=("watt_hours", 12.5))
+#
+# A Service that does not know its own energy cost asks for time alone,
+# which is what no constraint means.  A constraint in a unit the host
+# cannot measure is refused, so a Service that asks for one must read the
+# answer before it plans on having the resource.
 #
 # The client holds a Lease of its own as well, with automatic_extend, whose
 # extend handler asks again.  Therefore the claim is renewed before it
@@ -31,9 +44,11 @@
 #
 # To Do
 # ~~~~~
+# * More units, as something needs them.  A unit is whatever the power
+#   manager can measure and declare
 # * Read the answers.  Today the claim is made and the replies are observed
 #   by whatever subscribes to the Service's own topic.  A handler for
-#   "(power_up_refused ...)" belongs here, so that a Service that is refused
+#   "(powered_up_refused ...)" belongs here, so that a Service that is refused
 #   can do less work rather than assume it has the time
 
 import os
@@ -43,7 +58,7 @@ from aiko_services.main.lease import Lease
 from aiko_services.main.service import ServiceFilter
 from aiko_services.main.utilities import generate, get_logger
 
-__all__ = ["POWER_UP_PROTOCOL", "PowerUpClient"]
+__all__ = ["POWERED_UP_PROTOCOL", "PoweredUpClient"]
 
 # The same control that lease.py uses, so one variable turns up the logging
 # of both ends of this agreement
@@ -52,12 +67,12 @@ _LOGGER = get_logger(
 
 # The protocol that "actors/power_manager" registers.  Named here as the
 # default of a parameter, so that "main" depends on no Actor
-POWER_UP_PROTOCOL =  \
+POWERED_UP_PROTOCOL =  \
     "github.com/geekscape/aiko_services/protocol/power_manager:0"
 
 SECONDS = 300.0                    # The default claim, which a caller sets
 
-class PowerUpClient:
+class PoweredUpClient:
     """Holds a claim on this host staying powered up, for as long as its
     caller keeps asking.
 
@@ -66,11 +81,13 @@ class PowerUpClient:
     """
 
     def __init__(self, service, seconds=SECONDS, reason="-",
-        protocol=POWER_UP_PROTOCOL, publish=None):
+        constraint=None, protocol=POWERED_UP_PROTOCOL, publish=None):
 
         self.service = service
         self.seconds = float(seconds)
         self.reason = str(reason or "-")
+        # (unit, quantity), or None for time alone
+        self.constraint = tuple(constraint) if constraint else None
         self.protocol = protocol
         self._publish = publish    # Injected by a test
         self._discovery = None
@@ -95,7 +112,7 @@ class PowerUpClient:
 
         return self._manager is not None
 
-    def claim(self, seconds=None, reason=None):
+    def claim(self, seconds=None, reason=None, constraint=None):
         """Take the claim, or extend the one that is held.
 
         Call it whenever there is still work.  It is cheap: the message
@@ -106,6 +123,8 @@ class PowerUpClient:
             self.seconds = float(seconds)
         if reason is not None:
             self.reason = str(reason)
+        if constraint is not None:
+            self.constraint = tuple(constraint) if constraint else None
         if self._lease is not None:
             return False           # Held already, and extending itself
         self._lease = Lease(self.seconds, self._topic(),
@@ -163,15 +182,18 @@ class PowerUpClient:
 
         if self._manager is None:
             return
-        payload = generate("request_power_up",
-            [self._topic(), f"{float(seconds):.0f}", self.reason])
+        arguments = [self._topic(), f"{float(seconds):.0f}", self.reason]
+        if self.constraint:
+            name, quantity = self.constraint
+            arguments += [str(name), f"{float(quantity):g}"]
+        payload = generate("request_powered_up", arguments)
         try:
             if self._publish is not None:
                 self._publish(f"{self._manager}/in", payload)
             else:
                 aiko.process.message.publish(f"{self._manager}/in", payload)
         except Exception as error:                       # noqa: BLE001
-            _LOGGER.warning(f"Could not ask for power up: {error}")
+            _LOGGER.warning(f"Could not ask for powered up: {error}")
 
     def _topic(self):
         """The Service's own topic, which identifies the claim and receives
