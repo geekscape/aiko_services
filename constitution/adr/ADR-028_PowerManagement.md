@@ -500,6 +500,41 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     once, and logged on a change and then at most once a dwell. A supply is undersized for
     weeks, and a warning once a minute for weeks is one an operator stops reading.
 
+18. **A threshold changes through a function, and the shared state only reports it.**
+    Every threshold is a shared variable so that an operator changes it while the Actor
+    runs. That intent needs a function, because the replica of a threshold is not the
+    threshold: a write to `thresholds.*` on the control topic moved the replica, changed no
+    policy, and left a page showing a value the Actor was not using.
+
+    `set_threshold(name, value)` is the surface. It is outside `SAFE_FUNCTIONS`, so the
+    default posture denies it with no new gate code, and a deployment that wants an operator
+    to tune it runs `--unsafe`. A write to `thresholds.*` is refused and the stored value
+    republished, the way the posture itself already was.
+
+    The rules that refuse a value are the command line's own, and not a second set that can
+    disagree. A change is logged with the value it replaced: a threshold that moved without
+    a trace makes every later reading unexplainable.
+
+    **It is not persisted.** The command line wins at the next restart, which is the
+    conservative answer while nothing has decided where a changed threshold belongs. An
+    operator is told so where they change it.
+
+19. **The work that stopped is reported, once, and only where it was reported before.**
+    A client reports that it is working, and the absence of that report is the only
+    evidence that the work stopped. So a clock finds it: `working_loss_s` of silence from
+    every reporter publishes `working.lost` and sounds one pattern.
+
+    It is off by default. How long a silence means something is a property of the
+    application and not of this Actor, and a sound that cries wolf is worse than no sound.
+
+    A loss needs a reporter that was heard once, so a host that does not use the surface
+    never reports one. The sound plays once for each loss, and not on each sample: a buzzer
+    that repeats a fault is one an operator stops hearing.
+
+    **Heard is not sounded.** The dwell that stops a reporter sounding twice must not be
+    read as the time it was last heard, or a client reporting inside the dwell is called
+    lost. The two clocks are separate, and a test covers exactly that case.
+
 ## Consequences
 
 **Good.**
