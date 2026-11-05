@@ -196,3 +196,30 @@ class FormProbe:
         ], "Accept", cls.accepted.update, note="A note, above the fields")
 
 # --------------------------------------------------------------------------- #
+# A page that has more than one view needs one probe for each, because
+# draw_frame() delivers no key events and a view is reached with a key
+
+class PowerManagerProbe:
+    """A PowerManagerFrame already showing one view"""
+
+    view = None
+
+    def __new__(cls, screen, dashboard):
+        from aiko_services.actors.power_manager.dashboard_plugin import (
+            PowerManagerFrame,
+        )
+        frame = PowerManagerFrame(screen, dashboard)
+        if cls.view:
+            frame.page.view = cls.view
+        return frame
+
+class PowerManagerSummary(PowerManagerProbe):
+    view = "summary"
+
+class PowerManagerDetail(PowerManagerProbe):
+    view = "detail"
+
+class PowerManagerInformation(PowerManagerProbe):
+    view = "information"
+
+# --------------------------------------------------------------------------- #
