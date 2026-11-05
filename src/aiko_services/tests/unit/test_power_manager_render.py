@@ -43,6 +43,19 @@ def run_hook(tmp_path, action, delay=0):
     subprocess.run(["sh", str(hook), action], check=True, timeout=30)
     return record.read_text().splitlines() if record.exists() else []
 
+def unit_commands(text):
+    """The unit's commands, in the order systemd runs them, with the
+    directive and any "-" stripped.  A oneshot cannot be run here, so the
+    order is read from the text: that order is the whole claim, because a
+    sound before the hold would tell an operator the opposite of the truth"""
+
+    commands = []
+    for line in text.splitlines():
+        for directive in ("ExecStart=", "ExecStartPost="):
+            if line.startswith(directive):
+                commands.append(line[len(directive):].lstrip("-"))
+    return commands
+
 # What there is ------------------------------------------------------------ #
 
 def test_three_artifacts_and_no_more():
@@ -77,6 +90,67 @@ def test_the_unit_can_name_another_line():
 
 def test_the_unit_points_at_the_record_of_its_reason():
     assert "ADR-028" in render("unit")
+
+def test_the_unit_sounds_the_booted_pattern(tmp_path):
+    """The sound the lead asked for: an operator holding a soft power button
+    needs to hear that the hold is on, and therefore that the button can be
+    released.  No Actor can say it, because it is wanted seconds before
+    Aiko Services starts"""
+
+    commands = unit_commands(render("unit", hold_gpio=5, buzzer_gpio=4))
+    assert "/usr/bin/pinctrl set 4 op dh" in commands
+
+def test_the_unit_sounds_the_pattern_only_after_the_hold_is_on():
+    """The order is the meaning.  A chirp before the hold would tell an
+    operator to let go while the power is still theirs to hold"""
+
+    commands = unit_commands(render("unit", hold_gpio=5, buzzer_gpio=4))
+    hold = commands.index("/usr/bin/pinctrl set 5 op dh")
+    first_sound = next(index for index, command in enumerate(commands)
+        if "set 4" in command)
+    assert hold < first_sound
+
+def test_the_unit_plays_the_pattern_from_the_table():
+    """signal.py holds the durations, and the unit renders them, so a new
+    pattern stays one table entry (ADR-028 decision 3)"""
+
+    from aiko_services.actors.power_manager.signal import PATTERNS
+
+    commands = unit_commands(render("unit"))
+    waits = [command for command in commands if "sleep" in command]
+    assert [command.split()[-1] for command in waits] == \
+        [str(seconds) for seconds in PATTERNS["booted"]]
+
+def test_the_unit_leaves_the_buzzer_line_low():
+    """Whatever the pattern ends on, the line does not stay driven: a buzzer
+    left on is a host that sounds broken from the moment it is up"""
+
+    assert unit_commands(render("unit", buzzer_gpio=4))[-1] == \
+        "/usr/bin/pinctrl set 4 op dl"
+
+def test_a_silent_buzzer_never_fails_the_unit():
+    """Every sound line is "-" prefixed.  The unit's job is the hold, and a
+    buzzer that is absent or broken must not report the hold as failed"""
+
+    for line in render("unit").splitlines():
+        if line.startswith("ExecStartPost="):
+            assert line.startswith("ExecStartPost=-"), line
+
+def test_the_unit_can_name_another_buzzer_line():
+    assert "set 23 op dh" in render("unit", buzzer_gpio=23)
+
+def test_the_sound_costs_the_boot_only_the_pattern():
+    """What the start-up pays for the sound.  The unit is ordered before
+    multi-user.target, so this delay is real, and it is bounded by the
+    table rather than by anything else"""
+
+    from aiko_services.actors.power_manager.signal import pattern_seconds
+
+    commands = unit_commands(render("unit"))
+    waits = sum(float(command.split()[-1])
+        for command in commands if "sleep" in command)
+    assert round(waits, 3) == pattern_seconds("booted")
+    assert waits < 1.0
 
 # The shutdown hook -------------------------------------------------------- #
 

@@ -164,6 +164,13 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
    nothing. `install()` is the only operation that changes the host, it needs a privilege, and
    a person runs it.
 
+   The start-up unit sounds the `booted` pattern, after it asserts the hold. The sound tells
+   an operator that the hold is on, and that a soft power button can be released. The Actor
+   cannot give this signal, because the operator needs it seconds before Aiko Services
+   starts. The unit and the hook both render their durations from the one table of patterns.
+   Each sound command of the unit can fail without effect, because the duty of the unit is
+   the hold. A buzzer that does not sound must never report the hold as a failure.
+
 10. **A battery percentage is earned by measurement.** Until a discharge curve is measured on
     the hardware, the Implementation reports voltage, current, power and the battery
     temperature, and the policy uses a voltage that the battery pack must not go below. A percentage

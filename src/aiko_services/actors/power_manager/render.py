@@ -12,6 +12,13 @@
 # Therefore a person reads each file before they trust it, and a test
 # compares it with a string.
 #
+# Both the unit and the hook sound a pattern, and neither can import Python.
+# So the durations come from the one table in signal.py and are rendered as
+# commands, by _beep_commands(), rather than written twice.  The unit sounds
+# "booted" after the hold is on, which is what tells an operator holding a
+# soft power button that it is safe to let go.  No Actor can say this: the
+# operator needs it seconds before Aiko Services starts.
+#
 # Two properties of the hook are the reason it exists at all.
 #
 # It releases the hold only when the host is stopping.  The operating system
@@ -40,7 +47,7 @@ import tempfile
 
 from aiko_services.actors.power_manager.hold import HOLD_GPIO
 from aiko_services.actors.power_manager.signal import (
-    BUZZER_GPIO, PATTERNS, pattern_seconds
+    BUZZER_GPIO, PATTERNS
 )
 
 __all__ = [
@@ -105,17 +112,40 @@ def render(artifact, account=None, pinctrl=_PINCTRL, hold_gpio=HOLD_GPIO,
         raise ValueError(
             f'unknown artifact "{artifact}": one of {list(ARTIFACTS)}')
     if artifact == "unit":
-        return _unit(pinctrl, hold_gpio)
+        return _unit(pinctrl, hold_gpio, buzzer_gpio, sleep)
     if artifact == "hook":
         return _hook(pinctrl, hold_gpio, buzzer_gpio, delay, sleep)
     if not account:
         raise ValueError('the grant needs "account": whose privilege it is')
     return _grant(account, systemctl, mount, mount_point)
 
-def _unit(pinctrl, hold_gpio):
-    """The start-up unit.  It is a oneshot that exits, and the pin keeps its
-    state because nothing claims it (ADR-028 decision 5)"""
+def _beep_commands(pinctrl, buzzer_gpio, pattern, sleep):
+    """The commands that play one pattern through pinctrl: a level, a wait,
+    then the opposite level, and a last command that leaves the line low.
 
+    Both the start-up unit and the shutdown hook play a pattern, and
+    neither can import Python, so the table in signal.py becomes commands
+    here rather than twice"""
+
+    commands = []
+    for index, seconds in enumerate(PATTERNS[pattern]):
+        level = "dh" if index % 2 == 0 else "dl"
+        commands.append(f"{pinctrl} set {buzzer_gpio} op {level}")
+        commands.append(f"{sleep} {seconds}")
+    commands.append(f"{pinctrl} set {buzzer_gpio} op dl")
+    return commands
+
+def _unit(pinctrl, hold_gpio, buzzer_gpio, sleep=_SLEEP):
+    """The start-up unit.  It is a oneshot that exits, and the pin keeps its
+    state because nothing claims it (ADR-028 decision 5).
+
+    It asserts the hold, and then sounds "booted".  The order is the point:
+    the sound means the hold is on, so an operator who holds a soft power
+    button hears when it is safe to let go.  No Actor can do this, because
+    the sound is wanted seconds before Aiko Services starts"""
+
+    beeps = "\n".join(f"ExecStartPost=-{command}"
+        for command in _beep_commands(pinctrl, buzzer_gpio, "booted", sleep))
     return f"""\
 [Unit]
 Description=Aiko Services: assert the power hold
@@ -130,6 +160,10 @@ RemainAfterExit=yes
 # The pin keeps its state after this exits, which is why the hold is not
 # held by a long-lived process: the character device would release it
 ExecStart={pinctrl} set {hold_gpio} op dh
+# Then the "booted" pattern, which tells an operator that the hold is on
+# and a soft power button can be released.  Each line is prefixed with "-"
+# so that a buzzer which does not sound never reports the hold as failed
+{beeps}
 
 [Install]
 WantedBy=multi-user.target
@@ -145,9 +179,7 @@ def _hook(pinctrl, hold_gpio, buzzer_gpio, delay, sleep=_SLEEP):
     skip the wait and release the hold at once"""
 
     beeps = "\n".join(
-        f"{pinctrl} set {buzzer_gpio} op "
-        f"{'dh' if index % 2 == 0 else 'dl'}\n{sleep} {seconds}"
-        for index, seconds in enumerate(PATTERNS["shutdown"]))
+        _beep_commands(pinctrl, buzzer_gpio, "shutdown", sleep))
     return f"""\
 #!/bin/sh
 # Aiko Services: release the power hold, after the file systems are gone.
@@ -168,7 +200,6 @@ esac
 
 # Three chirps: the host is about to lose its power
 {beeps}
-{pinctrl} set {buzzer_gpio} op dl
 
 # The kernel needs time to finish after this hook returns.  The operating
 # system allows every hook 90 s, so this wait must stay well inside that

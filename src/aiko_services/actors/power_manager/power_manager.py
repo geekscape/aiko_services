@@ -54,7 +54,7 @@ from aiko_services.actors.power_manager.policy import (
     Dwell, HOLD, MODE_NORMAL, MODE_QUIESCE, SHUTDOWN, decide, decide_mode
 )
 from aiko_services.actors.power_manager.quiesce import (
-    HOOK_QUIESCE, Quiesce, REMOUNT_GRACE_S
+    HOOK_QUIESCE, Quiesce
 )
 from aiko_services.actors.power_manager.reading import (
     PowerReading, boot_id, utc_now
