@@ -484,6 +484,15 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     so the charger saw 0.33 V above a pack that needed about 2 V, and that pack had never been
     charged.
 
+    **A full battery pack shows no headroom either**, because its charger has stopped. So the
+    headroom alone cannot tell a healthy host from a starved one, and on a properly sized
+    supply it would warn for ever, which is the noise this decision exists to avoid. The
+    warning therefore also needs the battery pack to be below the voltage a
+    charged one reaches.
+    Found a day after the check was written, when a larger supply charged a
+    battery pack and the
+    warning stayed on.
+
     **It changes no decision.** A small supply is a thing to replace, not a reason to stop a
     host, and no row of decision 8 reads it. A test asserts that.
 

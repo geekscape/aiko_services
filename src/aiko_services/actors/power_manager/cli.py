@@ -67,7 +67,7 @@ def main():
 
 def _given_thresholds(powered_down_grace, powered_down_application_grace,
     quiesce_volts, battery_volts_low, battery_volts_floor,
-    supply_amps_maximum=None):
+    supply_amps_maximum=None, battery_volts_charged=None):
 
     """Only what the command line was actually given, so that everything
     else keeps its shipped value"""
@@ -75,13 +75,17 @@ def _given_thresholds(powered_down_grace, powered_down_application_grace,
     thresholds = {
         **(_thresholds(
             powered_down_grace, powered_down_application_grace) or {}),
-        **_volts(quiesce_volts, battery_volts_low, battery_volts_floor),
+        **_volts(quiesce_volts, battery_volts_low, battery_volts_floor,
+            battery_volts_charged),
         **({"supply_amps_maximum": supply_amps_maximum}
             if supply_amps_maximum else {}),
+        **({"battery_volts_charged": battery_volts_charged}
+            if battery_volts_charged else {}),
     }
     return thresholds or None
 
-def _volts(quiesce_volts, battery_volts_low, battery_volts_floor):
+def _volts(quiesce_volts, battery_volts_low, battery_volts_floor,
+    battery_volts_charged=None):
     """The three voltages, and the ladder they have to form.
 
     Stop writing, then start stopping, then stop now, and all of it above
@@ -102,7 +106,9 @@ def _volts(quiesce_volts, battery_volts_low, battery_volts_floor):
     given = {name: value for name, value in (
         ("quiesce_volts", quiesce_volts),
         ("battery_volts_low", battery_volts_low),
-        ("battery_volts_floor", battery_volts_floor)) if value is not None}
+        ("battery_volts_floor", battery_volts_floor),
+        ("battery_volts_charged", battery_volts_charged))
+        if value is not None}
     if not given:
         return {}
     floor = given.get("battery_volts_floor")
@@ -126,6 +132,12 @@ def _volts(quiesce_volts, battery_volts_low, battery_volts_floor):
     # first and forces the quiesce mode by itself.  That is a defect in the
     # shipped numbers rather than in a number a person just typed, so it is
     # reported to the lead and not enforced here
+    charged = given.get("battery_volts_charged")
+    if charged is not None and charged <= quiesce:
+        raise click.UsageError(
+            f"--battery_volts_charged {charged:g} must be above "
+            f"--quiesce_volts {quiesce:g}: a battery pack counts as charged "
+            "above the voltage at which writing stops")
     if "quiesce_volts" in given and quiesce < low:
         raise click.UsageError(
             f"--quiesce_volts {quiesce:g} must not be below "
@@ -212,6 +224,11 @@ def _thresholds(powered_down_grace, powered_down_application_grace):
     type=float, default=None,
     help="Volts at which the file systems go read-only and the host stops "
          f"[default: {THRESHOLDS['battery_volts_floor']}]")
+@click.option("--battery_volts_charged", "-bc", "battery_volts_charged",
+    type=float, default=None,
+    help="Volts above which the battery pack counts as charged, so no "
+         "headroom is expected "
+         f"[default: {THRESHOLDS['battery_volts_charged']}]")
 @click.option("--supply_amps_maximum", "-sm", "supply_amps_maximum",
     type=float, default=None,
     help="The supply's rated current, from its label.  Given, a supply at "
@@ -232,8 +249,8 @@ def _thresholds(powered_down_grace, powered_down_application_grace):
 
 def run_command(name, device, period, log_directory, no_log, keep_days, safe,
     enforce, inputs, quiesce_volts, battery_volts_low, battery_volts_floor,
-    supply_amps_maximum, button_shutdown, powered_down_grace,
-    powered_down_application_grace):
+    battery_volts_charged, supply_amps_maximum, button_shutdown,
+    powered_down_grace, powered_down_application_grace):
     """Run the PowerManager Actor
 
     \b
@@ -296,7 +313,7 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
         thresholds=_given_thresholds(
             powered_down_grace, powered_down_application_grace,
             quiesce_volts, battery_volts_low, battery_volts_floor,
-            supply_amps_maximum),
+            supply_amps_maximum, battery_volts_charged),
         log_directory=None if no_log else log_directory)
     power_manager = aiko.compose_instance(implementation, init_args)
     try:

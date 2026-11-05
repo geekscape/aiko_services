@@ -160,7 +160,8 @@ def test_no_threshold_is_the_cell_damage_limit():
     absolute = [name for name in THRESHOLDS
         if "volts" in name and name not in differences]
     assert sorted(absolute) == [
-        "battery_volts_floor", "battery_volts_low", "quiesce_volts"]
+        "battery_volts_charged", "battery_volts_floor", "battery_volts_low",
+        "quiesce_volts"]
     for name in absolute:
         assert float(THRESHOLDS[name]) > CELL_DAMAGE_VOLTS, name
 

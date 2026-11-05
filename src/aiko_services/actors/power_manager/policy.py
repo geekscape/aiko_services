@@ -354,12 +354,23 @@ def supply_warning(supply_volts, supply_amps, battery_volts, docked,
     supply at its limit has nothing left for the battery pack, and it
     drops its voltage as well, which is the other half of the symptom.
 
-    "supply_headroom": docked, and the supply is barely above the battery
-    pack.  A charger needs to be enough above the pack to push current
-    into it, so with no headroom the pack is held wherever it happens to
-    be and never fills.  Measured on 2026-11-05: a supply at 10.22 V and a
-    pack at 9.89 V, which is 0.33 V where about 2 V is wanted, on a pack
-    that had never been charged.
+    "supply_headroom": docked, the supply is barely above the battery pack,
+    **and the battery pack is below the voltage a full one reaches**.  A
+    charger needs to be enough above the battery pack to push current into
+    it, so with no headroom a battery pack that is not full is held
+    wherever it happens to be.  Measured on 2026-11-05: a supply at
+    10.22 V and a battery pack at 9.89 V, which is 0.33 V where about 2 V
+    is wanted, on a battery pack that had never
+    been charged.
+
+    The third condition is why this is not a headroom check alone.  A
+    battery pack
+    that **is** full also shows no headroom, because the charger has
+    stopped, so headroom by itself cannot tell a healthy host from a
+    starved one and would warn for ever on both.  Found on 2026-11-06,
+    when a larger supply charged the battery pack and the warning stayed on.
+    "battery_volts_charged" turned off restores that behavior, and the
+    noise with it.
 
     Both are read from one reading, so there is no history to keep"""
 
@@ -369,10 +380,12 @@ def supply_warning(supply_volts, supply_amps, battery_volts, docked,
         and supply_amps >= rating * fraction:
         return "supply_current"
     headroom = _number(thresholds.get("supply_headroom_volts"))
+    charged = _number(thresholds.get("battery_volts_charged"))
     if docked and headroom is not None and headroom > 0  \
         and supply_volts is not None and battery_volts is not None  \
         and supply_volts > 0  \
-        and supply_volts - battery_volts < headroom:
+        and supply_volts - battery_volts < headroom  \
+        and (charged is None or battery_volts < charged):
         return "supply_headroom"
     return None
 

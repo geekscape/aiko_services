@@ -79,7 +79,8 @@ __all__ = [
     "LOG_DIRECTORY", "PERIOD_DEVELOPMENT", "PERIOD_PRODUCTION",
     "POLICY_ADVISORY", "POLICY_SHUTTING_DOWN", "PROPERTIES", "PROTOCOL",
     "CELL_DAMAGE_VOLTS", "POWERED_DOWN_GRACE_S", "SAFE", "SAFE_FUNCTIONS",
-    "SUPPLY_AMPS_FRACTION", "SUPPLY_HEADROOM_VOLTS",
+    "BATTERY_VOLTS_CHARGED", "SUPPLY_AMPS_FRACTION",
+    "SUPPLY_HEADROOM_VOLTS",
     "SUPPLY_WARNING_DWELL_S", "THRESHOLDS",
     "UNDOCKED_MAXIMUM_S", "WORKING_DWELL_S",
     "WORKING_PATTERN", "WORKING_REPORTERS_MAXIMUM", "PowerManager",
@@ -130,6 +131,17 @@ CELL_DAMAGE_VOLTS = 9.0
 # is the definitive measure: a supply at its rating has nothing spare,
 # whatever its voltage says.
 SUPPLY_HEADROOM_VOLTS = 0.5
+# The voltage a full battery pack of three cells reaches, near enough: 4.0 V
+# for each cell.  It is not the 12.6 V a battery pack fills to, because a
+# charger that has finished holds a battery pack below that, and this is
+# the line between
+# "charged enough" and "starved" rather than "full".
+#
+# The headroom warning needs it.  A battery pack that is full shows no
+# headroom
+# either, because the charger has stopped, so without this the warning
+# cannot tell a healthy host from a starved one.  Found on 2026-11-06.
+BATTERY_VOLTS_CHARGED = 12.0
 SUPPLY_AMPS_FRACTION = 0.95        # Of the rating, before it is a warning
 SUPPLY_WARNING_DWELL_S = 3600.0    # Said once, then at most hourly
 
@@ -221,6 +233,9 @@ THRESHOLDS = {
     # A supply too small to charge the battery pack.  These warn and
     # decide nothing: no row of the policy reads them
     "supply_headroom_volts": SUPPLY_HEADROOM_VOLTS,
+    # Above this the battery pack counts as charged, and no headroom is
+    # expected because the charger has stopped
+    "battery_volts_charged": BATTERY_VOLTS_CHARGED,
     "supply_amps_maximum": None,   # From the supply's label
     "supply_amps_fraction": SUPPLY_AMPS_FRACTION,
     "supply_warning_dwell_s": SUPPLY_WARNING_DWELL_S,
