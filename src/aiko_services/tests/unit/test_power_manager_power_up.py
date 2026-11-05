@@ -27,7 +27,7 @@ from aiko_services.actors.power_manager import (
 )
 from aiko_services.actors.power_manager.power_up import (
     BRIDGE_TOPIC, POWER_UP_MAXIMUM_S, POWER_UP_REQUESTS_MAXIMUM,
-    PowerUpLease, PowerUpRegister,
+    PoweredUpLease, PoweredUpRegister,
 )
 
 _counter = itertools.count()
@@ -50,10 +50,10 @@ def test_a_power_up_lease_is_a_lease():
     """It extends the framework's Lease, as ECLease does, so an expiry acts
     at the agreed time rather than at the next convenient moment"""
 
-    assert issubclass(PowerUpLease, Lease)
+    assert issubclass(PoweredUpLease, Lease)
 
 def test_a_request_is_granted_with_the_seconds_it_asked_for():
-    register = PowerUpRegister()
+    register = PoweredUpRegister()
     assert register.request(TOPIC, 300, "upload") == ("granted", "300")
     assert register.held() == 1
     register.terminate()
@@ -62,7 +62,7 @@ def test_a_lease_carries_a_timer_of_its_own():
     """Which is the whole reason for using the framework's Lease: the
     expiry happens at the time that was agreed"""
 
-    register = PowerUpRegister()
+    register = PoweredUpRegister()
     before = timer_count()
     register.request(TOPIC, 300, "upload")
     assert timer_count() > before
@@ -70,7 +70,7 @@ def test_a_lease_carries_a_timer_of_its_own():
     assert timer_count() == before
 
 def test_releasing_leaves_no_timer_behind():
-    register = PowerUpRegister()
+    register = PoweredUpRegister()
     before = timer_count()
     register.request(TOPIC, 300, "upload")
     register.request(TOPIC, 0, "-")
@@ -81,7 +81,7 @@ def test_a_client_that_asks_again_extends_one_lease():
     """The key is the client, so a client in a loop cannot fill the
     register with copies of itself"""
 
-    register = PowerUpRegister()
+    register = PoweredUpRegister()
     register.request(TOPIC, 300, "upload")
     assert register.request(TOPIC, 120, "upload") == ("granted", "120")
     assert register.held() == 1
@@ -89,14 +89,14 @@ def test_a_client_that_asks_again_extends_one_lease():
     register.terminate()
 
 def test_extending_changes_the_reason_too():
-    register = PowerUpRegister()
+    register = PoweredUpRegister()
     register.request(TOPIC, 60, "upload")
     register.request(TOPIC, 60, "recording")
     assert register.reasons() == ("recording",)
     register.terminate()
 
 def test_two_clients_are_two_leases():
-    register = PowerUpRegister()
+    register = PoweredUpRegister()
     register.request(TOPIC, 60, "upload")
     register.request(OTHER, 60, "recording")
     assert register.held() == 2
@@ -105,28 +105,28 @@ def test_two_clients_are_two_leases():
 def test_zero_seconds_releases():
     """A client that has finished says so, rather than waiting to expire"""
 
-    register = PowerUpRegister()
+    register = PoweredUpRegister()
     register.request(TOPIC, 300, "upload")
     assert register.request(TOPIC, 0, "-") == ("released", "0")
     assert register.held() == 0
 
 def test_releasing_what_was_never_held_is_not_an_error():
-    assert PowerUpRegister().request(TOPIC, 0, "-")[0] == "released"
+    assert PoweredUpRegister().request(TOPIC, 0, "-")[0] == "released"
 
 def test_more_than_the_maximum_is_refused_with_the_maximum():
-    register = PowerUpRegister(maximum_seconds=600)
+    register = PoweredUpRegister(maximum_seconds=600)
     outcome, detail = register.request(TOPIC, 9999, "upload")
     assert outcome == "refused"
     assert detail == "maximum_seconds 600"
     assert register.held() == 0
 
 def test_the_maximum_itself_is_granted():
-    register = PowerUpRegister(maximum_seconds=600)
+    register = PoweredUpRegister(maximum_seconds=600)
     assert register.request(TOPIC, 600, "upload")[0] == "granted"
     register.terminate()
 
 def test_too_many_leases_are_refused():
-    register = PowerUpRegister(maximum_requests=2)
+    register = PoweredUpRegister(maximum_requests=2)
     register.request("a/b/1/1/in", 60, "one")
     register.request("a/b/2/1/in", 60, "two")
     assert register.request("a/b/3/1/in", 60, "three")  \
@@ -136,17 +136,17 @@ def test_too_many_leases_are_refused():
 def test_a_client_that_already_holds_one_is_not_refused_when_full():
     """Otherwise a full register would stop every holder from extending"""
 
-    register = PowerUpRegister(maximum_requests=1)
+    register = PoweredUpRegister(maximum_requests=1)
     register.request(TOPIC, 60, "upload")
     assert register.request(TOPIC, 60, "upload")[0] == "granted"
     register.terminate()
 
 def test_seconds_that_are_not_a_number_are_refused():
-    assert PowerUpRegister().request(TOPIC, "soon", "upload")  \
+    assert PoweredUpRegister().request(TOPIC, "soon", "upload")  \
         == ("refused", "parameters")
 
 def test_a_negative_request_releases_rather_than_grants():
-    register = PowerUpRegister()
+    register = PoweredUpRegister()
     register.request(TOPIC, 60, "upload")
     assert register.request(TOPIC, -60, "upload")[0] == "released"
     assert register.held() == 0
@@ -156,7 +156,7 @@ def test_an_expiry_tells_whoever_is_watching():
     event-loop thread.  An expiry is never silent"""
 
     gone = []
-    register = PowerUpRegister(expired_handler=gone.append)
+    register = PoweredUpRegister(expired_handler=gone.append)
     register.request(TOPIC, 60, "upload")
     register._lease_expired(TOPIC)
     assert gone == [TOPIC]
@@ -164,26 +164,26 @@ def test_an_expiry_tells_whoever_is_watching():
     assert register.expired == 1
 
 def test_an_expiry_of_a_lease_that_went_already_is_ignored():
-    register = PowerUpRegister(expired_handler=lambda topic: None)
+    register = PoweredUpRegister(expired_handler=lambda topic: None)
     register._lease_expired(TOPIC)
     assert register.expired == 0
 
 def test_an_expiry_leaves_no_timer_behind():
-    register = PowerUpRegister(expired_handler=lambda topic: None)
+    register = PoweredUpRegister(expired_handler=lambda topic: None)
     before = timer_count()
     register.request(TOPIC, 60, "upload")
     register._lease_expired(TOPIC)
     assert timer_count() == before
 
 def test_the_reasons_are_each_given_once():
-    register = PowerUpRegister()
+    register = PoweredUpRegister()
     register.request(TOPIC, 60, "upload")
     register.request(OTHER, 60, "upload")
     assert register.reasons() == ("upload",)
     register.terminate()
 
 def test_what_is_published_says_who_and_for_how_long():
-    register = PowerUpRegister()
+    register = PoweredUpRegister()
     register.request(TOPIC, 300, "recording")
     items = register.as_share()
     assert items["power_up.held"] == "1"
@@ -194,7 +194,7 @@ def test_what_is_published_says_who_and_for_how_long():
 def test_no_published_token_holds_a_space():
     """They are shared variables, and ServiceFilter splits on a space"""
 
-    register = PowerUpRegister()
+    register = PoweredUpRegister()
     register.request(TOPIC, 60, "store_forward")
     register.request(OTHER, 60, "recording")
     for value in register.as_share().values():
@@ -202,10 +202,10 @@ def test_no_published_token_holds_a_space():
     register.terminate()
 
 def test_nothing_held_says_so():
-    assert PowerUpRegister().as_share()["power_up.reasons"] == "-"
+    assert PoweredUpRegister().as_share()["power_up.reasons"] == "-"
 
 def test_a_lease_knows_the_client_that_holds_it():
-    lease = PowerUpLease(60.0, TOPIC, "upload")
+    lease = PoweredUpLease(60.0, TOPIC, "upload")
     assert lease.topic == TOPIC
     assert lease.reason == "upload"
     lease.terminate()
@@ -213,7 +213,7 @@ def test_a_lease_knows_the_client_that_holds_it():
 def test_the_bridge_is_not_a_client_topic():
     """The reserved key is not a topic, and nothing is published to it"""
 
-    register = PowerUpRegister()
+    register = PoweredUpRegister()
     register.request(BRIDGE_TOPIC, 60, "store_forward")
     assert register.held() == 1
     assert register.topics() == ()

@@ -9,7 +9,7 @@
 #
 #     Does anything still need this host?
 #
-# A client answers by holding a PowerUpLease.  It asks for a number of
+# A client answers by holding a PoweredUpLease.  It asks for a number of
 # seconds, extends the Lease before it expires, and releases it when its
 # work is done.  Thus a Pipeline that records, an Agent that thinks, a store
 # and forward of files, and Aiko Services itself all make the same claim in
@@ -21,8 +21,16 @@
 # measurable thing, rather than a guess that the power manager made on
 # behalf of an Actor it could not see.
 #
-# PowerUpLease extends the framework's Lease, as ECLease does, so an expiry
-# acts at the time that was agreed and not at the next convenient moment.
+# The names follow one rule, because "power up" can be read two ways.  A
+# noun for the thing that is held says "powered up", as PoweredUpLease and
+# PoweredUpRegister do: what a client holds is a claim on *being* powered
+# up.  The verb and its namespace say "power up", as "(request_power_up
+# ...)" and "power_up.held" do: what a client *does* is ask to be powered
+# up.  So neither reading has to carry both meanings.
+#
+# PoweredUpLease extends the framework's Lease, as ECLease does, so an
+# expiry acts at the time that was agreed and not at the next convenient
+# moment.
 # Prompt action at the agreed timeout is a large part of what a Lease is
 # for: the last Lease to expire is the event that lets a host stop, and a
 # host that waited for its next sample would be holding a battery pack up
@@ -45,7 +53,7 @@ from aiko_services.main.lease import Lease
 __all__ = [
     "BRIDGE_TOPIC", "POWER_UP_MAXIMUM_S", "POWER_UP_REQUESTS_MAXIMUM",
     "REFUSED_MAXIMUM", "REFUSED_NO_RESOURCE", "REFUSED_PARAMETERS",
-    "PowerUpLease", "PowerUpRegister",
+    "PoweredUpLease", "PoweredUpRegister",
 ]
 
 POWER_UP_MAXIMUM_S = 600.0         # The longest single request that is given
@@ -62,7 +70,7 @@ REFUSED_MAXIMUM = "maximum_seconds"
 REFUSED_NO_RESOURCE = "no_resource"
 REFUSED_PARAMETERS = "parameters"
 
-class PowerUpLease(Lease):
+class PoweredUpLease(Lease):
     """One client's claim on staying powered up, for a time that was agreed.
 
     It extends the framework's Lease, as ECLease does, so the expiry runs
@@ -83,7 +91,7 @@ class PowerUpLease(Lease):
 
         return self.lease_uuid
 
-class PowerUpRegister:
+class PoweredUpRegister:
     """Every live claim on the host, keyed by the client that made it.
 
     A client that asks again extends the Lease it holds, rather than taking
@@ -135,7 +143,7 @@ class PowerUpRegister:
         if len(self._leases) >= self.maximum_requests:
             self.refused += 1
             return "refused", f"{REFUSED_NO_RESOURCE} requests"
-        self._leases[topic] = PowerUpLease(seconds, topic, reason,
+        self._leases[topic] = PoweredUpLease(seconds, topic, reason,
             lease_expired_handler=self._lease_expired)
         self.granted += 1
         return "granted", f"{seconds:.0f}"

@@ -21,6 +21,24 @@ from aiko_services.actors.power_manager import (
 )
 from aiko_services.actors.power_manager.cli import main
 
+# The package ------------------------------------------------------------- #
+
+def test_every_exported_name_imports():
+    """__all__ listed names whose import had been cut away with a module
+    that was removed, and nothing noticed, because each test imports from
+    the module it is about rather than from the package"""
+
+    import aiko_services.actors.power_manager as package
+
+    missing = [name for name in package.__all__
+        if not hasattr(package, name)]
+    assert missing == []
+
+def test_the_exported_names_are_sorted_and_unique():
+    import aiko_services.actors.power_manager as package
+
+    assert len(set(package.__all__)) == len(package.__all__)
+
 # Composition -------------------------------------------------------------- #
 
 def test_mock_is_chosen_by_name():

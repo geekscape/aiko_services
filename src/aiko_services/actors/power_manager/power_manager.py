@@ -62,7 +62,7 @@ from aiko_services.actors.power_manager.reading import (
 from aiko_services.actors.power_manager.shutdown import power_off
 from aiko_services.actors.power_manager.power_up import (
     BRIDGE_TOPIC, POWER_UP_MAXIMUM_S, POWER_UP_REQUESTS_MAXIMUM,
-    PowerUpRegister
+    PoweredUpRegister
 )
 
 try:
@@ -301,7 +301,7 @@ class PowerManagerCommon:
         # The expiry handler runs on the event-loop thread at the agreed
         # time, which is most of what a Lease is for: the last one to
         # expire is the event that lets a host stop
-        self._power_up = PowerUpRegister(
+        self._power_up = PoweredUpRegister(
             maximum_seconds=self._thresholds.get(
                 "power_up_maximum_s", POWER_UP_MAXIMUM_S),
             maximum_requests=self._thresholds.get(
