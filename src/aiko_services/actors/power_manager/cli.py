@@ -7,9 +7,13 @@
 # aiko_power_manager --help
 #
 # aiko_power_manager run [--device auto] [--period 5.0] [--log DIR]
-#                        [--safe | --unsafe]
+#                        [--safe | --unsafe] [--advisory | --enforce]
+#                        [--queue none] [--inputs auto]
 # aiko_power_manager run --device mock --period 1    # On a laptop
 # aiko_power_manager run --period 60                 # In the field
+# aiko_power_manager run --queue store_forward --enforce   # Acting, in the
+#                                                    #   field, after the
+#                                                    #   pack is measured
 #
 # aiko_power_manager sample [--device auto]          # One reading, as JSON
 #
@@ -32,6 +36,7 @@
 # exemption from Interface composition
 
 import json
+import signal
 
 import click
 
@@ -41,10 +46,12 @@ from aiko_services.main.utilities import get_hostname
 from aiko_services.actors.power_manager.hold import (
     HOLD_GPIO, HoldNotAvailable, hold_state, set_hold
 )
+from aiko_services.actors.power_manager.button import choose_power_inputs
 from aiko_services.actors.power_manager.power_manager import (
-    LOG_DIRECTORY, PERIOD_DEVELOPMENT, SAFE, choose_power_manager,
+    ENFORCE, LOG_DIRECTORY, PERIOD_DEVELOPMENT, SAFE, choose_power_manager,
     power_manager_args
 )
+from aiko_services.actors.power_manager.queue import choose_queue_source
 from aiko_services.actors.power_manager.render import (
     ARTIFACTS, InstallRefused, install as install_artifact, paths, render,
     verify
@@ -73,8 +80,18 @@ def main():
 @click.option("--safe/--unsafe", "safe", default=SAFE,
     help="Accept only (sample) and (set_log_level) from the message bus "
          "[default: --safe]")
+@click.option("--enforce/--advisory", "enforce", default=ENFORCE,
+    help="Act on the policy, or publish it and act on nothing "
+         "[default: --advisory]")
+@click.option("--queue", "-q", "queue",
+    type=click.Choice(["none", "store_forward", "fake"]), default="none",
+    help="Where the transfer queue is read from [default: none]")
+@click.option("--inputs", "-i", "inputs",
+    type=click.Choice(["auto", "gpio", "none"]), default="auto",
+    help="The button and dock lines [default: auto]")
 
-def run_command(name, device, period, log_directory, no_log, keep_days, safe):
+def run_command(name, device, period, log_directory, no_log, keep_days, safe,
+    enforce, queue, inputs):
     """Run the PowerManager Actor
 
     \b
@@ -85,13 +102,22 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe):
     from outside a trusted network (ADR-023 decision 6).  The posture is
     published as "safe" in the shared state, and a denial counts in
     "metrics.denied".
+
+    \b
+    --advisory is the default, and it is not timidity.  The thresholds come
+    from a data sheet, so the policy decides on every sample, publishes
+    what it would do in "policy_would" and "policy_reason", and acts on
+    nothing.  Read the log, set the thresholds from the pack you have, and
+    then pass --enforce.
     """
 
     implementation = choose_power_manager(device)
     init_args = power_manager_args(
         name or get_hostname(), implementation.device,
         declared=implementation.DECLARED_PROPERTIES,
-        period=period, keep_days=keep_days, safe=safe,
+        period=period, keep_days=keep_days, safe=safe, enforce=enforce,
+        queue_source=choose_queue_source(queue),
+        inputs=choose_power_inputs(inputs),
         log_directory=None if no_log else log_directory)
     power_manager = aiko.compose_instance(implementation, init_args)
     try:
@@ -103,7 +129,18 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe):
     # carries what open() actually found on this host
     found = power_manager.publish_properties()
     click.echo(f"# device {implementation.device}, properties "
-        f"{found or 'none'}", err=True)
+        f"{found or 'none'}, "
+        f"{'ENFORCING' if enforce else 'advisory'}", err=True)
+    if enforce:
+        click.echo("# the policy will stop this host when it decides to",
+            err=True)
+
+    # A stop must reach close(), so that every line this Actor claimed is
+    # released.  Without it the run ends on an unhandled signal, "finally"
+    # never runs, and a claimed output stays driven after the process is
+    # gone: measured on the hardware on 2026-11-05.  The power hold is the
+    # opposite case and is never claimed here (ADR-028 decision 5)
+    signal.signal(signal.SIGTERM, lambda *_: aiko.process.terminate())
     try:
         aiko.process.run()
     finally:
@@ -127,7 +164,7 @@ def sample_command(device, count):
     init_args = power_manager_args(
         get_hostname(), implementation.device,
         declared=implementation.DECLARED_PROPERTIES,
-        log_directory=None, timer=False)
+        log_directory=None, timer=False, inputs=choose_power_inputs("none"))
     power_manager = aiko.compose_instance(implementation, init_args)
     try:
         found = power_manager.open()

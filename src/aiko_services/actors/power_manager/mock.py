@@ -20,6 +20,7 @@
 # * A discharge script, so that a test walks a pack from full to the floor
 #   and asserts what the policy does at each step (phase 3)
 
+from aiko_services.actors.power_manager.button import FakePowerInputs
 from aiko_services.actors.power_manager.power_manager import (
     PowerManager, PowerManagerCommon
 )
@@ -42,8 +43,11 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
 
     def __init__(self, context, script=None, properties=("readings", "dock"),
         period=None, log_directory=None, keep_days=None, safe=None,
-        thresholds=None, telemetry=False, timer=False):
+        thresholds=None, telemetry=False, timer=False, inputs=None,
+        enforce=None, queue_source=None, quiesce=None,
+        power_off_runner=None, worker=False):
 
+        self._inputs = inputs if inputs is not None else FakePowerInputs()
         self._script = list(script) if script else []
         self._properties = tuple(properties)
         self._index = 0
@@ -53,13 +57,17 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
         self.signals = []              # Every signal() call, for a test
 
         from aiko_services.actors.power_manager.power_manager import (
-            PERIOD_DEVELOPMENT, SAFE
+            ENFORCE, PERIOD_DEVELOPMENT, SAFE
         )
         self._init_power(context,
             period=PERIOD_DEVELOPMENT if period is None else period,
             log_directory=log_directory, keep_days=keep_days,
             safe=SAFE if safe is None else safe,
-            thresholds=thresholds, telemetry=telemetry, timer=timer)
+            thresholds=thresholds, telemetry=telemetry, timer=timer,
+            enforce=ENFORCE if enforce is None else enforce,
+            queue_source=queue_source, quiesce=quiesce,
+            power_off_runner=power_off_runner, worker=worker)
+        self._inputs.add_handler(self._input_event)
 
     def properties(self):
         return self._properties
@@ -91,18 +99,16 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
 
         self.signals.append(name)
 
-    def press(self, kind="long", seconds=3.0):
-        """Report a button press to every handler, as a real button would.
-        Nothing acts on it before phase 3"""
+    def press(self, seconds=3.0):
+        """Report a press that lasted this long, as a real button would.
+        A press that reaches the hold time reports "held" """
 
-        for handler in getattr(self, "_handlers", []):
-            handler("button", f"{kind} {seconds:.2f}")
+        return self._inputs.press(seconds=seconds)
 
     def dock(self, docked):
-        """Report a dock change to every handler"""
+        """Report a dock change, as the line would"""
 
-        for handler in getattr(self, "_handlers", []):
-            handler("dock", "yes" if docked else "no")
+        self._inputs.set_docked(docked)
 
     def close(self):
         self.closed = True

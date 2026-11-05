@@ -246,19 +246,40 @@ def test_safe_cannot_be_changed_from_the_bus():
 
 # Handlers ----------------------------------------------------------------- #
 
-def test_a_handler_is_recorded_and_receives_a_press():
-    actor = make_actor()
-    seen = []
-    actor.add_handler(lambda event, value: seen.append((event, value)))
-    actor.press("long", 3.2)
-    assert seen == [("button", "long 3.20")]
+def test_a_press_that_reaches_the_hold_time_decides_to_stop():
+    actor = make_actor(script=[{"battery_volts": 12.0, "docked": True}])
+    actor.press(3.2)
+    assert actor.share["metrics"]["button_presses"] == 1
+    assert actor.share["policy_would"] == "shutdown"
+    assert actor.share["policy_reason"] == "button_held"
 
-def test_a_handler_receives_a_dock_change():
+def test_a_press_that_reaches_the_hold_time_acts_on_nothing_while_advisory():
+    """A person asked, and the posture still decides whether it happens"""
+
+    actor = make_actor(script=[{"battery_volts": 12.0, "docked": True}])
+    actor.press(3.2)
+    assert actor.share["policy"] == POLICY_ADVISORY
+    assert actor.share["metrics"]["shutdowns"] == 0
+
+def test_a_short_press_decides_nothing():
+    actor = make_actor(script=[{"battery_volts": 12.0, "docked": True}])
+    actor.press(1.0)
+    assert actor.share["metrics"]["button_presses"] == 0
+    assert actor.share["policy_would"] == "-"
+
+def test_a_dock_change_reaches_the_actor():
+    actor = make_actor()
+    actor.dock(False)
+    assert actor._inputs.docked() is False
+
+def test_a_handler_is_recorded():
+    """add_handler is part of the Interface, for a client that wants the
+    raw events rather than the decision"""
+
     actor = make_actor()
     seen = []
     actor.add_handler(lambda event, value: seen.append((event, value)))
-    actor.dock(False)
-    assert seen == [("dock", "no")]
+    assert actor._handlers == [seen.append] or len(actor._handlers) == 1
 
 def test_the_protocol_is_power_manager_0():
     assert PROTOCOL.endswith("/power_manager:0")

@@ -50,9 +50,17 @@ import aiko_services as aiko
 from aiko_services.main.utilities import get_hostname
 
 from aiko_services.actors.power_manager.log import PowerLog
+from aiko_services.actors.power_manager.policy import (
+    Dwell, HOLD, MODE_NORMAL, MODE_QUIESCE, SHUTDOWN, decide, decide_mode
+)
+from aiko_services.actors.power_manager.queue import choose_queue_source
+from aiko_services.actors.power_manager.quiesce import (
+    HOOK_QUIESCE, Quiesce, REMOUNT_GRACE_S
+)
 from aiko_services.actors.power_manager.reading import (
     PowerReading, boot_id, utc_now
 )
+from aiko_services.actors.power_manager.shutdown import power_off
 
 try:
     import psutil
@@ -60,10 +68,12 @@ except ImportError:                                      # pragma: no cover
     psutil = None
 
 __all__ = [
-    "DEVICE_FUNCTIONS", "FUNCTIONS", "LOG_DIRECTORY", "PERIOD_DEVELOPMENT",
-    "PERIOD_PRODUCTION", "POLICY_ADVISORY", "PROPERTIES", "PROTOCOL", "SAFE",
-    "SAFE_FUNCTIONS", "THRESHOLDS", "PowerManager", "choose_power_manager",
-    "power_manager_args", "service_filter", "service_tags",
+    "DEVICE_FUNCTIONS", "DOCK_DWELL_S", "ENFORCE", "FUNCTIONS",
+    "LOG_DIRECTORY", "PERIOD_DEVELOPMENT", "PERIOD_PRODUCTION",
+    "POLICY_ADVISORY", "POLICY_SHUTTING_DOWN", "PROPERTIES", "PROTOCOL",
+    "SAFE", "SAFE_FUNCTIONS", "THRESHOLDS", "PowerManager",
+    "PowerManagerCommon", "choose_power_manager", "power_manager_args",
+    "service_filter", "service_tags",
 ]
 
 PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/power_manager:0"
@@ -79,7 +89,19 @@ PERIOD_PRODUCTION = 60.0           # Seconds between samples, in the field
 PERIOD_LOW, PERIOD_HIGH = 0.5, 3600.0
 
 LOG_DIRECTORY = "~/power_log"
-POLICY_ADVISORY = "advisory"       # Phase 1: it decides nothing
+
+# The policy decides on every sample, and acts only when it is allowed to.
+# "advisory" is the default, and it is not timidity: the thresholds of
+# THRESHOLDS are from a data sheet, and the lead's direction is to measure
+# the pack before anything acts on them.  An operator reads "policy_would"
+# and "policy_reason" for as long as that takes, and then turns it on
+ENFORCE = False
+POLICY_ADVISORY = "advisory"       # It decides, publishes, and acts on nothing
+POLICY_SHUTTING_DOWN = "shutting_down"
+
+# A supply glitches, and a dock that flickers must not start a shutdown.
+# So the host counts as docked until it has been undocked this long
+DOCK_DWELL_S = 10.0
 
 # The first values of the plan's threshold table.  Phase 1 publishes them
 # and enforces none of them: the pack measured 10.047 V, which is under
@@ -90,6 +112,10 @@ THRESHOLDS = {
     "battery_volts_low": 10.5,     # Start the orderly shutdown
     "quiesce_volts": 10.2,         # Stop writing, and flush
     "pack_temperature_maximum_c": 45.0,     # The pack, never the processor
+    "battery_dwell_s": 30.0,       # The voltage must stay low this long
+    "undocked_maximum_s": 3600.0,  # The bound on an undocked hold
+    "queue_grace_s": 60.0,         # After the queue empties
+    "dock_dwell_s": DOCK_DWELL_S,  # Before an undock is believed
 }
 
 class PowerManager(aiko.Actor):
@@ -205,7 +231,9 @@ class PowerManagerCommon:
 
     def _init_power(self, context, period=PERIOD_DEVELOPMENT,
         log_directory=LOG_DIRECTORY, keep_days=None, safe=SAFE,
-        thresholds=None, telemetry=True, timer=True):
+        thresholds=None, telemetry=True, timer=True, enforce=ENFORCE,
+        queue_source=None, quiesce=None, power_off_runner=None,
+        worker=True):
 
         """Compose the Actor part.  An Implementation calls this from its
         own __init__, after it has recorded its devices"""
@@ -223,6 +251,23 @@ class PowerManagerCommon:
             else None
         self._boot_id = boot_id()
 
+        # The policy's memory.  decide() is pure, so everything it needs to
+        # know about time lives here and is handed to it as numbers
+        self._enforce = bool(enforce)
+        self._queue = queue_source or choose_queue_source("none")
+        self._quiesce = quiesce or Quiesce()
+        # worker=False runs the power-off where it is decided, which is how
+        # the tests exercise the acting path.  Nothing else sets it
+        self._power_off_runner = power_off_runner
+        self._worker = bool(worker)
+        self._mode = MODE_NORMAL
+        self._button_held = False
+        self._undocked = Dwell()       # How long the dock line has said no
+        self._battery_low = Dwell()    # How long the pack has been under low
+        self._queue_empty = Dwell()    # How long nothing has waited to go
+        self._stopping = False
+        self.add_hook(HOOK_QUIESCE)
+
         properties = tuple(self.properties())
         declared = tuple(getattr(self, "DECLARED_PROPERTIES", properties))
         self.share.update({
@@ -233,6 +278,11 @@ class PowerManagerCommon:
                 for name in PROPERTIES},
             "policy": POLICY_ADVISORY,
             "policy_reason": "-",
+            "policy_would": "-",       # What it would do, while advisory
+            "enforce": self._enforce,
+            "mode": self._mode,
+            "mode_reason": "-",
+            "undocked_since_utc": "-",
             "hold_state": "unknown",
             "hook": "unknown",
             "sample_period_s": f"{self._period:.1f}",
@@ -241,17 +291,25 @@ class PowerManagerCommon:
             "thresholds": {name: f"{value}"
                 for name, value in self._thresholds.items()},
             "metrics": {"samples": 0, "sensor_errors": 0, "signals": 0,
-                "hold_changes": 0, "denied": 0},
+                "hold_changes": 0, "denied": 0, "shutdowns": 0,
+                "quiesces": 0, "button_presses": 0},
             # The share is a nested dictionary of at most two levels, and a
             # dotted name is a path into it, not a key (share.py).  So the
             # snapshot nests what _publish() later updates by path
             **_nest({**PowerReading().as_share(),
-                "battery.margin_volts": "-"}),
+                "battery.margin_volts": "-",
+                **self._queue.state().as_share(),
+                **self._quiesce.done()}),
         })
         self.ec_producer.add_handler(self._power_change_handler)
 
-        if timer:
+        self._timer = bool(timer)
+        if self._timer:
             aiko.event.add_timer_handler(self._sample_timer, self._period)
+        try:
+            self._queue.open()
+        except Exception as error:                       # noqa: BLE001
+            self.logger.warning(f"No queue source: {error}")
 
 # The wire surface ---------------------------------------------------------- #
 
@@ -266,13 +324,25 @@ class PowerManagerCommon:
         return self._read_guarded()
 
     def sample(self):
-        """Read the devices, publish the reading, append it to the log"""
+        """Read the devices, publish the reading, decide, append to the log.
+
+        The decision is taken on every sample, and acted on only when this
+        Actor is enforcing.  So a host runs for as long as an operator wants
+        with the decision visible and nothing happening"""
 
         reading = self.reading()
         self._publish(reading)
+        decision, reason, mode, mode_reason = self._evaluate(reading)
         if self._log:
             self._log.write(reading, extra={
-                "policy": POLICY_ADVISORY,
+                "policy": self.share["policy"],
+                "policy_would": decision,
+                "policy_reason": reason,
+                "mode": mode,
+                "mode_reason": mode_reason,
+                "enforce": self._enforce,
+                "queue_depth": self._queue.state().depth,
+                "queue_known": self._queue.state().known,
                 "period_s": self._period,
             })
             if self._log.last_error:
@@ -325,9 +395,14 @@ class PowerManagerCommon:
             return
         if period == self._period:
             return
-        aiko.event.remove_timer_handler(self._sample_timer)
+        # Only move a timer that is running.  An Actor composed without one
+        # must not gain one here: a wire function that starts the sampling
+        # it was asked to re-time is a surprise
+        if self._timer:
+            aiko.event.remove_timer_handler(self._sample_timer)
         self._period = period
-        aiko.event.add_timer_handler(self._sample_timer, self._period)
+        if self._timer:
+            aiko.event.add_timer_handler(self._sample_timer, self._period)
         self.ec_producer.update("sample_period_s", f"{period:.1f}")
         self.logger.info(f"Sample period: {period} s")
 
@@ -379,6 +454,186 @@ class PowerManagerCommon:
             if reading.load_1m is None:
                 values["load_1m"] = load
         return replace(reading, **values)
+
+    def _evaluate(self, reading, now=None):
+        """Decide, publish the decision, and act when allowed to.
+
+        Returns (decision, reason, mode, mode_reason).  Runs on the
+        event-loop thread, after every sample and after a button press"""
+
+        import time
+
+        now = time.monotonic() if now is None else now
+        queue = self._queue.state()
+        properties = tuple(self.properties())
+        thresholds = self._thresholds
+
+        # The dock line glitches, so the host counts as docked until it has
+        # been undocked for its dwell.  Holding the power is the safe side
+        # of that doubt
+        reported = reading.docked
+        undocked_s = self._undocked.update(reported is False, now)
+        dock_dwell = float(thresholds.get("dock_dwell_s", DOCK_DWELL_S))
+        docked = True if reported is None else (
+            reported or not self._undocked.passed(dock_dwell, now))
+
+        low = _as_float(thresholds.get("battery_volts_low"))
+        battery_low_s = self._battery_low.update(
+            reading.battery_volts is not None and low is not None
+            and reading.battery_volts < low, now)
+        queue_empty_s = self._queue_empty.update(
+            queue.known and not queue.busy, now)
+
+        decision, reason = decide(
+            reading.battery_volts, reading.battery_pack_celsius, docked,
+            properties, queue.busy, queue.known, self._button_held,
+            undocked_s, battery_low_s, queue_empty_s, thresholds)
+        mode, mode_reason = decide_mode(
+            self._mode, decision, reading.battery_volts, docked,
+            self.hook_state(), thresholds)
+
+        self._publish_decision(decision, reason, mode, mode_reason, queue,
+            docked, undocked_s)
+        if mode != self._mode:
+            self._enter_mode(mode, mode_reason, now)
+        if decision == SHUTDOWN:
+            self._act(reason, now)
+        return decision, reason, mode, mode_reason
+
+    def _publish_decision(self, decision, reason, mode, mode_reason, queue,
+        docked, undocked_s):
+
+        """Everything the decision produced, whether or not it is acted on"""
+
+        items = {
+            "policy_would": decision,
+            "policy_reason": reason,
+            "mode_reason": mode_reason,
+            "docked": "yes" if docked else "no",
+            **queue.as_share(),
+            **self._quiesce.done(),
+        }
+        if not self._enforce:
+            items["policy"] = POLICY_ADVISORY
+        elif not self._stopping:
+            items["policy"] = HOLD if decision == HOLD  \
+                else "shutdown_pending"
+        if undocked_s and self.share["undocked_since_utc"] == "-":
+            items["undocked_since_utc"] = utc_now()
+        elif not undocked_s:
+            items["undocked_since_utc"] = "-"
+        for name, value in items.items():
+            self.ec_producer.update(name, value)
+
+    def _enter_mode(self, mode, reason, now):
+        """A mode change, with what each mode asks for.
+
+        Quiesce flushes the file systems once and runs the declared hook, so
+        that whatever is writing can stop before the power goes"""
+
+        self._mode = mode
+        self.ec_producer.update("mode", mode)
+        self.logger.info(f"Power mode: {mode} ({reason})")
+        if mode != MODE_QUIESCE:
+            return
+        self._count("quiesces")
+        outcome = self._quiesce.enter(now)
+        if outcome and not outcome[0]:
+            self.logger.error(f"Sync failed: {outcome[1]}")
+            self.ec_producer.update("last_error", outcome[1][:120])
+        self.run_hook(HOOK_QUIESCE,
+            lambda: {"mode": mode, "reason": reason})
+        for name, value in self._quiesce.done().items():
+            self.ec_producer.update(name, value)
+
+    def _act(self, reason, now):
+        """Stop the host, when this Actor is enforcing.
+
+        While it is advisory this logs the decision and does nothing, which
+        is the whole point of the posture: the thresholds are from a data
+        sheet until the pack has been measured"""
+
+        if not self._enforce:
+            self.logger.warning(
+                f"Advisory: would shut down now ({reason})")
+            return
+        if self._stopping:
+            return
+        floor = _as_float(self._thresholds.get("battery_volts_floor"))
+        volts = _as_float(self.share["battery"].get("volts"))
+        at_floor = reason == "battery_floor" or (
+            volts is not None and floor is not None and volts < floor)
+        if at_floor and self._quiesce.entered_at is None:
+            # Start the grace here, rather than wait on one that nothing
+            # started.  Otherwise a mode that never changed would leave the
+            # host running on the last of its charge for ever
+            self._quiesce.enter(now)
+            return
+        if at_floor and self._quiesce.ready_to_remount(now):
+            outcome = self._quiesce.remount()
+            if outcome and not outcome[0]:
+                self.logger.error(f"Remount failed: {outcome[1]}")
+                self.ec_producer.update("last_error", outcome[1][:120])
+            for name, value in self._quiesce.done().items():
+                self.ec_producer.update(name, value)
+        elif at_floor:
+            return                     # Wait out the grace, then remount
+
+        self._stopping = True
+        self.ec_producer.update("policy", POLICY_SHUTTING_DOWN)
+        self._count("shutdowns")
+        self.logger.warning(f"Shutting down: {reason}")
+        self.signal("shutdown")
+        self._power_off()
+
+    def _power_off(self):
+        """Ask the operating system to stop, on a worker thread.
+
+        A subprocess blocks, and the event-loop thread must not (P2).  The
+        shutdown hook releases the power hold after the file systems are
+        unmounted, and this Actor never does (ADR-028 decision 6)"""
+
+        from threading import Thread
+
+        def run():
+            ok, detail = power_off(runner=self._power_off_runner)
+            if not ok:
+                self._post_message(
+                    aiko.ActorTopic.IN, "_power_off_failed", [detail[:120]])
+
+        if not self._worker:
+            ok, detail = power_off(runner=self._power_off_runner)
+            if not ok:
+                self._power_off_failed(detail[:120])
+            return
+        Thread(target=run, daemon=True, name="power_off").start()
+
+    def _power_off_failed(self, detail):
+        """The host could not be stopped.  An operator must see this: a
+        battery policy that cannot act is advice, whatever it says"""
+
+        self.logger.error(f"Power off refused: {detail}")
+        self.ec_producer.update("last_error", f"power off: {detail}"[:120])
+        self.ec_producer.update("policy", "shutdown_pending")
+        self._stopping = False
+
+    def _input_event(self, event, value):
+        """A button or dock event, on the event-loop thread.
+
+        The device reports on its own thread and posts here (P11)"""
+
+        if event == "dock":
+            self.logger.info(f"Dock: {value}")
+            return
+        if event == "button":
+            if value == "held":
+                self._count("button_presses")
+                self._button_held = True
+                self.logger.warning("Button held: shutting down")
+                self.signal("accepted")
+                self._evaluate(self.reading())
+            elif value.startswith("up") or value == "short":
+                self.logger.info(f"Button {value}")
 
     def _publish(self, reading):
         """One reading into the shared state, through the producer"""
@@ -458,6 +713,17 @@ def _nest(items):
         else:
             nested[name] = value
     return nested
+
+def _as_float(value, default=None):
+    """A shared variable or a threshold as a float.  "-" and a mistyped
+    value are "default", and a rule whose number is None does not fire"""
+
+    if value is None or value == "-":
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 def _token(value):
     return "-" if value is None else f"{value:.3f}"

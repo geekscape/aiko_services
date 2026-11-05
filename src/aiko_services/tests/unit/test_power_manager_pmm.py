@@ -124,8 +124,16 @@ def test_a_reading_outside_the_part_range_is_not_this_part():
 # The Implementation ------------------------------------------------------- #
 
 def make_actor(bus, **parameters):
+    # The buzzer and the input lines are "none" unless a test asks for
+    # them.  Without that, this factory would compose the devices of
+    # whatever host the tests run on, and the same assertion would mean
+    # different things on a laptop and on the hardware
+    from aiko_services.actors.power_manager import (
+        choose_buzzer, choose_power_inputs
+    )
     settings = {"bus": bus, "log_directory": None, "telemetry": False,
-        "timer": False}
+        "timer": False, "buzzer": choose_buzzer("none"),
+        "inputs": choose_power_inputs("none")}
     settings.update(parameters)
     init_args = power_manager_args(
         f"power_pmm_test_{next(_counter)}", "pmm",
@@ -211,10 +219,9 @@ def test_hold_and_signal_are_no_ops_where_the_platform_lacks_them(
     which is worse than no test"""
 
     from aiko_services.actors.power_manager import pmm as module
-    from aiko_services.actors.power_manager.signal import FakeBuzzer
     monkeypatch.setattr(module, "hold_tool", lambda *a, **k: None)
 
-    actor = make_actor(whole_board(), buzzer=FakeBuzzer())
+    actor = make_actor(whole_board())
     actor.open()
     assert actor.properties() == ("readings",)
     actor.hold(True)                                 # Logs, and does nothing

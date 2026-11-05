@@ -160,6 +160,21 @@ def test_signal_on_no_buzzer_is_not_an_error():
     assert result.exit_code == 0
     assert "none" in result.output
 
+def test_run_installs_a_term_handler_so_its_lines_are_released(monkeypatch):
+    """Without it the run ends on an unhandled signal, "finally" never
+    runs, and a claimed output stays driven after the process is gone"""
+
+    import signal as signal_module
+    installed = []
+    monkeypatch.setattr(signal_module, "signal",
+        lambda number, handler: installed.append(number))
+    monkeypatch.setattr(
+        "aiko_services.process.run", lambda *a, **k: None)
+    result = CliRunner().invoke(
+        main, ["run", "--device", "mock", "--no_log", "--inputs", "none"])
+    assert result.exit_code == 0, result.output
+    assert signal_module.SIGTERM in installed
+
 def test_run_help_states_the_posture():
     result = CliRunner().invoke(main, ["run", "--help"])
     assert result.exit_code == 0
