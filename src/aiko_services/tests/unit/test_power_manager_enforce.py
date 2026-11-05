@@ -1154,3 +1154,30 @@ def test_the_measured_reading_is_warned_about_and_also_under_its_floor():
     actor._evaluate(actor.reading(), now=1000.0)
     assert actor.share["supply_warning"] == "supply_current"
     assert actor.share["policy_reason"] == "battery_floor"
+
+def test_the_log_carries_what_the_policy_acts_on():
+    """An undocked host that stops takes its journal with it where the
+    journal is not persistent, and this log is then the only account of
+    why it stopped.  On 2026-11-05 that question could not be answered,
+    because the acting reason was in the shared state and not here"""
+
+    import json
+    import pathlib
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as directory:
+        actor = make_actor(log_directory=directory, enforce=False,
+            properties=("readings", "hold", "signal", "button", "dock"),
+            thresholds={**THRESHOLDS, "powered_down_grace_s": 120.0,
+                "supply_amps_maximum": 1.5},
+            quiesce=quiesce_of(), power_off_runner=runner_of(),
+            script=[undocked(volts=9.77)] * 4)
+        actor.sample()
+        actor.close()
+        lines = []
+        for path in sorted(pathlib.Path(directory).glob("*.jsonl")):
+            lines += [json.loads(line) for line in
+                path.read_text().splitlines()]
+    assert lines
+    for name in ("policy_acting", "supply_warning", "undocked_s"):
+        assert name in lines[-1], name

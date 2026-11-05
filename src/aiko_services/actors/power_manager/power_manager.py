@@ -629,6 +629,14 @@ class PowerManagerCommon:
                 # and what the battery pack did through them.  That is
                 # what the deadlines are tuned from
                 "undocked_s": round(self._undocked.seconds(now), 1),
+                # What it will act on, which is not always the reason above.
+                # It belongs here and not only in the shared state: an
+                # undocked host that stops takes its journal with it where
+                # the journal is not persistent, and this log is then the
+                # only account of why it stopped.  Measured on 2026-11-05,
+                # when exactly that question could not be answered
+                "policy_acting": self.share["policy_acting"],
+                "supply_warning": self.share["supply_warning"],
             })
             if self._log.last_error:
                 self.ec_producer.update(
