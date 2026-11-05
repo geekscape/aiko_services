@@ -17,7 +17,7 @@
 #
 # To Do
 # ~~~~~
-# * A discharge script, so that a test walks a pack from full to the floor
+# * A discharge script, so that a test walks a battery pack from full to the floor
 #   and asserts what the policy does at each step (phase 3)
 
 from aiko_services.actors.power_manager.button import FakePowerInputs

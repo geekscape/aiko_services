@@ -2,7 +2,7 @@
 #
 # Aiko Services: one power reading
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# PowerReading is what sample() returns: the supply, the battery, the pack
+# PowerReading is what sample() returns: the supply, the battery, the battery pack
 # temperature and the processor load, at one moment, from one host.
 #
 # A field that the platform does not measure is None, and it stays None all
@@ -91,7 +91,7 @@ class PowerReading:
         return tuple(field.name for field in fields(PowerReading))
 
 # The one place that maps a field to its shared-state name.  ADR-028 names
-# the pack temperature for the pack, so that no reader confuses it with the
+# the battery pack temperature for the battery pack, so that no reader confuses it with the
 # processor temperature beside it
 _SHARE_NAMES = {
     "supply_volts": "supply.volts",

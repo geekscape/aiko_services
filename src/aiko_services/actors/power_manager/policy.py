@@ -8,8 +8,8 @@
 # and classify() in the WhisPlay button is the precedent.
 #
 # The order of the rows is the rule.  The button beats everything, because a
-# person asked.  The floor voltage and the pack temperature beat the queue,
-# because a pack that is damaged is damaged for good and a queue can wait
+# person asked.  The floor voltage and the battery pack temperature beat the queue,
+# because a battery pack that is damaged is damaged for good and a queue can wait
 # for the next shift.  An unknown queue keeps the power on, because the data
 # is why this host has a battery at all, and the undocked time bounds how
 # long that can go on.
@@ -45,7 +45,7 @@ MODES = (MODE_NORMAL, MODE_CONSERVE, MODE_QUIESCE)
 # Every word that a decision can carry.  One token, no spaces, so it is a
 # shared variable and a log column that a reader can count
 REASONS = (
-    "button_held", "battery_floor", "pack_temperature", "no_hold_property",
+    "button_held", "battery_floor", "battery_pack_temperature", "no_hold_property",
     "docked", "battery_low", "undocked_timeout", "queue_empty",
     "queue_busy", "queue_unknown", "hook_missing",
 )
@@ -80,32 +80,32 @@ class Dwell:
 
         return self.since is not None and self.seconds(now) >= float(limit)
 
-def decide(volts, pack_celsius, docked, properties, queue_busy, queue_known,
+def decide(volts, battery_pack_celsius, docked, properties, queue_busy, queue_known,
     button_held, undocked_s, battery_low_s, queue_empty_s, thresholds):
 
     """What to do now: (HOLD, reason) or (SHUTDOWN, reason).
 
     Pure.  Every argument is a number, a token or a boolean, and no argument
-    is a device.  "volts" and "pack_celsius" may be None, which is a host
+    is a device.  "volts" and "battery_pack_celsius" may be None, which is a host
     that cannot measure them rather than a host in trouble.
 
     The rows are tried in order, and the order is the rule:
 
       the button was held               -> shutdown, a person asked
-      the pack is under its floor       -> shutdown, before the cells spoil
-      the pack is too hot               -> shutdown, before the cells spoil
+      the battery pack is under its floor       -> shutdown, before the cells spoil
+      the battery pack is too hot               -> shutdown, before the cells spoil
       this host cannot hold its power   -> hold, there is nothing to decide
       docked                            -> hold, the supply is not ours to save
-      undocked and the pack is low      -> shutdown, after its dwell
+      undocked and the battery pack is low      -> shutdown, after its dwell
       undocked for too long             -> shutdown, the bound on the hold
       undocked and the queue is empty   -> shutdown, after its grace
-      undocked and the queue is busy    -> hold, this is what the pack is for
+      undocked and the queue is busy    -> hold, this is what the battery pack is for
       undocked and the queue is unknown -> hold, and the bound above applies
     """
 
     floor = _number(thresholds.get("battery_volts_floor"))
     low = _number(thresholds.get("battery_volts_low"))
-    hot = _number(thresholds.get("pack_temperature_maximum_c"))
+    hot = _number(thresholds.get("battery_pack_celsius_maximum"))
     dwell = _number(thresholds.get("battery_dwell_s"), 0.0)
     maximum = _number(thresholds.get("undocked_maximum_s"))
     grace = _number(thresholds.get("queue_grace_s"), 0.0)
@@ -114,8 +114,8 @@ def decide(volts, pack_celsius, docked, properties, queue_busy, queue_known,
         return SHUTDOWN, "button_held"
     if volts is not None and floor is not None and volts < floor:
         return SHUTDOWN, "battery_floor"
-    if pack_celsius is not None and hot is not None and pack_celsius > hot:
-        return SHUTDOWN, "pack_temperature"
+    if battery_pack_celsius is not None and hot is not None and battery_pack_celsius > hot:
+        return SHUTDOWN, "battery_pack_temperature"
     if "hold" not in properties:
         return HOLD, "no_hold_property"
     if docked:
@@ -138,14 +138,14 @@ def decide_mode(mode, decision, volts, docked, hook_state, thresholds):
     """The next mode: one of MODES, and the one word that says why.
 
     Pure.  "mode" is the mode now, because this decision has memory: a mode
-    never returns to normal without a dock.  A pack that recovered a little
-    is not a pack that was charged, and a host that stopped writing has
+    never returns to normal without a dock.  A battery pack that recovered a little
+    is not a battery pack that was charged, and a host that stopped writing has
     nothing to gain by starting again.
 
     Reaching MODE_QUIESCE is the signal that the power will end, by any
-    route: the policy decided to stop, the pack fell past its quiesce
+    route: the policy decided to stop, the battery pack fell past its quiesce
     voltage, or the shutdown hook is known to be missing on an undocked
-    host, which means the hold will not be released and the pack will run
+    host, which means the hold will not be released and the battery pack will run
     out.
 
     "hook_state" is a token, and only "missing" is a trigger.  An unknown

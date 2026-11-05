@@ -13,7 +13,7 @@
 # aiko_power_manager run --period 60                 # In the field
 # aiko_power_manager run --queue store_forward --enforce   # Acting, in the
 #                                                    #   field, after the
-#                                                    #   pack is measured
+#                                                    #   battery pack is measured
 #
 # aiko_power_manager sample [--device auto]          # One reading, as JSON
 #
@@ -107,7 +107,7 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
     --advisory is the default, and it is not timidity.  The thresholds come
     from a data sheet, so the policy decides on every sample, publishes
     what it would do in "policy_would" and "policy_reason", and acts on
-    nothing.  Read the log, set the thresholds from the pack you have, and
+    nothing.  Read the log, set the thresholds from the battery pack you have, and
     then pass --enforce.
     """
 

@@ -4,9 +4,9 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # The temperature of a battery pack, from one AT30TSE752A on an I2C bus.
 #
-# **This part measures the pack, and never the processor.**  A board puts it
+# **This part measures the battery pack, and never the processor.**  A board puts it
 # against the cells.  The processor temperature comes from the operating
-# system, and the two are never mixed: a pack at 45 C is a reason to stop,
+# system, and the two are never mixed: a battery pack at 45 C is a reason to stop,
 # and a processor at 45 C is an idle processor.
 #
 # The reading is 11 bits, left justified in two bytes, in two's complement,
@@ -42,7 +42,7 @@ class At30tse:
 
     def celsius(self):
         """The temperature of whatever the part is against, which on a
-        battery board is the pack.  Raises OSError when it does not answer"""
+        battery board is the battery pack.  Raises OSError when it does not answer"""
 
         data = self.bus.read_i2c_block_data(
             self.address, REGISTER_TEMPERATURE, 2)

@@ -10,7 +10,7 @@
 #
 # The recorded values are the ones that the hardware reported on
 # 2026-11-05: 10.047 V, 1.106 A and 11.650 W across the battery, 10.374 V
-# across the charger, and a pack at 27.000 C.  Therefore a change that
+# across the charger, and a battery pack at 27.000 C.  Therefore a change that
 # breaks the arithmetic is caught against a real measurement, and not
 # against a number that this file invented.
 
@@ -20,7 +20,7 @@ import pytest
 
 import aiko_services as aiko
 from aiko_services.actors.power_manager import (
-    ADDRESS_BATTERY, ADDRESS_CHARGER, ADDRESS_PACK_TEMPERATURE, At30tse,
+    ADDRESS_BATTERY, ADDRESS_CHARGER, ADDRESS_BATTERY_PACK, At30tse,
     DIE_ID, Ina260, MANUFACTURER_ID, PmmPowerManagerImpl, module_present,
     power_manager_args,
 )
@@ -30,7 +30,7 @@ _counter = itertools.count()
 # The hardware readings of 2026-11-05, as the parts reported them
 BATTERY = {0x01: 885, 0x02: 8038, 0x03: 1165}       # 1.106 A, 10.047 V, 11.65 W
 CHARGER = {0x01: 798, 0x02: 8299, 0x03: 1036}       # 0.998 A, 10.374 V, 10.36 W
-PACK_27C = 27 * 8 << 5                              # 27.000 C, left justified
+BATTERY_PACK_27C = 27 * 8 << 5                              # 27.000 C, left justified
 
 class FakeBus:
     """A bus of recorded registers.  An address with no entry raises, as a
@@ -52,7 +52,7 @@ class FakeBus:
     def close(self):
         self.closed = True
 
-def whole_board(pack=PACK_27C):
+def whole_board(battery_pack=BATTERY_PACK_27C):
     registers = {}
     for address, values in (
         (ADDRESS_BATTERY, BATTERY), (ADDRESS_CHARGER, CHARGER)):
@@ -60,7 +60,7 @@ def whole_board(pack=PACK_27C):
         registers[(address, 0xFF)] = DIE_ID
         for register, value in values.items():
             registers[(address, register)] = value
-    registers[(ADDRESS_PACK_TEMPERATURE, 0x00)] = pack
+    registers[(ADDRESS_BATTERY_PACK, 0x00)] = battery_pack
     return FakeBus(registers)
 
 # The INA260 --------------------------------------------------------------- #
@@ -89,7 +89,7 @@ def test_the_measured_charger_values_round_trip():
     assert round(watts, 3) == 10.360
 
 def test_current_is_signed():
-    """A pack that is charging and one that is discharging differ by the
+    """A battery pack that is charging and one that is discharging differ by the
     sign alone, so the sign is the reading"""
 
     bus = whole_board()
@@ -103,23 +103,23 @@ def test_the_bus_voltage_is_never_signed():
 
 # The AT30TSE752A ---------------------------------------------------------- #
 
-def test_the_pack_temperature_round_trips():
-    assert At30tse(whole_board(), ADDRESS_PACK_TEMPERATURE).celsius() == 27.0
+def test_the_battery_pack_temperature_round_trips():
+    assert At30tse(whole_board(), ADDRESS_BATTERY_PACK).celsius() == 27.0
 
 def test_a_temperature_below_zero_is_two_s_complement():
-    bus = whole_board(pack=((-10 * 8) & 0x7FF) << 5)
-    assert At30tse(bus, ADDRESS_PACK_TEMPERATURE).celsius() == -10.0
+    bus = whole_board(battery_pack=((-10 * 8) & 0x7FF) << 5)
+    assert At30tse(bus, ADDRESS_BATTERY_PACK).celsius() == -10.0
 
 def test_the_quarter_degree_is_kept():
-    bus = whole_board(pack=int(27.125 * 8) << 5)
-    assert At30tse(bus, ADDRESS_PACK_TEMPERATURE).celsius() == 27.125
+    bus = whole_board(battery_pack=int(27.125 * 8) << 5)
+    assert At30tse(bus, ADDRESS_BATTERY_PACK).celsius() == 27.125
 
 def test_a_sensor_that_does_not_answer_is_not_identified():
-    assert At30tse(FakeBus({}), ADDRESS_PACK_TEMPERATURE).identified() is False
+    assert At30tse(FakeBus({}), ADDRESS_BATTERY_PACK).identified() is False
 
 def test_a_reading_outside_the_part_range_is_not_this_part():
-    bus = whole_board(pack=int(126.0 * 8) << 5)      # Above the part's 125 C
-    assert At30tse(bus, ADDRESS_PACK_TEMPERATURE).identified() is False
+    bus = whole_board(battery_pack=int(126.0 * 8) << 5)      # Above the part's 125 C
+    assert At30tse(bus, ADDRESS_BATTERY_PACK).identified() is False
 
 # The Implementation ------------------------------------------------------- #
 
@@ -142,7 +142,7 @@ def make_actor(bus, **parameters):
 
 def test_every_part_that_answers_is_found():
     actor = make_actor(whole_board())
-    assert actor.open() == ("battery", "charger", "pack")
+    assert actor.open() == ("battery", "charger", "battery_pack")
     assert "readings" in actor.properties()
     actor.close()
 
@@ -160,7 +160,7 @@ def test_a_missing_part_is_left_out_rather_than_raising():
     bus = whole_board()
     del bus.registers[(ADDRESS_CHARGER, 0xFE)]
     actor = make_actor(bus)
-    assert actor.open() == ("battery", "pack")
+    assert actor.open() == ("battery", "battery_pack")
     reading = actor.read()
     assert reading.battery_volts is not None
     assert reading.supply_volts is None
@@ -196,7 +196,7 @@ def test_phase_1_reads_only_the_three_known_addresses():
     actor.read()
     touched = {address for address, _ in bus.reads}
     assert touched <= {
-        ADDRESS_BATTERY, ADDRESS_CHARGER, ADDRESS_PACK_TEMPERATURE}
+        ADDRESS_BATTERY, ADDRESS_CHARGER, ADDRESS_BATTERY_PACK}
     actor.close()
 
 def test_a_given_bus_is_not_closed_by_the_actor():

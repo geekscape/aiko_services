@@ -7,7 +7,7 @@
 #
 # Two postures, and the difference between them is the whole of this file.
 # Advisory decides, publishes and acts on nothing, which is the default and
-# is how a host runs while its pack is being measured.  Enforcing stops the
+# is how a host runs while its battery pack is being measured.  Enforcing stops the
 # host.  Every test here asserts which of the two happened, because a test
 # that only read "policy_would" would pass for both.
 #
@@ -189,7 +189,7 @@ def test_a_shutdown_that_is_not_at_the_floor_does_not_remount():
     assert mount == []
 
 def test_no_threshold_is_the_cell_damage_limit():
-    """9.0 V for the pack is a limit this design never reaches, so it is
+    """9.0 V for the battery pack is a limit this design never reaches, so it is
     never a trigger (the plan's S12).  A test holds the rule, because a
     threshold is a number that an edit can lower"""
 

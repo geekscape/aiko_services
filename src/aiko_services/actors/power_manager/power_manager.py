@@ -93,7 +93,7 @@ LOG_DIRECTORY = "~/power_log"
 # The policy decides on every sample, and acts only when it is allowed to.
 # "advisory" is the default, and it is not timidity: the thresholds of
 # THRESHOLDS are from a data sheet, and the lead's direction is to measure
-# the pack before anything acts on them.  An operator reads "policy_would"
+# the battery pack before anything acts on them.  An operator reads "policy_would"
 # and "policy_reason" for as long as that takes, and then turns it on
 ENFORCE = False
 POLICY_ADVISORY = "advisory"       # It decides, publishes, and acts on nothing
@@ -104,14 +104,14 @@ POLICY_SHUTTING_DOWN = "shutting_down"
 DOCK_DWELL_S = 10.0
 
 # The first values of the plan's threshold table.  Phase 1 publishes them
-# and enforces none of them: the pack measured 10.047 V, which is under
+# and enforces none of them: the battery pack measured 10.047 V, which is under
 # battery_volts_low, so enforcement before measurement would stop the host
 # on its first sample
 THRESHOLDS = {
-    "battery_volts_floor": 9.9,    # The pack must not go below this
+    "battery_volts_floor": 9.9,    # The battery pack must not go below this
     "battery_volts_low": 10.5,     # Start the orderly shutdown
     "quiesce_volts": 10.2,         # Stop writing, and flush
-    "pack_temperature_maximum_c": 45.0,     # The pack, never the processor
+    "battery_pack_celsius_maximum": 45.0,     # The battery pack, never the processor
     "battery_dwell_s": 30.0,       # The voltage must stay low this long
     "undocked_maximum_s": 3600.0,  # The bound on an undocked hold
     "queue_grace_s": 60.0,         # After the queue empties
@@ -263,7 +263,7 @@ class PowerManagerCommon:
         self._mode = MODE_NORMAL
         self._button_held = False
         self._undocked = Dwell()       # How long the dock line has said no
-        self._battery_low = Dwell()    # How long the pack has been under low
+        self._battery_low = Dwell()    # How long the battery pack has been under low
         self._queue_empty = Dwell()    # How long nothing has waited to go
         self._stopping = False
         self.add_hook(HOOK_QUIESCE)
@@ -379,7 +379,7 @@ class PowerManagerCommon:
         """"installed", "missing" or "unknown" for the shutdown hook.
 
         A host whose hook is missing fails safe and costs a charge: the pin
-        stays asserted and the halted host stays on the pack.  So this is
+        stays asserted and the halted host stays on the battery pack.  So this is
         published rather than assumed"""
 
         return "unknown"
@@ -431,7 +431,7 @@ class PowerManagerCommon:
         the host was doing when it took the current that it took.
 
         The processor temperature is its own field.  It is never the battery
-        pack temperature, which the pack's own sensor reports"""
+        battery pack temperature, which the battery pack's own sensor reports"""
 
         from dataclasses import replace
 
@@ -551,7 +551,7 @@ class PowerManagerCommon:
 
         While it is advisory this logs the decision and does nothing, which
         is the whole point of the posture: the thresholds are from a data
-        sheet until the pack has been measured"""
+        sheet until the battery pack has been measured"""
 
         if not self._enforce:
             self.logger.warning(

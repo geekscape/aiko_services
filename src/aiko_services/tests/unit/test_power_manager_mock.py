@@ -139,7 +139,7 @@ def test_the_thresholds_are_published_as_configuration():
         assert actor.share["thresholds"][name] == f"{value}"
 
 def test_no_threshold_is_the_cell_damage_limit():
-    """9.0 V for the pack, or 3.0 V for a cell, is a limit that this design
+    """9.0 V for the battery pack, or 3.0 V for a cell, is a limit that this design
     never reaches.  It is never a trigger (the plan's S12)"""
 
     assert 9.0 not in THRESHOLDS.values()

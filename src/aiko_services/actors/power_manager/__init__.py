@@ -63,12 +63,12 @@ from aiko_services.actors.power_manager.mock import (  # noqa: F401
     DEFAULT_READING, MockPowerManagerImpl,
 )
 from aiko_services.actors.power_manager.pmm import (  # noqa: F401
-    ADDRESS_BATTERY, ADDRESS_CHARGER, ADDRESS_PACK_TEMPERATURE, I2C_BUS,
+    ADDRESS_BATTERY, ADDRESS_CHARGER, ADDRESS_BATTERY_PACK, I2C_BUS,
     PmmPowerManagerImpl, module_present,
 )
 
 __all__ = [
-    "ADDRESS_BATTERY", "ADDRESS_CHARGER", "ADDRESS_PACK_TEMPERATURE",
+    "ADDRESS_BATTERY", "ADDRESS_CHARGER", "ADDRESS_BATTERY_PACK",
     "BUTTON_ACTIVE_LOW", "BUTTON_GPIO", "DOCK_ACTIVE_LOW", "DOCK_DWELL_S",
     "DOCK_GPIO", "Dwell", "ENFORCE", "FakePowerInputs", "FakeQueueSource",
     "GpioPowerInputs", "HOLD", "HOLD_TIME_S", "HOOK_QUIESCE", "MODES",

@@ -46,10 +46,10 @@ def test_as_dict_keeps_the_columns_that_are_absent():
     assert record["battery_volts"] == 12.0
     assert "supply_volts" in record and record["supply_volts"] is None
 
-def test_as_share_names_the_pack_temperature_for_the_pack():
+def test_as_share_names_the_battery_pack_temperature_for_the_pack():
     items = PowerReading(battery_pack_celsius=27.0).as_share()
     assert items["battery.pack_celsius"] == "27.000"
-    # The processor temperature is its own item, and never the pack's
+    # The processor temperature is its own item, and never the battery pack's
     assert items["cpu.celsius"] == "-"
 
 def test_as_share_turns_an_absent_field_into_a_token():

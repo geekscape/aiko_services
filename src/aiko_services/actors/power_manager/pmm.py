@@ -3,7 +3,7 @@
 # Aiko Services: the power management module PowerManager
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # A single-board computer with a power management module: two INA260 power
-# meters and one AT30TSE752A pack temperature sensor, on one I2C bus.
+# meters and one AT30TSE752A battery pack temperature sensor, on one I2C bus.
 #
 # Phase 1 reads, and writes nothing.  It claims no GPIO line and runs no
 # subprocess, so it is safe to run beside a host that is already in service.
@@ -11,7 +11,7 @@
 # after it, and properties() leaves them out until they do.
 #
 # Addresses, which a board may move: 0x40 is across the battery, 0x41 is
-# across the charger, and 0x48 is against the pack.  One more address on
+# across the charger, and 0x48 is against the battery pack.  One more address on
 # such a bus is a display, and one is unidentified, and this module reads
 # neither.  It never scans the bus, because a scan writes to every address.
 #
@@ -47,14 +47,14 @@ from aiko_services.actors.power_manager.render import verify as verify_files
 from aiko_services.actors.power_manager.signal import choose_buzzer
 
 __all__ = [
-    "ADDRESS_BATTERY", "ADDRESS_CHARGER", "ADDRESS_PACK_TEMPERATURE",
+    "ADDRESS_BATTERY", "ADDRESS_CHARGER", "ADDRESS_BATTERY_PACK",
     "I2C_BUS", "PmmPowerManagerImpl", "module_present",
 ]
 
 I2C_BUS = 1
 ADDRESS_BATTERY = 0x40             # INA260, across the battery
 ADDRESS_CHARGER = 0x41             # INA260, across the charger
-ADDRESS_PACK_TEMPERATURE = 0x48    # AT30TSE752A, against the pack
+ADDRESS_BATTERY_PACK = 0x48    # AT30TSE752A, against the battery pack
 
 class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
     """A power management module through its I2C parts.  Read-only"""
@@ -65,7 +65,7 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
 
     def __init__(self, context, bus=None, bus_number=I2C_BUS,
         battery_address=ADDRESS_BATTERY, charger_address=ADDRESS_CHARGER,
-        pack_address=ADDRESS_PACK_TEMPERATURE, period=None,
+        battery_pack_address=ADDRESS_BATTERY_PACK, period=None,
         log_directory=None, keep_days=None, safe=None, thresholds=None,
         telemetry=True, timer=True, buzzer=None, hold_gpio=HOLD_GPIO,
         hold_runner=None, artifact_paths=None, inputs=None, enforce=None,
@@ -84,9 +84,9 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
         self._addresses = {
             "battery": battery_address,
             "charger": charger_address,
-            "pack": pack_address,
+            "battery_pack": battery_pack_address,
         }
-        self._battery = self._charger = self._pack = None
+        self._battery = self._charger = self._battery_pack = None
         self._found = ()
         if self._bus is not None:
             self._attach()
@@ -171,8 +171,8 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
             volts, amps, watts = self._charger.read()
             values.update(supply_volts=volts, supply_amps=amps,
                 supply_watts=watts)
-        if self._pack:
-            values["battery_pack_celsius"] = self._pack.celsius()
+        if self._battery_pack:
+            values["battery_pack_celsius"] = self._battery_pack.celsius()
         if "dock" in self.properties():
             values["docked"] = self._inputs.docked()
         return PowerReading(device=self.device, **values)
@@ -262,7 +262,7 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
                 pass
         if self._owns_bus:
             self._bus = None
-            self._battery = self._charger = self._pack = None
+            self._battery = self._charger = self._battery_pack = None
             self._found = ()
 
     def _attach(self):
@@ -272,12 +272,14 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
         found = []
         battery = Ina260(self._bus, self._addresses["battery"])
         charger = Ina260(self._bus, self._addresses["charger"])
-        pack = At30tse(self._bus, self._addresses["pack"])
+        battery_pack = At30tse(
+            self._bus, self._addresses["battery_pack"])
         self._battery = battery if battery.identified() else None
         self._charger = charger if charger.identified() else None
-        self._pack = pack if pack.identified() else None
+        self._battery_pack =  \
+            battery_pack if battery_pack.identified() else None
         for name, part in (("battery", self._battery),
-            ("charger", self._charger), ("pack", self._pack)):
+            ("charger", self._charger), ("battery_pack", self._battery_pack)):
             if part is not None:
                 found.append(name)
         self._found = tuple(found)
