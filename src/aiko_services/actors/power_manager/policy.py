@@ -45,8 +45,9 @@
 #   (ADR-028 decision 10).  decide() takes volts today
 
 __all__ = [
-    "Dwell", "HOLD", "MODES", "MODE_CONSERVE", "MODE_NORMAL", "MODE_QUIESCE",
-    "REASONS", "SHUTDOWN", "decide", "decide_mode", "writing_ok",
+    "Dwell", "EXACT_REASONS", "HOLD", "MODES", "MODE_CONSERVE",
+    "MODE_NORMAL", "MODE_QUIESCE", "REASONS", "SHUTDOWN", "decide",
+    "decide_mode", "writing_ok",
 ]
 
 HOLD = "hold"
@@ -65,6 +66,27 @@ REASONS = (
     "powered_down_grace", "powered_up_held", "powered_up_idle",
     "powered_up_grace", "hook_missing", "application_grace",
 )
+
+# The reasons that act whatever the posture is.
+#
+# The advisory posture exists for one reason: the voltage and the
+# temperature thresholds come from a data sheet, and not from the battery
+# pack that is fitted.  Until that pack is measured, a host must not stop
+# itself because of a number nobody checked.
+#
+# These three need no such number.  A person held the button.  A dock line
+# says the supply is gone, and a clock says for how long.  Both are exact,
+# and no calibration makes them more true.  So refusing to act on them is
+# not caution: it is how a battery pack gets drained flat, which is the
+# outcome the whole design exists to prevent.
+#
+# A deployment turns the two deadlines off by setting neither of them.
+# Setting a deadline is how a deployment asks for the action.
+EXACT_REASONS = frozenset({
+    "button_held",                 # A person asked
+    "powered_down_grace",          # The deployment's own deadline
+    "undocked_timeout",            # The backstop on an undocked hold
+})
 
 class Dwell:
     """How long a condition has been true, without sleeping.

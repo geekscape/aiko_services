@@ -50,9 +50,23 @@ class Element:
     def __init__(self, writing=None, segment_writer=None):
         self._writing = writing
         self._frames_skipped = 0
+        self._writing_was = True
         self.ec_producer = FakeProducer()
         self.closed = 0
         self.stream = FakeStream(segment_writer)
+        self.logged = []
+
+    def my_id(self):
+        return "element"
+
+    @property
+    def logger(self):
+        element = self
+
+        class Logger:
+            def info(self, text):
+                element.logged.append(text)
+        return Logger()
 
     def _close_segment(self, stream):
         self.closed += 1
@@ -154,3 +168,40 @@ def test_the_element_seeds_both_items_in_its_shared_state():
     source = inspect.getsource(VideoWriteStoreForward.__init__)
     assert '"writing_ok": True' in source
     assert '"frames_skipped": "0"' in source
+
+# Where a change is published ---------------------------------------------- #
+#
+# On this element's own thread, and never from the client's handler.  A
+# change arrives on whichever thread delivered it, and the shared state
+# belongs to the element's thread (P11).  _skipping() runs on that thread
+# for every frame, so it is where a change is noticed as well as acted on.
+
+def test_a_change_to_not_okay_is_published_once():
+    writing = FakeWriting(True)
+    element = Element(writing=writing)
+    element.skipping(IMAGES)
+    assert "writing_ok" not in element.ec_producer.updates
+    writing.okay = False
+    element.skipping(IMAGES)
+    assert element.ec_producer.updates["writing_ok"] is False
+    assert len(element.logged) == 1
+    element.skipping(IMAGES)
+    assert len(element.logged) == 1               # Said once, not per frame
+
+def test_a_change_back_to_okay_is_published_too():
+    writing = FakeWriting(False)
+    element = Element(writing=writing)
+    element.skipping(IMAGES)
+    writing.okay = True
+    element.skipping(IMAGES)
+    assert element.ec_producer.updates["writing_ok"] is True
+    assert len(element.logged) == 2
+
+def test_no_power_manager_publishes_nothing():
+    """A host without one must look exactly as it did before"""
+
+    element = Element()
+    for _ in range(3):
+        element.skipping(IMAGES)
+    assert element.ec_producer.updates == {}
+    assert element.logged == []

@@ -126,6 +126,7 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
         # Whether this host wants to be written to.  True until a power
         # manager says otherwise, so a host without one is unaffected
         self._writing = None
+        self._writing_was = True       # What was last published
 
     def start_stream(self, stream, stream_id):
         stream_event, diagnostic = super().start_stream(stream, stream_id)
@@ -141,8 +142,9 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
         stream.variables["segment_frames"] = 0
         stream.variables["segment_started"] = None
         if self._writing is None:
-            self._writing = WritingClient(self, handler=self._writing_change)
+            self._writing = WritingClient(self)
             self._writing.open()
+        self._writing_was = True
         return aiko.StreamEvent.OKAY, {}
 
     def _skipping(self, stream, images):
@@ -157,21 +159,24 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
         Dropping frames is not an error.  The stream carries on, and it
         writes again as soon as the host says so"""
 
-        if self._writing is None or self._writing.writing_ok():
+        writing_ok = self._writing is None or self._writing.writing_ok()
+        # Published here, and never from a handler of the client's.  A
+        # change arrives on whichever thread delivered it, and the shared
+        # state belongs to this element's own thread (P11).  This method
+        # runs on that thread for every frame, so it is where a change is
+        # noticed as well as where it is acted on
+        if writing_ok != self._writing_was:
+            self._writing_was = writing_ok
+            self.ec_producer.update("writing_ok", writing_ok)
+            self.logger.info(f"{self.my_id()}: writing "
+                f"{'okay' if writing_ok else 'not okay'}")
+        if writing_ok:
             return False
         if stream.variables.get("segment_writer") is not None:
             self._close_segment(stream)
         self._frames_skipped += len(images)
         self.ec_producer.update("frames_skipped", str(self._frames_skipped))
         return True
-
-    def _writing_change(self, writing_ok):
-        """The power manager changed its mind.  Recorded for an operator,
-        and acted on at the next frame"""
-
-        self.ec_producer.update("writing_ok", writing_ok)
-        self.logger.info(f"{self.my_id()}: writing "
-            f"{'okay' if writing_ok else 'not okay'}")
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         if images and not isinstance(images[0], np.ndarray):

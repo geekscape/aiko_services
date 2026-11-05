@@ -664,3 +664,141 @@ def test_an_application_grace_with_no_deadline_is_kept():
     assert actor.share["thresholds"]["powered_down_application_grace_s"]  \
         == "120.0"
     assert actor.share["last_error"] == "-"
+
+# What acts whatever the posture ------------------------------------------- #
+#
+# The lead's requirement of 2026-11-05: when undocked, the deadline must
+# stop the host, and not merely report that it would, "otherwise the
+# battery pack will be drained".
+#
+# The rule that gives it, and keeps the posture meaning something: a reason
+# that rests on a data-sheet threshold waits for --enforce, and a reason
+# that rests on a person, a dock line and a clock does not.
+
+def advisory_with(script, calls=None, **extra):
+    settings = {
+        "enforce": False,                            # Advisory, deliberately
+        "properties": ("readings", "hold", "signal", "button", "dock"),
+        "quiesce": quiesce_of(),
+        "power_off_runner": runner_of(calls=calls),
+        "script": script,
+    }
+    settings.update(extra)
+    return make_actor(**settings)
+
+def test_the_deadline_stops_an_undocked_host_while_advisory():
+    """The requirement.  A deadline that only reported would let the pack
+    drain flat, which is the outcome this design exists to prevent"""
+
+    calls = []
+    actor = advisory_with([undocked()] * 4, calls=calls,
+        thresholds={**THRESHOLDS, "powered_down_grace_s": 300.0})
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    assert calls == []
+    actor._evaluate(actor.reading(), now=1305.0)
+    assert actor.share["policy_reason"] == "powered_down_grace"
+    assert actor.share["policy"] == POLICY_SHUTTING_DOWN
+    assert calls
+
+def test_the_backstop_stops_an_undocked_host_while_advisory():
+    """A backstop that never fires is not a backstop"""
+
+    calls = []
+    actor = advisory_with([undocked()] * 4, calls=calls)
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    assert calls == []
+    actor._evaluate(actor.reading(), now=1000.0 + 3601.0)
+    assert actor.share["policy_reason"] == "undocked_timeout"
+    assert calls
+
+def test_the_deadline_beats_a_claim_while_advisory():
+    """A client cannot hold an undocked host past its deadline, whatever
+    the posture"""
+
+    calls = []
+    actor = advisory_with([undocked()] * 4, calls=calls,
+        thresholds={**THRESHOLDS, "powered_down_grace_s": 300.0})
+    namespace, host = str(actor.topic_path).split("/")[:2]
+    actor.request_powered_up(f"{namespace}/{host}/900/1/in", 600, "upload")
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    assert actor.share["policy_reason"] == "powered_up_held"
+    actor._evaluate(actor.reading(), now=1305.0)
+    assert actor.share["policy_reason"] == "powered_down_grace"
+    assert calls
+
+def test_the_deadline_shutdown_is_graceful():
+    """"Shutdown gracefully": the writers are told and the file systems are
+    flushed before the host stops"""
+
+    actor = advisory_with([undocked()] * 4,
+        thresholds={**THRESHOLDS, "powered_down_grace_s": 300.0})
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    actor._evaluate(actor.reading(), now=1305.0)
+    assert actor.share["mode"] == MODE_QUIESCE
+    assert actor.share["quiesce"]["synced"] == "yes"
+    assert actor.share["writing_ok"] is False
+
+def test_the_data_sheet_reasons_still_wait_for_enforce():
+    """The posture keeps its meaning for every number that came from a data
+    sheet rather than from the battery pack that is fitted"""
+
+    for reading, reason in (
+        (undocked(volts=9.0), "battery_floor"),
+        ({"battery_volts": 12.0, "battery_pack_celsius": 50.0,
+            "docked": False}, "battery_pack_temperature")):
+        calls = []
+        actor = advisory_with([reading] * 3, calls=calls)
+        actor.sample()
+        assert actor.share["policy_reason"] == reason, reason
+        assert actor.share["policy_would"] == "shutdown", reason
+        assert actor.share["policy"] == POLICY_ADVISORY, reason
+        assert calls == [], reason
+
+def test_a_low_battery_pack_still_waits_for_enforce():
+    calls = []
+    actor = advisory_with([undocked(volts=10.4)] * 4, calls=calls)
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1040.0)       # Past the dwell
+    assert actor.share["policy_reason"] == "battery_low"
+    assert calls == []
+
+def test_a_deadline_at_the_floor_still_remounts_first():
+    """A deadline is not a button press.  Nobody is waiting on it and the
+    battery pack is what is at risk, so it takes the full quiesce"""
+
+    calls = []
+    actor = advisory_with([undocked(volts=9.5)] * 5, calls=calls,
+        thresholds={**THRESHOLDS,
+            "powered_down_grace_s": 300.0,
+            "battery_volts_floor": 9.0,          # Under the reading
+            "battery_volts_low": 9.2})
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    actor._evaluate(actor.reading(), now=1305.0)      # The deadline passes
+    assert actor.share["policy_reason"] == "powered_down_grace"
+
+def test_the_exact_reasons_are_the_three_that_need_no_calibration():
+    from aiko_services.actors.power_manager.policy import (
+        EXACT_REASONS, REASONS)
+
+    assert sorted(EXACT_REASONS) == [
+        "button_held", "powered_down_grace", "undocked_timeout"]
+    for reason in EXACT_REASONS:
+        assert reason in REASONS, reason
+
+def test_turning_the_button_off_does_not_turn_the_deadlines_off():
+    """One switch for the button alone.  A deployment turns a deadline off
+    by not setting it, which is how it asked for the action"""
+
+    calls = []
+    actor = advisory_with([undocked()] * 4, calls=calls,
+        button_shutdown=False,
+        thresholds={**THRESHOLDS, "powered_down_grace_s": 300.0})
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    actor._evaluate(actor.reading(), now=1305.0)
+    assert calls

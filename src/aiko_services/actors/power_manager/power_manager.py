@@ -52,8 +52,8 @@ from aiko_services.main.utilities import get_hostname
 
 from aiko_services.actors.power_manager.log import PowerLog
 from aiko_services.actors.power_manager.policy import (
-    Dwell, HOLD, MODE_NORMAL, MODE_QUIESCE, SHUTDOWN, decide, decide_mode,
-    writing_ok as policy_writing_ok
+    Dwell, EXACT_REASONS, HOLD, MODE_NORMAL, MODE_QUIESCE, SHUTDOWN, decide,
+    decide_mode, writing_ok as policy_writing_ok
 )
 from aiko_services.actors.power_manager.quiesce import (
     HOOK_QUIESCE, Quiesce
@@ -941,18 +941,27 @@ class PowerManagerCommon:
             self.ec_producer.update(name, value)
 
     def _act(self, reason, now):
-        """Stop the host, when this Actor is enforcing, or when a person
-        held the button.
+        """Stop the host, when this Actor is enforcing, or when the reason
+        is one that needs no calibration.
 
-        While it is advisory a measured reason logs the decision and does
-        nothing, which is the whole point of the posture: the thresholds
-        are from a data sheet until the battery pack has been measured. The
-        button is not a measured reason, so it acts (BUTTON_SHUTDOWN)"""
+        While it is advisory a reason that rests on a data-sheet threshold
+        logs the decision and does nothing, which is the whole point of the
+        posture: those numbers are untested until the battery pack has been
+        measured. The button, the deployment's deadline and the backstop
+        rest on a person, a dock line and a clock, so they act
+        (EXACT_REASONS). A deadline that never acted would let an undocked
+        host drain its pack flat"""
 
-        # A person asked, so this one acts whatever the posture.  Advisory
-        # is about thresholds from a data sheet, and a button is not one
-        asked = reason == "button_held" and self._button_shutdown
-        if not self._enforce and not asked:
+        # Some reasons act whatever the posture.  Advisory is about
+        # thresholds from a data sheet, and these need no such number: a
+        # person held the button, or a dock line and a clock agreed that
+        # the supply has been gone for the deadline (EXACT_REASONS).  An
+        # undocked host that does not act on those drains its battery pack
+        # flat, which is the outcome this design exists to prevent
+        exact = reason in EXACT_REASONS
+        if reason == "button_held" and not self._button_shutdown:
+            exact = False
+        if not self._enforce and not exact:
             self.logger.warning(
                 f"Advisory: would shut down now ({reason})")
             return
@@ -966,8 +975,12 @@ class PowerManagerCommon:
         # has already told the writers and flushed the file systems, and
         # the power-off unmounts in an orderly way by itself.  Waiting out
         # the remount grace here would cost the operator a whole sample
-        # period, which is a minute in production
-        if asked:
+        # period, which is a minute in production.
+        #
+        # A deadline is not a press.  Nobody is waiting on it, and the
+        # battery pack is the thing at risk, so it takes the quiesce and
+        # the read-only remount in full
+        if reason == "button_held":
             at_floor = False
         if at_floor and self._quiesce.entered_at is None:
             # Start the grace here, rather than wait on one that nothing

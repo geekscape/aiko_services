@@ -326,9 +326,16 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     person. The two limits are part of this decision, as decision 13's limits are, and not
     found later.
 
-    A client helper lives in the framework core for the reason decision 13 gives. Its
-    discovery is today a second copy of the Lease client's, which a third client should make
-    into one.
+    A client helper lives in the framework core for the reason decision 13 gives. Three such
+    clients now ask three different things of one Actor, and all three find it the same way,
+    so finding it is written once and they extend it.
+
+    **Only recording happens on the discovery thread.** The services cache calls back on its
+    own thread, and the event list that the loop walks has no lock, so a Lease or a
+    subscription made there mutates a list the loop is reading. Therefore a client writes down
+    a topic on that thread and builds what it needs on the thread of whoever asks. The same
+    rule covers a client's shared state: a change arrives on whichever thread delivered it, so
+    a Service publishes it from its own thread and not from the client's handler.
 
     **The signal line is held for one pattern, and not for a run.** Two other writers reach
     the same pad: the start-up unit and the shutdown hook, which use the platform's pin
@@ -339,16 +346,24 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     the line as a pattern begins and gives it back as the pattern ends, and one lock keeps two
     patterns from overlapping. Between sounds the pad is free.
 
-15. **A person is not a threshold, so the button acts whatever the posture.** The advisory
-    posture of decision 7 exists because the voltage and temperature thresholds come from a
-    data sheet, and not from the battery pack that is fitted. A person who holds the button for
-    three seconds is not a measurement, and no calibration makes their request more or less
-    true. A power button that does nothing is a fault to the operator who pressed it.
+15. **The advisory posture governs the thresholds that need calibration, and nothing else.**
+    It exists because the voltage and temperature thresholds come from a data sheet, and not
+    from the battery pack that is fitted. Until that pack is measured, a host must not stop
+    itself because of a number nobody has checked.
 
-    So the two are separate. Advisory still means that no measured reason acts. A held button
-    stops the host, and one switch turns off even that, for a host where nothing may stop the
-    operating system. Whether a press acts is published in the shared state, so that an
-    operator reads it rather than infers it.
+    Three reasons need no such number. A person held the button. A dock line says the supply
+    is gone, and a clock says for how long, which is the deployment's deadline and the
+    backstop of decision 13. All three are exact, and no calibration makes them more true. So
+    they act whatever the posture, and the rest wait for enforcement.
+
+    Refusing to act on them is not caution. An undocked host that only reports its deadline
+    drains its battery pack flat, which is the outcome this whole record exists to prevent.
+    A power button that does nothing is a fault to the operator who pressed it.
+
+    A deployment turns a deadline off by not setting it: setting one is how it asked for the
+    action. The button has a switch of its own, for a host where nothing may stop the
+    operating system, and whether a press acts is published so an operator reads it rather
+    than infers it.
 
     This decision is numbered last and read first. In the order of the rows that decision 8
     gives, the button comes before every other reason, and this is why: the other rows need a
@@ -357,7 +372,9 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     A press is answered at once, and not after the grace that a shutdown at the voltage floor
     waits out. The change of mode has already told the writers and flushed the file systems,
     and the power-off unmounts in an orderly way by itself. Waiting would cost the operator a
-    whole sample period, which is a minute on a host that samples once a minute.
+    whole sample period, which is a minute on a host that samples once a minute. A deadline is
+    not a press: nobody waits on it, and the battery pack is what is at risk, so it takes the
+    quiesce and the read-only remount in full.
 
     The mock Implementation records the power-off rather than running it. A test that reaches
     the acting path would otherwise stop the machine that runs the test suite, which this

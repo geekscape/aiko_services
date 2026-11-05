@@ -176,3 +176,56 @@ def test_another_service_going_away_changes_nothing(monkeypatch):
     client._service_change("add", [MANAGER])
     client._service_change("remove", ["aikotest/host/99/1"])
     assert client.found() is True
+
+# Which thread does what --------------------------------------------------- #
+#
+# Found by reviewing Goal 3 on 2026-11-05.  The first version attached the
+# subscription from the services cache thread.  A subscription takes a
+# Lease, a Lease takes a timer, and the event list that the loop walks has
+# no lock on it (event.py), so that was an unsynchronized mutation of a
+# list the loop was reading.  PoweredUpClient had never done it, and this
+# client now follows the same discipline.
+
+def test_the_discovery_thread_only_records():
+    """Nothing that takes a timer may happen there"""
+
+    client = make_client()
+    client._service_change("add", [MANAGER])
+    assert client.found() is True
+    assert client._consumer is None          # Nothing attached yet
+
+def test_asking_is_what_attaches():
+    """writing_ok() runs on the thread of whoever asks, which is where a
+    Lease may be taken"""
+
+    attached = []
+    client = make_client()
+    client._attach = lambda: attached.append(True)
+    client._service_change("add", [MANAGER])
+    assert attached == []
+    client.writing_ok()
+    assert attached == [True]
+
+def test_asking_without_a_power_manager_attaches_nothing():
+    attached = []
+    client = make_client()
+    client._attach = lambda: attached.append(True)
+    client.writing_ok()
+    assert attached == []
+
+def test_the_answer_is_still_true_while_it_attaches():
+    client = make_client()
+    client._attach = lambda: None
+    client._service_change("add", [MANAGER])
+    assert client.writing_ok() is True
+
+def test_every_client_shares_one_finder():
+    """Three clients ask three different things of one Actor, and all
+    three find it the same way.  One copy, not three"""
+
+    from aiko_services.main.power_manager_client import PowerManagerClient
+    from aiko_services.main.powered_up_client import PoweredUpClient
+    from aiko_services.main.working_client import WorkingClient
+
+    for client in (PoweredUpClient, WorkingClient, WritingClient):
+        assert issubclass(client, PowerManagerClient), client.__name__
