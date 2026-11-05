@@ -104,10 +104,8 @@ def test_enforcing_says_so():
 def test_enforcing_powers_the_host_off_with_the_granted_vector():
     calls = []
     actor = enforcing([undocked(volts=10.0, docked=False)], calls=calls)
-    actor._queue = choose_queue_source("fake")
-    actor._queue.set_state(known=True, depth=0)
-    actor._evaluate(actor.reading(), now=1000.0)      # Queue empty, no grace
-    actor._evaluate(actor.reading(), now=1100.0)      # The grace has passed
+    actor._evaluate(actor.reading(), now=1000.0)    # Nothing claims it yet
+    actor._evaluate(actor.reading(), now=1100.0)    # The grace has passed
     granted, _ = granted_commands()
     assert [SUDO, "-n", *granted] in calls
 
@@ -242,8 +240,6 @@ def test_a_dock_that_flickers_does_not_start_a_shutdown():
     actor = make_actor(
         properties=("readings", "hold", "signal", "button", "dock"),
         script=[undocked(volts=10.0)])
-    actor._queue = choose_queue_source("fake")
-    actor._queue.set_state(known=True, depth=0)
     actor._evaluate(actor.reading(), now=1000.0)
     assert actor.share["policy_would"] == "hold"
     assert actor.share["policy_reason"] == "docked"

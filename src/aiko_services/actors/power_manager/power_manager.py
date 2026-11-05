@@ -61,6 +61,9 @@ from aiko_services.actors.power_manager.reading import (
     PowerReading, boot_id, utc_now
 )
 from aiko_services.actors.power_manager.shutdown import power_off
+from aiko_services.actors.power_manager.uptime import (
+    BRIDGE_TOPIC, UPTIME_MAXIMUM_S, UPTIME_REQUESTS_MAXIMUM, UptimeRegister
+)
 
 try:
     import psutil
@@ -114,8 +117,13 @@ THRESHOLDS = {
     "battery_pack_celsius_maximum": 45.0,     # The battery pack, never the processor
     "battery_dwell_s": 30.0,       # The voltage must stay low this long
     "undocked_maximum_s": 3600.0,  # The bound on an undocked hold
-    "queue_grace_s": 60.0,         # After the queue empties
+    "uptime_grace_s": 60.0,        # After the last claim is released
     "dock_dwell_s": DOCK_DWELL_S,  # Before an undock is believed
+    # The limits on the request surface, which ADR-028 decision 13 makes
+    # part of the design: a client can only ask a host to stay up, and
+    # these bound what a client in a loop can ask for
+    "uptime_maximum_s": UPTIME_MAXIMUM_S,
+    "uptime_requests_maximum": UPTIME_REQUESTS_MAXIMUM,
 }
 
 class PowerManager(aiko.Actor):
@@ -171,6 +179,25 @@ class PowerManager(aiko.Actor):
         "sample_period_s", and a refused one in "last_error" """
 
     @abstractmethod
+    def request_uptime(self, response_topic, seconds, reason):
+        """Ask this host to stay powered for "seconds", and say why.
+
+        "response_topic" is the client's own topic, which identifies the
+        request and receives the answers.  "seconds" greater than zero
+        takes or extends the request, and zero releases it.  "reason" is
+        one token, for the operator.
+
+        Wire form: "(request_uptime NAMESPACE/HOST/PID/SID/in 300 upload)".
+        The answer is published to that topic as "(uptime_granted SECONDS)"
+        or "(uptime_refused WHY)", and a change of mode as
+        "(power_mode MODE REASON)".  The totals are observed in the shared
+        state as "uptime.held" and "uptime.reasons".
+
+        A request asks, and never commands: it cannot outlive the bound on
+        undocked time, the voltage floor or the battery pack temperature
+        gate (ADR-028 decision 13)"""
+
+    @abstractmethod
     def hold(self, on):
         """Keep this host powered, or stop keeping it powered.
 
@@ -219,7 +246,12 @@ SAFE = True                        # The default posture of "run"
 # and a sample period is the resolution of the evidence.  The
 # ProcessManager's rule applies: only a design and a test campaign make a
 # function safe, not the observation that it looks harmless
-SAFE_FUNCTIONS = frozenset({"sample", "set_log_level"})
+# "request_uptime" is here because it can only ask a host to stay up, a
+# refusal is always available, and two limits in THRESHOLDS bound what a
+# client in a loop can ask for.  The ProcessManager's rule is satisfied by
+# those limits being part of the design, and not found later.  Without it
+# the whole request surface would be unusable in the default posture
+SAFE_FUNCTIONS = frozenset({"request_uptime", "sample", "set_log_level"})
 
 class PowerManagerCommon:
     """What every Implementation does the same way: the shared state, the
@@ -263,8 +295,14 @@ class PowerManagerCommon:
         self._mode = MODE_NORMAL
         self._button_held = False
         self._undocked = Dwell()       # How long the dock line has said no
-        self._battery_low = Dwell()    # How long the battery pack has been under low
-        self._queue_empty = Dwell()    # How long nothing has waited to go
+        self._battery_low = Dwell()    # How long the battery pack has been
+                                       #   under its low voltage
+        self._uptime_idle = Dwell()    # How long nothing has claimed the host
+        self._uptime = UptimeRegister(
+            maximum_seconds=self._thresholds.get(
+                "uptime_maximum_s", UPTIME_MAXIMUM_S),
+            maximum_requests=self._thresholds.get(
+                "uptime_requests_maximum", UPTIME_REQUESTS_MAXIMUM))
         self._stopping = False
         self.add_hook(HOOK_QUIESCE)
 
@@ -292,13 +330,15 @@ class PowerManagerCommon:
                 for name, value in self._thresholds.items()},
             "metrics": {"samples": 0, "sensor_errors": 0, "signals": 0,
                 "hold_changes": 0, "denied": 0, "shutdowns": 0,
-                "quiesces": 0, "button_presses": 0},
+                "quiesces": 0, "button_presses": 0, "uptime_granted": 0,
+                "uptime_refused": 0, "uptime_expired": 0},
             # The share is a nested dictionary of at most two levels, and a
             # dotted name is a path into it, not a key (share.py).  So the
             # snapshot nests what _publish() later updates by path
             **_nest({**PowerReading().as_share(),
                 "battery.margin_volts": "-",
                 **self._queue.state().as_share(),
+                **self._uptime.as_share(),
                 **self._quiesce.done()}),
         })
         self.ec_producer.add_handler(self._power_change_handler)
@@ -332,7 +372,8 @@ class PowerManagerCommon:
 
         reading = self.reading()
         self._publish(reading)
-        decision, reason, mode, mode_reason = self._evaluate(reading)
+        now = self._now()
+        decision, reason, mode, mode_reason = self._evaluate(reading, now)
         if self._log:
             self._log.write(reading, extra={
                 "policy": self.share["policy"],
@@ -341,6 +382,9 @@ class PowerManagerCommon:
                 "mode": mode,
                 "mode_reason": mode_reason,
                 "enforce": self._enforce,
+                "uptime_held": self._uptime.held(now),
+                "uptime_reasons": "+".join(
+                    self._uptime.reasons(now)) or "-",
                 "queue_depth": self._queue.state().depth,
                 "queue_known": self._queue.state().known,
                 "period_s": self._period,
@@ -383,6 +427,82 @@ class PowerManagerCommon:
         published rather than assumed"""
 
         return "unknown"
+
+    def request_uptime(self, response_topic, seconds, reason="-"):
+        """Take, extend or release one claim on this host.
+
+        The client names its own topic, and that topic is checked before
+        anything is published to it: without the check an unknown client
+        makes this Actor publish where it likes"""
+
+        from aiko_services.main.process_manager import coerce_response_topic
+
+        topic = coerce_response_topic(response_topic, str(self.topic_path))
+        if topic is None or topic == BRIDGE_TOPIC:
+            self.logger.warning(
+                f"request_uptime refused: {str(response_topic)[:60]} is not "
+                "a topic this Service may publish to")
+            self._count("denied")
+            return
+        outcome, detail = self._uptime.request(
+            topic, seconds, reason, self._now())
+        self._answer(topic, outcome, detail)
+        self._publish_uptime()
+        self.logger.info(f"Up-time {outcome} {detail}: {reason} ({topic})")
+
+    def _answer(self, topic, outcome, detail):
+        """Tell one client what became of its request"""
+
+        command = {
+            "granted": "uptime_granted",
+            "released": "uptime_released",
+            "refused": "uptime_refused",
+        }[outcome]
+        # The detail becomes separate arguments, so the wire form is
+        # "(uptime_refused maximum_seconds 600)" and not one length-prefixed
+        # string with a space in it (ADR-002)
+        self._publish_to(topic, command, *str(detail).split())
+
+    def _publish_to(self, topic, command, *arguments):
+        """One S-expression to one client topic.  A publication that fails
+        must never stop a reading.
+
+        Named apart from _publish(), which puts a reading into the shared
+        state: one is a message to a client, the other is state"""
+
+        from aiko_services.main.utilities import generate
+
+        # aiko.process.message, and not aiko.message: the latter is the
+        # module of that name, which has no publish().  share.py reaches it
+        # through a name that "from aiko_services.main import *" provides.
+        # It is None until the process runs, which a composed Actor in a
+        # test is
+        message = getattr(aiko.process, "message", None)
+        if message is None:
+            self.logger.debug(f"No message layer yet: {command} {topic}")
+            return
+        try:
+            message.publish(topic, generate(command, list(arguments)))
+        except Exception as error:                       # noqa: BLE001
+            self.logger.warning(f"Could not answer {topic}: {error}")
+
+    def _publish_uptime(self, now=None):
+        """The register's totals, and the metrics it counts"""
+
+        now = self._now() if now is None else now
+        for name, value in self._uptime.as_share(now).items():
+            self.ec_producer.update(name, value)
+        for name, value in (
+            ("uptime_granted", self._uptime.granted),
+            ("uptime_refused", self._uptime.refused),
+            ("uptime_expired", self._uptime.expired)):
+            self.ec_producer.update(f"metrics.{name}", value)
+
+    @staticmethod
+    def _now():
+        import time
+
+        return time.monotonic()
 
     def set_period(self, seconds):
         """Change the seconds between samples"""
@@ -464,9 +584,15 @@ class PowerManagerCommon:
         import time
 
         now = time.monotonic() if now is None else now
-        queue = self._queue.state()
         properties = tuple(self.properties())
         thresholds = self._thresholds
+
+        # Every claim that has run out is dropped, and its client is told,
+        # so an expiry is never silent
+        for topic in self._uptime.expire(now):
+            if topic != BRIDGE_TOPIC:
+                self._publish_to(topic, "uptime_expired")
+        queue = self._bridge_uptime(now)
 
         # The dock line glitches, so the host counts as docked until it has
         # been undocked for its dwell.  Holding the power is the safe side
@@ -481,19 +607,19 @@ class PowerManagerCommon:
         battery_low_s = self._battery_low.update(
             reading.battery_volts is not None and low is not None
             and reading.battery_volts < low, now)
-        queue_empty_s = self._queue_empty.update(
-            queue.known and not queue.busy, now)
+        uptime_held = self._uptime.held(now)
+        uptime_idle_s = self._uptime_idle.update(uptime_held == 0, now)
 
         decision, reason = decide(
             reading.battery_volts, reading.battery_pack_celsius, docked,
-            properties, queue.busy, queue.known, self._button_held,
-            undocked_s, battery_low_s, queue_empty_s, thresholds)
+            properties, uptime_held, self._button_held,
+            undocked_s, battery_low_s, uptime_idle_s, thresholds)
         mode, mode_reason = decide_mode(
             self._mode, decision, reading.battery_volts, docked,
             self.hook_state(), thresholds)
 
         self._publish_decision(decision, reason, mode, mode_reason, queue,
-            docked, undocked_s)
+            docked, undocked_s, now)
         if mode != self._mode:
             self._enter_mode(mode, mode_reason, now)
         if decision == SHUTDOWN:
@@ -501,9 +627,14 @@ class PowerManagerCommon:
         return decision, reason, mode, mode_reason
 
     def _publish_decision(self, decision, reason, mode, mode_reason, queue,
-        docked, undocked_s):
+        docked, undocked_s, now=None):
 
-        """Everything the decision produced, whether or not it is acted on"""
+        """Everything the decision produced, whether or not it is acted on.
+
+        "now" is the clock that the decision used.  One clock, or a claim
+        that the policy counted would be published as expired"""
+
+        now = self._now() if now is None else now
 
         items = {
             "policy_would": decision,
@@ -511,6 +642,7 @@ class PowerManagerCommon:
             "mode_reason": mode_reason,
             "docked": "yes" if docked else "no",
             **queue.as_share(),
+            **self._uptime.as_share(now),
             **self._quiesce.done(),
         }
         if not self._enforce:
@@ -525,6 +657,36 @@ class PowerManagerCommon:
         for name, value in items.items():
             self.ec_producer.update(name, value)
 
+    def _bridge_uptime(self, now):
+        """Hold a claim for a client that cannot yet ask for itself.
+
+        Today's SegmentStoreForward Actor knows nothing about up-time, so
+        while its queue has work the power manager holds a claim on its
+        behalf.  **This is a bridge, and it is meant to go.**  When that
+        Actor asks for itself, this method is deleted and nothing else
+        changes, because the policy already counts claims (ADR-028
+        decision 13).
+
+        The claim is short and renewed on every sample, so a bridge that
+        stops looking lets it lapse rather than holding the host up for
+        ever"""
+
+        queue = self._queue.state()
+        if queue.known and queue.busy:
+            seconds = max(3.0 * self._period, 30.0)
+            self._uptime.request(
+                BRIDGE_TOPIC, seconds, "store_forward", now)
+        else:
+            self._uptime.release(BRIDGE_TOPIC)
+        return queue
+
+    def _notify_holders(self, command, *arguments):
+        """Tell every client that holds a claim.  The bridge is not a
+        client and has no topic to tell"""
+
+        for topic in self._uptime.topics():
+            self._publish_to(topic, command, *arguments)
+
     def _enter_mode(self, mode, reason, now):
         """A mode change, with what each mode asks for.
 
@@ -534,6 +696,9 @@ class PowerManagerCommon:
         self._mode = mode
         self.ec_producer.update("mode", mode)
         self.logger.info(f"Power mode: {mode} ({reason})")
+        # Every client that holds a claim hears the mode, so it can stop
+        # writing without watching the shared state for itself
+        self._notify_holders("power_mode", mode, reason)
         if mode != MODE_QUIESCE:
             return
         self._count("quiesces")

@@ -211,7 +211,8 @@ def test_an_absent_property_makes_its_method_a_no_op():
 
 def test_the_allow_list_is_exactly_the_wire_surface():
     assert sorted(FUNCTIONS) == [
-        "hold", "sample", "set_log_level", "set_period", "signal", "stop"]
+        "hold", "request_uptime", "sample", "set_log_level", "set_period",
+        "signal", "stop"]
 
 def test_the_device_seam_is_not_on_the_bus():
     """open(), close(), read(), add_handler() and properties() are called by
@@ -219,8 +220,17 @@ def test_the_device_seam_is_not_on_the_bus():
 
     assert not (DEVICE_FUNCTIONS & FUNCTIONS)
 
-def test_safe_mode_allows_a_sample_and_the_log_level_only():
-    assert sorted(SAFE_FUNCTIONS) == ["sample", "set_log_level"]
+def test_safe_mode_allows_what_cannot_stop_a_host():
+    """A sample and the log level change nothing.  A request for up-time
+    can only ask a host to stay up, and the two limits of THRESHOLDS bound
+    what a client in a loop can ask for (ADR-028 decision 13)"""
+
+    assert sorted(SAFE_FUNCTIONS) == [
+        "request_uptime", "sample", "set_log_level"]
+
+def test_safe_mode_allows_a_request_for_uptime():
+    actor = make_actor(safe=True)
+    assert actor.deny_function("request_uptime", ["t", "60", "why"]) is None
 
 def test_safe_is_the_default_posture():
     assert SAFE is True

@@ -10,10 +10,11 @@
 # threshold that is reached is not the same as a threshold that is passed,
 # and the dwell is what separates a sag from a reason.
 #
-# The one case to read first is the unknown queue.  A source that cannot
-# reach its peer reports "unknown", not "empty", and the rule then keeps the
-# power on: the data is why this host has a battery. A rule that read
-# "unknown" as "nothing waits" would stop a host with work left to do.
+# The one thing to read first is that nothing here names an application.
+# A client that needs the host asks for up-time and holds a Lease, so the
+# rule counts claims (ADR-028 decision 13).  A host that nothing claims
+# stops after a grace, and a client that cannot be reached cannot hold a
+# claim, so "nobody answered" and "nobody needs me" are one thing.
 
 import pytest
 
@@ -29,8 +30,8 @@ def when(**changes):
 
     case = dict(
         volts=12.0, battery_pack_celsius=25.0, docked=False, properties=EVERY,
-        queue_busy=True, queue_known=True, button_held=False,
-        undocked_s=10.0, battery_low_s=0.0, queue_empty_s=0.0,
+        uptime_held=1, button_held=False,
+        undocked_s=10.0, battery_low_s=0.0, uptime_idle_s=0.0,
         thresholds=THRESHOLDS)
     case.update(changes)
     return decide(**case)
@@ -38,23 +39,24 @@ def when(**changes):
 # The rows of the rule, in their order ------------------------------------- #
 
 def test_the_button_beats_everything():
-    """A person asked.  Even a full battery pack with a busy queue stops"""
+    """A person asked.  Even a full battery pack with claims held stops"""
 
     assert when(button_held=True) == (SHUTDOWN, "button_held")
     assert when(button_held=True, docked=True) == (SHUTDOWN, "button_held")
-    assert when(button_held=True, queue_busy=True, volts=12.6)  \
+    assert when(button_held=True, uptime_held=9, volts=12.6)  \
         == (SHUTDOWN, "button_held")
 
-def test_the_floor_beats_the_queue():
-    """A battery pack that is damaged is damaged for good, and a queue can wait"""
+def test_the_floor_beats_every_claim():
+    """A battery pack that is damaged is damaged for good, and work can
+    wait.  A Lease asks, and it never commands"""
 
-    assert when(volts=9.8, queue_busy=True) == (SHUTDOWN, "battery_floor")
+    assert when(volts=9.8, uptime_held=9) == (SHUTDOWN, "battery_floor")
 
 def test_the_floor_is_a_boundary_not_a_range():
     assert when(volts=9.9)[0] == HOLD        # At the floor, not under it
     assert when(volts=9.89) == (SHUTDOWN, "battery_floor")
 
-def test_a_hot_pack_beats_the_queue():
+def test_a_hot_battery_pack_beats_every_claim():
     assert when(battery_pack_celsius=46.0) == (SHUTDOWN, "battery_pack_temperature")
 
 def test_the_battery_pack_temperature_is_a_boundary():
@@ -79,28 +81,33 @@ def test_a_sag_that_has_not_dwelt_is_not_a_reason():
 def test_the_undocked_time_is_bounded():
     assert when(undocked_s=3601.0) == (SHUTDOWN, "undocked_timeout")
 
-def test_the_bound_applies_to_an_unknown_queue_too():
-    """Otherwise a peer that never answers holds the power until the battery pack
-    is empty"""
+def test_the_bound_applies_however_many_claims_are_held():
+    """Otherwise a client that keeps extending its claim holds the power
+    until the battery pack is empty"""
 
-    assert when(queue_known=False, undocked_s=3601.0)  \
+    assert when(uptime_held=9, undocked_s=3601.0)  \
         == (SHUTDOWN, "undocked_timeout")
 
-def test_an_empty_queue_stops_after_its_grace():
-    assert when(queue_busy=False, queue_empty_s=61.0)  \
-        == (SHUTDOWN, "queue_empty")
+def test_a_host_that_nothing_claims_stops_after_its_grace():
+    assert when(uptime_held=0, uptime_idle_s=61.0)  \
+        == (SHUTDOWN, "uptime_idle")
 
-def test_an_empty_queue_within_its_grace_holds():
-    assert when(queue_busy=False, queue_empty_s=5.0)[0] == HOLD
+def test_a_host_within_its_grace_holds_and_says_which():
+    assert when(uptime_held=0, uptime_idle_s=5.0) == (HOLD, "uptime_grace")
 
-def test_a_busy_queue_holds():
-    assert when(queue_busy=True) == (HOLD, "queue_busy")
+def test_a_claim_that_is_held_holds_the_host():
+    assert when(uptime_held=1) == (HOLD, "uptime_held")
 
-def test_an_unknown_queue_holds():
-    """The case that matters: unknown is not empty"""
+def test_many_claims_hold_the_host_as_one_does():
+    assert when(uptime_held=7) == (HOLD, "uptime_held")
 
-    assert when(queue_known=False, queue_busy=False)  \
-        == (HOLD, "queue_unknown")
+def test_the_policy_names_no_application():
+    """Every reason is about power, time or a claim.  None of them is the
+    name of an Actor, a Pipeline or an application (ADR-028 decision 13)"""
+
+    for reason in REASONS:
+        assert "store_forward" not in reason
+        assert "queue" not in reason
 
 # Readings that a platform does not have ----------------------------------- #
 
@@ -127,8 +134,8 @@ def test_every_reason_is_a_declared_token():
         dict(button_held=True), dict(volts=9.0), dict(battery_pack_celsius=99.0),
         dict(properties=("readings",)), dict(docked=True),
         dict(volts=10.4, battery_low_s=99.0), dict(undocked_s=99999.0),
-        dict(queue_busy=False, queue_empty_s=99.0), dict(),
-        dict(queue_known=False)):
+        dict(uptime_held=0, uptime_idle_s=99.0), dict(),
+        dict(uptime_held=0, uptime_idle_s=0.0)):
         reason = when(**case)[1]
         assert reason in REASONS, reason
         assert " " not in reason

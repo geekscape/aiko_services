@@ -30,6 +30,10 @@ from aiko_services.actors.power_manager.queue import (  # noqa: F401
     FakeQueueSource, NoQueueSource, QueueState, STORE_FORWARD_PROTOCOL,
     StoreForwardQueueSource, choose_queue_source,
 )
+from aiko_services.actors.power_manager.uptime import (  # noqa: F401
+    BRIDGE_TOPIC, REFUSED_MAXIMUM, REFUSED_NO_RESOURCE, REFUSED_PARAMETERS,
+    UPTIME_MAXIMUM_S, UPTIME_REQUESTS_MAXIMUM, UptimeLease, UptimeRegister,
+)
 from aiko_services.actors.power_manager.quiesce import (  # noqa: F401
     HOOK_QUIESCE, Quiesce, REMOUNT_GRACE_S, sync_filesystems,
 )
@@ -69,7 +73,10 @@ from aiko_services.actors.power_manager.pmm import (  # noqa: F401
 
 __all__ = [
     "ADDRESS_BATTERY", "ADDRESS_CHARGER", "ADDRESS_BATTERY_PACK",
-    "BUTTON_ACTIVE_LOW", "BUTTON_GPIO", "DOCK_ACTIVE_LOW", "DOCK_DWELL_S",
+    "BRIDGE_TOPIC", "BUTTON_ACTIVE_LOW", "BUTTON_GPIO", "DOCK_ACTIVE_LOW",
+    "DOCK_DWELL_S", "REFUSED_MAXIMUM", "REFUSED_NO_RESOURCE",
+    "REFUSED_PARAMETERS", "UPTIME_MAXIMUM_S", "UPTIME_REQUESTS_MAXIMUM",
+    "UptimeLease", "UptimeRegister",
     "DOCK_GPIO", "Dwell", "ENFORCE", "FakePowerInputs", "FakeQueueSource",
     "GpioPowerInputs", "HOLD", "HOLD_TIME_S", "HOOK_QUIESCE", "MODES",
     "MODE_CONSERVE", "MODE_NORMAL", "MODE_QUIESCE", "NoQueueSource",

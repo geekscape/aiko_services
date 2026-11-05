@@ -7,12 +7,16 @@
 # why.  Therefore a truth table tests every row of it (ADR-028 decision 8),
 # and classify() in the WhisPlay button is the precedent.
 #
-# The order of the rows is the rule.  The button beats everything, because a
-# person asked.  The floor voltage and the battery pack temperature beat the queue,
-# because a battery pack that is damaged is damaged for good and a queue can wait
-# for the next shift.  An unknown queue keeps the power on, because the data
-# is why this host has a battery at all, and the undocked time bounds how
-# long that can go on.
+# The order of the rows is the rule.  The button beats everything, because
+# a person asked.  The floor voltage and the battery pack temperature beat
+# every claim on the host, because a battery pack that is damaged is damaged
+# for good and work can wait for the next working period.  A claim that is
+# held keeps the power on, because the work is why this host has a battery
+# at all, and the undocked time bounds how long that can go on.
+#
+# Nothing here names an application.  A client that needs the host asks for
+# up-time and holds a Lease (uptime.py, ADR-028 decision 13), so this rule
+# counts claims and never asks any Actor what work it has left.
 #
 # Dwell is the other half of the rule.  A load step makes the voltage sag
 # for seconds, and a supply glitches, so a reading that crosses a threshold
@@ -45,9 +49,9 @@ MODES = (MODE_NORMAL, MODE_CONSERVE, MODE_QUIESCE)
 # Every word that a decision can carry.  One token, no spaces, so it is a
 # shared variable and a log column that a reader can count
 REASONS = (
-    "button_held", "battery_floor", "battery_pack_temperature", "no_hold_property",
-    "docked", "battery_low", "undocked_timeout", "queue_empty",
-    "queue_busy", "queue_unknown", "hook_missing",
+    "button_held", "battery_floor", "battery_pack_temperature",
+    "no_hold_property", "docked", "battery_low", "undocked_timeout",
+    "uptime_held", "uptime_idle", "uptime_grace", "hook_missing",
 )
 
 class Dwell:
@@ -80,8 +84,8 @@ class Dwell:
 
         return self.since is not None and self.seconds(now) >= float(limit)
 
-def decide(volts, battery_pack_celsius, docked, properties, queue_busy, queue_known,
-    button_held, undocked_s, battery_low_s, queue_empty_s, thresholds):
+def decide(volts, battery_pack_celsius, docked, properties, uptime_held,
+    button_held, undocked_s, battery_low_s, uptime_idle_s, thresholds):
 
     """What to do now: (HOLD, reason) or (SHUTDOWN, reason).
 
@@ -91,16 +95,16 @@ def decide(volts, battery_pack_celsius, docked, properties, queue_busy, queue_kn
 
     The rows are tried in order, and the order is the rule:
 
-      the button was held               -> shutdown, a person asked
-      the battery pack is under its floor       -> shutdown, before the cells spoil
-      the battery pack is too hot               -> shutdown, before the cells spoil
-      this host cannot hold its power   -> hold, there is nothing to decide
-      docked                            -> hold, the supply is not ours to save
-      undocked and the battery pack is low      -> shutdown, after its dwell
-      undocked for too long             -> shutdown, the bound on the hold
-      undocked and the queue is empty   -> shutdown, after its grace
-      undocked and the queue is busy    -> hold, this is what the battery pack is for
-      undocked and the queue is unknown -> hold, and the bound above applies
+      the button was held        -> shutdown, a person asked
+      under the voltage floor    -> shutdown, before the cells spoil
+      the battery pack is hot    -> shutdown, before the cells spoil
+      cannot hold its own power  -> hold, there is nothing to decide
+      docked                     -> hold, the supply is not ours to save
+      undocked, the pack is low  -> shutdown, after its dwell
+      undocked for too long      -> shutdown, the bound on the hold
+      undocked, a claim is held  -> hold, this is what the battery is for
+      undocked, no claim is held -> shutdown, after its grace, and
+                                    "uptime_grace" until then
     """
 
     floor = _number(thresholds.get("battery_volts_floor"))
@@ -108,7 +112,7 @@ def decide(volts, battery_pack_celsius, docked, properties, queue_busy, queue_kn
     hot = _number(thresholds.get("battery_pack_celsius_maximum"))
     dwell = _number(thresholds.get("battery_dwell_s"), 0.0)
     maximum = _number(thresholds.get("undocked_maximum_s"))
-    grace = _number(thresholds.get("queue_grace_s"), 0.0)
+    grace = _number(thresholds.get("uptime_grace_s"), 0.0)
 
     if button_held:
         return SHUTDOWN, "button_held"
@@ -128,11 +132,11 @@ def decide(volts, battery_pack_celsius, docked, properties, queue_busy, queue_kn
     if maximum is not None and undocked_s is not None  \
         and undocked_s > maximum:
         return SHUTDOWN, "undocked_timeout"
-    if not queue_known:
-        return HOLD, "queue_unknown"
-    if not queue_busy and queue_empty_s >= grace:
-        return SHUTDOWN, "queue_empty"
-    return HOLD, "queue_busy"
+    if uptime_held:
+        return HOLD, "uptime_held"
+    if uptime_idle_s >= grace:
+        return SHUTDOWN, "uptime_idle"
+    return HOLD, "uptime_grace"
 
 def decide_mode(mode, decision, volts, docked, hook_state, thresholds):
     """The next mode: one of MODES, and the one word that says why.

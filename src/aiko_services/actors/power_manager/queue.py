@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 #
-# Aiko Services: what still waits to be transferred
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The policy keeps the power on while files still wait to go, so it must
-# know how many wait.  The SegmentStoreForward Actor publishes that already,
-# as "queue.depth", "queue.oldest_s", "queue.bytes" and "link", so this
-# module observes it and adds nothing of its own (P3: state observation is
+# Aiko Services: a bridge, until a peer asks for up-time itself
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# **This module is a bridge, and it is meant to go.**
+#
+# The policy names no application (uptime.py, ADR-028 decision 13).  A
+# client that needs the host asks for up-time and holds a Lease, and the
+# policy counts claims.  Today's SegmentStoreForward Actor knows nothing
+# about up-time, so the power manager watches its queue and holds a claim
+# on its behalf.  When that Actor asks for itself, this module is deleted
+# and nothing else changes.
+#
+# The SegmentStoreForward Actor publishes its queue already, as
+# "queue.depth", "queue.oldest_s", "queue.bytes" and "link", so this module
+# observes it and adds nothing of its own (P3: state observation is
 # subscription).
 #
 # **It never counts files in a directory.**  The outbox belongs to another
@@ -14,9 +22,10 @@
 # is the one that knows.
 #
 # "known" is the field that matters most.  A source that has not heard from
-# the peer says so, and the policy then keeps the power on and lets the
-# undocked time bound it.  A source that reported zero because it could not
-# ask would stop a host with work left to do.
+# the peer says so, and the bridge then holds no claim: an unknown queue is
+# not a reason to keep a host up, because the client that would have asked
+# is not there to ask.  A source that reported zero because it could not
+# ask would be worse still.
 #
 # Three sources.  NoQueueSource is the default and always unknown, which is
 # a host that forwards nothing.  StoreForwardQueueSource discovers the peer
