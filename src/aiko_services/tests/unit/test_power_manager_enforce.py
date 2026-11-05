@@ -28,6 +28,19 @@ from aiko_services.actors.power_manager.render import granted_commands
 
 _counter = itertools.count()
 
+def quiesce_of(**parameters):
+    """A Quiesce that touches nothing.
+
+    Every test here goes through this, because a Quiesce with no runner of
+    its own runs the real "mount -o remount -o ro /" of the machine running
+    the test.  On a host with password-less privilege that remounts the
+    root file system read-only, which is worse than a real power-off.  One
+    test reached it on 2026-11-05"""
+
+    settings = {"syncer": lambda: None, "runner": runner_of()}
+    settings.update(parameters)
+    return Quiesce(**settings)
+
 def runner_of(code=0, output="", calls=None):
     def runner(arguments):
         if calls is not None:
@@ -76,7 +89,7 @@ def test_advisory_still_enters_the_quiesce_mode():
 
     actor = make_actor(
         properties=("readings", "hold", "signal", "button", "dock"),
-        script=[undocked(volts=9.0)], quiesce=Quiesce(syncer=lambda: None))
+        script=[undocked(volts=9.0)], quiesce=quiesce_of(syncer=lambda: None))
     actor.sample()
     assert actor.share["mode"] == MODE_QUIESCE
     assert actor.share["quiesce"]["synced"] == "yes"
@@ -92,7 +105,7 @@ def enforcing(script, calls=None, **extra):
         # grace=0 unless a test is about the grace: at the floor the host
         # flushes, waits for its writers, remounts and only then stops, so
         # a test of the stopping must not also wait
-        "quiesce": Quiesce(
+        "quiesce": quiesce_of(
             syncer=lambda: None, runner=runner_of(), grace=0.0),
     }
     settings.update(extra)
@@ -153,7 +166,7 @@ def test_the_remount_waits_out_its_grace_before_the_power_off():
 
     power, mount = [], []
     actor = enforcing([undocked(volts=9.0)], calls=power,
-        quiesce=Quiesce(syncer=lambda: None, runner=runner_of(calls=mount),
+        quiesce=quiesce_of(syncer=lambda: None, runner=runner_of(calls=mount),
             grace=5.0))
     actor._evaluate(actor.reading(), now=100.0)
     assert mount == [] and power == []           # Still inside the grace
@@ -168,7 +181,7 @@ def test_a_failed_remount_still_stops_the_host():
 
     power = []
     actor = enforcing([undocked(volts=9.0)], calls=power,
-        quiesce=Quiesce(syncer=lambda: None,
+        quiesce=quiesce_of(syncer=lambda: None,
             runner=runner_of(code=32, output="target is busy"), grace=0.0))
     actor._evaluate(actor.reading(), now=100.0)
     assert actor.share["quiesce"]["remounted"].startswith("failed")
@@ -180,7 +193,7 @@ def test_a_shutdown_that_is_not_at_the_floor_does_not_remount():
 
     mount = []
     actor = enforcing([undocked(volts=12.0)],
-        quiesce=Quiesce(syncer=lambda: None, runner=runner_of(calls=mount),
+        quiesce=quiesce_of(syncer=lambda: None, runner=runner_of(calls=mount),
             grace=0.0))
     actor.press(3.2)
     assert actor.share["policy_reason"] == "button_held"
@@ -214,7 +227,7 @@ def test_the_quiesce_hook_is_declared_and_fires():
     fired = []
     actor = make_actor(
         properties=("readings", "hold", "signal", "button", "dock"),
-        script=[undocked(volts=9.0)], quiesce=Quiesce(syncer=lambda: None))
+        script=[undocked(volts=9.0)], quiesce=quiesce_of(syncer=lambda: None))
     actor.add_hook_handler(HOOK_QUIESCE,
         lambda name, component, logger, variables, options:
             fired.append(variables))
@@ -226,7 +239,7 @@ def test_the_disks_are_flushed_once_however_many_samples_follow():
     actor = make_actor(
         properties=("readings", "hold", "signal", "button", "dock"),
         script=[undocked(volts=9.0)],
-        quiesce=Quiesce(syncer=lambda: synced.append("sync")))
+        quiesce=quiesce_of(syncer=lambda: synced.append("sync")))
     for _ in range(3):
         actor.sample()
     assert synced == ["sync"]
@@ -275,7 +288,7 @@ def make_grace_actor(seconds, calls=None, **extra):
         "enforce": True,
         "properties": ("readings", "hold", "signal", "button", "dock"),
         "thresholds": {**THRESHOLDS, "powered_down_grace_s": seconds},
-        "quiesce": Quiesce(syncer=lambda: None),
+        "quiesce": quiesce_of(syncer=lambda: None),
         "power_off_runner": runner_of(calls=calls),
     }
     settings.update(extra)
@@ -344,17 +357,618 @@ def test_no_grace_period_leaves_a_claim_in_charge():
     actor.request_powered_up(f"{namespace}/{host}/900/1/in", 600, "upload")
     actor._evaluate(actor.reading(), now=1000.0)
     actor._evaluate(actor.reading(), now=1020.0)
-    actor._evaluate(actor.reading(), now=2000.0)
+    actor._evaluate(actor.reading(), now=1800.0)       # Inside the backstop
     assert actor.share["policy_reason"] == "powered_up_held"
     assert calls == []
 
-def test_a_grace_period_that_is_off_publishes_as_a_dash():
+def test_the_default_deadlines_are_published():
+    actor = make_actor()
+    assert actor.share["thresholds"]["powered_down_grace_s"] == "600.0"
+    assert actor.share["thresholds"]["undocked_maximum_s"] == "900.0"
+
+def test_a_threshold_that_is_off_publishes_as_a_dash():
     """The shared state is read by an operator, and the word "None" reads
     like a fault"""
 
-    actor = make_actor()
+    actor = make_grace_actor(None, script=[undocked()])
     assert actor.share["thresholds"]["powered_down_grace_s"] == "-"
 
 def test_a_grace_period_that_is_set_publishes_its_value():
     actor = make_grace_actor(60.0, script=[undocked()])
     assert actor.share["thresholds"]["powered_down_grace_s"] == "60.0"
+
+# The button latch, and its release ---------------------------------------- #
+#
+# Found in production on 2026-11-05.  One press made the policy report
+# "button_held" for ever, and that reason is read before every other one,
+# so the Actor went blind to its own battery pack.  Four readings in a row
+# reported the button while the pack was under its floor.
+
+def docked(volts=12.0, **extra):
+    """One reading of a docked host"""
+
+    return {"battery_volts": volts, "battery_pack_celsius": 25.0,
+        "docked": True, **extra}
+
+def make_button_actor(script, **extra):
+    """An Actor for the latch tests alone, so button_shutdown=False keeps
+    the press from stopping the host.  What a press does is tested in
+    test_power_manager_mock.py; what the latch does is tested here"""
+
+    settings = {
+        "properties": ("readings", "hold", "signal", "button", "dock"),
+        "script": script, "button_shutdown": False,
+        "quiesce": quiesce_of(syncer=lambda: None),
+        "power_off_runner": runner_of(),
+    }
+    settings.update(extra)
+    return make_actor(**settings)
+
+def test_a_release_clears_the_latch():
+    actor = make_button_actor([docked(), docked(), docked()])
+    actor._input_event("button", "held")
+    assert actor._button_held is True
+    assert actor.share["policy_reason"] == "button_held"
+    actor._input_event("button", "up 4.3")
+    assert actor._button_held is False
+
+def test_a_release_decides_again_at_once():
+    """An operator sees the policy recover, rather than waiting out a
+    sample period that can be a minute"""
+
+    actor = make_button_actor([docked(), docked(), docked()])
+    actor._input_event("button", "held")
+    assert actor.share["policy_would"] == "shutdown"
+    actor._input_event("button", "up 4.3")
+    assert actor.share["policy_would"] == "hold"
+    assert actor.share["policy_reason"] == "docked"
+
+def test_a_short_press_clears_the_latch_too():
+    actor = make_button_actor([docked(), docked(), docked()])
+    actor._input_event("button", "held")
+    actor._input_event("button", "short")
+    assert actor._button_held is False
+
+def test_a_release_does_not_clear_a_shutdown_that_is_running():
+    """The press asked for a stop, and the stop is under way.  Letting go
+    afterwards must not make the Actor change its mind half way"""
+
+    actor = make_button_actor([docked(), docked(), docked()])
+    actor._input_event("button", "held")
+    actor._stopping = True
+    actor._input_event("button", "up 4.3")
+    assert actor._button_held is True
+
+def test_the_battery_pack_is_visible_again_after_a_release():
+    """The production case, as a test.  While the latch was stuck the floor
+    could not be reported, and the floor is what mattered"""
+
+    actor = make_button_actor(
+        [docked(), undocked(volts=9.6), undocked(volts=9.6)])
+    actor._input_event("button", "held")
+    assert actor.share["policy_reason"] == "button_held"
+    actor._input_event("button", "up 4.3")
+    assert actor.share["policy_reason"] == "battery_floor"
+
+def test_a_press_stops_the_host_through_the_granted_command():
+    """The end of the chain the lead needs: a press of three seconds runs
+    the power-off that the privilege grant permits"""
+
+    calls = []
+    actor = make_button_actor([docked(), docked(), docked()],
+        button_shutdown=True, power_off_runner=runner_of(calls=calls))
+    actor._input_event("button", "held")
+    assert actor.share["policy"] == POLICY_SHUTTING_DOWN
+    assert actor.share["metrics"]["shutdowns"] == 1
+    granted, _ = granted_commands()
+    assert [SUDO, "-n", *granted] in calls
+
+def test_a_press_is_answered_without_waiting_out_a_grace():
+    """A battery pack under its floor must not make an operator wait a
+    sample period, which is a minute in production.  The mode change has
+    already flushed the file systems, and the power-off unmounts cleanly"""
+
+    calls = []
+    actor = make_button_actor(
+        [undocked(volts=9.6), undocked(volts=9.6), undocked(volts=9.6)],
+        button_shutdown=True, power_off_runner=runner_of(calls=calls))
+    actor._input_event("button", "held")
+    assert actor.share["metrics"]["shutdowns"] == 1
+    assert calls
+
+def test_a_battery_shutdown_still_waits_out_its_grace():
+    """The other half of the same rule: when the Actor decided, and not a
+    person, a few seconds of grace cost nothing and protect the files"""
+
+    calls = []
+    actor = make_actor(enforce=True,
+        properties=("readings", "hold", "signal", "button", "dock"),
+        script=[undocked(volts=9.6), undocked(volts=9.6)],
+        quiesce=quiesce_of(syncer=lambda: None),
+        power_off_runner=runner_of(calls=calls))
+    actor.sample()
+    assert calls == []
+    assert actor.share["metrics"]["shutdowns"] == 0
+
+# The remount grace waits on its own timer --------------------------------- #
+#
+# Recorded as a defect on 2026-11-05 and fixed here.  _act() entered the
+# quiesce and returned, and the remount happened on the next call.  The
+# next call came from the sample timer, so on a host that samples once a
+# minute a shutdown at the voltage floor waited most of a minute between
+# the flush and the remount: the case where a delay costs the most, because
+# the battery pack is nearly empty.
+
+def timed(monkeypatch, added, removed=None, **extra):
+    """An Actor with its timers recorded rather than added to the loop"""
+
+    from aiko_services.main import event
+
+    monkeypatch.setattr(event, "add_timer_handler",
+        lambda handler, period, immediate=False: added.append(
+            (handler, period)))
+    monkeypatch.setattr(event, "remove_timer_handler",
+        lambda handler: (removed if removed is not None else []).append(
+            handler))
+    settings = {
+        "enforce": True, "timer": True,
+        "properties": ("readings", "hold", "signal", "button", "dock"),
+        "quiesce": quiesce_of(syncer=lambda: None),
+        "power_off_runner": runner_of(),
+        "script": [undocked(volts=9.0)] * 4,
+    }
+    settings.update(extra)
+    return make_actor(**settings)
+
+def test_the_grace_asks_for_a_timer_of_its_own(monkeypatch):
+    """Otherwise the remount waits for the next sample"""
+
+    added = []
+    actor = timed(monkeypatch, added)
+    actor.sample()
+    assert actor.share["mode"] == MODE_QUIESCE
+    assert actor._grace_timer in [handler for handler, _ in added]
+
+def test_the_timer_asks_for_the_grace_and_not_the_sample_period(monkeypatch):
+    added = []
+    actor = timed(monkeypatch, added,
+        quiesce=quiesce_of(syncer=lambda: None, grace=3.0))
+    actor.sample()
+    assert dict(added)[actor._grace_timer] == 3.0
+
+def test_an_actor_with_no_timer_gains_none(monkeypatch):
+    """A test drives the decision itself, and an Actor composed without a
+    timer must not grow one here"""
+
+    added = []
+    actor = timed(monkeypatch, added, timer=False)
+    actor.sample()
+    assert actor._grace_timer not in [handler for handler, _ in added]
+
+def test_the_timer_takes_itself_away_when_it_fires(monkeypatch):
+    """One shot.  A repeating timer would decide for ever after one floor"""
+
+    added, removed = [], []
+    actor = timed(monkeypatch, added, removed=removed)
+    actor.sample()
+    actor._grace_timer()
+    assert actor._grace_timer in removed
+
+def test_the_grace_timer_finishes_the_shutdown():
+    """The point of it.  The first decision flushes and waits, and the
+    wake-up does the remount and the power-off seconds later, rather than a
+    sample period later"""
+
+    calls = []
+    actor = make_actor(enforce=True, timer=False,
+        properties=("readings", "hold", "signal", "button", "dock"),
+        quiesce=quiesce_of(grace=5.0),
+        power_off_runner=runner_of(calls=calls),
+        script=[undocked(volts=9.0)] * 4)
+    actor._evaluate(actor.reading(), now=1000.0)
+    assert calls == []                           # The grace has not passed
+    actor._evaluate(actor.reading(), now=1005.0)   # What the wake-up does
+    assert actor.share["metrics"]["shutdowns"] == 1
+    assert calls
+
+def test_closing_takes_away_a_grace_that_never_finished(monkeypatch):
+    """Otherwise the event loop keeps a timer for an Actor that is gone,
+    which the leak report counts"""
+
+    added, removed = [], []
+    actor = timed(monkeypatch, added, removed=removed)
+    actor.sample()
+    actor.close()
+    assert actor._grace_timer in removed
+    assert actor._sample_timer in removed
+
+# What an application is told ---------------------------------------------- #
+#
+# Goal 3.  "writing_ok" is published rather than answered, so a writer
+# subscribes to it and this Actor keeps no register of writers (P3).
+
+def test_writing_is_okay_on_a_docked_host():
+    actor = make_actor()
+    assert actor.share["writing_ok"] is True
+
+def test_writing_stops_when_the_host_conserves():
+    actor = make_actor(
+        properties=("readings", "hold", "signal", "button", "dock"),
+        script=[undocked(), undocked(), undocked()])
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)       # Past the dock dwell
+    assert actor.share["mode"] == MODE_CONSERVE
+    assert actor.share["writing_ok"] is False
+
+def test_the_application_grace_keeps_writing_going_for_a_while():
+    """A supply that went for a moment must not stop a recording"""
+
+    actor = make_actor(
+        properties=("readings", "hold", "signal", "button", "dock"),
+        thresholds={**THRESHOLDS,
+            "powered_down_application_grace_s": 120.0,
+            "powered_down_grace_s": 300.0},
+        script=[undocked()] * 4)
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)       # Undocked, inside it
+    assert actor.share["writing_ok"] is True
+    assert actor.share["mode_reason"] == "application_grace"
+    actor._evaluate(actor.reading(), now=1130.0)       # Past it
+    assert actor.share["writing_ok"] is False
+
+def test_a_supply_that_returns_allows_writing_again():
+    """The other half of what the lead asked for"""
+
+    docked_reading = {"battery_volts": 12.0,
+        "battery_pack_celsius": 25.0, "docked": True}
+    actor = make_actor(
+        properties=("readings", "hold", "signal", "button", "dock"),
+        script=[undocked(), undocked(), docked_reading, docked_reading])
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    assert actor.share["writing_ok"] is False
+    actor._evaluate(actor.reading(), now=1030.0)
+    assert actor.share["writing_ok"] is True
+    assert actor.share["mode_reason"] == "docked"
+
+def test_writing_stops_in_the_quiesce_mode_too():
+    actor = make_actor(enforce=False,
+        properties=("readings", "hold", "signal", "button", "dock"),
+        script=[undocked(volts=9.0)])
+    actor.sample()
+    assert actor.share["mode"] == MODE_QUIESCE
+    assert actor.share["writing_ok"] is False
+
+# The one rule between the two graces -------------------------------------- #
+
+def test_an_application_grace_shorter_than_the_deadline_is_kept():
+    actor = make_actor(thresholds={**THRESHOLDS,
+        "powered_down_application_grace_s": 120.0,
+        "powered_down_grace_s": 300.0})
+    assert actor.share["thresholds"]["powered_down_application_grace_s"]  \
+        == "120.0"
+    assert actor.share["last_error"] == "-"
+
+def test_an_application_grace_at_or_past_the_deadline_is_turned_off():
+    """The writers must stop before the host does.  A mistyped pair must
+    not stop a host, and it must not be silent either"""
+
+    for application in (300.0, 400.0):
+        actor = make_actor(thresholds={**THRESHOLDS,
+            "powered_down_application_grace_s": application,
+            "powered_down_grace_s": 300.0})
+        assert actor.share["thresholds"][
+            "powered_down_application_grace_s"] == "-", application
+        assert "not less than" in actor.share["last_error"], application
+
+def test_an_application_grace_with_no_deadline_is_kept():
+    """Either one alone is consistent: the backstop is the other deadline"""
+
+    actor = make_actor(thresholds={**THRESHOLDS,
+        "powered_down_application_grace_s": 120.0})
+    assert actor.share["thresholds"]["powered_down_application_grace_s"]  \
+        == "120.0"
+    assert actor.share["last_error"] == "-"
+
+# What acts whatever the posture ------------------------------------------- #
+#
+# The lead's requirement of 2026-11-05: when undocked, the deadline must
+# stop the host, and not merely report that it would, "otherwise the
+# battery pack will be drained".
+#
+# The rule that gives it, and keeps the posture meaning something: a reason
+# that rests on a data-sheet threshold waits for --enforce, and a reason
+# that rests on a person, a dock line and a clock does not.
+
+def advisory_with(script, calls=None, **extra):
+    settings = {
+        "enforce": False,                            # Advisory, deliberately
+        "properties": ("readings", "hold", "signal", "button", "dock"),
+        "quiesce": quiesce_of(),
+        "power_off_runner": runner_of(calls=calls),
+        "script": script,
+    }
+    settings.update(extra)
+    return make_actor(**settings)
+
+def test_the_deadline_stops_an_undocked_host_while_advisory():
+    """The requirement.  A deadline that only reported would let the pack
+    drain flat, which is the outcome this design exists to prevent"""
+
+    calls = []
+    actor = advisory_with([undocked()] * 4, calls=calls,
+        thresholds={**THRESHOLDS, "powered_down_grace_s": 300.0})
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    assert calls == []
+    actor._evaluate(actor.reading(), now=1305.0)
+    assert actor.share["policy_reason"] == "powered_down_grace"
+    assert actor.share["policy"] == POLICY_SHUTTING_DOWN
+    assert calls
+
+def test_the_backstop_stops_an_undocked_host_while_advisory():
+    """A backstop that never fires is not a backstop.  The deadline is
+    turned off here, because by default it is shorter and fires first"""
+
+    calls = []
+    actor = advisory_with([undocked()] * 4, calls=calls,
+        thresholds={**THRESHOLDS, "powered_down_grace_s": None})
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    assert calls == []
+    actor._evaluate(actor.reading(), now=1000.0 + 3601.0)
+    assert actor.share["policy_reason"] == "undocked_timeout"
+    assert calls
+
+def test_the_default_deadline_stops_an_undocked_host_while_advisory():
+    """What every host now does, with nothing set: twenty minutes after
+    the supply goes, it stops"""
+
+    calls = []
+    actor = advisory_with([undocked()] * 4, calls=calls)
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    assert calls == []
+    actor._evaluate(actor.reading(), now=1000.0 + 1201.0)
+    assert actor.share["policy_reason"] == "powered_down_grace"
+    assert calls
+
+def test_the_deadline_beats_a_claim_while_advisory():
+    """A client cannot hold an undocked host past its deadline, whatever
+    the posture"""
+
+    calls = []
+    actor = advisory_with([undocked()] * 4, calls=calls,
+        thresholds={**THRESHOLDS, "powered_down_grace_s": 300.0})
+    namespace, host = str(actor.topic_path).split("/")[:2]
+    actor.request_powered_up(f"{namespace}/{host}/900/1/in", 600, "upload")
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    assert actor.share["policy_reason"] == "powered_up_held"
+    actor._evaluate(actor.reading(), now=1305.0)
+    assert actor.share["policy_reason"] == "powered_down_grace"
+    assert calls
+
+def test_the_deadline_shutdown_is_graceful():
+    """"Shutdown gracefully": the writers are told and the file systems are
+    flushed before the host stops"""
+
+    actor = advisory_with([undocked()] * 4,
+        thresholds={**THRESHOLDS, "powered_down_grace_s": 300.0})
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    actor._evaluate(actor.reading(), now=1305.0)
+    assert actor.share["mode"] == MODE_QUIESCE
+    assert actor.share["quiesce"]["synced"] == "yes"
+    assert actor.share["writing_ok"] is False
+
+def test_the_data_sheet_reasons_still_wait_for_enforce():
+    """The posture keeps its meaning for every number that came from a data
+    sheet rather than from the battery pack that is fitted"""
+
+    for reading, reason in (
+        (undocked(volts=9.0), "battery_floor"),
+        ({"battery_volts": 12.0, "battery_pack_celsius": 50.0,
+            "docked": False}, "battery_pack_temperature")):
+        calls = []
+        actor = advisory_with([reading] * 3, calls=calls)
+        actor.sample()
+        assert actor.share["policy_reason"] == reason, reason
+        assert actor.share["policy_would"] == "shutdown", reason
+        assert actor.share["policy"] == POLICY_ADVISORY, reason
+        assert calls == [], reason
+
+def test_a_low_battery_pack_still_waits_for_enforce():
+    calls = []
+    actor = advisory_with([undocked(volts=10.4)] * 4, calls=calls)
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1040.0)       # Past the dwell
+    assert actor.share["policy_reason"] == "battery_low"
+    assert calls == []
+
+def test_a_deadline_at_the_floor_still_remounts_first():
+    """A deadline is not a button press.  Nobody is waiting on it and the
+    battery pack is what is at risk, so it takes the full quiesce"""
+
+    calls = []
+    actor = advisory_with([undocked(volts=9.5)] * 5, calls=calls,
+        thresholds={**THRESHOLDS,
+            "powered_down_grace_s": 300.0,
+            "battery_volts_floor": 9.0,          # Under the reading
+            "battery_volts_low": 9.2})
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    actor._evaluate(actor.reading(), now=1305.0)      # The deadline passes
+    assert actor.share["policy_reason"] == "powered_down_grace"
+
+def test_the_exact_reasons_are_the_three_that_need_no_calibration():
+    from aiko_services.actors.power_manager.policy import (
+        EXACT_REASONS, REASONS)
+
+    assert sorted(EXACT_REASONS) == [
+        "button_held", "powered_down_grace", "undocked_timeout"]
+    for reason in EXACT_REASONS:
+        assert reason in REASONS, reason
+
+def test_turning_the_button_off_does_not_turn_the_deadlines_off():
+    """One switch for the button alone.  A deployment turns a deadline off
+    by not setting it, which is how it asked for the action"""
+
+    calls = []
+    actor = advisory_with([undocked()] * 4, calls=calls,
+        button_shutdown=False,
+        thresholds={**THRESHOLDS, "powered_down_grace_s": 300.0})
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    actor._evaluate(actor.reading(), now=1305.0)
+    assert calls
+
+# The deadline that actually fires ----------------------------------------- #
+#
+# Found by the sanity check of 2026-11-05.  Two thresholds can stop an
+# undocked host and the shorter one does, so the rule "the writers stop
+# before the host does" has to be checked against the shorter one.
+# Checking only the deployment's deadline let an application grace past the
+# backstop through, and the host then stopped before the writers were told.
+
+def test_an_application_grace_past_the_backstop_is_turned_off():
+    """The gap.  With the deployment's deadline off, the backstop is the
+    deadline, and an application grace longer than it is useless"""
+
+    actor = make_actor(thresholds={**THRESHOLDS,
+        "powered_down_grace_s": None,
+        "undocked_maximum_s": 900.0,
+        "powered_down_application_grace_s": 1200.0})
+    assert actor.share["thresholds"][
+        "powered_down_application_grace_s"] == "-"
+    assert "undocked_maximum_s" in actor.share["last_error"]
+
+def test_the_shorter_of_the_two_is_what_the_rule_reads():
+    """A deployment's deadline longer than the backstop cannot fire, so the
+    backstop is what an application grace must beat"""
+
+    actor = make_actor(thresholds={**THRESHOLDS,
+        "powered_down_grace_s": 1800.0,          # Longer than the backstop
+        "undocked_maximum_s": 900.0,
+        "powered_down_application_grace_s": 1000.0})
+    assert actor.share["thresholds"][
+        "powered_down_application_grace_s"] == "-"
+    assert "undocked_maximum_s 900" in actor.share["last_error"]
+
+def test_an_application_grace_inside_both_is_kept():
+    actor = make_actor(thresholds={**THRESHOLDS,
+        "powered_down_grace_s": 600.0,
+        "undocked_maximum_s": 900.0,
+        "powered_down_application_grace_s": 60.0})
+    assert actor.share["thresholds"][
+        "powered_down_application_grace_s"] == "60.0"
+    assert actor.share["last_error"] == "-"
+
+def test_the_error_names_which_threshold_was_too_short():
+    """An operator has two to look at, so the message says which one"""
+
+    actor = make_actor(thresholds={**THRESHOLDS,
+        "powered_down_grace_s": 600.0,
+        "undocked_maximum_s": 900.0,
+        "powered_down_application_grace_s": 700.0})
+    assert "powered_down_grace_s 600" in actor.share["last_error"]
+
+def test_no_deadline_at_all_leaves_an_application_grace_alone():
+    """With nothing to be shorter than, there is no rule to break"""
+
+    actor = make_actor(thresholds={**THRESHOLDS,
+        "powered_down_grace_s": None,
+        "undocked_maximum_s": None,
+        "powered_down_application_grace_s": 1200.0})
+    assert actor.share["thresholds"][
+        "powered_down_application_grace_s"] == "1200.0"
+    assert actor.share["last_error"] == "-"
+
+def test_the_defaults_are_in_the_right_order():
+    """The whole chain, as a deployment gets it: the writers stop, then the
+    deadline stops the host, and the backstop is behind both"""
+
+    application = THRESHOLDS["powered_down_application_grace_s"]
+    deadline = THRESHOLDS["powered_down_grace_s"]
+    backstop = THRESHOLDS["undocked_maximum_s"]
+    assert application is None                   # Off until a deployment asks
+    assert deadline < backstop
+    assert THRESHOLDS["dock_dwell_s"] < deadline
+    assert THRESHOLDS["powered_up_maximum_s"] <= backstop
+
+# A returning supply is not patient ---------------------------------------- #
+#
+# The lead's point of 2026-11-05: the two directions have different
+# objectives.  Losing the supply can wait, because the battery pack exists
+# for exactly that.  Getting the application working again should be
+# prompt.  The dwell and the deadlines keep the patience on the losing
+# side, and a dock event takes the sample period out of the returning side.
+
+def docked_reading(volts=12.0, **extra):
+    return {"battery_volts": volts, "battery_pack_celsius": 25.0,
+        "docked": True, **extra}
+
+def test_a_dock_event_decides_at_once():
+    """Without this a recording resumed at the next sample, which is a
+    minute in production"""
+
+    actor = make_actor(
+        properties=("readings", "hold", "signal", "button", "dock"),
+        script=[undocked(), undocked(), docked_reading(), docked_reading()])
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    assert actor.share["writing_ok"] is False
+    actor._input_event("dock", "yes")            # The supply comes back
+    assert actor.share["writing_ok"] is True
+    assert actor.share["policy_reason"] == "docked"
+
+def test_an_undock_event_decides_too_and_the_dwell_still_holds():
+    """Deciding at the edge makes the undocked count start at the moment
+    the supply went, which is more accurate and no less patient: the dwell
+    means the host still counts as docked"""
+
+    actor = make_actor(
+        properties=("readings", "hold", "signal", "button", "dock"),
+        script=[docked_reading(), undocked(), undocked()])
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._input_event("dock", "no")
+    assert actor.share["policy_reason"] == "docked"   # Inside the dwell
+    assert actor.share["writing_ok"] is True
+
+def test_a_dock_event_is_still_logged():
+    actor = make_actor(
+        properties=("readings", "hold", "signal", "button", "dock"),
+        script=[docked_reading(), docked_reading()])
+    actor._input_event("dock", "yes")
+    assert actor.share["docked"] == "yes"
+
+def test_the_dock_line_settles_before_it_is_believed():
+    """Every edge now asks the policy to decide, so a line that chatters
+    would ask many times in a moment"""
+
+    from aiko_services.actors.power_manager.button import DOCK_BOUNCE_S
+
+    assert DOCK_BOUNCE_S > 0
+
+def test_the_log_carries_the_undocked_seconds():
+    """What the deadlines are tuned from: how long real undocked periods
+    last, and what the battery pack did through them"""
+
+    import json
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as directory:
+        actor = make_actor(log_directory=directory,
+            properties=("readings", "hold", "signal", "button", "dock"),
+            script=[undocked(), undocked()])
+        actor.sample()
+        actor.sample()
+        actor.close()
+        lines = []
+        for path in sorted(__import__("pathlib").Path(directory).glob(
+            "*.jsonl")):
+            lines += [json.loads(line) for line in path.read_text(
+                ).splitlines()]
+    assert lines
+    assert "undocked_s" in lines[-1]
+    assert lines[-1]["undocked_s"] >= 0

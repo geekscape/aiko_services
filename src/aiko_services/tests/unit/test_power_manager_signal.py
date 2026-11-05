@@ -28,7 +28,8 @@ def edges_of(name):
     """The on and off edges that one pattern makes, with its sleeps"""
 
     edges = []
-    buzzer = GpioBuzzer(thread=False,
+    # maker returns None, so no line is taken and _set() records instead
+    buzzer = GpioBuzzer(thread=False, maker=lambda: None,
         sleeper=lambda seconds: edges.append(("sleep", seconds)))
     buzzer._set = lambda on: edges.append(("on" if on else "off",))
     buzzer.play(name)
@@ -105,7 +106,7 @@ def test_the_line_is_left_off_even_when_the_sleep_fails():
     def fail(seconds):
         raise OSError("the clock went away")
 
-    buzzer = GpioBuzzer(thread=False, sleeper=fail)
+    buzzer = GpioBuzzer(thread=False, maker=lambda: None, sleeper=fail)
     buzzer._set = lambda on: edges.append("on" if on else "off")
     with pytest.raises(OSError):
         buzzer.play("booted")
@@ -181,8 +182,8 @@ def test_no_buzzer_means_no_signal_property():
     assert "signal" not in actor.properties()
 
 def test_the_actor_sounds_a_pattern_and_counts_it():
-    buzzer = choose_buzzer("gpio", thread=False, sleeper=lambda s: None)
-    buzzer._set = lambda on: None
+    buzzer = choose_buzzer("gpio", thread=False, maker=lambda: None,
+        sleeper=lambda s: None)
     actor = make_actor(buzzer=buzzer)
     actor.signal("booted")
     assert buzzer.played == ["booted"]
@@ -202,3 +203,92 @@ def test_a_signal_on_a_host_with_no_buzzer_is_a_no_op():
     assert actor.share["metrics"]["signals"] == 0
 
 # --------------------------------------------------------------------------- #
+
+# The line is held for a pattern, and not for a run ------------------------ #
+#
+# Recorded as 6.22 and fixed here.  open() used to claim the line and hold
+# it for as long as the Actor ran, while the start-up unit and the shutdown
+# hook write the same pad with the platform's pin utility.  A shutdown stops
+# those and this Actor in no defined order, so the two could overlap and a
+# pattern that was sounding would be cut short.
+
+def made_buzzer(**parameters):
+    """A buzzer whose line is a recorder, so that taking it and giving it
+    back are both visible without any hardware"""
+
+    taken = []
+
+    class FakeLine:
+        def __init__(self):
+            self.value = 0
+            self.closed = False
+        def close(self):
+            self.closed = True
+
+    def maker():
+        line = FakeLine()
+        taken.append(line)
+        return line
+
+    return GpioBuzzer(thread=False, maker=maker,
+        sleeper=lambda seconds: None, **parameters), taken
+
+def test_opening_takes_the_line_and_gives_it_straight_back():
+    """It proves the line, so a platform with no library still reports no
+    "signal" property, and it holds nothing"""
+
+    buzzer, taken = made_buzzer()
+    buzzer.open()
+    assert len(taken) == 1 and taken[0].closed is True
+    assert buzzer._device is None
+
+def test_a_pattern_takes_the_line_and_gives_it_back():
+    buzzer, taken = made_buzzer()
+    buzzer.open()
+    buzzer.play("booted")
+    assert len(taken) == 2                       # The open, then the pattern
+    assert taken[1].closed is True
+    assert buzzer._device is None
+
+def test_nothing_is_held_between_patterns():
+    """The whole point.  Between sounds the pad is free for the start-up
+    unit and the shutdown hook to write"""
+
+    buzzer, taken = made_buzzer()
+    buzzer.open()
+    for name in ("booted", "pipeline", "shutdown"):
+        buzzer.play(name)
+        assert buzzer._device is None, name
+    assert all(line.closed for line in taken)
+
+def test_the_line_is_left_low_when_it_is_given_back():
+    buzzer, taken = made_buzzer()
+    buzzer.play("booted")
+    assert taken[-1].value == 0
+
+def test_a_failing_pattern_still_gives_the_line_back():
+    """A buzzer that fails must not keep the pad, or the shutdown hook
+    cannot sound the host going down"""
+
+    def fail(seconds):
+        raise OSError("the clock went away")
+
+    buzzer, taken = made_buzzer()
+    buzzer._sleep = fail
+    with pytest.raises(OSError):
+        buzzer.play("booted")
+    assert buzzer._device is None
+    assert taken[-1].closed is True
+
+def test_closing_gives_back_a_line_held_during_a_pattern():
+    buzzer, taken = made_buzzer()
+    buzzer._device = taken_line = buzzer._make()
+    buzzer.close()
+    assert taken_line.closed is True
+    assert buzzer._device is None
+
+def test_closing_with_nothing_held_is_not_an_error():
+    buzzer, _ = made_buzzer()
+    buzzer.open()
+    buzzer.close()
+    assert buzzer._device is None

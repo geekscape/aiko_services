@@ -34,14 +34,20 @@
 # writing nothing.  It never returns to "normal" without a dock: a battery
 # that recovered a little is not a battery that was charged.
 #
+# A mode that is not "normal" means that an application should stop writing
+# to the file systems.  That is the whole use an application makes of this,
+# so the Actor publishes it as one boolean and a client reads that rather
+# than learning the modes.
+#
 # To Do
 # ~~~~~
 # * A percentage and an estimated time, after a discharge curve is measured
 #   (ADR-028 decision 10).  decide() takes volts today
 
 __all__ = [
-    "Dwell", "HOLD", "MODES", "MODE_CONSERVE", "MODE_NORMAL", "MODE_QUIESCE",
-    "REASONS", "SHUTDOWN", "decide", "decide_mode",
+    "Dwell", "EXACT_REASONS", "HOLD", "MODES", "MODE_CONSERVE",
+    "MODE_NORMAL", "MODE_QUIESCE", "REASONS", "SHUTDOWN", "decide",
+    "decide_mode", "writing_ok",
 ]
 
 HOLD = "hold"
@@ -58,8 +64,29 @@ REASONS = (
     "button_held", "battery_floor", "battery_pack_temperature",
     "no_hold_property", "docked", "battery_low", "undocked_timeout",
     "powered_down_grace", "powered_up_held", "powered_up_idle",
-    "powered_up_grace", "hook_missing",
+    "powered_up_grace", "hook_missing", "application_grace",
 )
+
+# The reasons that act whatever the posture is.
+#
+# The advisory posture exists for one reason: the voltage and the
+# temperature thresholds come from a data sheet, and not from the battery
+# pack that is fitted.  Until that pack is measured, a host must not stop
+# itself because of a number nobody checked.
+#
+# These three need no such number.  A person held the button.  A dock line
+# says the supply is gone, and a clock says for how long.  Both are exact,
+# and no calibration makes them more true.  So refusing to act on them is
+# not caution: it is how a battery pack gets drained flat, which is the
+# outcome the whole design exists to prevent.
+#
+# A deployment turns the two deadlines off by setting neither of them.
+# Setting a deadline is how a deployment asks for the action.
+EXACT_REASONS = frozenset({
+    "button_held",                 # A person asked
+    "powered_down_grace",          # The deployment's own deadline
+    "undocked_timeout",            # The backstop on an undocked hold
+})
 
 class Dwell:
     """How long a condition has been true, without sleeping.
@@ -177,7 +204,8 @@ def _deadline(powered_down_grace_s, undocked_maximum_s):
         return None, None
     return min(found, key=lambda item: item[0])
 
-def decide_mode(mode, decision, volts, docked, hook_state, thresholds):
+def decide_mode(mode, decision, volts, docked, hook_state, thresholds,
+    undocked_s=0.0):
     """The next mode: one of MODES, and the one word that says why.
 
     Pure.  "mode" is the mode now, because this decision has memory: a mode
@@ -196,7 +224,16 @@ def decide_mode(mode, decision, volts, docked, hook_state, thresholds):
     platform that has no such hook at all reports "unknown" for ever.
 
     The decision is read before the dock, because a host that is about to
-    halt should stop writing even while its supply is still there
+    halt should stop writing even while its supply is still there.
+
+    MODE_CONSERVE means that an application should stop writing to the file
+    systems.  A supply that goes for a moment must not stop a recording, so
+    "powered_down_application_grace_s" is how long the host stays undocked
+    before the mode says so.  Until then the mode is normal, with the
+    reason "application_grace".  A dock makes the undocked seconds zero, so
+    the grace starts again from the beginning.  The threshold is off by
+    default, and then an undocked host conserves at once, which is what it
+    did before the threshold existed
     """
 
     quiesce_volts = _number(thresholds.get("quiesce_volts"))
@@ -215,7 +252,24 @@ def decide_mode(mode, decision, volts, docked, hook_state, thresholds):
         return MODE_QUIESCE, "hook_missing"
     if mode == MODE_QUIESCE:
         return MODE_QUIESCE, "held"              # Never back, without a dock
+
+    # Undocked, and nothing above applies.  The application grace is the
+    # last word: a supply that went for a moment must not stop a recording
+    application = _number(
+        thresholds.get("powered_down_application_grace_s"))
+    if application is not None and application > 0  \
+        and (undocked_s or 0.0) <= application:
+        return MODE_NORMAL, "application_grace"
     return MODE_CONSERVE, "undocked"
+
+def writing_ok(mode):
+    """Whether an application should write to the file systems now.
+
+    One boolean, derived in one place.  An application asks this and does
+    not learn the modes, so a later rule that stops writing for a new
+    reason needs no change in any client"""
+
+    return mode == MODE_NORMAL
 
 def _number(value, default=None):
     """A threshold as a float.  A missing or unreadable one is "default",

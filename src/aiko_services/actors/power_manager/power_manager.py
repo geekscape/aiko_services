@@ -52,7 +52,8 @@ from aiko_services.main.utilities import get_hostname
 
 from aiko_services.actors.power_manager.log import PowerLog
 from aiko_services.actors.power_manager.policy import (
-    Dwell, HOLD, MODE_NORMAL, MODE_QUIESCE, SHUTDOWN, decide, decide_mode
+    Dwell, EXACT_REASONS, HOLD, MODE_NORMAL, MODE_QUIESCE, SHUTDOWN, decide,
+    decide_mode, writing_ok as policy_writing_ok
 )
 from aiko_services.actors.power_manager.quiesce import (
     HOOK_QUIESCE, Quiesce
@@ -72,16 +73,38 @@ except ImportError:                                      # pragma: no cover
     psutil = None
 
 __all__ = [
-    "DEVICE_FUNCTIONS", "DOCK_DWELL_S", "ENFORCE", "FUNCTIONS",
+    "BUTTON_SHUTDOWN", "DEVICE_FUNCTIONS", "DOCK_DWELL_S", "ENFORCE",
+    "FUNCTIONS",
     "LOG_DIRECTORY", "PERIOD_DEVELOPMENT", "PERIOD_PRODUCTION",
     "POLICY_ADVISORY", "POLICY_SHUTTING_DOWN", "PROPERTIES", "PROTOCOL",
-    "SAFE", "SAFE_FUNCTIONS", "THRESHOLDS", "WORKING_DWELL_S",
+    "POWERED_DOWN_GRACE_S", "SAFE", "SAFE_FUNCTIONS", "THRESHOLDS",
+    "UNDOCKED_MAXIMUM_S", "WORKING_DWELL_S",
     "WORKING_PATTERN", "WORKING_REPORTERS_MAXIMUM", "PowerManager",
     "PowerManagerCommon", "choose_power_manager", "power_manager_args",
     "service_filter", "service_tags",
 ]
 
 PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/power_manager:0"
+
+# The two deadlines on an undocked hold, in the order they fire.
+#
+# Both are deliberately short, because of what the postures mean.  The
+# voltage rules are the natural protection for a battery pack, and they are
+# the ones that an advisory posture holds back, since their thresholds come
+# from a data sheet rather than from the pack that is fitted.  So on a host
+# that has not been measured, these two deadlines are the only thing
+# between an undocked host and a flat pack.  They are therefore set from
+# what the pack can be relied on to do, which on this hardware is not yet
+# known.
+#
+# A measured discharge curve is what raises them, and the characterization
+# of the plan's phase 6 is where it comes from.
+#
+# 600 s at the 10.7 W that was measured is about 1.8 Wh, and 900 s is about
+# 2.7 Wh.  A pack at 10.05 V holds little, so both are inside what even a
+# tired pack should carry.
+POWERED_DOWN_GRACE_S = 600.0       # The deployment's deadline: ten minutes
+UNDOCKED_MAXIMUM_S = 900.0         # The backstop: fifteen minutes
 
 # What a report of work sounds like, and the two limits that bound it.  A
 # report makes a noise that reaches a person, so one reporter cannot sound
@@ -112,6 +135,20 @@ ENFORCE = False
 POLICY_ADVISORY = "advisory"       # It decides, publishes, and acts on nothing
 POLICY_SHUTTING_DOWN = "shutting_down"
 
+# The button acts even while the posture is advisory, and this is why.
+# Advisory exists because the voltage and temperature thresholds come from a
+# data sheet and not from the battery pack that is fitted.  A person who
+# holds the button for three seconds is not a measurement, and no
+# calibration makes their request more or less true.  A power button that
+# does nothing is a fault to the operator who pressed it: seen on
+# 2026-11-05, where the Actor accepted a press, sounded it, decided to stop
+# and then did nothing, because every reason shared one posture.
+#
+# So the two are separate.  "advisory" still means that no measured reason
+# acts.  "--no_button_shutdown" turns off even this, for a host where
+# nothing may stop the operating system
+BUTTON_SHUTDOWN = True
+
 # A supply glitches, and a dock that flickers must not start a shutdown.
 # So the host counts as docked until it has been undocked this long
 DOCK_DWELL_S = 10.0
@@ -126,12 +163,26 @@ THRESHOLDS = {
     "quiesce_volts": 10.2,         # Stop writing, and flush
     "battery_pack_celsius_maximum": 45.0,     # The battery pack, never the processor
     "battery_dwell_s": 30.0,       # The voltage must stay low this long
-    "undocked_maximum_s": 3600.0,  # The backstop on an undocked hold
-    # A deployment's own deadline: when the supply goes and does not come
-    # back, stop after this long whatever work is claimed.  None is off,
-    # which is the default, and then the backstop above is the only
-    # deadline.  A deployment that sets this sets it far shorter
-    "powered_down_grace_s": None,
+    # The backstop on an undocked hold.  It is the longer of the two, so it
+    # fires only where a deployment turned the deadline below off or set it
+    # longer than this
+    "undocked_maximum_s": UNDOCKED_MAXIMUM_S,
+    # The deadline: when the supply goes and does not come back, stop after
+    # this long whatever work is claimed.  Twenty minutes while the battery
+    # pack is unmeasured and it is not certain that the pack charges, which
+    # the lead set on 2026-11-05.  A deployment sets it shorter until both
+    # are known, and None turns it off, which leaves the backstop above as
+    # the only deadline.
+    #
+    # It is shorter than the backstop, so it is the deadline that fires.
+    # The backstop still applies to a deployment that sets this longer, or
+    # turns it off
+    "powered_down_grace_s": POWERED_DOWN_GRACE_S,
+    # How long the host stays undocked before an application is told to
+    # stop writing.  It must be shorter than the deadline above, so that
+    # the writers stop before the host does.  None is off, and then an
+    # undocked host conserves at once
+    "powered_down_application_grace_s": None,
     "powered_up_grace_s": 60.0,      # After the last Lease is released
     "dock_dwell_s": DOCK_DWELL_S,  # Before an undock is believed
     # The limits on the request surface, which ADR-028 decision 13 makes
@@ -143,6 +194,53 @@ THRESHOLDS = {
     "working_dwell_s": WORKING_DWELL_S,
     "working_reporters_maximum": WORKING_REPORTERS_MAXIMUM,
 }
+
+def _grace_order(thresholds):
+    """The one rule that relates two thresholds, checked where they meet.
+
+    The writers must stop before the host does, so the deadline that will
+    fire must be longer than the application grace.  Two thresholds can
+    fire, and the shorter one does, so this reads both: checking only the
+    deployment's deadline let an application grace past the backstop
+    through, and the host then stopped before the writers were told.  An inconsistent pair is reported
+    and the application grace is turned off, which is the behavior from
+    before that threshold existed.  A mistyped setting must not stop a host,
+    and it must not be silent either: the reason is published in
+    "last_error", and the command line refuses the pair outright, where a
+    person is there to read it.
+
+    Returns the diagnostic, or None.  It changes the thresholds in place"""
+
+    application = thresholds.get("powered_down_application_grace_s")
+    if application is None:
+        return None
+    try:
+        application = float(application)
+    except (TypeError, ValueError):
+        return None                # _number() already ignores what it
+                                   #   cannot read
+    if application <= 0:
+        return None
+    # The deadline that will fire, and not one of the two.  Checking only
+    # "powered_down_grace_s" let an application grace past the backstop
+    # through, and then the host stopped before the writers were ever told
+    deadlines = []
+    for name in ("powered_down_grace_s", "undocked_maximum_s"):
+        try:
+            value = float(thresholds.get(name))
+        except (TypeError, ValueError):
+            continue
+        if value > 0:
+            deadlines.append((value, name))
+    if not deadlines:
+        return None                # No deadline at all: nothing to be
+                                   #   shorter than
+    deadline, name = min(deadlines)
+    if deadline > application:
+        return None
+    thresholds["powered_down_application_grace_s"] = None
+    return (f"powered_down_application_grace_s {application:g} is not less "
+        f"than {name} {deadline:g}: turned off")
 
 class PowerManager(aiko.Actor):
     """What the supply and the battery are doing, and what to do about it.
@@ -322,7 +420,8 @@ class PowerManagerCommon:
     def _init_power(self, context, period=PERIOD_DEVELOPMENT,
         log_directory=LOG_DIRECTORY, keep_days=None, safe=SAFE,
         thresholds=None, telemetry=True, timer=True, enforce=ENFORCE,
-        quiesce=None, power_off_runner=None, worker=True):
+        button_shutdown=BUTTON_SHUTDOWN, quiesce=None,
+        power_off_runner=None, worker=True):
 
         """Compose the Actor part.  An Implementation calls this from its
         own __init__, after it has recorded its devices"""
@@ -335,6 +434,7 @@ class PowerManagerCommon:
         self._telemetry = bool(telemetry)
         self._thresholds = dict(THRESHOLDS)
         self._thresholds.update(thresholds or {})
+        self._threshold_error = _grace_order(self._thresholds)
         self._period = self._valid_period(period)
         self._log = PowerLog(log_directory, keep_days) if log_directory  \
             else None
@@ -343,6 +443,7 @@ class PowerManagerCommon:
         # The policy's memory.  decide() is pure, so everything it needs to
         # know about time lives here and is handed to it as numbers
         self._enforce = bool(enforce)
+        self._button_shutdown = bool(button_shutdown)
         self._quiesce = quiesce or Quiesce()
         # worker=False runs the power-off where it is decided, which is how
         # the tests exercise the acting path.  Nothing else sets it
@@ -387,14 +488,19 @@ class PowerManagerCommon:
             "policy_reason": "-",
             "policy_would": "-",       # What it would do, while advisory
             "enforce": self._enforce,
+            "button_shutdown": self._button_shutdown,
             "mode": self._mode,
             "mode_reason": "-",
+            # The one thing an application asks of this Actor.  It is
+            # published rather than answered, so a writer subscribes and
+            # needs no function of its own (P3)
+            "writing_ok": policy_writing_ok(self._mode),
             "undocked_since_utc": "-",
             "hold_state": "unknown",
             "hook": "unknown",
             "sample_period_s": f"{self._period:.1f}",
             "log": str(self._log.directory) if self._log else "-",
-            "last_error": "-",
+            "last_error": self._threshold_error or "-",
             # A threshold that is None is off, and it publishes as "-"
             # rather than as the word "None": the shared state is read by
             # an operator, and "None" reads like a fault
@@ -455,6 +561,11 @@ class PowerManagerCommon:
                 "power_up_reasons": "+".join(
                     self._powered_up.reasons()) or "-",
                 "period_s": self._period,
+                # How long this host has been undocked, so that a reading
+                # of the log can say how long real undocked periods last
+                # and what the battery pack did through them.  That is
+                # what the deadlines are tuned from
+                "undocked_s": round(self._undocked.seconds(now), 1),
             })
             if self._log.last_error:
                 self.ec_producer.update(
@@ -695,6 +806,31 @@ class PowerManagerCommon:
     def _sample_timer(self):
         self.sample()
 
+    def _wake_after_grace(self):
+        """Come back when the remount grace has passed, and not at the next
+        sample.
+
+        The grace is a few seconds and a sample period can be a minute.
+        Without this a host that decided to stop at its voltage floor runs
+        on, and lets its applications write, for most of a minute after the
+        decision.  That is the case where a delay costs the most, because
+        the battery pack is nearly empty.
+
+        An Actor composed without a timer is driven by its tests, which
+        call the decision themselves, so it gains no timer here.  Nor does
+        an advisory one, which has no shutdown to finish"""
+
+        if not self._timer or not self._enforce:
+            return                     # Nothing waits on a grace to act
+        aiko.event.add_timer_handler(
+            self._grace_timer, float(self._quiesce.grace))
+
+    def _grace_timer(self):
+        """One shot: it takes itself away, then decides again"""
+
+        aiko.event.remove_timer_handler(self._grace_timer)
+        self._evaluate(self.reading())
+
     def _read_guarded(self):
         """read(), with every device failure turned into a reading that says
         so.  A sensor that stops answering must not stop the Actor"""
@@ -781,7 +917,7 @@ class PowerManagerCommon:
             undocked_s, battery_low_s, powered_up_idle_s, thresholds)
         mode, mode_reason = decide_mode(
             self._mode, decision, reading.battery_volts, docked,
-            self.hook_state(), thresholds)
+            self.hook_state(), thresholds, undocked_s)
 
         self._publish_decision(
             decision, reason, mode, mode_reason, docked, undocked_s, now)
@@ -836,7 +972,9 @@ class PowerManagerCommon:
 
         self._mode = mode
         self.ec_producer.update("mode", mode)
-        self.logger.info(f"Power mode: {mode} ({reason})")
+        self.ec_producer.update("writing_ok", policy_writing_ok(mode))
+        self.logger.info(f"Power mode: {mode} ({reason}), "
+            f"writing {'okay' if policy_writing_ok(mode) else 'not okay'}")
         # Every client that holds a claim hears the mode, so it can stop
         # writing without watching the shared state for itself
         self._notify_holders("power_mode", mode, reason)
@@ -844,6 +982,10 @@ class PowerManagerCommon:
             return
         self._count("quiesces")
         outcome = self._quiesce.enter(now)
+        # The grace starts here in the ordinary path, so this is where the
+        # wake-up belongs.  _act() has the same call for the case where
+        # nothing entered the mode
+        self._wake_after_grace()
         if outcome and not outcome[0]:
             self.logger.error(f"Sync failed: {outcome[1]}")
             self.ec_producer.update("last_error", outcome[1][:120])
@@ -853,13 +995,27 @@ class PowerManagerCommon:
             self.ec_producer.update(name, value)
 
     def _act(self, reason, now):
-        """Stop the host, when this Actor is enforcing.
+        """Stop the host, when this Actor is enforcing, or when the reason
+        is one that needs no calibration.
 
-        While it is advisory this logs the decision and does nothing, which
-        is the whole point of the posture: the thresholds are from a data
-        sheet until the battery pack has been measured"""
+        While it is advisory a reason that rests on a data-sheet threshold
+        logs the decision and does nothing, which is the whole point of the
+        posture: those numbers are untested until the battery pack has been
+        measured. The button, the deployment's deadline and the backstop
+        rest on a person, a dock line and a clock, so they act
+        (EXACT_REASONS). A deadline that never acted would let an undocked
+        host drain its pack flat"""
 
-        if not self._enforce:
+        # Some reasons act whatever the posture.  Advisory is about
+        # thresholds from a data sheet, and these need no such number: a
+        # person held the button, or a dock line and a clock agreed that
+        # the supply has been gone for the deadline (EXACT_REASONS).  An
+        # undocked host that does not act on those drains its battery pack
+        # flat, which is the outcome this design exists to prevent
+        exact = reason in EXACT_REASONS
+        if reason == "button_held" and not self._button_shutdown:
+            exact = False
+        if not self._enforce and not exact:
             self.logger.warning(
                 f"Advisory: would shut down now ({reason})")
             return
@@ -869,11 +1025,23 @@ class PowerManagerCommon:
         volts = _as_float(self.share["battery"].get("volts"))
         at_floor = reason == "battery_floor" or (
             volts is not None and floor is not None and volts < floor)
+        # A press is answered now, and not after a grace.  The mode change
+        # has already told the writers and flushed the file systems, and
+        # the power-off unmounts in an orderly way by itself.  Waiting out
+        # the remount grace here would cost the operator a whole sample
+        # period, which is a minute in production.
+        #
+        # A deadline is not a press.  Nobody is waiting on it, and the
+        # battery pack is the thing at risk, so it takes the quiesce and
+        # the read-only remount in full
+        if reason == "button_held":
+            at_floor = False
         if at_floor and self._quiesce.entered_at is None:
             # Start the grace here, rather than wait on one that nothing
             # started.  Otherwise a mode that never changed would leave the
             # host running on the last of its charge for ever
             self._quiesce.enter(now)
+            self._wake_after_grace()
             return
         if at_floor and self._quiesce.ready_to_remount(now):
             outcome = self._quiesce.remount()
@@ -930,6 +1098,22 @@ class PowerManagerCommon:
 
         if event == "dock":
             self.logger.info(f"Dock: {value}")
+            # Decided now, and not at the next sample.
+            #
+            # The two directions are not alike.  Losing the supply can
+            # wait: the battery pack exists for exactly that, a glitch must
+            # not stop a recording, and the dock dwell and the two
+            # deadlines are all deliberately patient.  Getting the
+            # application working again should be prompt, because nothing
+            # is gained by a host that stays quiesced while its supply is
+            # back.
+            #
+            # So the dwell and the deadlines keep the patience on the
+            # losing side, and this takes the sample period out of the
+            # returning side.  In production that period is a minute, so
+            # without this a recording resumed up to a minute after the
+            # supply did
+            self._evaluate(self.reading())
             return
         if event == "button":
             if value == "held":
@@ -940,6 +1124,20 @@ class PowerManagerCommon:
                 self._evaluate(self.reading())
             elif value.startswith("up") or value == "short":
                 self.logger.info(f"Button {value}")
+                # A release clears the latch, unless a shutdown is already
+                # running.  Without this one press makes the policy report
+                # "button_held" for ever, and that reason is read before
+                # every other one, so the Actor goes blind to its own
+                # battery pack.  Seen in production on 2026-11-05: four
+                # readings in a row reported "button_held" while the pack
+                # was under its floor, and the floor is what mattered
+                # Only where a latch is actually set, so that a press
+                # which asked for nothing also changes nothing
+                if self._button_held and not self._stopping:
+                    self._button_held = False
+                    # Decide again now, so that an operator sees the policy
+                    # recover rather than waiting out a sample period
+                    self._evaluate(self.reading())
 
     def _publish(self, reading):
         """One reading into the shared state, through the producer"""
@@ -1004,9 +1202,14 @@ class PowerManagerCommon:
         hold.
 
         Every Lease carries two event-loop timers, so a register that is
-        not terminated leaves them behind"""
+        not terminated leaves them behind.  So do the sample timer and a
+        remount grace that never finished"""
 
         self._powered_up.terminate()
+        if self._timer:
+            aiko.event.remove_timer_handler(self._sample_timer)
+            # A grace that never finished leaves its timer behind otherwise
+            aiko.event.remove_timer_handler(self._grace_timer)
         if self._log:
             self._log.close()
 

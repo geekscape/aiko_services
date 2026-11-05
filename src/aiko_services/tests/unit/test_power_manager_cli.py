@@ -225,12 +225,18 @@ def run_with(monkeypatch, *arguments):
     assert result.exit_code == 0, result.output
     return composed[-1], result
 
-def test_the_grace_period_is_off_unless_it_is_asked_for(monkeypatch):
-    """"By default, everything should run as is" """
+def test_the_default_deadline_is_ten_minutes(monkeypatch):
+    """Deliberately short while the battery pack is unmeasured and it is
+    not certain that it charges.  The backstop is fifteen, so the deadline
+    is the one that fires"""
 
-    actor, result = run_with(monkeypatch)
+    actor, _ = run_with(monkeypatch)
+    assert actor.share["thresholds"]["powered_down_grace_s"] == "600.0"
+    assert actor.share["thresholds"]["undocked_maximum_s"] == "900.0"
+
+def test_the_deadline_can_be_turned_off(monkeypatch):
+    actor, _ = run_with(monkeypatch, "--powered_down_grace", "0")
     assert actor.share["thresholds"]["powered_down_grace_s"] == "-"
-    assert "whatever work is claimed" not in result.output
 
 def test_the_grace_period_option_reaches_the_policy(monkeypatch):
     actor, _ = run_with(monkeypatch, "--powered_down_grace", "120")
@@ -262,3 +268,104 @@ def test_the_grace_period_is_in_the_run_help():
     assert "default: off" in result.output
 
 # --------------------------------------------------------------------------- #
+
+# The application grace ---------------------------------------------------- #
+
+def test_the_application_grace_is_off_unless_it_is_asked_for(monkeypatch):
+    actor, _ = run_with(monkeypatch)
+    assert actor.share["thresholds"][
+        "powered_down_application_grace_s"] == "-"
+
+def test_the_application_grace_option_reaches_the_policy(monkeypatch):
+    actor, _ = run_with(monkeypatch,
+        "--powered_down_application_grace", "120")
+    assert actor.share["thresholds"][
+        "powered_down_application_grace_s"] == "120.0"
+
+def test_the_application_grace_has_a_short_option(monkeypatch):
+    actor, _ = run_with(monkeypatch, "-a", "45")
+    assert actor.share["thresholds"][
+        "powered_down_application_grace_s"] == "45.0"
+
+def test_both_graces_together_are_accepted_in_the_right_order(monkeypatch):
+    actor, result = run_with(monkeypatch, "-a", "120", "-g", "300")
+    assert actor.share["thresholds"][
+        "powered_down_application_grace_s"] == "120.0"
+    assert actor.share["thresholds"]["powered_down_grace_s"] == "300.0"
+    assert actor.share["last_error"] == "-"
+    assert "writers stop in 120 s" in result.output
+
+def test_the_wrong_order_is_refused_where_a_person_can_read_why():
+    """The writers must stop before the host does.  The command line
+    refuses the pair outright, because a person is here"""
+
+    for application, deadline in (("300", "300"), ("400", "300")):
+        result = CliRunner().invoke(main, ["run", "--device", "mock",
+            "--no_log", "--inputs", "none",
+            "-a", application, "-g", deadline])
+        assert result.exit_code != 0, (application, deadline)
+        assert "must be less than" in result.output, (application, deadline)
+
+def test_an_application_grace_alone_is_accepted(monkeypatch):
+    """Either one alone is consistent: the backstop is the other deadline"""
+
+    actor, _ = run_with(monkeypatch, "-a", "120")
+    assert actor.share["last_error"] == "-"
+
+def test_the_application_grace_is_in_the_run_help():
+    result = CliRunner().invoke(main, ["run", "--help"])
+    assert "--powered_down_application_grace" in result.output
+    assert "Must be less than" in result.output
+
+def test_an_application_grace_past_the_default_deadline_is_refused():
+    """Checking against the option alone would let it through, and the
+    Actor would then turn it off where nobody was watching"""
+
+    result = CliRunner().invoke(main, ["run", "--device", "mock",
+        "--no_log", "--inputs", "none", "-a", "1800"])
+    assert result.exit_code != 0
+    assert "must be less than" in result.output
+    assert "the default" in result.output
+
+def refused(monkeypatch, *arguments):
+    """The command line's answer to one pair of options.
+
+    It goes through run_with's patching even though a refusal never reaches
+    the event loop.  A refusal that stops working would otherwise start the
+    real loop and hang the suite, which is how this was found"""
+
+    composed = []
+    real = aiko_services.compose_instance
+    monkeypatch.setattr(aiko_services, "compose_instance",
+        lambda implementation, init_args: composed.append(
+            real(implementation, init_args)) or composed[-1])
+    monkeypatch.setattr(
+        "aiko_services.actors.power_manager.cli.aiko.compose_instance",
+        lambda implementation, init_args: composed.append(
+            real(implementation, init_args)) or composed[-1])
+    monkeypatch.setattr("aiko_services.process.run", lambda *a, **k: None)
+    return CliRunner().invoke(main, ["run", "--device", "mock", "--no_log",
+        "--inputs", "none", *arguments])
+
+def test_an_application_grace_past_the_backstop_is_refused(monkeypatch):
+    """The deadline that will fire is the shorter of the deployment's and
+    the backstop.  With the deployment's turned off, the backstop is it"""
+
+    result = refused(monkeypatch, "--powered_down_grace", "0", "-a", "1200")
+    assert result.exit_code != 0, result.output
+    assert "must be less than the backstop 900" in result.output
+
+def test_the_refusal_names_the_default_when_no_deadline_was_typed(monkeypatch):
+    result = refused(monkeypatch, "-a", "700")
+    assert result.exit_code != 0, result.output
+    assert "(the default) 600" in result.output
+
+def test_an_application_grace_inside_both_deadlines_is_accepted(monkeypatch):
+    result = refused(monkeypatch, "-a", "60")
+    assert result.exit_code == 0, result.output
+
+def test_turning_the_deadline_off_still_allows_a_short_grace(monkeypatch):
+    """The backstop is then the deadline, and 60 s is well inside it"""
+
+    result = refused(monkeypatch, "--powered_down_grace", "0", "-a", "60")
+    assert result.exit_code == 0, result.output

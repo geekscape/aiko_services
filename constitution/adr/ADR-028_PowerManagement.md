@@ -326,9 +326,121 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     person. The two limits are part of this decision, as decision 13's limits are, and not
     found later.
 
-    A client helper lives in the framework core for the reason decision 13 gives. Its
-    discovery is today a second copy of the Lease client's, which a third client should make
-    into one.
+    A client helper lives in the framework core for the reason decision 13 gives. Three such
+    clients now ask three different things of one Actor, and all three find it the same way,
+    so finding it is written once and they extend it.
+
+    **Only recording happens on the discovery thread.** The services cache calls back on its
+    own thread, and the event list that the loop walks has no lock, so a Lease or a
+    subscription made there mutates a list the loop is reading. Therefore a client writes down
+    a topic on that thread and builds what it needs on the thread of whoever asks. The same
+    rule covers a client's shared state: a change arrives on whichever thread delivered it, so
+    a Service publishes it from its own thread and not from the client's handler.
+
+    **The signal line is held for one pattern, and not for a run.** Two other writers reach
+    the same pad: the start-up unit and the shutdown hook, which use the platform's pin
+    utility because neither can import Python. A shutdown stops them and the Actor in no
+    defined order. A claim held for the life of the Actor also refuses every other user of
+    that line, which was measured: a command line asking for one pattern was told that the
+    line was busy, by an Actor that had been holding it since it started. So the Actor takes
+    the line as a pattern begins and gives it back as the pattern ends, and one lock keeps two
+    patterns from overlapping. Between sounds the pad is free.
+
+15. **The advisory posture governs the thresholds that need calibration, and nothing else.**
+    It exists because the voltage and temperature thresholds come from a data sheet, and not
+    from the battery pack that is fitted. Until that pack is measured, a host must not stop
+    itself because of a number nobody has checked.
+
+    Three reasons need no such number. A person held the button. A dock line says the supply
+    is gone, and a clock says for how long, which is the deployment's deadline and the
+    backstop of decision 13. All three are exact, and no calibration makes them more true. So
+    they act whatever the posture, and the rest wait for enforcement.
+
+    Refusing to act on them is not caution. An undocked host that only reports its deadline
+    drains its battery pack flat, which is the outcome this whole record exists to prevent.
+    A power button that does nothing is a fault to the operator who pressed it.
+
+    A deployment turns a deadline off by not setting it: setting one is how it asked for the
+    action. The button has a switch of its own, for a host where nothing may stop the
+    operating system, and whether a press acts is published so an operator reads it rather
+    than infers it.
+
+    This decision is numbered last and read first. In the order of the rows that decision 8
+    gives, the button comes before every other reason, and this is why: the other rows need a
+    measurement to be right, and this one needs only a person.
+
+    A press is answered at once, and not after the grace that a shutdown at the voltage floor
+    waits out. The change of mode has already told the writers and flushed the file systems,
+    and the power-off unmounts in an orderly way by itself. Waiting would cost the operator a
+    whole sample period, which is a minute on a host that samples once a minute. A deadline is
+    not a press: nobody waits on it, and the battery pack is what is at risk, so it takes the
+    quiesce and the read-only remount in full.
+
+    The mock Implementation records the power-off rather than running it. A test that reaches
+    the acting path would otherwise stop the machine that runs the test suite, which this
+    change discovered on a host with password-less privilege.
+
+16. **An application is told when to stop writing, and it is told by subscription.** A host
+    on its battery pack has work it still wants and work it does not. A recording that nobody
+    asked for fills a transfer queue, and the queue then holds the host up to drain it. So the
+    writers stop before the host does.
+
+    The mode of decision 11 is the answer, and one boolean derives from it: writing is wanted
+    only in the normal mode. The Actor publishes that boolean in its shared state, and a
+    writer replicates that one item. So this Actor keeps no register of writers, has no limit
+    to set and does not know who listens, and any number of writers cost it nothing. This is
+    "state observation is subscription", and it means a new reason to stop writing is a change
+    in this Actor's policy alone.
+
+    **It is true until something says otherwise.** A host with no power manager, one not yet
+    found, and a value not yet received all answer that writing is wanted. Adding the client
+    therefore changes nothing until a power manager is running and says to stop. A power
+    manager that goes away allows writing again, because a host whose power manager died must
+    not stop recording for ever. The opposite default would lose data on every host that has
+    no battery pack, which is most of them.
+
+    **Two deadlines, and the writers' one is the shorter.** A supply that goes for a moment
+    must not stop a recording, so a host stays undocked for an application grace before the
+    mode says to stop. The deadline of decision 13 is the second and longer one, after which
+    the host itself stops. The rule between them is that the writers stop before the host
+    does, so the application grace must be shorter. The command line refuses an inconsistent
+    pair, where a person is there to read why. The Actor turns the application grace off
+    instead, reports that in its shared state, and runs as it did before the threshold
+    existed: a mistyped setting must not stop a host, and it must not be silent either.
+
+    A dock allows writing again and the count starts from zero, as the deadline's count does,
+    because both measure how long the host has been undocked.
+
+    **The rule is checked against the deadline that will fire.** Two thresholds can stop an
+    undocked host, the deployment's and the backstop, and the shorter one does. So the
+    application grace is compared with that shorter one and not with either alone: a grace
+    longer than the backstop would otherwise pass, and the host would stop before the writers
+    were ever told.
+
+    **Losing the supply and getting it back are not alike, and the design is asymmetric on
+    purpose.** Losing it can wait: the battery pack exists for exactly that, a glitch must not
+    stop a recording, and the dwell and both deadlines are deliberately patient. Getting the
+    application working again should be prompt, because nothing is gained by a host that stays
+    quiesced while its supply is back. So an undock is believed only after its dwell, a dock
+    is believed at once, and a change of the dock line asks the policy to decide there and
+    then rather than at the next sample. The line needs a settling time, because every edge
+    now asks for a decision.
+
+    Deciding at the edge serves the losing side as well, although that is not its purpose: the
+    undocked count starts when the supply went, and not at the next sample, so a deadline
+    measures from the truth.
+
+    **Every one of these durations is noticed at the next sample.** The policy decides on each
+    reading, so a grace shorter than the sample period does not mean what it says, and each
+    one is in effect rounded up to the next sample. A deployment therefore sets them as
+    multiples of its sample period. Two durations are exempt, because each carries a timer of
+    its own: the grace before a read-only remount, and the expiry of a Lease. That is what a
+    Lease is for.
+
+    A writer that is told to stop closes the work in hand first. A closed segment is
+    forwarded, so the queue drains and the host may stop sooner, which is the point of the
+    whole arrangement. Dropping the frames after it is not an error: the stream carries on
+    and writes again as soon as the host says so.
 
 ## Consequences
 

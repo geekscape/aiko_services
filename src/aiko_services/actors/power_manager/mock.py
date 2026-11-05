@@ -44,7 +44,7 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
     def __init__(self, context, script=None, properties=("readings", "dock"),
         period=None, log_directory=None, keep_days=None, safe=None,
         thresholds=None, telemetry=False, timer=False, inputs=None,
-        enforce=None, quiesce=None,
+        enforce=None, button_shutdown=None, quiesce=None,
         power_off_runner=None, worker=False):
 
         self._inputs = inputs if inputs is not None else FakePowerInputs()
@@ -55,9 +55,29 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
         self.closed = False
         self.holds = []                # Every hold() call, for a test
         self.signals = []              # Every signal() call, for a test
+        self.power_offs = []           # Every power-off, for a test
+        self.remounts = []             # Every read-only remount, for a test
+        self.syncs = []                # Every file-system flush, for a test
+
+        # The mock never touches a real host.  Without this a test that
+        # reaches the acting path runs the privileged commands of the
+        # platform it is running on, and on a host with password-less
+        # privilege it ends the session or remounts the root file system
+        # read-only.  Both were reached on 2026-11-05: the power-off when
+        # the button began to act while advisory, and the remount from a
+        # test that gave a Quiesce no runner of its own.  A test that wants
+        # to watch the real path injects its own
+        if power_off_runner is None:
+            power_off_runner = self._record_power_off
+        if quiesce is None:
+            from aiko_services.actors.power_manager.quiesce import Quiesce
+
+            quiesce = Quiesce(
+                syncer=lambda: self.syncs.append(True),
+                runner=self._record_remount)
 
         from aiko_services.actors.power_manager.power_manager import (
-            ENFORCE, PERIOD_DEVELOPMENT, SAFE
+            BUTTON_SHUTDOWN, ENFORCE, PERIOD_DEVELOPMENT, SAFE
         )
         self._init_power(context,
             period=PERIOD_DEVELOPMENT if period is None else period,
@@ -65,12 +85,28 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
             safe=SAFE if safe is None else safe,
             thresholds=thresholds, telemetry=telemetry, timer=timer,
             enforce=ENFORCE if enforce is None else enforce,
+            button_shutdown=BUTTON_SHUTDOWN if button_shutdown is None
+                else button_shutdown,
             quiesce=quiesce,
             power_off_runner=power_off_runner, worker=worker)
         self._inputs.add_handler(self._input_event)
 
     def properties(self):
         return self._properties
+
+    def _record_power_off(self, arguments):
+        """Record a power-off and report that it worked, so that the acting
+        path can be tested without any host being stopped"""
+
+        self.power_offs.append(list(arguments))
+        return 0, ""
+
+    def _record_remount(self, arguments):
+        """The same for the read-only remount.  A real one on a developer's
+        machine is worse than a real power-off"""
+
+        self.remounts.append(list(arguments))
+        return 0, ""
 
     def open(self):
         self.opened = True
