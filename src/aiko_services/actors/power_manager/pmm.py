@@ -69,7 +69,7 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
         log_directory=None, keep_days=None, safe=None, thresholds=None,
         telemetry=True, timer=True, buzzer=None, hold_gpio=HOLD_GPIO,
         hold_runner=None, artifact_paths=None, inputs=None, enforce=None,
-        quiesce=None, power_off_runner=None,
+        button_shutdown=None, quiesce=None, power_off_runner=None,
         worker=True):
 
         self._buzzer = buzzer if buzzer is not None else choose_buzzer("auto")
@@ -92,7 +92,7 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
             self._attach()
 
         from aiko_services.actors.power_manager.power_manager import (
-            ENFORCE, LOG_DIRECTORY, PERIOD_DEVELOPMENT, SAFE
+            BUTTON_SHUTDOWN, ENFORCE, LOG_DIRECTORY, PERIOD_DEVELOPMENT, SAFE
         )
         self._init_power(context,
             period=PERIOD_DEVELOPMENT if period is None else period,
@@ -101,6 +101,8 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
             keep_days=keep_days, safe=SAFE if safe is None else safe,
             thresholds=thresholds, telemetry=telemetry, timer=timer,
             enforce=ENFORCE if enforce is None else enforce,
+            button_shutdown=BUTTON_SHUTDOWN if button_shutdown is None
+                else button_shutdown,
             quiesce=quiesce,
             power_off_runner=power_off_runner, worker=worker)
 

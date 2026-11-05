@@ -372,11 +372,19 @@ def docked(volts=12.0, **extra):
     return {"battery_volts": volts, "battery_pack_celsius": 25.0,
         "docked": True, **extra}
 
-def make_button_actor(script):
-    return make_actor(
-        properties=("readings", "hold", "signal", "button", "dock"),
-        script=script, quiesce=Quiesce(syncer=lambda: None),
-        power_off_runner=runner_of())
+def make_button_actor(script, **extra):
+    """An Actor for the latch tests alone, so button_shutdown=False keeps
+    the press from stopping the host.  What a press does is tested in
+    test_power_manager_mock.py; what the latch does is tested here"""
+
+    settings = {
+        "properties": ("readings", "hold", "signal", "button", "dock"),
+        "script": script, "button_shutdown": False,
+        "quiesce": Quiesce(syncer=lambda: None),
+        "power_off_runner": runner_of(),
+    }
+    settings.update(extra)
+    return make_actor(**settings)
 
 def test_a_release_clears_the_latch():
     actor = make_button_actor([docked(), docked(), docked()])
@@ -423,3 +431,43 @@ def test_the_battery_pack_is_visible_again_after_a_release():
     assert actor.share["policy_reason"] == "button_held"
     actor._input_event("button", "up 4.3")
     assert actor.share["policy_reason"] == "battery_floor"
+
+def test_a_press_stops_the_host_through_the_granted_command():
+    """The end of the chain the lead needs: a press of three seconds runs
+    the power-off that the privilege grant permits"""
+
+    calls = []
+    actor = make_button_actor([docked(), docked(), docked()],
+        button_shutdown=True, power_off_runner=runner_of(calls=calls))
+    actor._input_event("button", "held")
+    assert actor.share["policy"] == POLICY_SHUTTING_DOWN
+    assert actor.share["metrics"]["shutdowns"] == 1
+    granted, _ = granted_commands()
+    assert [SUDO, "-n", *granted] in calls
+
+def test_a_press_is_answered_without_waiting_out_a_grace():
+    """A battery pack under its floor must not make an operator wait a
+    sample period, which is a minute in production.  The mode change has
+    already flushed the file systems, and the power-off unmounts cleanly"""
+
+    calls = []
+    actor = make_button_actor(
+        [undocked(volts=9.6), undocked(volts=9.6), undocked(volts=9.6)],
+        button_shutdown=True, power_off_runner=runner_of(calls=calls))
+    actor._input_event("button", "held")
+    assert actor.share["metrics"]["shutdowns"] == 1
+    assert calls
+
+def test_a_battery_shutdown_still_waits_out_its_grace():
+    """The other half of the same rule: when the Actor decided, and not a
+    person, a few seconds of grace cost nothing and protect the files"""
+
+    calls = []
+    actor = make_actor(enforce=True,
+        properties=("readings", "hold", "signal", "button", "dock"),
+        script=[undocked(volts=9.6), undocked(volts=9.6)],
+        quiesce=Quiesce(syncer=lambda: None),
+        power_off_runner=runner_of(calls=calls))
+    actor.sample()
+    assert calls == []
+    assert actor.share["metrics"]["shutdowns"] == 0

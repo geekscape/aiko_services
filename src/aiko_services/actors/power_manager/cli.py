@@ -48,7 +48,8 @@ from aiko_services.actors.power_manager.hold import (
 )
 from aiko_services.actors.power_manager.button import choose_power_inputs
 from aiko_services.actors.power_manager.power_manager import (
-    ENFORCE, LOG_DIRECTORY, PERIOD_DEVELOPMENT, SAFE, choose_power_manager,
+    BUTTON_SHUTDOWN, ENFORCE, LOG_DIRECTORY, PERIOD_DEVELOPMENT, SAFE,
+    choose_power_manager,
     power_manager_args
 )
 from aiko_services.actors.power_manager.render import (
@@ -85,13 +86,17 @@ def main():
 @click.option("--inputs", "-i", "inputs",
     type=click.Choice(["auto", "gpio", "none"]), default="auto",
     help="The button and dock lines [default: auto]")
+@click.option("--button_shutdown/--no_button_shutdown", "button_shutdown",
+    default=BUTTON_SHUTDOWN,
+    help="A three second press stops the host, whatever the posture "
+         "[default: --button_shutdown]")
 @click.option("--powered_down_grace", "-g", "powered_down_grace",
     type=float, default=None,
     help="Seconds to stay up after the supply goes, whatever work is "
          "claimed [default: off, and then only the backstop applies]")
 
 def run_command(name, device, period, log_directory, no_log, keep_days, safe,
-    enforce, inputs, powered_down_grace):
+    enforce, inputs, button_shutdown, powered_down_grace):
     """Run the PowerManager Actor
 
     \b
@@ -111,6 +116,13 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
     then pass --enforce.
 
     \b
+    The button is the exception to --advisory, and it is on by default. A
+    press of three seconds is a person asking, not a threshold from a data
+    sheet, so it stops the host whatever the posture. Pass
+    --no_button_shutdown for a host where nothing may stop the operating
+    system.
+
+    \b
     --powered_down_grace is off by default, and then a host stays up while
     any client holds a powered-up Lease, up to the backstop on an undocked
     hold.  Set it, and the host stops that many seconds after the supply
@@ -124,6 +136,7 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
         name or get_hostname(), implementation.device,
         declared=implementation.DECLARED_PROPERTIES,
         period=period, keep_days=keep_days, safe=safe, enforce=enforce,
+        button_shutdown=button_shutdown,
         inputs=choose_power_inputs(inputs),
         thresholds={"powered_down_grace_s": powered_down_grace}
             if powered_down_grace else None,
@@ -143,6 +156,9 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
     if enforce:
         click.echo("# the policy will stop this host when it decides to",
             err=True)
+    click.echo("# a three second button press "
+        f"{'stops this host' if button_shutdown else 'is reported and not acted on'}",
+        err=True)
     if powered_down_grace:
         click.echo(f"# the supply going means a stop in "
             f"{powered_down_grace:g} s, whatever work is claimed"

@@ -72,7 +72,8 @@ except ImportError:                                      # pragma: no cover
     psutil = None
 
 __all__ = [
-    "DEVICE_FUNCTIONS", "DOCK_DWELL_S", "ENFORCE", "FUNCTIONS",
+    "BUTTON_SHUTDOWN", "DEVICE_FUNCTIONS", "DOCK_DWELL_S", "ENFORCE",
+    "FUNCTIONS",
     "LOG_DIRECTORY", "PERIOD_DEVELOPMENT", "PERIOD_PRODUCTION",
     "POLICY_ADVISORY", "POLICY_SHUTTING_DOWN", "PROPERTIES", "PROTOCOL",
     "SAFE", "SAFE_FUNCTIONS", "THRESHOLDS", "WORKING_DWELL_S",
@@ -111,6 +112,20 @@ LOG_DIRECTORY = "~/power_log"
 ENFORCE = False
 POLICY_ADVISORY = "advisory"       # It decides, publishes, and acts on nothing
 POLICY_SHUTTING_DOWN = "shutting_down"
+
+# The button acts even while the posture is advisory, and this is why.
+# Advisory exists because the voltage and temperature thresholds come from a
+# data sheet and not from the battery pack that is fitted.  A person who
+# holds the button for three seconds is not a measurement, and no
+# calibration makes their request more or less true.  A power button that
+# does nothing is a fault to the operator who pressed it: seen on
+# 2026-11-05, where the Actor accepted a press, sounded it, decided to stop
+# and then did nothing, because every reason shared one posture.
+#
+# So the two are separate.  "advisory" still means that no measured reason
+# acts.  "--no_button_shutdown" turns off even this, for a host where
+# nothing may stop the operating system
+BUTTON_SHUTDOWN = True
 
 # A supply glitches, and a dock that flickers must not start a shutdown.
 # So the host counts as docked until it has been undocked this long
@@ -322,7 +337,8 @@ class PowerManagerCommon:
     def _init_power(self, context, period=PERIOD_DEVELOPMENT,
         log_directory=LOG_DIRECTORY, keep_days=None, safe=SAFE,
         thresholds=None, telemetry=True, timer=True, enforce=ENFORCE,
-        quiesce=None, power_off_runner=None, worker=True):
+        button_shutdown=BUTTON_SHUTDOWN, quiesce=None,
+        power_off_runner=None, worker=True):
 
         """Compose the Actor part.  An Implementation calls this from its
         own __init__, after it has recorded its devices"""
@@ -343,6 +359,7 @@ class PowerManagerCommon:
         # The policy's memory.  decide() is pure, so everything it needs to
         # know about time lives here and is handed to it as numbers
         self._enforce = bool(enforce)
+        self._button_shutdown = bool(button_shutdown)
         self._quiesce = quiesce or Quiesce()
         # worker=False runs the power-off where it is decided, which is how
         # the tests exercise the acting path.  Nothing else sets it
@@ -387,6 +404,7 @@ class PowerManagerCommon:
             "policy_reason": "-",
             "policy_would": "-",       # What it would do, while advisory
             "enforce": self._enforce,
+            "button_shutdown": self._button_shutdown,
             "mode": self._mode,
             "mode_reason": "-",
             "undocked_since_utc": "-",
@@ -853,13 +871,18 @@ class PowerManagerCommon:
             self.ec_producer.update(name, value)
 
     def _act(self, reason, now):
-        """Stop the host, when this Actor is enforcing.
+        """Stop the host, when this Actor is enforcing, or when a person
+        held the button.
 
-        While it is advisory this logs the decision and does nothing, which
-        is the whole point of the posture: the thresholds are from a data
-        sheet until the battery pack has been measured"""
+        While it is advisory a measured reason logs the decision and does
+        nothing, which is the whole point of the posture: the thresholds
+        are from a data sheet until the battery pack has been measured. The
+        button is not a measured reason, so it acts (BUTTON_SHUTDOWN)"""
 
-        if not self._enforce:
+        # A person asked, so this one acts whatever the posture.  Advisory
+        # is about thresholds from a data sheet, and a button is not one
+        asked = reason == "button_held" and self._button_shutdown
+        if not self._enforce and not asked:
             self.logger.warning(
                 f"Advisory: would shut down now ({reason})")
             return
@@ -869,6 +892,13 @@ class PowerManagerCommon:
         volts = _as_float(self.share["battery"].get("volts"))
         at_floor = reason == "battery_floor" or (
             volts is not None and floor is not None and volts < floor)
+        # A press is answered now, and not after a grace.  The mode change
+        # has already told the writers and flushed the file systems, and
+        # the power-off unmounts in an orderly way by itself.  Waiting out
+        # the remount grace here would cost the operator a whole sample
+        # period, which is a minute in production
+        if asked:
+            at_floor = False
         if at_floor and self._quiesce.entered_at is None:
             # Start the grace here, rather than wait on one that nothing
             # started.  Otherwise a mode that never changed would leave the

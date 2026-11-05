@@ -330,6 +330,30 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     discovery is today a second copy of the Lease client's, which a third client should make
     into one.
 
+15. **A person is not a threshold, so the button acts whatever the posture.** The advisory
+    posture of decision 7 exists because the voltage and temperature thresholds come from a
+    data sheet, and not from the battery pack that is fitted. A person who holds the button for
+    three seconds is not a measurement, and no calibration makes their request more or less
+    true. A power button that does nothing is a fault to the operator who pressed it.
+
+    So the two are separate. Advisory still means that no measured reason acts. A held button
+    stops the host, and one switch turns off even that, for a host where nothing may stop the
+    operating system. Whether a press acts is published in the shared state, so that an
+    operator reads it rather than infers it.
+
+    This decision is numbered last and read first. In the order of the rows that decision 8
+    gives, the button comes before every other reason, and this is why: the other rows need a
+    measurement to be right, and this one needs only a person.
+
+    A press is answered at once, and not after the grace that a shutdown at the voltage floor
+    waits out. The change of mode has already told the writers and flushed the file systems,
+    and the power-off unmounts in an orderly way by itself. Waiting would cost the operator a
+    whole sample period, which is a minute on a host that samples once a minute.
+
+    The mock Implementation records the power-off rather than running it. A test that reaches
+    the acting path would otherwise stop the machine that runs the test suite, which this
+    change discovered on a host with password-less privilege.
+
 ## Consequences
 
 **Good.**

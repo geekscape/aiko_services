@@ -21,7 +21,8 @@ import pytest
 import aiko_services as aiko
 from aiko_services.actors.power_manager import (
     DEFAULT_READING, DEVICE_FUNCTIONS, FUNCTIONS, MockPowerManagerImpl,
-    POLICY_ADVISORY, PROPERTIES, PROTOCOL, SAFE, SAFE_FUNCTIONS, THRESHOLDS,
+    POLICY_ADVISORY, POLICY_SHUTTING_DOWN, PROPERTIES, PROTOCOL, SAFE,
+    SAFE_FUNCTIONS, THRESHOLDS,
     PowerReading, power_manager_args,
 )
 
@@ -277,13 +278,46 @@ def test_a_press_that_reaches_the_hold_time_decides_to_stop():
     assert actor.share["policy_would"] == "shutdown"
     assert actor.share["policy_reason"] == "button_held"
 
-def test_a_press_that_reaches_the_hold_time_acts_on_nothing_while_advisory():
-    """A person asked, and the posture still decides whether it happens"""
+def test_a_press_that_reaches_the_hold_time_acts_even_while_advisory():
+    """This test said the opposite until 2026-11-05, and the opposite was
+    the bug.  The lead held the button for three seconds on a production
+    host, heard it accepted, and nothing happened.
+
+    Advisory is about thresholds that come from a data sheet rather than
+    from the battery pack that is fitted.  A person who holds a button is
+    not a measurement, and no calibration makes their request more true.  A
+    power button that does nothing is a fault to the operator who pressed
+    it"""
 
     actor = make_actor(script=[{"battery_volts": 12.0, "docked": True}])
     actor.press(3.2)
+    assert actor.share["policy"] == POLICY_SHUTTING_DOWN
+    assert actor.share["metrics"]["shutdowns"] == 1
+    assert actor.power_offs                      # Recorded, never run
+
+def test_the_measured_reasons_still_act_on_nothing_while_advisory():
+    """The posture keeps its meaning for everything that is measured"""
+
+    actor = make_actor(script=[{"battery_volts": 9.0, "docked": False}])
+    actor.sample()
+    assert actor.share["policy_would"] == "shutdown"
     assert actor.share["policy"] == POLICY_ADVISORY
     assert actor.share["metrics"]["shutdowns"] == 0
+
+def test_a_press_can_be_made_to_act_on_nothing_as_well():
+    """For a host where nothing may stop the operating system"""
+
+    actor = make_actor(button_shutdown=False,
+        script=[{"battery_volts": 12.0, "docked": True}])
+    actor.press(3.2)
+    assert actor.share["policy"] == POLICY_ADVISORY
+    assert actor.share["metrics"]["shutdowns"] == 0
+
+def test_whether_a_press_acts_is_observable():
+    """An operator must be able to see it, and not infer it"""
+
+    assert make_actor().share["button_shutdown"] is True
+    assert make_actor(button_shutdown=False).share["button_shutdown"] is False
 
 def test_a_short_press_decides_nothing():
     actor = make_actor(script=[{"battery_volts": 12.0, "docked": True}])
@@ -309,3 +343,25 @@ def test_the_protocol_is_power_manager_0():
     assert PROTOCOL.endswith("/power_manager:0")
 
 # --------------------------------------------------------------------------- #
+
+def test_the_mock_never_stops_the_host_it_runs_on():
+    """Found on 2026-11-05.  When the button began to act while advisory, a
+    test in this file reached the privileged power-off of the machine
+    running it.  On a host with password-less privilege that test would end
+    the session, so the mock records the power-off instead of running it"""
+
+    actor = make_actor(script=[{"battery_volts": 12.0, "docked": True}])
+    actor.press(3.2)
+    assert actor.power_offs == [
+        ["/usr/bin/sudo", "-n", "/usr/bin/systemctl", "poweroff"]]
+
+def test_a_test_can_still_watch_the_real_path():
+    """An injected runner wins, so the tests that assert the exact
+    privileged command still do"""
+
+    calls = []
+    actor = make_actor(
+        power_off_runner=lambda arguments: (calls.append(arguments), (0, ""))[1],
+        script=[{"battery_volts": 12.0, "docked": True}])
+    actor.press(3.2)
+    assert calls and actor.power_offs == []
