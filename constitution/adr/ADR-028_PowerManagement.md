@@ -337,14 +337,23 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     rule covers a client's shared state: a change arrives on whichever thread delivered it, so
     a Service publishes it from its own thread and not from the client's handler.
 
-    **The signal line is held for one pattern, and not for a run.** Two other writers reach
-    the same pad: the start-up unit and the shutdown hook, which use the platform's pin
-    utility because neither can import Python. A shutdown stops them and the Actor in no
-    defined order. A claim held for the life of the Actor also refuses every other user of
-    that line, which was measured: a command line asking for one pattern was told that the
-    line was busy, by an Actor that had been holding it since it started. So the Actor takes
-    the line as a pattern begins and gives it back as the pattern ends, and one lock keeps two
-    patterns from overlapping. Between sounds the pad is free.
+    **The signal line is driven, and never claimed**, for the reason decision 5 gives about
+    the hold, reached from the other direction. Two other writers reach the same pad: the
+    start-up unit and the shutdown hook, which use the platform's pin utility because neither
+    can import Python. A claim refuses them, and the command line too.
+
+    A claim cannot be given back inside the life of a process. Closing a line through the
+    usual library does not free it: the library re-claims it as an input and leaves the claim
+    in place, which its own source states. Both were measured. A command line asking for one
+    pattern was refused by an Actor that had claimed the line once at start-up, and the
+    library was named as the consumer of a line that read as an input. Taking the line for
+    each pattern instead of once was tried, and changed nothing that another process could
+    see.
+
+    So the Actor drives the pad through the pin utility, as the hold does, and one lock keeps
+    two patterns from overlapping. One subprocess for each edge, which the shutdown hook's own
+    50 ms chirps show is quick enough. This pin then has one mechanism across the Actor, the
+    unit and the hook, which is simpler than three ways to write it.
 
 15. **The advisory posture governs the thresholds that need calibration, and nothing else.**
     It exists because the voltage and temperature thresholds come from a data sheet, and not

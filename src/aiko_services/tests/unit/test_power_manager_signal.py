@@ -28,10 +28,14 @@ def edges_of(name):
     """The on and off edges that one pattern makes, with its sleeps"""
 
     edges = []
-    # maker returns None, so no line is taken and _set() records instead
-    buzzer = GpioBuzzer(thread=False, maker=lambda: None,
+    # The runner records, as hold.py's tests do, so the edges asserted
+    # here are the exact commands the pin utility is given
+    def runner(arguments):
+        edges.append(("on",) if arguments[-1] == "dh" else ("off",))
+        return 0, ""
+
+    buzzer = GpioBuzzer(thread=False, runner=runner,
         sleeper=lambda seconds: edges.append(("sleep", seconds)))
-    buzzer._set = lambda on: edges.append(("on" if on else "off",))
     buzzer.play(name)
     return edges
 
@@ -106,8 +110,9 @@ def test_the_line_is_left_off_even_when_the_sleep_fails():
     def fail(seconds):
         raise OSError("the clock went away")
 
-    buzzer = GpioBuzzer(thread=False, maker=lambda: None, sleeper=fail)
-    buzzer._set = lambda on: edges.append("on" if on else "off")
+    buzzer = GpioBuzzer(thread=False, sleeper=fail,
+        runner=lambda arguments: (
+            edges.append("on" if arguments[-1] == "dh" else "off"), (0, ""))[1])
     with pytest.raises(OSError):
         buzzer.play("booted")
     assert edges[-1] == "off"
@@ -182,8 +187,8 @@ def test_no_buzzer_means_no_signal_property():
     assert "signal" not in actor.properties()
 
 def test_the_actor_sounds_a_pattern_and_counts_it():
-    buzzer = choose_buzzer("gpio", thread=False, maker=lambda: None,
-        sleeper=lambda s: None)
+    buzzer = choose_buzzer("gpio", thread=False, sleeper=lambda s: None,
+        runner=lambda arguments: (0, ""))
     actor = make_actor(buzzer=buzzer)
     actor.signal("booted")
     assert buzzer.played == ["booted"]
@@ -204,91 +209,108 @@ def test_a_signal_on_a_host_with_no_buzzer_is_a_no_op():
 
 # --------------------------------------------------------------------------- #
 
-# The line is held for a pattern, and not for a run ------------------------ #
+# Nothing is claimed ------------------------------------------------------- #
 #
-# Recorded as 6.22 and fixed here.  open() used to claim the line and hold
-# it for as long as the Actor ran, while the start-up unit and the shutdown
-# hook write the same pad with the platform's pin utility.  A shutdown stops
-# those and this Actor in no defined order, so the two could overlap and a
-# pattern that was sounding would be cut short.
+# The first attempt at this claimed the line for each pattern and gave it
+# back, on the belief that closing a device releases the line.  It does
+# not.  gpiozero re-claims the line as an input with no pull and leaves the
+# claim in place, which its own source says in as many words, so the claim
+# is held for the life of the process and no other writer can have the pad.
+# Measured on 2026-11-05: the command line was refused "GPIO busy" by an
+# Actor that had claimed the line once at start-up.
+#
+# So the pad is driven through the pin utility and nothing is claimed, as
+# hold.py does it.  These tests assert the commands, because the commands
+# are now the whole of the mechanism.
 
-def made_buzzer(**parameters):
-    """A buzzer whose line is a recorder, so that taking it and giving it
-    back are both visible without any hardware"""
+def recording_buzzer(**parameters):
+    """A buzzer whose pin utility records, with no subprocess"""
 
-    taken = []
+    calls = []
 
-    class FakeLine:
-        def __init__(self):
-            self.value = 0
-            self.closed = False
-        def close(self):
-            self.closed = True
+    def runner(arguments):
+        calls.append(list(arguments))
+        return 0, ""
 
-    def maker():
-        line = FakeLine()
-        taken.append(line)
-        return line
+    settings = {"thread": False, "runner": runner,
+        "sleeper": lambda seconds: None}
+    settings.update(parameters)
+    return GpioBuzzer(**settings), calls
 
-    return GpioBuzzer(thread=False, maker=maker,
-        sleeper=lambda seconds: None, **parameters), taken
-
-def test_opening_takes_the_line_and_gives_it_straight_back():
-    """It proves the line, so a platform with no library still reports no
-    "signal" property, and it holds nothing"""
-
-    buzzer, taken = made_buzzer()
+def test_opening_leaves_the_line_low_and_claims_nothing():
+    buzzer, calls = recording_buzzer()
     buzzer.open()
-    assert len(taken) == 1 and taken[0].closed is True
-    assert buzzer._device is None
+    assert calls == [["set", "4", "op", "dl"]]
 
-def test_a_pattern_takes_the_line_and_gives_it_back():
-    buzzer, taken = made_buzzer()
-    buzzer.open()
+def test_a_pattern_is_the_pin_utility_and_nothing_else():
+    """The same commands the start-up unit and the shutdown hook render,
+    so this pad has one mechanism across all three"""
+
+    buzzer, calls = recording_buzzer()
     buzzer.play("booted")
-    assert len(taken) == 2                       # The open, then the pattern
-    assert taken[1].closed is True
-    assert buzzer._device is None
+    assert calls == [
+        ["set", "4", "op", "dh"],
+        ["set", "4", "op", "dl"],
+        ["set", "4", "op", "dh"],
+        ["set", "4", "op", "dl"]]
 
-def test_nothing_is_held_between_patterns():
-    """The whole point.  Between sounds the pad is free for the start-up
-    unit and the shutdown hook to write"""
+def test_a_pattern_leaves_the_line_low():
+    buzzer, calls = recording_buzzer()
+    buzzer.play("pipeline")
+    assert calls[-1] == ["set", "4", "op", "dl"]
 
-    buzzer, taken = made_buzzer()
-    buzzer.open()
-    for name in ("booted", "pipeline", "shutdown"):
-        buzzer.play(name)
-        assert buzzer._device is None, name
-    assert all(line.closed for line in taken)
-
-def test_the_line_is_left_low_when_it_is_given_back():
-    buzzer, taken = made_buzzer()
+def test_the_line_is_named_in_every_command():
+    buzzer, calls = recording_buzzer(gpio=23)
     buzzer.play("booted")
-    assert taken[-1].value == 0
+    assert all(call[1] == "23" for call in calls), calls
 
-def test_a_failing_pattern_still_gives_the_line_back():
-    """A buzzer that fails must not keep the pad, or the shutdown hook
-    cannot sound the host going down"""
+def test_a_failing_pattern_still_leaves_the_line_low():
+    """A buzzer that failed must not keep the pad high, or the host sounds
+    broken until something else drives it"""
 
     def fail(seconds):
         raise OSError("the clock went away")
 
-    buzzer, taken = made_buzzer()
-    buzzer._sleep = fail
+    buzzer, calls = recording_buzzer(sleeper=fail)
     with pytest.raises(OSError):
         buzzer.play("booted")
-    assert buzzer._device is None
-    assert taken[-1].closed is True
+    assert calls[-1] == ["set", "4", "op", "dl"]
 
-def test_closing_gives_back_a_line_held_during_a_pattern():
-    buzzer, taken = made_buzzer()
-    buzzer._device = taken_line = buzzer._make()
-    buzzer.close()
-    assert taken_line.closed is True
-    assert buzzer._device is None
+def test_a_utility_that_refuses_is_an_error_and_not_a_silence():
+    """A typo in the arguments, or a pad that cannot be driven, must not
+    look like a sound that happened"""
 
-def test_closing_with_nothing_held_is_not_an_error():
-    buzzer, _ = made_buzzer()
+    buzzer = GpioBuzzer(thread=False, sleeper=lambda s: None,
+        runner=lambda arguments: (1, "unknown pin"))
+    with pytest.raises(OSError, match="unknown pin"):
+        buzzer.play("booted")
+
+def test_closing_leaves_the_line_low_and_never_raises():
+    buzzer, calls = recording_buzzer()
     buzzer.open()
     buzzer.close()
-    assert buzzer._device is None
+    assert calls[-1] == ["set", "4", "op", "dl"]
+    assert buzzer.opened is False
+
+def test_closing_a_buzzer_whose_utility_is_gone_is_not_an_error():
+    """A close runs while a host is stopping, so it swallows what it
+    cannot do anything about"""
+
+    def gone(arguments):
+        raise OSError("no pin utility")
+
+    buzzer = GpioBuzzer(thread=False, runner=gone)
+    buzzer.close()
+    assert buzzer.opened is False
+
+def test_auto_is_the_fake_where_there_is_no_pin_utility(monkeypatch):
+    import aiko_services.actors.power_manager.signal as signal
+
+    monkeypatch.setattr(signal, "hold_tool", lambda *a, **k: None)
+    assert signal.choose_buzzer("auto").device == "none"
+
+def test_auto_is_the_real_one_where_the_utility_is_there(monkeypatch):
+    import aiko_services.actors.power_manager.signal as signal
+
+    monkeypatch.setattr(signal, "hold_tool", lambda *a, **k: "/usr/bin/pinctrl")
+    assert signal.choose_buzzer("auto").device == "gpio"

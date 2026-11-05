@@ -14,12 +14,26 @@
 # edges, and the event-loop thread must never sleep (P2).  One lock keeps
 # two patterns from interleaving into a sound that means nothing.
 #
-# The line is taken for each pattern and given back after it, and not held
-# for as long as the Actor runs.  The start-up unit and the shutdown hook
-# write this same pad with the platform's pin utility, and a shutdown stops
-# them and this Actor in no defined order, so a claim held for the life of
-# the process can overlap one of those writes.  The lock is what makes this
-# safe: one pattern holds the line at a time.
+# **The buzzer does not use the GPIO character device**, for the same
+# reason the hold does not, reached from the other direction.
+#
+# gpiozero, lgpio and libgpiod all claim a line, and the claim is held for
+# the life of the process.  A close does not free it: gpiozero re-claims
+# the line as an input with no pull and leaves the claim in place, which
+# its own source says in as many words (gpiozero/pins/lgpio.py).  Two other
+# writers reach this same pad -- the start-up unit and the shutdown hook,
+# which use the platform's pin utility because neither can import Python --
+# and a claim refuses them, and the command line too.
+#
+# Measured on 2026-11-05: "aiko_power_manager signal" was refused with
+# "GPIO busy" by an Actor that had claimed the line once at start-up, and
+# lgpio named the Actor's library as the consumer while the pin read as an
+# input.  Claiming for each pattern instead of once, which was the first
+# attempt at this, changes nothing another process can see.
+#
+# So the pad is driven and nothing is claimed, exactly as hold.py does it.
+# One subprocess for each edge, which the shutdown hook's own 50 ms chirps
+# show is quick enough.
 #
 # These classes are internal collaborators of the module Implementation,
 # and not a public API: the one public Interface is PowerManager (ADR-028
@@ -34,6 +48,8 @@
 
 import threading
 import time
+
+from aiko_services.actors.power_manager.hold import hold_tool, run_tool
 
 __all__ = [
     "BUZZER_GPIO", "FakeBuzzer", "GpioBuzzer", "PATTERNS", "choose_buzzer",
@@ -88,7 +104,11 @@ class FakeBuzzer:
         self.closed = True
 
 class GpioBuzzer:
-    """A buzzer on one output line, through gpiozero.
+    """A buzzer on one output line, driven by the platform's pin utility.
+
+    Nothing is claimed, so the start-up unit, the shutdown hook and the
+    command line can all sound this pad while this Actor runs.  The module
+    header says why that matters and what was measured.
 
     play() returns at once and the pattern runs on a worker thread, because
     a pattern sleeps and the event-loop thread must not (P2)"""
@@ -96,49 +116,26 @@ class GpioBuzzer:
     device = "gpio"
 
     def __init__(self, gpio=BUZZER_GPIO, thread=True, sleeper=time.sleep,
-        maker=None, **_):
+        runner=None, **_):
 
         self.gpio = gpio
         self._thread = bool(thread)
         self._sleep = sleeper
-        # How one line is taken.  A test gives a maker that returns None,
-        # and then nothing is claimed and _set() records instead
-        self._make = maker or self._gpiozero_device
-        self._device = None
+        # The pin utility, injected so a test asserts the exact arguments
+        # with no subprocess and no hardware, as hold.py does
+        self._runner = runner or run_tool
         self._lock = threading.Lock()
         self.played = []
         self.opened = False
 
-    def _gpiozero_device(self):
-        """One claim on the line, through gpiozero"""
-
-        from gpiozero import OutputDevice               # Only needed here
-
-        # active_high and initial_value=False: the line goes low as it is
-        # taken, and the board pulls it low anyway, so taking the line is
-        # silent
-        return OutputDevice(
-            self.gpio, active_high=True, initial_value=False)
-
     def open(self):
-        """Prove the line, and then hold nothing.
+        """Leave the line low, and hold nothing.
 
-        The line is taken for each pattern and given back after it, rather
-        than held for as long as this Actor runs.  The start-up unit and the
-        shutdown hook write this same pad with the platform's pin utility,
-        and a shutdown stops them and this Actor in no defined order.  A
-        claim held for the life of the process can therefore overlap one of
-        those writes, and a pattern that was sounding is cut short or
-        garbled (the plan's 6.22).  Holding the line only while a pattern
-        sounds removes the overlap.
+        It drives the pad once, so a platform with no pin utility raises
+        here and reports no "signal" property, rather than failing at the
+        first sound"""
 
-        This still raises where the library is missing, so a platform with
-        no buzzer reports no "signal" property rather than failing later"""
-
-        device = self._make()
-        if device is not None:
-            device.value = 0
-            device.close()
+        self._set(False)
         self.opened = True
 
     def play(self, name):
@@ -159,10 +156,13 @@ class GpioBuzzer:
         return None
 
     def close(self):
-        """Give back anything still held.  Between patterns that is
-        nothing, so this is for a close during a pattern"""
+        """Leave the line low.  There is nothing to give back, because
+        nothing was claimed"""
 
-        self._release()
+        try:
+            self._set(False)
+        except Exception:                            # noqa: BLE001
+            pass                       # A close must not raise
         self.opened = False
 
     def _run(self, name):
@@ -171,42 +171,30 @@ class GpioBuzzer:
         is shutting a host down"""
 
         with self._lock:
-            self._device = self._make()
             try:
                 for index, seconds in enumerate(PATTERNS[name]):
                     self._set(index % 2 == 0)
                     self._sleep(seconds)
             finally:
                 self._set(False)
-                self._release()
 
     def _set(self, on):
-        if self._device is not None:
-            self._device.value = 1 if on else 0
+        """One edge, through the pin utility"""
 
-    def _release(self):
-        """Give the line back.  A failing buzzer must never raise into a
-        caller that is shutting a host down, so this swallows what it
-        cannot do anything about"""
-
-        if self._device is None:
-            return
-        try:
-            self._device.value = 0
-            self._device.close()
-        except Exception:                                # noqa: BLE001
-            pass
-        self._device = None
+        level = "dh" if on else "dl"
+        code, output = self._runner(["set", str(self.gpio), "op", level])
+        if code != 0:
+            raise OSError(
+                f"set {self.gpio} op {level} failed: {output.strip()[:80]}")
 
 def choose_buzzer(buzzer="auto", **parameters):
     """The buzzer for "buzzer": "gpio", "none", or "auto", which is the real
     one where gpiozero can be imported and the fake one everywhere else.
     Nothing is acquired here"""
 
-    import importlib.util
-
     if buzzer == "auto":
-        buzzer = "gpio" if importlib.util.find_spec("gpiozero") else "none"
+        # The pin utility, and not a library: that is what drives this pad
+        buzzer = "gpio" if hold_tool() else "none"
     buzzers = {"gpio": GpioBuzzer, "none": FakeBuzzer}
     if buzzer not in buzzers:
         raise ValueError(
