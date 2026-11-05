@@ -43,9 +43,9 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
 
     def __init__(self, context, script=None, properties=("readings", "dock"),
         period=None, log_directory=None, keep_days=None, safe=None,
-        thresholds=None, telemetry=False, timer=False, inputs=None,
+        thresholds=None, telemetry=None, timer=None, inputs=None,
         enforce=None, button_shutdown=None, quiesce=None,
-        power_off_runner=None, worker=False):
+        power_off_runner=None, worker=None):
 
         self._inputs = inputs if inputs is not None else FakePowerInputs()
         self._script = list(script) if script else []
@@ -83,12 +83,22 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
             period=PERIOD_DEVELOPMENT if period is None else period,
             log_directory=log_directory, keep_days=keep_days,
             safe=SAFE if safe is None else safe,
-            thresholds=thresholds, telemetry=telemetry, timer=timer,
+            thresholds=thresholds,
+            # None here means "what the Interface says", and not "off".
+            # These three used to default to False, which is what a test
+            # wants and not what running one does: "aiko_power_manager run
+            # --device mock" then had no sample timer, so it published one
+            # snapshot and never again.  The mock is the registered default
+            # Implementation, so that was every platform without one of its
+            # own, which is where most of this code is written
+            telemetry=True if telemetry is None else telemetry,
+            timer=True if timer is None else timer,
             enforce=ENFORCE if enforce is None else enforce,
             button_shutdown=BUTTON_SHUTDOWN if button_shutdown is None
                 else button_shutdown,
             quiesce=quiesce,
-            power_off_runner=power_off_runner, worker=worker)
+            power_off_runner=power_off_runner,
+            worker=True if worker is None else worker)
         self._inputs.add_handler(self._input_event)
 
     def properties(self):
