@@ -470,6 +470,27 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     whole arrangement. Dropping the frames after it is not an error: the stream carries on
     and writes again as soon as the host says so.
 
+17. **A supply too small to charge the battery pack is warned about, and decides nothing.**
+    Every threshold in this record is about a battery pack, and all of them are meaningless if
+    the pack is never charged. An operator cannot see that from a voltage: a pack held near
+    empty looks the same as a pack that is nearly flat from use.
+
+    So the Actor says it. Docked, and the supply barely above the pack, means the charger has
+    no room to push current into it, and the pack stays wherever it happens to be. Where the
+    supply's rated current is given, a supply at that rating is the cause rather than the
+    symptom, because a supply at its limit has nothing spare whatever its voltage reads.
+
+    Measured, which is why this decision exists: a supply rated at 1.5 A carried a 1.5 A load,
+    so the charger saw 0.33 V above a pack that needed about 2 V, and that pack had never been
+    charged.
+
+    **It changes no decision.** A small supply is a thing to replace, not a reason to stop a
+    host, and no row of decision 8 reads it. A test asserts that.
+
+    It is published on every change, so an operator who fits a bigger supply sees it clear at
+    once, and logged on a change and then at most once a dwell. A supply is undersized for
+    weeks, and a warning once a minute for weeks is one an operator stops reading.
+
 ## Consequences
 
 **Good.**

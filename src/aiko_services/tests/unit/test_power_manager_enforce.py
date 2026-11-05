@@ -200,13 +200,25 @@ def test_a_shutdown_that_is_not_at_the_floor_does_not_remount():
     assert mount == []
 
 def test_no_threshold_is_the_cell_damage_limit():
-    """9.0 V for the battery pack is a limit this design never reaches, so it is
-    never a trigger (the plan's S12).  A test holds the rule, because a
-    threshold is a number that an edit can lower"""
+    """9.0 V for the battery pack, or 3.0 V for a cell, is a limit this
+    design never reaches.  It is never a trigger (the plan's S12), and a
+    test holds the rule because a threshold is a number an edit can lower.
 
-    for name, value in THRESHOLDS.items():
-        if "volts" in name:
-            assert float(value) > 9.0, name
+    Only the thresholds that are compared against the battery pack's own
+    voltage are in scope.  A headroom is a difference between two voltages
+    and is small on purpose, so naming every threshold with "volts" in it
+    would fail on something that is not a pack voltage at all"""
+
+    from aiko_services.actors.power_manager.power_manager import (
+        CELL_DAMAGE_VOLTS)
+
+    differences = ("supply_headroom_volts",)
+    absolute = [name for name in THRESHOLDS
+        if "volts" in name and name not in differences]
+    assert sorted(absolute) == [
+        "battery_volts_floor", "battery_volts_low", "quiesce_volts"]
+    for name in absolute:
+        assert float(THRESHOLDS[name]) > CELL_DAMAGE_VOLTS, name
 
 # The modes ---------------------------------------------------------------- #
 
@@ -1050,3 +1062,95 @@ def test_a_floor_above_the_damage_limit_is_kept():
         "battery_volts_floor": 9.3, "battery_volts_low": 9.4})
     assert actor.share["thresholds"]["battery_volts_floor"] == "9.3"
     assert actor.share["last_error"] == "-"
+
+# The supply warning, through the Actor ------------------------------------- #
+
+def supply_actor(script, **extra):
+    settings = {
+        "properties": ("readings", "hold", "signal", "button", "dock"),
+        "thresholds": {**THRESHOLDS, "supply_amps_maximum": 1.5},
+        "quiesce": quiesce_of(), "power_off_runner": runner_of(),
+        "script": script,
+    }
+    settings.update(extra)
+    return make_actor(**settings)
+
+def measured(**extra):
+    """The reading taken on 2026-11-05, docked, with the camera running"""
+
+    return {"battery_volts": 9.894, "battery_amps": 1.3,
+        "supply_volts": 10.220, "supply_amps": 1.505,
+        "battery_pack_celsius": 37.5, "docked": True, **extra}
+
+def test_the_warning_is_published():
+    actor = supply_actor([measured()] * 2)
+    actor._evaluate(actor.reading(), now=1000.0)
+    assert actor.share["supply_warning"] == "supply_current"
+
+def test_a_supply_with_room_publishes_a_dash():
+    actor = supply_actor([measured(
+        supply_volts=12.4, supply_amps=1.0, battery_volts=11.1)] * 2)
+    actor._evaluate(actor.reading(), now=1000.0)
+    assert actor.share["supply_warning"] == "-"
+
+def test_the_warning_is_counted():
+    actor = supply_actor([measured()] * 2)
+    actor._evaluate(actor.reading(), now=1000.0)
+    assert actor.share["metrics"]["supply_warnings"] == 1
+
+def test_it_is_said_once_and_then_not_again_within_the_dwell():
+    """A supply is undersized for weeks.  A warning once a minute for
+    weeks is one an operator stops reading"""
+
+    actor = supply_actor([measured()] * 4)
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1060.0)
+    actor._evaluate(actor.reading(), now=2000.0)
+    assert actor.share["metrics"]["supply_warnings"] == 1
+
+def test_it_is_said_again_after_the_dwell():
+    actor = supply_actor([measured()] * 4,
+        thresholds={**THRESHOLDS, "supply_amps_maximum": 1.5,
+            "supply_warning_dwell_s": 100.0})
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1101.0)
+    assert actor.share["metrics"]["supply_warnings"] == 2
+
+def test_a_change_is_always_said_whatever_the_dwell():
+    """An operator who fits a bigger supply should see it clear at once"""
+
+    actor = supply_actor([measured(), measured(
+        supply_volts=12.4, supply_amps=1.0, battery_volts=11.1),
+        measured()] + [measured()] * 2)
+    actor._evaluate(actor.reading(), now=1000.0)
+    assert actor.share["supply_warning"] == "supply_current"
+    actor._evaluate(actor.reading(), now=1001.0)
+    assert actor.share["supply_warning"] == "-"          # cleared at once
+    actor._evaluate(actor.reading(), now=1002.0)
+    assert actor.share["supply_warning"] == "supply_current"
+    assert actor.share["metrics"]["supply_warnings"] == 2
+
+def test_the_warning_changes_no_decision():
+    """A small supply is a thing to replace, not a reason to stop a host.
+
+    The battery pack is healthy here and the supply is at its rating, so
+    the warning fires and the decision is the one a good supply would have
+    given.  The measured reading cannot show this, because its pack is
+    under its floor: that is the fault the small supply caused, and a
+    different claim"""
+
+    actor = supply_actor([measured(
+        battery_volts=12.0, supply_amps=1.505)] * 3)
+    actor._evaluate(actor.reading(), now=1000.0)
+    assert actor.share["supply_warning"] == "supply_current"
+    assert actor.share["policy_would"] == "hold"
+    assert actor.share["policy_reason"] == "docked"
+
+def test_the_measured_reading_is_warned_about_and_also_under_its_floor():
+    """Both at once, which is the production case: the supply is at its
+    rating, and the battery pack it never charged is under its floor"""
+
+    actor = supply_actor([measured()] * 3)
+    actor._evaluate(actor.reading(), now=1000.0)
+    assert actor.share["supply_warning"] == "supply_current"
+    assert actor.share["policy_reason"] == "battery_floor"

@@ -47,7 +47,8 @@
 __all__ = [
     "Dwell", "EXACT_REASONS", "HOLD", "MODES", "MODE_CONSERVE",
     "MODE_NORMAL", "MODE_QUIESCE", "REASONS", "SHUTDOWN", "decide",
-    "decide_action", "decide_mode", "writing_ok",
+    "SUPPLY_WARNINGS", "decide_action", "decide_mode", "supply_warning",
+    "writing_ok",
 ]
 
 HOLD = "hold"
@@ -329,6 +330,51 @@ def decide_mode(mode, decision, volts, docked, hook_state, thresholds,
         and (undocked_s or 0.0) <= application:
         return MODE_NORMAL, "application_grace"
     return MODE_CONSERVE, "undocked"
+
+# What a warning about the supply can say.  One token each, for a shared
+# variable and a log column
+SUPPLY_WARNINGS = ("supply_current", "supply_headroom")
+
+def supply_warning(supply_volts, supply_amps, battery_volts, docked,
+    thresholds):
+
+    """Whether the supply looks too small for this host, and the one word
+    that says how.  None when it looks adequate, or when there is nothing
+    to judge it by.
+
+    **It decides nothing.** A warning is for a person, and the policy is
+    untouched by it: a small supply is a thing to replace, not a reason to
+    stop a host.  So this is reported and counted, and no row of decide()
+    reads it.
+
+    Two ways to see it, and the current is the cause where the rating is
+    known.
+
+    "supply_current": the supply is at the rating its label claims.  A
+    supply at its limit has nothing left for the battery pack, and it
+    drops its voltage as well, which is the other half of the symptom.
+
+    "supply_headroom": docked, and the supply is barely above the battery
+    pack.  A charger needs to be enough above the pack to push current
+    into it, so with no headroom the pack is held wherever it happens to
+    be and never fills.  Measured on 2026-11-05: a supply at 10.22 V and a
+    pack at 9.89 V, which is 0.33 V where about 2 V is wanted, on a pack
+    that had never been charged.
+
+    Both are read from one reading, so there is no history to keep"""
+
+    rating = _number(thresholds.get("supply_amps_maximum"))
+    fraction = _number(thresholds.get("supply_amps_fraction"), 0.95)
+    if rating is not None and rating > 0 and supply_amps is not None  \
+        and supply_amps >= rating * fraction:
+        return "supply_current"
+    headroom = _number(thresholds.get("supply_headroom_volts"))
+    if docked and headroom is not None and headroom > 0  \
+        and supply_volts is not None and battery_volts is not None  \
+        and supply_volts > 0  \
+        and supply_volts - battery_volts < headroom:
+        return "supply_headroom"
+    return None
 
 def writing_ok(mode):
     """Whether an application should write to the file systems now.

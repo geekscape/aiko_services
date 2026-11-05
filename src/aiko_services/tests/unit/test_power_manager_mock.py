@@ -144,11 +144,25 @@ def test_the_thresholds_are_published_as_configuration():
         assert actor.share["thresholds"][name] == expected, name
 
 def test_no_threshold_is_the_cell_damage_limit():
-    """9.0 V for the battery pack, or 3.0 V for a cell, is a limit that this design
-    never reaches.  It is never a trigger (the plan's S12)"""
+    """9.0 V for the battery pack, or 3.0 V for a cell, is a limit this
+    design never reaches.  It is never a trigger (the plan's S12), and a
+    test holds the rule because a threshold is a number an edit can lower.
 
-    assert 9.0 not in THRESHOLDS.values()
-    assert THRESHOLDS["battery_volts_floor"] > 9.0
+    Only the thresholds that are compared against the battery pack's own
+    voltage are in scope.  A headroom is a difference between two voltages
+    and is small on purpose, so naming every threshold with "volts" in it
+    would fail on something that is not a pack voltage at all"""
+
+    from aiko_services.actors.power_manager.power_manager import (
+        CELL_DAMAGE_VOLTS)
+
+    differences = ("supply_headroom_volts",)
+    absolute = [name for name in THRESHOLDS
+        if "volts" in name and name not in differences]
+    assert sorted(absolute) == [
+        "battery_volts_floor", "battery_volts_low", "quiesce_volts"]
+    for name in absolute:
+        assert float(THRESHOLDS[name]) > CELL_DAMAGE_VOLTS, name
 
 def test_a_hold_is_recorded_and_does_nothing_else():
     actor = make_actor()

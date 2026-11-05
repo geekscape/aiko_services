@@ -66,7 +66,8 @@ def main():
     """Report the supply and the battery of this host, and log them"""
 
 def _given_thresholds(powered_down_grace, powered_down_application_grace,
-    quiesce_volts, battery_volts_low, battery_volts_floor):
+    quiesce_volts, battery_volts_low, battery_volts_floor,
+    supply_amps_maximum=None):
 
     """Only what the command line was actually given, so that everything
     else keeps its shipped value"""
@@ -75,6 +76,8 @@ def _given_thresholds(powered_down_grace, powered_down_application_grace,
         **(_thresholds(
             powered_down_grace, powered_down_application_grace) or {}),
         **_volts(quiesce_volts, battery_volts_low, battery_volts_floor),
+        **({"supply_amps_maximum": supply_amps_maximum}
+            if supply_amps_maximum else {}),
     }
     return thresholds or None
 
@@ -209,6 +212,10 @@ def _thresholds(powered_down_grace, powered_down_application_grace):
     type=float, default=None,
     help="Volts at which the file systems go read-only and the host stops "
          f"[default: {THRESHOLDS['battery_volts_floor']}]")
+@click.option("--supply_amps_maximum", "-sm", "supply_amps_maximum",
+    type=float, default=None,
+    help="The supply's rated current, from its label.  Given, a supply at "
+         "its rating is warned about [default: off]")
 @click.option("--button_shutdown/--no_button_shutdown", "button_shutdown",
     default=BUTTON_SHUTDOWN,
     help="A three second press stops the host, whatever the posture "
@@ -225,7 +232,8 @@ def _thresholds(powered_down_grace, powered_down_application_grace):
 
 def run_command(name, device, period, log_directory, no_log, keep_days, safe,
     enforce, inputs, quiesce_volts, battery_volts_low, battery_volts_floor,
-    button_shutdown, powered_down_grace, powered_down_application_grace):
+    supply_amps_maximum, button_shutdown, powered_down_grace,
+    powered_down_application_grace):
     """Run the PowerManager Actor
 
     \b
@@ -287,7 +295,8 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
         inputs=choose_power_inputs(inputs),
         thresholds=_given_thresholds(
             powered_down_grace, powered_down_application_grace,
-            quiesce_volts, battery_volts_low, battery_volts_floor),
+            quiesce_volts, battery_volts_low, battery_volts_floor,
+            supply_amps_maximum),
         log_directory=None if no_log else log_directory)
     power_manager = aiko.compose_instance(implementation, init_args)
     try:
@@ -307,6 +316,9 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
     click.echo("# a three second button press "
         f"{'stops this host' if button_shutdown else 'is reported and not acted on'}",
         err=True)
+    if supply_amps_maximum:
+        click.echo(f"# a supply above {supply_amps_maximum:g} A of its "
+            f"{supply_amps_maximum:g} A rating is warned about", err=True)
     if powered_down_application_grace:
         click.echo("# the supply going means the writers stop in "
             f"{powered_down_application_grace:g} s", err=True)
