@@ -8,12 +8,12 @@
 #
 # aiko_power_manager run [--device auto] [--period 5.0] [--log DIR]
 #                        [--safe | --unsafe] [--advisory | --enforce]
-#                        [--queue none] [--inputs auto]
+#                        [--inputs auto]
 # aiko_power_manager run --device mock --period 1    # On a laptop
 # aiko_power_manager run --period 60                 # In the field
-# aiko_power_manager run --queue store_forward --enforce   # Acting, in the
-#                                                    #   field, after the
-#                                                    #   battery pack is measured
+# aiko_power_manager run --enforce                   # Acting, in the field,
+#                                                    #   after the battery
+#                                                    #   pack is measured
 #
 # aiko_power_manager sample [--device auto]          # One reading, as JSON
 #
@@ -51,7 +51,6 @@ from aiko_services.actors.power_manager.power_manager import (
     ENFORCE, LOG_DIRECTORY, PERIOD_DEVELOPMENT, SAFE, choose_power_manager,
     power_manager_args
 )
-from aiko_services.actors.power_manager.queue import choose_queue_source
 from aiko_services.actors.power_manager.render import (
     ARTIFACTS, InstallRefused, install as install_artifact, paths, render,
     verify
@@ -83,15 +82,12 @@ def main():
 @click.option("--enforce/--advisory", "enforce", default=ENFORCE,
     help="Act on the policy, or publish it and act on nothing "
          "[default: --advisory]")
-@click.option("--queue", "-q", "queue",
-    type=click.Choice(["none", "store_forward", "fake"]), default="none",
-    help="Where the transfer queue is read from [default: none]")
 @click.option("--inputs", "-i", "inputs",
     type=click.Choice(["auto", "gpio", "none"]), default="auto",
     help="The button and dock lines [default: auto]")
 
 def run_command(name, device, period, log_directory, no_log, keep_days, safe,
-    enforce, queue, inputs):
+    enforce, inputs):
     """Run the PowerManager Actor
 
     \b
@@ -116,7 +112,6 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
         name or get_hostname(), implementation.device,
         declared=implementation.DECLARED_PROPERTIES,
         period=period, keep_days=keep_days, safe=safe, enforce=enforce,
-        queue_source=choose_queue_source(queue),
         inputs=choose_power_inputs(inputs),
         log_directory=None if no_log else log_directory)
     power_manager = aiko.compose_instance(implementation, init_args)

@@ -22,7 +22,7 @@ import aiko_services as aiko
 from aiko_services.actors.power_manager import (
     HOOK_QUIESCE, MODE_CONSERVE, MODE_NORMAL, MODE_QUIESCE,
     MockPowerManagerImpl, POLICY_ADVISORY, POLICY_SHUTTING_DOWN, Quiesce,
-    SUDO, THRESHOLDS, choose_queue_source, power_manager_args,
+    SUDO, THRESHOLDS, power_manager_args,
 )
 from aiko_services.actors.power_manager.render import granted_commands
 

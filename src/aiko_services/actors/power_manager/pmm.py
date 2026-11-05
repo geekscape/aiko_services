@@ -69,7 +69,7 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
         log_directory=None, keep_days=None, safe=None, thresholds=None,
         telemetry=True, timer=True, buzzer=None, hold_gpio=HOLD_GPIO,
         hold_runner=None, artifact_paths=None, inputs=None, enforce=None,
-        queue_source=None, quiesce=None, power_off_runner=None,
+        quiesce=None, power_off_runner=None,
         worker=True):
 
         self._buzzer = buzzer if buzzer is not None else choose_buzzer("auto")
@@ -101,7 +101,7 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
             keep_days=keep_days, safe=SAFE if safe is None else safe,
             thresholds=thresholds, telemetry=telemetry, timer=timer,
             enforce=ENFORCE if enforce is None else enforce,
-            queue_source=queue_source, quiesce=quiesce,
+            quiesce=quiesce,
             power_off_runner=power_off_runner, worker=worker)
 
     def properties(self):

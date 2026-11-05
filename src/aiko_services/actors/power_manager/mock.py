@@ -44,7 +44,7 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
     def __init__(self, context, script=None, properties=("readings", "dock"),
         period=None, log_directory=None, keep_days=None, safe=None,
         thresholds=None, telemetry=False, timer=False, inputs=None,
-        enforce=None, queue_source=None, quiesce=None,
+        enforce=None, quiesce=None,
         power_off_runner=None, worker=False):
 
         self._inputs = inputs if inputs is not None else FakePowerInputs()
@@ -65,7 +65,7 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
             safe=SAFE if safe is None else safe,
             thresholds=thresholds, telemetry=telemetry, timer=timer,
             enforce=ENFORCE if enforce is None else enforce,
-            queue_source=queue_source, quiesce=quiesce,
+            quiesce=quiesce,
             power_off_runner=power_off_runner, worker=worker)
         self._inputs.add_handler(self._input_event)
 

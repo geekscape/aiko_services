@@ -26,14 +26,6 @@ from aiko_services.actors.power_manager.policy import (  # noqa: F401
     Dwell, HOLD, MODES, MODE_CONSERVE, MODE_NORMAL, MODE_QUIESCE, REASONS,
     SHUTDOWN, decide, decide_mode,
 )
-from aiko_services.actors.power_manager.queue import (  # noqa: F401
-    FakeQueueSource, NoQueueSource, QueueState, STORE_FORWARD_PROTOCOL,
-    StoreForwardQueueSource, choose_queue_source,
-)
-from aiko_services.actors.power_manager.uptime import (  # noqa: F401
-    BRIDGE_TOPIC, REFUSED_MAXIMUM, REFUSED_NO_RESOURCE, REFUSED_PARAMETERS,
-    UPTIME_MAXIMUM_S, UPTIME_REQUESTS_MAXIMUM, UptimeLease, UptimeRegister,
-)
 from aiko_services.actors.power_manager.quiesce import (  # noqa: F401
     HOOK_QUIESCE, Quiesce, REMOUNT_GRACE_S, sync_filesystems,
 )
@@ -75,15 +67,14 @@ __all__ = [
     "ADDRESS_BATTERY", "ADDRESS_CHARGER", "ADDRESS_BATTERY_PACK",
     "BRIDGE_TOPIC", "BUTTON_ACTIVE_LOW", "BUTTON_GPIO", "DOCK_ACTIVE_LOW",
     "DOCK_DWELL_S", "REFUSED_MAXIMUM", "REFUSED_NO_RESOURCE",
-    "REFUSED_PARAMETERS", "UPTIME_MAXIMUM_S", "UPTIME_REQUESTS_MAXIMUM",
-    "UptimeLease", "UptimeRegister",
+    "POWER_UP_MAXIMUM_S", "POWER_UP_REQUESTS_MAXIMUM",
+    "REFUSED_PARAMETERS", "PowerUpLease", "PowerUpRegister",
     "DOCK_GPIO", "Dwell", "ENFORCE", "FakePowerInputs", "FakeQueueSource",
     "GpioPowerInputs", "HOLD", "HOLD_TIME_S", "HOOK_QUIESCE", "MODES",
     "MODE_CONSERVE", "MODE_NORMAL", "MODE_QUIESCE", "NoQueueSource",
-    "POLICY_SHUTTING_DOWN", "PowerManagerCommon", "QueueState", "REASONS",
-    "REMOUNT_GRACE_S", "Quiesce", "SHUTDOWN", "STORE_FORWARD_PROTOCOL",
-    "SUDO", "StoreForwardQueueSource", "choose_power_inputs",
-    "choose_queue_source", "classify", "decide", "decide_mode", "power_off",
+    "POLICY_SHUTTING_DOWN", "PowerManagerCommon", "REASONS",
+    "REMOUNT_GRACE_S", "Quiesce", "SHUTDOWN", "SUDO", "choose_power_inputs",
+    "classify", "decide", "decide_mode", "power_off",
     "remount_read_only", "run_granted", "sync_filesystems",
     "ARTIFACTS", "BUZZER_GPIO", "FakeBuzzer", "GRANT_PATH", "GpioBuzzer",
     "HOLD_GPIO", "HOLD_OFF", "HOLD_ON", "HOLD_RELEASE_DELAY_S",
