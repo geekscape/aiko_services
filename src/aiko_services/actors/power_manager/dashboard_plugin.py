@@ -41,6 +41,10 @@
 #   (increment 4d, and it is a new read plane: the lead decides)
 # - [Save], once it is decided where a changed threshold is persisted
 
+from collections import deque
+from datetime import datetime
+
+from asciimatics.screen import Screen
 from asciimatics.widgets import Label, Layout, MultiColumnListBox, Widget
 
 import aiko_services as aiko
@@ -57,7 +61,8 @@ __all__ = ["ChartWidget", "PowerManagerFrame", "PowerManagerPage", "plugins"]
 
 # The views, in the order "v" cycles them
 SUMMARY, DETAIL, INFORMATION = "summary", "detail", "information"
-VIEWS = (SUMMARY, DETAIL, INFORMATION)
+CHART = "chart"
+VIEWS = (SUMMARY, DETAIL, CHART, INFORMATION)
 
 # What the bottom section shows, which "w" switches
 RECORDS, TELEMETRY = "records", "telemetry"
@@ -73,7 +78,31 @@ KEYS = {
     "I": ("information",),
     "H": ("help",),
     "w": ("source",),
+    # The chart.  Arrows pan, because LogUI already pans with them
+    "+": ("zoom", 0.5),
+    "=": ("zoom", 0.5),            # The same key, without the shift
+    "-": ("zoom", 2.0),
+    "0": ("zoom", None),           # Back to the whole window, live
 }
+KEYS.update({f"{index + 1}": ("series", index) for index in range(8)})
+
+# The chart's series: a label, where the value is in a sample, and which
+# panel it is drawn on.  The number that toggles a series is its position
+# here plus one, so "1" is always the supply's voltage
+SERIES = (
+    ("supply V", 1, 0), ("battery V", 4, 0),
+    ("supply A", 2, 1), ("battery A", 5, 1),
+    ("supply W", 3, 2), ("battery W", 6, 2),
+    ("battery °C", 7, 3), ("processor °C", 8, 3),
+)
+PANELS = (("Volts", 2), ("Amps", 2), ("Watts", 1), ("Celsius", 1))
+
+# The sample this page keeps, which is the chart's whole source.  Three
+# days at the production period costs nothing and outlives any session
+WINDOW_SAMPLES = 4320
+SPAN_DEFAULT_S = 1800.0            # Half an hour, which a mock fills fast
+SPAN_LOWEST_S = 60.0
+SPAN_HIGHEST_S = 7 * 24 * 3600.0
 
 TELEMETRY_FIELDS = (
     "sampled_utc", "supply.volts", "supply.amps", "battery.volts",
@@ -179,6 +208,22 @@ def _number(value):
     except (TypeError, ValueError):
         return None
 
+def _epoch(utc_iso):
+    """Seconds since the epoch, from the shared state's own form"""
+
+    if not isinstance(utc_iso, str) or len(utc_iso) < 19:
+        return None
+    try:
+        return datetime.fromisoformat(
+            utc_iso.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+def _clock(epoch):
+    """The local clock a person reads on an axis"""
+
+    return datetime.fromtimestamp(epoch).strftime("%H:%M")
+
 def _age(seconds):
     """A duration a person reads, from seconds"""
 
@@ -192,6 +237,21 @@ def _age(seconds):
         return f"{value // 60} m {value % 60:02d} s"
     return f"{value // 3600} h {(value % 3600) // 60:02d} m"
 
+_PAGE = None
+
+def page_singleton():
+    """One page for both frames.
+
+    The chart is a Frame of its own, because asciimatics allows one
+    filling Layout for each Frame and LogUI already uses it.  Both frames
+    share the page, so the window of samples keeps filling while the
+    other frame is showing, and one view cycle runs across both"""
+
+    global _PAGE
+    if _PAGE is None:
+        _PAGE = PowerManagerPage()
+    return _PAGE
+
 class PowerManagerPage:
     """The decisions, with no terminal and no network.
 
@@ -201,6 +261,11 @@ class PowerManagerPage:
     def __init__(self):
         self.view = SUMMARY
         self.source = RECORDS
+        self.samples = deque(maxlen=WINDOW_SAMPLES)
+        self.enabled = set(range(len(SERIES)))
+        self.span = SPAN_DEFAULT_S
+        self.end = None            # None follows the newest sample
+        self._last = None          # The monotonic clock of the last sample
 
     def action(self, key_code):
         """What a key does, or None where this page does not claim it"""
@@ -212,6 +277,119 @@ class PowerManagerPage:
     def cycle_view(self, step):
         self.view = VIEWS[(VIEWS.index(self.view) + step) % len(VIEWS)]
         return self.view
+
+    def toggle_series(self, index):
+        if index in self.enabled:
+            self.enabled.discard(index)
+        else:
+            self.enabled.add(index)
+        return index in self.enabled
+
+    def zoom(self, factor):
+        """A factor under one shows less time, and None is the reset"""
+
+        if factor is None:
+            self.span, self.end = SPAN_DEFAULT_S, None
+            return self.span
+        self.span = max(SPAN_LOWEST_S,
+            min(SPAN_HIGHEST_S, self.span * factor))
+        return self.span
+
+    def pan(self, fraction):
+        """Move by a fraction of the window.  Panning to the newest
+        sample goes back to following it, so the chart is live again
+        without a second key"""
+
+        if not self.samples:
+            return self.end
+        newest = self.samples[-1][0]
+        oldest = self.samples[0][0]
+        end = newest if self.end is None else self.end
+        end += self.span * fraction
+        if end >= newest:
+            self.end = None
+        else:
+            self.end = max(oldest + self.span * 0.1, end)
+        return self.end
+
+    def observe(self, cache):
+        """Keep one sample for each reading this page sees.
+
+        The Actor's own monotonic clock says whether a reading is new,
+        because the replica is re-read on every draw and the wall clock
+        only has one second of resolution"""
+
+        monotonic = _number(cache.get("sampled_monotonic"))
+        if monotonic is None or monotonic == self._last:
+            return False
+        when = _epoch(cache.get("sampled_utc"))
+        if when is None:
+            return False
+        self._last = monotonic
+        self.samples.append((when,
+            _number(self._get(cache, "supply", "volts")),
+            _number(self._get(cache, "supply", "amps")),
+            _number(self._get(cache, "supply", "watts")),
+            _number(self._get(cache, "battery", "volts")),
+            _number(self._get(cache, "battery", "amps")),
+            _number(self._get(cache, "battery", "watts")),
+            _number(self._get(cache, "battery", "pack_celsius")),
+            _number(self._get(cache, "cpu", "celsius"))))
+        return True
+
+    def window(self):
+        """The times the chart covers: (from, to), or None with no
+        samples"""
+
+        if not self.samples:
+            return None
+        end = self.samples[-1][0] if self.end is None else self.end
+        return end - self.span, end
+
+    def buckets(self, columns):
+        """One bucket for each column of the plot.
+
+        A bucket, and not a sample: half an hour at the production period
+        is thirty samples across a hundred columns, and twelve hours is
+        seven hundred.  Each bucket carries the lowest, the highest and
+        the mean of every series in it, so that a spike is never averaged
+        away.  The later work that reads history replaces the source of
+        these and nothing else"""
+
+        window = self.window()
+        if window is None or columns < 2:
+            return []
+        start, end = window
+        width = (end - start) / columns
+        out = [{} for _ in range(columns)]
+        for sample in self.samples:
+            when = sample[0]
+            if when < start or when > end:
+                continue
+            column = min(columns - 1, int((when - start) / width))
+            for index, (_, position, _panel) in enumerate(SERIES):
+                value = sample[position]
+                if value is None:
+                    continue
+                low, high, total, count = out[column].get(
+                    index, (value, value, 0.0, 0))
+                out[column][index] = (min(low, value), max(high, value),
+                    total + value, count + 1)
+        return out
+
+    @staticmethod
+    def extent(buckets, indices):
+        """The lowest and the highest of the series on one panel, with a
+        margin, so that a line is never drawn on the frame"""
+
+        values = [value for bucket in buckets for index, entry
+            in bucket.items() if index in indices
+            for value in entry[:2]]
+        if not values:
+            return None
+        low, high = min(values), max(values)
+        margin = (high - low or 1.0) * 0.12
+        return low - margin, high + margin
 
     def cycle_source(self):
         self.source = SOURCES[
@@ -374,19 +552,138 @@ class PowerManagerPage:
 
 # --------------------------------------------------------------------------- #
 
-class ChartWidget(Widget):
-    """The live chart.  Increment 4b fills this in; it exists now so the
-    view cycle and the layout do not change when it does"""
+# The series colors.  Identity is never carried by color alone: every
+# series is named in the panel's own header, with the number that toggles
+# it, so the chart reads on a monochrome terminal and to a color-blind
+# reader.  Supply and battery pack keep one hue each across every panel
+COLOURS = {
+    0: Screen.COLOUR_CYAN, 1: Screen.COLOUR_YELLOW,
+    2: Screen.COLOUR_CYAN, 3: Screen.COLOUR_YELLOW,
+    4: Screen.COLOUR_CYAN, 5: Screen.COLOUR_YELLOW,
+    6: Screen.COLOUR_YELLOW, 7: Screen.COLOUR_GREEN,
+}
 
-    def __init__(self, page, rows, name=None):
+AXIS_WIDTH = 7             # "11.43 " and the frame
+# The Frame draws its own scroll bar in the last column, so the plot
+# stops one short of the widget.  Measured: without this the newest
+# samples and the last time label are drawn under it
+SCROLL_BAR = 1
+
+class ChartWidget(Widget):
+    """The chart, painted on the Frame's own canvas.
+
+    asciimatics 1.15 has no chart widget and no Sparkline, and its
+    BarChart is a renderer that no widget accepts.  What it does have is
+    Canvas.move() and Canvas.draw(), which interpolate a line at half a
+    cell and pick the character for it.  So a line plot is drawn here,
+    with twice the vertical resolution the character grid suggests"""
+
+    def __init__(self, page, name=None):
         super().__init__(name, tab_stop=False)
         self.page = page
-        self.rows = rows
-        self.message = "chart: increment 4b"
 
     def update(self, frame_no):
-        self._frame.canvas.print_at(
-            self.message[:self._w], self._x, self._y)
+        canvas = self._frame.canvas
+        for row in range(self._h):
+            canvas.print_at(" " * (self._w - SCROLL_BAR),
+                self._x, self._y + row)
+        panels = [index for index in range(len(PANELS))
+            if any(SERIES[series][2] == index
+                for series in self.page.enabled)]
+        if not panels:
+            canvas.print_at("every series is switched off: 1 to 8 turn "
+                "one back on", self._x, self._y)
+            return
+        buckets = self.page.buckets(max(2, self._plot_width()))
+        if not buckets:
+            canvas.print_at("waiting for a reading from this Service",
+                self._x, self._y)
+            return
+        height = max(3, (self._h - 1) // len(panels))
+        for position, panel in enumerate(panels):
+            self._panel(canvas, panel, buckets,
+                self._y + position * height, height)
+        self._axis(canvas, self._y + self._h - 1)
+
+    def _plot_width(self):
+        return max(2, self._w - AXIS_WIDTH - SCROLL_BAR)
+
+    def _panel(self, canvas, panel, buckets, top, height):
+        title, _ = PANELS[panel]
+        indices = [index for index in sorted(self.page.enabled)
+            if SERIES[index][2] == panel]
+        extent = self.page.extent(buckets, set(indices))
+        header = f"{title}"
+        for index in indices:
+            latest = self._latest(buckets, index)
+            shown = "-" if latest is None else f"{latest:.2f}"
+            header += f"   {index + 1} {SERIES[index][0]} {shown}"
+        canvas.print_at(header[:self._w - SCROLL_BAR], self._x, top,
+            colour=Screen.COLOUR_WHITE)
+        if extent is None:
+            return
+        low, high = extent
+        plot = height - 1
+        if plot < 2:
+            return
+        base = top + 1
+        for value, row in ((high, base), (low, base + plot - 1)):
+            canvas.print_at(f"{value:6.2f}", self._x, row,
+                colour=Screen.COLOUR_WHITE)
+
+        def y_of(value):
+            return base + (high - value) / (high - low) * (plot - 1)
+
+        for index in indices:
+            self._line(canvas, buckets, index, y_of, low, high)
+
+    def _line(self, canvas, buckets, index, y_of, low, high):
+        colour = COLOURS.get(index, Screen.COLOUR_WHITE)
+        previous = None
+        for column, bucket in enumerate(buckets):
+            entry = bucket.get(index)
+            if entry is None:
+                previous = None       # A gap is a gap, and not a line
+                continue
+            lowest, highest, total, count = entry
+            x = self._x + AXIS_WIDTH + column
+            mean = total / count
+            if highest - lowest > (high - low) * 0.02:
+                canvas.move(x, y_of(highest))
+                canvas.draw(x, y_of(lowest), colour=colour, thin=True)
+            if previous is not None:
+                canvas.move(previous[0], previous[1])
+                canvas.draw(x, y_of(mean), colour=colour, thin=True)
+            previous = (x, y_of(mean))
+
+    @staticmethod
+    def _latest(buckets, index):
+        for bucket in reversed(buckets):
+            entry = bucket.get(index)
+            if entry is not None:
+                return entry[2] / entry[3]
+        return None
+
+    def _axis(self, canvas, row):
+        window = self.page.window()
+        if window is None:
+            return
+        start, end = window
+        width = self._plot_width()
+        marks = 5
+        text = [" "] * max(0, width)
+        for mark in range(marks):
+            at = int(mark * (width - 1) / (marks - 1))
+            label = _clock(start + (end - start) * mark / (marks - 1))
+            at = min(at, max(0, width - len(label)))
+            for offset, character in enumerate(label):
+                if at + offset < width:
+                    text[at + offset] = character
+        live = "live" if self.page.end is None else "panned"
+        canvas.print_at("".join(text)[:width],
+            self._x + AXIS_WIDTH, row, colour=Screen.COLOUR_WHITE)
+        canvas.print_at(f"{live:>6s}"[:AXIS_WIDTH], self._x, row,
+            colour=Screen.COLOUR_WHITE)
 
     def reset(self):
         pass
@@ -395,7 +692,7 @@ class ChartWidget(Widget):
         return event
 
     def required_height(self, offset, width):
-        return self.rows
+        return Widget.FILL_FRAME
 
     @property
     def value(self):
@@ -408,7 +705,7 @@ class PowerManagerFrame(ServiceFrame):
 
     def __init__(self, screen, dashboard):
         super().__init__(screen, dashboard, name="power_manager_frame")
-        self.page = PowerManagerPage()
+        self.page = page_singleton()
         self.topic_path = None
         self.proxy = None
 
@@ -474,13 +771,18 @@ class PowerManagerFrame(ServiceFrame):
     def _act(self, action):
         from asciimatics.widgets import PopUpDialog
 
+        from asciimatics.exceptions import NextScene
+
         name = action[0]
         if name == "view":
-            self.page.cycle_view(action[1])
+            if self.page.cycle_view(action[1]) == CHART:
+                raise NextScene(CHART_SCENE)
         elif name == "information":
             self.page.view = INFORMATION
         elif name == "source":
             self.page.cycle_source()
+        elif name in ("zoom", "series"):
+            return                 # The chart's keys, on the chart's page
         elif name == "help":
             self.scene.add_effect(PopUpDialog(
                 self._screen, self._help(), ["OK"], theme="nice"))
@@ -562,12 +864,93 @@ class PowerManagerFrame(ServiceFrame):
     def _update(self, frame_no):
         super()._update(frame_no)          # It may start the Service
         cache = self._cache()
+        self.page.observe(cache)   # The chart's window fills from here too
         rows = self.page.rows(cache)
         self.view_widget.options = [
             (list(row), index) for index, row in enumerate(rows)]
         self.legend.text = self.page.legend(cache)
         self.log_ui._update(frame_no)
 
-plugins = {"power_manager": PowerManagerFrame}
+class PowerManagerChartFrame(ServiceFrame):
+    """The chart, on a page of its own.
+
+    It is reached with "v" from the page beside it and goes back the same
+    way, so to a person it is one more view.  It is a separate Frame
+    because asciimatics allows one filling Layout for each Frame, and the
+    log section below the other views is already it"""
+
+    def __init__(self, screen, dashboard):
+        super().__init__(screen, dashboard, name="power_manager_chart")
+        self.page = page_singleton()
+        self.topic_path = None
+        layout = Layout([1], fill_frame=True)
+        self.add_layout(layout)
+        layout.add_widget(ChartWidget(self.page))
+        layout = Layout([1])
+        self.add_layout(layout)
+        self.legend = Label("", height=1)
+        layout.add_widget(self.legend)
+        self.fix()
+
+    def _cache(self):
+        consumer = self.dashboard.ec_consumer
+        return consumer.cache if consumer is not None else {}
+
+    def _service_frame_start(self, service, service_ec_consumer):
+        self.topic_path = service[0]
+
+    def _service_frame_stop(self, service):
+        self.topic_path = None
+
+    def process_event(self, event):
+        from asciimatics.event import KeyboardEvent
+        from asciimatics.exceptions import NextScene
+        from asciimatics.screen import Screen as _Screen
+
+        if isinstance(event, KeyboardEvent):
+            action = self.page.action(event.key_code)
+            if action is not None:
+                name = action[0]
+                if name == "view":
+                    if self.page.cycle_view(action[1]) != CHART:
+                        raise NextScene(PAGE_SCENE)
+                elif name == "information":
+                    self.page.view = INFORMATION
+                    raise NextScene(PAGE_SCENE)
+                elif name == "zoom":
+                    self.page.zoom(action[1])
+                elif name == "series":
+                    self.page.toggle_series(action[1])
+                return None
+            if event.key_code == _Screen.KEY_LEFT:
+                self.page.pan(-0.25)
+                return None
+            if event.key_code == _Screen.KEY_RIGHT:
+                self.page.pan(0.25)
+                return None
+            if event.key_code == _Screen.KEY_HOME:
+                self.page.pan(-1000.0)
+                return None
+            if event.key_code == _Screen.KEY_END:
+                self.page.end = None
+                return None
+        return super().process_event(event)
+
+    def _update(self, frame_no):
+        super()._update(frame_no)          # It may start the Service
+        self.page.observe(self._cache())
+        span = _age(self.page.span)
+        # It fits 80 columns, which is the narrowest terminal tested
+        self.legend.text = (
+            f"chart {span}   <- -> pan   + - 0 zoom   1-8 series   "
+            f"v view   H help")
+
+PAGE_SCENE = "power_manager"
+CHART_SCENE = "power_manager_chart"
+
+plugins = {
+    PAGE_SCENE: PowerManagerFrame,
+    CHART_SCENE: PowerManagerChartFrame,
+}
 
 # --------------------------------------------------------------------------- #
