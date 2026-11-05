@@ -330,6 +330,15 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     discovery is today a second copy of the Lease client's, which a third client should make
     into one.
 
+    **The signal line is held for one pattern, and not for a run.** Two other writers reach
+    the same pad: the start-up unit and the shutdown hook, which use the platform's pin
+    utility because neither can import Python. A shutdown stops them and the Actor in no
+    defined order. A claim held for the life of the Actor also refuses every other user of
+    that line, which was measured: a command line asking for one pattern was told that the
+    line was busy, by an Actor that had been holding it since it started. So the Actor takes
+    the line as a pattern begins and gives it back as the pattern ends, and one lock keeps two
+    patterns from overlapping. Between sounds the pad is free.
+
 15. **A person is not a threshold, so the button acts whatever the posture.** The advisory
     posture of decision 7 exists because the voltage and temperature thresholds come from a
     data sheet, and not from the battery pack that is fitted. A person who holds the button for
