@@ -9,9 +9,41 @@ says which kind of interface it is.
 
 ```bash
 aiko_dashboard                       # the pages below, with no flag
-aiko_dashboard --plugin MODULE ...   # and the pages that MODULE registers
+aiko_dashboard -p MODULE -p MODULE   # and the pages those modules register
 aiko_dashboard --utc                 # date/times as stored, not local
 ```
+
+## Loading a page
+
+`--plugin` (`-p`) names a module that holds a `plugins` dictionary. It
+is repeatable, and the modules are loaded in order.
+
+**Name a module, and not a pathname.** `load_module()` accepts either,
+but a pathname ties a command line to where a checkout happens to be:
+
+```bash
+aiko_dashboard                                             \
+  -p aiko_services.ide.tui.dashboard.plugins               \
+  -p aiko_services.actors.display.dashboard_plugin         \
+  -p aiko_services.actors.power_manager.dashboard_plugin
+```
+
+Three rules of the loading itself:
+
+- **Giving any `-p` replaces the default**, which is the built-in
+  registry. Name that registry too, or its pages are absent.
+- **The last module wins a key it shares.** `update_plugins()` merges
+  each dictionary in order, so a module late on the command line
+  replaces a page registered earlier under the same key.
+- **A module that cannot be imported is ignored**, and its pages are
+  simply absent. A mistyped name reports nothing.
+
+Each module keeps a namespace of its own, so two pages may import
+different things under one name. That was not always true: until
+2026-11-06 every file loaded by **pathname** was named `module`, and the
+second such file ran into the first one's namespace. Two pages that both
+imported a `Screen` then shared one, and the page that lost built a
+remote proxy from the wrong class.
 
 ## Date and time
 
@@ -115,7 +147,12 @@ Three rules that the existing pages follow:
   Service lives here and names the Service, as
   `process_manager_plugin.py` does. A page for an Actor lives with that
   Actor and names the dashboard, as
-  `actors/display/dashboard_plugin.py` does.
+  `actors/display/dashboard_plugin.py` does. A page for an Actor must
+  live there: `main` may not depend on `actors`, and a test asserts it.
+- **Alias an import that another page may also hold.** Several pages
+  import a class called `Screen`, and they do not mean the same one.
+  `from asciimatics.screen import Screen as AsciimaticsScreen` says
+  which, and it reads correctly beside an Actor Interface of that name.
 
 ## Tests
 

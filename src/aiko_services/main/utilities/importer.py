@@ -1,14 +1,37 @@
 # Usage
 # -----
 # from aiko_services.main.utilities import *
-# module_descriptor = "pathname/filename.py"  # or "package.module"
+# module_descriptor = "package.module"        # or "pathname/filename.py"
 # module = load_module(module_descriptor)
 # module.some_class()
 # module.some_function()
 #
+# A descriptor that ends in ".py" is a pathname, and anything else is an
+# installed module.  Prefer the module name where there is one.  A
+# pathname ties a command line to where a checkout happens to be, and it
+# gives the module a name that no other import can reach.
+#
+# Each descriptor is loaded once.  The result is cached by descriptor, so
+# the same file named two ways is two modules.
+#
+# Namespaces are separate, and that is deliberate
+# -----------------------------------------------
+# Every file loaded by pathname was once named "module", and the
+# deprecated Loader.load_module() reuses an existing entry of that name
+# in sys.modules.  So the second file ran INTO the first file's
+# namespace, and wherever the two shared a name, the second one won.
+#
+# Two Dashboard plug-ins found it on 2026-11-06: one imports the Display
+# Actor's "Screen" Interface and the other imports the asciimatics
+# "Screen".  The Display page then built a remote proxy from the terminal
+# class and raised at the call, far from the cause.  _module_name() gives
+# each file a name of its own, so this cannot happen again.
+#
 # To Do
 # -----
-# - None, yet !
+# - A pathname that cannot be loaded raises, and a module name that
+#   cannot be imported raises too.  The Dashboard catches one of those
+#   and not the other
 
 import hashlib
 import importlib

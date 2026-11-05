@@ -138,6 +138,8 @@
 #
 # Ideas
 # ~~~~~
+# - Plug-in loading: report a module that could not be loaded, rather
+#   than leaving a page silently absent
 # - Dashboard plug-ins: Metrics for all Services/Actors/Agents/Pipelines
 #   - LISP REPL: Interactive, composable GUI IDE Graph WorkSpace
 #     - Interact with Ollama(Actor), timg (videos, images)
@@ -618,6 +620,12 @@ def run_dashboard(screen, start_scene):
     screen.play(scenes, stop_on_resize=True, start_scene=start_scene)
 
 def update_plugins(plugins):
+    """Add a plug-in module's pages to the registry.
+
+    The application's own two pages are seeded on the first call only,
+    so that a later module can replace a page under a key it already
+    holds.  The last module named on the command line therefore wins"""
+
     if not _PLUGINS:
         _PLUGINS["Dashboard"] = DashboardFrame
         _PLUGINS["Log"] = LogFrame
@@ -627,7 +635,11 @@ def update_plugins(plugins):
 @click.option("--history_limit", "-hl", type=click.INT, default=32,
     help="History length requested from Registrar")
 @click.option("--plugin", "-p", multiple=True, required=False,
-    default=["aiko_services.ide.tui.dashboard.plugins"])
+    default=["aiko_services.ide.tui.dashboard.plugins"],
+    help="Module that registers pages, repeatable.  A module name, "
+         'e.g "my_application.dashboard_plugin", or a pathname ending '
+         'in ".py".  Prefer the module name.  Giving any of these '
+         "replaces the default, so name the built-in registry too")
 @click.option("--utc", is_flag=True, default=False,
     help="Show date/times as stored, in UTC, instead of in local time")
 
@@ -638,6 +650,12 @@ def main(plugin, history_limit, utc):
     stored, which is what comparing hosts in different zones needs.
 
     \b
+    Pages come from the modules named by "--plugin", and the default
+    registers only the built-in ones.  Each module is loaded once and
+    keeps a namespace of its own.
+    aiko_dashboard -p PACKAGE.MODULE -p PACKAGE.MODULE ...
+
+    \b
     export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
     """
 
@@ -645,6 +663,10 @@ def main(plugin, history_limit, utc):
     _HISTORY_LIMIT = history_limit
     set_display_utc(utc)
 
+    # A module that cannot be imported is ignored, and its pages are
+    # simply absent.  That is a poor diagnosis, and it is what
+    # test_the_plugin_default_actually_resolves() exists to catch for the
+    # default.  The To Do list above carries the general case
     for plugin_name in plugin:
         try:
             module = load_module(plugin_name) if plugin_name else None
