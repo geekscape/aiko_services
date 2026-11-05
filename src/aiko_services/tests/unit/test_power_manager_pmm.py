@@ -135,7 +135,7 @@ def make_actor(bus, **parameters):
 def test_every_part_that_answers_is_found():
     actor = make_actor(whole_board())
     assert actor.open() == ("battery", "charger", "pack")
-    assert actor.properties() == ("readings",)
+    assert "readings" in actor.properties()
     actor.close()
 
 def test_a_reading_carries_every_part():
@@ -159,9 +159,13 @@ def test_a_missing_part_is_left_out_rather_than_raising():
     actor.close()
 
 def test_no_part_means_no_readings_property():
+    """Only "readings" is asserted: whether this host also has "hold" or
+    "signal" depends on the host, and a test that depends on the host is
+    worse than no test"""
+
     actor = make_actor(FakeBus({}))
     assert actor.open() == ()
-    assert actor.properties() == ()
+    assert "readings" not in actor.properties()
     actor.close()
 
 def test_a_part_that_stops_answering_becomes_a_recorded_error():
@@ -196,9 +200,23 @@ def test_a_given_bus_is_not_closed_by_the_actor():
     actor.close()
     assert bus.closed is False
 
-def test_hold_and_signal_are_no_ops_in_phase_1():
-    actor = make_actor(whole_board())
+def test_hold_and_signal_are_no_ops_where_the_platform_lacks_them(
+    monkeypatch):
+
+    """A host with no pin utility and no buzzer has neither property, so
+    both methods are no-ops (ADR-022 decision 1).
+
+    The utility and the buzzer are both taken away here.  Without that this
+    test would pass on a laptop and behave differently on the hardware,
+    which is worse than no test"""
+
+    from aiko_services.actors.power_manager import pmm as module
+    from aiko_services.actors.power_manager.signal import FakeBuzzer
+    monkeypatch.setattr(module, "hold_tool", lambda *a, **k: None)
+
+    actor = make_actor(whole_board(), buzzer=FakeBuzzer())
     actor.open()
+    assert actor.properties() == ("readings",)
     actor.hold(True)                                 # Logs, and does nothing
     actor.signal("booted")
     assert actor.share["hold_state"] == "unknown"

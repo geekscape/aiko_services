@@ -16,9 +16,17 @@
 # Change the sample period while it runs, as a shared variable:
 #   mosquitto_pub -t TOPIC_PATH/control -m "(update sample_period_s 60)"
 #
-# Phase 1 is read-only, so "hold", "signal", "render", "install" and
-# "verify" are not here yet.  Each one changes a host, and each one arrives
-# with the phase that designs and tests it.
+# aiko_power_manager hold on                         # Assert the power hold
+# aiko_power_manager hold off --force                # *** CUTS THE POWER ***
+# aiko_power_manager signal booted                   # One sound
+#
+# aiko_power_manager render unit | hook | grant      # Prints, changes nothing
+# sudo aiko_power_manager install unit               # The only writer
+# aiko_power_manager verify                          # What is in place
+#
+# "hold off" is how the shutdown hook releases the hold, and the hook is its
+# only caller.  --force is needed at a terminal, because an undocked host
+# stops the moment the line goes low.
 #
 # This module is a command line shell: ADR-022 "presentation/CLI shell"
 # exemption from Interface composition
@@ -30,10 +38,18 @@ import click
 import aiko_services as aiko
 from aiko_services.main.utilities import get_hostname
 
+from aiko_services.actors.power_manager.hold import (
+    HOLD_GPIO, HoldNotAvailable, hold_state, set_hold
+)
 from aiko_services.actors.power_manager.power_manager import (
     LOG_DIRECTORY, PERIOD_DEVELOPMENT, SAFE, choose_power_manager,
     power_manager_args
 )
+from aiko_services.actors.power_manager.render import (
+    ARTIFACTS, InstallRefused, install as install_artifact, paths, render,
+    verify
+)
+from aiko_services.actors.power_manager.signal import PATTERNS
 
 DEVICES = ["auto", "pmm", "mock"]
 
@@ -125,6 +141,127 @@ def sample_command(device, count):
             click.echo(json.dumps(reading.as_dict(), sort_keys=True))
     finally:
         power_manager.close()
+
+@main.command(name="hold")
+@click.argument("state", type=click.Choice(["on", "off"]))
+@click.option("--gpio", "-g", type=int, default=HOLD_GPIO,
+    help=f"The hold line [default: {HOLD_GPIO}]")
+@click.option("--force", is_flag=True,
+    help='Required for "off", which cuts the power of an undocked host')
+
+def hold_command(state, gpio, force):
+    """Assert or release the power hold, then exit
+
+    \b
+    The pin keeps its state after this command exits, because nothing
+    claims it.  That is the whole mechanism: a long-lived process cannot
+    hold this line, because the GPIO character device releases it when the
+    process exits (ADR-028 decision 5).
+
+    \b
+    "off" cuts the power of an undocked host.  The shutdown hook is its
+    only proper caller, after the file systems are unmounted.  At a
+    terminal it needs --force.
+    """
+
+    on = state == "on"
+    if not on and not force:
+        raise SystemExit(
+            "hold off cuts the power of an undocked host: pass --force if "
+            "that is what you mean.  The shutdown hook does this itself")
+    try:
+        result = set_hold(on, gpio)
+    except HoldNotAvailable as error:
+        raise SystemExit(f"No hold on this platform: {error}")
+    except OSError as error:
+        raise SystemExit(f"The hold did not change: {error}")
+    click.echo(f"hold {result} (GPIO {gpio})")
+
+@main.command(name="signal")
+@click.argument("name", type=click.Choice(sorted(PATTERNS)))
+@click.option("--buzzer", "-b", type=click.Choice(["auto", "gpio", "none"]),
+    default="auto", help="The buzzer to sound [default: auto]")
+
+def signal_command(name, buzzer):
+    """Sound one pattern, then exit"""
+
+    from aiko_services.actors.power_manager.signal import (
+        choose_buzzer, pattern_seconds
+    )
+    import time
+
+    device = choose_buzzer(buzzer)
+    try:
+        device.open()
+    except Exception as error:                           # noqa: BLE001
+        raise SystemExit(f"No buzzer: {error}")
+    try:
+        device.play(name)
+        time.sleep(pattern_seconds(name) + 0.1)
+    finally:
+        device.close()
+    click.echo(f"{name} on {device.device} "
+        f"({pattern_seconds(name)} s)")
+
+@main.command(name="render")
+@click.argument("artifact", type=click.Choice(list(ARTIFACTS)))
+@click.option("--account", "-a", type=str, default=None,
+    help="The account that runs the Actor, for the grant")
+
+def render_command(artifact, account):
+    """Print one file that the operating system must hold, and change
+    nothing
+
+    \b
+    "unit" asserts the hold at start-up.  "hook" releases it at shutdown,
+    and never on a restart.  "grant" lets the unprivileged Actor power the
+    host off and remount read-only.  Read each one before you install it
+    (ADR-026 decision 3).
+    """
+
+    try:
+        click.echo(render(artifact, account=account), nl=False)
+    except ValueError as error:
+        raise SystemExit(str(error))
+
+@main.command(name="install")
+@click.argument("artifact", type=click.Choice(list(ARTIFACTS)))
+@click.option("--account", "-a", type=str, default=None,
+    help="The account that runs the Actor, for the grant")
+@click.option("--path", "-p", type=str, default=None,
+    help="Write here instead of where the artifact belongs")
+
+def install_command(artifact, account, path):
+    """Write one rendered file.  The only command here that changes the host
+
+    \b
+    Needs a privilege, so a person runs it.  The grant is validated before
+    it is written, because a malformed file in the sudoers directory denies
+    every account the privilege to repair it.
+    """
+
+    try:
+        text = render(artifact, account=account)
+        written = install_artifact(artifact, text, path=path)
+    except (ValueError, InstallRefused) as error:
+        raise SystemExit(f"Not installed: {error}")
+    click.echo(f"{artifact} written to {written}")
+    if artifact == "unit":
+        click.echo("Now: systemctl daemon-reload && "
+            "systemctl enable aiko_power_hold", err=True)
+
+@main.command(name="verify")
+def verify_command():
+    """Report what the operating system holds, and the hold line
+
+    \b
+    Nothing here is used, only read.  A host that cannot power itself off
+    has a battery policy that is advisory, whatever its thresholds say.
+    """
+
+    for name, state in verify().items():
+        click.echo(f"{name:6} {state:9} {paths()[name]}")
+    click.echo(f"{'hold':6} {hold_state():9} GPIO {HOLD_GPIO}")
 
 if __name__ == "__main__":
     main()

@@ -76,12 +76,19 @@ def test_the_filter_defaults_to_this_host():
 
 # The command line --------------------------------------------------------- #
 
-def test_the_help_lists_the_two_phase_1_commands():
+def test_the_help_lists_every_command_there_is():
     result = CliRunner().invoke(main, ["--help"])
     assert result.exit_code == 0
-    assert "run" in result.output and "sample" in result.output
-    # Each of these changes a host, and each arrives with its own phase
-    for later in ("hold", "install", "verify"):
+    for command in ("hold", "install", "render", "run", "sample", "signal",
+        "verify"):
+        assert command in result.output, command
+
+def test_the_help_does_not_offer_what_a_later_phase_brings():
+    """The policy, the button and the quiesce mode arrive with the phase
+    that designs and tests each one"""
+
+    result = CliRunner().invoke(main, ["--help"])
+    for later in ("policy", "shutdown", "quiesce", "button"):
         assert f"  {later}" not in result.output
 
 def test_sample_prints_one_json_reading():
@@ -101,6 +108,57 @@ def test_sample_takes_a_count():
 def test_sample_refuses_an_unknown_device():
     result = CliRunner().invoke(main, ["sample", "--device", "battery"])
     assert result.exit_code != 0
+
+# The commands that change a host ------------------------------------------ #
+
+def test_hold_off_needs_force():
+    """An undocked host stops the moment the line goes low, so a terminal
+    needs to say that it means it"""
+
+    result = CliRunner().invoke(main, ["hold", "off"])
+    assert result.exit_code != 0
+    assert "--force" in str(result.output) + str(result.exception)
+
+def test_hold_takes_only_on_or_off():
+    assert CliRunner().invoke(main, ["hold", "maybe"]).exit_code != 0
+
+def test_render_prints_the_unit_and_changes_nothing():
+    result = CliRunner().invoke(main, ["render", "unit"])
+    assert result.exit_code == 0
+    assert "Type=oneshot" in result.output
+
+def test_render_prints_the_hook():
+    result = CliRunner().invoke(main, ["render", "hook"])
+    assert result.exit_code == 0
+    assert "poweroff|halt" in result.output
+
+def test_render_the_grant_needs_an_account():
+    assert CliRunner().invoke(main, ["render", "grant"]).exit_code != 0
+
+def test_render_the_grant_with_an_account():
+    result = CliRunner().invoke(
+        main, ["render", "grant", "--account", "pi"])
+    assert result.exit_code == 0
+    assert "NOPASSWD" in result.output
+
+def test_render_refuses_an_unknown_artifact():
+    assert CliRunner().invoke(main, ["render", "initrd"]).exit_code != 0
+
+def test_verify_reports_each_artifact_and_the_hold():
+    result = CliRunner().invoke(main, ["verify"])
+    assert result.exit_code == 0
+    for name in ("unit", "hook", "grant", "hold"):
+        assert name in result.output
+
+def test_signal_takes_only_a_known_pattern():
+    assert CliRunner().invoke(
+        main, ["signal", "klaxon", "--buzzer", "none"]).exit_code != 0
+
+def test_signal_on_no_buzzer_is_not_an_error():
+    result = CliRunner().invoke(
+        main, ["signal", "booted", "--buzzer", "none"])
+    assert result.exit_code == 0
+    assert "none" in result.output
 
 def test_run_help_states_the_posture():
     result = CliRunner().invoke(main, ["run", "--help"])

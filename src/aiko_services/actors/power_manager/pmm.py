@@ -29,11 +29,19 @@
 #   second question the first time the host is undocked
 
 from aiko_services.actors.power_manager.at30tse import At30tse
+from aiko_services.actors.power_manager.hold import (
+    HOLD_GPIO, HOLD_UNKNOWN, HoldNotAvailable, hold_state, hold_tool,
+    run_tool, set_hold
+)
 from aiko_services.actors.power_manager.ina260 import Ina260
 from aiko_services.actors.power_manager.power_manager import (
     PowerManager, PowerManagerCommon
 )
 from aiko_services.actors.power_manager.reading import PowerReading
+# The function is imported under its own name: the package exports a
+# "render" function, which shadows the module of the same name
+from aiko_services.actors.power_manager.render import verify as verify_files
+from aiko_services.actors.power_manager.signal import choose_buzzer
 
 __all__ = [
     "ADDRESS_BATTERY", "ADDRESS_CHARGER", "ADDRESS_PACK_TEMPERATURE",
@@ -49,16 +57,21 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
     """A power management module through its I2C parts.  Read-only"""
 
     device = "pmm"
-    # What this Implementation offers when its parts are there.  Phase 1
-    # claims no output and no input line, so the rest of PROPERTIES waits
-    DECLARED_PROPERTIES = ("readings",)
+    # What this Implementation offers when its parts are there.  The button
+    # and the dock line are the phase after this one
+    DECLARED_PROPERTIES = ("readings", "hold", "signal")
 
     def __init__(self, context, bus=None, bus_number=I2C_BUS,
         battery_address=ADDRESS_BATTERY, charger_address=ADDRESS_CHARGER,
         pack_address=ADDRESS_PACK_TEMPERATURE, period=None,
         log_directory=None, keep_days=None, safe=None, thresholds=None,
-        telemetry=True, timer=True):
+        telemetry=True, timer=True, buzzer=None, hold_gpio=HOLD_GPIO,
+        hold_runner=None, artifact_paths=None):
 
+        self._buzzer = buzzer if buzzer is not None else choose_buzzer("auto")
+        self._hold_gpio = int(hold_gpio)
+        self._hold_runner = hold_runner or run_tool
+        self._artifact_paths = artifact_paths
         self._bus = bus                # Given by a test, else open() makes it
         self._bus_number = int(bus_number)
         self._owns_bus = bus is None
@@ -83,10 +96,27 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
             thresholds=thresholds, telemetry=telemetry, timer=timer)
 
     def properties(self):
-        """"readings" while at least one part answers, and nothing else in
-        phase 1: this Implementation claims no output and no input line"""
+        """What is real on this host: "readings" while at least one part
+        answers, "hold" while the pin utility is there, and "signal" while
+        there is a buzzer.
 
-        return ("readings",) if self._found else ()
+        Each one is tested for rather than assumed, so a host with no pin
+        utility advertises "hold=false" and a client knows before it asks"""
+
+        found = []
+        if self._found:
+            found.append("readings")
+        if self._hold_available():
+            found.append("hold")
+        if getattr(self._buzzer, "device", "none") != "none":
+            found.append("signal")
+        return tuple(found)
+
+    def _hold_available(self):
+        """Whether this host can hold its own power.  A runner that a test
+        injects counts as available, because that is what it stands in for"""
+
+        return self._hold_runner is not run_tool or hold_tool() is not None
 
     def open(self):
         """Open the I2C bus and attach to the parts that answer.
@@ -100,6 +130,11 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
             self._bus = SMBus(self._bus_number)
             self._owns_bus = True
         self._attach()
+        try:
+            self._buzzer.open()
+        except Exception as error:                       # noqa: BLE001
+            self.logger.warning(f"No buzzer: {error}")
+            self._buzzer = choose_buzzer("none")
         return self._found
 
     def read(self):
@@ -121,12 +156,77 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
             values["battery_pack_celsius"] = self._pack.celsius()
         return PowerReading(device=self.device, **values)
 
+    def hold(self, on):
+        """Assert the power hold.  **A release is refused here.**
+
+        The release is the one operation that software cannot undo, and it
+        belongs to the shutdown hook alone, after the file systems are
+        unmounted (ADR-028 decision 6).  A message, a timer or a Pipeline
+        must not be able to reach it, so this method will not do it however
+        it is called.  "aiko_power_manager hold off" is the mechanism, and
+        the hook is its only caller"""
+
+        wanted = on if isinstance(on, bool) else  \
+            str(on).lower() in ("on", "true", "yes", "1")
+        if not wanted:
+            self.logger.error("hold(off) refused: only the shutdown hook "
+                "releases the hold (ADR-028 decision 6)")
+            self.ec_producer.update("last_error", "hold(off) refused")
+            self._count("denied")
+            return
+        if "hold" not in self.properties():
+            super().hold(on)
+            return
+        try:
+            state = set_hold(True, self._hold_gpio, self._hold_runner)
+        except OSError as error:
+            self.logger.error(f"hold failed: {error}")
+            self.ec_producer.update("last_error", str(error)[:120])
+            return
+        if self.share["hold_state"] != state:
+            self._count("hold_changes")
+        self.ec_producer.update("hold_state", state)
+        self.logger.info(f"Power hold: {state}")
+
+    def signal(self, name):
+        """Sound one pattern on the buzzer"""
+
+        if "signal" not in self.properties():
+            super().signal(name)
+            return
+        try:
+            self._buzzer.play(name)
+        except (ValueError, OSError) as error:
+            self.logger.warning(f"signal refused: {error}")
+            self.ec_producer.update("last_error", str(error)[:120])
+            return
+        self._count("signals")
+
+    def hold_state(self):
+        """What the hold line is doing now, read from the pin"""
+
+        if "hold" not in self.properties():
+            return HOLD_UNKNOWN
+        try:
+            return hold_state(self._hold_gpio, self._hold_runner)
+        except HoldNotAvailable:
+            return HOLD_UNKNOWN
+
+    def hook_state(self):
+        """Whether the shutdown hook is installed.  It is read, never run"""
+
+        return verify_files(self._artifact_paths)["hook"]
+
     def close(self):
-        """Close the bus, when this Implementation opened it.  No pin is
-        touched: phase 1 claims none, and the power hold is released by the
-        shutdown hook alone (ADR-028 decision 6)"""
+        """Close the bus and the buzzer, when this Implementation opened
+        them.  **The power hold is never released here**: only the shutdown
+        hook does that (ADR-028 decision 6)"""
 
         super().close()
+        try:
+            self._buzzer.close()
+        except Exception:                                # noqa: BLE001
+            pass
         if self._owns_bus and self._bus is not None:
             try:
                 self._bus.close()

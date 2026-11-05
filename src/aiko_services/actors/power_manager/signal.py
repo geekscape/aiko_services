@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+#
+# Aiko Services: the power manager's signals
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# One short sound for each thing that an operator must know without a
+# screen: the host is up and holding, a Pipeline runs, the host is stopping,
+# and a button press has been accepted.
+#
+# A pattern is data: durations in seconds, where the first is "on", the next
+# is "off", and so on.  Therefore a test compares a list, with no hardware
+# and no sound, and a new pattern is a table entry rather than code.
+#
+# The buzzer is driven from a worker thread.  A pattern sleeps between its
+# edges, and the event-loop thread must never sleep (P2).  One lock keeps
+# two patterns from interleaving into a sound that means nothing.
+#
+# These classes are internal collaborators of the module Implementation,
+# and not a public API: the one public Interface is PowerManager (ADR-028
+# decision 1).  _Emulated in the display outputs is the same shape.
+#
+# gpiozero is imported in open(), and nowhere else (P9).
+#
+# To Do
+# ~~~~~
+# * The RGB LED as a second signal device, after the library study (the
+#   plan's phase 7).  play() already takes a name and not a sound
+
+import threading
+import time
+
+__all__ = [
+    "BUZZER_GPIO", "FakeBuzzer", "GpioBuzzer", "PATTERNS", "choose_buzzer",
+    "pattern_seconds",
+]
+
+BUZZER_GPIO = 4                    # BCM, active high
+
+# Durations in seconds: on, off, on, off ...  The first four are the plan's
+# table.  "booted" and "shutdown" are the sounds that the learning scripts
+# made, so an operator who knows the hardware hears what they expect
+PATTERNS = {
+    "booted": (0.1, 0.1, 0.1),               # Two chirps: up, and holding
+    "pipeline": (0.4,),                      # One longer note: it is running
+    "shutdown": (0.05, 0.05, 0.05, 0.05, 0.05),     # Three fast chirps
+    "accepted": (0.5,),              # The press reached its three seconds
+}
+
+def pattern_seconds(name):
+    """How long the pattern takes.  A caller that must wait for a sound to
+    finish, such as the shutdown hook, needs this and not a guess"""
+
+    return round(sum(PATTERNS[name]), 3)
+
+class FakeBuzzer:
+    """No buzzer: the test double, and what a platform without one gets.
+    Every play() is recorded, with the pattern that was asked for"""
+
+    device = "none"
+
+    def __init__(self, **_):
+        self.played = []
+        self.opened = False
+        self.closed = False
+
+    def open(self):
+        self.opened = True
+
+    def play(self, name):
+        self.played.append(name)
+
+    def close(self):
+        self.closed = True
+
+class GpioBuzzer:
+    """A buzzer on one output line, through gpiozero.
+
+    play() returns at once and the pattern runs on a worker thread, because
+    a pattern sleeps and the event-loop thread must not (P2)"""
+
+    device = "gpio"
+
+    def __init__(self, gpio=BUZZER_GPIO, thread=True, sleeper=time.sleep,
+        **_):
+
+        self.gpio = gpio
+        self._thread = bool(thread)
+        self._sleep = sleeper
+        self._device = None
+        self._lock = threading.Lock()
+        self.played = []
+
+    def open(self):
+        from gpiozero import OutputDevice               # Only needed here
+
+        # active_high and initial_value=False: the line goes low here, and
+        # the board pulls it low anyway, so the buzzer is silent at open
+        self._device = OutputDevice(
+            self.gpio, active_high=True, initial_value=False)
+
+    def play(self, name):
+        """Sound one pattern.  An unknown name is refused, so that a typo is
+        silent rather than a long note"""
+
+        if name not in PATTERNS:
+            raise ValueError(
+                f'unknown pattern "{name}": one of {sorted(PATTERNS)}')
+        self.played.append(name)
+        if self._thread:
+            worker = threading.Thread(
+                target=self._run, args=(name,), daemon=True,
+                name=f"buzzer_{name}")
+            worker.start()
+            return worker
+        self._run(name)
+        return None
+
+    def close(self):
+        if self._device is not None:
+            try:
+                self._device.off()
+                self._device.close()
+            except Exception:                            # noqa: BLE001
+                pass
+            self._device = None
+
+    def _run(self, name):
+        """The pattern, on its own thread.  The lock keeps two patterns from
+        interleaving.  A failing buzzer must never raise into a caller that
+        is shutting a host down"""
+
+        with self._lock:
+            try:
+                for index, seconds in enumerate(PATTERNS[name]):
+                    self._set(index % 2 == 0)
+                    self._sleep(seconds)
+            finally:
+                self._set(False)
+
+    def _set(self, on):
+        if self._device is not None:
+            self._device.value = 1 if on else 0
+
+def choose_buzzer(buzzer="auto", **parameters):
+    """The buzzer for "buzzer": "gpio", "none", or "auto", which is the real
+    one where gpiozero can be imported and the fake one everywhere else.
+    Nothing is acquired here"""
+
+    import importlib.util
+
+    if buzzer == "auto":
+        buzzer = "gpio" if importlib.util.find_spec("gpiozero") else "none"
+    buzzers = {"gpio": GpioBuzzer, "none": FakeBuzzer}
+    if buzzer not in buzzers:
+        raise ValueError(
+            f'unknown buzzer "{buzzer}": one of {sorted(buzzers)}')
+    return buzzers[buzzer](**parameters)
+
+# --------------------------------------------------------------------------- #

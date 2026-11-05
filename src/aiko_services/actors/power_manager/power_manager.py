@@ -287,12 +287,32 @@ class PowerManagerCommon:
         The Service tags carry what an Implementation declares, which is
         known before a bus is opened.  The shared state carries what this
         host actually has, which is known only after.  A client filters on
-        the tag, then reads the share"""
+        the tag, then reads the share.
+
+        The hold and the artifacts of the operating system are published
+        here too, because open() is where both become knowable"""
 
         properties = tuple(self.properties())
         for name in PROPERTIES:
             self.ec_producer.update(name, name in properties)
+        self.ec_producer.update("hold_state", self.hold_state())
+        self.ec_producer.update("hook", self.hook_state())
         return properties
+
+    def hold_state(self):
+        """"on", "off" or "unknown".  An Implementation with no hold
+        property reports "unknown", which is what it is"""
+
+        return "unknown"
+
+    def hook_state(self):
+        """"installed", "missing" or "unknown" for the shutdown hook.
+
+        A host whose hook is missing fails safe and costs a charge: the pin
+        stays asserted and the halted host stays on the pack.  So this is
+        published rather than assumed"""
+
+        return "unknown"
 
     def set_period(self, seconds):
         """Change the seconds between samples"""
@@ -394,16 +414,22 @@ class PowerManagerCommon:
 # Phase 1 has no outputs ---------------------------------------------------- #
 
     def hold(self, on):
-        """A no-op while the "hold" property is absent (phase 2)"""
+        """A no-op where the "hold" property is absent"""
 
         self.logger.warning(
             f'hold({on}) ignored: this Implementation has no "hold" property')
 
     def signal(self, name):
-        """A no-op while the "signal" property is absent (phase 2)"""
+        """A no-op where the "signal" property is absent"""
 
         self.logger.warning(
             f'signal({name}) ignored: no "signal" property')
+
+    def _count(self, name):
+        """One more of a metric, published through the producer"""
+
+        self.ec_producer.update(
+            f"metrics.{name}", int(self.share["metrics"][name]) + 1)
 
     def add_handler(self, handler):
         """Recorded, and nothing fires it while there is no button or dock
