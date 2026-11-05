@@ -227,6 +227,29 @@ def test_an_absent_property_makes_its_method_a_no_op():
     actor.signal("booted")                           # Records, acts on nothing
     assert actor.signals == ["booted"]
 
+def test_running_the_mock_samples_on_a_timer():
+    """The mock is the registered DEFAULT Implementation, so a platform
+    with none of its own gets it from "aiko_power_manager run".
+
+    Its defaults used to be a test's defaults -- timer, telemetry and
+    worker all off -- which shadowed the Interface's own.  An Actor with
+    no sample timer publishes one snapshot and never again: measured on
+    2026-11-06 on macOS, where "run --device mock" sampled nothing and
+    the Dashboard page showed "-" for every reading.
+
+    So this composes the mock the way "run" does, saying nothing about
+    the timer, and asserts what it gets.  Every test that wants no timer
+    passes timer=False, which make_actor() does"""
+
+    actor = aiko.compose_instance(MockPowerManagerImpl, power_manager_args(
+        f"power_mock_timer_{next(_counter)}", "mock",
+        declared=MockPowerManagerImpl.DECLARED_PROPERTIES,
+        log_directory=None))
+    try:
+        assert actor._timer is True
+    finally:
+        actor.close()              # It removes the timer it added
+
 # The safe posture --------------------------------------------------------- #
 
 def test_the_allow_list_is_exactly_the_wire_surface():
