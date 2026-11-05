@@ -365,3 +365,36 @@ def test_a_test_can_still_watch_the_real_path():
         script=[{"battery_volts": 12.0, "docked": True}])
     actor.press(3.2)
     assert calls and actor.power_offs == []
+
+def test_the_mock_never_remounts_the_file_systems_it_runs_on():
+    """Worse than a real power-off, and reached the same way: a Quiesce
+    with no runner of its own runs "mount -o remount -o ro /" on the
+    machine running the test.  So the mock composes one that records"""
+
+    actor = make_actor(enforce=True,
+        properties=("readings", "hold", "signal", "button", "dock"),
+        script=[{"battery_volts": 9.0, "battery_pack_celsius": 25.0,
+            "docked": False}] * 3)
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1100.0)        # Past the grace
+    assert actor.syncs                                  # Recorded
+    assert actor.remounts == [
+        ["/usr/bin/sudo", "-n", "/usr/bin/mount", "-o", "remount", "-o",
+         "ro", "/"]]
+    assert actor.power_offs                             # And never run
+
+def test_an_injected_quiesce_still_wins():
+    """A test that wants its own behaviour gets it"""
+
+    from aiko_services.actors.power_manager import Quiesce
+
+    calls = []
+    actor = make_actor(enforce=True,
+        quiesce=Quiesce(syncer=lambda: None,
+            runner=lambda arguments: (calls.append(arguments), (0, ""))[1]),
+        properties=("readings", "hold", "signal", "button", "dock"),
+        script=[{"battery_volts": 9.0, "battery_pack_celsius": 25.0,
+            "docked": False}] * 3)
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1100.0)
+    assert calls and actor.remounts == []

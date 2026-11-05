@@ -56,16 +56,25 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
         self.holds = []                # Every hold() call, for a test
         self.signals = []              # Every signal() call, for a test
         self.power_offs = []           # Every power-off, for a test
+        self.remounts = []             # Every read-only remount, for a test
+        self.syncs = []                # Every file-system flush, for a test
 
-        # The mock never stops a real host.  Without this a test that
-        # reaches the acting path runs the privileged power-off of the
+        # The mock never touches a real host.  Without this a test that
+        # reaches the acting path runs the privileged commands of the
         # platform it is running on, and on a host with password-less
-        # privilege that test ends the session.  Found on 2026-11-05, when
-        # the button began to act while advisory and one test in this file
-        # reached "sudo systemctl poweroff" on the machine running it.
-        # A test that wants to watch the real path injects its own runner
+        # privilege it ends the session or remounts the root file system
+        # read-only.  Both were reached on 2026-11-05: the power-off when
+        # the button began to act while advisory, and the remount from a
+        # test that gave a Quiesce no runner of its own.  A test that wants
+        # to watch the real path injects its own
         if power_off_runner is None:
             power_off_runner = self._record_power_off
+        if quiesce is None:
+            from aiko_services.actors.power_manager.quiesce import Quiesce
+
+            quiesce = Quiesce(
+                syncer=lambda: self.syncs.append(True),
+                runner=self._record_remount)
 
         from aiko_services.actors.power_manager.power_manager import (
             BUTTON_SHUTDOWN, ENFORCE, PERIOD_DEVELOPMENT, SAFE
@@ -90,6 +99,13 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
         path can be tested without any host being stopped"""
 
         self.power_offs.append(list(arguments))
+        return 0, ""
+
+    def _record_remount(self, arguments):
+        """The same for the read-only remount.  A real one on a developer's
+        machine is worse than a real power-off"""
+
+        self.remounts.append(list(arguments))
         return 0, ""
 
     def open(self):

@@ -28,6 +28,19 @@ from aiko_services.actors.power_manager.render import granted_commands
 
 _counter = itertools.count()
 
+def quiesce_of(**parameters):
+    """A Quiesce that touches nothing.
+
+    Every test here goes through this, because a Quiesce with no runner of
+    its own runs the real "mount -o remount -o ro /" of the machine running
+    the test.  On a host with password-less privilege that remounts the
+    root file system read-only, which is worse than a real power-off.  One
+    test reached it on 2026-11-05"""
+
+    settings = {"syncer": lambda: None, "runner": runner_of()}
+    settings.update(parameters)
+    return Quiesce(**settings)
+
 def runner_of(code=0, output="", calls=None):
     def runner(arguments):
         if calls is not None:
@@ -76,7 +89,7 @@ def test_advisory_still_enters_the_quiesce_mode():
 
     actor = make_actor(
         properties=("readings", "hold", "signal", "button", "dock"),
-        script=[undocked(volts=9.0)], quiesce=Quiesce(syncer=lambda: None))
+        script=[undocked(volts=9.0)], quiesce=quiesce_of(syncer=lambda: None))
     actor.sample()
     assert actor.share["mode"] == MODE_QUIESCE
     assert actor.share["quiesce"]["synced"] == "yes"
@@ -92,7 +105,7 @@ def enforcing(script, calls=None, **extra):
         # grace=0 unless a test is about the grace: at the floor the host
         # flushes, waits for its writers, remounts and only then stops, so
         # a test of the stopping must not also wait
-        "quiesce": Quiesce(
+        "quiesce": quiesce_of(
             syncer=lambda: None, runner=runner_of(), grace=0.0),
     }
     settings.update(extra)
@@ -153,7 +166,7 @@ def test_the_remount_waits_out_its_grace_before_the_power_off():
 
     power, mount = [], []
     actor = enforcing([undocked(volts=9.0)], calls=power,
-        quiesce=Quiesce(syncer=lambda: None, runner=runner_of(calls=mount),
+        quiesce=quiesce_of(syncer=lambda: None, runner=runner_of(calls=mount),
             grace=5.0))
     actor._evaluate(actor.reading(), now=100.0)
     assert mount == [] and power == []           # Still inside the grace
@@ -168,7 +181,7 @@ def test_a_failed_remount_still_stops_the_host():
 
     power = []
     actor = enforcing([undocked(volts=9.0)], calls=power,
-        quiesce=Quiesce(syncer=lambda: None,
+        quiesce=quiesce_of(syncer=lambda: None,
             runner=runner_of(code=32, output="target is busy"), grace=0.0))
     actor._evaluate(actor.reading(), now=100.0)
     assert actor.share["quiesce"]["remounted"].startswith("failed")
@@ -180,7 +193,7 @@ def test_a_shutdown_that_is_not_at_the_floor_does_not_remount():
 
     mount = []
     actor = enforcing([undocked(volts=12.0)],
-        quiesce=Quiesce(syncer=lambda: None, runner=runner_of(calls=mount),
+        quiesce=quiesce_of(syncer=lambda: None, runner=runner_of(calls=mount),
             grace=0.0))
     actor.press(3.2)
     assert actor.share["policy_reason"] == "button_held"
@@ -214,7 +227,7 @@ def test_the_quiesce_hook_is_declared_and_fires():
     fired = []
     actor = make_actor(
         properties=("readings", "hold", "signal", "button", "dock"),
-        script=[undocked(volts=9.0)], quiesce=Quiesce(syncer=lambda: None))
+        script=[undocked(volts=9.0)], quiesce=quiesce_of(syncer=lambda: None))
     actor.add_hook_handler(HOOK_QUIESCE,
         lambda name, component, logger, variables, options:
             fired.append(variables))
@@ -226,7 +239,7 @@ def test_the_disks_are_flushed_once_however_many_samples_follow():
     actor = make_actor(
         properties=("readings", "hold", "signal", "button", "dock"),
         script=[undocked(volts=9.0)],
-        quiesce=Quiesce(syncer=lambda: synced.append("sync")))
+        quiesce=quiesce_of(syncer=lambda: synced.append("sync")))
     for _ in range(3):
         actor.sample()
     assert synced == ["sync"]
@@ -275,7 +288,7 @@ def make_grace_actor(seconds, calls=None, **extra):
         "enforce": True,
         "properties": ("readings", "hold", "signal", "button", "dock"),
         "thresholds": {**THRESHOLDS, "powered_down_grace_s": seconds},
-        "quiesce": Quiesce(syncer=lambda: None),
+        "quiesce": quiesce_of(syncer=lambda: None),
         "power_off_runner": runner_of(calls=calls),
     }
     settings.update(extra)
@@ -380,7 +393,7 @@ def make_button_actor(script, **extra):
     settings = {
         "properties": ("readings", "hold", "signal", "button", "dock"),
         "script": script, "button_shutdown": False,
-        "quiesce": Quiesce(syncer=lambda: None),
+        "quiesce": quiesce_of(syncer=lambda: None),
         "power_off_runner": runner_of(),
     }
     settings.update(extra)
@@ -466,8 +479,100 @@ def test_a_battery_shutdown_still_waits_out_its_grace():
     actor = make_actor(enforce=True,
         properties=("readings", "hold", "signal", "button", "dock"),
         script=[undocked(volts=9.6), undocked(volts=9.6)],
-        quiesce=Quiesce(syncer=lambda: None),
+        quiesce=quiesce_of(syncer=lambda: None),
         power_off_runner=runner_of(calls=calls))
     actor.sample()
     assert calls == []
     assert actor.share["metrics"]["shutdowns"] == 0
+
+# The remount grace waits on its own timer --------------------------------- #
+#
+# Recorded as a defect on 2026-11-05 and fixed here.  _act() entered the
+# quiesce and returned, and the remount happened on the next call.  The
+# next call came from the sample timer, so on a host that samples once a
+# minute a shutdown at the voltage floor waited most of a minute between
+# the flush and the remount: the case where a delay costs the most, because
+# the battery pack is nearly empty.
+
+def timed(monkeypatch, added, removed=None, **extra):
+    """An Actor with its timers recorded rather than added to the loop"""
+
+    from aiko_services.main import event
+
+    monkeypatch.setattr(event, "add_timer_handler",
+        lambda handler, period, immediate=False: added.append(
+            (handler, period)))
+    monkeypatch.setattr(event, "remove_timer_handler",
+        lambda handler: (removed if removed is not None else []).append(
+            handler))
+    settings = {
+        "enforce": True, "timer": True,
+        "properties": ("readings", "hold", "signal", "button", "dock"),
+        "quiesce": quiesce_of(syncer=lambda: None),
+        "power_off_runner": runner_of(),
+        "script": [undocked(volts=9.0)] * 4,
+    }
+    settings.update(extra)
+    return make_actor(**settings)
+
+def test_the_grace_asks_for_a_timer_of_its_own(monkeypatch):
+    """Otherwise the remount waits for the next sample"""
+
+    added = []
+    actor = timed(monkeypatch, added)
+    actor.sample()
+    assert actor.share["mode"] == MODE_QUIESCE
+    assert actor._grace_timer in [handler for handler, _ in added]
+
+def test_the_timer_asks_for_the_grace_and_not_the_sample_period(monkeypatch):
+    added = []
+    actor = timed(monkeypatch, added,
+        quiesce=quiesce_of(syncer=lambda: None, grace=3.0))
+    actor.sample()
+    assert dict(added)[actor._grace_timer] == 3.0
+
+def test_an_actor_with_no_timer_gains_none(monkeypatch):
+    """A test drives the decision itself, and an Actor composed without a
+    timer must not grow one here"""
+
+    added = []
+    actor = timed(monkeypatch, added, timer=False)
+    actor.sample()
+    assert actor._grace_timer not in [handler for handler, _ in added]
+
+def test_the_timer_takes_itself_away_when_it_fires(monkeypatch):
+    """One shot.  A repeating timer would decide for ever after one floor"""
+
+    added, removed = [], []
+    actor = timed(monkeypatch, added, removed=removed)
+    actor.sample()
+    actor._grace_timer()
+    assert actor._grace_timer in removed
+
+def test_the_grace_timer_finishes_the_shutdown():
+    """The point of it.  The first decision flushes and waits, and the
+    wake-up does the remount and the power-off seconds later, rather than a
+    sample period later"""
+
+    calls = []
+    actor = make_actor(enforce=True, timer=False,
+        properties=("readings", "hold", "signal", "button", "dock"),
+        quiesce=quiesce_of(grace=5.0),
+        power_off_runner=runner_of(calls=calls),
+        script=[undocked(volts=9.0)] * 4)
+    actor._evaluate(actor.reading(), now=1000.0)
+    assert calls == []                           # The grace has not passed
+    actor._evaluate(actor.reading(), now=1005.0)   # What the wake-up does
+    assert actor.share["metrics"]["shutdowns"] == 1
+    assert calls
+
+def test_closing_takes_away_a_grace_that_never_finished(monkeypatch):
+    """Otherwise the event loop keeps a timer for an Actor that is gone,
+    which the leak report counts"""
+
+    added, removed = [], []
+    actor = timed(monkeypatch, added, removed=removed)
+    actor.sample()
+    actor.close()
+    assert actor._grace_timer in removed
+    assert actor._sample_timer in removed

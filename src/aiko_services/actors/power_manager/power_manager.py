@@ -713,6 +713,31 @@ class PowerManagerCommon:
     def _sample_timer(self):
         self.sample()
 
+    def _wake_after_grace(self):
+        """Come back when the remount grace has passed, and not at the next
+        sample.
+
+        The grace is a few seconds and a sample period can be a minute.
+        Without this a host that decided to stop at its voltage floor runs
+        on, and lets its applications write, for most of a minute after the
+        decision.  That is the case where a delay costs the most, because
+        the battery pack is nearly empty.
+
+        An Actor composed without a timer is driven by its tests, which
+        call the decision themselves, so it gains no timer here.  Nor does
+        an advisory one, which has no shutdown to finish"""
+
+        if not self._timer or not self._enforce:
+            return                     # Nothing waits on a grace to act
+        aiko.event.add_timer_handler(
+            self._grace_timer, float(self._quiesce.grace))
+
+    def _grace_timer(self):
+        """One shot: it takes itself away, then decides again"""
+
+        aiko.event.remove_timer_handler(self._grace_timer)
+        self._evaluate(self.reading())
+
     def _read_guarded(self):
         """read(), with every device failure turned into a reading that says
         so.  A sensor that stops answering must not stop the Actor"""
@@ -862,6 +887,10 @@ class PowerManagerCommon:
             return
         self._count("quiesces")
         outcome = self._quiesce.enter(now)
+        # The grace starts here in the ordinary path, so this is where the
+        # wake-up belongs.  _act() has the same call for the case where
+        # nothing entered the mode
+        self._wake_after_grace()
         if outcome and not outcome[0]:
             self.logger.error(f"Sync failed: {outcome[1]}")
             self.ec_producer.update("last_error", outcome[1][:120])
@@ -904,6 +933,7 @@ class PowerManagerCommon:
             # started.  Otherwise a mode that never changed would leave the
             # host running on the last of its charge for ever
             self._quiesce.enter(now)
+            self._wake_after_grace()
             return
         if at_floor and self._quiesce.ready_to_remount(now):
             outcome = self._quiesce.remount()
@@ -1048,9 +1078,14 @@ class PowerManagerCommon:
         hold.
 
         Every Lease carries two event-loop timers, so a register that is
-        not terminated leaves them behind"""
+        not terminated leaves them behind.  So do the sample timer and a
+        remount grace that never finished"""
 
         self._powered_up.terminate()
+        if self._timer:
+            aiko.event.remove_timer_handler(self._sample_timer)
+            # A grace that never finished leaves its timer behind otherwise
+            aiko.event.remove_timer_handler(self._grace_timer)
         if self._log:
             self._log.close()
 
