@@ -19,7 +19,8 @@
 import pytest
 
 from aiko_services.actors.power_manager import (
-    Dwell, HOLD, MODE_CONSERVE, MODE_NORMAL, MODE_QUIESCE, REASONS, SHUTDOWN,
+    Dwell, HOLD, MODES, MODE_CONSERVE, MODE_NORMAL, MODE_QUIESCE, REASONS,
+    SHUTDOWN,
     THRESHOLDS, decide, decide_mode,
 )
 
@@ -315,3 +316,95 @@ def test_every_mode_is_one_of_the_declared_ones():
         assert decide_mode(*case, THRESHOLDS)[0] in MODES
 
 # --------------------------------------------------------------------------- #
+
+# The application grace ---------------------------------------------------- #
+#
+# Goal 3.  A host on its battery pack does not want a recording nobody
+# asked for: the transfer queue grows with work that is not wanted, and
+# then holds the host up to drain it.  So the writers are told to stop
+# before the host stops, and MODE_CONSERVE is how they are told.
+
+def mode_with(application=None, **changes):
+    """One mode decision, on an undocked host that is otherwise well"""
+
+    thresholds = {**THRESHOLDS,
+        "powered_down_application_grace_s": application}
+    case = dict(mode=MODE_NORMAL, decision=HOLD, volts=12.0, docked=False,
+        hook_state="installed", thresholds=thresholds, undocked_s=0.0)
+    case.update(changes)
+    return decide_mode(**case)
+
+def test_no_application_grace_conserves_at_once():
+    """What an undocked host did before this threshold existed"""
+
+    assert THRESHOLDS["powered_down_application_grace_s"] is None
+    assert mode_with() == (MODE_CONSERVE, "undocked")
+
+def test_inside_the_application_grace_the_mode_stays_normal():
+    """A supply that went for a moment must not stop a recording"""
+
+    assert mode_with(application=120.0, undocked_s=60.0)  \
+        == (MODE_NORMAL, "application_grace")
+
+def test_past_the_application_grace_the_host_conserves():
+    assert mode_with(application=120.0, undocked_s=121.0)  \
+        == (MODE_CONSERVE, "undocked")
+
+def test_the_application_grace_is_a_boundary():
+    assert mode_with(application=120.0, undocked_s=120.0)[0] == MODE_NORMAL
+    assert mode_with(application=120.0, undocked_s=120.1)[0] == MODE_CONSERVE
+
+def test_a_dock_ends_the_application_grace_whatever_it_counted():
+    """Writing is okay again as soon as the supply is back"""
+
+    assert mode_with(application=120.0, undocked_s=999.0, docked=True)  \
+        == (MODE_NORMAL, "docked")
+
+def test_an_application_grace_of_zero_is_off():
+    for value in (0, 0.0, -1.0):
+        assert mode_with(application=value, undocked_s=1.0)[0]  \
+            == MODE_CONSERVE, value
+
+def test_the_battery_pack_still_beats_the_application_grace():
+    """The grace is about work that is not wanted.  A pack near its quiesce
+    voltage is about a host that is about to lose its power"""
+
+    assert mode_with(application=3600.0, undocked_s=1.0, volts=10.1)  \
+        == (MODE_QUIESCE, "battery")
+
+def test_a_decision_to_stop_still_beats_the_application_grace():
+    assert mode_with(application=3600.0, undocked_s=1.0, decision=SHUTDOWN) \
+        == (MODE_QUIESCE, "policy")
+
+def test_a_missing_hook_still_beats_the_application_grace():
+    assert mode_with(application=3600.0, undocked_s=1.0,
+        hook_state="missing") == (MODE_QUIESCE, "hook_missing")
+
+def test_quiesce_is_never_left_by_an_application_grace():
+    """A mode never returns to normal without a dock"""
+
+    assert mode_with(application=3600.0, undocked_s=1.0,
+        mode=MODE_QUIESCE)[0] == MODE_QUIESCE
+
+def test_the_application_grace_reason_is_a_declared_word():
+    from aiko_services.actors.power_manager.policy import REASONS
+
+    assert "application_grace" in REASONS
+
+# What an application asks -------------------------------------------------- #
+
+def test_writing_is_okay_only_in_the_normal_mode():
+    """One boolean, derived in one place, so a later reason to stop writing
+    needs no change in any client"""
+
+    from aiko_services.actors.power_manager.policy import writing_ok
+
+    assert writing_ok(MODE_NORMAL) is True
+    assert writing_ok(MODE_CONSERVE) is False
+    assert writing_ok(MODE_QUIESCE) is False
+
+def test_every_mode_has_an_answer():
+    from aiko_services.actors.power_manager.policy import writing_ok
+
+    for mode in MODES:
+        assert isinstance(writing_ok(mode), bool), mode

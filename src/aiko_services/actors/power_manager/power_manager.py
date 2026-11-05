@@ -52,7 +52,8 @@ from aiko_services.main.utilities import get_hostname
 
 from aiko_services.actors.power_manager.log import PowerLog
 from aiko_services.actors.power_manager.policy import (
-    Dwell, HOLD, MODE_NORMAL, MODE_QUIESCE, SHUTDOWN, decide, decide_mode
+    Dwell, HOLD, MODE_NORMAL, MODE_QUIESCE, SHUTDOWN, decide, decide_mode,
+    writing_ok as policy_writing_ok
 )
 from aiko_services.actors.power_manager.quiesce import (
     HOOK_QUIESCE, Quiesce
@@ -147,6 +148,11 @@ THRESHOLDS = {
     # which is the default, and then the backstop above is the only
     # deadline.  A deployment that sets this sets it far shorter
     "powered_down_grace_s": None,
+    # How long the host stays undocked before an application is told to
+    # stop writing.  It must be shorter than the deadline above, so that
+    # the writers stop before the host does.  None is off, and then an
+    # undocked host conserves at once
+    "powered_down_application_grace_s": None,
     "powered_up_grace_s": 60.0,      # After the last Lease is released
     "dock_dwell_s": DOCK_DWELL_S,  # Before an undock is believed
     # The limits on the request surface, which ADR-028 decision 13 makes
@@ -158,6 +164,34 @@ THRESHOLDS = {
     "working_dwell_s": WORKING_DWELL_S,
     "working_reporters_maximum": WORKING_REPORTERS_MAXIMUM,
 }
+
+def _grace_order(thresholds):
+    """The one rule that relates two thresholds, checked where they meet.
+
+    The writers must stop before the host does, so the deadline must be
+    longer than the application grace.  An inconsistent pair is reported
+    and the application grace is turned off, which is the behavior from
+    before that threshold existed.  A mistyped setting must not stop a host,
+    and it must not be silent either: the reason is published in
+    "last_error", and the command line refuses the pair outright, where a
+    person is there to read it.
+
+    Returns the diagnostic, or None.  It changes the thresholds in place"""
+
+    deadline = thresholds.get("powered_down_grace_s")
+    application = thresholds.get("powered_down_application_grace_s")
+    if deadline is None or application is None:
+        return None                # Either one alone is consistent
+    try:
+        deadline, application = float(deadline), float(application)
+    except (TypeError, ValueError):
+        return None                # _number() already ignores what it
+                                   #   cannot read
+    if application <= 0 or deadline > application:
+        return None
+    thresholds["powered_down_application_grace_s"] = None
+    return (f"powered_down_application_grace_s {application:g} is not less "
+        f"than powered_down_grace_s {deadline:g}: turned off")
 
 class PowerManager(aiko.Actor):
     """What the supply and the battery are doing, and what to do about it.
@@ -351,6 +385,7 @@ class PowerManagerCommon:
         self._telemetry = bool(telemetry)
         self._thresholds = dict(THRESHOLDS)
         self._thresholds.update(thresholds or {})
+        self._threshold_error = _grace_order(self._thresholds)
         self._period = self._valid_period(period)
         self._log = PowerLog(log_directory, keep_days) if log_directory  \
             else None
@@ -407,12 +442,16 @@ class PowerManagerCommon:
             "button_shutdown": self._button_shutdown,
             "mode": self._mode,
             "mode_reason": "-",
+            # The one thing an application asks of this Actor.  It is
+            # published rather than answered, so a writer subscribes and
+            # needs no function of its own (P3)
+            "writing_ok": policy_writing_ok(self._mode),
             "undocked_since_utc": "-",
             "hold_state": "unknown",
             "hook": "unknown",
             "sample_period_s": f"{self._period:.1f}",
             "log": str(self._log.directory) if self._log else "-",
-            "last_error": "-",
+            "last_error": self._threshold_error or "-",
             # A threshold that is None is off, and it publishes as "-"
             # rather than as the word "None": the shared state is read by
             # an operator, and "None" reads like a fault
@@ -824,7 +863,7 @@ class PowerManagerCommon:
             undocked_s, battery_low_s, powered_up_idle_s, thresholds)
         mode, mode_reason = decide_mode(
             self._mode, decision, reading.battery_volts, docked,
-            self.hook_state(), thresholds)
+            self.hook_state(), thresholds, undocked_s)
 
         self._publish_decision(
             decision, reason, mode, mode_reason, docked, undocked_s, now)
@@ -879,7 +918,9 @@ class PowerManagerCommon:
 
         self._mode = mode
         self.ec_producer.update("mode", mode)
-        self.logger.info(f"Power mode: {mode} ({reason})")
+        self.ec_producer.update("writing_ok", policy_writing_ok(mode))
+        self.logger.info(f"Power mode: {mode} ({reason}), "
+            f"writing {'okay' if policy_writing_ok(mode) else 'not okay'}")
         # Every client that holds a claim hears the mode, so it can stop
         # writing without watching the shared state for itself
         self._notify_holders("power_mode", mode, reason)

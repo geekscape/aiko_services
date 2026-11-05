@@ -262,3 +262,51 @@ def test_the_grace_period_is_in_the_run_help():
     assert "default: off" in result.output
 
 # --------------------------------------------------------------------------- #
+
+# The application grace ---------------------------------------------------- #
+
+def test_the_application_grace_is_off_unless_it_is_asked_for(monkeypatch):
+    actor, _ = run_with(monkeypatch)
+    assert actor.share["thresholds"][
+        "powered_down_application_grace_s"] == "-"
+
+def test_the_application_grace_option_reaches_the_policy(monkeypatch):
+    actor, _ = run_with(monkeypatch,
+        "--powered_down_application_grace", "120")
+    assert actor.share["thresholds"][
+        "powered_down_application_grace_s"] == "120.0"
+
+def test_the_application_grace_has_a_short_option(monkeypatch):
+    actor, _ = run_with(monkeypatch, "-a", "45")
+    assert actor.share["thresholds"][
+        "powered_down_application_grace_s"] == "45.0"
+
+def test_both_graces_together_are_accepted_in_the_right_order(monkeypatch):
+    actor, result = run_with(monkeypatch, "-a", "120", "-g", "300")
+    assert actor.share["thresholds"][
+        "powered_down_application_grace_s"] == "120.0"
+    assert actor.share["thresholds"]["powered_down_grace_s"] == "300.0"
+    assert actor.share["last_error"] == "-"
+    assert "writers stop in 120 s" in result.output
+
+def test_the_wrong_order_is_refused_where_a_person_can_read_why():
+    """The writers must stop before the host does.  The command line
+    refuses the pair outright, because a person is here"""
+
+    for application, deadline in (("300", "300"), ("400", "300")):
+        result = CliRunner().invoke(main, ["run", "--device", "mock",
+            "--no_log", "--inputs", "none",
+            "-a", application, "-g", deadline])
+        assert result.exit_code != 0, (application, deadline)
+        assert "must be less than" in result.output, (application, deadline)
+
+def test_an_application_grace_alone_is_accepted(monkeypatch):
+    """Either one alone is consistent: the backstop is the other deadline"""
+
+    actor, _ = run_with(monkeypatch, "-a", "120")
+    assert actor.share["last_error"] == "-"
+
+def test_the_application_grace_is_in_the_run_help():
+    result = CliRunner().invoke(main, ["run", "--help"])
+    assert "--powered_down_application_grace" in result.output
+    assert "Must be less than" in result.output

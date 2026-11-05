@@ -65,6 +65,30 @@ DEVICES = ["auto", "pmm", "mock"]
 def main():
     """Report the supply and the battery of this host, and log them"""
 
+def _thresholds(powered_down_grace, powered_down_application_grace):
+    """The thresholds that the two options set, and the one rule between
+    them.
+
+    The writers must stop before the host does, so the deadline must be
+    longer than the application grace.  The command line refuses the pair,
+    because a person is here to read why.  The Actor is defensive about the
+    same pair, for a deployment that sets them some other way"""
+
+    if powered_down_grace and powered_down_application_grace  \
+        and powered_down_application_grace >= powered_down_grace:
+        raise click.UsageError(
+            f"--powered_down_application_grace "
+            f"{powered_down_application_grace:g} must be less than "
+            f"--powered_down_grace {powered_down_grace:g}: the writers stop "
+            "before the host does")
+    thresholds = {}
+    if powered_down_grace:
+        thresholds["powered_down_grace_s"] = powered_down_grace
+    if powered_down_application_grace:
+        thresholds["powered_down_application_grace_s"] =  \
+            powered_down_application_grace
+    return thresholds or None
+
 @main.command(name="run")
 @click.option("--name", "-n", type=str, default=None,
     help="Actor name, default is the local host name")
@@ -94,9 +118,15 @@ def main():
     type=float, default=None,
     help="Seconds to stay up after the supply goes, whatever work is "
          "claimed [default: off, and then only the backstop applies]")
+@click.option("--powered_down_application_grace", "-a",
+    "powered_down_application_grace", type=float, default=None,
+    help="Seconds to stay undocked before an application is told to stop "
+         "writing.  Must be less than --powered_down_grace "
+         "[default: off, and then an undocked host conserves at once]")
 
 def run_command(name, device, period, log_directory, no_log, keep_days, safe,
-    enforce, inputs, button_shutdown, powered_down_grace):
+    enforce, inputs, button_shutdown, powered_down_grace,
+    powered_down_application_grace):
     """Run the PowerManager Actor
 
     \b
@@ -123,6 +153,14 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
     system.
 
     \b
+    --powered_down_application_grace is the earlier of the two, and it is
+    what stops an application writing. When the supply goes and does not
+    come back, this many seconds later every writer that is watching is
+    told to stop. A supply that comes back allows writing again and the
+    count starts from zero. The point of it is that a transfer queue stops
+    growing with work nobody wants, so it drains and lets the host stop.
+
+    \b
     --powered_down_grace is off by default, and then a host stays up while
     any client holds a powered-up Lease, up to the backstop on an undocked
     hold.  Set it, and the host stops that many seconds after the supply
@@ -138,8 +176,8 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
         period=period, keep_days=keep_days, safe=safe, enforce=enforce,
         button_shutdown=button_shutdown,
         inputs=choose_power_inputs(inputs),
-        thresholds={"powered_down_grace_s": powered_down_grace}
-            if powered_down_grace else None,
+        thresholds=_thresholds(
+            powered_down_grace, powered_down_application_grace),
         log_directory=None if no_log else log_directory)
     power_manager = aiko.compose_instance(implementation, init_args)
     try:
@@ -159,6 +197,9 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
     click.echo("# a three second button press "
         f"{'stops this host' if button_shutdown else 'is reported and not acted on'}",
         err=True)
+    if powered_down_application_grace:
+        click.echo("# the supply going means the writers stop in "
+            f"{powered_down_application_grace:g} s", err=True)
     if powered_down_grace:
         click.echo(f"# the supply going means a stop in "
             f"{powered_down_grace:g} s, whatever work is claimed"

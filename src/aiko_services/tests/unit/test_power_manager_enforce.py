@@ -576,3 +576,91 @@ def test_closing_takes_away_a_grace_that_never_finished(monkeypatch):
     actor.close()
     assert actor._grace_timer in removed
     assert actor._sample_timer in removed
+
+# What an application is told ---------------------------------------------- #
+#
+# Goal 3.  "writing_ok" is published rather than answered, so a writer
+# subscribes to it and this Actor keeps no register of writers (P3).
+
+def test_writing_is_okay_on_a_docked_host():
+    actor = make_actor()
+    assert actor.share["writing_ok"] is True
+
+def test_writing_stops_when_the_host_conserves():
+    actor = make_actor(
+        properties=("readings", "hold", "signal", "button", "dock"),
+        script=[undocked(), undocked(), undocked()])
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)       # Past the dock dwell
+    assert actor.share["mode"] == MODE_CONSERVE
+    assert actor.share["writing_ok"] is False
+
+def test_the_application_grace_keeps_writing_going_for_a_while():
+    """A supply that went for a moment must not stop a recording"""
+
+    actor = make_actor(
+        properties=("readings", "hold", "signal", "button", "dock"),
+        thresholds={**THRESHOLDS,
+            "powered_down_application_grace_s": 120.0,
+            "powered_down_grace_s": 300.0},
+        script=[undocked()] * 4)
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)       # Undocked, inside it
+    assert actor.share["writing_ok"] is True
+    assert actor.share["mode_reason"] == "application_grace"
+    actor._evaluate(actor.reading(), now=1130.0)       # Past it
+    assert actor.share["writing_ok"] is False
+
+def test_a_supply_that_returns_allows_writing_again():
+    """The other half of what the lead asked for"""
+
+    docked_reading = {"battery_volts": 12.0,
+        "battery_pack_celsius": 25.0, "docked": True}
+    actor = make_actor(
+        properties=("readings", "hold", "signal", "button", "dock"),
+        script=[undocked(), undocked(), docked_reading, docked_reading])
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    assert actor.share["writing_ok"] is False
+    actor._evaluate(actor.reading(), now=1030.0)
+    assert actor.share["writing_ok"] is True
+    assert actor.share["mode_reason"] == "docked"
+
+def test_writing_stops_in_the_quiesce_mode_too():
+    actor = make_actor(enforce=False,
+        properties=("readings", "hold", "signal", "button", "dock"),
+        script=[undocked(volts=9.0)])
+    actor.sample()
+    assert actor.share["mode"] == MODE_QUIESCE
+    assert actor.share["writing_ok"] is False
+
+# The one rule between the two graces -------------------------------------- #
+
+def test_an_application_grace_shorter_than_the_deadline_is_kept():
+    actor = make_actor(thresholds={**THRESHOLDS,
+        "powered_down_application_grace_s": 120.0,
+        "powered_down_grace_s": 300.0})
+    assert actor.share["thresholds"]["powered_down_application_grace_s"]  \
+        == "120.0"
+    assert actor.share["last_error"] == "-"
+
+def test_an_application_grace_at_or_past_the_deadline_is_turned_off():
+    """The writers must stop before the host does.  A mistyped pair must
+    not stop a host, and it must not be silent either"""
+
+    for application in (300.0, 400.0):
+        actor = make_actor(thresholds={**THRESHOLDS,
+            "powered_down_application_grace_s": application,
+            "powered_down_grace_s": 300.0})
+        assert actor.share["thresholds"][
+            "powered_down_application_grace_s"] == "-", application
+        assert "not less than" in actor.share["last_error"], application
+
+def test_an_application_grace_with_no_deadline_is_kept():
+    """Either one alone is consistent: the backstop is the other deadline"""
+
+    actor = make_actor(thresholds={**THRESHOLDS,
+        "powered_down_application_grace_s": 120.0})
+    assert actor.share["thresholds"]["powered_down_application_grace_s"]  \
+        == "120.0"
+    assert actor.share["last_error"] == "-"

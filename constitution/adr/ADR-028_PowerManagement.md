@@ -363,6 +363,42 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     the acting path would otherwise stop the machine that runs the test suite, which this
     change discovered on a host with password-less privilege.
 
+16. **An application is told when to stop writing, and it is told by subscription.** A host
+    on its battery pack has work it still wants and work it does not. A recording that nobody
+    asked for fills a transfer queue, and the queue then holds the host up to drain it. So the
+    writers stop before the host does.
+
+    The mode of decision 11 is the answer, and one boolean derives from it: writing is wanted
+    only in the normal mode. The Actor publishes that boolean in its shared state, and a
+    writer replicates that one item. So this Actor keeps no register of writers, has no limit
+    to set and does not know who listens, and any number of writers cost it nothing. This is
+    "state observation is subscription", and it means a new reason to stop writing is a change
+    in this Actor's policy alone.
+
+    **It is true until something says otherwise.** A host with no power manager, one not yet
+    found, and a value not yet received all answer that writing is wanted. Adding the client
+    therefore changes nothing until a power manager is running and says to stop. A power
+    manager that goes away allows writing again, because a host whose power manager died must
+    not stop recording for ever. The opposite default would lose data on every host that has
+    no battery pack, which is most of them.
+
+    **Two deadlines, and the writers' one is the shorter.** A supply that goes for a moment
+    must not stop a recording, so a host stays undocked for an application grace before the
+    mode says to stop. The deadline of decision 13 is the second and longer one, after which
+    the host itself stops. The rule between them is that the writers stop before the host
+    does, so the application grace must be shorter. The command line refuses an inconsistent
+    pair, where a person is there to read why. The Actor turns the application grace off
+    instead, reports that in its shared state, and runs as it did before the threshold
+    existed: a mistyped setting must not stop a host, and it must not be silent either.
+
+    A dock allows writing again and the count starts from zero, as the deadline's count does,
+    because both measure how long the host has been undocked.
+
+    A writer that is told to stop closes the work in hand first. A closed segment is
+    forwarded, so the queue drains and the host may stop sooner, which is the point of the
+    whole arrangement. Dropping the frames after it is not an error: the stream carries on
+    and writes again as soon as the host says so.
+
 ## Consequences
 
 **Good.**

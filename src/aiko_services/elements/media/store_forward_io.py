@@ -21,6 +21,14 @@
 #        "(store_forward://~/store_forward/out)"  \
 #     -p VideoWriteStoreForward.segment_seconds 5 -p CaptureLimit.duration 20
 #
+# This element stops writing when the host says so (ADR-028 decision 14).
+# The reason is the transfer queue: a host on its battery pack that keeps
+# recording fills the queue with work nobody asked for, and then holds
+# itself up to drain it.  A power manager that sees the supply gone says
+# "writing_ok" is false, this element closes the segment in hand so it can
+# go, and the frames after it are dropped.  A host with no power manager is
+# unaffected, because the answer is true until something says otherwise.
+#
 # To Do
 # ~~~~~
 # - fMP4 (fragmented MP4) segments, so a partially received segment plays
@@ -38,6 +46,7 @@ import aiko_services as aiko
 from aiko_services.main.store_forward.store_forward_message import (
     utc_now, valid_segment_name
 )
+from aiko_services.main.writing_client import WritingClient
 import aiko_services.elements.media.scheme_store_forward  # "store_forward://"
 
 __all__ = ["VideoWriteStoreForward", "segment_file_name"]
@@ -107,10 +116,16 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
         context.call_init(self, "PipelineElement", context)
         self.share.update({
             "outbox": "-", "segment": "-", "segments_written": "0",
-            "frames_written": "0", "last_segment_utc": "-"
+            "frames_written": "0", "last_segment_utc": "-",
+            # Why nothing is being written, when nothing is
+            "writing_ok": True, "frames_skipped": "0"
         })
         self._segments_written = 0
         self._frames_written = 0
+        self._frames_skipped = 0
+        # Whether this host wants to be written to.  True until a power
+        # manager says otherwise, so a host without one is unaffected
+        self._writing = None
 
     def start_stream(self, stream, stream_id):
         stream_event, diagnostic = super().start_stream(stream, stream_id)
@@ -125,7 +140,38 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
         stream.variables["segment_temp"] = None
         stream.variables["segment_frames"] = 0
         stream.variables["segment_started"] = None
+        if self._writing is None:
+            self._writing = WritingClient(self, handler=self._writing_change)
+            self._writing.open()
         return aiko.StreamEvent.OKAY, {}
+
+    def _skipping(self, stream, images):
+        """Whether to drop these frames rather than write them.
+
+        A host on its battery pack does not want a recording that nobody
+        asked for: the transfer queue would grow with work that is not
+        wanted, and then hold the host up to drain it.  So the segment in
+        hand is closed, which lets it go, and the frames after it are
+        dropped rather than queued.
+
+        Dropping frames is not an error.  The stream carries on, and it
+        writes again as soon as the host says so"""
+
+        if self._writing is None or self._writing.writing_ok():
+            return False
+        if stream.variables.get("segment_writer") is not None:
+            self._close_segment(stream)
+        self._frames_skipped += len(images)
+        self.ec_producer.update("frames_skipped", str(self._frames_skipped))
+        return True
+
+    def _writing_change(self, writing_ok):
+        """The power manager changed its mind.  Recorded for an operator,
+        and acted on at the next frame"""
+
+        self.ec_producer.update("writing_ok", writing_ok)
+        self.logger.info(f"{self.my_id()}: writing "
+            f"{'okay' if writing_ok else 'not okay'}")
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         if images and not isinstance(images[0], np.ndarray):
@@ -138,6 +184,9 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
             "segment_frames", DEFAULT_SEGMENT_FRAMES)
         segment_seconds = float(segment_seconds)  # parameters may be strings
         segment_frames = int(segment_frames)
+
+        if self._skipping(stream, images):
+            return aiko.StreamEvent.OKAY, {}
 
         for image in images:
             if stream.variables["segment_writer"] is None:
@@ -161,6 +210,9 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
     def stop_stream(self, stream, stream_id):
         if stream.variables.get("segment_writer") is not None:
             self._close_segment(stream)
+        if self._writing is not None:
+            self._writing.close()
+            self._writing = None
         if stream.variables.get("data_scheme"):    # guard: base has no check
             return super().stop_stream(stream, stream_id)
         return aiko.StreamEvent.OKAY, {}
