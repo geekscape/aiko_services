@@ -47,7 +47,8 @@
 __all__ = [
     "Dwell", "EXACT_REASONS", "HOLD", "MODES", "MODE_CONSERVE",
     "MODE_NORMAL", "MODE_QUIESCE", "REASONS", "SHUTDOWN", "decide",
-    "decide_mode", "writing_ok",
+    "SUPPLY_WARNINGS", "decide_action", "decide_mode", "supply_warning",
+    "writing_ok",
 ]
 
 HOLD = "hold"
@@ -151,30 +152,98 @@ def decide(volts, battery_pack_celsius, docked, properties, powered_up_held,
     powered_down = _number(thresholds.get("powered_down_grace_s"))
     grace = _number(thresholds.get("powered_up_grace_s"), 0.0)
 
+    for decision, reason in _rows(volts, battery_pack_celsius, docked,
+        properties, powered_up_held, button_held, undocked_s, battery_low_s,
+        powered_up_idle_s, floor, low, hot, dwell, maximum, powered_down,
+        grace):
+
+        return decision, reason                  # The first, and the most
+                                                 #   urgent, is the answer
+
+def decide_action(volts, battery_pack_celsius, docked, properties,
+    powered_up_held, button_held, undocked_s, battery_low_s,
+    powered_up_idle_s, thresholds, actionable=None):
+
+    """The first decision a caller can act on, and the one word that says
+    why.
+
+    The rows are the same rows, in the same order.  The difference is what
+    happens when the most urgent reason is one the caller cannot act on: a
+    hold is final, and a shutdown is not, so the next shutdown is offered
+    instead.
+
+    **This exists because an inert reason masked an active one**, measured
+    in production on 2026-11-05.  A battery pack sagged below its floor in
+    the first second of every undocking, so `decide()` answered
+    "battery_floor" every time.  That reason comes from a data sheet, so an
+    advisory posture holds it back, and `decide()` had already returned, so
+    the deadline below it was never reached.  The deadline would have acted.
+    The host therefore ran on a flat pack until it browned out, with the
+    log saying "would shut down now" once a minute.
+
+    "actionable" is the set of reasons the caller can act on, and None
+    means every one of them.  Passing a set is how the posture reaches a
+    pure function: as data, and not as a flag with behavior behind it"""
+
+    floor = _number(thresholds.get("battery_volts_floor"))
+    low = _number(thresholds.get("battery_volts_low"))
+    hot = _number(thresholds.get("battery_pack_celsius_maximum"))
+    dwell = _number(thresholds.get("battery_dwell_s"), 0.0)
+    maximum = _number(thresholds.get("undocked_maximum_s"))
+    powered_down = _number(thresholds.get("powered_down_grace_s"))
+    grace = _number(thresholds.get("powered_up_grace_s"), 0.0)
+
+    for decision, reason in _rows(volts, battery_pack_celsius, docked,
+        properties, powered_up_held, button_held, undocked_s, battery_low_s,
+        powered_up_idle_s, floor, low, hot, dwell, maximum, powered_down,
+        grace):
+
+        if decision == HOLD:
+            return decision, reason              # A hold is final
+        if actionable is None or reason in actionable:
+            return decision, reason
+    return HOLD, "powered_up_grace"              # The rows end in a hold
+
+def _rows(volts, battery_pack_celsius, docked, properties, powered_up_held,
+    button_held, undocked_s, battery_low_s, powered_up_idle_s, floor, low,
+    hot, dwell, maximum, powered_down, grace):
+
+    """Every decision the rule reaches, in its order.
+
+    One rule, read two ways.  decide() takes the first of these, which is
+    the most urgent truth and what an operator is shown.  decide_action()
+    walks past a shutdown it cannot act on and takes the next, which is
+    what stops a host.  A generator is what lets both read one rule rather
+    than two copies of it that can drift apart"""
+
     if button_held:
-        return SHUTDOWN, "button_held"
+        yield SHUTDOWN, "button_held"
     if volts is not None and floor is not None and volts < floor:
-        return SHUTDOWN, "battery_floor"
-    if battery_pack_celsius is not None and hot is not None and battery_pack_celsius > hot:
-        return SHUTDOWN, "battery_pack_temperature"
+        yield SHUTDOWN, "battery_floor"
+    if battery_pack_celsius is not None and hot is not None  \
+        and battery_pack_celsius > hot:
+        yield SHUTDOWN, "battery_pack_temperature"
     if "hold" not in properties:
-        return HOLD, "no_hold_property"
+        yield HOLD, "no_hold_property"
+        return
     if docked:
-        return HOLD, "docked"
+        yield HOLD, "docked"
+        return
 
     # Undocked from here down
     if volts is not None and low is not None and volts < low  \
         and battery_low_s >= dwell:
-        return SHUTDOWN, "battery_low"
+        yield SHUTDOWN, "battery_low"
     deadline, deadline_reason = _deadline(powered_down, maximum)
     if deadline is not None and undocked_s is not None  \
         and undocked_s > deadline:
-        return SHUTDOWN, deadline_reason
+        yield SHUTDOWN, deadline_reason
     if powered_up_held:
-        return HOLD, "powered_up_held"
+        yield HOLD, "powered_up_held"
+        return
     if powered_up_idle_s >= grace:
-        return SHUTDOWN, "powered_up_idle"
-    return HOLD, "powered_up_grace"
+        yield SHUTDOWN, "powered_up_idle"
+    yield HOLD, "powered_up_grace"
 
 def _deadline(powered_down_grace_s, undocked_maximum_s):
     """The deadline on an undocked hold, and the word for whichever
@@ -261,6 +330,51 @@ def decide_mode(mode, decision, volts, docked, hook_state, thresholds,
         and (undocked_s or 0.0) <= application:
         return MODE_NORMAL, "application_grace"
     return MODE_CONSERVE, "undocked"
+
+# What a warning about the supply can say.  One token each, for a shared
+# variable and a log column
+SUPPLY_WARNINGS = ("supply_current", "supply_headroom")
+
+def supply_warning(supply_volts, supply_amps, battery_volts, docked,
+    thresholds):
+
+    """Whether the supply looks too small for this host, and the one word
+    that says how.  None when it looks adequate, or when there is nothing
+    to judge it by.
+
+    **It decides nothing.** A warning is for a person, and the policy is
+    untouched by it: a small supply is a thing to replace, not a reason to
+    stop a host.  So this is reported and counted, and no row of decide()
+    reads it.
+
+    Two ways to see it, and the current is the cause where the rating is
+    known.
+
+    "supply_current": the supply is at the rating its label claims.  A
+    supply at its limit has nothing left for the battery pack, and it
+    drops its voltage as well, which is the other half of the symptom.
+
+    "supply_headroom": docked, and the supply is barely above the battery
+    pack.  A charger needs to be enough above the pack to push current
+    into it, so with no headroom the pack is held wherever it happens to
+    be and never fills.  Measured on 2026-11-05: a supply at 10.22 V and a
+    pack at 9.89 V, which is 0.33 V where about 2 V is wanted, on a pack
+    that had never been charged.
+
+    Both are read from one reading, so there is no history to keep"""
+
+    rating = _number(thresholds.get("supply_amps_maximum"))
+    fraction = _number(thresholds.get("supply_amps_fraction"), 0.95)
+    if rating is not None and rating > 0 and supply_amps is not None  \
+        and supply_amps >= rating * fraction:
+        return "supply_current"
+    headroom = _number(thresholds.get("supply_headroom_volts"))
+    if docked and headroom is not None and headroom > 0  \
+        and supply_volts is not None and battery_volts is not None  \
+        and supply_volts > 0  \
+        and supply_volts - battery_volts < headroom:
+        return "supply_headroom"
+    return None
 
 def writing_ok(mode):
     """Whether an application should write to the file systems now.

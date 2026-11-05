@@ -19,6 +19,7 @@ import aiko_services
 
 from aiko_services.actors.power_manager import (
     MockPowerManagerImpl, PROPERTIES, PROTOCOL, PmmPowerManagerImpl,
+    THRESHOLDS,
     choose_power_manager, service_filter, service_tags,
 )
 from aiko_services.actors.power_manager.cli import main
@@ -369,3 +370,79 @@ def test_turning_the_deadline_off_still_allows_a_short_grace(monkeypatch):
 
     result = refused(monkeypatch, "--powered_down_grace", "0", "-a", "60")
     assert result.exit_code == 0, result.output
+
+# The three voltages ------------------------------------------------------- #
+#
+# They are a property of the battery pack that is fitted, and not of this
+# software, so they belong on the command line.  The shipped numbers suit a
+# healthy pack of three cells.  Measured on 2026-11-05, one pack rests at
+# 9.996 V and sags to 9.770 V under 12 W, so the shipped floor of 9.900 V
+# is crossed on every undocking and reports what it cannot act on.
+
+def test_the_voltages_reach_the_policy(monkeypatch):
+    actor, _ = run_with(monkeypatch, "-qv", "9.5", "-bl", "9.4", "-bf", "9.3")
+    t = actor.share["thresholds"]
+    assert t["quiesce_volts"] == "9.5"
+    assert t["battery_volts_low"] == "9.4"
+    assert t["battery_volts_floor"] == "9.3"
+    assert actor.share["last_error"] == "-"
+
+def test_one_voltage_alone_leaves_the_others_shipped(monkeypatch):
+    actor, _ = run_with(monkeypatch, "-bf", "9.3")
+    t = actor.share["thresholds"]
+    assert t["battery_volts_floor"] == "9.3"
+    assert t["battery_volts_low"] == str(THRESHOLDS["battery_volts_low"])
+
+def test_a_floor_at_the_damage_limit_is_refused(monkeypatch):
+    """This design stops above it, and never at it"""
+
+    result = refused(monkeypatch, "-bf", "9.0")
+    assert result.exit_code != 0, result.output
+    assert "cell damage limit" in result.output
+
+def test_a_floor_below_the_damage_limit_is_refused(monkeypatch):
+    result = refused(monkeypatch, "-bf", "8.0")
+    assert result.exit_code != 0, result.output
+    assert "cell damage limit" in result.output
+
+def test_a_low_below_the_floor_is_refused(monkeypatch):
+    """The shutdown starts above the voltage it finishes at"""
+
+    result = refused(monkeypatch, "-bl", "9.2", "-bf", "9.5")
+    assert result.exit_code != 0, result.output
+    assert "must not be below" in result.output
+
+def test_a_quiesce_below_the_low_is_refused_when_it_is_given(monkeypatch):
+    """Writing stops above the voltage at which the shutdown starts"""
+
+    result = refused(monkeypatch, "-qv", "9.3", "-bl", "9.4", "-bf", "9.2")
+    assert result.exit_code != 0, result.output
+    assert "writing stops above" in result.output
+
+def test_the_shipped_quiesce_and_low_are_the_wrong_way_round():
+    """A defect found on 2026-11-05 by the check above, and left for the
+    lead rather than changed here.  The low voltage is higher, so it fires
+    first and forces the quiesce mode by itself, which makes the shipped
+    quiesce voltage unreachable"""
+
+    assert THRESHOLDS["quiesce_volts"] < THRESHOLDS["battery_volts_low"]
+
+def test_a_single_voltage_is_checked_against_the_shipped_others(monkeypatch):
+    """A floor above the shipped low would invert the ladder, and giving
+    one number must not let that through"""
+
+    result = refused(monkeypatch, "-bf", "99.0")
+    assert result.exit_code != 0, result.output
+    assert "must not be below" in result.output
+
+def test_equal_voltages_are_accepted(monkeypatch):
+    """A compressed ladder is what a nearly flat pack gives, and it is
+    ordered even when two steps meet"""
+
+    actor, _ = run_with(monkeypatch, "-qv", "9.4", "-bl", "9.4", "-bf", "9.4")
+    assert actor.share["thresholds"]["quiesce_volts"] == "9.4"
+
+def test_no_voltage_given_leaves_every_threshold_shipped(monkeypatch):
+    actor, _ = run_with(monkeypatch)
+    for name in ("quiesce_volts", "battery_volts_low", "battery_volts_floor"):
+        assert actor.share["thresholds"][name] == str(THRESHOLDS[name]), name

@@ -53,7 +53,8 @@ from aiko_services.main.utilities import get_hostname
 from aiko_services.actors.power_manager.log import PowerLog
 from aiko_services.actors.power_manager.policy import (
     Dwell, EXACT_REASONS, HOLD, MODE_NORMAL, MODE_QUIESCE, SHUTDOWN, decide,
-    decide_mode, writing_ok as policy_writing_ok
+    decide_action, decide_mode, supply_warning,
+    writing_ok as policy_writing_ok
 )
 from aiko_services.actors.power_manager.quiesce import (
     HOOK_QUIESCE, Quiesce
@@ -77,7 +78,9 @@ __all__ = [
     "FUNCTIONS",
     "LOG_DIRECTORY", "PERIOD_DEVELOPMENT", "PERIOD_PRODUCTION",
     "POLICY_ADVISORY", "POLICY_SHUTTING_DOWN", "PROPERTIES", "PROTOCOL",
-    "POWERED_DOWN_GRACE_S", "SAFE", "SAFE_FUNCTIONS", "THRESHOLDS",
+    "CELL_DAMAGE_VOLTS", "POWERED_DOWN_GRACE_S", "SAFE", "SAFE_FUNCTIONS",
+    "SUPPLY_AMPS_FRACTION", "SUPPLY_HEADROOM_VOLTS",
+    "SUPPLY_WARNING_DWELL_S", "THRESHOLDS",
     "UNDOCKED_MAXIMUM_S", "WORKING_DWELL_S",
     "WORKING_PATTERN", "WORKING_REPORTERS_MAXIMUM", "PowerManager",
     "PowerManagerCommon", "choose_power_manager", "power_manager_args",
@@ -105,6 +108,30 @@ PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/power_manager:0"
 # tired pack should carry.
 POWERED_DOWN_GRACE_S = 600.0       # The deployment's deadline: ten minutes
 UNDOCKED_MAXIMUM_S = 900.0         # The backstop: fifteen minutes
+
+# The voltage a cell is damaged below, as a pack of three: 3.0 V each.
+#
+# **It is never a threshold.** This design stops above it, and a test
+# asserts that no shipped threshold is at or below it.  It is here so that
+# a threshold given on the command line can be refused against it, which
+# is the one place a person can put a number this low by hand
+CELL_DAMAGE_VOLTS = 9.0
+
+# A supply that cannot charge the battery pack is a thing to replace, and an
+# operator cannot see it from a voltage alone.  So it is named.
+#
+# The headroom is how far the supply must be above the pack for a charger
+# to push current into it.  Measured on 2026-11-05 on a host whose pack had
+# never been charged: the supply was 0.33 V above the pack, where about 2 V
+# is wanted, because a 1.5 A supply was carrying a 1.5 A load and had
+# nothing left.
+#
+# The rating is off by default, because only the label knows it.  Given, it
+# is the definitive measure: a supply at its rating has nothing spare,
+# whatever its voltage says.
+SUPPLY_HEADROOM_VOLTS = 0.5
+SUPPLY_AMPS_FRACTION = 0.95        # Of the rating, before it is a warning
+SUPPLY_WARNING_DWELL_S = 3600.0    # Said once, then at most hourly
 
 # What a report of work sounds like, and the two limits that bound it.  A
 # report makes a noise that reaches a person, so one reporter cannot sound
@@ -191,6 +218,12 @@ THRESHOLDS = {
     "powered_up_maximum_s": POWERED_UP_MAXIMUM_S,
     "powered_up_requests_maximum": POWERED_UP_REQUESTS_MAXIMUM,
     # The same reasoning for the report of work, which also reaches a person
+    # A supply too small to charge the battery pack.  These warn and
+    # decide nothing: no row of the policy reads them
+    "supply_headroom_volts": SUPPLY_HEADROOM_VOLTS,
+    "supply_amps_maximum": None,   # From the supply's label
+    "supply_amps_fraction": SUPPLY_AMPS_FRACTION,
+    "supply_warning_dwell_s": SUPPLY_WARNING_DWELL_S,
     "working_dwell_s": WORKING_DWELL_S,
     "working_reporters_maximum": WORKING_REPORTERS_MAXIMUM,
 }
@@ -241,6 +274,28 @@ def _grace_order(thresholds):
     thresholds["powered_down_application_grace_s"] = None
     return (f"powered_down_application_grace_s {application:g} is not less "
         f"than {name} {deadline:g}: turned off")
+
+def _volts_floor(thresholds):
+    """The floor must stay above the voltage a cell is damaged below.
+
+    A floor at or under it is raised back to the default and reported, and
+    not turned off.  Every other mistyped threshold here is made inert,
+    because the danger is a host that stops for nothing.  This one is the
+    other way round: a floor too low lets a host run into damage that is
+    permanent, so the safe answer is the shipped number and a complaint.
+
+    Returns the diagnostic, or None.  It changes the thresholds in place"""
+
+    try:
+        floor = float(thresholds.get("battery_volts_floor"))
+    except (TypeError, ValueError):
+        return None                # _number() ignores what it cannot read
+    if floor > CELL_DAMAGE_VOLTS:
+        return None
+    thresholds["battery_volts_floor"] = THRESHOLDS["battery_volts_floor"]
+    return (f"battery_volts_floor {floor:g} is not above the cell damage "
+        f"limit {CELL_DAMAGE_VOLTS:g}: using "
+        f"{THRESHOLDS['battery_volts_floor']:g}")
 
 class PowerManager(aiko.Actor):
     """What the supply and the battery are doing, and what to do about it.
@@ -434,7 +489,8 @@ class PowerManagerCommon:
         self._telemetry = bool(telemetry)
         self._thresholds = dict(THRESHOLDS)
         self._thresholds.update(thresholds or {})
-        self._threshold_error = _grace_order(self._thresholds)
+        self._threshold_error = _grace_order(self._thresholds)  \
+            or _volts_floor(self._thresholds)
         self._period = self._valid_period(period)
         self._log = PowerLog(log_directory, keep_days) if log_directory  \
             else None
@@ -474,6 +530,8 @@ class PowerManagerCommon:
         # because a parameter would let a client on the bus pass its own
         # time and defeat the dwell
         self._clock = time.monotonic
+        self._supply_warning = None              # The token last published
+        self._supply_said = None                 # When it was last logged
         self.add_hook(HOOK_QUIESCE)
 
         properties = tuple(self.properties())
@@ -487,6 +545,7 @@ class PowerManagerCommon:
             "policy": POLICY_ADVISORY,
             "policy_reason": "-",
             "policy_would": "-",       # What it would do, while advisory
+            "policy_acting": "-",      # And what it will act on, if any
             "enforce": self._enforce,
             "button_shutdown": self._button_shutdown,
             "mode": self._mode,
@@ -495,6 +554,9 @@ class PowerManagerCommon:
             # published rather than answered, so a writer subscribes and
             # needs no function of its own (P3)
             "writing_ok": policy_writing_ok(self._mode),
+            # A supply too small to charge the battery pack.  "-" while it
+            # looks adequate, or while there is nothing to judge it by
+            "supply_warning": "-",
             "undocked_since_utc": "-",
             "hold_state": "unknown",
             "hook": "unknown",
@@ -510,7 +572,8 @@ class PowerManagerCommon:
                 "hold_changes": 0, "denied": 0, "shutdowns": 0,
                 "quiesces": 0, "button_presses": 0,
                 "powered_up_granted": 0, "powered_up_refused": 0,
-                "powered_up_expired": 0, "working_reports": 0},
+                "powered_up_expired": 0, "working_reports": 0,
+                "supply_warnings": 0},
             "working": {"reporters": 0, "last": "-"},
             # The share is a nested dictionary of at most two levels, and a
             # dotted name is a path into it, not a key (share.py).  So the
@@ -911,24 +974,72 @@ class PowerManagerCommon:
         powered_up_idle_s = self._powered_up_idle.update(
             powered_up_held == 0, now)
 
-        decision, reason = decide(
+        arguments = (
             reading.battery_volts, reading.battery_pack_celsius, docked,
             properties, powered_up_held, self._button_held,
             undocked_s, battery_low_s, powered_up_idle_s, thresholds)
+        # What is most urgent, which is what an operator is shown
+        decision, reason = decide(*arguments)
+        # And what can be acted on in this posture, which is not always the
+        # same row.  A battery pack that sags below its floor in the first
+        # second of an undocking answers "battery_floor" every time, and an
+        # advisory posture holds that back, so without this the deadline
+        # below it was never reached and the host ran until it browned out.
+        # Measured in production on 2026-11-05
+        action, action_reason = decide_action(*arguments,
+            actionable=None if self._enforce else EXACT_REASONS)
         mode, mode_reason = decide_mode(
             self._mode, decision, reading.battery_volts, docked,
             self.hook_state(), thresholds, undocked_s)
 
-        self._publish_decision(
-            decision, reason, mode, mode_reason, docked, undocked_s, now)
+        self._warn_supply(reading, docked, now)
+        self._publish_decision(decision, reason, mode, mode_reason, docked,
+            undocked_s, now, action_reason if action == SHUTDOWN else "-")
         if mode != self._mode:
             self._enter_mode(mode, mode_reason, now)
-        if decision == SHUTDOWN:
-            self._act(reason, now)
+        if action == SHUTDOWN:
+            self._act(action_reason, now)
+        elif decision == SHUTDOWN:
+            # Nothing in the rule can act in this posture.  Saying so is
+            # the difference between a log that explains a host which keeps
+            # running and one that repeats "would shut down now" for ever
+            self.logger.warning(
+                f"Advisory: would shut down now ({reason}), and no reason "
+                "below it can act either")
         return decision, reason, mode, mode_reason
 
+    def _warn_supply(self, reading, docked, now):
+        """Say when the supply looks too small to charge the battery pack.
+
+        It changes no decision.  A small supply is a thing to replace, and
+        the policy is untouched by it.
+
+        Published on every change, so an operator sees it at once, and
+        logged on a change and then at most once a dwell.  A supply is
+        undersized for weeks, and a warning once a minute for weeks is one
+        an operator stops reading"""
+
+        token = supply_warning(reading.supply_volts, reading.supply_amps,
+            reading.battery_volts, docked, self._thresholds)
+        if token != self._supply_warning:
+            self._supply_warning = token
+            self.ec_producer.update("supply_warning", token or "-")
+            self._supply_said = None             # A change is always said
+        if token is None:
+            return
+        dwell = _as_float(
+            self._thresholds.get("supply_warning_dwell_s")) or 0.0
+        if self._supply_said is not None and now - self._supply_said < dwell:
+            return
+        self._supply_said = now
+        self._count("supply_warnings")
+        self.logger.warning(f"Supply looks undersized ({token}): "
+            f"{reading.supply_volts} V, {reading.supply_amps} A, with the "
+            f"battery pack at {reading.battery_volts} V.  The pack cannot "
+            "charge from a supply this close to it")
+
     def _publish_decision(self, decision, reason, mode, mode_reason,
-        docked, undocked_s, now=None):
+        docked, undocked_s, now=None, acting="-"):
 
         """Everything the decision produced, whether or not it is acted on.
 
@@ -940,6 +1051,9 @@ class PowerManagerCommon:
         items = {
             "policy_would": decision,
             "policy_reason": reason,
+            # What it will act on, which is not always what is most urgent:
+            # a reason this posture holds back is reported and stepped past
+            "policy_acting": acting,
             "mode_reason": mode_reason,
             "docked": "yes" if docked else "no",
             **self._powered_up.as_share(),

@@ -23,6 +23,9 @@ from aiko_services.actors.power_manager import (
     SHUTDOWN,
     THRESHOLDS, decide, decide_mode,
 )
+from aiko_services.actors.power_manager.policy import (
+    EXACT_REASONS, decide_action, supply_warning
+)
 
 EVERY = ("readings", "hold", "signal", "button", "dock")
 
@@ -262,12 +265,25 @@ def test_every_reason_is_a_declared_token():
         assert " " not in reason
 
 def test_no_threshold_is_the_cell_damage_limit():
-    """9.0 V for the battery pack, or 3.0 V for a cell, is a limit this design never
-    reaches.  It is never a trigger (the plan's S12)"""
+    """9.0 V for the battery pack, or 3.0 V for a cell, is a limit this
+    design never reaches.  It is never a trigger (the plan's S12), and a
+    test holds the rule because a threshold is a number an edit can lower.
 
-    for name, value in THRESHOLDS.items():
-        if "volts" in name:
-            assert value > 9.0, name
+    Only the thresholds that are compared against the battery pack's own
+    voltage are in scope.  A headroom is a difference between two voltages
+    and is small on purpose, so naming every threshold with "volts" in it
+    would fail on something that is not a pack voltage at all"""
+
+    from aiko_services.actors.power_manager.power_manager import (
+        CELL_DAMAGE_VOLTS)
+
+    differences = ("supply_headroom_volts",)
+    absolute = [name for name in THRESHOLDS
+        if "volts" in name and name not in differences]
+    assert sorted(absolute) == [
+        "battery_volts_floor", "battery_volts_low", "quiesce_volts"]
+    for name in absolute:
+        assert float(THRESHOLDS[name]) > CELL_DAMAGE_VOLTS, name
 
 # The dwell ---------------------------------------------------------------- #
 
@@ -441,3 +457,155 @@ def test_every_mode_has_an_answer():
 
     for mode in MODES:
         assert isinstance(writing_ok(mode), bool), mode
+
+# An inert reason must not mask an active one ------------------------------ #
+#
+# Measured in production on 2026-11-05.  The battery pack sagged from
+# 9.996 V to 9.770 V in the first second of an undocking, below its 9.900 V
+# floor, so decide() answered "battery_floor" every time.  That reason
+# comes from a data sheet, so an advisory posture holds it back, and
+# decide() had already returned, so the deadline below it was never
+# reached.  The deadline would have acted.  The host ran on a flat pack
+# until it browned out, logging "would shut down now" once a minute.
+
+def action(actionable=None, **changes):
+    """The decision a caller can act on, on an undocked host"""
+
+    case = dict(
+        volts=12.0, battery_pack_celsius=25.0, docked=False, properties=EVERY,
+        powered_up_held=1, button_held=False,
+        undocked_s=10.0, battery_low_s=0.0, powered_up_idle_s=0.0,
+        thresholds=THRESHOLDS)
+    case.update(changes)
+    return decide_action(**case, actionable=actionable)
+
+def test_the_production_case_reaches_the_deadline():
+    """The pack is under its floor and the deadline has passed.  What is
+    most urgent cannot act, so what can act is the deadline"""
+
+    flat = dict(volts=9.77, undocked_s=601.0, powered_up_held=9)
+    assert when(**flat) == (SHUTDOWN, "battery_floor")      # most urgent
+    assert action(actionable=EXACT_REASONS, **flat)  \
+        == (SHUTDOWN, "powered_down_grace")                 # what can act
+
+def test_nothing_actionable_holds_rather_than_stopping():
+    """Under the floor, inside the deadline, and a claim held.  A hold is
+    final, so the walk stops there and the host keeps running"""
+
+    assert action(actionable=EXACT_REASONS,
+        volts=9.77, undocked_s=10.0, powered_up_held=1)  \
+        == (HOLD, "powered_up_held")
+
+def test_with_everything_actionable_it_is_the_most_urgent():
+    """An enforcing posture passes no set, and then this is decide()"""
+
+    flat = dict(volts=9.77, undocked_s=601.0, powered_up_held=9)
+    assert action(**flat) == when(**flat) == (SHUTDOWN, "battery_floor")
+
+def test_a_hold_is_final_and_is_never_stepped_past():
+    """A docked host holds.  Walking past that into the undocked rows
+    would stop a host that has its supply"""
+
+    assert action(actionable=EXACT_REASONS, volts=9.77, docked=True)  \
+        == (HOLD, "docked")
+
+def test_the_button_is_reached_past_an_inert_floor():
+    """A person asked, and the floor must not swallow that either"""
+
+    assert action(actionable=EXACT_REASONS, volts=9.77, button_held=True)  \
+        == (SHUTDOWN, "button_held")
+
+def test_the_backstop_is_reached_past_an_inert_floor():
+    thresholds = {**THRESHOLDS, "powered_down_grace_s": None}
+    assert action(actionable=EXACT_REASONS, thresholds=thresholds,
+        volts=9.77, undocked_s=901.0, powered_up_held=9)  \
+        == (SHUTDOWN, "undocked_timeout")
+
+def test_a_host_with_no_hold_property_still_holds():
+    assert action(actionable=EXACT_REASONS, volts=9.77,
+        properties=("readings",)) == (HOLD, "no_hold_property")
+
+def test_one_rule_is_read_two_ways_and_not_written_twice():
+    """Both walk the same generator, so they cannot drift apart"""
+
+    import inspect
+
+    from aiko_services.actors.power_manager import policy
+
+    for name in ("decide", "decide_action"):
+        source = inspect.getsource(getattr(policy, name))
+        assert "_rows(" in source, name
+
+# A supply too small to charge the battery pack ----------------------------- #
+#
+# Measured on 2026-11-05.  A 12 V 1.5 A supply carried a 1.5 A load, so the
+# charger saw 10.22 V against a pack at 9.89 V, which is 0.33 V where about
+# 2 V is wanted.  The pack had never been charged, and every voltage
+# threshold in this design had been argued about it.
+#
+# The warning decides nothing: a small supply is a thing to replace, and no
+# row of decide() reads it.
+
+SUPPLY = {"supply_headroom_volts": 0.5, "supply_amps_maximum": 1.5,
+    "supply_amps_fraction": 0.95}
+
+def test_the_measured_case_is_warned_about():
+    assert supply_warning(10.220, 1.505, 9.894, True, SUPPLY)  \
+        == "supply_current"
+
+def test_the_current_is_the_cause_where_the_rating_is_known():
+    """A supply at its rating has nothing spare, whatever its voltage"""
+
+    assert supply_warning(12.4, 1.48, 11.0, True, SUPPLY) == "supply_current"
+
+def test_without_a_rating_the_headroom_is_the_symptom():
+    thresholds = {"supply_headroom_volts": 0.5}
+    assert supply_warning(10.220, 1.505, 9.894, True, thresholds)  \
+        == "supply_headroom"
+
+def test_a_supply_with_room_to_charge_is_not_warned_about():
+    assert supply_warning(12.4, 1.0, 11.1, True, SUPPLY) is None
+
+def test_an_undocked_host_is_not_warned_about():
+    """There is no supply to judge, and the headroom of a supply that is
+    gone is not a fault in the supply"""
+
+    assert supply_warning(0.4, 0.0, 9.9, False, SUPPLY) is None
+
+def test_a_platform_that_measures_nothing_is_not_warned_about():
+    assert supply_warning(None, None, None, True, SUPPLY) is None
+    assert supply_warning(None, 1.6, None, True, SUPPLY) == "supply_current"
+
+def test_a_rating_that_is_off_is_not_a_warning_on_its_own():
+    thresholds = {"supply_amps_maximum": None, "supply_headroom_volts": 0.5}
+    assert supply_warning(12.4, 99.0, 11.0, True, thresholds) is None
+
+def test_the_headroom_can_be_turned_off():
+    thresholds = {"supply_headroom_volts": 0}
+    assert supply_warning(10.220, 1.505, 9.894, True, thresholds) is None
+
+def test_the_fraction_is_what_counts_as_at_the_rating():
+    """A supply does not have to reach its label to be at its limit"""
+
+    thresholds = {"supply_amps_maximum": 1.5, "supply_amps_fraction": 0.5}
+    assert supply_warning(12.0, 0.8, 11.0, True, thresholds)  \
+        == "supply_current"
+
+def test_every_token_is_declared():
+    from aiko_services.actors.power_manager.policy import SUPPLY_WARNINGS
+
+    for case in ((10.220, 1.505, 9.894, True, SUPPLY),
+        (10.220, 1.505, 9.894, True, {"supply_headroom_volts": 0.5})):
+        assert supply_warning(*case) in SUPPLY_WARNINGS
+
+def test_no_decision_reads_the_supply_warning():
+    """It is for a person.  A small supply is replaced, not a reason to
+    stop a host"""
+
+    import inspect
+
+    from aiko_services.actors.power_manager import policy
+
+    for name in ("decide", "decide_action", "_rows", "decide_mode"):
+        source = inspect.getsource(getattr(policy, name))
+        assert "supply_" not in source, name

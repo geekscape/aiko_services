@@ -374,6 +374,25 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     operating system, and whether a press acts is published so an operator reads it rather
     than infers it.
 
+    **A reason this posture holds back must not mask one it does not.** The rows of decision 8
+    are ordered by urgency, and the posture of decision 7 is about calibration. The two are
+    independent, and where they meet the order alone is not enough: a shutdown the posture
+    holds back used to end the decision, so a reason below it that would have acted was never
+    reached.
+
+    Measured in production. A battery pack sagged below its floor in the first second of every
+    undocking, so the most urgent reason was always the floor, which is a data-sheet threshold
+    and inert while advisory. The deadline below it would have stopped the host. Instead the
+    host ran on a flat pack until it lost its power, reporting once a minute that it would
+    shut down.
+
+    So the rule is read twice. The most urgent reason is what an operator is shown, because it
+    is the truth about the host. The first reason that can be acted on is what stops it, and
+    both are published. A hold is final and is never stepped past: a host with its supply back
+    holds, whatever was true above that row.
+
+    One rule, two readings, and never two copies of the rule.
+
     This decision is numbered last and read first. In the order of the rows that decision 8
     gives, the button comes before every other reason, and this is why: the other rows need a
     measurement to be right, and this one needs only a person.
@@ -450,6 +469,27 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     forwarded, so the queue drains and the host may stop sooner, which is the point of the
     whole arrangement. Dropping the frames after it is not an error: the stream carries on
     and writes again as soon as the host says so.
+
+17. **A supply too small to charge the battery pack is warned about, and decides nothing.**
+    Every threshold in this record is about a battery pack, and all of them are meaningless if
+    the pack is never charged. An operator cannot see that from a voltage: a pack held near
+    empty looks the same as a pack that is nearly flat from use.
+
+    So the Actor says it. Docked, and the supply barely above the pack, means the charger has
+    no room to push current into it, and the pack stays wherever it happens to be. Where the
+    supply's rated current is given, a supply at that rating is the cause rather than the
+    symptom, because a supply at its limit has nothing spare whatever its voltage reads.
+
+    Measured, which is why this decision exists: a supply rated at 1.5 A carried a 1.5 A load,
+    so the charger saw 0.33 V above a pack that needed about 2 V, and that pack had never been
+    charged.
+
+    **It changes no decision.** A small supply is a thing to replace, not a reason to stop a
+    host, and no row of decision 8 reads it. A test asserts that.
+
+    It is published on every change, so an operator who fits a bigger supply sees it clear at
+    once, and logged on a change and then at most once a dwell. A supply is undersized for
+    weeks, and a warning once a minute for weeks is one an operator stops reading.
 
 ## Consequences
 

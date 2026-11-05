@@ -48,8 +48,8 @@ from aiko_services.actors.power_manager.hold import (
 )
 from aiko_services.actors.power_manager.button import choose_power_inputs
 from aiko_services.actors.power_manager.power_manager import (
-    BUTTON_SHUTDOWN, ENFORCE, LOG_DIRECTORY, PERIOD_DEVELOPMENT, SAFE,
-    THRESHOLDS, choose_power_manager,
+    BUTTON_SHUTDOWN, CELL_DAMAGE_VOLTS, ENFORCE, LOG_DIRECTORY,
+    PERIOD_DEVELOPMENT, SAFE, THRESHOLDS, choose_power_manager,
     power_manager_args
 )
 from aiko_services.actors.power_manager.render import (
@@ -64,6 +64,74 @@ DEVICES = ["auto", "pmm", "mock"]
 @click.version_option()
 def main():
     """Report the supply and the battery of this host, and log them"""
+
+def _given_thresholds(powered_down_grace, powered_down_application_grace,
+    quiesce_volts, battery_volts_low, battery_volts_floor,
+    supply_amps_maximum=None):
+
+    """Only what the command line was actually given, so that everything
+    else keeps its shipped value"""
+
+    thresholds = {
+        **(_thresholds(
+            powered_down_grace, powered_down_application_grace) or {}),
+        **_volts(quiesce_volts, battery_volts_low, battery_volts_floor),
+        **({"supply_amps_maximum": supply_amps_maximum}
+            if supply_amps_maximum else {}),
+    }
+    return thresholds or None
+
+def _volts(quiesce_volts, battery_volts_low, battery_volts_floor):
+    """The three voltages, and the ladder they have to form.
+
+    Stop writing, then start stopping, then stop now, and all of it above
+    the voltage a cell is damaged below:
+
+        quiesce_volts >= battery_volts_low >= battery_volts_floor > damage
+
+    They belong on the command line because they are a property of the
+    battery pack that is fitted, and not of this software.  The shipped
+    numbers suit a healthy pack of three cells.  A pack that rests near its
+    floor needs its own, measured from a discharge curve, and until then a
+    threshold above what the pack reaches under load fires on every
+    undocking and reports what it cannot act on.
+
+    The command line refuses a ladder out of order, and refuses a floor at
+    or below the damage limit, because a person is here to read why"""
+
+    given = {name: value for name, value in (
+        ("quiesce_volts", quiesce_volts),
+        ("battery_volts_low", battery_volts_low),
+        ("battery_volts_floor", battery_volts_floor)) if value is not None}
+    if not given:
+        return {}
+    floor = given.get("battery_volts_floor")
+    if floor is not None and floor <= CELL_DAMAGE_VOLTS:
+        raise click.UsageError(
+            f"--battery_volts_floor {floor:g} must be above the cell damage "
+            f"limit of {CELL_DAMAGE_VOLTS:g} V: this design stops above it, "
+            "and never at it")
+    quiesce, low, floor = (given.get(name, THRESHOLDS[name]) for name in
+        ("quiesce_volts", "battery_volts_low", "battery_volts_floor"))
+    # The shutdown must start above the voltage it finishes at
+    if low < floor:
+        raise click.UsageError(
+            f"--battery_volts_low {low:g} must not be below "
+            f"--battery_volts_floor {floor:g}: the shutdown starts above "
+            "the voltage at which the file systems go read-only")
+    # And writing must stop above the voltage the shutdown starts at.  This
+    # one is checked only where the quiesce voltage was given, because the
+    # shipped pair is the other way round -- 10.2 under 10.5 -- which makes
+    # the shipped quiesce voltage unreachable, since the low voltage fires
+    # first and forces the quiesce mode by itself.  That is a defect in the
+    # shipped numbers rather than in a number a person just typed, so it is
+    # reported to the lead and not enforced here
+    if "quiesce_volts" in given and quiesce < low:
+        raise click.UsageError(
+            f"--quiesce_volts {quiesce:g} must not be below "
+            f"--battery_volts_low {low:g}: writing stops above the voltage "
+            "at which the shutdown starts")
+    return given
 
 def _thresholds(powered_down_grace, powered_down_application_grace):
     """The thresholds that the two options set, and the one rule between
@@ -132,6 +200,22 @@ def _thresholds(powered_down_grace, powered_down_application_grace):
 @click.option("--inputs", "-i", "inputs",
     type=click.Choice(["auto", "gpio", "none"]), default="auto",
     help="The button and dock lines [default: auto]")
+@click.option("--quiesce_volts", "-qv", "quiesce_volts", type=float,
+    default=None,
+    help="Volts at which an application is told to stop writing "
+         f"[default: {THRESHOLDS['quiesce_volts']}]")
+@click.option("--battery_volts_low", "-bl", "battery_volts_low", type=float,
+    default=None,
+    help="Volts at which the orderly shutdown starts, after its dwell "
+         f"[default: {THRESHOLDS['battery_volts_low']}]")
+@click.option("--battery_volts_floor", "-bf", "battery_volts_floor",
+    type=float, default=None,
+    help="Volts at which the file systems go read-only and the host stops "
+         f"[default: {THRESHOLDS['battery_volts_floor']}]")
+@click.option("--supply_amps_maximum", "-sm", "supply_amps_maximum",
+    type=float, default=None,
+    help="The supply's rated current, from its label.  Given, a supply at "
+         "its rating is warned about [default: off]")
 @click.option("--button_shutdown/--no_button_shutdown", "button_shutdown",
     default=BUTTON_SHUTDOWN,
     help="A three second press stops the host, whatever the posture "
@@ -147,7 +231,8 @@ def _thresholds(powered_down_grace, powered_down_application_grace):
          "[default: off, and then an undocked host conserves at once]")
 
 def run_command(name, device, period, log_directory, no_log, keep_days, safe,
-    enforce, inputs, button_shutdown, powered_down_grace,
+    enforce, inputs, quiesce_volts, battery_volts_low, battery_volts_floor,
+    supply_amps_maximum, button_shutdown, powered_down_grace,
     powered_down_application_grace):
     """Run the PowerManager Actor
 
@@ -208,8 +293,10 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
         period=period, keep_days=keep_days, safe=safe, enforce=enforce,
         button_shutdown=button_shutdown,
         inputs=choose_power_inputs(inputs),
-        thresholds=_thresholds(
-            powered_down_grace, powered_down_application_grace),
+        thresholds=_given_thresholds(
+            powered_down_grace, powered_down_application_grace,
+            quiesce_volts, battery_volts_low, battery_volts_floor,
+            supply_amps_maximum),
         log_directory=None if no_log else log_directory)
     power_manager = aiko.compose_instance(implementation, init_args)
     try:
@@ -229,6 +316,9 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
     click.echo("# a three second button press "
         f"{'stops this host' if button_shutdown else 'is reported and not acted on'}",
         err=True)
+    if supply_amps_maximum:
+        click.echo(f"# a supply above {supply_amps_maximum:g} A of its "
+            f"{supply_amps_maximum:g} A rating is warned about", err=True)
     if powered_down_application_grace:
         click.echo("# the supply going means the writers stop in "
             f"{powered_down_application_grace:g} s", err=True)
