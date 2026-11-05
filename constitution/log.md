@@ -6,6 +6,41 @@ Every substantive change appends an entry under its date heading
 This journal begins at the constitution's first public release. The
 pre-publication history is maintained privately.
 
+## 2026-11-05
+
+- **Creation** — [adr/ADR-028_PowerManagement.md](adr/ADR-028_PowerManagement.md),
+  with its row in [adr/ReadMe.md](adr/ReadMe.md): power management becomes an
+  Aiko Services concern. One `PowerManager` Interface extends Actor and has
+  one Implementation for each platform, in the way that ADR-026 did for
+  `DaemonSupervisor`. The record states why the power hold does not use the
+  GPIO character device. That device releases the pin when the process
+  exits. Thus an Actor that held it would cut the power of a Device each
+  time it restarted. Only the shutdown hook releases the hold, and never on
+  a restart. Safe and unsafe postures follow `ProcessManager`, under
+  ADR-023. Before the power ends, the host synchronizes its file systems
+  and tells its applications to stop writing. At the floor voltage it
+  remounts them read-only, and the cell damage limit is never a trigger.
+  The power-off and the remount both need a grant from the operating
+  system, which `render` prints before `install` writes it.
+
+  The record is a proposal. It is committed on the lead's direction, and it
+  waits for acceptance: a move asks the lead to accept the ADR as written
+  or to amend it, and ADR-025 and ADR-026 became `normative` on the dates
+  their own moves merged.
+
+  Up-time is requested as a `PoweredUpLease`, which extends the framework's
+  Lease so that an expiry acts at the time that was agreed. It has two
+  conditions. The lease time is the period for which it is valid, and a
+  client extends it. A constraint is a quantity of a finite resource, in
+  whatever unit measures it, and the host must still be able to meet it. A
+  constraint in a unit the host cannot measure is refused, because granting
+  what cannot be checked would have a client plan on a promise that nothing
+  can keep.
+
+  The move claims 028 and not 027. The registry shows 027 as free, and an
+  unmerged branch holds a written ADR-027 for P11. The note under the
+  registry records this, so that the two cannot collide.
+
 ## 2026-11-02
 
 - **Update** — [adr/ReadMe.md](adr/ReadMe.md),
