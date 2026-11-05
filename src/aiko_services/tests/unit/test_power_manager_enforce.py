@@ -357,15 +357,20 @@ def test_no_grace_period_leaves_a_claim_in_charge():
     actor.request_powered_up(f"{namespace}/{host}/900/1/in", 600, "upload")
     actor._evaluate(actor.reading(), now=1000.0)
     actor._evaluate(actor.reading(), now=1020.0)
-    actor._evaluate(actor.reading(), now=2000.0)
+    actor._evaluate(actor.reading(), now=1800.0)       # Inside the backstop
     assert actor.share["policy_reason"] == "powered_up_held"
     assert calls == []
 
-def test_a_grace_period_that_is_off_publishes_as_a_dash():
+def test_the_default_deadlines_are_published():
+    actor = make_actor()
+    assert actor.share["thresholds"]["powered_down_grace_s"] == "600.0"
+    assert actor.share["thresholds"]["undocked_maximum_s"] == "900.0"
+
+def test_a_threshold_that_is_off_publishes_as_a_dash():
     """The shared state is read by an operator, and the word "None" reads
     like a fault"""
 
-    actor = make_actor()
+    actor = make_grace_actor(None, script=[undocked()])
     assert actor.share["thresholds"]["powered_down_grace_s"] == "-"
 
 def test_a_grace_period_that_is_set_publishes_its_value():
@@ -702,15 +707,30 @@ def test_the_deadline_stops_an_undocked_host_while_advisory():
     assert calls
 
 def test_the_backstop_stops_an_undocked_host_while_advisory():
-    """A backstop that never fires is not a backstop"""
+    """A backstop that never fires is not a backstop.  The deadline is
+    turned off here, because by default it is shorter and fires first"""
+
+    calls = []
+    actor = advisory_with([undocked()] * 4, calls=calls,
+        thresholds={**THRESHOLDS, "powered_down_grace_s": None})
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    assert calls == []
+    actor._evaluate(actor.reading(), now=1000.0 + 3601.0)
+    assert actor.share["policy_reason"] == "undocked_timeout"
+    assert calls
+
+def test_the_default_deadline_stops_an_undocked_host_while_advisory():
+    """What every host now does, with nothing set: twenty minutes after
+    the supply goes, it stops"""
 
     calls = []
     actor = advisory_with([undocked()] * 4, calls=calls)
     actor._evaluate(actor.reading(), now=1000.0)
     actor._evaluate(actor.reading(), now=1020.0)
     assert calls == []
-    actor._evaluate(actor.reading(), now=1000.0 + 3601.0)
-    assert actor.share["policy_reason"] == "undocked_timeout"
+    actor._evaluate(actor.reading(), now=1000.0 + 1201.0)
+    assert actor.share["policy_reason"] == "powered_down_grace"
     assert calls
 
 def test_the_deadline_beats_a_claim_while_advisory():
@@ -802,3 +822,76 @@ def test_turning_the_button_off_does_not_turn_the_deadlines_off():
     actor._evaluate(actor.reading(), now=1020.0)
     actor._evaluate(actor.reading(), now=1305.0)
     assert calls
+
+# The deadline that actually fires ----------------------------------------- #
+#
+# Found by the sanity check of 2026-11-05.  Two thresholds can stop an
+# undocked host and the shorter one does, so the rule "the writers stop
+# before the host does" has to be checked against the shorter one.
+# Checking only the deployment's deadline let an application grace past the
+# backstop through, and the host then stopped before the writers were told.
+
+def test_an_application_grace_past_the_backstop_is_turned_off():
+    """The gap.  With the deployment's deadline off, the backstop is the
+    deadline, and an application grace longer than it is useless"""
+
+    actor = make_actor(thresholds={**THRESHOLDS,
+        "powered_down_grace_s": None,
+        "undocked_maximum_s": 900.0,
+        "powered_down_application_grace_s": 1200.0})
+    assert actor.share["thresholds"][
+        "powered_down_application_grace_s"] == "-"
+    assert "undocked_maximum_s" in actor.share["last_error"]
+
+def test_the_shorter_of_the_two_is_what_the_rule_reads():
+    """A deployment's deadline longer than the backstop cannot fire, so the
+    backstop is what an application grace must beat"""
+
+    actor = make_actor(thresholds={**THRESHOLDS,
+        "powered_down_grace_s": 1800.0,          # Longer than the backstop
+        "undocked_maximum_s": 900.0,
+        "powered_down_application_grace_s": 1000.0})
+    assert actor.share["thresholds"][
+        "powered_down_application_grace_s"] == "-"
+    assert "undocked_maximum_s 900" in actor.share["last_error"]
+
+def test_an_application_grace_inside_both_is_kept():
+    actor = make_actor(thresholds={**THRESHOLDS,
+        "powered_down_grace_s": 600.0,
+        "undocked_maximum_s": 900.0,
+        "powered_down_application_grace_s": 60.0})
+    assert actor.share["thresholds"][
+        "powered_down_application_grace_s"] == "60.0"
+    assert actor.share["last_error"] == "-"
+
+def test_the_error_names_which_threshold_was_too_short():
+    """An operator has two to look at, so the message says which one"""
+
+    actor = make_actor(thresholds={**THRESHOLDS,
+        "powered_down_grace_s": 600.0,
+        "undocked_maximum_s": 900.0,
+        "powered_down_application_grace_s": 700.0})
+    assert "powered_down_grace_s 600" in actor.share["last_error"]
+
+def test_no_deadline_at_all_leaves_an_application_grace_alone():
+    """With nothing to be shorter than, there is no rule to break"""
+
+    actor = make_actor(thresholds={**THRESHOLDS,
+        "powered_down_grace_s": None,
+        "undocked_maximum_s": None,
+        "powered_down_application_grace_s": 1200.0})
+    assert actor.share["thresholds"][
+        "powered_down_application_grace_s"] == "1200.0"
+    assert actor.share["last_error"] == "-"
+
+def test_the_defaults_are_in_the_right_order():
+    """The whole chain, as a deployment gets it: the writers stop, then the
+    deadline stops the host, and the backstop is behind both"""
+
+    application = THRESHOLDS["powered_down_application_grace_s"]
+    deadline = THRESHOLDS["powered_down_grace_s"]
+    backstop = THRESHOLDS["undocked_maximum_s"]
+    assert application is None                   # Off until a deployment asks
+    assert deadline < backstop
+    assert THRESHOLDS["dock_dwell_s"] < deadline
+    assert THRESHOLDS["powered_up_maximum_s"] <= backstop

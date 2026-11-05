@@ -80,14 +80,26 @@ def test_a_sag_that_has_not_dwelt_is_not_a_reason():
     assert when(volts=10.4, battery_low_s=5.0)[0] == HOLD
 
 def test_the_undocked_time_is_bounded():
-    assert when(undocked_s=3601.0) == (SHUTDOWN, "undocked_timeout")
+    """The deadline of the default thresholds, which is twenty minutes"""
+
+    assert when(undocked_s=1201.0) == (SHUTDOWN, "powered_down_grace")
+
+def test_the_backstop_is_what_remains_with_no_deadline():
+    """The backstop is unreachable while the deadline is shorter, which it
+    is by default.  It is there for a deployment that turns the deadline
+    off, or sets it longer than fifteen minutes"""
+
+    thresholds = {**THRESHOLDS, "powered_down_grace_s": None}
+    assert when(thresholds=thresholds, undocked_s=901.0)  \
+        == (SHUTDOWN, "undocked_timeout")
+    assert when(thresholds=thresholds, undocked_s=899.0)[0] == HOLD
 
 def test_the_bound_applies_however_many_claims_are_held():
     """Otherwise a client that keeps extending its claim holds the power
     until the battery pack is empty"""
 
-    assert when(powered_up_held=9, undocked_s=3601.0)  \
-        == (SHUTDOWN, "undocked_timeout")
+    assert when(powered_up_held=9, undocked_s=1201.0)  \
+        == (SHUTDOWN, "powered_down_grace")
 
 # The deployment's grace period ------------------------------------------- #
 
@@ -97,12 +109,34 @@ def grace(seconds, **changes):
     thresholds = {**THRESHOLDS, "powered_down_grace_s": seconds}
     return when(thresholds=thresholds, **changes)
 
-def test_no_grace_period_is_the_default():
-    """The lead's requirement: by default everything runs as it did, and
-    the host stays up while a claim is held"""
+def test_ten_minutes_is_the_default_deadline():
+    """Deliberately short: the battery pack is unmeasured, and it is not
+    certain that it charges.  The lead set the backstop to fifteen minutes
+    on 2026-11-05, so the deadline has to be shorter than that or it could
+    never fire"""
 
-    assert THRESHOLDS["powered_down_grace_s"] is None
-    assert when(powered_up_held=1, undocked_s=600.0)  \
+    from aiko_services.actors.power_manager.power_manager import (
+        POWERED_DOWN_GRACE_S, UNDOCKED_MAXIMUM_S)
+
+    assert THRESHOLDS["powered_down_grace_s"] == POWERED_DOWN_GRACE_S == 600.0
+    assert THRESHOLDS["undocked_maximum_s"] == UNDOCKED_MAXIMUM_S == 900.0
+    assert POWERED_DOWN_GRACE_S < UNDOCKED_MAXIMUM_S
+    assert when(powered_up_held=1, undocked_s=500.0)  \
+        == (HOLD, "powered_up_held")        # Inside it, a claim still holds
+    assert when(powered_up_held=9, undocked_s=601.0)[1]  \
+        == "powered_down_grace"             # Past it, nothing holds
+
+def test_the_default_deadline_is_shorter_than_the_backstop():
+    """Otherwise the deadline would never fire, and the pair would be a
+    puzzle rather than a rule"""
+
+    assert THRESHOLDS["powered_down_grace_s"]  \
+        < THRESHOLDS["undocked_maximum_s"]
+
+def test_a_deadline_can_still_be_turned_off():
+    thresholds = {**THRESHOLDS,
+        "powered_down_grace_s": None, "undocked_maximum_s": None}
+    assert when(thresholds=thresholds, undocked_s=99999.0, powered_up_held=1) \
         == (HOLD, "powered_up_held")
 
 def test_a_grace_period_stops_the_host_whatever_is_claimed():
@@ -138,7 +172,7 @@ def test_the_shorter_of_the_two_deadlines_wins_and_is_named():
 def test_a_tie_goes_to_the_grace_period():
     """An operator set that one on purpose"""
 
-    assert grace(3600.0, undocked_s=3601.0)[1] == "powered_down_grace"
+    assert grace(900.0, undocked_s=901.0)[1] == "powered_down_grace"
 
 def test_a_grace_period_of_zero_is_off_and_not_an_instant_stop():
     """A mistyped setting must not stop a host the moment it undocks"""
@@ -312,7 +346,6 @@ def test_every_mode_is_one_of_the_declared_ones():
         (MODE_NORMAL, HOLD, 10.0, False, "installed"),
         (MODE_NORMAL, HOLD, 12.0, False, "missing"),
         (MODE_QUIESCE, HOLD, 12.0, False, "unknown")):
-        from aiko_services.actors.power_manager import MODES
         assert decide_mode(*case, THRESHOLDS)[0] in MODES
 
 # --------------------------------------------------------------------------- #

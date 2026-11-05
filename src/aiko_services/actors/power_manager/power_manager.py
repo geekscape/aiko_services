@@ -77,13 +77,34 @@ __all__ = [
     "FUNCTIONS",
     "LOG_DIRECTORY", "PERIOD_DEVELOPMENT", "PERIOD_PRODUCTION",
     "POLICY_ADVISORY", "POLICY_SHUTTING_DOWN", "PROPERTIES", "PROTOCOL",
-    "SAFE", "SAFE_FUNCTIONS", "THRESHOLDS", "WORKING_DWELL_S",
+    "POWERED_DOWN_GRACE_S", "SAFE", "SAFE_FUNCTIONS", "THRESHOLDS",
+    "UNDOCKED_MAXIMUM_S", "WORKING_DWELL_S",
     "WORKING_PATTERN", "WORKING_REPORTERS_MAXIMUM", "PowerManager",
     "PowerManagerCommon", "choose_power_manager", "power_manager_args",
     "service_filter", "service_tags",
 ]
 
 PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/power_manager:0"
+
+# The two deadlines on an undocked hold, in the order they fire.
+#
+# Both are deliberately short, because of what the postures mean.  The
+# voltage rules are the natural protection for a battery pack, and they are
+# the ones that an advisory posture holds back, since their thresholds come
+# from a data sheet rather than from the pack that is fitted.  So on a host
+# that has not been measured, these two deadlines are the only thing
+# between an undocked host and a flat pack.  They are therefore set from
+# what the pack can be relied on to do, which on this hardware is not yet
+# known.
+#
+# A measured discharge curve is what raises them, and the characterization
+# of the plan's phase 6 is where it comes from.
+#
+# 600 s at the 10.7 W that was measured is about 1.8 Wh, and 900 s is about
+# 2.7 Wh.  A pack at 10.05 V holds little, so both are inside what even a
+# tired pack should carry.
+POWERED_DOWN_GRACE_S = 600.0       # The deployment's deadline: ten minutes
+UNDOCKED_MAXIMUM_S = 900.0         # The backstop: fifteen minutes
 
 # What a report of work sounds like, and the two limits that bound it.  A
 # report makes a noise that reaches a person, so one reporter cannot sound
@@ -142,12 +163,21 @@ THRESHOLDS = {
     "quiesce_volts": 10.2,         # Stop writing, and flush
     "battery_pack_celsius_maximum": 45.0,     # The battery pack, never the processor
     "battery_dwell_s": 30.0,       # The voltage must stay low this long
-    "undocked_maximum_s": 3600.0,  # The backstop on an undocked hold
-    # A deployment's own deadline: when the supply goes and does not come
-    # back, stop after this long whatever work is claimed.  None is off,
-    # which is the default, and then the backstop above is the only
-    # deadline.  A deployment that sets this sets it far shorter
-    "powered_down_grace_s": None,
+    # The backstop on an undocked hold.  It is the longer of the two, so it
+    # fires only where a deployment turned the deadline below off or set it
+    # longer than this
+    "undocked_maximum_s": UNDOCKED_MAXIMUM_S,
+    # The deadline: when the supply goes and does not come back, stop after
+    # this long whatever work is claimed.  Twenty minutes while the battery
+    # pack is unmeasured and it is not certain that the pack charges, which
+    # the lead set on 2026-11-05.  A deployment sets it shorter until both
+    # are known, and None turns it off, which leaves the backstop above as
+    # the only deadline.
+    #
+    # It is shorter than the backstop, so it is the deadline that fires.
+    # The backstop still applies to a deployment that sets this longer, or
+    # turns it off
+    "powered_down_grace_s": POWERED_DOWN_GRACE_S,
     # How long the host stays undocked before an application is told to
     # stop writing.  It must be shorter than the deadline above, so that
     # the writers stop before the host does.  None is off, and then an
@@ -168,8 +198,11 @@ THRESHOLDS = {
 def _grace_order(thresholds):
     """The one rule that relates two thresholds, checked where they meet.
 
-    The writers must stop before the host does, so the deadline must be
-    longer than the application grace.  An inconsistent pair is reported
+    The writers must stop before the host does, so the deadline that will
+    fire must be longer than the application grace.  Two thresholds can
+    fire, and the shorter one does, so this reads both: checking only the
+    deployment's deadline let an application grace past the backstop
+    through, and the host then stopped before the writers were told.  An inconsistent pair is reported
     and the application grace is turned off, which is the behavior from
     before that threshold existed.  A mistyped setting must not stop a host,
     and it must not be silent either: the reason is published in
@@ -178,20 +211,36 @@ def _grace_order(thresholds):
 
     Returns the diagnostic, or None.  It changes the thresholds in place"""
 
-    deadline = thresholds.get("powered_down_grace_s")
     application = thresholds.get("powered_down_application_grace_s")
-    if deadline is None or application is None:
-        return None                # Either one alone is consistent
+    if application is None:
+        return None
     try:
-        deadline, application = float(deadline), float(application)
+        application = float(application)
     except (TypeError, ValueError):
         return None                # _number() already ignores what it
                                    #   cannot read
-    if application <= 0 or deadline > application:
+    if application <= 0:
+        return None
+    # The deadline that will fire, and not one of the two.  Checking only
+    # "powered_down_grace_s" let an application grace past the backstop
+    # through, and then the host stopped before the writers were ever told
+    deadlines = []
+    for name in ("powered_down_grace_s", "undocked_maximum_s"):
+        try:
+            value = float(thresholds.get(name))
+        except (TypeError, ValueError):
+            continue
+        if value > 0:
+            deadlines.append((value, name))
+    if not deadlines:
+        return None                # No deadline at all: nothing to be
+                                   #   shorter than
+    deadline, name = min(deadlines)
+    if deadline > application:
         return None
     thresholds["powered_down_application_grace_s"] = None
     return (f"powered_down_application_grace_s {application:g} is not less "
-        f"than powered_down_grace_s {deadline:g}: turned off")
+        f"than {name} {deadline:g}: turned off")
 
 class PowerManager(aiko.Actor):
     """What the supply and the battery are doing, and what to do about it.

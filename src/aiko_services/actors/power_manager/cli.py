@@ -49,7 +49,7 @@ from aiko_services.actors.power_manager.hold import (
 from aiko_services.actors.power_manager.button import choose_power_inputs
 from aiko_services.actors.power_manager.power_manager import (
     BUTTON_SHUTDOWN, ENFORCE, LOG_DIRECTORY, PERIOD_DEVELOPMENT, SAFE,
-    choose_power_manager,
+    THRESHOLDS, choose_power_manager,
     power_manager_args
 )
 from aiko_services.actors.power_manager.render import (
@@ -69,21 +69,43 @@ def _thresholds(powered_down_grace, powered_down_application_grace):
     """The thresholds that the two options set, and the one rule between
     them.
 
-    The writers must stop before the host does, so the deadline must be
-    longer than the application grace.  The command line refuses the pair,
-    because a person is here to read why.  The Actor is defensive about the
-    same pair, for a deployment that sets them some other way"""
+    The writers must stop before the host does, so the application grace
+    must be shorter than the deadline that will actually fire.  Two
+    thresholds can fire -- the deployment's deadline and the backstop on an
+    undocked hold -- and the shorter one does, so both are read here.
+    Reading only the option let an application grace past the backstop
+    through, and the Actor then turned it off where nobody was watching.
 
-    if powered_down_grace and powered_down_application_grace  \
-        and powered_down_application_grace >= powered_down_grace:
-        raise click.UsageError(
-            f"--powered_down_application_grace "
-            f"{powered_down_application_grace:g} must be less than "
-            f"--powered_down_grace {powered_down_grace:g}: the writers stop "
-            "before the host does")
+    The command line refuses the pair, because a person is here to read
+    why.  The Actor is defensive about the same pair, for a deployment that
+    sets them some other way"""
+
+    # None means the option was not given, so the default applies.  Zero
+    # means it was given as off.  The two are not the same, and treating
+    # them alike made "--powered_down_grace 0" silently keep the default
+    given = powered_down_grace is not None
+    deadlines = []
+    typed = powered_down_grace if given  \
+        else THRESHOLDS.get("powered_down_grace_s")
+    if typed:
+        deadlines.append((float(typed),
+            "--powered_down_grace" if given
+            else "--powered_down_grace (the default)"))
+    backstop = THRESHOLDS.get("undocked_maximum_s")
+    if backstop:
+        deadlines.append((float(backstop), "the backstop"))
+    if deadlines and powered_down_application_grace:
+        deadline, what = min(deadlines)
+        if powered_down_application_grace >= deadline:
+            raise click.UsageError(
+                f"--powered_down_application_grace "
+                f"{powered_down_application_grace:g} must be less than "
+                f"{what} {deadline:g}: the writers stop before the host "
+                "does")
     thresholds = {}
-    if powered_down_grace:
-        thresholds["powered_down_grace_s"] = powered_down_grace
+    if given:
+        # Zero turns it off, and then the backstop is the only deadline
+        thresholds["powered_down_grace_s"] = powered_down_grace or None
     if powered_down_application_grace:
         thresholds["powered_down_application_grace_s"] =  \
             powered_down_application_grace
@@ -117,7 +139,7 @@ def _thresholds(powered_down_grace, powered_down_application_grace):
 @click.option("--powered_down_grace", "-g", "powered_down_grace",
     type=float, default=None,
     help="Seconds to stay up after the supply goes, whatever work is "
-         "claimed [default: off, and then only the backstop applies]")
+         "claimed [default: 600, while the battery pack is unmeasured]")
 @click.option("--powered_down_application_grace", "-a",
     "powered_down_application_grace", type=float, default=None,
     help="Seconds to stay undocked before an application is told to stop "
@@ -161,12 +183,22 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
     growing with work nobody wants, so it drains and lets the host stop.
 
     \b
-    --powered_down_grace is off by default, and then a host stays up while
-    any client holds a powered-up Lease, up to the backstop on an undocked
-    hold.  Set it, and the host stops that many seconds after the supply
-    goes, whatever work is claimed.  A supply that comes back cancels it
-    and the count starts again from zero.  It takes effect only with
-    --enforce, as every other part of the policy does.
+    --powered_down_grace is ten minutes by default, and the backstop on an
+    undocked hold is fifteen.  Both are deliberately short, because the
+    voltage rules that would otherwise protect a battery pack are the ones
+    an advisory posture holds back, so on an unmeasured host these two
+    deadlines are all that stands between an undocked host and a flat
+    pack.  The host stops that many seconds
+    after the supply goes, whatever work is claimed.  A supply that comes
+    back cancels it and the count starts again from zero.  Pass 0 to turn
+    it off, which leaves the backstop on an undocked hold as the only
+    deadline.
+
+    \b
+    A deadline needs no --enforce.  It rests on a dock line and a clock,
+    and not on a threshold from a data sheet, so it acts whatever the
+    posture.  An undocked host that only reported its deadline would drain
+    its battery pack flat.
     """
 
     implementation = choose_power_manager(device)

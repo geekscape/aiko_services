@@ -411,6 +411,19 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     A dock allows writing again and the count starts from zero, as the deadline's count does,
     because both measure how long the host has been undocked.
 
+    **The rule is checked against the deadline that will fire.** Two thresholds can stop an
+    undocked host, the deployment's and the backstop, and the shorter one does. So the
+    application grace is compared with that shorter one and not with either alone: a grace
+    longer than the backstop would otherwise pass, and the host would stop before the writers
+    were ever told.
+
+    **Every one of these durations is noticed at the next sample.** The policy decides on each
+    reading, so a grace shorter than the sample period does not mean what it says, and each
+    one is in effect rounded up to the next sample. A deployment therefore sets them as
+    multiples of its sample period. Two durations are exempt, because each carries a timer of
+    its own: the grace before a read-only remount, and the expiry of a Lease. That is what a
+    Lease is for.
+
     A writer that is told to stop closes the work in hand first. A closed segment is
     forwarded, so the queue drains and the host may stop sooner, which is the point of the
     whole arrangement. Dropping the frames after it is not an error: the stream carries on
