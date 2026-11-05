@@ -48,9 +48,9 @@ from aiko_services.actors.power_manager.hold import (
 )
 from aiko_services.actors.power_manager.button import choose_power_inputs
 from aiko_services.actors.power_manager.power_manager import (
-    BUTTON_SHUTDOWN, CELL_DAMAGE_VOLTS, ENFORCE, LOG_DIRECTORY,
+    BUTTON_SHUTDOWN, ENFORCE, LOG_DIRECTORY,
     PERIOD_DEVELOPMENT, SAFE, THRESHOLDS, choose_power_manager,
-    power_manager_args
+    power_manager_args, volts_ladder
 )
 from aiko_services.actors.power_manager.render import (
     ARTIFACTS, InstallRefused, install as install_artifact, paths, render,
@@ -101,7 +101,9 @@ def _volts(quiesce_volts, battery_volts_low, battery_volts_floor,
     undocking and reports what it cannot act on.
 
     The command line refuses a ladder out of order, and refuses a floor at
-    or below the damage limit, because a person is here to read why"""
+    or below the damage limit, because a person is here to read why.
+    volts_ladder() is the rule, shared with set_threshold(), so that the
+    bus and the command line refuse the same value in the same words"""
 
     given = {name: value for name, value in (
         ("quiesce_volts", quiesce_volts),
@@ -111,38 +113,9 @@ def _volts(quiesce_volts, battery_volts_low, battery_volts_floor,
         if value is not None}
     if not given:
         return {}
-    floor = given.get("battery_volts_floor")
-    if floor is not None and floor <= CELL_DAMAGE_VOLTS:
-        raise click.UsageError(
-            f"--battery_volts_floor {floor:g} must be above the cell damage "
-            f"limit of {CELL_DAMAGE_VOLTS:g} V: this design stops above it, "
-            "and never at it")
-    quiesce, low, floor = (given.get(name, THRESHOLDS[name]) for name in
-        ("quiesce_volts", "battery_volts_low", "battery_volts_floor"))
-    # The shutdown must start above the voltage it finishes at
-    if low < floor:
-        raise click.UsageError(
-            f"--battery_volts_low {low:g} must not be below "
-            f"--battery_volts_floor {floor:g}: the shutdown starts above "
-            "the voltage at which the file systems go read-only")
-    # And writing must stop above the voltage the shutdown starts at.  This
-    # one is checked only where the quiesce voltage was given, because the
-    # shipped pair is the other way round -- 10.2 under 10.5 -- which makes
-    # the shipped quiesce voltage unreachable, since the low voltage fires
-    # first and forces the quiesce mode by itself.  That is a defect in the
-    # shipped numbers rather than in a number a person just typed, so it is
-    # reported to the lead and not enforced here
-    charged = given.get("battery_volts_charged")
-    if charged is not None and charged <= quiesce:
-        raise click.UsageError(
-            f"--battery_volts_charged {charged:g} must be above "
-            f"--quiesce_volts {quiesce:g}: a battery pack counts as charged "
-            "above the voltage at which writing stops")
-    if "quiesce_volts" in given and quiesce < low:
-        raise click.UsageError(
-            f"--quiesce_volts {quiesce:g} must not be below "
-            f"--battery_volts_low {low:g}: writing stops above the voltage "
-            "at which the shutdown starts")
+    diagnostic = volts_ladder({**THRESHOLDS, **given}, set(given), prefix="--")
+    if diagnostic:
+        raise click.UsageError(diagnostic)
     return given
 
 def _thresholds(powered_down_grace, powered_down_application_grace):

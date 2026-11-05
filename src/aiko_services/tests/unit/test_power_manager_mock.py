@@ -232,7 +232,7 @@ def test_an_absent_property_makes_its_method_a_no_op():
 def test_the_allow_list_is_exactly_the_wire_surface():
     assert sorted(FUNCTIONS) == [
         "hold", "report_working", "request_powered_up", "sample",
-        "set_log_level", "set_period", "signal", "stop"]
+        "set_log_level", "set_period", "set_threshold", "signal", "stop"]
 
 def test_the_device_seam_is_not_on_the_bus():
     """open(), close(), read(), add_handler() and properties() are called by

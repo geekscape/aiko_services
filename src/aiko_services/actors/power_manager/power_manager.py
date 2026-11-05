@@ -243,7 +243,67 @@ THRESHOLDS = {
     "working_reporters_maximum": WORKING_REPORTERS_MAXIMUM,
 }
 
-def _grace_order(thresholds):
+# A threshold that may be turned off.  The shipped value says which: one
+# that ships as None is one the design runs without.  "powered_down_grace_s"
+# joins them because the command line already accepts zero for it, and the
+# backstop is then the only deadline
+THRESHOLDS_OPTIONAL = frozenset(
+    {name for name, value in THRESHOLDS.items() if value is None}
+    | {"powered_down_grace_s"})
+
+THRESHOLD_OFF = ("-", "none", "off", "")
+
+def volts_ladder(values, given, prefix=""):
+    """The ladder the voltages have to form, in one place.
+
+        quiesce_volts >= battery_volts_low >= battery_volts_floor > damage
+
+    and "battery_volts_charged" above "quiesce_volts", because a battery
+    pack counts as charged above the voltage at which writing stops.
+
+    "values" is the whole set after the change, and "given" names what is
+    being set.  One rule is checked only where the quiesce voltage is
+    named: the shipped pair is the other way round -- 10.2 under 10.5 --
+    so a rule that read the whole set would refuse every edit on account
+    of a defect in the shipped numbers.  The plan carries that defect;
+    this is not the place to enforce it.
+
+    "prefix" is "--" for the command line and "" for the bus, so that both
+    refuse a value in the same words.
+
+    Returns the diagnostic, or None.  It changes nothing"""
+
+    def volts(name):
+        try:
+            return float(values.get(name))
+        except (TypeError, ValueError):
+            return THRESHOLDS[name]
+
+    floor = volts("battery_volts_floor")
+    if floor <= CELL_DAMAGE_VOLTS:
+        return (f"{prefix}battery_volts_floor {floor:g} must be above the "
+            f"cell damage limit of {CELL_DAMAGE_VOLTS:g} V: this design "
+            "stops above it, and never at it")
+    low = volts("battery_volts_low")
+    if low < floor:
+        return (f"{prefix}battery_volts_low {low:g} must not be below "
+            f"{prefix}battery_volts_floor {floor:g}: the shutdown starts "
+            "above the voltage at which the file systems go read-only")
+    quiesce = volts("quiesce_volts")
+    if "battery_volts_charged" in given:
+        charged = values.get("battery_volts_charged")
+        if charged is not None and float(charged) <= quiesce:
+            return (f"{prefix}battery_volts_charged {float(charged):g} must "
+                f"be above {prefix}quiesce_volts {quiesce:g}: a battery "
+                "pack counts as charged above the voltage at which writing "
+                "stops")
+    if "quiesce_volts" in given and quiesce < low:
+        return (f"{prefix}quiesce_volts {quiesce:g} must not be below "
+            f"{prefix}battery_volts_low {low:g}: writing stops above the "
+            "voltage at which the shutdown starts")
+    return None
+
+def grace_order_diagnostic(values):
     """The one rule that relates two thresholds, checked where they meet.
 
     The writers must stop before the host does, so the deadline that will
@@ -257,9 +317,10 @@ def _grace_order(thresholds):
     "last_error", and the command line refuses the pair outright, where a
     person is there to read it.
 
-    Returns the diagnostic, or None.  It changes the thresholds in place"""
+    Returns the diagnostic, or None.  It changes nothing: _grace_order()
+    is the caller that acts on it"""
 
-    application = thresholds.get("powered_down_application_grace_s")
+    application = values.get("powered_down_application_grace_s")
     if application is None:
         return None
     try:
@@ -275,7 +336,7 @@ def _grace_order(thresholds):
     deadlines = []
     for name in ("powered_down_grace_s", "undocked_maximum_s"):
         try:
-            value = float(thresholds.get(name))
+            value = float(values.get(name))
         except (TypeError, ValueError):
             continue
         if value > 0:
@@ -286,9 +347,25 @@ def _grace_order(thresholds):
     deadline, name = min(deadlines)
     if deadline > application:
         return None
-    thresholds["powered_down_application_grace_s"] = None
     return (f"powered_down_application_grace_s {application:g} is not less "
-        f"than {name} {deadline:g}: turned off")
+        f"than {name} {deadline:g}")
+
+def _grace_order(thresholds):
+    """The construction-time correction: an inconsistent pair is turned
+    off, which is the behavior from before that threshold existed.
+
+    A mistyped setting must not stop a host, and it must not be silent
+    either, so the reason is published in "last_error".  The command line
+    and set_threshold() refuse the pair outright instead, because a person
+    is there to read why.
+
+    Returns the diagnostic, or None.  It changes the thresholds in place"""
+
+    diagnostic = grace_order_diagnostic(thresholds)
+    if diagnostic is None:
+        return None
+    thresholds["powered_down_application_grace_s"] = None
+    return f"{diagnostic}: turned off"
 
 def _volts_floor(thresholds):
     """The floor must stay above the voltage a cell is damaged below.
@@ -363,6 +440,24 @@ class PowerManager(aiko.Actor):
         "seconds" is 0.5 to 3600.  Wire form: "(set_period 5.0)".  The
         accepted value is observed in the shared state as
         "sample_period_s", and a refused one in "last_error" """
+
+    @abstractmethod
+    def set_threshold(self, name, value):
+        """Change one threshold while this Actor runs.
+
+        "name" is a key of THRESHOLDS.  "value" is a number, or one of
+        "-", "none" and "off" where the threshold can be turned off.
+        Wire form: "(set_threshold battery_volts_low 10.8)", which is
+        denied in the safe posture, because a threshold stops a host.
+
+        The accepted value is observed in "thresholds.NAME", and a refused
+        one in "last_error".  The same rules refuse a value here as on the
+        command line, in the same words.
+
+        It takes effect at the next sample, and it is not persisted: the
+        command line wins at the next restart.  The change is logged with
+        the value it replaced, because a threshold that changed without a
+        trace makes every later reading unexplainable"""
 
     @abstractmethod
     def request_powered_up(self, response_topic, seconds, reason,
@@ -887,6 +982,60 @@ class PowerManagerCommon:
         self.ec_producer.update("sample_period_s", f"{period:.1f}")
         self.logger.info(f"Sample period: {period} s")
 
+    @staticmethod
+    def threshold_value(name, value):
+        """What a threshold is being set to, or why it cannot be.
+
+        Returns (value, None) or (None, diagnostic).  "-", "none", "off"
+        and zero turn a threshold off, and only a threshold the design
+        runs without accepts that: one that is off and must not be is a
+        host that stops for nothing, or that never stops at all"""
+
+        if name not in THRESHOLDS:
+            return None, f"unknown threshold: {name}"
+        if isinstance(value, str) and value.strip().lower() in THRESHOLD_OFF:
+            number = None
+        else:
+            try:
+                number = float(value)
+            except (TypeError, ValueError):
+                return None, f"{name} {value}: not a number"
+            if number < 0:
+                return None, f"{name} {number:g}: not a negative number"
+            if number == 0:
+                number = None      # The command line reads zero as off too
+        if number is None and name not in THRESHOLDS_OPTIONAL:
+            return None, f"{name} cannot be turned off"
+        return number, None
+
+    def set_threshold(self, name, value):
+        """Change one threshold, with the rules the command line uses"""
+
+        number, diagnostic = self.threshold_value(name, value)
+        if diagnostic is None:
+            candidate = dict(self._thresholds)
+            candidate[name] = number
+            diagnostic = (volts_ladder(candidate, {name})
+                or grace_order_diagnostic(candidate))
+        if diagnostic:
+            self.logger.warning(f"Refused set_threshold: {diagnostic}")
+            self.ec_producer.update("last_error", diagnostic[:120])
+            return
+        was = self._thresholds.get(name)
+        if was == number:
+            return
+        # The stored value first, then the replica.  update() calls every
+        # change handler, including the one below that refuses a write to
+        # "thresholds.*", so a publication before the store would deny
+        # this Actor's own change
+        self._thresholds[name] = number
+        published = "-" if number is None else f"{number}"
+        self.ec_producer.update(f"thresholds.{name}", published)
+        # With the value it replaced, because a threshold that changed
+        # without a trace makes every later reading unexplainable
+        self.logger.info(f"Threshold {name}: "
+            f"{'-' if was is None else was} -> {published}")
+
 # The event-loop thread ----------------------------------------------------- #
 
     def _sample_timer(self):
@@ -1288,16 +1437,38 @@ class PowerManagerCommon:
             self.ec_producer.update(name, value)
 
     def _power_change_handler(self, command, item_name, item_value):
-        """"safe" is a report of the posture, and not a control for it.  The
-        posture comes from the command line, which does not cross the bus"""
+        """The shared state reports, and does not control.
 
-        if command != "update" or item_name != "safe":
+        "safe" is the posture, which comes from the command line and does
+        not cross the bus.  "thresholds.*" is a replica of what the policy
+        reads, and writing to the replica changed nothing but the display:
+        the Dashboard's own variable editor publishes
+        "(update thresholds.battery_volts_low 11.0)" to this topic, which
+        succeeded, and left the page showing a value the policy was not
+        using.  A threshold changes through set_threshold(), which is
+        denied in the safe posture, validated, and logged"""
+
+        if command != "update":
             return
-        if item_value != self._safe:
-            self.logger.warning('Refused "safe": read only')
-            self.ec_producer.update("metrics.denied",
-                int(self.share["metrics"]["denied"]) + 1)
-            self.ec_producer.update("safe", self._safe)
+        if item_name == "safe":
+            if item_value != self._safe:
+                self._refuse_update("safe", self._safe, "read only")
+            return
+        if item_name.startswith("thresholds."):
+            name = item_name[len("thresholds."):]
+            stored = self._thresholds.get(name)
+            published = "-" if stored is None else f"{stored}"
+            if f"{item_value}" != published:
+                self._refuse_update(item_name, published,
+                    "read only: use (set_threshold NAME VALUE)")
+
+    def _refuse_update(self, item_name, stored, why):
+        """Refuse a write to the shared state, and put the value back"""
+
+        self.logger.warning(f'Refused "{item_name}": {why}')
+        self.ec_producer.update("metrics.denied",
+            int(self.share["metrics"]["denied"]) + 1)
+        self.ec_producer.update(item_name, stored)
 
     @staticmethod
     def _valid_period(seconds):

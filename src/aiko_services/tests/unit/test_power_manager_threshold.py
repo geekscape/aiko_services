@@ -1,0 +1,226 @@
+# Usage
+# ~~~~~
+# pytest [-s] unit/test_power_manager_threshold.py
+#
+# Unit tests for changing a threshold while the Actor runs
+# (actors/power_manager/power_manager.py).
+#
+# §3.3 of the plan says every threshold is a shared variable "so that the
+# Dashboard changes it while the Actor runs".  Until now nothing
+# implemented that: thresholds were command line only, and the
+# "thresholds.*" items were a display snapshot that anything on the
+# control topic could overwrite without changing the policy.  A page then
+# showed a value the Actor was not using, and nothing reported it.
+#
+# So there are two surfaces here, and they must behave differently:
+#
+# - "(set_threshold NAME VALUE)" on the "in" topic changes the policy.  It
+#   is outside SAFE_FUNCTIONS, so production denies it
+# - "(update thresholds.NAME VALUE)" on the control topic is refused and
+#   the stored value put back, the way "safe" already was
+#
+# The rules that refuse a value are the command line's own, through
+# volts_ladder() and grace_order_diagnostic(), so that a person reads the
+# same words whichever surface they used.
+
+import itertools
+
+import pytest
+
+import aiko_services as aiko
+from aiko_services.actors.power_manager import (
+    FUNCTIONS, MockPowerManagerImpl, SAFE_FUNCTIONS, THRESHOLDS,
+    power_manager_args,
+)
+from aiko_services.actors.power_manager.power_manager import (
+    THRESHOLDS_OPTIONAL, volts_ladder,
+)
+
+_counter = itertools.count()
+
+def make_actor(**parameters):
+    settings = {"log_directory": None, "telemetry": False, "timer": False}
+    settings.update(parameters)
+    init_args = power_manager_args(
+        f"power_threshold_test_{next(_counter)}", "mock",
+        declared=MockPowerManagerImpl.DECLARED_PROPERTIES, **settings)
+    return aiko.compose_instance(MockPowerManagerImpl, init_args)
+
+def threshold(actor, name):
+    return actor.share["thresholds"][name]
+
+# The posture --------------------------------------------------------------- #
+
+def test_a_threshold_change_is_denied_in_the_safe_posture():
+    """A threshold stops a host, so it is not in the safe set.  No new
+    gate code: the FunctionGate denies what SAFE_FUNCTIONS omits"""
+
+    assert "set_threshold" in FUNCTIONS
+    assert "set_threshold" not in SAFE_FUNCTIONS
+
+# What is accepted ---------------------------------------------------------- #
+
+def test_a_threshold_is_changed_and_published():
+    actor = make_actor()
+    actor.set_threshold("battery_volts_low", "10.8")
+
+    assert actor._thresholds["battery_volts_low"] == 10.8
+    assert threshold(actor, "battery_volts_low") == "10.8"
+    assert actor.share["last_error"] == "-"
+
+def test_the_policy_reads_the_new_value_and_not_the_replica():
+    """The defect this closes: the replica moved and the policy did not"""
+
+    actor = make_actor()
+    actor.set_threshold("battery_pack_celsius_maximum", "40")
+
+    assert actor._thresholds["battery_pack_celsius_maximum"] == 40.0
+
+def test_a_threshold_that_may_be_turned_off_accepts_off():
+    assert "supply_amps_maximum" in THRESHOLDS_OPTIONAL
+    actor = make_actor(thresholds={"supply_amps_maximum": 1.5})
+    actor.set_threshold("supply_amps_maximum", "off")
+
+    assert actor._thresholds["supply_amps_maximum"] is None
+    assert threshold(actor, "supply_amps_maximum") == "-"
+
+@pytest.mark.parametrize("off", ["-", "none", "off", "0"])
+def test_every_way_of_saying_off(off):
+    actor = make_actor(thresholds={"supply_amps_maximum": 1.5})
+    actor.set_threshold("supply_amps_maximum", off)
+
+    assert actor._thresholds["supply_amps_maximum"] is None
+
+def test_setting_the_value_it_already_has_changes_nothing():
+    actor = make_actor()
+    was = threshold(actor, "battery_volts_low")
+    actor.set_threshold("battery_volts_low", was)
+
+    assert threshold(actor, "battery_volts_low") == was
+    assert actor.share["last_error"] == "-"
+
+# What is refused ----------------------------------------------------------- #
+
+def refused(actor, name, value):
+    actor.set_threshold(name, value)
+    error = actor.share["last_error"]
+    assert error != "-", f"{name} {value} was accepted"
+    return error
+
+def test_an_unknown_threshold_is_refused():
+    actor = make_actor()
+
+    assert "unknown threshold" in refused(actor, "battery_volts", "11.0")
+
+def test_a_value_that_is_not_a_number_is_refused():
+    actor = make_actor()
+
+    assert "not a number" in refused(actor, "battery_volts_low", "soon")
+
+def test_a_negative_value_is_refused():
+    actor = make_actor()
+
+    assert "negative" in refused(actor, "battery_dwell_s", "-5")
+
+def test_a_threshold_that_must_not_be_off_refuses_off():
+    """A floor that is off is a host that never stops for its battery pack"""
+
+    actor = make_actor()
+    assert "battery_volts_floor" not in THRESHOLDS_OPTIONAL
+
+    assert "cannot be turned off" in refused(
+        actor, "battery_volts_floor", "off")
+
+def test_a_floor_at_the_cell_damage_limit_is_refused():
+    actor = make_actor()
+
+    assert "cell damage limit" in refused(
+        actor, "battery_volts_floor", "9.0")
+
+def test_a_ladder_out_of_order_is_refused():
+    """The shutdown must start above the voltage it finishes at"""
+
+    actor = make_actor()
+
+    assert "must not be below" in refused(
+        actor, "battery_volts_low", "9.5")
+
+def test_an_application_grace_that_is_not_shorter_is_refused():
+    """The writers stop before the host does.  The command line refuses
+    this pair, and so does this, because a person is at both"""
+
+    actor = make_actor(thresholds={"powered_down_grace_s": 120.0})
+
+    assert "not less than" in refused(
+        actor, "powered_down_application_grace_s", "120")
+
+def test_a_refused_value_leaves_the_threshold_alone():
+    actor = make_actor()
+    was = actor._thresholds["battery_volts_floor"]
+    refused(actor, "battery_volts_floor", "9.0")
+
+    assert actor._thresholds["battery_volts_floor"] == was
+    assert threshold(actor, "battery_volts_floor") == f"{was}"
+
+# The rules are the command line's own -------------------------------------- #
+
+def test_the_ladder_is_one_rule_with_two_prefixes():
+    """The command line says "--battery_volts_low" and the bus says
+    "battery_volts_low", and nothing else differs"""
+
+    values = {**THRESHOLDS, "battery_volts_low": 9.5}
+    bus = volts_ladder(values, {"battery_volts_low"})
+    command_line = volts_ladder(values, {"battery_volts_low"}, prefix="--")
+
+    assert bus is not None
+    assert command_line == bus.replace("battery_volts", "--battery_volts")
+
+# The shared state reports, and does not control ---------------------------- #
+
+def test_a_write_to_the_threshold_replica_is_refused():
+    """The Dashboard's own variable editor publishes this.  It used to
+    succeed, change nothing, and leave the page lying"""
+
+    actor = make_actor()
+    was = threshold(actor, "battery_volts_low")
+    denied = int(actor.share["metrics"]["denied"])
+
+    actor._power_change_handler("update", "thresholds.battery_volts_low", "11")
+
+    assert threshold(actor, "battery_volts_low") == was
+    assert actor._thresholds["battery_volts_low"] == float(was)
+    assert int(actor.share["metrics"]["denied"]) == denied + 1
+
+def test_the_replica_set_to_what_it_already_holds_is_not_a_denial():
+    actor = make_actor()
+    was = threshold(actor, "battery_volts_low")
+    denied = int(actor.share["metrics"]["denied"])
+
+    actor._power_change_handler(
+        "update", "thresholds.battery_volts_low", was)
+
+    assert int(actor.share["metrics"]["denied"]) == denied
+
+def test_safe_is_still_defended():
+    """The handler grew a second rule, and must not have lost the first"""
+
+    actor = make_actor()
+    denied = int(actor.share["metrics"]["denied"])
+
+    actor._power_change_handler("update", "safe", "False")
+
+    assert actor.share["safe"] == actor._safe
+    assert int(actor.share["metrics"]["denied"]) == denied + 1
+
+def test_a_threshold_set_through_the_function_publishes_without_a_denial():
+    """set_threshold() publishes the replica itself, and that publication
+    must not look like a write from the bus"""
+
+    actor = make_actor()
+    denied = int(actor.share["metrics"]["denied"])
+    actor.set_threshold("battery_volts_low", "10.8")
+
+    assert threshold(actor, "battery_volts_low") == "10.8"
+    assert int(actor.share["metrics"]["denied"]) == denied
+
+# --------------------------------------------------------------------------- #
