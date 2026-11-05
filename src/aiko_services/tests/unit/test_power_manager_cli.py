@@ -446,3 +446,11 @@ def test_no_voltage_given_leaves_every_threshold_shipped(monkeypatch):
     actor, _ = run_with(monkeypatch)
     for name in ("quiesce_volts", "battery_volts_low", "battery_volts_floor"):
         assert actor.share["thresholds"][name] == str(THRESHOLDS[name]), name
+
+def test_the_rating_line_names_what_is_checked_not_the_rating(monkeypatch):
+    """The first version of this line printed the rating twice, so it read
+    "above 1.5 A of its 1.5 A rating": a threshold nothing reaches"""
+
+    _, result = run_with(monkeypatch, "--supply_amps_maximum", "1.5")
+    at = 1.5 * THRESHOLDS["supply_amps_fraction"]
+    assert f"above {at:g} A of its 1.5 A rating" in result.output

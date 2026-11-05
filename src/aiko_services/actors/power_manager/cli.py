@@ -317,7 +317,11 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
         f"{'stops this host' if button_shutdown else 'is reported and not acted on'}",
         err=True)
     if supply_amps_maximum:
-        click.echo(f"# a supply above {supply_amps_maximum:g} A of its "
+        # The fraction, and not the rating twice.  The first version of
+        # this line printed "above 1.5 A of its 1.5 A rating", which is
+        # not what is checked and reads like a threshold nothing reaches
+        at = supply_amps_maximum * THRESHOLDS["supply_amps_fraction"]
+        click.echo(f"# a supply above {at:g} A of its "
             f"{supply_amps_maximum:g} A rating is warned about", err=True)
     if powered_down_application_grace:
         click.echo("# the supply going means the writers stop in "
