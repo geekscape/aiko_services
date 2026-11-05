@@ -561,6 +561,11 @@ class PowerManagerCommon:
                 "power_up_reasons": "+".join(
                     self._powered_up.reasons()) or "-",
                 "period_s": self._period,
+                # How long this host has been undocked, so that a reading
+                # of the log can say how long real undocked periods last
+                # and what the battery pack did through them.  That is
+                # what the deadlines are tuned from
+                "undocked_s": round(self._undocked.seconds(now), 1),
             })
             if self._log.last_error:
                 self.ec_producer.update(
@@ -1093,6 +1098,22 @@ class PowerManagerCommon:
 
         if event == "dock":
             self.logger.info(f"Dock: {value}")
+            # Decided now, and not at the next sample.
+            #
+            # The two directions are not alike.  Losing the supply can
+            # wait: the battery pack exists for exactly that, a glitch must
+            # not stop a recording, and the dock dwell and the two
+            # deadlines are all deliberately patient.  Getting the
+            # application working again should be prompt, because nothing
+            # is gained by a host that stays quiesced while its supply is
+            # back.
+            #
+            # So the dwell and the deadlines keep the patience on the
+            # losing side, and this takes the sample period out of the
+            # returning side.  In production that period is a minute, so
+            # without this a recording resumed up to a minute after the
+            # supply did
+            self._evaluate(self.reading())
             return
         if event == "button":
             if value == "held":

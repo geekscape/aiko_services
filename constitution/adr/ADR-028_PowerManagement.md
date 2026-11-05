@@ -417,6 +417,19 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     longer than the backstop would otherwise pass, and the host would stop before the writers
     were ever told.
 
+    **Losing the supply and getting it back are not alike, and the design is asymmetric on
+    purpose.** Losing it can wait: the battery pack exists for exactly that, a glitch must not
+    stop a recording, and the dwell and both deadlines are deliberately patient. Getting the
+    application working again should be prompt, because nothing is gained by a host that stays
+    quiesced while its supply is back. So an undock is believed only after its dwell, a dock
+    is believed at once, and a change of the dock line asks the policy to decide there and
+    then rather than at the next sample. The line needs a settling time, because every edge
+    now asks for a decision.
+
+    Deciding at the edge serves the losing side as well, although that is not its purpose: the
+    undocked count starts when the supply went, and not at the next sample, so a deadline
+    measures from the truth.
+
     **Every one of these durations is noticed at the next sample.** The policy decides on each
     reading, so a grace shorter than the sample period does not mean what it says, and each
     one is in effect rounded up to the next sample. A deployment therefore sets them as

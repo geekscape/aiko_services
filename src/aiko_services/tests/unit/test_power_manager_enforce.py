@@ -895,3 +895,80 @@ def test_the_defaults_are_in_the_right_order():
     assert deadline < backstop
     assert THRESHOLDS["dock_dwell_s"] < deadline
     assert THRESHOLDS["powered_up_maximum_s"] <= backstop
+
+# A returning supply is not patient ---------------------------------------- #
+#
+# The lead's point of 2026-11-05: the two directions have different
+# objectives.  Losing the supply can wait, because the battery pack exists
+# for exactly that.  Getting the application working again should be
+# prompt.  The dwell and the deadlines keep the patience on the losing
+# side, and a dock event takes the sample period out of the returning side.
+
+def docked_reading(volts=12.0, **extra):
+    return {"battery_volts": volts, "battery_pack_celsius": 25.0,
+        "docked": True, **extra}
+
+def test_a_dock_event_decides_at_once():
+    """Without this a recording resumed at the next sample, which is a
+    minute in production"""
+
+    actor = make_actor(
+        properties=("readings", "hold", "signal", "button", "dock"),
+        script=[undocked(), undocked(), docked_reading(), docked_reading()])
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    assert actor.share["writing_ok"] is False
+    actor._input_event("dock", "yes")            # The supply comes back
+    assert actor.share["writing_ok"] is True
+    assert actor.share["policy_reason"] == "docked"
+
+def test_an_undock_event_decides_too_and_the_dwell_still_holds():
+    """Deciding at the edge makes the undocked count start at the moment
+    the supply went, which is more accurate and no less patient: the dwell
+    means the host still counts as docked"""
+
+    actor = make_actor(
+        properties=("readings", "hold", "signal", "button", "dock"),
+        script=[docked_reading(), undocked(), undocked()])
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._input_event("dock", "no")
+    assert actor.share["policy_reason"] == "docked"   # Inside the dwell
+    assert actor.share["writing_ok"] is True
+
+def test_a_dock_event_is_still_logged():
+    actor = make_actor(
+        properties=("readings", "hold", "signal", "button", "dock"),
+        script=[docked_reading(), docked_reading()])
+    actor._input_event("dock", "yes")
+    assert actor.share["docked"] == "yes"
+
+def test_the_dock_line_settles_before_it_is_believed():
+    """Every edge now asks the policy to decide, so a line that chatters
+    would ask many times in a moment"""
+
+    from aiko_services.actors.power_manager.button import DOCK_BOUNCE_S
+
+    assert DOCK_BOUNCE_S > 0
+
+def test_the_log_carries_the_undocked_seconds():
+    """What the deadlines are tuned from: how long real undocked periods
+    last, and what the battery pack did through them"""
+
+    import json
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as directory:
+        actor = make_actor(log_directory=directory,
+            properties=("readings", "hold", "signal", "button", "dock"),
+            script=[undocked(), undocked()])
+        actor.sample()
+        actor.sample()
+        actor.close()
+        lines = []
+        for path in sorted(__import__("pathlib").Path(directory).glob(
+            "*.jsonl")):
+            lines += [json.loads(line) for line in path.read_text(
+                ).splitlines()]
+    assert lines
+    assert "undocked_s" in lines[-1]
+    assert lines[-1]["undocked_s"] >= 0

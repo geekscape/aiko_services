@@ -38,13 +38,15 @@
 import time
 
 __all__ = [
-    "BUTTON_ACTIVE_LOW", "BUTTON_GPIO", "DOCK_ACTIVE_LOW", "DOCK_GPIO",
+    "BUTTON_ACTIVE_LOW", "BUTTON_GPIO", "DOCK_ACTIVE_LOW", "DOCK_BOUNCE_S",
+    "DOCK_GPIO",
     "FakePowerInputs", "GpioPowerInputs", "HOLD_TIME_S", "choose_power_inputs",
     "classify",
 ]
 
 BUTTON_GPIO = 6                    # BCM, low while held
 DOCK_GPIO = 7                      # BCM, low while docked
+DOCK_BOUNCE_S = 0.05               # Settling, at the edge itself
 HOLD_TIME_S = 3.0
 
 # The board pulls both lines up, and each one goes low to mean something.
@@ -144,8 +146,13 @@ class GpioPowerInputs:
         # the press counted and can let go
         self._button.when_held = self._on_held
 
+        # A bounce time, as the button has.  Every edge now asks the
+        # policy to decide, so a line that chatters would ask many times
+        # in a moment.  The dwell handles slow glitching; this handles the
+        # edge itself
         self._dock = DigitalInputDevice(
-            self.dock_gpio, pull_up=DOCK_ACTIVE_LOW)
+            self.dock_gpio, pull_up=DOCK_ACTIVE_LOW,
+            bounce_time=DOCK_BOUNCE_S)
         self._dock.when_activated = self._on_dock
         self._dock.when_deactivated = self._on_dock
 
