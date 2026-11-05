@@ -8,7 +8,7 @@ audience: [project-lead, architects, developers, ai-coding-agents]
 status: operational
 ste: adapted
 related: [../p_01_PrinciplesGovernance, ../p_00_DesignPrinciples]
-last_updated: 2026-10-23
+last_updated: 2026-11-05
 ---
 
 # Aiko Services Architectural Decision Records
@@ -62,4 +62,8 @@ deferral promotion, retirement). Use one for any decision worth a durable ration
 | 024 | Reserved by another session's pending proposal | claimed | [Privately maintained] |
 | [025](ADR-025_RemoteDisplayAbstraction.md) | Remote display abstraction — the `display:0` composite of three aspect Interfaces, aspects advertised as tags, the key map on the device, settings as one Parameters-shaped declaration, a bounded leased in-band frame mirror (CP-F gray area) | normative (accepted 2026-09-27; amended 2026-10-23, 2026-11-02) | `src/aiko_services/actors/display/` (Epic 1 of the display work) |
 | [026](ADR-026_DaemonSupervision.md) | Daemon supervision — the operating system starts one daemon for each host (the ProcessManager), a `DaemonSupervisor` Interface with one Implementation for each platform, `render` before `install`, and Supervisor recorded as an aspect for composition later | normative (accepted 2026-10-21) | `src/aiko_services/main/daemon_supervisor/` (Epic 0 of the aiko01 work) |
-| 027+ | next free numbers | free | |
+| 027 | — | free (but see the note below) | |
+| [028](ADR-028_PowerManagement.md) | Power management — one `PowerManager` Interface that extends Actor, with an Implementation for each platform (a power management module, Linux, macOS and a mock), property tokens rather than aspect tags, a power hold that outlives the process that sets it, a release that happens only in the shutdown hook and never on a restart, safe and unsafe postures as `ProcessManager` has them, a quiesce mode before the power ends with a read-only remount at the floor voltage, and an explicit rendered grant for the two privileged operations | proposal (2026-11-05, waits for the lead's acceptance) | `src/aiko_services/actors/power_manager/` (the power manager work) |
+| 029+ | next free numbers | free | |
+
+**Note on 027.** This registry shows 027 as free, and an ADR-027 that adopts P11 is written on a branch that is not merged. The registry owns the numbers, so 027 stays free here until that work claims it. The power management move took 028 rather than 027, so that the two cannot collide.
