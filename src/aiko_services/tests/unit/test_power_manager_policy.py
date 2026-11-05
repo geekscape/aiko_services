@@ -23,6 +23,9 @@ from aiko_services.actors.power_manager import (
     SHUTDOWN,
     THRESHOLDS, decide, decide_mode,
 )
+from aiko_services.actors.power_manager.policy import (
+    EXACT_REASONS, decide_action
+)
 
 EVERY = ("readings", "hold", "signal", "button", "dock")
 
@@ -441,3 +444,81 @@ def test_every_mode_has_an_answer():
 
     for mode in MODES:
         assert isinstance(writing_ok(mode), bool), mode
+
+# An inert reason must not mask an active one ------------------------------ #
+#
+# Measured in production on 2026-11-05.  The battery pack sagged from
+# 9.996 V to 9.770 V in the first second of an undocking, below its 9.900 V
+# floor, so decide() answered "battery_floor" every time.  That reason
+# comes from a data sheet, so an advisory posture holds it back, and
+# decide() had already returned, so the deadline below it was never
+# reached.  The deadline would have acted.  The host ran on a flat pack
+# until it browned out, logging "would shut down now" once a minute.
+
+def action(actionable=None, **changes):
+    """The decision a caller can act on, on an undocked host"""
+
+    case = dict(
+        volts=12.0, battery_pack_celsius=25.0, docked=False, properties=EVERY,
+        powered_up_held=1, button_held=False,
+        undocked_s=10.0, battery_low_s=0.0, powered_up_idle_s=0.0,
+        thresholds=THRESHOLDS)
+    case.update(changes)
+    return decide_action(**case, actionable=actionable)
+
+def test_the_production_case_reaches_the_deadline():
+    """The pack is under its floor and the deadline has passed.  What is
+    most urgent cannot act, so what can act is the deadline"""
+
+    flat = dict(volts=9.77, undocked_s=601.0, powered_up_held=9)
+    assert when(**flat) == (SHUTDOWN, "battery_floor")      # most urgent
+    assert action(actionable=EXACT_REASONS, **flat)  \
+        == (SHUTDOWN, "powered_down_grace")                 # what can act
+
+def test_nothing_actionable_holds_rather_than_stopping():
+    """Under the floor, inside the deadline, and a claim held.  A hold is
+    final, so the walk stops there and the host keeps running"""
+
+    assert action(actionable=EXACT_REASONS,
+        volts=9.77, undocked_s=10.0, powered_up_held=1)  \
+        == (HOLD, "powered_up_held")
+
+def test_with_everything_actionable_it_is_the_most_urgent():
+    """An enforcing posture passes no set, and then this is decide()"""
+
+    flat = dict(volts=9.77, undocked_s=601.0, powered_up_held=9)
+    assert action(**flat) == when(**flat) == (SHUTDOWN, "battery_floor")
+
+def test_a_hold_is_final_and_is_never_stepped_past():
+    """A docked host holds.  Walking past that into the undocked rows
+    would stop a host that has its supply"""
+
+    assert action(actionable=EXACT_REASONS, volts=9.77, docked=True)  \
+        == (HOLD, "docked")
+
+def test_the_button_is_reached_past_an_inert_floor():
+    """A person asked, and the floor must not swallow that either"""
+
+    assert action(actionable=EXACT_REASONS, volts=9.77, button_held=True)  \
+        == (SHUTDOWN, "button_held")
+
+def test_the_backstop_is_reached_past_an_inert_floor():
+    thresholds = {**THRESHOLDS, "powered_down_grace_s": None}
+    assert action(actionable=EXACT_REASONS, thresholds=thresholds,
+        volts=9.77, undocked_s=901.0, powered_up_held=9)  \
+        == (SHUTDOWN, "undocked_timeout")
+
+def test_a_host_with_no_hold_property_still_holds():
+    assert action(actionable=EXACT_REASONS, volts=9.77,
+        properties=("readings",)) == (HOLD, "no_hold_property")
+
+def test_one_rule_is_read_two_ways_and_not_written_twice():
+    """Both walk the same generator, so they cannot drift apart"""
+
+    import inspect
+
+    from aiko_services.actors.power_manager import policy
+
+    for name in ("decide", "decide_action"):
+        source = inspect.getsource(getattr(policy, name))
+        assert "_rows(" in source, name

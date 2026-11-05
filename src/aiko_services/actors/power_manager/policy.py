@@ -47,7 +47,7 @@
 __all__ = [
     "Dwell", "EXACT_REASONS", "HOLD", "MODES", "MODE_CONSERVE",
     "MODE_NORMAL", "MODE_QUIESCE", "REASONS", "SHUTDOWN", "decide",
-    "decide_mode", "writing_ok",
+    "decide_action", "decide_mode", "writing_ok",
 ]
 
 HOLD = "hold"
@@ -151,30 +151,98 @@ def decide(volts, battery_pack_celsius, docked, properties, powered_up_held,
     powered_down = _number(thresholds.get("powered_down_grace_s"))
     grace = _number(thresholds.get("powered_up_grace_s"), 0.0)
 
+    for decision, reason in _rows(volts, battery_pack_celsius, docked,
+        properties, powered_up_held, button_held, undocked_s, battery_low_s,
+        powered_up_idle_s, floor, low, hot, dwell, maximum, powered_down,
+        grace):
+
+        return decision, reason                  # The first, and the most
+                                                 #   urgent, is the answer
+
+def decide_action(volts, battery_pack_celsius, docked, properties,
+    powered_up_held, button_held, undocked_s, battery_low_s,
+    powered_up_idle_s, thresholds, actionable=None):
+
+    """The first decision a caller can act on, and the one word that says
+    why.
+
+    The rows are the same rows, in the same order.  The difference is what
+    happens when the most urgent reason is one the caller cannot act on: a
+    hold is final, and a shutdown is not, so the next shutdown is offered
+    instead.
+
+    **This exists because an inert reason masked an active one**, measured
+    in production on 2026-11-05.  A battery pack sagged below its floor in
+    the first second of every undocking, so `decide()` answered
+    "battery_floor" every time.  That reason comes from a data sheet, so an
+    advisory posture holds it back, and `decide()` had already returned, so
+    the deadline below it was never reached.  The deadline would have acted.
+    The host therefore ran on a flat pack until it browned out, with the
+    log saying "would shut down now" once a minute.
+
+    "actionable" is the set of reasons the caller can act on, and None
+    means every one of them.  Passing a set is how the posture reaches a
+    pure function: as data, and not as a flag with behavior behind it"""
+
+    floor = _number(thresholds.get("battery_volts_floor"))
+    low = _number(thresholds.get("battery_volts_low"))
+    hot = _number(thresholds.get("battery_pack_celsius_maximum"))
+    dwell = _number(thresholds.get("battery_dwell_s"), 0.0)
+    maximum = _number(thresholds.get("undocked_maximum_s"))
+    powered_down = _number(thresholds.get("powered_down_grace_s"))
+    grace = _number(thresholds.get("powered_up_grace_s"), 0.0)
+
+    for decision, reason in _rows(volts, battery_pack_celsius, docked,
+        properties, powered_up_held, button_held, undocked_s, battery_low_s,
+        powered_up_idle_s, floor, low, hot, dwell, maximum, powered_down,
+        grace):
+
+        if decision == HOLD:
+            return decision, reason              # A hold is final
+        if actionable is None or reason in actionable:
+            return decision, reason
+    return HOLD, "powered_up_grace"              # The rows end in a hold
+
+def _rows(volts, battery_pack_celsius, docked, properties, powered_up_held,
+    button_held, undocked_s, battery_low_s, powered_up_idle_s, floor, low,
+    hot, dwell, maximum, powered_down, grace):
+
+    """Every decision the rule reaches, in its order.
+
+    One rule, read two ways.  decide() takes the first of these, which is
+    the most urgent truth and what an operator is shown.  decide_action()
+    walks past a shutdown it cannot act on and takes the next, which is
+    what stops a host.  A generator is what lets both read one rule rather
+    than two copies of it that can drift apart"""
+
     if button_held:
-        return SHUTDOWN, "button_held"
+        yield SHUTDOWN, "button_held"
     if volts is not None and floor is not None and volts < floor:
-        return SHUTDOWN, "battery_floor"
-    if battery_pack_celsius is not None and hot is not None and battery_pack_celsius > hot:
-        return SHUTDOWN, "battery_pack_temperature"
+        yield SHUTDOWN, "battery_floor"
+    if battery_pack_celsius is not None and hot is not None  \
+        and battery_pack_celsius > hot:
+        yield SHUTDOWN, "battery_pack_temperature"
     if "hold" not in properties:
-        return HOLD, "no_hold_property"
+        yield HOLD, "no_hold_property"
+        return
     if docked:
-        return HOLD, "docked"
+        yield HOLD, "docked"
+        return
 
     # Undocked from here down
     if volts is not None and low is not None and volts < low  \
         and battery_low_s >= dwell:
-        return SHUTDOWN, "battery_low"
+        yield SHUTDOWN, "battery_low"
     deadline, deadline_reason = _deadline(powered_down, maximum)
     if deadline is not None and undocked_s is not None  \
         and undocked_s > deadline:
-        return SHUTDOWN, deadline_reason
+        yield SHUTDOWN, deadline_reason
     if powered_up_held:
-        return HOLD, "powered_up_held"
+        yield HOLD, "powered_up_held"
+        return
     if powered_up_idle_s >= grace:
-        return SHUTDOWN, "powered_up_idle"
-    return HOLD, "powered_up_grace"
+        yield SHUTDOWN, "powered_up_idle"
+    yield HOLD, "powered_up_grace"
 
 def _deadline(powered_down_grace_s, undocked_maximum_s):
     """The deadline on an undocked hold, and the word for whichever

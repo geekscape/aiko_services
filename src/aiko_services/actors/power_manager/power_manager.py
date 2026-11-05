@@ -53,7 +53,7 @@ from aiko_services.main.utilities import get_hostname
 from aiko_services.actors.power_manager.log import PowerLog
 from aiko_services.actors.power_manager.policy import (
     Dwell, EXACT_REASONS, HOLD, MODE_NORMAL, MODE_QUIESCE, SHUTDOWN, decide,
-    decide_mode, writing_ok as policy_writing_ok
+    decide_action, decide_mode, writing_ok as policy_writing_ok
 )
 from aiko_services.actors.power_manager.quiesce import (
     HOOK_QUIESCE, Quiesce
@@ -487,6 +487,7 @@ class PowerManagerCommon:
             "policy": POLICY_ADVISORY,
             "policy_reason": "-",
             "policy_would": "-",       # What it would do, while advisory
+            "policy_acting": "-",      # And what it will act on, if any
             "enforce": self._enforce,
             "button_shutdown": self._button_shutdown,
             "mode": self._mode,
@@ -911,24 +912,41 @@ class PowerManagerCommon:
         powered_up_idle_s = self._powered_up_idle.update(
             powered_up_held == 0, now)
 
-        decision, reason = decide(
+        arguments = (
             reading.battery_volts, reading.battery_pack_celsius, docked,
             properties, powered_up_held, self._button_held,
             undocked_s, battery_low_s, powered_up_idle_s, thresholds)
+        # What is most urgent, which is what an operator is shown
+        decision, reason = decide(*arguments)
+        # And what can be acted on in this posture, which is not always the
+        # same row.  A battery pack that sags below its floor in the first
+        # second of an undocking answers "battery_floor" every time, and an
+        # advisory posture holds that back, so without this the deadline
+        # below it was never reached and the host ran until it browned out.
+        # Measured in production on 2026-11-05
+        action, action_reason = decide_action(*arguments,
+            actionable=None if self._enforce else EXACT_REASONS)
         mode, mode_reason = decide_mode(
             self._mode, decision, reading.battery_volts, docked,
             self.hook_state(), thresholds, undocked_s)
 
-        self._publish_decision(
-            decision, reason, mode, mode_reason, docked, undocked_s, now)
+        self._publish_decision(decision, reason, mode, mode_reason, docked,
+            undocked_s, now, action_reason if action == SHUTDOWN else "-")
         if mode != self._mode:
             self._enter_mode(mode, mode_reason, now)
-        if decision == SHUTDOWN:
-            self._act(reason, now)
+        if action == SHUTDOWN:
+            self._act(action_reason, now)
+        elif decision == SHUTDOWN:
+            # Nothing in the rule can act in this posture.  Saying so is
+            # the difference between a log that explains a host which keeps
+            # running and one that repeats "would shut down now" for ever
+            self.logger.warning(
+                f"Advisory: would shut down now ({reason}), and no reason "
+                "below it can act either")
         return decision, reason, mode, mode_reason
 
     def _publish_decision(self, decision, reason, mode, mode_reason,
-        docked, undocked_s, now=None):
+        docked, undocked_s, now=None, acting="-"):
 
         """Everything the decision produced, whether or not it is acted on.
 
@@ -940,6 +958,9 @@ class PowerManagerCommon:
         items = {
             "policy_would": decision,
             "policy_reason": reason,
+            # What it will act on, which is not always what is most urgent:
+            # a reason this posture holds back is reported and stepped past
+            "policy_acting": acting,
             "mode_reason": mode_reason,
             "docked": "yes" if docked else "no",
             **self._powered_up.as_share(),

@@ -374,6 +374,25 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     operating system, and whether a press acts is published so an operator reads it rather
     than infers it.
 
+    **A reason this posture holds back must not mask one it does not.** The rows of decision 8
+    are ordered by urgency, and the posture of decision 7 is about calibration. The two are
+    independent, and where they meet the order alone is not enough: a shutdown the posture
+    holds back used to end the decision, so a reason below it that would have acted was never
+    reached.
+
+    Measured in production. A battery pack sagged below its floor in the first second of every
+    undocking, so the most urgent reason was always the floor, which is a data-sheet threshold
+    and inert while advisory. The deadline below it would have stopped the host. Instead the
+    host ran on a flat pack until it lost its power, reporting once a minute that it would
+    shut down.
+
+    So the rule is read twice. The most urgent reason is what an operator is shown, because it
+    is the truth about the host. The first reason that can be acted on is what stops it, and
+    both are published. A hold is final and is never stepped past: a host with its supply back
+    holds, whatever was true above that row.
+
+    One rule, two readings, and never two copies of the rule.
+
     This decision is numbered last and read first. In the order of the rows that decision 8
     gives, the button comes before every other reason, and this is why: the other rows need a
     measurement to be right, and this one needs only a person.

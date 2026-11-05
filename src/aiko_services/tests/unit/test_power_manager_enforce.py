@@ -972,3 +972,56 @@ def test_the_log_carries_the_undocked_seconds():
     assert lines
     assert "undocked_s" in lines[-1]
     assert lines[-1]["undocked_s"] >= 0
+
+# The production case, through the Actor ------------------------------------ #
+
+def test_an_advisory_host_under_its_floor_still_stops_at_its_deadline():
+    """2026-11-05, measured.  The pack sagged below its floor in the first
+    second of an undocking, so the most urgent reason was one that advisory
+    holds back, and the deadline below it was never reached"""
+
+    calls = []
+    actor = advisory_with([undocked(volts=9.77)] * 4, calls=calls,
+        thresholds={**THRESHOLDS, "powered_down_grace_s": 120.0})
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    assert actor.share["policy_reason"] == "battery_floor"   # most urgent
+    assert actor.share["policy_acting"] == "-"               # nothing yet
+    assert calls == []
+    actor._evaluate(actor.reading(), now=1125.0)             # past the deadline
+    assert actor.share["policy_reason"] == "battery_floor"   # still the truth
+    assert actor.share["policy_acting"] == "powered_down_grace"
+    assert calls                                             # and it stopped
+
+def test_what_it_would_do_and_what_it_acts_on_are_both_published():
+    """An operator watching needs both: why it would stop, and why it will"""
+
+    actor = advisory_with([undocked(volts=9.77)] * 3,
+        thresholds={**THRESHOLDS, "powered_down_grace_s": 120.0})
+    actor._evaluate(actor.reading(), now=1000.0)
+    assert actor.share["policy_would"] == "shutdown"
+    assert actor.share["policy_reason"] == "battery_floor"
+    assert actor.share["policy_acting"] == "-"
+
+def test_nothing_actionable_says_so_once_for_each_decision():
+    """Not "would shut down now" repeated with no explanation, which is
+    what this looked like in production"""
+
+    actor = advisory_with([undocked(volts=9.77)] * 3)
+    actor._evaluate(actor.reading(), now=1000.0)
+    assert actor.share["policy_acting"] == "-"
+    assert actor.share["policy"] == POLICY_ADVISORY
+
+def test_an_enforcing_host_acts_on_the_most_urgent_reason():
+    """With everything actionable the two agree, and the floor is what
+    stops it, which is the whole point of the floor"""
+
+    calls = []
+    actor = make_actor(enforce=True,
+        properties=("readings", "hold", "signal", "button", "dock"),
+        quiesce=quiesce_of(), power_off_runner=runner_of(calls=calls),
+        script=[undocked(volts=9.0)] * 4)
+    actor._evaluate(actor.reading(), now=1000.0)
+    assert actor.share["policy_acting"] == "battery_floor"
+    actor._evaluate(actor.reading(), now=1010.0)       # past the remount grace
+    assert calls
