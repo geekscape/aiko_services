@@ -794,7 +794,10 @@ def test_a_deadline_at_the_floor_still_remounts_first():
     actor = advisory_with([undocked(volts=9.5)] * 5, calls=calls,
         thresholds={**THRESHOLDS,
             "powered_down_grace_s": 300.0,
-            "battery_volts_floor": 9.0,          # Under the reading
+            # Under the reading, and above the cell damage limit.  9.0
+            # exactly is that limit, and the Actor now refuses it: a guard
+            # added on 2026-11-05 caught this test using it
+            "battery_volts_floor": 9.1,
             "battery_volts_low": 9.2})
     actor._evaluate(actor.reading(), now=1000.0)
     actor._evaluate(actor.reading(), now=1020.0)
@@ -1025,3 +1028,25 @@ def test_an_enforcing_host_acts_on_the_most_urgent_reason():
     assert actor.share["policy_acting"] == "battery_floor"
     actor._evaluate(actor.reading(), now=1010.0)       # past the remount grace
     assert calls
+
+def test_the_actor_raises_a_floor_at_the_damage_limit():
+    """Every other mistyped threshold here is made inert, because the
+    danger is a host that stops for nothing.  This one is the other way
+    round: a floor too low lets a host run into damage that is permanent,
+    so the safe answer is the shipped number and a complaint"""
+
+    from aiko_services.actors.power_manager.power_manager import (
+        CELL_DAMAGE_VOLTS)
+
+    for floor in (CELL_DAMAGE_VOLTS, 8.0, 0.0):
+        actor = make_actor(thresholds={**THRESHOLDS,
+            "battery_volts_floor": floor})
+        assert actor.share["thresholds"]["battery_volts_floor"]  \
+            == str(THRESHOLDS["battery_volts_floor"]), floor
+        assert "cell damage limit" in actor.share["last_error"], floor
+
+def test_a_floor_above_the_damage_limit_is_kept():
+    actor = make_actor(thresholds={**THRESHOLDS,
+        "battery_volts_floor": 9.3, "battery_volts_low": 9.4})
+    assert actor.share["thresholds"]["battery_volts_floor"] == "9.3"
+    assert actor.share["last_error"] == "-"

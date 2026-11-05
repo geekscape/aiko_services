@@ -77,7 +77,8 @@ __all__ = [
     "FUNCTIONS",
     "LOG_DIRECTORY", "PERIOD_DEVELOPMENT", "PERIOD_PRODUCTION",
     "POLICY_ADVISORY", "POLICY_SHUTTING_DOWN", "PROPERTIES", "PROTOCOL",
-    "POWERED_DOWN_GRACE_S", "SAFE", "SAFE_FUNCTIONS", "THRESHOLDS",
+    "CELL_DAMAGE_VOLTS", "POWERED_DOWN_GRACE_S", "SAFE", "SAFE_FUNCTIONS",
+    "THRESHOLDS",
     "UNDOCKED_MAXIMUM_S", "WORKING_DWELL_S",
     "WORKING_PATTERN", "WORKING_REPORTERS_MAXIMUM", "PowerManager",
     "PowerManagerCommon", "choose_power_manager", "power_manager_args",
@@ -105,6 +106,14 @@ PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/power_manager:0"
 # tired pack should carry.
 POWERED_DOWN_GRACE_S = 600.0       # The deployment's deadline: ten minutes
 UNDOCKED_MAXIMUM_S = 900.0         # The backstop: fifteen minutes
+
+# The voltage a cell is damaged below, as a pack of three: 3.0 V each.
+#
+# **It is never a threshold.** This design stops above it, and a test
+# asserts that no shipped threshold is at or below it.  It is here so that
+# a threshold given on the command line can be refused against it, which
+# is the one place a person can put a number this low by hand
+CELL_DAMAGE_VOLTS = 9.0
 
 # What a report of work sounds like, and the two limits that bound it.  A
 # report makes a noise that reaches a person, so one reporter cannot sound
@@ -241,6 +250,28 @@ def _grace_order(thresholds):
     thresholds["powered_down_application_grace_s"] = None
     return (f"powered_down_application_grace_s {application:g} is not less "
         f"than {name} {deadline:g}: turned off")
+
+def _volts_floor(thresholds):
+    """The floor must stay above the voltage a cell is damaged below.
+
+    A floor at or under it is raised back to the default and reported, and
+    not turned off.  Every other mistyped threshold here is made inert,
+    because the danger is a host that stops for nothing.  This one is the
+    other way round: a floor too low lets a host run into damage that is
+    permanent, so the safe answer is the shipped number and a complaint.
+
+    Returns the diagnostic, or None.  It changes the thresholds in place"""
+
+    try:
+        floor = float(thresholds.get("battery_volts_floor"))
+    except (TypeError, ValueError):
+        return None                # _number() ignores what it cannot read
+    if floor > CELL_DAMAGE_VOLTS:
+        return None
+    thresholds["battery_volts_floor"] = THRESHOLDS["battery_volts_floor"]
+    return (f"battery_volts_floor {floor:g} is not above the cell damage "
+        f"limit {CELL_DAMAGE_VOLTS:g}: using "
+        f"{THRESHOLDS['battery_volts_floor']:g}")
 
 class PowerManager(aiko.Actor):
     """What the supply and the battery are doing, and what to do about it.
@@ -434,7 +465,8 @@ class PowerManagerCommon:
         self._telemetry = bool(telemetry)
         self._thresholds = dict(THRESHOLDS)
         self._thresholds.update(thresholds or {})
-        self._threshold_error = _grace_order(self._thresholds)
+        self._threshold_error = _grace_order(self._thresholds)  \
+            or _volts_floor(self._thresholds)
         self._period = self._valid_period(period)
         self._log = PowerLog(log_directory, keep_days) if log_directory  \
             else None
