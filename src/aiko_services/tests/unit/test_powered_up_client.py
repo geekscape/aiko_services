@@ -184,3 +184,145 @@ def test_a_second_power_manager_does_not_replace_the_first():
     client.close()
 
 # --------------------------------------------------------------------------- #
+
+# Reading the answers ------------------------------------------------------ #
+#
+# Found in production on 2026-11-05.  An Actor dispatches an incoming
+# message to a method of that name, so a Service with no such method logged
+# an error for every answer: "powered_up_granted('300'): Function not found
+# in: SegmentStoreForwardImpl", and the same for every change of mode.  A
+# client that asks must also answer.
+
+def test_the_answers_are_put_on_the_service():
+    """Otherwise every grant and every change of mode is an error in the
+    Service's log, and a real fault is lost in the noise.
+
+    open() installs them; it is called here directly, because open() also
+    starts the discovery that needs the transport"""
+
+    client, _ = make_client()
+    client._install_handlers()
+    for name in ("powered_up_granted", "powered_up_refused",
+        "powered_up_released", "power_mode"):
+        assert callable(getattr(client.service, name)), name
+    client._remove_handlers()
+
+def test_removing_them_takes_only_what_was_added():
+    client, _ = make_client()
+    client._install_handlers()
+    client._remove_handlers()
+    for name in ("powered_up_granted", "power_mode"):
+        assert not hasattr(client.service, name), name
+
+def test_a_name_the_service_already_has_is_left_alone():
+    """Its own is better than this one, and overwriting it would break the
+    Service that defined it"""
+
+    class Service:
+        topic_path = OWN
+        def power_mode(self, mode, reason="-"):
+            self.told = (mode, reason)
+
+    service = Service()
+    client = PoweredUpClient(service, publish=lambda *a: None)
+    client._install_handlers()
+    service.power_mode("quiesce", "battery")
+    assert service.told == ("quiesce", "battery")
+    client._remove_handlers()
+    assert hasattr(service, "power_mode")        # Not taken away
+
+def test_a_grant_is_recorded_as_a_number():
+    client, _ = make_client()
+    client._install_handlers()
+    client.service.powered_up_granted("300")
+    assert client.granted == 300.0
+    client._remove_handlers()
+
+def test_a_grant_that_cannot_be_read_is_none_and_not_a_raise():
+    """A client reports; it does not decide"""
+
+    client, _ = make_client()
+    client._install_handlers()
+    client.service.powered_up_granted("soon")
+    assert client.granted is None
+    client._remove_handlers()
+
+def test_a_refusal_is_recorded_with_its_reason():
+    """A Service that reads this can do less work, rather than plan on
+    time it does not have"""
+
+    client, _ = make_client()
+    client._install_handlers()
+    client.service.powered_up_refused("maximum_seconds", "600")
+    assert client.refused == "maximum_seconds"
+    client._remove_handlers()
+
+def test_a_refusal_with_no_detail_is_accepted():
+    client, _ = make_client()
+    client._install_handlers()
+    client.service.powered_up_refused("no_resource")
+    assert client.refused == "no_resource"
+    client._remove_handlers()
+
+def test_a_release_answer_is_accepted_whatever_it_carries():
+    client, _ = make_client()
+    client._install_handlers()
+    client.service.powered_up_released()
+    client.service.powered_up_released("extra")
+    client._remove_handlers()
+
+def test_the_mode_reaches_the_caller_handler():
+    """The answer that matters.  An application that writes files stops
+    when the power will end"""
+
+    told = []
+    client, _ = make_client(mode_handler=lambda mode, why: told.append(
+        (mode, why)))
+    client._install_handlers()
+    client.service.power_mode("quiesce", "battery")
+    assert client.mode == "quiesce"
+    assert told == [("quiesce", "battery")]
+    client._remove_handlers()
+
+def test_a_mode_handler_that_raises_does_not_reach_the_power_manager():
+    """A broken application must not become an exception in the message
+    path of the Actor that told it"""
+
+    def fail(mode, why):
+        raise ValueError("the application is confused")
+
+    client, _ = make_client(mode_handler=fail)
+    client._install_handlers()
+    client.service.power_mode("quiesce", "battery")
+    assert client.mode == "quiesce"
+    client._remove_handlers()
+
+def test_a_mode_with_no_reason_is_accepted():
+    client, _ = make_client()
+    client._install_handlers()
+    client.service.power_mode("normal")
+    assert client.mode == "normal"
+    client._remove_handlers()
+
+def test_nothing_is_recorded_before_an_answer_arrives():
+    client, _ = make_client()
+    assert (client.granted, client.refused, client.mode) == (None, None, None)
+
+def test_open_is_what_installs_them(monkeypatch):
+    """The wiring, with the discovery stubbed out.  Without this test a
+    change that stopped open() from installing the handlers would pass,
+    because every test above installs them itself"""
+
+    class FakeDiscovery:
+        def __init__(self, service):
+            self.service = service
+        def add_handler(self, handler, filter_):
+            pass
+
+    monkeypatch.setattr(
+        "aiko_services.main.transport.ActorDiscovery", FakeDiscovery)
+    client, _ = make_client()
+    client.open()
+    assert callable(getattr(client.service, "power_mode"))
+    client.close()
+    assert not hasattr(client.service, "power_mode")

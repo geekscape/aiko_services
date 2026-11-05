@@ -940,6 +940,20 @@ class PowerManagerCommon:
                 self._evaluate(self.reading())
             elif value.startswith("up") or value == "short":
                 self.logger.info(f"Button {value}")
+                # A release clears the latch, unless a shutdown is already
+                # running.  Without this one press makes the policy report
+                # "button_held" for ever, and that reason is read before
+                # every other one, so the Actor goes blind to its own
+                # battery pack.  Seen in production on 2026-11-05: four
+                # readings in a row reported "button_held" while the pack
+                # was under its floor, and the floor is what mattered
+                # Only where a latch is actually set, so that a press
+                # which asked for nothing also changes nothing
+                if self._button_held and not self._stopping:
+                    self._button_held = False
+                    # Decide again now, so that an operator sees the policy
+                    # recover rather than waiting out a sample period
+                    self._evaluate(self.reading())
 
     def _publish(self, reading):
         """One reading into the shared state, through the producer"""

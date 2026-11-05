@@ -358,3 +358,68 @@ def test_a_grace_period_that_is_off_publishes_as_a_dash():
 def test_a_grace_period_that_is_set_publishes_its_value():
     actor = make_grace_actor(60.0, script=[undocked()])
     assert actor.share["thresholds"]["powered_down_grace_s"] == "60.0"
+
+# The button latch, and its release ---------------------------------------- #
+#
+# Found in production on 2026-11-05.  One press made the policy report
+# "button_held" for ever, and that reason is read before every other one,
+# so the Actor went blind to its own battery pack.  Four readings in a row
+# reported the button while the pack was under its floor.
+
+def docked(volts=12.0, **extra):
+    """One reading of a docked host"""
+
+    return {"battery_volts": volts, "battery_pack_celsius": 25.0,
+        "docked": True, **extra}
+
+def make_button_actor(script):
+    return make_actor(
+        properties=("readings", "hold", "signal", "button", "dock"),
+        script=script, quiesce=Quiesce(syncer=lambda: None),
+        power_off_runner=runner_of())
+
+def test_a_release_clears_the_latch():
+    actor = make_button_actor([docked(), docked(), docked()])
+    actor._input_event("button", "held")
+    assert actor._button_held is True
+    assert actor.share["policy_reason"] == "button_held"
+    actor._input_event("button", "up 4.3")
+    assert actor._button_held is False
+
+def test_a_release_decides_again_at_once():
+    """An operator sees the policy recover, rather than waiting out a
+    sample period that can be a minute"""
+
+    actor = make_button_actor([docked(), docked(), docked()])
+    actor._input_event("button", "held")
+    assert actor.share["policy_would"] == "shutdown"
+    actor._input_event("button", "up 4.3")
+    assert actor.share["policy_would"] == "hold"
+    assert actor.share["policy_reason"] == "docked"
+
+def test_a_short_press_clears_the_latch_too():
+    actor = make_button_actor([docked(), docked(), docked()])
+    actor._input_event("button", "held")
+    actor._input_event("button", "short")
+    assert actor._button_held is False
+
+def test_a_release_does_not_clear_a_shutdown_that_is_running():
+    """The press asked for a stop, and the stop is under way.  Letting go
+    afterwards must not make the Actor change its mind half way"""
+
+    actor = make_button_actor([docked(), docked(), docked()])
+    actor._input_event("button", "held")
+    actor._stopping = True
+    actor._input_event("button", "up 4.3")
+    assert actor._button_held is True
+
+def test_the_battery_pack_is_visible_again_after_a_release():
+    """The production case, as a test.  While the latch was stuck the floor
+    could not be reported, and the floor is what mattered"""
+
+    actor = make_button_actor(
+        [docked(), undocked(volts=9.6), undocked(volts=9.6)])
+    actor._input_event("button", "held")
+    assert actor.share["policy_reason"] == "button_held"
+    actor._input_event("button", "up 4.3")
+    assert actor.share["policy_reason"] == "battery_floor"

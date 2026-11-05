@@ -42,14 +42,23 @@
 # told, as "(power_mode quiesce REASON)" on its own topic, so it can stop
 # writing before the power goes.
 #
+# The answers come back to the Service's own topic, and this client reads
+# them.  That is not a convenience.  An Actor dispatches an incoming
+# message to a method of that name, so a Service with no such method logs
+# an error for every answer: seen in production on 2026-11-05, where every
+# grant and every change of mode became "Function not found in ...".  A
+# client that asks must therefore also answer, so open() installs the
+# handlers on the Service and close() takes them away again.  A Service
+# that defines one of these names itself keeps its own.
+#
+# "mode_handler" is how an application acts on the answer that matters. A
+# power manager publishes "(power_mode quiesce REASON)" when the power will
+# end, and an application that writes files wants to stop.
+#
 # To Do
 # ~~~~~
 # * More units, as something needs them.  A unit is whatever the power
 #   manager can measure and declare
-# * Read the answers.  Today the claim is made and the replies are observed
-#   by whatever subscribes to the Service's own topic.  A handler for
-#   "(powered_up_refused ...)" belongs here, so that a Service that is refused
-#   can do less work rather than assume it has the time
 
 import os
 
@@ -81,7 +90,8 @@ class PoweredUpClient:
     """
 
     def __init__(self, service, seconds=SECONDS, reason="-",
-        constraint=None, protocol=POWERED_UP_PROTOCOL, publish=None):
+        constraint=None, protocol=POWERED_UP_PROTOCOL, publish=None,
+        mode_handler=None):
 
         self.service = service
         self.seconds = float(seconds)
@@ -90,11 +100,17 @@ class PoweredUpClient:
         self.constraint = tuple(constraint) if constraint else None
         self.protocol = protocol
         self._publish = publish    # Injected by a test
+        self._mode_handler = mode_handler
         self._discovery = None
         self._manager = None       # The power manager's topic path
         self._lease = None
+        self._installed = ()       # The handler names this client added
         self.claims = 0            # For the caller's metrics
         self.releases = 0
+        # The last answer of each kind, for the caller and for a test
+        self.granted = None
+        self.refused = None
+        self.mode = None
 
     def open(self):
         """Start watching for a power manager.  Returns at once: there may
@@ -102,10 +118,73 @@ class PoweredUpClient:
 
         from aiko_services.main.transport import ActorDiscovery
 
+        self._install_handlers()
         if self._discovery is None:
             self._discovery = ActorDiscovery(self.service)
             self._discovery.add_handler(self._service_change, self._filter())
         return self
+
+    def _install_handlers(self):
+        """Put this protocol's answers on the Service, so that they are
+        read rather than reported as functions it does not have.
+
+        A name the Service already has is left alone: its own is better
+        than this one"""
+
+        handlers = {
+            "powered_up_granted": self._granted,
+            "powered_up_refused": self._refused,
+            "powered_up_released": self._released,
+            "power_mode": self._power_mode,
+        }
+        installed = []
+        for name, handler in handlers.items():
+            if hasattr(self.service, name):
+                continue
+            setattr(self.service, name, handler)
+            installed.append(name)
+        self._installed = tuple(installed)
+
+    def _remove_handlers(self):
+        """Take away only the names this client added"""
+
+        for name in self._installed:
+            try:
+                delattr(self.service, name)
+            except AttributeError:
+                pass
+        self._installed = ()
+
+    def _granted(self, seconds):
+        """The claim was taken or extended, for this many seconds"""
+
+        self.granted = _seconds(seconds)
+        _LOGGER.debug(f"Powered up granted: {self.granted} s")
+
+    def _refused(self, why, detail=None):
+        """The claim was not granted.  A caller that reads this can do less
+        work, rather than plan on time it does not have"""
+
+        self.refused = str(why)
+        _LOGGER.warning(
+            f"Powered up refused: {why}{f' {detail}' if detail else ''}")
+
+    def _released(self, *arguments):
+        """The claim is given up, by this client or by its expiry"""
+
+        _LOGGER.debug("Powered up released")
+
+    def _power_mode(self, mode, reason="-"):
+        """The host changed what it expects of its power.  "quiesce" means
+        the power will end, so an application stops writing"""
+
+        self.mode = str(mode)
+        _LOGGER.info(f"Power mode: {self.mode} ({reason})")
+        if self._mode_handler:
+            try:
+                self._mode_handler(self.mode, str(reason))
+            except Exception as error:               # noqa: BLE001
+                _LOGGER.warning(f"Power mode handler: {error}")
 
     def found(self):
         """Whether a power manager has been found on this host"""
@@ -150,6 +229,7 @@ class PoweredUpClient:
         closed leaves its Lease timers in the event loop"""
 
         self.release()
+        self._remove_handlers()
         self._discovery = None
         self._manager = None
 
@@ -200,5 +280,15 @@ class PoweredUpClient:
         the answers"""
 
         return f"{self.service.topic_path}/in"
+
+def _seconds(value):
+    """An answer's seconds as a number.  It arrives from the wire as a
+    string, and an answer that cannot be read is None rather than a raise:
+    a client is reporting, not deciding"""
+
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 # --------------------------------------------------------------------------- #
