@@ -44,7 +44,11 @@
 from collections import deque
 from datetime import datetime
 
-from asciimatics.screen import Screen
+# Aliased, as the Display Actor's page aliases it.  Two pages loaded
+# with "-p" used to share one namespace, and a bare "Screen" here
+# replaced that page's own Screen Interface.  load_module() no longer
+# shares the namespace, and the alias says which Screen this is
+from asciimatics.screen import Screen as AsciimaticsScreen
 from asciimatics.widgets import Label, Layout, MultiColumnListBox, Widget
 
 import aiko_services as aiko
@@ -557,10 +561,10 @@ class PowerManagerPage:
 # it, so the chart reads on a monochrome terminal and to a color-blind
 # reader.  Supply and battery pack keep one hue each across every panel
 COLOURS = {
-    0: Screen.COLOUR_CYAN, 1: Screen.COLOUR_YELLOW,
-    2: Screen.COLOUR_CYAN, 3: Screen.COLOUR_YELLOW,
-    4: Screen.COLOUR_CYAN, 5: Screen.COLOUR_YELLOW,
-    6: Screen.COLOUR_YELLOW, 7: Screen.COLOUR_GREEN,
+    0: AsciimaticsScreen.COLOUR_CYAN, 1: AsciimaticsScreen.COLOUR_YELLOW,
+    2: AsciimaticsScreen.COLOUR_CYAN, 3: AsciimaticsScreen.COLOUR_YELLOW,
+    4: AsciimaticsScreen.COLOUR_CYAN, 5: AsciimaticsScreen.COLOUR_YELLOW,
+    6: AsciimaticsScreen.COLOUR_YELLOW, 7: AsciimaticsScreen.COLOUR_GREEN,
 }
 
 AXIS_WIDTH = 7             # "11.43 " and the frame
@@ -619,7 +623,7 @@ class ChartWidget(Widget):
             shown = "-" if latest is None else f"{latest:.2f}"
             header += f"   {index + 1} {SERIES[index][0]} {shown}"
         canvas.print_at(header[:self._w - SCROLL_BAR], self._x, top,
-            colour=Screen.COLOUR_WHITE)
+            colour=AsciimaticsScreen.COLOUR_WHITE)
         if extent is None:
             return
         low, high = extent
@@ -629,7 +633,7 @@ class ChartWidget(Widget):
         base = top + 1
         for value, row in ((high, base), (low, base + plot - 1)):
             canvas.print_at(f"{value:6.2f}", self._x, row,
-                colour=Screen.COLOUR_WHITE)
+                colour=AsciimaticsScreen.COLOUR_WHITE)
 
         def y_of(value):
             return base + (high - value) / (high - low) * (plot - 1)
@@ -638,7 +642,7 @@ class ChartWidget(Widget):
             self._line(canvas, buckets, index, y_of, low, high)
 
     def _line(self, canvas, buckets, index, y_of, low, high):
-        colour = COLOURS.get(index, Screen.COLOUR_WHITE)
+        colour = COLOURS.get(index, AsciimaticsScreen.COLOUR_WHITE)
         previous = None
         for column, bucket in enumerate(buckets):
             entry = bucket.get(index)
@@ -681,9 +685,9 @@ class ChartWidget(Widget):
                     text[at + offset] = character
         live = "live" if self.page.end is None else "panned"
         canvas.print_at("".join(text)[:width],
-            self._x + AXIS_WIDTH, row, colour=Screen.COLOUR_WHITE)
+            self._x + AXIS_WIDTH, row, colour=AsciimaticsScreen.COLOUR_WHITE)
         canvas.print_at(f"{live:>6s}"[:AXIS_WIDTH], self._x, row,
-            colour=Screen.COLOUR_WHITE)
+            colour=AsciimaticsScreen.COLOUR_WHITE)
 
     def reset(self):
         pass
@@ -905,7 +909,6 @@ class PowerManagerChartFrame(ServiceFrame):
     def process_event(self, event):
         from asciimatics.event import KeyboardEvent
         from asciimatics.exceptions import NextScene
-        from asciimatics.screen import Screen as _Screen
 
         if isinstance(event, KeyboardEvent):
             action = self.page.action(event.key_code)
@@ -922,16 +925,16 @@ class PowerManagerChartFrame(ServiceFrame):
                 elif name == "series":
                     self.page.toggle_series(action[1])
                 return None
-            if event.key_code == _Screen.KEY_LEFT:
+            if event.key_code == AsciimaticsScreen.KEY_LEFT:
                 self.page.pan(-0.25)
                 return None
-            if event.key_code == _Screen.KEY_RIGHT:
+            if event.key_code == AsciimaticsScreen.KEY_RIGHT:
                 self.page.pan(0.25)
                 return None
-            if event.key_code == _Screen.KEY_HOME:
+            if event.key_code == AsciimaticsScreen.KEY_HOME:
                 self.page.pan(-1000.0)
                 return None
-            if event.key_code == _Screen.KEY_END:
+            if event.key_code == AsciimaticsScreen.KEY_END:
                 self.page.end = None
                 return None
         return super().process_event(event)
