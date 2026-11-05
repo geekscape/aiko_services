@@ -132,7 +132,12 @@ def _parse_text(value):
     return tuple(items)
 
 def _format_timestamp(timestamp):
-    """Seconds since the epoch --> ISO 8601 UTC with milliseconds"""
+    """Seconds since the epoch --> ISO 8601 UTC with milliseconds
+
+    Drawn into the frame, and still not converted to local time.  It must
+    stay the same instant as stream.variables["timestamps"], and a
+    synthetic source has to render the same frame on every host, whatever
+    zone that host is in"""
 
     moment = datetime.fromtimestamp(timestamp, timezone.utc)
     return f"{moment.strftime('%Y-%m-%dT%H:%M:%S')}.{moment.microsecond // 1000:03d}Z"

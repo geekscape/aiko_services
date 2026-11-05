@@ -547,6 +547,79 @@ def test_a_request_that_is_answered_does_not_expire():
 
     assert request.expired() is None
 
+# Date and time on display ------------------------------------------------ #
+#
+# Local time is the default and "--utc" turns it off.  The conversion
+# itself is tested in "test_display_time.py"; what matters here is that
+# the Dashboard asks for it, and that the option reaches the switch.
+
+import time                                                    # noqa: E402
+
+from click.testing import CliRunner                            # noqa: E402
+
+from aiko_services.ide.tui.dashboard import frames             # noqa: E402
+from aiko_services.ide.tui.dashboard.frames import (           # noqa: E402
+    FrameCommon, display_value, set_display_utc,
+)
+
+STAMP = "2026-11-05T06:20:00Z"
+
+@pytest.fixture(autouse=True)
+def _local_time_again():
+    """The switch is the whole interface's, so a test must put it back"""
+
+    yield
+    set_display_utc(False)
+
+@pytest.fixture
+def tokyo(monkeypatch):
+    if not hasattr(time, "tzset"):
+        pytest.skip("TZ only takes effect where time.tzset() exists")
+    monkeypatch.setitem(os.environ, "TZ", "Asia/Tokyo")
+    time.tzset()
+    yield
+    time.tzset()
+
+def test_a_value_on_display_is_in_local_time(tokyo):
+    assert display_value(STAMP) == "2026-11-05 15:20:00 JST"
+
+def test_utc_asked_for_shows_what_is_stored(tokyo):
+    set_display_utc(True)
+
+    assert display_value(STAMP) == STAMP
+
+def test_every_wrapped_field_is_converted(tokyo):
+    """_update_field() is where a shared state value becomes text, for
+    the Dashboard and for every plug-in page.  Converting here is what
+    makes the default reach all of them"""
+
+    rows = []
+    FrameCommon._update_field(None, rows, "sampled_utc", STAMP, 40)
+
+    assert rows == [("sampled_utc", "2026-11-05 15:20:00 JST")]
+
+def test_the_option_reaches_the_switch(monkeypatch):
+    """main() is a click command around a screen loop.  Without the
+    screen it still runs the lines before it, which is where the switch
+    is set.  Nothing else proves the option is wired to anything"""
+
+    monkeypatch.setattr(dashboard.Screen, "wrapper",
+                        lambda *args, **kwargs: None)
+
+    result = CliRunner().invoke(dashboard.main, ["--utc"])
+
+    assert result.exit_code == 0, result.output
+    assert frames._DISPLAY_UTC is True
+
+def test_local_time_is_the_default(monkeypatch):
+    monkeypatch.setattr(dashboard.Screen, "wrapper",
+                        lambda *args, **kwargs: None)
+
+    result = CliRunner().invoke(dashboard.main, [])
+
+    assert result.exit_code == 0, result.output
+    assert frames._DISPLAY_UTC is False
+
 # A form, on a real terminal ---------------------------------------------- #
 
 @needs_pty

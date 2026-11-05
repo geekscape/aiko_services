@@ -165,7 +165,8 @@ import aiko_services as aiko  # designed to be external to the main framework
 from aiko_services.main.utilities import load_module
 
 from aiko_services.ide.tui.dashboard.frames import (
-    FrameCommon, LogUI, NICE_COLORS, ServiceFrame,
+    FrameCommon, LogUI, NICE_COLORS, ServiceFrame, display_value,
+    set_display_utc,
 )
 
 __all__ = [
@@ -447,7 +448,8 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
                 if isinstance(variable_value, dict):
                     variables.append((f"{variable_name} ...", ""))
                     for name, value in variable_value.items():
-                        variables.append((f"  {name}", f"{value}"))
+                        variables.append(
+                            (f"  {name}", f"{display_value(value)}"))
                 else:
                 #   variables.append((variable_name, variable_value))
                     self._update_field(
@@ -626,9 +628,14 @@ def update_plugins(plugins):
     help="History length requested from Registrar")
 @click.option("--plugin", "-p", multiple=True, required=False,
     default=["aiko_services.ide.tui.dashboard.plugins"])
+@click.option("--utc", is_flag=True, default=False,
+    help="Show date/times as stored, in UTC, instead of in local time")
 
-def main(plugin, history_limit):
+def main(plugin, history_limit, utc):
     """Aiko Services Dashboard
+
+    Date/times are shown in local time.  Use "--utc" to show them as
+    stored, which is what comparing hosts in different zones needs.
 
     \b
     export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
@@ -636,6 +643,7 @@ def main(plugin, history_limit):
 
     global _HISTORY_LIMIT
     _HISTORY_LIMIT = history_limit
+    set_display_utc(utc)
 
     for plugin_name in plugin:
         try:

@@ -18,6 +18,10 @@
 #     datetime.datetime(1970, 1, 1, 0, 0, 1)
 # >>> utc_iso8601.utc_iso_to_local("1970-01-01T00:00:01")
 #     '1970-01-01 10:00:01'
+# >>> utc_iso8601.display_time("2026-11-05T06:20:00Z")
+#     '2026-11-05 17:20:00 AEDT'
+# >>> utc_iso8601.display_time("2026-11-05T06:20:00Z", utc=True)
+#     '2026-11-05T06:20:00Z'
 #
 # Reference
 # ~~~~~~~~~
@@ -41,6 +45,11 @@
 # utc_iso_to_datetime(datetime_utc_iso): UTC ISO format in date/time format
 #
 # utc_iso_to_local(datetime_utc_iso): UTC ISO format in local UTC ISO format
+#
+# display_time(value, utc): A date/time for a person to read.  Local time
+# is the default, because that is what a person compares against a clock
+# on a wall.  Anything that is not a date/time with a known offset is
+# returned unchanged, so this is safe to apply to every value on display
 # 
 # Notes
 # ~~~~~
@@ -48,12 +57,20 @@
 # - https://blog.ganssle.io/articles/2019/11/utcnow.html
 
 from datetime import date, datetime, timezone
+import re
 
 __all__ = [
-   "datetime_epoch", "datetime_now_utc_iso", "epoch_to_utc_iso",
-   "local_iso_now", "utc_iso_since_epoch", "utc_iso_to_datetime",
-   "utc_iso_to_local"
+   "datetime_epoch", "datetime_now_utc_iso", "display_time",
+   "epoch_to_utc_iso", "local_iso_now", "utc_iso_since_epoch",
+   "utc_iso_to_datetime", "utc_iso_to_local"
 ]
+
+# A date and time that carries its own offset, and nothing else.  The
+# match is anchored, so a sentence that merely contains a date is left
+# alone.  An offset is required: a date/time without one states no zone,
+# and guessing UTC for it would move a reading by hours
+_DATETIME_AWARE = re.compile(
+    r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})$")
 
 # --------------------------------------------------------------------------- #
 
@@ -63,6 +80,30 @@ def datetime_epoch():
 
 def datetime_now_utc_iso():
     return datetime.now(tz=timezone.utc).isoformat()
+
+def display_time(value, utc=False):
+    """A date/time for a person to read, in local time by default.
+
+    "utc" returns the value as it is stored, which is what comparing two
+    hosts in different zones needs.  Everything else is returned
+    unchanged, so a caller can apply this to every value it displays
+    without first asking which ones are date/times"""
+
+    if utc or not isinstance(value, str):
+        return value
+    text = value.strip()
+    if not _DATETIME_AWARE.fullmatch(text):
+        return value
+    try:                              # "Z" is only native from Python 3.11
+        moment = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return value
+    local = moment.astimezone()
+    zone = local.tzname() or ""
+    if not zone.isalpha():            # a numeric name reads worse than +11:00
+        offset = local.strftime("%z")
+        zone = f"{offset[:3]}:{offset[3:]}" if offset else ""
+    return f"{local:%Y-%m-%d %H:%M:%S}" + (f" {zone}" if zone else "")
 
 def epoch_to_utc_iso(seconds_since_epoch):
     utc = datetime.fromtimestamp(seconds_since_epoch, tz=timezone.utc)

@@ -44,12 +44,32 @@ from asciimatics.widgets.utilities import THEMES
 
 import aiko_services as aiko  # designed to be external to the main framework
 from aiko_services.main.connection import ConnectionState
-from aiko_services.main.utilities import get_mqtt_configuration, parse
+from aiko_services.main.utilities import (
+    display_time, get_mqtt_configuration, parse
+)
 
 __all__ = [
     "Field", "FormFrame", "FrameCommon", "ListRequest", "LogUI",
-    "ServiceFrame", "choice_field", "radio_field", "text_field",
+    "ServiceFrame", "choice_field", "display_value", "radio_field",
+    "set_display_utc", "text_field",
 ]
+
+# Date and time on display
+# ~~~~~~~~~~~~~~~~~~~~~~~~
+# Local time is the default, because a person reads the Dashboard against
+# the clock on their own wall.  "--utc" shows what is stored instead,
+# which is what comparing two hosts in different zones needs.  The choice
+# is the whole interface's, not one page's, so it lives here and every
+# page that displays a value through display_value() follows it
+
+_DISPLAY_UTC = False
+
+def set_display_utc(utc):
+    global _DISPLAY_UTC
+    _DISPLAY_UTC = bool(utc)
+
+def display_value(value):
+    return display_time(value, _DISPLAY_UTC)
 
 _FRAME_UPDATE_RATE = 20 / 4  # 5 Hz (assuming update rate is roughly 20 Hz)
 _LOG_RING_BUFFER_SIZE = 128
@@ -206,7 +226,7 @@ class FrameCommon:
                 raise StopApplication("User quit request")
 
     def _update_field(self, list, name, value, width):  # wrap long lines
-        value = str(value)
+        value = str(display_value(value))
         padding = 0
         while len(value):
             if isinstance(name, str):
