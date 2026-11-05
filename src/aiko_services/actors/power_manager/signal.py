@@ -75,6 +75,14 @@ PATTERNS = {
     "pipeline": (0.07, 0.06, 0.07, 0.06, 0.07, 0.06, 0.35),
     "shutdown": (0.05, 0.05, 0.05, 0.05, 0.05),     # Three fast chirps
     "accepted": (0.5,),              # The press reached its three seconds
+    # "pipeline" turned around: the long note first, then taps trailing
+    # away.  It reports that the work an application was doing has stopped,
+    # so it must be heard as the opposite of the cheerful one, and must not
+    # be mistaken for "shutdown", which means the host itself is going.
+    # Exactly reversing "pipeline" gave it the same total length, which
+    # the rule below forbids and the tests caught: two sounds are told
+    # apart by rhythm AND by length
+    "lost": (0.45, 0.08, 0.06, 0.08, 0.06, 0.08),
 }
 
 def pattern_seconds(name):

@@ -82,8 +82,9 @@ __all__ = [
     "BATTERY_VOLTS_CHARGED", "SUPPLY_AMPS_FRACTION",
     "SUPPLY_HEADROOM_VOLTS",
     "SUPPLY_WARNING_DWELL_S", "THRESHOLDS",
-    "UNDOCKED_MAXIMUM_S", "WORKING_DWELL_S",
-    "WORKING_PATTERN", "WORKING_REPORTERS_MAXIMUM", "PowerManager",
+    "UNDOCKED_MAXIMUM_S", "WORKING_DWELL_S", "WORKING_LOSS_S",
+    "WORKING_LOST_PATTERN", "WORKING_PATTERN",
+    "WORKING_REPORTERS_MAXIMUM", "PowerManager",
     "PowerManagerCommon", "choose_power_manager", "power_manager_args",
     "service_filter", "service_tags",
 ]
@@ -150,8 +151,16 @@ SUPPLY_WARNING_DWELL_S = 3600.0    # Said once, then at most hourly
 # it again until the dwell has passed, and the number of reporters is
 # capped.  Without those two a Service in a loop would be a siren
 WORKING_PATTERN = "pipeline"
+WORKING_LOST_PATTERN = "lost"
 WORKING_DWELL_S = 300.0
 WORKING_REPORTERS_MAXIMUM = 32
+# How long a reporter may be silent before the work counts as lost.  Off by
+# default, because the length of a silence that means something is a
+# property of the application and not of this Actor, and a sound that cries
+# wolf is worse than no sound.  §4.16 of the plan asked for this: a
+# Pipeline that stops capturing frames was silent, where an operator wants
+# to hear it
+WORKING_LOSS_S = None
 
 # Which parts of the Interface a platform may have.  The Actor registers one
 # tag for each, such as "hold=true".  One tag for each property, rather than
@@ -240,6 +249,7 @@ THRESHOLDS = {
     "supply_amps_fraction": SUPPLY_AMPS_FRACTION,
     "supply_warning_dwell_s": SUPPLY_WARNING_DWELL_S,
     "working_dwell_s": WORKING_DWELL_S,
+    "working_loss_s": WORKING_LOSS_S,
     "working_reporters_maximum": WORKING_REPORTERS_MAXIMUM,
 }
 
@@ -634,7 +644,12 @@ class PowerManagerCommon:
         self._stopping = False
         # Who has reported that they are working, and when each last made a
         # sound.  A dwell for each one, so a Service in a loop is quiet
-        self._working = {}
+        self._working = {}         # Topic -> when its sound last played
+        # Topic -> when it last reported, which is not the same: a report
+        # inside the dwell is heard and does not sound.  A loss is about
+        # being heard
+        self._working_seen = {}
+        self._working_lost = False
         # The clock, so that a test walks the dwell rather than waiting it
         # out.  It is an attribute and not a parameter of report_working,
         # because a parameter would let a client on the bus pass its own
@@ -683,8 +698,10 @@ class PowerManagerCommon:
                 "quiesces": 0, "button_presses": 0,
                 "powered_up_granted": 0, "powered_up_refused": 0,
                 "powered_up_expired": 0, "working_reports": 0,
+                "working_losses": 0,
                 "supply_warnings": 0},
-            "working": {"reporters": 0, "last": "-"},
+            "working": {"reporters": 0, "last": "-", "lost": False,
+                "age_s": "-"},
             # The share is a nested dictionary of at most two levels, and a
             # dotted name is a path into it, not a key (share.py).  So the
             # snapshot nests what _publish() later updates by path
@@ -721,6 +738,7 @@ class PowerManagerCommon:
         reading = self.reading()
         self._publish(reading)
         now = self._now()
+        self._check_working(now)
         decision, reason, mode, mode_reason = self._evaluate(reading, now)
         if self._log:
             self._log.write(reading, extra={
@@ -847,9 +865,14 @@ class PowerManagerCommon:
         dwell = float(self._thresholds.get("working_dwell_s", WORKING_DWELL_S))
         sounded = self._working.get(topic)
         self._count("working_reports")
+        self._working_seen[topic] = now
         self.ec_producer.update("working.reporters", len(self._working) + (
             0 if topic in self._working else 1))
         self.ec_producer.update("working.last", str(detail)[:24])
+        if self._working_lost:
+            self._working_lost = False
+            self.ec_producer.update("working.lost", False)
+            self.logger.info(f"Working again: {detail} ({topic})")
         if sounded is not None and now - sounded < dwell:
             self._working[topic] = sounded     # The dwell is not restarted
             self.logger.debug(
@@ -859,6 +882,35 @@ class PowerManagerCommon:
         self.logger.info(f"Working: {detail} ({topic})")
         self.signal(WORKING_PATTERN)
         return True
+
+    def _check_working(self, now):
+        """Report that the work a Service was doing has stopped (§4.16).
+
+        A loss is the absence of a report, so only a clock finds it.  It
+        needs a reporter that was heard once: a host where nothing ever
+        reported has lost nothing, and a sound for that would play on
+        every host that does not use the surface at all.
+
+        "working_loss_s" is off by default.  How long a silence means
+        something is a property of the application, not of this Actor"""
+
+        loss = self._thresholds.get("working_loss_s")
+        if not self._working_seen:
+            return
+        age = now - max(self._working_seen.values())
+        self.ec_producer.update("working.age_s", f"{age:.0f}")
+        if not loss:
+            return
+        if age < float(loss):
+            return
+        if self._working_lost:
+            return                 # It is reported once, and not each sample
+        self._working_lost = True
+        self.ec_producer.update("working.lost", True)
+        self._count("working_losses")
+        self.logger.warning(
+            f"Working lost: nothing reported for {age:.0f} s")
+        self.signal(WORKING_LOST_PATTERN)
 
     def _answer(self, topic, outcome, detail):
         """Tell one client what became of its request"""

@@ -41,8 +41,21 @@ def edges_of(name):
 
 # The patterns ------------------------------------------------------------- #
 
-def test_the_four_patterns_of_the_plan_are_there():
-    assert sorted(PATTERNS) == ["accepted", "booted", "pipeline", "shutdown"]
+def test_the_patterns_of_the_plan_are_there():
+    """The fifth is "lost", which §4.16 asked for: a Pipeline that stops
+    capturing was silent, where an operator wants to hear it"""
+
+    assert sorted(PATTERNS) == [
+        "accepted", "booted", "lost", "pipeline", "shutdown"]
+
+def test_lost_is_the_cheerful_one_turned_around():
+    """A long note, then taps trailing away.  It must not be heard as
+    "pipeline", which means the work started, nor as "shutdown", which
+    means the host is going"""
+
+    notes = tuple(PATTERNS["lost"][::2])
+    assert notes[0] == max(notes)
+    assert notes[0] > max(PATTERNS["pipeline"][::2][:-1])
 
 def test_every_pattern_is_durations_in_seconds():
     for name, pattern in PATTERNS.items():

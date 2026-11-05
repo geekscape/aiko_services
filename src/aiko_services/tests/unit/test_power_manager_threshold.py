@@ -224,3 +224,111 @@ def test_a_threshold_set_through_the_function_publishes_without_a_denial():
     assert int(actor.share["metrics"]["denied"]) == denied
 
 # --------------------------------------------------------------------------- #
+
+# The work that stopped (§4.16) -------------------------------------------- #
+#
+# A loss is the absence of a report, so only a clock finds it.  These
+# tests move the clock rather than wait, because a test that waits for a
+# real dwell is a test nobody runs.
+
+from aiko_services.actors.power_manager.power_manager import (     # noqa: E402
+    WORKING_LOST_PATTERN,
+)
+
+class Clock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+def working_actor(loss=None, **parameters):
+    actor = make_actor(thresholds={"working_loss_s": loss}, **parameters)
+    actor._clock = clock = Clock()
+    actor._now = clock
+    return actor, clock
+
+def test_nothing_is_lost_where_nothing_ever_reported():
+    """A host that does not use the surface must never sound a loss"""
+
+    actor, clock = working_actor(loss=60.0)
+    clock.now += 3600
+    actor._check_working(clock.now)
+
+    assert actor.share["working"]["lost"] is False
+    assert actor.signals == []
+
+def test_a_reporter_that_goes_quiet_is_reported_once():
+    actor, clock = working_actor(loss=60.0)
+    actor.report_working("aiko/host/1/1/in", "frames")
+    actor.signals.clear()
+    clock.now += 61
+    actor._check_working(clock.now)
+
+    assert actor.share["working"]["lost"] is True
+    assert actor.signals == [WORKING_LOST_PATTERN]
+    assert int(actor.share["metrics"]["working_losses"]) == 1
+
+    clock.now += 600                  # And not again on every sample
+    actor._check_working(clock.now)
+
+    assert actor.signals == [WORKING_LOST_PATTERN]
+    assert int(actor.share["metrics"]["working_losses"]) == 1
+
+def test_a_reporter_that_comes_back_clears_the_loss():
+    actor, clock = working_actor(loss=60.0)
+    actor.report_working("aiko/host/1/1/in", "frames")
+    clock.now += 61
+    actor._check_working(clock.now)
+    assert actor.share["working"]["lost"] is True
+
+    clock.now += 1
+    actor.report_working("aiko/host/1/1/in", "frames")
+
+    assert actor.share["working"]["lost"] is False
+
+def test_a_report_inside_the_dwell_still_counts_as_heard():
+    """The dwell stops the sound, not the report.  Reading the sound's
+    own clock for this would call a working Pipeline lost"""
+
+    actor, clock = working_actor(loss=60.0)
+    actor.report_working("aiko/host/1/1/in", "frames")
+    for _ in range(4):                # Well inside working_dwell_s
+        clock.now += 30
+        actor.report_working("aiko/host/1/1/in", "frames")
+    actor._check_working(clock.now)
+
+    assert actor.share["working"]["lost"] is False
+
+def test_the_loss_is_off_by_default():
+    """How long a silence means something is the application's property"""
+
+    assert THRESHOLDS["working_loss_s"] is None
+    actor, clock = working_actor()
+    actor.report_working("aiko/host/1/1/in", "frames")
+    clock.now += 86400
+    actor._check_working(clock.now)
+
+    assert actor.share["working"]["lost"] is False
+
+def test_the_age_is_published_whether_or_not_a_loss_is_watched_for():
+    """The Dashboard shows the age, and that must not need the threshold"""
+
+    actor, clock = working_actor()
+    actor.report_working("aiko/host/1/1/in", "frames")
+    clock.now += 42
+    actor._check_working(clock.now)
+
+    assert actor.share["working"]["age_s"] == "42"
+
+def test_the_loss_can_be_turned_on_while_the_actor_runs():
+    actor, clock = working_actor()
+    actor.set_threshold("working_loss_s", "30")
+    actor.report_working("aiko/host/1/1/in", "frames")
+    actor.signals.clear()
+    clock.now += 31
+    actor._check_working(clock.now)
+
+    assert actor.share["working"]["lost"] is True
+
+# --------------------------------------------------------------------------- #
