@@ -263,3 +263,98 @@ def test_a_host_with_no_dock_line_counts_as_docked():
     assert actor.share["policy_reason"] == "docked"
 
 # --------------------------------------------------------------------------- #
+
+# The deployment's grace period -------------------------------------------- #
+#
+# The end of the chain that test_power_manager_policy.py tests as a rule:
+# the dock line goes false, the Actor counts the seconds itself, and the
+# host stops although a client holds a claim.
+
+def make_grace_actor(seconds, calls=None, **extra):
+    settings = {
+        "enforce": True,
+        "properties": ("readings", "hold", "signal", "button", "dock"),
+        "thresholds": {**THRESHOLDS, "powered_down_grace_s": seconds},
+        "quiesce": Quiesce(syncer=lambda: None),
+        "power_off_runner": runner_of(calls=calls),
+    }
+    settings.update(extra)
+    return make_actor(**settings)
+
+def test_the_grace_period_stops_a_host_that_a_claim_still_holds():
+    """The lead's requirement, through the Actor: the supply went, a client
+    holds a powered-up Lease, and the host stops anyway"""
+
+    calls = []
+    actor = make_grace_actor(60.0, calls=calls,
+        script=[undocked(), undocked(), undocked()])
+    namespace, host = str(actor.topic_path).split("/")[:2]
+    actor.request_powered_up(f"{namespace}/{host}/900/1/in", 600, "upload")
+    actor._evaluate(actor.reading(), now=1000.0)         # The supply goes
+    assert actor.share["policy_reason"] == "docked"      # Within the dwell
+    actor._evaluate(actor.reading(), now=1020.0)         # Past the dwell
+    assert actor.share["policy_reason"] == "powered_up_held"
+    assert calls == []
+    actor._evaluate(actor.reading(), now=1081.0)         # Past the grace
+    assert actor.share["policy_reason"] == "powered_down_grace"
+    assert actor.share["metrics"]["shutdowns"] == 1
+    assert calls
+
+def test_a_supply_that_returns_resets_the_count():
+    """"If power is restored then the need to shutdown is no more, and the
+    grace time resets back to the specified value" """
+
+    calls = []
+    actor = make_grace_actor(60.0, calls=calls, script=[
+        undocked(), undocked(), {"battery_volts": 12.0,
+            "battery_pack_celsius": 25.0, "docked": True}, undocked(),
+        undocked()])
+    namespace, host = str(actor.topic_path).split("/")[:2]
+    actor.request_powered_up(f"{namespace}/{host}/900/1/in", 600, "upload")
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1050.0)         # 50 s of 60 gone
+    assert actor.share["policy_would"] == "hold"
+    actor._evaluate(actor.reading(), now=1051.0)         # Docked again
+    assert actor.share["policy_reason"] == "docked"
+    actor._evaluate(actor.reading(), now=1052.0)         # Undocked again
+    actor._evaluate(actor.reading(), now=1100.0)         # 48 s, not 100 s
+    assert actor.share["policy_would"] == "hold"
+    assert calls == []
+    assert actor.share["metrics"]["shutdowns"] == 0
+
+def test_the_grace_period_shutdown_quiesces_first():
+    """"Shutdown gracefully": the writers are told and the file systems are
+    flushed before the host stops"""
+
+    actor = make_grace_actor(60.0,
+        script=[undocked(), undocked(), undocked()])
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    actor._evaluate(actor.reading(), now=1081.0)
+    assert actor.share["mode"] == MODE_QUIESCE
+    assert actor.share["quiesce"]["synced"] == "yes"
+
+def test_no_grace_period_leaves_a_claim_in_charge():
+    """The default, through the Actor"""
+
+    calls = []
+    actor = make_grace_actor(None, calls=calls,
+        script=[undocked(), undocked(), undocked()])
+    namespace, host = str(actor.topic_path).split("/")[:2]
+    actor.request_powered_up(f"{namespace}/{host}/900/1/in", 600, "upload")
+    actor._evaluate(actor.reading(), now=1000.0)
+    actor._evaluate(actor.reading(), now=1020.0)
+    actor._evaluate(actor.reading(), now=2000.0)
+    assert actor.share["policy_reason"] == "powered_up_held"
+    assert calls == []
+
+def test_a_grace_period_that_is_off_publishes_as_a_dash():
+    """The shared state is read by an operator, and the word "None" reads
+    like a fault"""
+
+    actor = make_actor()
+    assert actor.share["thresholds"]["powered_down_grace_s"] == "-"
+
+def test_a_grace_period_that_is_set_publishes_its_value():
+    actor = make_grace_actor(60.0, script=[undocked()])
+    assert actor.share["thresholds"]["powered_down_grace_s"] == "60.0"

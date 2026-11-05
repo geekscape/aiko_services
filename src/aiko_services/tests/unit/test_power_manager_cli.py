@@ -15,6 +15,8 @@ import json
 from click.testing import CliRunner
 import pytest
 
+import aiko_services
+
 from aiko_services.actors.power_manager import (
     MockPowerManagerImpl, PROPERTIES, PROTOCOL, PmmPowerManagerImpl,
     choose_power_manager, service_filter, service_tags,
@@ -198,5 +200,65 @@ def test_run_help_states_the_posture():
     assert result.exit_code == 0
     assert "--safe" in result.output and "--unsafe" in result.output
     assert "default: --safe" in result.output
+
+# The deployment's grace period -------------------------------------------- #
+
+def run_with(monkeypatch, *arguments):
+    """Run the Actor far enough to compose it, and return the composed one.
+
+    aiko.process.run() is replaced, so nothing waits on a broker"""
+
+    composed = []
+    real = aiko_services.compose_instance
+
+    def record(implementation, init_args):
+        instance = real(implementation, init_args)
+        composed.append(instance)
+        return instance
+
+    monkeypatch.setattr(aiko_services, "compose_instance", record)
+    monkeypatch.setattr(
+        "aiko_services.actors.power_manager.cli.aiko.compose_instance", record)
+    monkeypatch.setattr("aiko_services.process.run", lambda *a, **k: None)
+    result = CliRunner().invoke(main, ["run", "--device", "mock", "--no_log",
+        "--inputs", "none", *arguments])
+    assert result.exit_code == 0, result.output
+    return composed[-1], result
+
+def test_the_grace_period_is_off_unless_it_is_asked_for(monkeypatch):
+    """"By default, everything should run as is" """
+
+    actor, result = run_with(monkeypatch)
+    assert actor.share["thresholds"]["powered_down_grace_s"] == "-"
+    assert "whatever work is claimed" not in result.output
+
+def test_the_grace_period_option_reaches_the_policy(monkeypatch):
+    actor, _ = run_with(monkeypatch, "--powered_down_grace", "120")
+    assert actor.share["thresholds"]["powered_down_grace_s"] == "120.0"
+
+def test_the_grace_period_has_a_short_option(monkeypatch):
+    actor, _ = run_with(monkeypatch, "-g", "45")
+    assert actor.share["thresholds"]["powered_down_grace_s"] == "45.0"
+
+def test_a_grace_period_says_so_on_the_way_up(monkeypatch):
+    """An operator who set it must see that it took, and that an advisory
+    run will not act on it"""
+
+    _, result = run_with(monkeypatch, "--powered_down_grace", "120")
+    assert "120 s" in result.output
+    assert "advisory" in result.output
+
+def test_a_grace_period_with_enforce_does_not_call_itself_advisory(
+    monkeypatch):
+
+    _, result = run_with(monkeypatch, "--powered_down_grace", "120",
+        "--enforce")
+    assert "120 s" in result.output
+    assert "nothing will be stopped" not in result.output
+
+def test_the_grace_period_is_in_the_run_help():
+    result = CliRunner().invoke(main, ["run", "--help"])
+    assert "--powered_down_grace" in result.output
+    assert "default: off" in result.output
 
 # --------------------------------------------------------------------------- #

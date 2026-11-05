@@ -240,7 +240,22 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     to stay up, a refusal is always available, and those limits bound what a client in a loop
     can do. Therefore the request belongs in the safe posture of decision 7. A Lease asks; it
     never commands, and it never outlives the battery floor, the battery pack temperature gate
-    or the bound on undocked time.
+    or the deadline on an undocked hold.
+
+    **A deployment may set its own deadline, and the deadline beats every claim.** Two
+    thresholds set the deadline on an undocked hold, and the shorter one applies. The backstop
+    says that no host runs on its battery pack for ever, and it is not meant to be reached. A
+    grace period is a deployment's own rule: when the supply goes, and does not come back, the
+    host stops after that long whatever work is claimed. A supply that comes back cancels it,
+    because the count is how long the host has been undocked, and a dock makes that zero.
+
+    The grace period is off by default, and then a host behaves as though the threshold did
+    not exist. One rule reads both thresholds, so there is one row in the policy and not two
+    that can disagree, and the decision names which threshold fired. The two mean different
+    things, so a log that names only "a deadline" would explain nothing.
+
+    A deadline that ends a hold is a graceful stop, and not a cut: it reaches the quiesce mode
+    of decision 11 first, so the writers are told and the file systems are flushed.
 
     The refusal vocabulary is the one that the framework's own Lease already proposes, so one
     spelling serves both.

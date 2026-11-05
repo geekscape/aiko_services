@@ -85,9 +85,13 @@ def main():
 @click.option("--inputs", "-i", "inputs",
     type=click.Choice(["auto", "gpio", "none"]), default="auto",
     help="The button and dock lines [default: auto]")
+@click.option("--powered_down_grace", "-g", "powered_down_grace",
+    type=float, default=None,
+    help="Seconds to stay up after the supply goes, whatever work is "
+         "claimed [default: off, and then only the backstop applies]")
 
 def run_command(name, device, period, log_directory, no_log, keep_days, safe,
-    enforce, inputs):
+    enforce, inputs, powered_down_grace):
     """Run the PowerManager Actor
 
     \b
@@ -105,6 +109,14 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
     what it would do in "policy_would" and "policy_reason", and acts on
     nothing.  Read the log, set the thresholds from the battery pack you have, and
     then pass --enforce.
+
+    \b
+    --powered_down_grace is off by default, and then a host stays up while
+    any client holds a powered-up Lease, up to the backstop on an undocked
+    hold.  Set it, and the host stops that many seconds after the supply
+    goes, whatever work is claimed.  A supply that comes back cancels it
+    and the count starts again from zero.  It takes effect only with
+    --enforce, as every other part of the policy does.
     """
 
     implementation = choose_power_manager(device)
@@ -113,6 +125,8 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
         declared=implementation.DECLARED_PROPERTIES,
         period=period, keep_days=keep_days, safe=safe, enforce=enforce,
         inputs=choose_power_inputs(inputs),
+        thresholds={"powered_down_grace_s": powered_down_grace}
+            if powered_down_grace else None,
         log_directory=None if no_log else log_directory)
     power_manager = aiko.compose_instance(implementation, init_args)
     try:
@@ -128,6 +142,11 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
         f"{'ENFORCING' if enforce else 'advisory'}", err=True)
     if enforce:
         click.echo("# the policy will stop this host when it decides to",
+            err=True)
+    if powered_down_grace:
+        click.echo(f"# the supply going means a stop in "
+            f"{powered_down_grace:g} s, whatever work is claimed"
+            f"{'' if enforce else ' (advisory: nothing will be stopped)'}",
             err=True)
 
     # A stop must reach close(), so that every line this Actor claimed is

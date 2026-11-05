@@ -88,6 +88,92 @@ def test_the_bound_applies_however_many_claims_are_held():
     assert when(powered_up_held=9, undocked_s=3601.0)  \
         == (SHUTDOWN, "undocked_timeout")
 
+# The deployment's grace period ------------------------------------------- #
+
+def grace(seconds, **changes):
+    """One decision with a grace period set, on the healthy undocked host"""
+
+    thresholds = {**THRESHOLDS, "powered_down_grace_s": seconds}
+    return when(thresholds=thresholds, **changes)
+
+def test_no_grace_period_is_the_default():
+    """The lead's requirement: by default everything runs as it did, and
+    the host stays up while a claim is held"""
+
+    assert THRESHOLDS["powered_down_grace_s"] is None
+    assert when(powered_up_held=1, undocked_s=600.0)  \
+        == (HOLD, "powered_up_held")
+
+def test_a_grace_period_stops_the_host_whatever_is_claimed():
+    """"No matter what": the supply went, it did not come back, and the
+    grace period passed"""
+
+    assert grace(120.0, undocked_s=121.0, powered_up_held=9)  \
+        == (SHUTDOWN, "powered_down_grace")
+
+def test_inside_the_grace_period_a_claim_still_holds():
+    assert grace(120.0, undocked_s=119.0, powered_up_held=9)  \
+        == (HOLD, "powered_up_held")
+
+def test_the_grace_period_is_a_boundary_not_a_range():
+    assert grace(120.0, undocked_s=120.0)[0] == HOLD
+    assert grace(120.0, undocked_s=120.1) == (SHUTDOWN, "powered_down_grace")
+
+def test_a_supply_that_came_back_cancels_the_grace_period():
+    """The lead's second half.  The host counts undocked seconds, and a
+    dock makes that zero, so the count starts again from the beginning"""
+
+    assert grace(120.0, undocked_s=119.0, docked=True) == (HOLD, "docked")
+    assert grace(120.0, undocked_s=0.0, powered_up_held=9)  \
+        == (HOLD, "powered_up_held")
+
+def test_the_shorter_of_the_two_deadlines_wins_and_is_named():
+    """Two thresholds answer one question.  The log must say which one
+    stopped the host, because they mean different things"""
+
+    assert grace(120.0, undocked_s=121.0)[1] == "powered_down_grace"
+    assert grace(7200.0, undocked_s=3601.0)[1] == "undocked_timeout"
+
+def test_a_tie_goes_to_the_grace_period():
+    """An operator set that one on purpose"""
+
+    assert grace(3600.0, undocked_s=3601.0)[1] == "powered_down_grace"
+
+def test_a_grace_period_of_zero_is_off_and_not_an_instant_stop():
+    """A mistyped setting must not stop a host the moment it undocks"""
+
+    for value in (0, 0.0, -1.0):
+        assert grace(value, undocked_s=5.0, powered_up_held=9)  \
+            == (HOLD, "powered_up_held"), value
+
+def test_the_battery_pack_still_beats_the_grace_period():
+    """The grace period is a deployment's rule, and the cells come first"""
+
+    assert grace(3600.0, undocked_s=10.0, volts=9.8)[1] == "battery_floor"
+    assert grace(3600.0, undocked_s=10.0, volts=10.4, battery_low_s=31.0)[1]  \
+        == "battery_low"
+
+def test_a_docked_host_never_reaches_the_grace_period():
+    """It is the supply going away that starts the count"""
+
+    assert grace(1.0, docked=True, undocked_s=0.0) == (HOLD, "docked")
+
+def test_both_deadlines_absent_leaves_the_claims_in_charge():
+    """A host with no deadline at all holds while anything claims it, and
+    the voltage floor is what stops it in the end"""
+
+    thresholds = {**THRESHOLDS,
+        "powered_down_grace_s": None, "undocked_maximum_s": None}
+    assert when(thresholds=thresholds, undocked_s=99999.0, powered_up_held=1)  \
+        == (HOLD, "powered_up_held")
+    assert when(thresholds=thresholds, undocked_s=99999.0, volts=9.0)[1]  \
+        == "battery_floor"
+
+def test_the_grace_period_reason_is_a_declared_word():
+    from aiko_services.actors.power_manager.policy import REASONS
+
+    assert "powered_down_grace" in REASONS
+
 def test_a_host_that_nothing_claims_stops_after_its_grace():
     assert when(powered_up_held=0, powered_up_idle_s=61.0)  \
         == (SHUTDOWN, "powered_up_idle")

@@ -12,7 +12,13 @@
 # every claim on the host, because a battery pack that is damaged is damaged
 # for good and work can wait for the next working period.  A claim that is
 # held keeps the power on, because the work is why this host has a battery
-# at all, and the undocked time bounds how long that can go on.
+# at all, and the undocked deadline bounds how long that can go on.
+#
+# The deadline is read before the claims, and that order is the whole of
+# what a deployment's grace period means: when the supply goes and does not
+# come back, the host stops after that long whatever work is claimed.  Two
+# thresholds set the deadline and the shorter wins, so _deadline() names
+# which one fired.
 #
 # Nothing here names an application.  A client that needs the host asks for
 # a powered-up Lease and holds a Lease (powered_up.py, ADR-028 decision 13), so this rule
@@ -51,7 +57,8 @@ MODES = (MODE_NORMAL, MODE_CONSERVE, MODE_QUIESCE)
 REASONS = (
     "button_held", "battery_floor", "battery_pack_temperature",
     "no_hold_property", "docked", "battery_low", "undocked_timeout",
-    "powered_up_held", "powered_up_idle", "powered_up_grace", "hook_missing",
+    "powered_down_grace", "powered_up_held", "powered_up_idle",
+    "powered_up_grace", "hook_missing",
 )
 
 class Dwell:
@@ -101,7 +108,9 @@ def decide(volts, battery_pack_celsius, docked, properties, powered_up_held,
       cannot hold its own power  -> hold, there is nothing to decide
       docked                     -> hold, the supply is not ours to save
       undocked, the pack is low  -> shutdown, after its dwell
-      undocked for too long      -> shutdown, the bound on the hold
+      undocked past its deadline -> shutdown, the deadline on the hold:
+                                    the deployment's grace period, or the
+                                    backstop, whichever is shorter
       undocked, a claim is held  -> hold, this is what the battery is for
       undocked, no claim is held -> shutdown, after its grace, and
                                     "powered_up_grace" until then
@@ -112,6 +121,7 @@ def decide(volts, battery_pack_celsius, docked, properties, powered_up_held,
     hot = _number(thresholds.get("battery_pack_celsius_maximum"))
     dwell = _number(thresholds.get("battery_dwell_s"), 0.0)
     maximum = _number(thresholds.get("undocked_maximum_s"))
+    powered_down = _number(thresholds.get("powered_down_grace_s"))
     grace = _number(thresholds.get("powered_up_grace_s"), 0.0)
 
     if button_held:
@@ -129,14 +139,43 @@ def decide(volts, battery_pack_celsius, docked, properties, powered_up_held,
     if volts is not None and low is not None and volts < low  \
         and battery_low_s >= dwell:
         return SHUTDOWN, "battery_low"
-    if maximum is not None and undocked_s is not None  \
-        and undocked_s > maximum:
-        return SHUTDOWN, "undocked_timeout"
+    deadline, deadline_reason = _deadline(powered_down, maximum)
+    if deadline is not None and undocked_s is not None  \
+        and undocked_s > deadline:
+        return SHUTDOWN, deadline_reason
     if powered_up_held:
         return HOLD, "powered_up_held"
     if powered_up_idle_s >= grace:
         return SHUTDOWN, "powered_up_idle"
     return HOLD, "powered_up_grace"
+
+def _deadline(powered_down_grace_s, undocked_maximum_s):
+    """The deadline on an undocked hold, and the word for whichever
+    threshold set it.
+
+    Two thresholds answer one question, so one rule reads both and the
+    shorter one wins.  They mean different things.  The backstop says that
+    no host runs on its battery pack for ever, and it is not meant to be
+    reached.  The grace period is a deployment's own rule: when the supply
+    goes, and does not come back, stop after this long whatever work is
+    claimed.  A deployment that sets a grace period usually sets it far
+    shorter than the backstop.  So the decision names which one fired, and
+    a log explains a shutdown rather than only reporting it.
+
+    A grace period that is absent, zero or negative is off, which is the
+    default.  Then the backstop is the only deadline, and the behavior is
+    what it was before this threshold existed.  A tie goes to the grace
+    period, because an operator set that one on purpose"""
+
+    if powered_down_grace_s is not None and powered_down_grace_s <= 0:
+        powered_down_grace_s = None
+    found = [(seconds, reason) for seconds, reason in (
+        (powered_down_grace_s, "powered_down_grace"),
+        (undocked_maximum_s, "undocked_timeout"))
+        if seconds is not None]
+    if not found:
+        return None, None
+    return min(found, key=lambda item: item[0])
 
 def decide_mode(mode, decision, volts, docked, hook_state, thresholds):
     """The next mode: one of MODES, and the one word that says why.

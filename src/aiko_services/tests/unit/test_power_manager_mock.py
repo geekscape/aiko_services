@@ -134,9 +134,13 @@ def test_the_policy_is_advisory_and_nothing_is_enforced():
     assert actor.holds == []              # Nothing was held, nothing released
 
 def test_the_thresholds_are_published_as_configuration():
+    """A threshold that is None is off, and it publishes as "-": the shared
+    state is read by an operator, and "None" reads like a fault"""
+
     actor = make_actor()
     for name, value in THRESHOLDS.items():
-        assert actor.share["thresholds"][name] == f"{value}"
+        expected = "-" if value is None else f"{value}"
+        assert actor.share["thresholds"][name] == expected, name
 
 def test_no_threshold_is_the_cell_damage_limit():
     """9.0 V for the battery pack, or 3.0 V for a cell, is a limit that this design

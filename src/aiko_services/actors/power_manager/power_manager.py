@@ -126,7 +126,12 @@ THRESHOLDS = {
     "quiesce_volts": 10.2,         # Stop writing, and flush
     "battery_pack_celsius_maximum": 45.0,     # The battery pack, never the processor
     "battery_dwell_s": 30.0,       # The voltage must stay low this long
-    "undocked_maximum_s": 3600.0,  # The bound on an undocked hold
+    "undocked_maximum_s": 3600.0,  # The backstop on an undocked hold
+    # A deployment's own deadline: when the supply goes and does not come
+    # back, stop after this long whatever work is claimed.  None is off,
+    # which is the default, and then the backstop above is the only
+    # deadline.  A deployment that sets this sets it far shorter
+    "powered_down_grace_s": None,
     "powered_up_grace_s": 60.0,      # After the last Lease is released
     "dock_dwell_s": DOCK_DWELL_S,  # Before an undock is believed
     # The limits on the request surface, which ADR-028 decision 13 makes
@@ -390,7 +395,10 @@ class PowerManagerCommon:
             "sample_period_s": f"{self._period:.1f}",
             "log": str(self._log.directory) if self._log else "-",
             "last_error": "-",
-            "thresholds": {name: f"{value}"
+            # A threshold that is None is off, and it publishes as "-"
+            # rather than as the word "None": the shared state is read by
+            # an operator, and "None" reads like a fault
+            "thresholds": {name: ("-" if value is None else f"{value}")
                 for name, value in self._thresholds.items()},
             "metrics": {"samples": 0, "sensor_errors": 0, "signals": 0,
                 "hold_changes": 0, "denied": 0, "shutdowns": 0,
