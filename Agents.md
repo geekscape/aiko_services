@@ -22,6 +22,10 @@ the git guard hooks are constitutional: never bypass them.
   hosts in different zones needs. `display_time()` in
   `main/utilities/utc_iso8601.py` is the one conversion. It leaves
   anything that is not a date/time with an offset exactly as it is.
+  Display is the only place it applies. A date/time in JSON, in an
+  S-expression, in a file name, or in a message on the bus is data, and
+  it stays UTC. A reader parses it, and a machine's zone must not change
+  what it reads.
 - **STE:** when writing plans or documentation, use ASD-STE100 Simplified
   Technical English (STE) at the level the document's `ste:` front-matter
   field declares. Rules digest, project profile and global switch:

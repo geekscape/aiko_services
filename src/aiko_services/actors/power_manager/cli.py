@@ -41,7 +41,7 @@ import signal
 import click
 
 import aiko_services as aiko
-from aiko_services.main.utilities import get_hostname
+from aiko_services.main.utilities import display_time, get_hostname
 
 from aiko_services.actors.power_manager.hold import (
     HOLD_GPIO, HoldNotAvailable, hold_state, set_hold
@@ -365,13 +365,19 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
     help="Where the readings come from [default: auto]")
 @click.option("--count", "-c", type=int, default=1,
     help="Readings to take [default: 1]")
-
-def sample_command(device, count):
+@click.option("--utc", is_flag=True, default=False,
+    help="Show the sample time as stored, in UTC, instead of in local time")
+def sample_command(device, count, utc):
     """Print one reading as JSON, with no Actor and no broker
 
     \b
     This is the first thing to run on a new host: it says which parts
     answer, and what they report, with no message bus in the way.
+
+    \b
+    The JSON is data, so "sampled_utc" stays as it is stored and named.
+    The comment line above it carries the same instant in local time,
+    for the person reading it.  "--utc" leaves that line in UTC too.
     """
 
     implementation = choose_power_manager(device)
@@ -389,6 +395,9 @@ def sample_command(device, count):
     try:
         for _ in range(max(1, count)):
             reading = power_manager.reading()
+            sampled = reading.as_dict().get("sampled_utc")
+            if sampled:
+                click.echo(f"# sampled {display_time(sampled, utc)}", err=True)
             click.echo(json.dumps(reading.as_dict(), sort_keys=True))
     finally:
         power_manager.close()

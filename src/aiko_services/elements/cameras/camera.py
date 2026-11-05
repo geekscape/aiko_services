@@ -513,6 +513,11 @@ def share_token(text, limit=32) -> str:
     return token or "-"
 
 def utc_now() -> str:
+    """ISO 8601 UTC to the second, for frame metadata.  This is data on
+    the bus and not a date/time on display, so it is not converted to
+    local time: a reader parses it, and a host's zone must not change
+    what it reads.  See "display_time()" for what a person is shown"""
+
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 # --------------------------------------------------------------------------- #

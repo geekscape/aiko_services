@@ -126,6 +126,49 @@ def test_sample_takes_a_count():
     assert len([line for line in result.output.splitlines()
         if line.startswith("{")]) == 3
 
+def test_sample_says_when_it_sampled_in_local_time():
+    """The JSON is data and keeps "sampled_utc" as it is stored.  The
+    comment line is for the person, so it is local"""
+
+    import os
+    import time
+    if not hasattr(time, "tzset"):
+        pytest.skip("TZ only takes effect where time.tzset() exists")
+    before = os.environ.get("TZ")
+    os.environ["TZ"] = "Asia/Tokyo"
+    time.tzset()
+    try:
+        result = CliRunner().invoke(main, ["sample", "--device", "mock"])
+    finally:
+        if before is None:
+            del os.environ["TZ"]
+        else:
+            os.environ["TZ"] = before
+        time.tzset()
+
+    assert result.exit_code == 0
+    sampled = [line for line in result.output.splitlines()
+        if line.startswith("# sampled ")]
+    assert len(sampled) == 1
+    assert "JST" in sampled[0]
+    assert "Z" not in sampled[0]                   # not the stored form
+    record = json.loads(
+        [line for line in result.output.splitlines()
+         if line.startswith("{")][0])
+    assert record["sampled_utc"].endswith("Z")     # the data is untouched
+
+def test_sample_utc_leaves_the_comment_line_as_stored():
+    result = CliRunner().invoke(main, ["sample", "--device", "mock", "--utc"])
+
+    assert result.exit_code == 0
+    sampled = [line for line in result.output.splitlines()
+        if line.startswith("# sampled ")]
+    assert len(sampled) == 1
+    record = json.loads(
+        [line for line in result.output.splitlines()
+         if line.startswith("{")][0])
+    assert sampled[0] == f"# sampled {record['sampled_utc']}"
+
 def test_sample_refuses_an_unknown_device():
     result = CliRunner().invoke(main, ["sample", "--device", "battery"])
     assert result.exit_code != 0
