@@ -61,6 +61,7 @@ HOLD_RELEASE_DELAY_S = 2.0
 RELEASE_ACTIONS = ("poweroff", "halt")
 
 _PINCTRL = "/usr/bin/pinctrl"
+_SLEEP = "/usr/bin/sleep"
 _SYSTEMCTL = "/usr/bin/systemctl"
 _MOUNT = "/usr/bin/mount"
 
@@ -92,7 +93,7 @@ class InstallRefused(Exception):
 
 def render(artifact, account=None, pinctrl=_PINCTRL, hold_gpio=HOLD_GPIO,
     buzzer_gpio=BUZZER_GPIO, delay=HOLD_RELEASE_DELAY_S,
-    mount_point="/", systemctl=_SYSTEMCTL, mount=_MOUNT):
+    mount_point="/", systemctl=_SYSTEMCTL, mount=_MOUNT, sleep=_SLEEP):
 
     """The text of one artifact: "unit", "hook" or "grant".
 
@@ -106,7 +107,7 @@ def render(artifact, account=None, pinctrl=_PINCTRL, hold_gpio=HOLD_GPIO,
     if artifact == "unit":
         return _unit(pinctrl, hold_gpio)
     if artifact == "hook":
-        return _hook(pinctrl, hold_gpio, buzzer_gpio, delay)
+        return _hook(pinctrl, hold_gpio, buzzer_gpio, delay, sleep)
     if not account:
         raise ValueError('the grant needs "account": whose privilege it is')
     return _grant(account, systemctl, mount, mount_point)
@@ -134,13 +135,18 @@ ExecStart={pinctrl} set {hold_gpio} op dh
 WantedBy=multi-user.target
 """
 
-def _hook(pinctrl, hold_gpio, buzzer_gpio, delay):
+def _hook(pinctrl, hold_gpio, buzzer_gpio, delay, sleep=_SLEEP):
     """The shutdown hook.  It releases the hold for a stop, and never for a
-    restart, and it waits before the release"""
+    restart, and it waits before the release.
+
+    Every command is an absolute path.  This script runs when almost
+    nothing else does, and "sleep" is a program here and not a shell
+    built-in, so a PATH that the shutdown environment did not set would
+    skip the wait and release the hold at once"""
 
     beeps = "\n".join(
         f"{pinctrl} set {buzzer_gpio} op "
-        f"{'dh' if index % 2 == 0 else 'dl'}\nsleep {seconds}"
+        f"{'dh' if index % 2 == 0 else 'dl'}\n{sleep} {seconds}"
         for index, seconds in enumerate(PATTERNS["shutdown"]))
     return f"""\
 #!/bin/sh
@@ -152,6 +158,9 @@ def _hook(pinctrl, hold_gpio, buzzer_gpio, delay):
 # restart would stop an undocked host that is trying to come back.
 set -u
 
+# Every command below is an absolute path, because this script runs when
+# almost nothing else does and must not depend on a PATH
+
 case "$1" in
 {"|".join(RELEASE_ACTIONS)}) ;;
 *) exit 0 ;;
@@ -161,8 +170,9 @@ esac
 {beeps}
 {pinctrl} set {buzzer_gpio} op dl
 
-# The kernel needs time to finish after this hook returns
-sleep {delay}
+# The kernel needs time to finish after this hook returns.  The operating
+# system allows every hook 90 s, so this wait must stay well inside that
+{sleep} {delay}
 
 # *** This cuts the power when the host is undocked ***
 {pinctrl} set {hold_gpio} op dl

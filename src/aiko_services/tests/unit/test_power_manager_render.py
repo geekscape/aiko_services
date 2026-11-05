@@ -115,6 +115,26 @@ def test_the_hook_waits_before_the_release():
 
     assert "sleep 2.0" in render("hook")
 
+def test_every_command_in_the_hook_is_an_absolute_path():
+    """The hook runs when almost nothing else does.  "sleep" is a program
+    and not a shell built-in, so a bare name would depend on a PATH that
+    the shutdown environment may not have set"""
+
+    for line in render("hook").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or line.startswith("set "):
+            continue
+        if line in ("case \"$1\" in", "esac", "*) exit 0 ;;") or  \
+            line.endswith(") ;;"):
+            continue
+        assert line.startswith("/"), line
+
+def test_the_hook_waits_with_an_absolute_sleep():
+    assert "/usr/bin/sleep 2.0" in render("hook")
+
+def test_the_hook_can_name_another_sleep():
+    assert "/bin/sleep 2.0" in render("hook", sleep="/bin/sleep")
+
 def test_the_hook_names_only_the_actions_that_stop_the_host():
     text = render("hook")
     for action in RELEASE_ACTIONS:
