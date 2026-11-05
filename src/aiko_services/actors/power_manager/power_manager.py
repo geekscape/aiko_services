@@ -1,0 +1,524 @@
+#!/usr/bin/env python3
+#
+# Aiko Services: the PowerManager Actor
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Host power as a Service: what the supply and the battery are doing, and
+# what to do about it (ADR-028).
+#
+# One Interface with one Implementation for each platform, in the way that
+# DaemonSupervisor has one for each operating system (ADR-026).  The
+# Implementations are the power management module on a single-board
+# computer, a Linux laptop, a MacBook, and a mock.  The mock is the
+# registered default, so a platform with no Implementation reports itself
+# rather than doing something that cannot work.
+#
+# Properties, not capabilities of the Actor: properties() says which parts
+# of the Interface are real here.  A property that a platform lacks is a
+# no-op and never an error (ADR-022 decision 1, as NullOutputImpl is).  A
+# laptop cannot hold its own power, so hold() does nothing there, and the
+# Service tag "hold=false" says so before a client tries.
+#
+# Phase 1 is read-only.  It reads, publishes and logs, and it acts on
+# nothing: "policy" is "advisory", the thresholds are published but not
+# enforced, and no Implementation claims an output.  The hold, the signals,
+# the button and the policy arrive in the phases after it.
+#
+# The wire surface is narrower than the Interface.  open(), close(),
+# add_handler(), properties() and read() are the device seam, which the CLI
+# and this Actor call directly and which nothing on the bus may reach.
+# DEVICE_FUNCTIONS names them and FUNCTIONS subtracts them, so the allow
+# list still comes from the contract (P12, ADR-023).
+#
+# Safe by default, as the ProcessManager is: safe mode accepts (sample) and
+# the log level, and nothing else.  "safe" is published as a report, and a
+# request to change it from the bus is denied.
+#
+# Threads (P11): the sample timer runs on the event-loop thread, because one
+# I2C read is about one millisecond.  A device callback never touches shared
+# state, and posts to the mailbox instead.
+#
+# To Do
+# ~~~~~
+# * hold(), signal() and the button: the plan's phases 2 and 3
+# * decide(), the pure policy, and the quiesce mode: phase 3
+# * percent, minutes_left and watt_hours, after measurement: phase 6
+# * The Linux and macOS Implementations: phase 7
+
+from abc import abstractmethod
+
+import aiko_services as aiko
+from aiko_services.main.utilities import get_hostname
+
+from aiko_services.actors.power_manager.log import PowerLog
+from aiko_services.actors.power_manager.reading import (
+    PowerReading, boot_id, utc_now
+)
+
+try:
+    import psutil
+except ImportError:                                      # pragma: no cover
+    psutil = None
+
+__all__ = [
+    "DEVICE_FUNCTIONS", "FUNCTIONS", "LOG_DIRECTORY", "PERIOD_DEVELOPMENT",
+    "PERIOD_PRODUCTION", "POLICY_ADVISORY", "PROPERTIES", "PROTOCOL", "SAFE",
+    "SAFE_FUNCTIONS", "THRESHOLDS", "PowerManager", "choose_power_manager",
+    "power_manager_args", "service_filter", "service_tags",
+]
+
+PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/power_manager:0"
+
+# Which parts of the Interface a platform may have.  The Actor registers one
+# tag for each, such as "hold=true".  One tag for each property, rather than
+# one tag with a list, because ServiceFilter splits a value that holds a
+# space into two tags (ADR-028 decision 2)
+PROPERTIES = ("readings", "hold", "signal", "button", "dock")
+
+PERIOD_DEVELOPMENT = 5.0           # Seconds between samples, while watching
+PERIOD_PRODUCTION = 60.0           # Seconds between samples, in the field
+PERIOD_LOW, PERIOD_HIGH = 0.5, 3600.0
+
+LOG_DIRECTORY = "~/power_log"
+POLICY_ADVISORY = "advisory"       # Phase 1: it decides nothing
+
+# The first values of the plan's threshold table.  Phase 1 publishes them
+# and enforces none of them: the pack measured 10.047 V, which is under
+# battery_volts_low, so enforcement before measurement would stop the host
+# on its first sample
+THRESHOLDS = {
+    "battery_volts_floor": 9.9,    # The pack must not go below this
+    "battery_volts_low": 10.5,     # Start the orderly shutdown
+    "quiesce_volts": 10.2,         # Stop writing, and flush
+    "pack_temperature_maximum_c": 45.0,     # The pack, never the processor
+}
+
+class PowerManager(aiko.Actor):
+    """What the supply and the battery are doing, and what to do about it.
+
+    The wire functions are (sample) and (set_period SECONDS), with (hold
+    on|off) and (signal NAME) behind an unsafe posture.  Every outcome is
+    observed in the shared state, never returned across the wire.  The rest
+    of the Interface is the device seam: the CLI and the Actor call it, and
+    DEVICE_FUNCTIONS keeps it off the bus"""
+
+    PROTOCOL = PROTOCOL
+
+    aiko.Interface.default("PowerManager",
+        "aiko_services.actors.power_manager.mock.MockPowerManagerImpl")
+
+    @abstractmethod
+    def properties(self):
+        """Which parts of this Interface are real on this platform: a tuple
+        of PROPERTIES tokens.
+
+        Local only, and never on the bus: the Actor publishes the answer as
+        Service tags and as shared variables, so a client reads it from
+        discovery rather than by asking"""
+
+    @abstractmethod
+    def open(self):
+        """Acquire what this platform offers, and raise nothing when a part
+        is absent: an absent part is a property that properties() leaves
+        out.  Local only (DEVICE_FUNCTIONS)"""
+
+    @abstractmethod
+    def read(self):
+        """One PowerReading from the devices, with no publishing and no
+        logging.  Never blocks for longer than a register read.
+
+        Local only (DEVICE_FUNCTIONS).  Use sample() to read and publish"""
+
+    @abstractmethod
+    def sample(self):
+        """Read the devices, publish the reading and append it to the log.
+
+        No arguments.  Wire form: "(sample)".  The reading is observed in
+        the shared state ("battery.volts", "supply.watts", "sampled_utc" and
+        the rest), and the local return value is the PowerReading"""
+
+    @abstractmethod
+    def set_period(self, seconds):
+        """Change the seconds between samples.
+
+        "seconds" is 0.5 to 3600.  Wire form: "(set_period 5.0)".  The
+        accepted value is observed in the shared state as
+        "sample_period_s", and a refused one in "last_error" """
+
+    @abstractmethod
+    def hold(self, on):
+        """Keep this host powered, or stop keeping it powered.
+
+        "on" is a boolean or one of "on", "off", "true", "false".  Wire
+        form: "(hold off)", which is denied in the safe posture, because it
+        stops a host.  The outcome is observed in "hold_state".  A no-op
+        where the "hold" property is absent"""
+
+    @abstractmethod
+    def signal(self, name):
+        """Make one sound or show one light.
+
+        "name" is a pattern name.  Wire form: "(signal booted)", which is
+        denied in the safe posture, because a signal reaches a person.  The
+        outcome is observed in "metrics.signals".  A no-op where the
+        "signal" property is absent"""
+
+    @abstractmethod
+    def add_handler(self, handler):
+        """Ask for handler(event, value) on a button, dock or supply change.
+
+        The handler runs on the device's own thread, never on the
+        event-loop thread (P11).  Local only (DEVICE_FUNCTIONS)"""
+
+    @abstractmethod
+    def close(self):
+        """Release what open() acquired.  Never releases a power hold:
+        only the shutdown hook does that (ADR-028 decision 6)"""
+
+# The device seam, which the allow list subtracts.  A name here is called by
+# the CLI and by this Actor, and never from the message bus
+DEVICE_FUNCTIONS = frozenset(
+    {"open", "close", "read", "add_handler", "properties"})
+
+# P12, ADR-023: derived from the contract, less the device seam
+FUNCTIONS = aiko.interface_functions(PowerManager) - DEVICE_FUNCTIONS
+
+SAFE = True                        # The default posture of "run"
+
+# A power manager can stop its host, so what it accepts from the bus is not
+# a small matter.  Safe mode allows the one function that changes nothing:
+# a sample, and the log level the Dashboard sets.
+#
+# "signal" and "set_period" stay out, even though neither stops anything.
+# A buzzer that any client can sound is a nuisance that reaches a person,
+# and a sample period is the resolution of the evidence.  The
+# ProcessManager's rule applies: only a design and a test campaign make a
+# function safe, not the observation that it looks harmless
+SAFE_FUNCTIONS = frozenset({"sample", "set_log_level"})
+
+class PowerManagerCommon:
+    """What every Implementation does the same way: the shared state, the
+    sample timer, the log and the metrics.
+
+    A plain mixin, and not a second Interface: the four Implementations hold
+    it in common, as the display outputs hold _Emulated (ADR-028 decision 4)
+    """
+
+    def _init_power(self, context, period=PERIOD_DEVELOPMENT,
+        log_directory=LOG_DIRECTORY, keep_days=None, safe=SAFE,
+        thresholds=None, telemetry=True, timer=True):
+
+        """Compose the Actor part.  An Implementation calls this from its
+        own __init__, after it has recorded its devices"""
+
+        context.call_init(self, "FunctionGate", context,
+            functions=FUNCTIONS & SAFE_FUNCTIONS if safe else FUNCTIONS)
+        context.call_init(self, "Actor", context)
+
+        self._safe = bool(safe)
+        self._telemetry = bool(telemetry)
+        self._thresholds = dict(THRESHOLDS)
+        self._thresholds.update(thresholds or {})
+        self._period = self._valid_period(period)
+        self._log = PowerLog(log_directory, keep_days) if log_directory  \
+            else None
+        self._boot_id = boot_id()
+
+        properties = tuple(self.properties())
+        declared = tuple(getattr(self, "DECLARED_PROPERTIES", properties))
+        self.share.update({
+            "source_file": f"v{aiko.__version__}⇒ {__file__}",
+            "device": getattr(self, "device", "mock"),
+            "safe": self._safe,       # ADR-023 decision 3: observable policy
+            **{name: name in (properties or declared)
+                for name in PROPERTIES},
+            "policy": POLICY_ADVISORY,
+            "policy_reason": "-",
+            "hold_state": "unknown",
+            "hook": "unknown",
+            "sample_period_s": f"{self._period:.1f}",
+            "log": str(self._log.directory) if self._log else "-",
+            "last_error": "-",
+            "thresholds": {name: f"{value}"
+                for name, value in self._thresholds.items()},
+            "metrics": {"samples": 0, "sensor_errors": 0, "signals": 0,
+                "hold_changes": 0, "denied": 0},
+            # The share is a nested dictionary of at most two levels, and a
+            # dotted name is a path into it, not a key (share.py).  So the
+            # snapshot nests what _publish() later updates by path
+            **_nest({**PowerReading().as_share(),
+                "battery.margin_volts": "-"}),
+        })
+        self.ec_producer.add_handler(self._power_change_handler)
+
+        if timer:
+            aiko.event.add_timer_handler(self._sample_timer, self._period)
+
+# The wire surface ---------------------------------------------------------- #
+
+    def reading(self):
+        """One reading with both clocks and the processor load filled in,
+        and nothing published and nothing logged.
+
+        What "sample" prints on the command line, so that one reading has
+        the same shape there as it has in the log and in the shared state.
+        A device failure is recorded rather than raised, as in sample()"""
+
+        return self._read_guarded()
+
+    def sample(self):
+        """Read the devices, publish the reading, append it to the log"""
+
+        reading = self.reading()
+        self._publish(reading)
+        if self._log:
+            self._log.write(reading, extra={
+                "policy": POLICY_ADVISORY,
+                "period_s": self._period,
+            })
+            if self._log.last_error:
+                self.ec_producer.update(
+                    "last_error", self._log.last_error[:120])
+                self._log.last_error = None
+        return reading
+
+    def publish_properties(self):
+        """Publish properties() again, after open() has found what is there.
+
+        The Service tags carry what an Implementation declares, which is
+        known before a bus is opened.  The shared state carries what this
+        host actually has, which is known only after.  A client filters on
+        the tag, then reads the share"""
+
+        properties = tuple(self.properties())
+        for name in PROPERTIES:
+            self.ec_producer.update(name, name in properties)
+        return properties
+
+    def set_period(self, seconds):
+        """Change the seconds between samples"""
+
+        try:
+            period = self._valid_period(seconds)
+        except ValueError as error:
+            self.logger.warning(f"Refused set_period: {error}")
+            self.ec_producer.update("last_error", str(error)[:120])
+            return
+        if period == self._period:
+            return
+        aiko.event.remove_timer_handler(self._sample_timer)
+        self._period = period
+        aiko.event.add_timer_handler(self._sample_timer, self._period)
+        self.ec_producer.update("sample_period_s", f"{period:.1f}")
+        self.logger.info(f"Sample period: {period} s")
+
+# The event-loop thread ----------------------------------------------------- #
+
+    def _sample_timer(self):
+        self.sample()
+
+    def _read_guarded(self):
+        """read(), with every device failure turned into a reading that says
+        so.  A sensor that stops answering must not stop the Actor"""
+
+        try:
+            reading = self.read()
+        except OSError as error:                         # A bus or a part
+            self.ec_producer.update(
+                "metrics.sensor_errors",
+                int(self.share["metrics"]["sensor_errors"]) + 1)
+            self.ec_producer.update("last_error", str(error)[:120])
+            reading = PowerReading(
+                device=getattr(self, "device", "mock"), error=str(error)[:120])
+        return self._with_host_telemetry(reading)
+
+    def _with_host_telemetry(self, reading):
+        """The processor load beside the power, so that the log shows what
+        the host was doing when it took the current that it took.
+
+        The processor temperature is its own field.  It is never the battery
+        pack temperature, which the pack's own sensor reports"""
+
+        from dataclasses import replace
+
+        values = {
+            "sampled_utc": reading.sampled_utc or utc_now(),
+            "sampled_monotonic": reading.sampled_monotonic,
+            "boot_id": reading.boot_id or self._boot_id,
+        }
+        if values["sampled_monotonic"] is None:
+            import time
+            values["sampled_monotonic"] = round(time.monotonic(), 3)
+        if self._telemetry:
+            cpu, memory, celsius, load = _host_telemetry()
+            if reading.cpu_percent is None:
+                values["cpu_percent"] = cpu
+            if reading.memory_percent is None:
+                values["memory_percent"] = memory
+            if reading.cpu_celsius is None:
+                values["cpu_celsius"] = celsius
+            if reading.load_1m is None:
+                values["load_1m"] = load
+        return replace(reading, **values)
+
+    def _publish(self, reading):
+        """One reading into the shared state, through the producer"""
+
+        items = reading.as_share()
+        items["battery.margin_volts"] = _token(
+            reading.margin_volts(self._thresholds["battery_volts_floor"]))
+        items["metrics.samples"] =  \
+            int(self.share["metrics"]["samples"]) + 1
+        for name, value in items.items():
+            self.ec_producer.update(name, value)
+
+    def _power_change_handler(self, command, item_name, item_value):
+        """"safe" is a report of the posture, and not a control for it.  The
+        posture comes from the command line, which does not cross the bus"""
+
+        if command != "update" or item_name != "safe":
+            return
+        if item_value != self._safe:
+            self.logger.warning('Refused "safe": read only')
+            self.ec_producer.update("metrics.denied",
+                int(self.share["metrics"]["denied"]) + 1)
+            self.ec_producer.update("safe", self._safe)
+
+    @staticmethod
+    def _valid_period(seconds):
+        period = float(seconds)
+        if not PERIOD_LOW <= period <= PERIOD_HIGH:
+            raise ValueError(
+                f"period must be {PERIOD_LOW} to {PERIOD_HIGH}, not {period}")
+        return period
+
+# Phase 1 has no outputs ---------------------------------------------------- #
+
+    def hold(self, on):
+        """A no-op while the "hold" property is absent (phase 2)"""
+
+        self.logger.warning(
+            f'hold({on}) ignored: this Implementation has no "hold" property')
+
+    def signal(self, name):
+        """A no-op while the "signal" property is absent (phase 2)"""
+
+        self.logger.warning(
+            f'signal({name}) ignored: no "signal" property')
+
+    def add_handler(self, handler):
+        """Recorded, and nothing fires it while there is no button or dock
+        property (phase 3)"""
+
+        self._handlers = getattr(self, "_handlers", [])
+        self._handlers.append(handler)
+
+    def close(self):
+        """Release the devices and the log.  Never the power hold"""
+
+        if self._log:
+            self._log.close()
+
+def _nest(items):
+    """Dotted names as the nested dictionary that the shared state holds.
+
+    "battery.volts" becomes {"battery": {"volts": ...}}.  The share is at
+    most two levels deep, which is every name that this Actor publishes"""
+
+    nested = {}
+    for name, value in items.items():
+        if "." in name:
+            group, item = name.split(".", 1)
+            nested.setdefault(group, {})[item] = value
+        else:
+            nested[name] = value
+    return nested
+
+def _token(value):
+    return "-" if value is None else f"{value:.3f}"
+
+def _host_telemetry():
+    """(cpu percent, memory percent, processor celsius, one minute load), or
+    None for each one that this host does not report.
+
+    The same psutil calls that actors/display/status.py makes, with no
+    interval, so cpu_percent() reads the counters since the last call rather
+    than waiting (P2: the event-loop thread must not block)"""
+
+    import os
+
+    load = None
+    try:
+        load = round(os.getloadavg()[0], 2)
+    except (AttributeError, OSError):
+        pass
+    if psutil is None:
+        return None, None, None, load
+    cpu = round(psutil.cpu_percent(interval=None), 1)
+    memory = round(psutil.virtual_memory().percent, 1)
+    celsius = None
+    try:
+        for readings in psutil.sensors_temperatures().values():
+            if readings:
+                celsius = round(readings[0].current, 1)
+                break
+    except (AttributeError, NotImplementedError, OSError):
+        pass
+    return cpu, memory, celsius, load
+
+# Composition --------------------------------------------------------------- #
+
+def power_manager_args(name, device, declared=(), **parameters):
+    """init_args for composing a PowerManager Implementation.
+
+    "declared" is what the Implementation offers, which the Service tags
+    carry.  It is named apart from the Implementation's own "properties"
+    parameter, so that one word never means two things in one call"""
+
+    init_args = aiko.actor_args(
+        name, protocol=PROTOCOL, tags=service_tags(device, declared))
+    init_args.update(parameters)
+    return init_args
+
+def choose_power_manager(device="auto"):
+    """The Implementation class for "device", with nothing acquired.
+
+    "auto" is the power management module where its parts answer, then the
+    laptop of this operating system, then the mock.  The explicit names are
+    "pmm", "linux", "macos" and "mock" """
+
+    from aiko_services.actors.power_manager.mock import MockPowerManagerImpl
+    from aiko_services.actors.power_manager.pmm import (
+        PmmPowerManagerImpl, module_present
+    )
+
+    implementations = {
+        "pmm": PmmPowerManagerImpl,
+        "mock": MockPowerManagerImpl,
+    }
+    if device == "auto":
+        device = "pmm" if module_present() else "mock"
+    if device in ("linux", "macos"):
+        raise ValueError(
+            f'"{device}" is phase 7 of the power manager plan: use "mock"')
+    if device not in implementations:
+        raise ValueError(
+            f'unknown device "{device}": one of {sorted(implementations)}')
+    return implementations[device]
+
+def service_tags(device, properties=()):
+    """The tags the Actor registers with: shared state, the device kind, and
+    one tag for each property of PROPERTIES"""
+
+    return ["ec=true", f"device={device}",
+        *[f"{name}={'true' if name in properties else 'false'}"
+            for name in PROPERTIES]]
+
+def service_filter(name=None):
+    """The discovery filter for the PowerManager named NAME (default: this
+    host's name): protocol power_manager:0, any namespace, owner, transport,
+    tags"""
+
+    return aiko.ServiceFilter(
+        "*", name or get_hostname(), PROTOCOL, "*", "*", "*")
+
+# --------------------------------------------------------------------------- #
