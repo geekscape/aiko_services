@@ -226,7 +226,7 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
 13. **Up-time is requested by Lease, and no application is named.** A host may be needed by
     zero, one or many clients, and each one knows its own business. So the policy asks one
     question of everybody: does anything still need this host? A client answers by holding a
-    Lease, with `(request_uptime RESPONSE_TOPIC SECONDS REASON)`, keyed by the client's own
+    Lease, with `(request_powered_up RESPONSE_TOPIC SECONDS REASON)`, keyed by the client's own
     topic and extended before it expires. Zero seconds releases it. This is the shape that
     `ECProducer` already uses for shared state, so it adds no mechanism.
 
@@ -273,6 +273,47 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     Service may need its host to stay up, and the core must not depend on the Actor tier. The
     protocol that the power manager registers is named there as the default of a parameter,
     which is the only thing the core needs to know about it.
+
+14. **A sound tells an operator one thing, and the power manager owns which sound.** A host
+    in service can have no screen, and a person near it must know four things: the host holds
+    its own power, a press of the button was long enough, an application does its work, and
+    the host is going down. One pattern says each.
+
+    A buzzer has one pitch, so a pattern is told apart by its rhythm and by its length. Two
+    rules come from that. A sound an operator waits for ends on a long note, which is the part
+    that carries across a room. A sound that reports a loss is fast and repeated. The patterns
+    are a table of durations, so a new sound is a table entry and a test compares a list.
+
+    **Two of the four are played without any Actor.** The hold is asserted before Aiko Services
+    starts, and released after the file systems are gone, and an operator needs a sound at both
+    of those moments. So the start-up unit and the shutdown hook of decision 9 render the same
+    table as commands for the platform's pin utility. The table stays the one source.
+
+    **The sound that answers the button is prompt, and the Actor is not what makes it.** The
+    stop of the start-up unit sounds the shutdown pattern while the host is still up, which is
+    seconds after the press rather than after the file systems are unmounted. It therefore
+    answers every cause of a shutdown, and not the button alone. The hook sounds the same
+    pattern again at the end, where it means that the power goes now. The stop releases
+    nothing: only the hook releases the hold, and a release at the stop would cut the power of
+    a host that is restarting.
+
+    **An application reports that it works, and never asks for a sound.** Only the application
+    knows what working means for it, and this Actor cannot know it without naming the
+    application, which decision 13 forbids. So the direction is the same as the Lease:
+    `(report_working RESPONSE_TOPIC DETAIL)`, keyed by the reporter's own topic. This Actor
+    chooses the pattern and bounds the rate: one sound for each reporter, then a dwell, and a
+    cap on the reporters kept. Nothing is published in answer, because the outcome is the
+    shared state.
+
+    That surface is in the safe posture of decision 7, and `signal` stays out of it. The
+    difference is real and not a matter of degree: a reporter states a fact and this Actor
+    decides what it costs a person, whereas `signal` is control of a device that reaches a
+    person. The two limits are part of this decision, as decision 13's limits are, and not
+    found later.
+
+    A client helper lives in the framework core for the reason decision 13 gives. Its
+    discovery is today a second copy of the Lease client's, which a third client should make
+    into one.
 
 ## Consequences
 

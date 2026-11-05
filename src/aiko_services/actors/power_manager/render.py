@@ -142,10 +142,23 @@ def _unit(pinctrl, hold_gpio, buzzer_gpio, sleep=_SLEEP):
     It asserts the hold, and then sounds "booted".  The order is the point:
     the sound means the hold is on, so an operator who holds a soft power
     button hears when it is safe to let go.  No Actor can do this, because
-    the sound is wanted seconds before Aiko Services starts"""
+    the sound is wanted seconds before Aiko Services starts.
+
+    Its stop sounds "shutdown", which is why the unit also orders itself
+    against shutdown.target.  The hook of decision 6 sounds the same
+    pattern, but it runs after the file systems are gone, which can be a
+    minute after the operator asked.  A stop runs while the host is still
+    up, so this is the prompt answer to the button, and it answers for
+    every cause of a shutdown rather than for the button alone.
+
+    The stop never releases the hold.  Only the shutdown hook does that
+    (ADR-028 decision 6), and a release here would cut the power of a host
+    that is restarting"""
 
     beeps = "\n".join(f"ExecStartPost=-{command}"
         for command in _beep_commands(pinctrl, buzzer_gpio, "booted", sleep))
+    stopping = "\n".join(f"ExecStop=-{command}"
+        for command in _beep_commands(pinctrl, buzzer_gpio, "shutdown", sleep))
     return f"""\
 [Unit]
 Description=Aiko Services: assert the power hold
@@ -153,6 +166,12 @@ Documentation=constitution/adr/ADR-028_PowerManagement.md
 DefaultDependencies=no
 After=sysinit.target
 Before=multi-user.target
+# DefaultDependencies=no adds no shutdown ordering, so the two lines that
+# it would have added are here.  Without them the stop runs at an
+# unspecified point, and the sound that answers the button could arrive
+# after the file systems are gone
+Conflicts=shutdown.target
+Before=shutdown.target
 
 [Service]
 Type=oneshot
@@ -164,6 +183,10 @@ ExecStart={pinctrl} set {hold_gpio} op dh
 # and a soft power button can be released.  Each line is prefixed with "-"
 # so that a buzzer which does not sound never reports the hold as failed
 {beeps}
+# The stop sounds "shutdown" while the host is still up, which is the
+# prompt answer to a button press.  It releases nothing: only the shutdown
+# hook releases the hold
+{stopping}
 
 [Install]
 WantedBy=multi-user.target

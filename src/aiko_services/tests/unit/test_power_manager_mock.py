@@ -211,8 +211,8 @@ def test_an_absent_property_makes_its_method_a_no_op():
 
 def test_the_allow_list_is_exactly_the_wire_surface():
     assert sorted(FUNCTIONS) == [
-        "hold", "request_powered_up", "sample", "set_log_level", "set_period",
-        "signal", "stop"]
+        "hold", "report_working", "request_powered_up", "sample",
+        "set_log_level", "set_period", "signal", "stop"]
 
 def test_the_device_seam_is_not_on_the_bus():
     """open(), close(), read(), add_handler() and properties() are called by
@@ -223,14 +223,24 @@ def test_the_device_seam_is_not_on_the_bus():
 def test_safe_mode_allows_what_cannot_stop_a_host():
     """A sample and the log level change nothing.  A request for a powered-up Lease
     can only ask a host to stay up, and the two limits of THRESHOLDS bound
-    what a client in a loop can ask for (ADR-028 decision 13)"""
+    what a client in a loop can ask for (ADR-028 decision 13).  A report of
+    work is bounded the same way: a dwell for each reporter, and a cap"""
 
     assert sorted(SAFE_FUNCTIONS) == [
-        "request_powered_up", "sample", "set_log_level"]
+        "report_working", "request_powered_up", "sample", "set_log_level"]
 
 def test_safe_mode_allows_a_request_for_uptime():
     actor = make_actor(safe=True)
     assert actor.deny_function("request_powered_up", ["t", "60", "why"]) is None
+
+def test_safe_mode_allows_a_report_of_work_but_never_the_buzzer():
+    """The distinction of ADR-028 decision 7.  A reporter may say that it
+    works, which sounds one pattern this Actor chose at a rate this Actor
+    bounds.  Control of the buzzer stays out of the safe posture"""
+
+    actor = make_actor(safe=True)
+    assert actor.deny_function("report_working", ["t", "frames"]) is None
+    assert actor.deny_function("signal", ["booted"])
 
 def test_safe_is_the_default_posture():
     assert SAFE is True

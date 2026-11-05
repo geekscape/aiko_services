@@ -52,18 +52,46 @@ def test_every_pattern_is_short_enough_to_be_one_sound():
     for name in PATTERNS:
         assert pattern_seconds(name) <= 1.0, name
 
-def test_booted_is_two_chirps():
+def test_booted_is_short_then_long():
+    """The lead found 300 ms of two chirps easy to miss, after a press of
+    the button that can last ten seconds.  The long note is the part that
+    carries, so the sound an operator waits for ends on one"""
+
     assert edges_of("booted") == [
-        ("on",), ("sleep", 0.1), ("off",), ("sleep", 0.1),
-        ("on",), ("sleep", 0.1), ("off",)]
+        ("on",), ("sleep", 0.15), ("off",), ("sleep", 0.1),
+        ("on",), ("sleep", 0.5), ("off",)]
 
 def test_shutdown_is_three_fast_chirps():
     assert len([edge for edge in edges_of("shutdown")
         if edge[0] == "on"]) == 3
 
-def test_pipeline_is_one_longer_note():
-    assert len([edge for edge in edges_of("pipeline")
-        if edge[0] == "on"]) == 1
+def test_pipeline_is_quick_taps_and_then_a_note():
+    """The cheerful one.  A buzzer has one pitch, so the mood is in the
+    rhythm: three short taps, and a longer note that resolves them"""
+
+    notes = [seconds for name, seconds in
+        [(edge[0], edge[1] if len(edge) > 1 else 0) for edge in
+            edges_of("pipeline")] if name == "sleep"][::2]
+    assert len(notes) == 4
+    assert all(note < 0.1 for note in notes[:3])
+    assert notes[3] > 2 * max(notes[:3])
+
+def test_every_pattern_sounds_different_from_every_other():
+    """Four sounds that mean four things.  Two that share a shape are worse
+    than one of them not existing, because an operator acts on a guess"""
+
+    shapes = {name: tuple(PATTERNS[name]) for name in PATTERNS}
+    assert len(set(shapes.values())) == len(shapes)
+    lengths = {name: pattern_seconds(name) for name in PATTERNS}
+    assert len(set(lengths.values())) == len(lengths), lengths
+
+def test_a_sound_an_operator_waits_for_ends_on_its_longest_note():
+    """"booted" and "accepted" both answer a person who is holding the
+    button.  Both must end on the note that carries"""
+
+    for name in ("booted", "accepted"):
+        notes = tuple(PATTERNS[name][::2])
+        assert notes[-1] == max(notes), name
 
 def test_the_line_is_always_left_off():
     for name in PATTERNS:
@@ -84,7 +112,7 @@ def test_the_line_is_left_off_even_when_the_sleep_fails():
     assert edges[-1] == "off"
 
 def test_the_pattern_length_is_reported():
-    assert pattern_seconds("booted") == 0.3
+    assert pattern_seconds("booted") == 0.75
     assert pattern_seconds("accepted") == 0.5
 
 def test_an_unknown_pattern_is_refused():

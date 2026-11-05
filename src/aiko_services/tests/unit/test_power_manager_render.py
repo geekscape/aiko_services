@@ -139,6 +139,44 @@ def test_a_silent_buzzer_never_fails_the_unit():
 def test_the_unit_can_name_another_buzzer_line():
     assert "set 23 op dh" in render("unit", buzzer_gpio=23)
 
+def test_the_unit_sounds_shutdown_when_it_is_stopped():
+    """The prompt answer to a button press.  The hook sounds the same
+    pattern, but only after the file systems are gone, which can be a
+    minute after the operator asked"""
+
+    stop = [line for line in render("unit", buzzer_gpio=4).splitlines()
+        if line.startswith("ExecStop=")]
+    assert stop
+    assert any("set 4 op dh" in line for line in stop)
+
+def test_the_stop_never_releases_the_hold():
+    """The one thing the stop must not do.  Only the shutdown hook releases
+    the hold (ADR-028 decision 6), and a release here would cut the power
+    of a host that is restarting"""
+
+    for line in render("unit", hold_gpio=5).splitlines():
+        if line.startswith("ExecStop="):
+            assert "set 5" not in line, line
+
+def test_the_stop_sounds_cannot_fail_the_stop():
+    for line in render("unit").splitlines():
+        if line.startswith("ExecStop="):
+            assert line.startswith("ExecStop=-"), line
+
+def test_the_unit_orders_itself_against_the_shutdown():
+    """DefaultDependencies=no adds no shutdown ordering, so without these
+    two the stop runs at an unspecified point and the sound could arrive
+    after the file systems are gone"""
+
+    text = render("unit")
+    assert "Conflicts=shutdown.target" in text
+    assert "Before=shutdown.target" in text
+
+def test_the_stop_leaves_the_buzzer_line_low():
+    stop = [line for line in render("unit", buzzer_gpio=4).splitlines()
+        if line.startswith("ExecStop=")]
+    assert stop[-1] == "ExecStop=-/usr/bin/pinctrl set 4 op dl"
+
 def test_the_sound_costs_the_boot_only_the_pattern():
     """What the start-up pays for the sound.  The unit is ordered before
     multi-user.target, so this delay is real, and it is bounded by the
@@ -146,9 +184,9 @@ def test_the_sound_costs_the_boot_only_the_pattern():
 
     from aiko_services.actors.power_manager.signal import pattern_seconds
 
-    commands = unit_commands(render("unit"))
-    waits = sum(float(command.split()[-1])
-        for command in commands if "sleep" in command)
+    waits = sum(float(line.split()[-1])
+        for line in render("unit").splitlines()
+        if line.startswith("ExecStart") and "sleep" in line)
     assert round(waits, 3) == pattern_seconds("booted")
     assert waits < 1.0
 

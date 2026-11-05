@@ -58,7 +58,8 @@ from aiko_services.actors.power_manager.power_manager import (  # noqa: F401
     DEVICE_FUNCTIONS, DOCK_DWELL_S, ENFORCE, FUNCTIONS, LOG_DIRECTORY,
     PERIOD_DEVELOPMENT, POLICY_SHUTTING_DOWN,
     PERIOD_PRODUCTION, POLICY_ADVISORY, PROPERTIES, PROTOCOL, SAFE,
-    SAFE_FUNCTIONS, THRESHOLDS, PowerManager, PowerManagerCommon,
+    SAFE_FUNCTIONS, THRESHOLDS, WORKING_DWELL_S, WORKING_PATTERN,
+    WORKING_REPORTERS_MAXIMUM, PowerManager, PowerManagerCommon,
     choose_power_manager, power_manager_args, service_filter, service_tags,
 )
 from aiko_services.actors.power_manager.mock import (  # noqa: F401
@@ -92,7 +93,8 @@ __all__ = [
     "REGISTER_MANUFACTURER_ID", "REGISTER_POWER", "REGISTER_TEMPERATURE",
     "RELEASE_ACTIONS", "REMOUNT_GRACE_S", "RESOLUTION_BITS", "SAFE",
     "SAFE_FUNCTIONS", "SHUTDOWN", "SUDO", "THRESHOLDS", "UNIT_PATH",
-    "VOLTS_PER_BIT", "WATTS_PER_BIT", "boot_id", "choose_buzzer",
+    "VOLTS_PER_BIT", "WATTS_PER_BIT", "WORKING_DWELL_S", "WORKING_PATTERN",
+    "WORKING_REPORTERS_MAXIMUM", "boot_id", "choose_buzzer",
     "choose_power_inputs", "choose_power_manager", "classify", "decide",
     "decide_mode", "hold_state", "hold_tool", "install", "module_present",
     "paths", "pattern_seconds", "power_manager_args", "power_off",

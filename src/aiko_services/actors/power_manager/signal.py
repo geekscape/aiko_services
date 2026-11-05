@@ -35,12 +35,21 @@ __all__ = [
 
 BUZZER_GPIO = 4                    # BCM, active high
 
-# Durations in seconds: on, off, on, off ...  The first four are the plan's
-# table.  "booted" and "shutdown" are the sounds that the learning scripts
-# made, so an operator who knows the hardware hears what they expect
+# Durations in seconds: on, off, on, off ...
+#
+# A buzzer has one pitch, so a pattern tells them apart by its rhythm and
+# by its length.  Two rules come from that.  A sound an operator waits for
+# ends on a long note, which is the part that carries across a room.  And a
+# sound that reports a fault, or a loss, is fast and repeated.
 PATTERNS = {
-    "booted": (0.1, 0.1, 0.1),               # Two chirps: up, and holding
-    "pipeline": (0.4,),                      # One longer note: it is running
+    # Short, then long: "rea-dy".  An operator holds a soft power button
+    # for ten seconds or more before this plays, and the first version of
+    # it was 300 ms of two chirps, which the lead found easy to miss
+    "booted": (0.15, 0.10, 0.50),
+    # Three quick taps and a note that resolves them: the cheerful one.
+    # It reports that an application does its work, and it must not sound
+    # like any of the others
+    "pipeline": (0.07, 0.06, 0.07, 0.06, 0.07, 0.06, 0.35),
     "shutdown": (0.05, 0.05, 0.05, 0.05, 0.05),     # Three fast chirps
     "accepted": (0.5,),              # The press reached its three seconds
 }

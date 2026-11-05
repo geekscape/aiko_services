@@ -45,6 +45,7 @@
 # * The Linux and macOS Implementations: phase 7
 
 from abc import abstractmethod
+import time
 
 import aiko_services as aiko
 from aiko_services.main.utilities import get_hostname
@@ -74,12 +75,21 @@ __all__ = [
     "DEVICE_FUNCTIONS", "DOCK_DWELL_S", "ENFORCE", "FUNCTIONS",
     "LOG_DIRECTORY", "PERIOD_DEVELOPMENT", "PERIOD_PRODUCTION",
     "POLICY_ADVISORY", "POLICY_SHUTTING_DOWN", "PROPERTIES", "PROTOCOL",
-    "SAFE", "SAFE_FUNCTIONS", "THRESHOLDS", "PowerManager",
+    "SAFE", "SAFE_FUNCTIONS", "THRESHOLDS", "WORKING_DWELL_S",
+    "WORKING_PATTERN", "WORKING_REPORTERS_MAXIMUM", "PowerManager",
     "PowerManagerCommon", "choose_power_manager", "power_manager_args",
     "service_filter", "service_tags",
 ]
 
 PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/power_manager:0"
+
+# What a report of work sounds like, and the two limits that bound it.  A
+# report makes a noise that reaches a person, so one reporter cannot sound
+# it again until the dwell has passed, and the number of reporters is
+# capped.  Without those two a Service in a loop would be a siren
+WORKING_PATTERN = "pipeline"
+WORKING_DWELL_S = 300.0
+WORKING_REPORTERS_MAXIMUM = 32
 
 # Which parts of the Interface a platform may have.  The Actor registers one
 # tag for each, such as "hold=true".  One tag for each property, rather than
@@ -124,6 +134,9 @@ THRESHOLDS = {
     # these bound what a client in a loop can ask for
     "powered_up_maximum_s": POWERED_UP_MAXIMUM_S,
     "powered_up_requests_maximum": POWERED_UP_REQUESTS_MAXIMUM,
+    # The same reasoning for the report of work, which also reaches a person
+    "working_dwell_s": WORKING_DWELL_S,
+    "working_reporters_maximum": WORKING_REPORTERS_MAXIMUM,
 }
 
 class PowerManager(aiko.Actor):
@@ -210,6 +223,30 @@ class PowerManager(aiko.Actor):
         gate (ADR-028 decision 13)"""
 
     @abstractmethod
+    def report_working(self, response_topic, detail="-"):
+        """Report that the Service at "response_topic" is doing its work.
+
+        The reporter decides what working means, because only it knows:
+        a Pipeline that captures frames knows that the frames arrive, and
+        this Actor cannot know it without naming the application.  This
+        Actor decides what the report sounds like, because the buzzer is
+        its property and one sound must mean one thing.
+
+        Wire form: "(report_working NAMESPACE/HOST/PID/SID/in frames)".
+        "detail" is one token, for the operator and the log.
+
+        The sound plays once for each reporter, and again only after
+        "working_dwell_s".  No more than "working_reporters_maximum"
+        reporters are kept.  Nothing is published in answer: the outcome is
+        observed in the shared state as "working.reporters" and
+        "metrics.working_reports".
+
+        This is in the safe posture, and "signal" is not.  A reporter can
+        ask for one pattern that this Actor chose, at a rate this Actor
+        bounds, and that is a different surface from a buzzer any client
+        can play what it likes on (ADR-028 decision 7)"""
+
+    @abstractmethod
     def hold(self, on):
         """Keep this host powered, or stop keeping it powered.
 
@@ -263,8 +300,11 @@ SAFE = True                        # The default posture of "run"
 # client in a loop can ask for.  The ProcessManager's rule is satisfied by
 # those limits being part of the design, and not found later.  Without it
 # the whole request surface would be unusable in the default posture
+# "report_working" is here for the same reason, and behind the same kind of
+# limits: a dwell for each reporter and a cap on the reporters.  It names
+# one pattern that this Actor chose, so it is not control of the buzzer
 SAFE_FUNCTIONS = frozenset(
-    {"request_powered_up", "sample", "set_log_level"})
+    {"report_working", "request_powered_up", "sample", "set_log_level"})
 
 class PowerManagerCommon:
     """What every Implementation does the same way: the shared state, the
@@ -320,6 +360,14 @@ class PowerManagerCommon:
                 "powered_up_requests_maximum", POWERED_UP_REQUESTS_MAXIMUM),
             expired_handler=self._powered_up_expired)
         self._stopping = False
+        # Who has reported that they are working, and when each last made a
+        # sound.  A dwell for each one, so a Service in a loop is quiet
+        self._working = {}
+        # The clock, so that a test walks the dwell rather than waiting it
+        # out.  It is an attribute and not a parameter of report_working,
+        # because a parameter would let a client on the bus pass its own
+        # time and defeat the dwell
+        self._clock = time.monotonic
         self.add_hook(HOOK_QUIESCE)
 
         properties = tuple(self.properties())
@@ -348,7 +396,8 @@ class PowerManagerCommon:
                 "hold_changes": 0, "denied": 0, "shutdowns": 0,
                 "quiesces": 0, "button_presses": 0,
                 "powered_up_granted": 0, "powered_up_refused": 0,
-                "powered_up_expired": 0},
+                "powered_up_expired": 0, "working_reports": 0},
+            "working": {"reporters": 0, "last": "-"},
             # The share is a nested dictionary of at most two levels, and a
             # dotted name is a path into it, not a key (share.py).  So the
             # snapshot nests what _publish() later updates by path
@@ -470,6 +519,46 @@ class PowerManagerCommon:
         self._publish_powered_up()
         self.logger.info(f"Powered up {outcome} {detail}: {reason}"
             f"{f' [{constraint}]' if constraint else ''} ({topic})")
+
+    def report_working(self, response_topic, detail="-"):
+        """Note that one Service is doing its work, and sound it.
+
+        The sound is the point, so everything here exists to keep it
+        meaningful: one reporter cannot sound it twice inside the dwell,
+        and the reporters are capped"""
+
+        from aiko_services.main.process_manager import coerce_response_topic
+
+        topic = coerce_response_topic(response_topic, str(self.topic_path))
+        if topic is None or topic == BRIDGE_TOPIC:
+            self.logger.warning(
+                f"report_working refused: {str(response_topic)[:60]} is not a "
+                "topic this Service may publish to")
+            self._count("denied")
+            return False
+        now = self._clock()
+        maximum = int(self._thresholds.get(
+            "working_reporters_maximum", WORKING_REPORTERS_MAXIMUM))
+        if topic not in self._working and len(self._working) >= maximum:
+            self.logger.warning(
+                f"report_working refused: {maximum} reporters already")
+            self._count("denied")
+            return False
+        dwell = float(self._thresholds.get("working_dwell_s", WORKING_DWELL_S))
+        sounded = self._working.get(topic)
+        self._count("working_reports")
+        self.ec_producer.update("working.reporters", len(self._working) + (
+            0 if topic in self._working else 1))
+        self.ec_producer.update("working.last", str(detail)[:24])
+        if sounded is not None and now - sounded < dwell:
+            self._working[topic] = sounded     # The dwell is not restarted
+            self.logger.debug(
+                f"Working {detail} ({topic}): inside the dwell, so no sound")
+            return False
+        self._working[topic] = now
+        self.logger.info(f"Working: {detail} ({topic})")
+        self.signal(WORKING_PATTERN)
+        return True
 
     def _answer(self, topic, outcome, detail):
         """Tell one client what became of its request"""
