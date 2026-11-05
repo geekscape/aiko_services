@@ -76,7 +76,7 @@ class FakeMessage(store_forward_message.StoreForwardMessage):
 _actor_count = [0]
 
 def make_actor(tmp_path, role="edge", accept=True, outbox_period=0,
-    partial_directory=None):
+    partial_directory=None, sent_max_age=None):
 
     inbox = tmp_path / "in"
     outbox = tmp_path / "out"
@@ -85,6 +85,8 @@ def make_actor(tmp_path, role="edge", accept=True, outbox_period=0,
     message = FakeMessage(role, accept)
     parameters = {"message": message, "inbox": str(inbox),
                   "outbox": str(outbox), "outbox_period": outbox_period}
+    if sent_max_age is not None:
+        parameters["sent_max_age"] = sent_max_age
     if partial_directory:
         parameters["partial_directory"] = str(partial_directory)
     _actor_count[0] += 1
@@ -624,3 +626,111 @@ def test_edge_command_needs_a_server(tmp_path):
         ["edge", "--inbox", str(inbox), "--outbox", str(outbox)])
     assert result.exit_code == 2
     assert "--server_host" in result.output
+
+# The .sent sweep ---------------------------------------------------------- #
+#
+# A delivered segment moves to .sent/ as a receipt, and nothing removed it.
+# Measured on a host that records continuously: 2,563 files and 479 MB an
+# hour, which fills 863 GB in about 75 days.
+#
+# Zero keeps every one, which is what this did before the parameter, so an
+# upgrade deletes nothing nobody asked it to delete.
+
+def _seed_sent(directory, old_names=(), new_names=()):
+    """Files in .sent/, the old ones aged well past any cutoff"""
+
+    directory.mkdir(parents=True, exist_ok=True)
+    for name in old_names:
+        path = directory / name
+        path.write_bytes(b"x" * 100)
+        os.utime(path, (time.time() - 86400, time.time() - 86400))
+    for name in new_names:
+        (directory / name).write_bytes(b"y" * 100)
+
+def test_the_sent_sweep_removes_what_is_old_and_keeps_what_is_not(tmp_path):
+    actor, _, _, outbox = make_actor(tmp_path)
+    sent = outbox / SENT_DIRECTORY                 # created by the Actor
+    _seed_sent(sent, old_names=("a.mp4", "b.mp4"), new_names=("c.mp4",))
+    actor.sent_max_age = 10
+    actor._sweep_sent(time.monotonic(), force=True)
+    assert sorted(p.name for p in sent.iterdir()) == ["c.mp4"]
+
+def test_zero_keeps_every_delivered_segment(tmp_path):
+    """The default, and what this did before the parameter existed"""
+
+    actor, _, _, outbox = make_actor(tmp_path)
+    sent = outbox / SENT_DIRECTORY
+    _seed_sent(sent, old_names=("a.mp4", "b.mp4"))
+    assert actor.sent_max_age == 0
+    actor._sweep_sent(time.monotonic(), force=True)
+    assert sorted(p.name for p in sent.iterdir()) == ["a.mp4", "b.mp4"]
+
+def test_a_negative_age_also_keeps_everything(tmp_path):
+    """A mistyped setting must not delete every receipt there is"""
+
+    actor, _, _, outbox = make_actor(tmp_path)
+    sent = outbox / SENT_DIRECTORY
+    _seed_sent(sent, old_names=("a.mp4",))
+    actor.sent_max_age = -1
+    actor._sweep_sent(time.monotonic(), force=True)
+    assert [p.name for p in sent.iterdir()] == ["a.mp4"]
+
+def test_the_sweep_counts_what_it_removed(tmp_path):
+    actor, _, _, outbox = make_actor(tmp_path)
+    sent = outbox / SENT_DIRECTORY
+    _seed_sent(sent, old_names=("a.mp4", "b.mp4", "c.mp4"))
+    actor.sent_max_age = 10
+    actor._sweep_sent(time.monotonic(), force=True)
+    assert actor.share["metrics"]["sent_swept"] == "3"
+
+def test_the_sweep_leaves_a_directory_inside_sent_alone(tmp_path):
+    """Only files.  A sweep that deletes is worth the check"""
+
+    actor, _, _, outbox = make_actor(tmp_path)
+    sent = outbox / SENT_DIRECTORY
+    _seed_sent(sent, old_names=("a.mp4",))
+    nested = sent / "keep"
+    nested.mkdir()
+    os.utime(nested, (time.time() - 86400, time.time() - 86400))
+    actor.sent_max_age = 10
+    actor._sweep_sent(time.monotonic(), force=True)
+    assert [p.name for p in sent.iterdir()] == ["keep"]
+
+def test_the_sweep_touches_nothing_in_the_outbox_itself(tmp_path):
+    """The outbox holds what has not been delivered.  A sweep there would
+    throw away the work"""
+
+    actor, _, _, outbox = make_actor(tmp_path)
+    waiting = outbox / "waiting.mp4"
+    waiting.write_bytes(b"z" * 100)
+    os.utime(waiting, (time.time() - 86400, time.time() - 86400))
+    _seed_sent(outbox / SENT_DIRECTORY, old_names=("a.mp4",))
+    actor.sent_max_age = 10
+    actor._sweep_sent(time.monotonic(), force=True)
+    assert waiting.is_file()
+    assert list((outbox / SENT_DIRECTORY).iterdir()) == []
+
+def test_the_sweep_is_throttled_between_runs(tmp_path):
+    """It walks a directory that holds tens of thousands of files, so it
+    does not run on every outbox scan"""
+
+    actor, _, _, outbox = make_actor(tmp_path)
+    sent = outbox / SENT_DIRECTORY
+    _seed_sent(sent, old_names=("a.mp4",))
+    actor.sent_max_age = 10
+    actor._sweep_sent(time.monotonic(), force=True)     # takes a.mp4
+    _seed_sent(sent, old_names=("b.mp4",))
+    actor._sweep_sent(time.monotonic())                 # too soon
+    assert [p.name for p in sent.iterdir()] == ["b.mp4"]
+
+def test_a_missing_sent_directory_is_not_an_error(tmp_path):
+    actor, _, _, outbox = make_actor(tmp_path)
+    import shutil
+
+    shutil.rmtree(outbox / SENT_DIRECTORY)
+    actor.sent_max_age = 10
+    actor._sweep_sent(time.monotonic(), force=True)     # no raise
+
+def test_the_option_reaches_the_actor(tmp_path):
+    actor, _, _, _ = make_actor(tmp_path, sent_max_age=3600)
+    assert actor.sent_max_age == 3600

@@ -129,6 +129,13 @@ RETRY_AFTER_S = 600.0          # server: re-offer a segment not acked by then
 RETRY_BACKOFF_MIN_S = 60.0     # first re-send delay after a failure ...
 RETRY_BACKOFF_MAX_S = 3600.0   # ... doubling up to this (P4: eventual)
 PARTIAL_MAX_AGE_S = 86400.0    # .part / .meta older than this are swept
+# How long a delivered segment is kept in .sent/, as a receipt.  Zero keeps
+# every one of them, which is what this did before the parameter existed,
+# so an upgrade deletes nothing that nobody asked it to delete.  A host
+# that records continuously wants this set: measured on one such host, the
+# directory grew by 2,563 files and 479 MB in an hour, which fills 863 GB
+# in about 75 days
+SENT_MAX_AGE_S = 0.0
 
 # How long a claim on the host asks for, while the outbox has work.  It
 # extends itself, so this is how long the host would stay up if this Actor
@@ -238,6 +245,8 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         self.link_timeout = float(parameters.get("link_timeout", LINK_TIMEOUT))
         self.partial_max_age = float(
             parameters.get("partial_max_age", PARTIAL_MAX_AGE_S))
+        self.sent_max_age = float(
+            parameters.get("sent_max_age", SENT_MAX_AGE_S))
 
         # A battery pack is a finite resource, so a host that must stay up
         # for this Actor asks for the time it needs and holds a Lease.  The
@@ -264,12 +273,13 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         self._retry_backoff = {}   # outbox name -> current back-off seconds
         self._offered_at = {}      # segment_id -> monotonic time offered
         self._last_sweep = 0.0     # monotonic time of the last partial sweep
+        self._last_sent_sweep = 0.0            # and of the last .sent sweep
         self._link = "unknown"
         self._last_poll = None     # monotonic time of the last Edge poll
         self._metrics = {
             "sent_bytes": 0, "received_bytes": 0, "resumes": 0,
             "failures": 0, "rejected_commands": 0, "out_dropped": 0,
-            "link_downs": 0, "retries": 0
+            "link_downs": 0, "retries": 0, "sent_swept": 0
         }
         self._queue_state = None   # last published (depth, oldest_s, bytes)
         self.share.update({                            # initial snapshot
@@ -313,6 +323,9 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         self.logger.info(f"outbox: {self.outbox} (scan every "
             f"{self.outbox_period} s, sent segments move to "
             f"{SENT_DIRECTORY}/)")
+        self.logger.info(f"{SENT_DIRECTORY}: "
+            + (f"swept above {self.sent_max_age:.0f} s"
+                if self.sent_max_age > 0 else "kept for ever"))
         print(f"MQTT topic: {self.topic_in}")
 
     # Wire commands (event-loop thread) ------------------------------------- #
@@ -630,6 +643,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             size_total)
         self._retry_stale_offers(now_monotonic)
         self._sweep_partial(now_monotonic)
+        self._sweep_sent(now_monotonic)
 
     # Retry and sweep: nothing stays stuck, nothing grows without bound --- #
 
@@ -689,6 +703,60 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
                     self.logger.info(f"swept stale partial {entry.name}")
             except OSError as os_error:
                 self.logger.warning(f"sweep {entry.name}: {os_error}")
+
+    def _sweep_sent(self, now_monotonic, force=False):
+        """Remove delivered segments from .sent/ once they are older than
+        sent_max_age, so that a host which records continuously cannot fill
+        its own disk.
+
+        A segment is here because the far end acknowledged it, so the copy
+        is a receipt and not the data.  Zero keeps every one, which is what
+        this did before the parameter existed.
+
+        Only this directory, and only files: it is under the outbox, which
+        the Actor made itself, but a sweep that deletes is worth the two
+        checks.
+
+        One log line for each sweep, and not for each file.  The partial
+        sweep logs each file because a stale partial is rare.  Here a
+        normal sweep removes thousands, and a line for each would bury
+        everything else in the journal"""
+
+        if self.sent_max_age <= 0:
+            return
+        if not force  \
+            and now_monotonic - self._last_sent_sweep < SWEEP_PERIOD_S:
+            return
+        self._last_sent_sweep = now_monotonic
+        directory = os.path.join(self.outbox, SENT_DIRECTORY)
+        try:
+            entries = list(os.scandir(directory))
+        except OSError:
+            return
+        cutoff = time.time() - self.sent_max_age
+        removed, freed, failed = 0, 0, 0
+        for entry in entries:
+            try:
+                if not entry.is_file(follow_symlinks=False):
+                    continue
+                stat = entry.stat(follow_symlinks=False)
+                if stat.st_mtime >= cutoff:
+                    continue
+                size = stat.st_size
+                os.remove(entry.path)
+                removed += 1
+                freed += size
+            except OSError:
+                failed += 1
+        if removed:
+            self._add_metric("sent_swept", removed)
+            self.logger.info(
+                f"swept {removed} delivered segments from "
+                f"{SENT_DIRECTORY}/, {freed / 1e6:.1f} MB, older than "
+                f"{self.sent_max_age:.0f} s")
+        if failed:
+            self.logger.warning(
+                f"{SENT_DIRECTORY}/ sweep: {failed} could not be removed")
 
     def _publish_queue(self, depth, oldest_s, size_total):
         """queue.* only when changed; sampled_utc on every scan"""
@@ -852,13 +920,14 @@ def _check_partial_directory(inbox, outbox, partial_directory):
                 param_hint="--partial_directory")
 
 def _run(name, role, message, inbox, outbox, outbox_period, link_timeout,
-    partial_max_age, partial_directory=None,
+    partial_max_age, sent_max_age=SENT_MAX_AGE_S, partial_directory=None,
     powered_up_seconds=POWERED_UP_SECONDS):
 
     parameters = {
         "message": message, "inbox": inbox, "outbox": outbox,
         "outbox_period": outbox_period, "link_timeout": link_timeout,
         "partial_max_age": partial_max_age,
+        "sent_max_age": sent_max_age,
         "partial_directory": partial_directory,
         "powered_up_seconds": powered_up_seconds
     }
@@ -894,6 +963,10 @@ def _common_options(function):
             show_default=True,
             help="Seconds before a stale part is swept from the partial "
                  "directory"),
+        click.option("--sent_max_age", "-sa", default=SENT_MAX_AGE_S,
+            show_default=True,
+            help="Seconds a delivered segment is kept in .sent/ "
+                 "(0 keeps every one, and a recording host fills its disk)"),
         click.option("--powered_up_seconds", "-pu", default=POWERED_UP_SECONDS,
             show_default=True,
             help="Seconds of host power to claim while segments wait "
@@ -924,7 +997,7 @@ def main():
     help="Seconds without an edge host poll before link is down")
 
 def server(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
-    partial_max_age, powered_up_seconds, http_port_range, bind,
+    partial_max_age, sent_max_age, powered_up_seconds, http_port_range, bind,
     advertise_host, link_timeout):
 
     _check_partial_directory(inbox, outbox, partial_directory)
@@ -937,6 +1010,7 @@ def server(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
         partial_directory=partial_directory)
     _run(_default_name(name, "server"), "server", message,
         inbox, outbox, outbox_period, link_timeout, partial_max_age,
+        sent_max_age,
         partial_directory, powered_up_seconds)
 
 @main.command(help="Run the edge host Actor, polling the server host")
@@ -953,7 +1027,8 @@ def server(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
     help="Seconds between /out polls")
 
 def edge(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
-    partial_max_age, powered_up_seconds, server_host, server_port, server_url,
+    partial_max_age, sent_max_age, powered_up_seconds, server_host,
+    server_port, server_url,
     poll_period):
 
     _check_partial_directory(inbox, outbox, partial_directory)
@@ -966,6 +1041,7 @@ def edge(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
         partial_directory=partial_directory)
     _run(_default_name(name, "edge"), "edge", message,
         inbox, outbox, outbox_period, LINK_TIMEOUT, partial_max_age,
+        sent_max_age,
         partial_directory, powered_up_seconds)
 
 if __name__ == "__main__":
