@@ -195,7 +195,7 @@ class ActorTopic:
     def __init__(self, topic_name):  # TODO: Implement user defined topics
         self.topic_name = topic_name
 
-class Actor(Service):
+class Actor(Service, FunctionGate):
     Interface.default("Actor", "aiko_services.main.actor.ActorImpl")
 
     @abstractmethod
@@ -221,6 +221,10 @@ class ActorImpl(Actor):
     def __init__(self, context, register_service=True):
         context.call_init(self, "Service", context,
             register_service=register_service)
+    # The FunctionGate aspect: an Implementation that wants deny by
+    # default calls this first, with its own allow list.  call_init() is
+    # idempotent, so this call then leaves that configuration alone
+        context.call_init(self, "FunctionGate", context)
 
         if not hasattr(self, "logger"):
             self.logger = aiko.logger(context.name)
@@ -255,12 +259,44 @@ class ActorImpl(Actor):
         message.invoke()
 
     def _topic_in_handler(self, _aiko, topic, payload_in):
-        command, parameters = parse(payload_in)
+        try:
+            name, parameters = parse(payload_in)
+        except Exception:         # the parser raises on an odd payload
+            return self._function_denied("", DENY_PARSE, payload_in[:80])
     #   if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
     #       _LOGGER.debug(
-    #           f"{self.name}: topic_in_handler(): {command}:{parameters}"
+    #           f"{self.name}: topic_in_handler(): {name}:{parameters}"
     #       )
-        self._post_message(ActorTopic.IN, command, parameters)
+        reason = self.deny_function(name, parameters)
+        if reason:
+            return self._function_denied(name, reason)
+        self._post_message(ActorTopic.IN, name, parameters)
+
+    def _function_denied(self, name, reason, detail=""):
+        """Report a function the FunctionGate denied.  Here, and not in the
+        gate, because the Actor owns the logger and the shared state.
+
+        An Actor that publishes "last_error" or "metrics.denied" gets both
+        kept current, and an Actor that publishes neither only logs.  So a
+        denial is observable (ADR-023 decision 3) with no override.  An
+        Implementation may still define its own, as the Display Actor does.
+
+        The count is held here, and never read back from the share.  A
+        share item is writable from the "control" topic, so a count taken
+        from the share is a count that a client can set.  It is also a
+        string once a client has written it, and "string + 1" raises"""
+
+        self._denied_count = getattr(self, "_denied_count", 0) + 1
+        denied = f"{self.name}: function denied: {reason}: {name}"
+        self.logger.warning(f"{denied} ({detail})" if detail else denied)
+        if not hasattr(self, "ec_producer"):
+            return
+        if "last_error" in self.share:
+            token = f"{reason} {name}" if name else reason
+            self.ec_producer.update("last_error", token[:40])
+        metrics = self.share.get("metrics")
+        if isinstance(metrics, dict) and "denied" in metrics:
+            self.ec_producer.update("metrics.denied", self._denied_count)
 
     def _post_message(
         self, topic, command, args, delay=None, target_function=None):

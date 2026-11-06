@@ -77,7 +77,7 @@ hard-coded `_AIKO_MQTT_HOSTS` list, then `localhost`. For each host, it
 resolves the name one time. Then it tries the IPv4 addresses before the
 IPv6 addresses, with a TCP connect of 2 s at most for each
 (`_MQTT_PROBE_TIMEOUT`). It logs a WARNING for each address that fails,
-and an INFO line for the address that answers.
+and a DEBUG line for the address that answers.
 
 A host name can resolve to an IPv6 address that is not routable from
 the client. For example, on macOS, a `.local` name can resolve to the
