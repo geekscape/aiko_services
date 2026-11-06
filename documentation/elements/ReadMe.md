@@ -2,13 +2,14 @@
 title: Aiko Services PipelineElements documentation
 description: Index of OKF concept documents for the PipelineElement library
   in src/aiko_services/elements/ — cameras, control, gstreamer, media,
-  observe and utilities packages, with their example PipelineDefinitions
+  observe, utilities and web packages, with their example
+  PipelineDefinitions
 type: index
 audience: [developers, end-users]
 status: draft
 ste: adapted
 version: "0.8-dev"
-last_updated: 2026-09-23
+last_updated: 2026-09-30
 ---
 
 # Aiko Services: PipelineElements documentation
@@ -40,6 +41,7 @@ audience-first template
 | [media/](media/ReadMe.md) | The largest family — text, image, video, webcam, synthetic, store / forward and audio elements, the `file` / `synth` / `store_forward` / `tty` / `zmq` DataSchemes, and twenty-three example PipelineDefinitions |
 | [observe/](observe/ReadMe.md) | Observability elements — Inspect (log/file/stdout taps on Frame data) and Metrics (per-element timing and memory) |
 | [utilities/](utilities/ReadMe.md) | The Expression element and S-expression evaluation helpers for the `define`, `delete` and `rename` commands on Frame data values |
+| [web/](web/ReadMe.md) | Web elements — `VideoShowWeb`, a pass-through element that shows a Pipeline's images and the shared state of its elements in a browser, and one example PipelineDefinition |
 
 ## Reading paths
 
@@ -55,7 +57,8 @@ audience-first template
   [cameras/depthai_io.md](cameras/depthai_io.md) or
   [cameras/gigev_io.md](cameras/gigev_io.md), with
   [cameras/image_dewarp.md](cameras/image_dewarp.md) when the lens
-  distorts.
+  distorts. To check a camera's aim from a browser, add
+  [web/web_io.md](web/web_io.md).
 - **Writing a new PipelineElement**: read
   [PipelineElement](../concepts/pipeline_element.md) and
   [Data Source / Target](../concepts/data_source_target.md) first, then

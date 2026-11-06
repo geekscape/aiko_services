@@ -8,6 +8,8 @@
 #
 # Usage
 # ~~~~~
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
 # ./category.py --help
 # ./category.py run     CATEGORY_NAME  # Creates Category instance for testing
 # ./category.py exit    CATEGORY_NAME  # Terminates running Category instance
@@ -29,6 +31,8 @@
 #
 # * Implement "./category.py repl" for interactive CRUD, etc
 #   - REPL command to discover then add, update or remove a running Service
+#   - "category_view.py" holds the Entry and tree model that a REPL needs,
+#     and that "ide/tui/dashboard/category_plugin.py" already shows
 #
 # * Fix: Implement "__repr__()", "__str__()" and refactor "list()" to use them ?
 #   - https://stackoverflow.com/questions/1436703/what-is-the-difference-between-str-and-repr
@@ -282,7 +286,11 @@ class CategoryImpl(Category):
 @click.group()
 
 def main():
-    """Create, Read/List, Update and Destroy Categories"""
+    """Create, Read/List, Update and Destroy Categories
+
+    \b
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+    """
     pass
 
 @main.command(name="add", no_args_is_help=True)

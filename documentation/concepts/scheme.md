@@ -10,8 +10,8 @@ source:
   - src/aiko_services/main/scheme.py
 related: [design_overview, data_source_target, pipeline, pipeline_element,
   stream, parameters]
-version: "0.6"
-last_updated: 2026-09-23
+version: "0.7"
+last_updated: 2026-11-02
 ---
 
 # DataScheme
@@ -205,6 +205,23 @@ From the source To Do lists:
   probably be a `file_id`
 - A `webcam://` scheme (`webcam_io.py` To Do), and a `queue://` scheme
   backed by a Queue(Category) (Category roadmap)
+- A `process://` or `pipe://` scheme, with a DataSource and a DataTarget,
+  which gives Aiko Services the Unix pipe: distributed, and for typed
+  frames of any media type. **On hold (2026-11-02, project-lead
+  direction), and not forgotten.** Two gates come first. One: a pipe *is*
+  backpressure, so flow control must be a wire property, which is
+  deferred amendment DA-4 (see
+  [p_00_DesignPrinciples.md](../../constitution/p_00_DesignPrinciples.md)
+  P1). Without DA-4 the scheme is a bounded and lossy queue, which is
+  correct for video frames and silent damage for bytes. Two: a URL that
+  starts a command is code, so it needs the deny-by-default gate of
+  ADR-023. `pipeline.py` declares no allow list today, and
+  `create_stream()` takes its parameters from the message bus. A
+  PipelineElement that runs one process is the part that needs neither
+  gate ("Shell pipe" in the `process_manager.py` To Do list). Note also
+  that `process:` already names a
+  [ProcessManager](process_manager.md) definition, which is a different
+  meaning of the same word
 
 Also note the enforcement gap described in Implementation notes:
 `@abstractmethod` without `abc.ABC` means an incomplete scheme fails at

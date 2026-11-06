@@ -8,10 +8,11 @@ status: work-in-progress
 ste: adapted
 source:
   - src/aiko_services/main/category.py
+  - src/aiko_services/main/category_view.py
 related: [design_overview, dependency, hyperspace, storage, actor,
-  service, share, discovery]
-version: "0.6"
-last_updated: 2026-08-01
+  service, share, discovery, dashboard_plugin]
+version: "0.7"
+last_updated: 2026-11-02
 ---
 
 # Category
@@ -30,7 +31,10 @@ Because a Category **is-a** Dependency, Categories nest arbitrarily.
 Because a Category **is-an** [Actor](actor.md), every Category is
 independently discoverable and remotely operable over MQTT. Its entries
 are live shared state, visible in the Aiko Services
-[Dashboard](dashboard.md).
+[Dashboard](dashboard.md). Its own Dashboard page shows the Entries as a
+tree, and adds, removes and updates them. `main/category_view.py` is the
+model that page shows, and has no user interface, so a REPL or a web page
+uses the same model.
 
 **Why to use it**: whenever a component needs to manage a queryable,
 observable collection of Service references. For example, a fleet of camera
@@ -98,6 +102,41 @@ Example session:
 # camera_0             video:0 andyg
 ./category.py exit team_a
 ```
+
+### The view that a client holds
+
+A client that shows a Category needs more than the Category gives it. An
+Entry arrives through the codec, so each field needs reading before a
+person can see it. A Category also knows only its own Entries, so a client
+collects them from more than one place. `main/category_view.py` holds that
+work, and has no user interface, no screen and no network. Thus a terminal
+page, a REPL, a web page and a test use the same model.
+
+| Name | Responsibility |
+|------|----------------|
+| `Entry` | One Entry, as a person reads it: `name`, `kind`, `target`, `protocol`, `transport`, `owner`, `tags`, `lcm_url`, `storage_url` |
+| `entry_of(name, fields)` | One `Entry` from the three fields that a Category holds for it |
+| `entries_of_cache(cache)` | Each `Entry` of one Category, from its shared state, by name |
+| `parse_entry_records(records)` | `(entries, diagnostics)` from the records of a `(list ...)` response |
+| `CategoryNode` · `CategoryTree` | Each Entry discovered so far, by Entry path, and which of them a client shows |
+| `field_text()` · `protocol_type()` · `protocol_terse()` | One field, as a person reads it |
+
+Two things that the model does, which a client must not do for itself:
+
+- **The codec's None has two forms.** Shared state holds the string
+  `None`. The wire holds `0:`. `field_text()` reads both, and gives `-`.
+  A ServiceFilter's `*` means "any", which is not the same as absent.
+- **Categories make a graph with cycles, and not a tree.**
+  `CategoryTree.merge()` marks a node that repeats one of its own
+  ancestors. Such a node holds nothing, and `rows()` does not go through
+  it. Therefore a client that walks a cycle stops. The same target in two
+  branches is not a cycle: a graph that is not a tree is shown complete
+  below each Category that refers to it.
+
+`rows()` also takes `keep` and `sort_key`. Thus a filter and an order are
+the client's own policy, and the recursion stays in one place. A node is
+kept if something below it is kept, so the way to the Entry that a person
+looked for stays visible.
 
 ### Public API
 
