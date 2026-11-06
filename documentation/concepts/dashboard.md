@@ -11,7 +11,7 @@ source:
 related: [design_overview, dashboard_plugin, service, share, registrar,
   connection, recorder]
 version: "0.6"
-last_updated: 2026-08-01
+last_updated: 2026-11-06
 ---
 
 # Dashboard
@@ -62,13 +62,20 @@ The console script is `aiko_dashboard` (defined in `pyproject.toml` as
 run directly (`./dashboard.py` in `src/aiko_services/ide/tui/dashboard`).
 
 ```bash
-aiko_dashboard [--history_limit N] [--plugin MODULE]...
+aiko_dashboard [--history_limit N] [--plugin MODULE]... [--utc]
 
 # -hl, --history_limit N   History length requested from the Registrar
 #                          (default: 32)
-# -p,  --plugin MODULE     Dashboard plug-in module(s) to load
+# -p,  --plugin MODULE     Dashboard plug-in module(s) to load, repeatable
 #                          (default: aiko_services.ide.tui.dashboard.plugins)
+#      --utc               Show date/times as stored, in UTC, instead of
+#                          in local time
 ```
+
+Name a module, and not a pathname: `--plugin` accepts both, and a
+pathname ties a command line to where a checkout happens to be. Giving
+any `--plugin` replaces the default, so name the built-in registry too.
+[Dashboard plug-in](dashboard_plugin.md) carries the rest.
 
 Keyboard commands on the Dashboard page (press `?` for this list):
 

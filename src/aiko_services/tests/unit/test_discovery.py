@@ -163,3 +163,27 @@ def test_do_request_response_before_timeout(fakes):
 
     assert responses == [[["a", "b"]]]
     assert exit_status == [0]
+
+def test_do_request_drops_a_response_that_does_not_parse(fakes):
+    """A malformed payload is logged and dropped: it must not raise inside
+    the event loop's message handler, and the request still completes"""
+
+    fake_discovery, exit_status, message_handlers = fakes
+    responses = []
+    def request_handler(service):
+        handler = message_handlers["response/topic"]
+        handler(None, "response/topic", "(item_count 1)")
+        handler(None, "response/topic", "(response 8080:127.0.0.1:8080)")
+        handler(None, "response/topic", "(response a b)")
+    discovery.do_request(None, _service_filter(),
+        request_handler, lambda response: responses.append(response),
+        "response/topic", terminate=True, timeout=0.5)
+    def discover():
+        event.remove_timer_handler(discover)
+        fake_discovery.add_handler(("topic", "test_service"), "service")
+    event.add_timer_handler(discover, 0.05)
+
+    event.loop()
+
+    assert responses == [[["a", "b"]]]
+    assert exit_status == [0]

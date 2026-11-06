@@ -110,19 +110,28 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
 
 # --------------------------------------------------------------------------- #
 
-CAMERA_API_SYSTEM_LOOKUP = {
-    "darwin":  cv2.CAP_AVFOUNDATION,
-    "linux":   cv2.CAP_V4L2,
-    "windows": cv2.CAP_MSMF
-}
+def camera_api(system=None):
+    """The capture back end for this platform, or 0 to let OpenCV choose.
+
+    Looked up when it is wanted, and not held in a table at module level.
+    The values are cv2 constants, and the import of cv2 above is guarded,
+    so a table would raise a NameError on the import of this module on
+    every host without OpenCV.  That made the whole "elements.media"
+    package unimportable there, which is more than this one function is
+    worth: each element already reports a missing OpenCV from
+    start_stream(), where a person can act on it"""
+
+    if not _CV2_IMPORTED:
+        return 0
+    system = platform.system().lower() if system is None else system
+    return {
+        "darwin":  cv2.CAP_AVFOUNDATION,
+        "linux":   cv2.CAP_V4L2,
+        "windows": cv2.CAP_MSMF,
+    }.get(system, 0)
 
 def open_video_capture(camera_id=0):
-    camera_api = 0  # auto-select
-    system = platform.system().lower()
-    if system in CAMERA_API_SYSTEM_LOOKUP:
-        camera_api = CAMERA_API_SYSTEM_LOOKUP[system]
-
-    video_capture = cv2.VideoCapture(camera_id, camera_api)
+    video_capture = cv2.VideoCapture(camera_id, camera_api())
     if not video_capture.isOpened():
         video_capture.release()
         video_capture = cv2.VideoCapture(camera_id)

@@ -26,6 +26,7 @@
 # - Drive key events through the pseudo-terminal
 
 import os
+from types import SimpleNamespace
 
 import pytest
 
@@ -33,6 +34,10 @@ asciimatics = pytest.importorskip("asciimatics")
 
 from aiko_services.main.utilities import load_module            # noqa: E402
 from aiko_services.ide.tui.dashboard import dashboard            # noqa: E402
+from aiko_services.ide.tui.dashboard import ListRequest          # noqa: E402
+from aiko_services.main.service import (                        # noqa: E402
+    Services, ServiceTopicPath,
+)
 from aiko_services.tests.unit.dashboard_screen import (         # noqa: E402
     draw_frame, pty_available,
 )
@@ -68,7 +73,8 @@ def test_the_registry_holds_a_frame_for_each_page():
     module = load_module(PLUGIN_DEFAULT)
 
     assert sorted(module.plugins) ==  \
-        ["process_manager", "recorder", "registrar"]
+        ["category", "hyperspace",
+        "process_manager", "recorder", "registrar"]
     for name, frame_class in module.plugins.items():
         assert issubclass(frame_class, dashboard.ServiceFrame), name
 
@@ -225,5 +231,413 @@ def test_a_page_draws_with_an_empty_shared_state(tmp_path):
         drawn = draw_frame(module_name, class_name, {}, tmp_path)
         assert drawn["ok"], (
             class_name, drawn.get("traceback") or drawn.get("error"))
+
+# Which Service the selection means ---------------------------------------- #
+#
+# "DashboardFrame" cannot be built here, which is why it is absent from
+# FRAMES above: its constructor calls "services_cache_create_singleton()",
+# and that needs a broker and a thread.  So these tests call the real
+# methods that read a selection back out of the widget, on an object that
+# carries only the state those methods touch.
+#
+# What they aim at: the first column of each row is
+# "ServiceTopicPath.terse", which abbreviates a topic path longer than 26
+# characters.  Identifying the selected Service by that column handed an
+# abbreviated path to "Services.get_service()", which keys on the full one,
+# so it answered None and the Dashboard raised "TypeError: 'NoneType'
+# object is not subscriptable" on the first frame that held a Service.  The
+# fault needed a Service whose topic path is long enough, so it appeared on
+# a remote broker and never on localhost
+
+TOPIC_PATH_LONG = "aiko/amr-instance/1727706/1"   # 27 characters, abbreviated
+TOPIC_PATH_SHORT = "aiko/nomad/5161/1"            # 17 characters, unchanged
+
+def service_details(topic_path, name="actor", tags=None):
+    return [topic_path, name, "protocol:0", "mqtt", "owner",
+        tags if tags else ["a=b"]]
+
+def services_holding(*topic_paths):
+    services = Services()
+    for topic_path in topic_paths:
+        services.add_service(topic_path, service_details(topic_path))
+    return services
+
+class _Selection:
+    """Just enough DashboardFrame for the methods under test, which are the
+    real ones, bound here as class attributes"""
+
+    _ec_consumer_reset = dashboard.DashboardFrame._ec_consumer_reset
+    _ec_consumer_set = dashboard.DashboardFrame._ec_consumer_set
+    _get_service_topic_path_next =  \
+        dashboard.DashboardFrame._get_service_topic_path_next
+    _on_change_services = dashboard.DashboardFrame._on_change_services
+    _on_select_service = dashboard.DashboardFrame._on_select_service
+    select_service = dashboard.DashboardFrame.select_service
+
+    def _raise_next_scene(self, service):       # what "S" does
+        self.raised = service
+
+    def __init__(self, services=None, rows=(), value=None):
+        self.raised = None
+        self.ec_consumer = None
+        self.service_cache = {}
+        self.service_tags = None
+        self.selected_service = None
+        self.selected_topic_path = None
+        self.services_cache = SimpleNamespace(get_services=lambda: services)
+        # Each row as "_update()" builds it: the terse form on display,
+        # and the full topic path as the option's internal value
+        self._services_widget = SimpleNamespace(value=value, options=[
+            ((ServiceTopicPath.parse(topic_path).terse,), topic_path)
+            for topic_path in rows])
+
+def test_the_terse_form_is_not_a_cache_key():
+    """Why the display column cannot identify a Service.  Should this ever
+    fail, "terse" has stopped abbreviating and the tests below prove
+    nothing"""
+
+    services = services_holding(TOPIC_PATH_LONG)
+    terse = ServiceTopicPath.parse(TOPIC_PATH_LONG).terse
+
+    assert terse != TOPIC_PATH_LONG
+    assert services.get_service(terse) is None
+    assert services.get_service(TOPIC_PATH_LONG) is not None
+
+class _Stop(Exception):
+    """Ends "_update()" at the assignment under test, because everything
+    after it belongs to asciimatics and wants a real Frame"""
+
+class _Recorder:
+    def __init__(self):
+        self.options = []
+
+    def __setattr__(self, name, value):
+        object.__setattr__(self, name, value)
+        if name == "options" and value:
+            raise _Stop
+
+class _Update:
+    """Just enough DashboardFrame for the part of "_update()" that fills
+    the Services page"""
+
+    _filter = dashboard.DashboardFrame._filter
+    _service_selection_color =  \
+        dashboard.DashboardFrame._service_selection_color
+    _short_name = dashboard.DashboardFrame._short_name
+    YELLOW = dashboard.DashboardFrame.YELLOW
+
+    def __init__(self, services):
+        self.adjust_palette_required = False
+        self.filter_out = dashboard.DashboardFrame.FILTER_OUT.copy()
+        self.selected_services = {}
+        self.services_cache = SimpleNamespace(get_services=lambda: services)
+        self._services_widget = _Recorder()
+
+def test_each_row_carries_a_topic_path_the_cache_accepts():
+    """The real "_update()", at the site that built the identity.  Each row
+    must pair a display column with a value that selects its Service"""
+
+    services = services_holding(TOPIC_PATH_LONG, TOPIC_PATH_SHORT)
+    frame = _Update(services)
+
+    with pytest.raises(_Stop):
+        dashboard.DashboardFrame._update(frame, 0)
+
+    rows = frame._services_widget.options
+    assert len(rows) == 2
+    for columns, topic_path in rows:
+        assert services.get_service(topic_path) is not None, topic_path
+    assert [columns[0] for columns, _ in rows] ==  \
+        ["aiko/amr-inst+/1727706/1", TOPIC_PATH_SHORT]
+
+def test_a_changed_selection_is_the_full_topic_path():
+    selection = _Selection(rows=[TOPIC_PATH_LONG], value=TOPIC_PATH_LONG)
+    handed = []
+    selection._ec_consumer_set = handed.append
+
+    selection._on_change_services()
+
+    assert handed == [TOPIC_PATH_LONG]
+    assert selection.selected_topic_path == TOPIC_PATH_LONG
+
+def test_an_unchanged_selection_is_left_alone():
+    selection = _Selection(rows=[TOPIC_PATH_LONG], value=TOPIC_PATH_LONG)
+    selection.selected_topic_path = TOPIC_PATH_LONG
+    handed = []
+    selection._ec_consumer_set = handed.append
+
+    selection._on_change_services()
+
+    assert handed == []
+
+def test_a_long_topic_path_selects_its_service():
+    """The pairing, end to end: the value a row carries is accepted by the
+    cache, and the Service's tags reach the frame"""
+
+    selection = _Selection(services=services_holding(TOPIC_PATH_LONG),
+        rows=[TOPIC_PATH_LONG], value=TOPIC_PATH_LONG)
+
+    selection._on_change_services()
+
+    assert selection.selected_service[0] == TOPIC_PATH_LONG
+    assert selection.service_tags == ["a=b"]
+
+def test_the_last_service_leaving_clears_the_selection():
+    """The widget's value falls to None when no row is left, and a Service
+    that has gone must not stay selected"""
+
+    selection = _Selection(rows=[], value=None)
+    selection.selected_topic_path = TOPIC_PATH_LONG
+    selection.selected_service = service_details(TOPIC_PATH_LONG)
+    selection.service_tags = ["a=b"]
+
+    selection._on_change_services()
+
+    assert selection.selected_topic_path is None
+    assert selection.selected_service is None
+    assert selection.service_tags is None
+
+def test_a_service_that_exits_between_frames_does_not_raise():
+    """"_update()" reads a copy of the cache, so the message bus thread can
+    remove a Service before the selection is looked up"""
+
+    selection = _Selection(services=services_holding(TOPIC_PATH_SHORT))
+
+    selection._ec_consumer_set(TOPIC_PATH_LONG)
+
+    assert selection.selected_service is None
+    assert selection.service_tags is None
+    assert selection.ec_consumer is None
+
+def test_the_next_service_is_the_row_after_the_selected_one():
+    """What "K" uses to move the selection off the Service it kills"""
+
+    selection = _Selection(
+        rows=[TOPIC_PATH_SHORT, TOPIC_PATH_LONG], value=TOPIC_PATH_SHORT)
+    selection.selected_topic_path = TOPIC_PATH_SHORT
+
+    assert selection._get_service_topic_path_next() == TOPIC_PATH_LONG
+
+def test_there_is_no_next_service_after_the_last_row():
+    selection = _Selection(
+        rows=[TOPIC_PATH_SHORT, TOPIC_PATH_LONG], value=TOPIC_PATH_LONG)
+    selection.selected_topic_path = TOPIC_PATH_LONG
+
+    assert selection._get_service_topic_path_next() is None
+
+def test_there_is_no_next_service_when_nothing_is_selected():
+    selection = _Selection(rows=[TOPIC_PATH_SHORT])
+
+    assert selection._get_service_topic_path_next() is None
+
+# Enter, on the Services pane --------------------------------------------- #
+#
+# Enter did nothing there, and "S" opened the selected Service's page.
+# Enter is the key a person reaches for, so it does what "S" does
+
+def test_enter_on_a_service_opens_its_page():
+    selection = _Selection(
+        services=services_holding(TOPIC_PATH_SHORT), rows=[TOPIC_PATH_SHORT])
+    selection._services_widget.value = TOPIC_PATH_SHORT
+    selection._on_change_services()
+    selection._on_select_service()
+
+    assert selection.raised == service_details(TOPIC_PATH_SHORT)
+
+def test_enter_with_nothing_selected_does_nothing():
+    selection = _Selection(services=services_holding(TOPIC_PATH_SHORT))
+    selection._on_select_service()
+
+    assert selection.raised is None
+
+# Following a reference from one page to another --------------------------- #
+#
+# A page calls "select_service()" to show another Service, which is how
+# the Category page follows an Entry.  A page that made its own ECConsumer
+# of that Service would hold a second lease on it
+
+def test_a_page_moves_the_dashboards_selection():
+    selection = _Selection(
+        services=services_holding(TOPIC_PATH_SHORT, TOPIC_PATH_LONG),
+        rows=[TOPIC_PATH_SHORT, TOPIC_PATH_LONG], value=TOPIC_PATH_SHORT)
+
+    assert selection.select_service(TOPIC_PATH_LONG) is True
+    assert selection.selected_topic_path == TOPIC_PATH_LONG
+    assert selection.selected_service == service_details(TOPIC_PATH_LONG)
+    assert selection._services_widget.value == TOPIC_PATH_LONG
+
+def test_a_service_the_registrar_no_longer_knows_is_refused():
+    """And nothing changes, because a page that was told False says so
+    rather than showing an empty page"""
+
+    selection = _Selection(services=services_holding(TOPIC_PATH_SHORT),
+        rows=[TOPIC_PATH_SHORT], value=TOPIC_PATH_SHORT)
+    selection.selected_topic_path = TOPIC_PATH_SHORT
+
+    assert selection.select_service("aiko/nomad/9999/1") is False
+    assert selection.selected_topic_path == TOPIC_PATH_SHORT
+    assert selection._services_widget.value == TOPIC_PATH_SHORT
+
+def test_a_service_that_is_not_a_row_is_still_selected():
+    """The Dashboard hides Categories from its own list, and a page
+    follows one anyway"""
+
+    selection = _Selection(
+        services=services_holding(TOPIC_PATH_SHORT, TOPIC_PATH_LONG),
+        rows=[TOPIC_PATH_SHORT], value=TOPIC_PATH_SHORT)
+
+    assert selection.select_service(TOPIC_PATH_LONG) is True
+    assert selection.selected_topic_path == TOPIC_PATH_LONG
+    assert selection._services_widget.value == TOPIC_PATH_SHORT   # unchanged
+
+# A "(list ...)" request, and the response it collects --------------------- #
+
+def test_a_request_collects_what_it_asked_for():
+    request = ListRequest()
+    sent = []
+    request.request("hosts", sent.append)
+
+    assert sent == [request.topic]
+    assert request.pending == "hosts"
+    request.handler(None, request.topic, "(item_count 2)")
+    request.handler(None, request.topic, "(response 0 a (x))")
+    assert request.take() is None                  # not every record yet
+    request.handler(None, request.topic, "(response 0 b (y))")
+
+    asked, records = request.take()
+    assert asked == "hosts"
+    assert [record[1] for record in records] == ["a", "b"]
+    assert request.take() is None                  # and only once
+    assert request.pending is None
+
+def test_an_answer_of_nothing_is_an_answer():
+    request = ListRequest()
+    request.request("", lambda topic: None)
+    request.handler(None, request.topic, "(item_count 0)")
+
+    assert request.take() == ("", [])
+
+def test_a_response_that_nothing_asked_for_is_left_alone():
+    request = ListRequest()
+
+    assert request.handler(None, request.topic, "(item_count 2)") is False
+    assert request.take() is None
+
+def test_a_count_that_is_not_a_number():
+    request = ListRequest()
+    request.request("hosts", lambda topic: None)
+    request.handler(None, request.topic, "(item_count many)")
+    request.handler(None, request.topic, "(response 0 a (x))")
+
+    assert request.take() is None
+    assert request.pending == "hosts"              # still waiting
+
+def test_a_request_that_is_never_answered():
+    request = ListRequest(timeout=0)
+    request.request("hosts", lambda topic: None)
+
+    assert request.expired() == "hosts"
+    assert request.expired() is None               # and only once
+    assert request.pending is None
+
+def test_a_request_that_is_answered_does_not_expire():
+    request = ListRequest(timeout=0)
+    request.request("hosts", lambda topic: None)
+    request.handler(None, request.topic, "(item_count 0)")
+
+    assert request.expired() is None
+
+# Date and time on display ------------------------------------------------ #
+#
+# Local time is the default and "--utc" turns it off.  The conversion
+# itself is tested in "test_display_time.py"; what matters here is that
+# the Dashboard asks for it, and that the option reaches the switch.
+
+import time                                                    # noqa: E402
+
+from click.testing import CliRunner                            # noqa: E402
+
+from aiko_services.ide.tui.dashboard import frames             # noqa: E402
+from aiko_services.ide.tui.dashboard.frames import (           # noqa: E402
+    FrameCommon, display_value, set_display_utc,
+)
+
+STAMP = "2026-11-05T06:20:00Z"
+
+@pytest.fixture(autouse=True)
+def _local_time_again():
+    """The switch is the whole interface's, so a test must put it back"""
+
+    yield
+    set_display_utc(False)
+
+@pytest.fixture
+def tokyo(monkeypatch):
+    if not hasattr(time, "tzset"):
+        pytest.skip("TZ only takes effect where time.tzset() exists")
+    monkeypatch.setitem(os.environ, "TZ", "Asia/Tokyo")
+    time.tzset()
+    yield
+    time.tzset()
+
+def test_a_value_on_display_is_in_local_time(tokyo):
+    assert display_value(STAMP) == "2026-11-05 15:20:00 JST"
+
+def test_utc_asked_for_shows_what_is_stored(tokyo):
+    set_display_utc(True)
+
+    assert display_value(STAMP) == STAMP
+
+def test_every_wrapped_field_is_converted(tokyo):
+    """_update_field() is where a shared state value becomes text, for
+    the Dashboard and for every plug-in page.  Converting here is what
+    makes the default reach all of them"""
+
+    rows = []
+    FrameCommon._update_field(None, rows, "sampled_utc", STAMP, 40)
+
+    assert rows == [("sampled_utc", "2026-11-05 15:20:00 JST")]
+
+def test_the_option_reaches_the_switch(monkeypatch):
+    """main() is a click command around a screen loop.  Without the
+    screen it still runs the lines before it, which is where the switch
+    is set.  Nothing else proves the option is wired to anything"""
+
+    monkeypatch.setattr(dashboard.Screen, "wrapper",
+                        lambda *args, **kwargs: None)
+
+    result = CliRunner().invoke(dashboard.main, ["--utc"])
+
+    assert result.exit_code == 0, result.output
+    assert frames._DISPLAY_UTC is True
+
+def test_local_time_is_the_default(monkeypatch):
+    monkeypatch.setattr(dashboard.Screen, "wrapper",
+                        lambda *args, **kwargs: None)
+
+    result = CliRunner().invoke(dashboard.main, [])
+
+    assert result.exit_code == 0, result.output
+    assert frames._DISPLAY_UTC is False
+
+# A form, on a real terminal ---------------------------------------------- #
+
+@needs_pty
+def test_a_form_shows_every_kind_of_field(tmp_path):
+    """A PopUpDialog takes its height from its text and clips a Layout
+    that does not fit, so a form is a Frame of its own.  Nothing but a
+    screen shows whether each field is on it"""
+
+    drawn = draw_frame("aiko_services.tests.unit.dashboard_screen",
+        "FormProbe", {}, tmp_path, passes=1)
+
+    assert drawn["ok"], drawn.get("traceback") or drawn.get("error")
+    text = "\n".join(drawn["lines"])
+    assert "Probe the form" in text              # the title
+    assert "A note, above the fields" in text
+    assert "Name:" in text and "a name" in text  # a Text, with its value
+    assert "Dependency" in text and "Category" in text      # RadioButtons
+    assert "Field:" in text                                 # a DropdownList
+    assert "Accept" in text and "Cancel" in text
 
 # --------------------------------------------------------------------------- #

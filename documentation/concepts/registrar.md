@@ -12,7 +12,7 @@ source:
 related: [design_overview, process, service, discovery, share, connection,
   state, event, message, transport, dashboard, lifecycle]
 version: "0.6"
-last_updated: 2026-10-29
+last_updated: 2026-11-02
 ---
 
 # Registrar
@@ -301,7 +301,7 @@ Key design points:
 From the source `To Do` list — highlights (the source marks several as
 **BUG**):
 
-- **Fixed (2026-09-28)**: a stale retained `(primary found ...)` on the
+- **Fixed (2026-10-01, #109)**: a stale retained `(primary found ...)` on the
   bootstrap topic (for example, after a system crash where no LWT fired)
   prevented a new Registrar from ever becoming primary. The liveness
   probe replaces it within about 5 s. The integration test

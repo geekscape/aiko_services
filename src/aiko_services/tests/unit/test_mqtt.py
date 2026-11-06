@@ -177,3 +177,11 @@ def test_wildcard_subscription_restored_after_reconnection(monkeypatch):
     mqtt._on_disconnect(client, None, 1)
     mqtt._on_connect(client, None, {}, 0)
     assert client.subscribed.count("#") == 2
+
+def test_the_connect_address_is_logged_at_debug_only(monkeypatch):
+    logged = {"info": [], "debug": []}
+    monkeypatch.setattr(mqtt_module._LOGGER, "info", logged["info"].append)
+    monkeypatch.setattr(mqtt_module._LOGGER, "debug", logged["debug"].append)
+    make_mqtt(monkeypatch)
+    assert not any("connecting to" in line for line in logged["info"])
+    assert any("connecting to 192.168.0.137" in line for line in logged["debug"])

@@ -179,6 +179,12 @@ too. A segment with no frames leaves no file.
 
 ## Current limitations and roadmap
 
+- On some OpenCV builds, `opencv-python` 5.0 for aarch64 among them,
+  each H.264 segment starts with a 50-byte packet that holds no picture.
+  FFmpeg decodes every frame. OpenCV's first `read()` fails and the next
+  ones succeed. So a reader that stops at the first failed `read()` gets
+  no frame at all, and the container's frame count reads one high. Read
+  segments with a loop that tolerates one failed read, or with FFmpeg.
 - Segments are plain MP4 (H.264). Fragmented MP4, so a partially
   received segment plays, is planned.
 - The element does not announce a closed segment to the Actor. The
