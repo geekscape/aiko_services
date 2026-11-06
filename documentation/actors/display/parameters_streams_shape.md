@@ -16,7 +16,7 @@ source:
   - src/aiko_services/actors/display/display.py
 related: [parameters, pipeline, stream, lease, share, actor]
 version: "0.8-dev"
-last_updated: 2026-09-28
+last_updated: 2026-11-02
 ---
 
 # The shape of Parameters and Streams — the Display Actor as the pilot
@@ -111,7 +111,7 @@ The extraction must correct both before the Interfaces move.
 | Start value | a command-line option (`--contrast`, `--font`) | the definition, or `create_stream(parameters=)` |
 | Live change | `(update NAME VALUE)` on `control`, applied by the change handler | `set_parameter()`, a direct dictionary write |
 | Validate | by kind at the boundary: `int`, `float` with a range, `flag`, and the custom kinds `applet`, `title`, `font`, `color` | none |
-| Reject | `last_error` = `set_NAME_not_int@...`, a count in `metrics.rejected`, and the value in force published again | silent |
+| Deny | `last_error` = `set_NAME_not_int@...`, a count in `metrics.denied`, and the value in force published again | silent |
 | Read | `self._applied[name]`, local | `get_parameter()` |
 | A stream | `mirror(topic, seconds)`: a `Lease`, 4 holders at most, `mirrors` in the share | `create_stream()`: a `Lease` for each stream id |
 

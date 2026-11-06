@@ -256,13 +256,10 @@ class TextTransform(aiko.PipelineElement):
             diagnostic = f"Unknown text transform type: {transform_type}"
             return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
-        texts_transformed = []
         if transform_type == "none":
             texts_transformed = texts  # optimization :)
         else:
-            for text in texts:
-                transformed_text = transform(text)
-                texts_transformed.append(transformed_text)
+            texts_transformed = [transform(text) for text in texts]
 
         return aiko.StreamEvent.OKAY, {"texts": texts_transformed}
 

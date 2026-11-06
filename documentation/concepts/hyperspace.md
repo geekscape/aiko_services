@@ -11,8 +11,8 @@ source:
   - src/aiko_services/main/hyperspace.py
 related: [design_overview, category, dependency, storage, process_manager,
   actor, share, discovery, lifecycle]
-version: "0.6"
-last_updated: 2026-08-01
+version: "0.7"
+last_updated: 2026-11-02
 ---
 
 # HyperSpace
@@ -271,6 +271,14 @@ HyperSpace itself.
 
 ## Current limitations and roadmap
 
+**Storage keeps an Entry's name and its place, and nothing else.**
+`_hyperspace_load()` builds each Dependency again with no
+`lifecycle_manager_url`, no `storage_url`, and a ServiceFilter of default
+values. Therefore each field of an Entry, except its name, is lost when a
+HyperSpace starts again. Measured on 2026-11-02: a Dependency added with a
+protocol and a storage URL comes back with neither. A Category that holds
+a [ProcessManager](process_manager.md) definition needs this first.
+
 Highlights from the source `To Do` list:
 
 - Separate HyperSpace and Storage design more cleanly (Categories with
@@ -283,8 +291,8 @@ Highlights from the source `To Do` list:
   [ProcessManager](process_manager.md) as the LifeCycleManager completing
   the Service lifecycle state machine
 - Maintain `running` / `active` Category counts. Add
-  `aiko_hyperspace export`, structure validation, a REPL and a Dashboard
-  plug-in (tree view)
+  `aiko_hyperspace export`, structure validation and a REPL. The Dashboard
+  tree view is `ide/tui/dashboard/hyperspace_plugin.py`
 - Primary/watchdog HyperSpace per host. Unify HyperSpaces across hosts in
   one namespace
 - Known issue: `do_command()` against a remote proxy fails for `create()`

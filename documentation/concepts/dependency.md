@@ -9,9 +9,9 @@ ste: adapted
 source:
   - src/aiko_services/main/dependency.py
 related: [design_overview, category, hyperspace, storage, process_manager,
-  service, component, lifecycle]
-version: "0.6"
-last_updated: 2026-08-01
+  service, component, lifecycle, utilities/parser]
+version: "0.7"
+last_updated: 2026-11-02
 ---
 
 # Dependency
@@ -120,6 +120,26 @@ e.g.  ((* my_service * * * (a=b)) None None)
 
 In transmitted records, `None` values are substituted with the sentinel
 `0:` (see [Category](category.md) for the record format).
+
+**Each URL is a canonical symbol.** A URL can hold a space, a parenthesis
+or a brace. Each of these is an S-expression delimiter. Therefore
+`__repr__()` sends each URL through `generate_symbol()`
+(see [Parser utility](utilities/parser.md)), which gives the URL a
+canonical length prefix if the URL holds a delimiter:
+
+```
+((* registrar * * * ()) pm_a 41:process:{"enabled": true, "command": "x"})
+```
+
+`parse()` reads the prefix, and returns the URL complete. Without the
+prefix, the expression is not valid, and a `list` response that holds the
+URL cannot be read. [ProcessManager](process_manager.md) shows a
+definition that a `storage_url` holds this way.
+
+**A tag cannot hold a space.** `ServiceFilter.__repr__()` joins its tags
+with a space, and it does not make each tag a canonical symbol. One tag of
+`command=aiko_registrar run` becomes two tags, `command=aiko_registrar`
+and `run`. Put a value that holds a space in one of the two URL fields.
 
 ## For framework developers (internals)
 

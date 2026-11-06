@@ -161,13 +161,16 @@ class ProcessImplementation(ProcessData):
             self.add_message_handler(
                 self.on_registrar, aiko.TOPIC_REGISTRAR_BOOT)
 
+        # With mqtt_connection_required=False and no MQTT server available,
+        # MQTT keeps retrying in the background and connects when it can
             aiko.message = Castaway()  # standalone and isolated :(
             mqtt_connected = False
             try:
                 aiko.message = MQTT(
                     self.on_message, self._message_handlers,
                     aiko.topic_lwt, aiko.payload_lwt, False,
-                    self.on_mqtt_state_change
+                    self.on_mqtt_state_change,
+                    connection_required=mqtt_connection_required
                 )
                 mqtt_connected = True
             except SystemError as system_error:
@@ -356,6 +359,24 @@ class ProcessImplementation(ProcessData):
                             self._add_service_to_registrar(service)
                     finally:
                         self._services_lock.release()
+
+                # The boot announcement has carried the Registrar's version
+                # all along, and nothing read it.  A mismatch used to show
+                # up as a Registrar that registered nothing, with one debug
+                # line.  Reported, and never refused.
+                #
+                # Reported *last*, after the Service has registered, and
+                # not before it.  The enclosing "except" turns anything
+                # raised here into "Exception raised when adding to
+                # Registrar", so a fault in the report would stop every
+                # Service registering.  It did: the first version of this
+                # named a logger that does not exist in this module
+                    found = registrar.get("version")
+                    if str(found) != str(REGISTRAR_VERSION):
+                        _LOGGER_PROCESS.error(
+                            f"Registrar protocol version {found}, this "
+                            f"Service expects {REGISTRAR_VERSION}: "
+                            "update whichever is older")
 
                 if action == "absent":
                     aiko.registrar = None

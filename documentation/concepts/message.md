@@ -237,7 +237,7 @@ Key design points:
   and it does not resolve the name again at each reconnection. TLS keeps
   the name, because the certificate check and SNI use it. Websockets
   keep the name too. The address stays the same for the life of the
-  process. An INFO line names the host, the port and the address. Any
+  process. A DEBUG line names the host, the port and the address. Any
   `OSError` from the connection becomes a `SystemError`.
 
 ### Implementation notes

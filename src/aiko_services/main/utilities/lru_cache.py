@@ -4,7 +4,7 @@
 # cache = lru_cache.LRUCache(size=2)
 # cache.put("key_0", "value_0")
 # cache.put("key_1", "value_1")
-# cache.put("key_2", "value_2")
+# evicted = cache.put("key_2", "value_2")  # ("key_0", "value_0")
 # print(len(cache))
 # print(cache.get("key_0"))  # None
 # print(cache.get("key_1"))  # value_1
@@ -41,7 +41,25 @@ class LRUCache:
         return(list(self.lru_cache.values()))
 
     def put(self, key, value):
+        """Add or refresh an item.  Returns the (key, value) that this put
+        evicted, or None.  A caller that holds state of its own for each
+        key needs to know, because the eviction is otherwise silent"""
+
+        evicted = None
         self.lru_cache[key] = value
         self.lru_cache.move_to_end(key)  # update recently used item
         if len(self.lru_cache) > self.size:
-            self.lru_cache.popitem(last=False)  # remove least recent key/value
+            evicted = self.lru_cache.popitem(last=False)  # least recent
+        return evicted
+
+    def resize(self, size):
+        """Change the maximum.  A smaller one evicts the least recently
+        used items at once, and returns each evicted (key, value)"""
+
+        if size < 1:
+            raise ValueError(f"LRUCache size must be 1 or more: {size}")
+        self.size = size
+        evicted = []
+        while len(self.lru_cache) > self.size:
+            evicted.append(self.lru_cache.popitem(last=False))
+        return evicted

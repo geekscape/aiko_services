@@ -102,7 +102,7 @@ closes with SDK 3.10.0.
 
 | Class | Kind | Inputs → Outputs | Parameters |
 |-------|------|------------------|------------|
-| `VideoReadDepthAI` | DataSource | `images: [image]` → `images: [image]` | `data_sources` (`(depthai://)` or `(depthai://<address>)`), `resolution` (`1920x1080`), `frame_rate` (`8.0`), `settle` (`30`), `aux_stream` (`auto`), `resize_mode`, `rate`, `capture_timeout`, `log_frames`, `media_type` |
+| `VideoReadDepthAI` | DataSource | `images: [image]` → `images: [image]` | `data_sources` (`(depthai://)` or `(depthai://<address>)`), `resolution` (`1920x1080`), `frame_rate` (`8.0`), `settle` (`30`), `aux_stream` (`auto`), `resize_mode`, `rate`, `capture_timeout`, `log_frames`, `focus_assist` (`false`), `media_type` |
 
 Service protocol: `video_read_depthai:0`.
 
@@ -111,8 +111,9 @@ Live shared state: the keys of the [camera scheme base](scheme_camera.md)
 `capture_timeouts`, `last_frame_utc`, `last_error`, `sensor.*`) plus
 `aux_stream`. The `sensor.*` group carries the camera's own 3A values
 each frame: `exposure_us`, `iso_sensitivity`, `lens_position` and
-`color_temperature_k`. Writable keys: `capture_timeout` and
-`log_frames`.
+`color_temperature_k`. Writable keys: `capture_timeout`, `log_frames`
+and `focus_assist`, which also checks that the auto-focus found the
+scene.
 
 **Stream lifecycle behavior:**
 
