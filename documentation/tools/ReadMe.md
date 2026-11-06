@@ -7,16 +7,16 @@ type: index
 audience: [project-lead, architects, developers, ai-coding-agents]
 status: operational
 ste: adapted
-related: [../constitution/t_04_SimplifiedTechnicalEnglish,
-  ../constitution/t_02_OkfTaxonomy, ../constitution/g_04_ModelHandoffGuide]
-last_updated: 2026-08-01
+related: [../../constitution/t_02_OkfTaxonomy,
+  ../../constitution/g_04_ModelHandoffGuide]
+last_updated: 2026-11-02
 ---
 
 # Documentation scripts — ASD-STE100 lint and mechanical fixer
 
 Three tools support the ASD-STE100 Simplified Technical English (STE)
-conversion of the documentation. The rules that they apply are in
-[t_04_SimplifiedTechnicalEnglish.md](../constitution/t_04_SimplifiedTechnicalEnglish.md).
+conversion of the documentation. The rules that they apply are in the
+project STE profile [Privately maintained].
 The tools use only the Python standard library.
 
 **Status (project-lead decision, 2026-08-01).** This directory is
@@ -65,7 +65,7 @@ ignores.)
 
 **A file is converted when all seven counts are 0.** Only then can you set
 its `ste:` front matter to `adapted` (rule 13 of
-[g_04_ModelHandoffGuide.md](../constitution/g_04_ModelHandoffGuide.md)).
+[g_04_ModelHandoffGuide.md](../../constitution/g_04_ModelHandoffGuide.md)).
 The `I` advisory does not block that, but read it first.
 
 Options:
@@ -115,7 +115,7 @@ renders:
 ```
 
 The gate and `asd_ste100_fix.py` both honor them.
-`t_04_SimplifiedTechnicalEnglish.md` uses both, for the rule 8.1 semicolon,
+The project STE profile uses both, for the rule 8.1 semicolon,
 the GR-6 abbreviations and the §4 swap table.
 
 **Caution: an exemption is not a way to silence a finding.** Until
@@ -156,9 +156,9 @@ capitals stays in full capitals. Before 2026-08-01 the rules matched
 lowercase only. A capitalized British spelling, contraction or swap-list
 word was then skipped in silence, and the gate reported it afterward.
 
-**One exception, on purpose.** The British form behind the ClearName
-`e_07_ConstitutionReorganisation` is corrected in lowercase prose only,
-because that ClearName is an identifier and keeps its spelling. Thus
+**One exception, on purpose.** One privately maintained document has a
+British form in its ClearName. The tool corrects that form in lowercase
+prose only, because a ClearName is an identifier and keeps its spelling. Thus
 `asd_ste100_lint.py` can report a capitalized instance that this tool does not
 correct. Decide that one by hand: correct it when it is prose, and leave
 it when it names the document.
@@ -167,7 +167,7 @@ it when it names the document.
 
 - The exempt historical records — the dated `_YYYY-MM` analyses and the
   executed plan records. They keep their original words (t_04 §1)
-- `documentation/log.md`, which quotes British spellings and swap-list
+- `constitution/log.md`, which quotes British spellings and swap-list
   words as examples of what was corrected. To "fix" the journal destroys
   the record of the fix
 
@@ -176,9 +176,7 @@ whole directory.
 
 **The fixer does not touch sentence length or semicolons.** Those need
 judgment, and a script makes bad prose from them. Refer to the semicolon
-rules in
-[t_04_SimplifiedTechnicalEnglish.md](../constitution/t_04_SimplifiedTechnicalEnglish.md)
-§4.1.
+rules in the project STE profile [Privately maintained], §4.1.
 
 ## asd_ste100_semisplit.py — the mechanical semicolon split
 
@@ -222,7 +220,7 @@ count of the gate now catches the two split shapes automatically.
    a defect: keep the word when it names a real command or method.
 6. Run `asd_ste100_lint.py` again. When all seven counts are 0, set
    `ste: adapted` in the front matter and set `last_updated` to today.
-7. Add an entry to [../log.md](../log.md).
+7. Add an entry to [constitution/log.md](../../constitution/log.md).
 
 **When a `description:` field changes, check its `ReadMe.md` index row in
 the same change.** The row quotes that field, and the two must agree.

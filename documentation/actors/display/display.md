@@ -27,7 +27,7 @@ related: [actor, service, share, discovery, event, process, connection,
   dashboard, dashboard_plugin, parameters, stream, display_protocol,
   display_dashboard, design, testing]
 version: "0.8-dev"
-last_updated: 2026-09-28
+last_updated: 2026-11-02
 ---
 
 # Display Actor (display.py)
@@ -169,7 +169,7 @@ SBC's broker must listen on every interface. The
 [test guide](testing.md) gives the mosquitto configuration and the two
 discovery traps.
 
-**The Dashboard page.** `aiko_dashboard -p aiko_services.main.dashboard_plugins
+**The Dashboard page.** `aiko_dashboard -p aiko_services.ide.tui.dashboard.plugins
 -p aiko_services.actors.display.dashboard_plugin`, then `S` on the Actor.
 The page shows a live mirror of the panel through the leased frame feed,
 and the shared state with editable settings. It shows the process log,
@@ -398,16 +398,16 @@ Every applet is deterministic for a given `seed=`. No applet uses a
 clock, only frame counts. A drawing command stops a running applet, so
 that the drawing is seen. `log` does not stop it, because the status
 applet shows the log lines itself. Anything else on the `in` topic is
-rejected, including the framework's `(run)`. The Actor dispatches only
+denied, including the framework's `(run)`. The Actor dispatches only
 the methods of its three aspects, plus `(stop)` and
 `(set_log_level LEVEL)`.
 
 **Settings**: the writable shared state, declared once in
 `SETTINGS_SPEC` (name, kind, default, range, description). The `settings`
-share key, the setters, the rejection reasons, the help texts and the
+share key, the setters, the denial reasons, the help texts and the
 tests all derive from that table. Write a setting with `aiko_display set`,
 with `(update KEY VALUE)` on the control topic, or in the Dashboard. A
-bad value is rejected, and the value in force is published again, so an
+bad value is denied, and the value in force is published again, so an
 observer converges back. All values are single tokens.
 
 | Key | Values | Meaning |
@@ -440,11 +440,11 @@ observer converges back. All values are single tokens.
 | `log_pending` | `on`, `off` | The `L` annunciator: log lines arrived that no applet has shown yet |
 | `log_count` | count | The lines received by `log`. The last eight are kept |
 | `heartbeat` | seconds since start | Updated every second: the proof that the event loop is not blocked |
-| `last_error` | `WHAT@UTC` or `-` | The last rejection or failure, for example `pixel_x_range@2026-09-26T04:21:00Z` |
-| `metrics.commands`, `.rejected`, `.frames`, `.frame_ms`, `.errors`, `.mirrored` | counts | Accepted and rejected commands, frames shown, the last frame's render time, errors caught in timers, frames mirrored. Published every 2 s when changed |
+| `last_error` | `WHAT@UTC` or `-` | The last denial or failure, for example `pixel_x_range@2026-09-26T04:21:00Z` |
+| `metrics.commands`, `.denied`, `.frames`, `.frame_ms`, `.errors`, `.mirrored` | counts | Accepted and denied commands, frames shown, the last frame's render time, errors caught in timers, frames mirrored. Published every 2 s when changed |
 
 The [protocol](display_protocol.md) document gives the grammar of every
-value and the rejection reasons.
+value and the denial reasons.
 
 ## For framework developers (internals)
 
@@ -486,7 +486,7 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
   (`host.width`, `host.height`, `host.depth`) and cuts text rows at
   `host.columns()`. The games and the drawings are composed for a fixed
   128x64 field, and they declare `MIN_SIZE`. On a wider canvas the Actor
-  centers the field. On a smaller canvas `applet` is rejected with
+  centers the field. On a smaller canvas `applet` is denied with
   `applet_too_small`, and `applets` lists only the applets that fit.
   Every Host call takes and returns S-expression values (tokens,
   integers, words). Thus a sandboxed evaluator could expose the same
@@ -521,8 +521,8 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
   the process lives on.
 - **Failure behavior.** A display that cannot be opened, or that fails,
   is reported (`device` `absent`, `last_error`) and retried every 10 s.
-  The Actor keeps working meanwhile. A rejected command changes nothing
-  but `metrics.rejected` and `last_error`.
+  The Actor keeps working meanwhile. A denied command changes nothing
+  but `metrics.denied` and `last_error`.
 
 ### Implementation notes
 
@@ -607,7 +607,7 @@ The 142 display tests and the 4 example tests run on Python 3.12
 - The 5x7 font gives 21 characters per row. The aiko_engine_mp 8x8 font
   gives 16.
 - One panel per Actor. aiko_engine_mp spreads text across two panels.
-- `(oled:log a   b)` collapses runs of spaces, because the framework
+- `(log a   b)` collapses runs of spaces, because the framework
   parser tokenizes. aiko_engine_mp keeps them.
 - A mapped letter cannot reach a running applet, because the key map
   runs first. Games use the arrow keys, which are never mapped.

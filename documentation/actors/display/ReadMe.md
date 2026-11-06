@@ -12,7 +12,7 @@ source:
   - src/aiko_services/actors/display
 related: [actor, service, share, discovery, dashboard]
 version: "0.8-dev"
-last_updated: 2026-09-28
+last_updated: 2026-11-02
 ---
 
 # Display Actor index
@@ -35,7 +35,7 @@ Navigation: [concepts guide](../../concepts/ReadMe.md) ·
 | Document | Summary |
 |----------|---------|
 | [display](display.md) | The Display Actor: the status display, the canvas, settings in the shared state, the applets, the keys console, the outputs and the `aiko_display` command line |
-| [display_protocol](display_protocol.md) | The `display:0` protocol: the Canvas, Screen and Interaction aspects and their tags, discovery, the topics, the wire commands and their grammar, the key map on the device, how long a key is held, the shared state keys, the rejection reasons, the conformance trace, and compatibility with aiko_engine_mp |
+| [display_protocol](display_protocol.md) | The `display:0` protocol: the Canvas, Screen and Interaction aspects and their tags, discovery, the topics, the wire commands and their grammar, the key map on the device, how long a key is held, the shared state keys, the denial reasons, the conformance trace, and compatibility with aiko_engine_mp |
 | [display_dashboard](display_dashboard.md) | The Dashboard plug-in page: a live mirror of the panel through the leased frame feed (Unicode or ASCII), the shared state with editable settings, the process log, the same keys as the console, and held arrow keys |
 | [design](design.md) | The design record: what the protocol proves, the Dashboard plug-in pattern, the terminals, the framework findings, the measurements and the future directions |
 | [parameters_streams_shape](parameters_streams_shape.md) | A proposal for e_03 task T6: Parameters and Streams as aspects of an Actor, with the Display Actor as the pilot |

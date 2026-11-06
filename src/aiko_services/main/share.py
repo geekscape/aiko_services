@@ -841,7 +841,12 @@ class ServicesCache():
             sync_topic = parameters[0]
             if sync_topic == self._registrar_topic_share and self._state == "loaded":
                 self._state = "ready"
-        elif command == "add" and len(parameters) == 6:
+        elif command == "add" and len(parameters) >= 6:
+        # ">=", as registrar_share_handler() already has it.  A Registrar
+        # that carries more fields than this client knows about is then a
+        # Registrar this client still works with, and the extra fields are
+        # there for the code that wants them.  "== 6" silently dropped
+        # every registration from a newer Registrar, with one debug line
             service_details = parameters
             self._services.add_service(service_details[0], service_details)
             self._update_handlers(command, service_details)

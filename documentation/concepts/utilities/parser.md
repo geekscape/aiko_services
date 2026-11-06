@@ -10,9 +10,9 @@ ste: adapted
 source:
   - src/aiko_services/main/utilities/parser.py
 related: [design_overview, service, actor, share, registrar, graph,
-  ../../adr/ADR-002_SExpressionWireEncoding, ../../z_hy_assessment]
-version: "0.6"
-last_updated: 2026-08-14
+  ../../../constitution/adr/ADR-002_SExpressionWireEncoding]
+version: "0.7"
+last_updated: 2026-11-02
 ---
 
 # Parser utility (S-expressions)
@@ -71,9 +71,13 @@ cd src/aiko_services/main/utilities
 ### Public API
 
 ```python
-__all__ = ["generate", "parse", "parse_float", "parse_int", "parse_number"]
+__all__ = [
+    "generate", "generate_symbol", "parse", "parse_float", "parse_int",
+    "parse_number"
+]
 
 def generate(command: str, parameters: Union[Dict, List, Tuple]) -> str
+def generate_symbol(element: str) -> str
 def parse(payload: str, car_cdr=True, dictionaries_flag=True)
 def parse_float(payload: str, default: float=0.0) -> float
 def parse_int(payload: str, default: int=0) -> int
@@ -95,12 +99,31 @@ generate("cmd", ["has space", "", None, ["x", "y"]])
 # '(cmd 9:has space "" 0: (x y))'
 ```
 
+**One symbol at a time.** `generate_symbol()` applies the first rendering
+rule below to one string, and returns it. `generate()` uses it for each
+symbol that it emits. Code that builds an expression by hand must use it
+too, for each value that it puts into the expression:
+
+```python
+generate_symbol("plain")                       # "plain"
+generate_symbol("has space")                   # "9:has space"
+generate_symbol("7:seven")                     # "7:7:seven"
+```
+
+A hand-built expression that does not do this is not valid as soon as a
+value holds a delimiter. The reader then gets a different number of
+symbols than the writer sent. `Dependency.__repr__()` is such an
+expression (see [Dependency](../dependency.md)).
+
 Rendering rules, in order:
 
 - Two kinds of string become a **canonical S-expression symbol**: a
   string that contains a delimiter (whitespace, `(`, `)`), and a string
   that *starts with* `digits:`. The byte length prefixes the symbol, so
-  `has space` becomes `9:has space`
+  `has space` becomes `9:has space`. A clock time trips the second rule:
+  `08:17:40` becomes `8:08:17:40`, which is correct and round-trips, and
+  reads badly. A full ISO 8601 date and time does not trip it, because it
+  begins `2026-` and not `2026:`
   (see [Canonical S-expressions](https://en.wikipedia.org/wiki/Canonical_S-expressions)).
 - A dict becomes alternating `keyword:` / value tokens. A list or tuple
   becomes a nested `( ... )`.
@@ -109,6 +132,27 @@ Rendering rules, in order:
   This is how *None* travels inside S-expressions, and why framework
   CLIs such as the [Category](../category.md) `update` command use `0:`
   to mean "leave unchanged".
+- **`0:` is a type, and a protocol's own sentinel is a value.** `0:` says
+  "this is None" in Python, and each other language must then choose what
+  None is. So a wire form that needs "there is no value here" uses a value
+  that each language reads the same way. Aiko Services has three of these,
+  and they do different work:
+
+  | Sentinel | Meaning | Where |
+  |---|---|---|
+  | `0:` | the codec's None, a type | any payload, from `generate(None)` |
+  | `*` | "match anything", in a filter | a `ServiceFilter` field, a share filter |
+  | `-` | "no value yet", in a field or a share item | `last_error` of an Actor that has had no error |
+
+  The rule has two halves, and a reader needs both. **Read `0:`, and
+  never write it into a new wire form.** `generate(None)` still emits it,
+  and an older wire form still carries it, so a reader keeps a None of its
+  own to read it with. A new wire form uses `-` for an absent value. Thus
+  no reader has to make `0:` mean something in a language that has no
+  None (project-lead direction, 2026-10-23, with the Go port).
+
+  This is the same posture as the minimum-arity rule for the Registrar's
+  `(add ...)`: tolerant where it reads, exact where it writes.
 - Everything else (int, float, bool, ...) is emitted through its `str()` form.
 
 **Parsing.** `parse()` scans the payload character by character,
@@ -137,6 +181,20 @@ Mixing positional and keyword parameters is illegal and raises
 ```python
 parse("(a b: 1 b)")    # ValueError: ... must have pairs of keywords and values
 ```
+
+A payload that is not well formed also raises `ValueError`. There are two
+cases. A length prefix `N:` can have fewer than `N` characters after it.
+For example, an unquoted `12:30` is read as a prefix of 12. A list can also
+have no closing `)`. Thus a caller catches one exception type for every
+malformed payload:
+
+```python
+parse("(log 12:30 lunch)")  # ValueError: Length prefix "12:" is longer than ...
+parse("(text 0 0 hello")    # ValueError: A list has no closing ")"
+```
+
+A payload that `generate()` wrote never raises, because `generate()`
+length-prefixes each symbol that starts with digits and a colon.
 
 By default the result is split into **car** (the command, first element)
 and **cdr** (the parameter list). Two keyword arguments change this:
@@ -246,6 +304,14 @@ The module is purely functions. One row describes the module itself:
 
 ## Current limitations and roadmap
 
+**An expression built by hand must escape its own symbols.** `generate()`
+is not the only writer of S-expressions. `Dependency.__repr__()`,
+`ServiceFilter.__repr__()` and `Category._get_entry_records()` build one
+with an f-string. Each of these must use `generate_symbol()` for each
+value. `Dependency` does. `ServiceFilter` does not, so a tag that holds a
+space becomes two tags. Put a value that holds a space in a URL field, and
+not in a tag.
+
 From the source `To Do` list — all planned, none implemented:
 
 - Consolidate `generate(command, parameters)` into `generate(tree)`.
@@ -258,16 +324,19 @@ From the source `To Do` list — all planned, none implemented:
   `hyrule` Python modules — **narrowed 2026-08-14**: as helpers *beside*
   this module, never as a replacement for it. The wire grammar is
   canonical S-expressions, fixed by
-  [ADR-002](../../adr/ADR-002_SExpressionWireEncoding.md), with a second
+  [ADR-002](../../../constitution/adr/ADR-002_SExpressionWireEncoding.md), with a second
   implementation in MicroPython (`aiko_engine_mp`) that the ADR cites as
   its existence proof. Hy's reader is a different grammar. To adopt it as
   the codec would change the wire format and break that proof. Hy models
-  belong inside the e_05 operator shell and nowhere else. Evidence:
-  [z_hy_assessment](../../z_hy_assessment.md)
+  belong inside the e_05 operator shell and nowhere else. Evidence: the
+  Hy assessment of 2026-08-14 [Privately maintained]
 - Sweep the code base for hand-assembled payloads that should use
-  `generate()` — the header names `process.py`
-  (`_add_service_to_registrar()`), `recorder.py`, `share.py`
-  (`_update_consumers()`) and `transport/transport_mqtt.py` among others
+  `generate()` — `process.py` (`_add_service_to_registrar()`) still
+  assembles its `(add ...)` with an f-string. These are closed:
+  `share.py` (`_update_consumers()`, 2026-10-15), the ProcessManager's
+  `list` reply (2026-11-02), and `transport/transport_mqtt.py`. The
+  `recorder.py` stores and publishes each record through its ECProducer,
+  which encodes it
 
 Known behavioral sharp edges (implemented, but easy to trip over):
 numbers and booleans do not round-trip typed. Quoted strings are
