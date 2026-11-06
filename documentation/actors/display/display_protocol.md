@@ -5,7 +5,7 @@ description: The wire protocol of the OLED example's Display Actor — the
   aspect tags and discovery, the topics, the one-way commands and their
   argument grammar, the leased frame mirror, the key map on the device,
   the shared state keys and
-  their values, the rejection reasons, the conformance trace, and
+  their values, the denial reasons, the conformance trace, and
   compatibility with the MicroPython aiko_engine_mp OLED
 type: concept
 audience: [developers, ai-coding-agents]
@@ -18,7 +18,7 @@ source:
 related: [display, display_dashboard, design, testing, actor, share, message,
   discovery, parameters, stream]
 version: "0.8-dev"
-last_updated: 2026-09-28
+last_updated: 2026-11-02
 ---
 
 # Display protocol display:0
@@ -36,8 +36,10 @@ protocol are recorded in
 The [display](display.md) document explains the Actor, and the
 [test guide](testing.md) exercises every rule on this page.
 
-The protocol id `oled:0` of Epic 0 is withdrawn before any release. Every
-`oled:` alias and every wire form of Epic 0 keeps working.
+The protocol id `oled:0` of Epic 0 is withdrawn before any release. One
+function has one name: the `oled:` names of aiko_engine_mp and `(exit)`
+were aliases until 2026-10-23, and the Actor now denies them (ADR-025,
+amended).
 
 ## For application developers
 
@@ -50,7 +52,7 @@ The protocol id `oled:0` of Epic 0 is withdrawn before any release. Every
 lists every wire command. Without the command line:
 
 ```bash
-mosquitto_pub -t $TOPIC_PATH/in -m "(oled:text 0 0 hello)"
+mosquitto_pub -t $TOPIC_PATH/in -m "(text 0 0 hello)"
 mosquitto_pub -t $TOPIC_PATH/control -m "(update contrast 64)"
 ```
 
@@ -91,6 +93,9 @@ left to right, y 0..63 bottom to top. A text cell's bottom-left corner
 is at (X, Y). Thus `(text 0 0 hi)` is the bottom row, and
 `(text 0 8 hi)` is the row above with the 5x7 font.
 
+The last column names the aiko_engine_mp command for the same function.
+This Actor denies those names.
+
 | Aspect | Command | Arguments | Validation | aiko_engine_mp |
 |--------|---------|-----------|------------|----------------|
 | Canvas | `(clear)` | — | — | `(oled:clear)` |
@@ -102,7 +107,7 @@ is at (X, Y). Thus `(text 0 0 hi)` is the bottom row, and
 | Screen | `(mirror TOPIC SECONDS)` | A topic, then seconds | The topic is one token of at most 128 characters without `+` or `#`. Seconds 0..300. At most 4 holders | — |
 | Interaction | `(applet NAME [WORDS ...] [key=value ...])` | A name, words, options | The name is in `applets`. The options are the ones the applet declares, 64 characters each | — |
 | Interaction | `(key NAME [tap\|down\|up])` | `up`, `down`, `left`, `right` or one character, then a state | The state as listed. `tap` is the default. `down` holds the key for 2 s at most | — |
-| Display | `(stop)`, `(exit)` | — | `exit` is an alias of `stop` | — |
+| Display | `(stop)` | — | — | — |
 | Display | `(set_log_level LEVEL)` | The framework's | | — |
 
 **The key map on the device.** `(key NAME STATE)` has two outcomes. A
@@ -137,7 +142,7 @@ validates it (P12). A client does not range-check. An integer is decimal,
 with optional spaces around it. A word is one token. Quoted text is one
 word: `(text 0 0 "hello world")`. Text that starts with digits and a
 colon must be quoted: `(text 0 0 "12:30")`. Unquoted, it is the parser's
-canonical length prefix, and the whole command is rejected. An applet
+canonical length prefix, and the whole command is denied. An applet
 option is `key=value`, and a token without `=` is a word. The `applet`
 share key takes the same arguments, separated by commas:
 `(update applet draw,subject=cat)`.
@@ -178,14 +183,14 @@ is one token without spaces.
 | Display | `settings` | The RW keys, comma-separated | R | Start |
 | Display | `connection` | `NONE`, `NETWORK`, `TRANSPORT`, `REGISTRAR` | R | The connection state changes |
 | Display | `heartbeat` | Integer seconds since start | R | Every second |
-| Display | `last_error` | `WHAT@YYYY-MM-DDTHH:MM:SSZ`, or `-` | R | A rejection or a failure |
-| Display | `metrics.commands`, `metrics.rejected`, `metrics.frames`, `metrics.frame_ms`, `metrics.errors`, `metrics.mirrored` | Integers | R | Every 2 s, when changed |
+| Display | `last_error` | `WHAT@YYYY-MM-DDTHH:MM:SSZ`, or `-` | R | A denial or a failure |
+| Display | `metrics.commands`, `metrics.denied`, `metrics.frames`, `metrics.frame_ms`, `metrics.errors`, `metrics.mirrored` | Integers | R | Every 2 s, when changed |
 
 ### Failure behavior
 
-- A rejected command changes nothing but `metrics.rejected` (+1) and
+- A denied command changes nothing but `metrics.denied` (+1) and
   `last_error`. `pixels` is all or nothing.
-- A rejected setting also publishes the value still in force, so the
+- A denied setting also publishes the value still in force, so the
   shared state converges. Thus a bad Dashboard edit corrects itself.
 - Delivery is at most once (P1). A client that needs to know that a
   command was applied observes the shared state.
@@ -196,12 +201,12 @@ is one token without spaces.
   `last_error` `tick_RuntimeError@...`, and the applet stops (`applet`
   `none`). The process continues.
 
-`last_error` is `METHOD_REASON@UTC`. The Actor also logs each rejection
-as a WARNING: `NAME: METHOD rejected: REASON (DETAIL)`. The reasons:
+`last_error` is `METHOD_REASON@UTC`. The Actor also logs each denial as
+a WARNING: `NAME: METHOD denied: REASON (DETAIL)`. The reasons:
 
 | Method | Reasons |
 |--------|---------|
-| `dispatch` | `parse_error` (the payload does not parse), `unknown_command` (not a wire command, or dictionary arguments) |
+| `dispatch` | `parse` (the payload does not parse), `function` (not in the allow list: an `oled:` name, `exit`, `run` or any other), `parameters` (the arguments are not a list, for example dictionary arguments). The FunctionGate aspect decides these |
 | `log` | `empty`, `not_text`, `too_long` |
 | `text` | `x_not_int`, `x_range`, `y_not_int`, `y_range`, then `empty`, `not_text`, `too_long` |
 | `pixel`, `line` | `x_not_int`, `x_range`, `y_not_int`, `y_range` |
@@ -216,12 +221,13 @@ as a WARNING: `NAME: METHOD rejected: REASON (DETAIL)`. The reasons:
 
 ### Design
 
-The dispatch handler replaces the framework's, in four steps. It parses
-the payload inside a guard. It maps an `oled:` name, or `exit`, to the
-method name. It checks the name against the allow-list, which is derived
-from the abstract methods of the three aspects, plus `stop` and
-`set_log_level`. Then it posts the message to the mailbox. Thus an
-inherited public method such as `run` is not callable from the wire. The
+The framework's FunctionGate aspect decides what the bus may call. The
+Actor gives it an allow list, `FUNCTIONS`, derived from the abstract
+methods of the three aspects, plus `stop` and `set_log_level`. The gate
+denies a payload that does not parse, arguments that are not a list,
+and any name not in the list. The Actor reports each denial
+(`_function_denied()`). Thus an inherited public method such as `run` is
+not callable from the wire, and no function has a second name. The
 y flip from the bottom-left wire origin to PIL's top-left rows happens in
 one place, `FrameBuffer._device_y()`. The settings are one declaration,
 `SETTINGS_SPEC`, in the shape of a Pipeline
@@ -235,17 +241,18 @@ display and no title row:
 
 | Test | Payload on `in` | Outcome |
 |------|-----------------|---------|
-| `test_dispatch_aliases_allow_list_and_parse_guard` | `(oled:text 0 0 hello)` | The frame's lit rows are 56..62. `metrics.commands` 1 |
-| | `(run)` | Rejected: `dispatch_unknown_command@...` |
-| | `(bogus 1)` | Rejected |
-| | `(log 12:30 lunch)` | Rejected: `dispatch_parse_error@...` |
-| | `(text x: 1 y: 2)` | Rejected (dictionary arguments) |
-| | `(add_tags t)` | Rejected. `metrics.rejected` 5 |
-| `test_exit_is_stop_and_terminates` | `(exit)` | Posted as `stop`, which terminates the process |
+| `test_dispatch_allow_list_and_parse_guard` | `(oled:text 0 0 hello)` | Denied: `dispatch_function@...` (no aliases) |
+| | `(run)` | Denied: `dispatch_function@...` |
+| | `(bogus 1)` | Denied |
+| | `(log 12:30 lunch)` | Denied: `dispatch_parse@...` |
+| | `(text x: 1 y: 2)` | Denied (dictionary arguments) |
+| | `(add_tags t)` | Denied. `metrics.denied` 6, `metrics.commands` 0, nothing drawn |
+| `test_stop_terminates_and_exit_is_denied` | `(exit)` | Denied: nothing is posted |
+| | `(stop)` | Posted as `stop`, which terminates the process |
 | `test_pixel` | `(pixel 0 0)` | Device pixel (0, 63) lit |
-| | `(pixel 128 0)` | Rejected: `pixel_x_range@...`, the frame unchanged |
-| `test_pixels_is_atomic` | `(pixels 1 1 5 64)` | Rejected: no pixel lit |
-| `test_text` | `(text 0 0 xxx...)`, 129 characters | Rejected: `text_too_long@...` |
+| | `(pixel 128 0)` | Denied: `pixel_x_range@...`, the frame unchanged |
+| `test_pixels_is_atomic` | `(pixels 1 1 5 64)` | Denied: no pixel lit |
+| `test_text` | `(text 0 0 xxx...)`, 129 characters | Denied: `text_too_long@...` |
 | `test_wire_key_runs_the_map` | `(key g tap)` | `applet` `pong`: the key map ran the preset |
 | | `(key g down)` | `applet` `asteroids`: the next preset |
 | | `(key w tap)` with an applet running | The applet received `w` |
@@ -274,7 +281,7 @@ See [display](display.md).
 |---------|------------|----------------|
 | Protocol id | `display:0`, aspects as tags | None registered yet (Epic 2: `display:0` with `device=esp32`) |
 | Commands | `clear`, `log`, `pixel`, `pixels`, `line`, `text`, `applet`, `key`, `stop` | `oled:clear`, `oled:log`, `oled:pixel`, `oled:pixels`, `oled:text` |
-| Name prefix | Both `text` and `oled:text` | `oled:text` only |
+| Name prefix | `text` only: `oled:text` is denied | `oled:text` only |
 | Origin | Bottom-left | Bottom-left |
 | Font | 5x7 (21 characters per row), or TrueType | 8x8 (16 characters per row) |
 | Runs of spaces in `log` | Collapsed by the parser | Kept |
@@ -283,10 +290,12 @@ See [display](display.md).
 | Traits | `size`, `depth`, `backend`, `applets`, `settings`, `keys.*` in the shared state | A planned `(oled:traits)` reply |
 
 **Only on the lead's "Do it"**: the `panels` list for two panels as one
-display (phase 4). **Deferred**: the 8x8 font. **Planned convergence** (Epic 2): aiko_engine_mp registers
-`display:0`, accepts both `text` and `oled:text`, and exposes `contrast`,
-`invert` and `power` as shared state. Then the same clients, the same
-console and the same Dashboard page drive both.
+display (phase 4). **Deferred**: the 8x8 font. **Planned convergence**
+(Epic 2, sequenced after Aiko Services is stable): aiko_engine_mp
+registers `display:0`, accepts `text` and the other names without the
+`oled:` prefix, and exposes `contrast`, `invert` and `power` as shared
+state. Then the same clients, the same console and the same Dashboard
+page drive both.
 
 ## Related concepts
 

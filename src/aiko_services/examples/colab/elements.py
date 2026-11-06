@@ -1,5 +1,7 @@
 # Usage
 # ~~~~~
+# export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
+#
 # aiko_pipeline create pipelines/colab_pipeline_1.json -ll debug_all
 #
 # aiko_chat

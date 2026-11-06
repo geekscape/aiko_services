@@ -27,24 +27,26 @@
 #   aiko_display applet NAME [ARGS ...] | applet -l | stop | key NAME [tap|down|up]
 #   aiko_display keys                   # interactive console: see console.py, keys.py
 #
-#   mosquitto_pub -t $TOPIC_IN -m "(oled:text 0 0 hello)"     # aiko_engine_mp style
+#   mosquitto_pub -t $TOPIC_IN -m "(text 0 0 hello)"           # the bottom row
 #   mosquitto_pub -t $TOPIC_IN -m "(text 0 8 second row)"
 #   mosquitto_pub -t $TOPIC_CONTROL -m "(update contrast 64)"  # what the Dashboard does
 #
 # Wire commands (one-way: outcomes are observed in the shared state)
 # ~~~~~~~~~~~~~
-#   (clear)                     (oled:clear)     erase the canvas
-#   (log WORDS ...)             (oled:log ...)   scroll up, write on the bottom row
-#   (pixel X Y)                 (oled:pixel ...) light a pixel, origin bottom-left
-#   (pixels X Y X Y ...)        (oled:pixels ..) light pixels, at most 256 pairs
+#   (clear)                                      erase the canvas
+#   (log WORDS ...)                              scroll up, write on the bottom row
+#   (pixel X Y)                                  light a pixel, origin bottom-left
+#   (pixels X Y X Y ...)                         light pixels, at most 256 pairs
 #   (line X0 Y0 X1 Y1)                           draw a line
-#   (text X Y WORDS ...)        (oled:text ...)  write text, cell bottom-left at (X, Y)
-#   (exit)                      = (stop)         blank the display and terminate
+#   (text X Y WORDS ...)                         write text, cell bottom-left at (X, Y)
+#   (stop)                                       blank the display and terminate
 #   (applet NAME [ARGS ...])                run an applet; "none" shows the canvas
 #   (key NAME [tap|down|up])                     a key in the map runs its preset,
 #                                                any other goes to the applet
 #   (mirror TOPIC SECONDS)                       a leased feed of raw frames to TOPIC
-#   Anything else on the "in" topic is rejected (P12), including "(run)".
+#   Anything else on the "in" topic is denied (P12), including "(run)",
+#   "(exit)" and the aiko_engine_mp names "(oled:text ...)" etc: one
+#   function has one name (ADR-025, amended 2026-10-23).
 #
 # Shared state (aiko_dashboard shows it; the RW keys can be edited there)
 # ~~~~~~~~~~~~
@@ -53,7 +55,7 @@
 #   applet_detail fps speed(RW) font(RW) contrast(RW) invert(RW)
 #   power(RW) all_on(RW) title(RW: text, on, off) blank_after(RW)
 #   foreground(RW) background(RW: colors of an emulated display) heartbeat
-#   last_error log_count log_pending metrics.commands metrics.rejected metrics.frames
+#   last_error log_count log_pending metrics.commands metrics.denied metrics.frames
 #   metrics.frame_ms metrics.errors metrics.mirrored
 #
 # Bounds (P9): log ring 8 lines (oldest dropped); 256 pixel pairs per
@@ -62,13 +64,15 @@
 # tick (30 Hz) and only when it changed.
 #
 # Coordinates: origin bottom-left, y upwards (aiko_engine_mp compatible);
-# the only y flip is graphics.Canvas._device_y()
+# the only y flip is graphics.FrameBuffer._device_y()
 #
 # Protocol: display:0 (aspects canvas:0 screen:0 interaction:0)
 #
 # To Do
 # ~~~~~
-# - Dashboard plug-in; convergence with aiko_engine_mp (protocol oled:0)
+# - A real depth: gray scale and color, and an image command, so that the
+#   Display Actor can drive a color panel such as the WhisPlay's
+#   (actors/whisplay); then convergence with aiko_engine_mp, which comes last
 
 from abc import abstractmethod
 import collections
@@ -85,7 +89,7 @@ from PIL import ImageColor
 import aiko_services as aiko
 from aiko_services.main.connection import ConnectionState
 from aiko_services.main.lease import Lease
-from aiko_services.main.utilities import get_hostname, parse
+from aiko_services.main.utilities import get_hostname
 
 from aiko_services.actors.display.applets import (
     APPLETS, AppletDone, Host, fits, parse_applet_args,
@@ -103,17 +107,12 @@ from aiko_services.actors.display import keys as keymap  # the emulator window's
 __all__ = [
     "ASPECT_TAGS", "Canvas", "Display", "Interaction", "DisplayImpl", "PROTOCOL",
     "PROTOCOL_TYPE", "SETTINGS", "SETTINGS_SPEC", "Screen", "Setting",
-    "WIRE_COMMANDS", "service_filter", "service_tags",
+    "FUNCTIONS", "service_filter", "service_tags",
 ]
 
 _VERSION = 0
 PROTOCOL_TYPE = "display"
 PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/{PROTOCOL_TYPE}:{_VERSION}"
-
-# aiko_engine_mp names its commands "oled:clear" etc: the same methods
-_ALIASES = {f"oled:{name}": name
-    for name in ("clear", "log", "pixel", "pixels", "text")}
-_ALIASES["exit"] = "stop"       # the framework's stop() terminates; the CLI blanks
 
 LOG_LINES = 8                 # the log ring: oldest line dropped
 PIXEL_PAIRS_MAXIMUM = 256     # per (pixels ...) command
@@ -197,7 +196,7 @@ def _token(text, limit=32):
 def _utc_now():
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
-class _Reject(Exception):
+class _Deny(Exception):
     """A wire argument failed validation: reason is a share-safe token"""
 
     def __init__(self, reason):
@@ -208,9 +207,9 @@ def _int(value, name, low, high):
     try:
         number = int(str(value).strip())
     except ValueError:
-        raise _Reject(f"{name}_not_int")
+        raise _Deny(f"{name}_not_int")
     if not low <= number <= high:
-        raise _Reject(f"{name}_range")
+        raise _Deny(f"{name}_range")
     return number
 
 def _flag(value, name):
@@ -219,16 +218,16 @@ def _flag(value, name):
         return True
     if text in ("off", "false", "0", "no"):
         return False
-    raise _Reject(f"{name}_not_on_off")
+    raise _Deny(f"{name}_not_on_off")
 
 def _words(words):
     if not words:
-        raise _Reject("empty")
+        raise _Deny("empty")
     if not all(isinstance(word, str) for word in words):
-        raise _Reject("not_text")
+        raise _Deny("not_text")
     line = " ".join(words)
     if len(line) > TEXT_LENGTH_MAXIMUM:
-        raise _Reject("too_long")
+        raise _Deny("too_long")
     return line
 
 # --------------------------------------------------------------------------- #
@@ -236,10 +235,10 @@ def _words(words):
 class Canvas(aiko.Interface):
     """
     Drawing on a canvas: a one-bit frame buffer of "size" pixels, origin
-    bottom-left and y upwards, wire-compatible with the aiko_engine_mp
-    (MicroPython) OLED: "(oled:text ...)" and "(text ...)" are the same
-    command.  Every method is one-way: a rejected command changes nothing
-    but "metrics.rejected" and "last_error" in the shared state.  Drawing
+    bottom-left and y upwards, the same coordinates as the aiko_engine_mp
+    (MicroPython) OLED.  The aiko_engine_mp names "(oled:text ...)" etc are
+    denied: one function has one name.  Every method is one-way: a denied command changes nothing
+    but "metrics.denied" and "last_error" in the shared state.  Drawing
     stops any running applet, except "log", whose lines the status applet
     shows itself.  Share: font and title (RW); size, origin, depth,
     log_count, log_pending.
@@ -251,28 +250,28 @@ class Canvas(aiko.Interface):
     @abstractmethod
     def clear(self):
         """Erase the canvas (the title row stays).
-        Wire form: "(clear)" or "(oled:clear)".
+        Wire form: "(clear)".
         Outcome: the display shows a blank canvas.  Projection: command"""
 
     @abstractmethod
     def log(self, *words):
         """Scroll the canvas up one text row and write WORDS on the bottom
         row; the line is also kept (8 lines) for the status applet.
-        Wire form: "(log WORDS ...)" or "(oled:log WORDS ...)"; runs of
+        Wire form: "(log WORDS ...)"; runs of
         spaces collapse to one.  Outcome: share "log_count" +1.
         Projection: command"""
 
     @abstractmethod
     def pixel(self, x, y):
         """Light one pixel: x 0..width-1 left to right, y 0..height-1
-        bottom to top.  Wire form: "(pixel X Y)" or "(oled:pixel X Y)".
-        Rejected when out of range.  Projection: command"""
+        bottom to top.  Wire form: "(pixel X Y)".
+        Denied when out of range.  Projection: command"""
 
     @abstractmethod
     def pixels(self, *coordinates):
         """Light many pixels: an even number of integers, at most 256 pairs.
-        Wire form: "(pixels X Y X Y ...)" or "(oled:pixels ...)".
-        Rejected as a whole when any coordinate is bad.  Projection: command"""
+        Wire form: "(pixels X Y X Y ...)".
+        Denied as a whole when any coordinate is bad.  Projection: command"""
 
     @abstractmethod
     def line(self, x0, y0, x1, y1):
@@ -283,7 +282,7 @@ class Canvas(aiko.Interface):
     def text(self, x, y, *words):
         """Write WORDS in the current font with the text cell's bottom-left
         at (X, Y): Y=0 is the bottom row, Y=8 the row above with the 5x7
-        font.  Wire form: "(text X Y WORDS ...)" or "(oled:text ...)".
+        font.  Wire form: "(text X Y WORDS ...)".
         Projection: command"""
 
 class Screen(aiko.Interface):
@@ -307,7 +306,7 @@ class Screen(aiko.Interface):
         second, until SECONDS pass without another request; SECONDS 0
         destroys the feed.  At most 4 holders.
         Wire form: "(mirror TOPIC SECONDS)".  Outcome: share "mirrors" (the
-        holder count) and "metrics.mirrored".  Rejected: mirror_topic,
+        holder count) and "metrics.mirrored".  Denied: mirror_topic,
         mirror_seconds_not_int, mirror_seconds_range, mirror_full.
         Projection: command"""
 
@@ -330,7 +329,7 @@ class Interaction(aiko.Interface):
         stops it and shows the canvas.  ARGS are words and key=value options
         that the applet accepts, e.g. "(applet pong seed=1)".
         Outcome: share "applet", "applet_detail".
-        Rejected when the name or an option is unknown.  Projection: command"""
+        Denied when the name or an option is unknown.  Projection: command"""
 
     @abstractmethod
     def key(self, name, state="tap"):
@@ -348,7 +347,7 @@ class Display(aiko.Actor, Canvas, Screen, Interaction):
     the registered protocol "display:0".  No methods of its own beyond the
     Actor's; the aspects are advertised as tags (see ASPECT_TAGS).  Share:
     connection, heartbeat, last_error, settings, metrics.commands,
-    metrics.rejected, metrics.errors.
+    metrics.denied, metrics.errors.
     """
 
     PROTOCOL = PROTOCOL
@@ -378,14 +377,11 @@ def service_filter(name):
 
     return aiko.ServiceFilter("*", name or get_hostname(), PROTOCOL, "*", "*", "*")
 
-# The commands accepted on the "in" topic: the abstract methods of the
+# The functions accepted on the "in" topic: the abstract methods of the
 # aspects (never the framework's Actor and Service methods), plus the
-# framework's log level and stop (P12: deny by default)
-WIRE_COMMANDS = frozenset(name
-    for interface in ASPECTS
-    for name, member in vars(interface).items()
-    if getattr(member, "__isabstractmethod__", False)
-    and not name.startswith("_")) | {"set_log_level", "stop"}
+# framework's log level and stop (P12: deny by default).  The FunctionGate
+# aspect applies it; interface_functions() derives it from the contract
+FUNCTIONS = aiko.interface_functions(*ASPECTS)
 
 # --------------------------------------------------------------------------- #
 
@@ -446,6 +442,8 @@ class _Host(Host):
 
 class DisplayImpl(Display):
     def __init__(self, context):
+        context.call_init(
+            self, "FunctionGate", context, functions=FUNCTIONS)
         context.call_init(self, "Actor", context)
         parameters = context.get_parameters() or {}
 
@@ -469,7 +467,7 @@ class DisplayImpl(Display):
         self._log_total = 0
         self._log_pending = False   # the "L" annunciator
         self._rng = random.Random()
-        self._metrics = {"commands": 0, "rejected": 0, "frames": 0,
+        self._metrics = {"commands": 0, "denied": 0, "frames": 0,
                          "frame_ms": 0, "errors": 0, "mirrored": 0}
         self._speed = 1.0
         self._blank_after = 0
@@ -544,17 +542,14 @@ class DisplayImpl(Display):
         self.logger.info(f"{self.name}: output {self.share['backend']} "
                          f"{self.share['device']}, topic {self.topic_in}")
 
-    # Dispatch (event-loop thread): aliases, parse guard, allow-list -------- #
+    # Dispatch: the FunctionGate aspect decides, and the Actor's handler
+    # reports a denial through _deny() ------------------------------------- #
 
-    def _topic_in_handler(self, _aiko, topic, payload_in):
-        try:
-            command, parameters = parse(payload_in)
-        except Exception:                  # the parser raises on odd tokens
-            return self._reject("dispatch", "parse_error", payload_in[:80])
-        command = _ALIASES.get(command, command)
-        if command not in WIRE_COMMANDS or not isinstance(parameters, list):
-            return self._reject("dispatch", "unknown_command", str(command)[:40])
-        self._post_message(aiko.ActorTopic.IN, command, parameters)
+    def _function_denied(self, name, reason, detail=""):
+        """The Actor's report of a denial, counted as this Actor counts its
+        own.  Defined on the seed class, so composition keeps it"""
+
+        self._deny("dispatch", reason, detail or str(name)[:40])
 
     # Wire commands: Canvas -------------------------------------- #
 
@@ -566,8 +561,8 @@ class DisplayImpl(Display):
     def log(self, *words):
         try:
             line = _words(words)
-        except _Reject as reject:
-            return self._reject("log", reject.reason)
+        except _Deny as deny:
+            return self._deny("log", deny.reason)
         self._metrics["commands"] += 1
         self._wake()
         self._log.append(line)
@@ -582,8 +577,8 @@ class DisplayImpl(Display):
         try:
             x = _int(x, "x", 0, WIDTH - 1)
             y = _int(y, "y", 0, HEIGHT - 1)
-        except _Reject as reject:
-            return self._reject("pixel", reject.reason)
+        except _Deny as deny:
+            return self._deny("pixel", deny.reason)
         self._canvas_command()
         self._canvas.pixel(x, y)
         self._present(self._canvas.image)
@@ -592,14 +587,14 @@ class DisplayImpl(Display):
         try:
             if not coordinates or len(coordinates) % 2  \
                     or len(coordinates) > 2 * PIXEL_PAIRS_MAXIMUM:
-                raise _Reject("count")
+                raise _Deny("count")
             numbers = [_int(value, "xy", 0, max(WIDTH, HEIGHT) - 1)
                        for value in coordinates]
             pairs = list(zip(numbers[0::2], numbers[1::2]))
             if any(x >= WIDTH or y >= HEIGHT for x, y in pairs):
-                raise _Reject("range")
-        except _Reject as reject:
-            return self._reject("pixels", reject.reason)
+                raise _Deny("range")
+        except _Deny as deny:
+            return self._deny("pixels", deny.reason)
         self._canvas_command()
         self._canvas.pixels(pairs)
         self._present(self._canvas.image)
@@ -608,8 +603,8 @@ class DisplayImpl(Display):
         try:
             x0, x1 = (_int(value, "x", 0, WIDTH - 1) for value in (x0, x1))
             y0, y1 = (_int(value, "y", 0, HEIGHT - 1) for value in (y0, y1))
-        except _Reject as reject:
-            return self._reject("line", reject.reason)
+        except _Deny as deny:
+            return self._deny("line", deny.reason)
         self._canvas_command()
         self._canvas.line(x0, y0, x1, y1)
         self._present(self._canvas.image)
@@ -619,8 +614,8 @@ class DisplayImpl(Display):
             x = _int(x, "x", 0, WIDTH - 1)
             y = _int(y, "y", 0, HEIGHT - 1)
             line = _words(words)
-        except _Reject as reject:
-            return self._reject("text", reject.reason)
+        except _Deny as deny:
+            return self._deny("text", deny.reason)
         self._canvas_command()
         self._canvas.text(x, y, line)
         self._present(self._canvas.image)
@@ -638,19 +633,19 @@ class DisplayImpl(Display):
             return
         applet_class = APPLETS.get(name)
         if applet_class is None:
-            return self._reject_setting("applet", "applet_unknown", name)
+            return self._deny_setting("applet", "applet_unknown", name)
         if not self._fits(applet_class):
-            return self._reject_setting("applet", "applet_too_small", name)
+            return self._deny_setting("applet", "applet_too_small", name)
         try:
             words, options = parse_applet_args(
                 args, applet_class.OPTIONS)
             instance = applet_class(self._host, words, options)
         except ValueError as error:
-            return self._reject_setting("applet", "applet_args", str(error))
+            return self._deny_setting("applet", "applet_args", str(error))
         except Exception:
             self.logger.error(f"{self.name}: {name}: {traceback.format_exc()}")
             self._metrics["errors"] += 1
-            return self._reject_setting("applet", "applet_failed", name)
+            return self._deny_setting("applet", "applet_failed", name)
         self._metrics["commands"] += 1
         self._wake()
         self._stop_applet()
@@ -663,9 +658,9 @@ class DisplayImpl(Display):
     def key(self, name, state="tap"):
         name, state = str(name), str(state)
         if not (name in KEY_NAMES or len(name) == 1):
-            return self._reject("key", "name", name[:20])
+            return self._deny("key", "name", name[:20])
         if state not in KEY_STATES:
-            return self._reject("key", "state", state[:20])
+            return self._deny("key", "state", state[:20])
         self._metrics["commands"] += 1
         self._wake()
         if name in keymap.MAPPED_KEYS:       # the display's own key map
@@ -688,11 +683,11 @@ class DisplayImpl(Display):
         topic = str(topic)
         if not 0 < len(topic) <= MIRROR_TOPIC_LENGTH_MAXIMUM  \
                 or any(character in topic for character in "+# \t"):
-            return self._reject("mirror", "topic", topic[:40])
+            return self._deny("mirror", "topic", topic[:40])
         try:
             seconds = _int(seconds, "seconds", 0, MIRROR_SECONDS_MAXIMUM)
-        except _Reject as reject:
-            return self._reject("mirror", reject.reason)
+        except _Deny as deny:
+            return self._deny("mirror", deny.reason)
         self._metrics["commands"] += 1
         self._wake()
         lease = self._mirrors.get(topic)
@@ -706,7 +701,7 @@ class DisplayImpl(Display):
             lease.extend(seconds)
             return
         if len(self._mirrors) >= MIRROR_LEASES_MAXIMUM:
-            return self._reject("mirror", "full", topic[:40])
+            return self._deny("mirror", "full", topic[:40])
         self._mirrors[topic] = Lease(                # create
             seconds, topic, lease_expired_handler=self._mirror_expired)
         self._publish_mirrors()
@@ -755,11 +750,11 @@ class DisplayImpl(Display):
         self._applied[key] = token
         self.ec_producer.update(key, token)
 
-    def _reject_setting(self, key, reason, detail=""):
+    def _deny_setting(self, key, reason, detail=""):
         """Reject a setting and publish the value still in force, so that
         a bad Dashboard edit converges back"""
 
-        self._reject("set", reason, detail)
+        self._deny("set", reason, detail)
         self.ec_producer.update(key, self._applied[key])
 
     def _set_applet(self, value):
@@ -767,7 +762,7 @@ class DisplayImpl(Display):
 
     def _apply_setting(self, setting, value):
         """Apply a declared setting (SETTINGS_SPEC) by its kind; a bad value
-        is rejected and the value in force published again"""
+        is denied and the value in force published again"""
 
         kind, name = setting.kind, setting.name
         if kind == "applet":
@@ -784,16 +779,16 @@ class DisplayImpl(Display):
             try:
                 number = float(str(value))
             except ValueError:
-                return self._reject_setting(name, f"{name}_not_number")
+                return self._deny_setting(name, f"{name}_not_number")
             if not setting.low <= number <= setting.high:
-                return self._reject_setting(name, f"{name}_range")
+                return self._deny_setting(name, f"{name}_range")
             if name == "speed":
                 self._speed = number
             return self._settle(name, f"{number:g}")
         try:                                             # kind == "int"
             number = _int(value, name, setting.low, setting.high)
-        except _Reject as reject:
-            return self._reject_setting(name, reject.reason)
+        except _Deny as deny:
+            return self._deny_setting(name, deny.reason)
         if name == "contrast":
             self._control_output("contrast", number)
         elif name == "blank_after":
@@ -807,8 +802,8 @@ class DisplayImpl(Display):
     def _set_flag(self, key, value):
         try:
             flag = _flag(value, key)
-        except _Reject as reject:
-            return self._reject_setting(key, reject.reason)
+        except _Deny as deny:
+            return self._deny_setting(key, deny.reason)
         if key == "power":
             self._blanked = False
             self._last_change = time.monotonic()
@@ -822,7 +817,7 @@ class DisplayImpl(Display):
 
         text = str(value)
         if len(text) > TITLE_LENGTH_MAXIMUM:
-            return self._reject_setting("title", "title_too_long")
+            return self._deny_setting("title", "title_too_long")
         token = _token(text)
         if token in ("off", "-"):
             self._title_text = ""
@@ -846,7 +841,7 @@ class DisplayImpl(Display):
         try:
             font = parse_font_size(value)
         except ValueError:
-            return self._reject_setting("font", "font_range")
+            return self._deny_setting("font", "font_range")
         self._font = self._canvas.font = font
         if self._title_text:
             self._canvas.title_rows = font.cell_height
@@ -866,7 +861,7 @@ class DisplayImpl(Display):
                 raise ValueError(token)
             rgb = ImageColor.getrgb(token)[:3]
         except ValueError:
-            return self._reject_setting(key, f"{key}_not_color")
+            return self._deny_setting(key, f"{key}_not_color")
         self._control_output("set_colors", **{key: rgb})
         self._settle(key, token)
 
@@ -1143,12 +1138,12 @@ class DisplayImpl(Display):
         self.ec_producer.update("connection", _token(connection_state))
         self._title_due = 0.0
 
-    # Rejections, errors, shutdown --------------------------------------- #
+    # Denials, errors, shutdown ------------------------------------------ #
 
-    def _reject(self, method, reason, detail=""):
-        diagnostic = f"{self.name}: {method} rejected: {reason}"
+    def _deny(self, method, reason, detail=""):
+        diagnostic = f"{self.name}: {method} denied: {reason}"
         self.logger.warning(f"{diagnostic} ({detail})" if detail else diagnostic)
-        self._metrics["rejected"] += 1
+        self._metrics["denied"] += 1
         self._note_error(f"{method}_{reason}")
 
     def _note_error(self, what):

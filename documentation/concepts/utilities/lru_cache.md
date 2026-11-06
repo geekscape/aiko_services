@@ -10,7 +10,7 @@ source:
   - src/aiko_services/main/utilities/lru_cache.py
 related: [design_overview]
 version: "0.6"
-last_updated: 2026-08-01
+last_updated: 2026-10-23
 ---
 
 # LRUCache utility
@@ -27,6 +27,12 @@ the correct memory policy. Examples are recent log records in the
 Recorder, cached speech audio, and recent frames for Pipeline
 debugging.
 
+A caller that holds state of its own for each key needs to know what
+an eviction took, because the eviction is otherwise silent. So
+`put()` returns the item it evicted, and `resize()` returns each item
+that a smaller maximum evicted. The Recorder uses this to remove an
+evicted topic's shared state, which it leaked until 2026-10-23.
+
 **Why to use it**: bound memory while keeping hot entries:
 
 ```python
@@ -35,7 +41,7 @@ from aiko_services.main.utilities import LRUCache
 cache = LRUCache(size=2)
 cache.put("key_0", "value_0")
 cache.put("key_1", "value_1")
-cache.put("key_2", "value_2")   # evicts "key_0" (least recently used)
+evicted = cache.put("key_2", "value_2")   # ("key_0", "value_0")
 cache.get("key_0")              # None
 cache.get("key_1")              # "value_1" (now most recently used)
 "key_1" in cache                # True (via key iteration)
@@ -45,8 +51,9 @@ cache.get("key_1")              # "value_1" (now most recently used)
 
 ### Command-line usage
 
-There is no CLI. `aiko_recorder` exercises the module (recent log
-records) and by Pipelines with frame diagnostics enabled.
+This module has no command line of its own. `aiko_recorder` uses it, to
+hold the recent log records of each topic, and so do Pipelines with frame
+diagnostics enabled.
 
 ### Public API
 
@@ -54,7 +61,10 @@ records) and by Pipelines with frame diagnostics enabled.
 class LRUCache:
     LRUCache(size)
     get(key)         # value, or None on miss; refreshes recency
-    put(key, value)  # insert/replace; refreshes recency; may evict
+    put(key, value)  # insert/replace; refreshes recency; returns the
+                     # (key, value) it evicted, or None
+    resize(size)     # change the maximum; returns each evicted
+                     # (key, value), least recently used first
     get_list()       # values, least- to most-recently used
     __len__, __iter__ (over keys, which also enables "key in cache")
 ```
