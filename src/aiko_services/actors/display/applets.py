@@ -305,10 +305,10 @@ class HelpApplet(Applet):
             "(pixel X Y) (pixels)",
             "(line X0 Y0 X1 Y1)",
             "(applet NAME ARGS)",
-            "(key NAME) (exit)",
+            "(key NAME) (stop)",
         ]),
         ("LISP: notes", [
-            "(oled:text)=(text)",
+            "no oled: prefixes",
             "origin bottom-left",
             "y=0 is the bottom row",
             "aiko_display set K V",

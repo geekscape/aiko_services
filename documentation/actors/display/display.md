@@ -27,7 +27,7 @@ related: [actor, service, share, discovery, event, process, connection,
   dashboard, dashboard_plugin, parameters, stream, display_protocol,
   display_dashboard, design, testing]
 version: "0.8-dev"
-last_updated: 2026-09-28
+last_updated: 2026-11-02
 ---
 
 # Display Actor (display.py)
@@ -52,13 +52,14 @@ power, the title row, the font, the speed and the blanking. The Aiko
 [Dashboard](../../concepts/dashboard.md), or any client, writes a
 setting with `(update KEY VALUE)`.
 
-The wire commands are the ones that the MicroPython
+The functions are the ones that the MicroPython
 [aiko_engine_mp](https://github.com/geekscape/aiko_engine_mp) OLED
-accepts. `(oled:text 0 0 hello)` and `(text 0 0 hello)` are one command,
-and the origin is the bottom-left corner on both:
+accepts, and the origin is the bottom-left corner on both. The `oled:`
+prefix was an alias until 2026-10-23. One function now has one name, so
+send `(text 0 0 hello)`:
 
 ```bash
-mosquitto_pub -t $TOPIC_PATH/in -m "(oled:text 0 0 hello)"
+mosquitto_pub -t $TOPIC_PATH/in -m "(text 0 0 hello)"
 ```
 
 Without the panel, the same Actor shows its frames in a desktop window
@@ -106,7 +107,7 @@ preset cycles. Every subcommand's `--help` explains it in full.
 | Subcommand | Arguments and options | What it does |
 |------------|----------------------|--------------|
 | `run` | The table below | Run the Actor |
-| `exit` | `--all` | `(exit)`, an alias of the framework's `(stop)`: the Actor terminates and the display blanks. `-n '*'` needs `--all` |
+| `exit` | `--all` | Publishes the framework's `(stop)`: the Actor terminates and the display blanks. `-n '*'` needs `--all`. To be renamed `stop` |
 | `list` | | Every `display:0` Actor on the broker, or the one named with `-n`: name, topic path, tags |
 | `clear` | | `(clear)` |
 | `log WORDS...` | | `(log WORDS ...)` |
@@ -144,7 +145,7 @@ export AIKO_MQTT_HOST=localhost
 aiko_registrar &
 aiko_display -n oledit run -o png --png /tmp/oled.png --title Aiko_v0.8 &
 # Display Actor oledit: aiko/nomad/92920/1/in
-mosquitto_pub -t aiko/nomad/92920/1/in -m "(oled:text 0 0 hello)"
+mosquitto_pub -t aiko/nomad/92920/1/in -m "(text 0 0 hello)"
 aiko_display -n oledit text 0 8 second row
 aiko_display -n oledit set contrast 32
 aiko_display list
@@ -155,7 +156,8 @@ aiko_display -n oledit -t 2 exit
 ```
 
 On the SBC with the panel, run `aiko_display run -a 0x3C`. Append `&` to
-run it in the background, or start it with `aiko_process create`. For a
+run it in the background, or start it with `aiko_process create`, which
+needs a ProcessManager started with `--unsafe`. For a
 display that comes up with the host, install `aiko_display.service` from
 the source directory with systemd. `systemctl stop` sends SIGTERM, and
 the Actor blanks the panel. With `--standalone`, the status display
@@ -167,7 +169,7 @@ SBC's broker must listen on every interface. The
 [test guide](testing.md) gives the mosquitto configuration and the two
 discovery traps.
 
-**The Dashboard page.** `aiko_dashboard -p aiko_services.main.dashboard_plugins
+**The Dashboard page.** `aiko_dashboard -p aiko_services.ide.tui.dashboard.plugins
 -p aiko_services.actors.display.dashboard_plugin`, then `S` on the Actor.
 The page shows a live mirror of the panel through the leased frame feed,
 and the shared state with editable settings. It shows the process log,
@@ -345,20 +347,20 @@ right, y 0..63 bottom to top. The decisions are recorded in
 | `Canvas` — drawing on a canvas | `.../canvas:0` | `clear()`, `log(*words)`, `pixel(x, y)`, `pixels(*coordinates)`, `line(x0, y0, x1, y1)`, `text(x, y, *words)` | RW `font`, `title`. R `size`, `origin`, `depth`, `log_count`, `log_pending` |
 | `Screen` — controlling the screen | `.../screen:0` | `mirror(topic, seconds)` | RW `contrast`, `invert`, `power`, `all_on`, `blank_after`, `foreground`, `background`, `mirror_rate`. R `backend`, `device`, `panels`, `fps`, `mirrors` |
 | `Interaction` — what runs on the display | `.../interaction:0` | `applet(name, *args)`, `key(name, state="tap")` | RW `applet`, `speed`. R `applets`, `applet_detail`, `keys.*` |
-| `Display` — the composite | `.../display:0`, registered | the framework's `stop` (`exit` is its alias), `set_log_level` | R `settings`, `connection`, `heartbeat`, `last_error`, `metrics.*` |
+| `Display` — the composite | `.../display:0`, registered | the framework's `stop`, `set_log_level` | R `settings`, `connection`, `heartbeat`, `last_error`, `metrics.*` |
 
 | Method | Wire form | Effect |
 |--------|-----------|--------|
-| `clear()` | `(clear)`, `(oled:clear)` | Erase the canvas. The title row stays |
-| `log(*words)` | `(log WORDS ...)`, `(oled:log ...)` | Scroll the canvas up one text row and write the words on the bottom row. Keep the line (the last eight) for the status and log applets |
-| `pixel(x, y)` | `(pixel X Y)`, `(oled:pixel X Y)` | Light one pixel |
-| `pixels(*coordinates)` | `(pixels X Y X Y ...)`, `(oled:pixels ...)` | Light pixels, at most 256 pairs, all or nothing |
+| `clear()` | `(clear)` | Erase the canvas. The title row stays |
+| `log(*words)` | `(log WORDS ...)` | Scroll the canvas up one text row and write the words on the bottom row. Keep the line (the last eight) for the status and log applets |
+| `pixel(x, y)` | `(pixel X Y)` | Light one pixel |
+| `pixels(*coordinates)` | `(pixels X Y X Y ...)` | Light pixels, at most 256 pairs, all or nothing |
 | `line(x0, y0, x1, y1)` | `(line X0 Y0 X1 Y1)` | Draw a line |
-| `text(x, y, *words)` | `(text X Y WORDS ...)`, `(oled:text ...)` | Write the words with the text cell's bottom-left at (X, Y) |
+| `text(x, y, *words)` | `(text X Y WORDS ...)` | Write the words with the text cell's bottom-left at (X, Y) |
 | `applet(name, *args)` | `(applet NAME [WORDS ...] [key=value ...])` | Run an applet, which replaces the running one. `none` shows the canvas |
 | `key(name, state="tap")` | `(key NAME [tap\|down\|up])` | A key in the key map runs its preset, or changes its setting, on `tap` or `down`. Any other key goes to the running applet. `down` holds the key for 2 s at most, so a client that holds a key sends `down` again |
 | `mirror(topic, seconds)` | `(mirror TOPIC SECONDS)` | Create or extend a leased feed of the panel's frames to TOPIC, raw bytes on change at most `mirror_rate` a second. 0 destroys it. At most 4 holders |
-| `stop()` | `(stop)`, `(exit)` | Terminate the process. The display blanks on the way out |
+| `stop()` | `(stop)` | Terminate the process. The display blanks on the way out |
 
 **The control model.** "Control" means four things, and every client
 speaks one vocabulary. The last column names the framework concept each
@@ -396,16 +398,16 @@ Every applet is deterministic for a given `seed=`. No applet uses a
 clock, only frame counts. A drawing command stops a running applet, so
 that the drawing is seen. `log` does not stop it, because the status
 applet shows the log lines itself. Anything else on the `in` topic is
-rejected, including the framework's `(run)`. The Actor dispatches only
+denied, including the framework's `(run)`. The Actor dispatches only
 the methods of its three aspects, plus `(stop)` and
 `(set_log_level LEVEL)`.
 
 **Settings**: the writable shared state, declared once in
 `SETTINGS_SPEC` (name, kind, default, range, description). The `settings`
-share key, the setters, the rejection reasons, the help texts and the
+share key, the setters, the denial reasons, the help texts and the
 tests all derive from that table. Write a setting with `aiko_display set`,
 with `(update KEY VALUE)` on the control topic, or in the Dashboard. A
-bad value is rejected, and the value in force is published again, so an
+bad value is denied, and the value in force is published again, so an
 observer converges back. All values are single tokens.
 
 | Key | Values | Meaning |
@@ -438,11 +440,11 @@ observer converges back. All values are single tokens.
 | `log_pending` | `on`, `off` | The `L` annunciator: log lines arrived that no applet has shown yet |
 | `log_count` | count | The lines received by `log`. The last eight are kept |
 | `heartbeat` | seconds since start | Updated every second: the proof that the event loop is not blocked |
-| `last_error` | `WHAT@UTC` or `-` | The last rejection or failure, for example `pixel_x_range@2026-09-26T04:21:00Z` |
-| `metrics.commands`, `.rejected`, `.frames`, `.frame_ms`, `.errors`, `.mirrored` | counts | Accepted and rejected commands, frames shown, the last frame's render time, errors caught in timers, frames mirrored. Published every 2 s when changed |
+| `last_error` | `WHAT@UTC` or `-` | The last denial or failure, for example `pixel_x_range@2026-09-26T04:21:00Z` |
+| `metrics.commands`, `.denied`, `.frames`, `.frame_ms`, `.errors`, `.mirrored` | counts | Accepted and denied commands, frames shown, the last frame's render time, errors caught in timers, frames mirrored. Published every 2 s when changed |
 
 The [protocol](display_protocol.md) document gives the grammar of every
-value and the rejection reasons.
+value and the denial reasons.
 
 ## For framework developers (internals)
 
@@ -453,7 +455,7 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
                                              │
    ┌─────────────────────────────────────────┴────────────────────────┐
    │ DisplayImpl                                                       │
-   │  _topic_in_handler: parse guard → oled: aliases → allow-list      │
+   │  _topic_in_handler: parse guard → FunctionGate allow list        │
    │  wire methods ─► FrameBuffer (PIL "1", canvas size, wire coords)  │
    │  _tick 30 Hz  ─► applet.step() → frame (centered if smaller)      │
    │  _present(frame): + title row, skip if unchanged ─► Output.show   │
@@ -484,7 +486,7 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
   (`host.width`, `host.height`, `host.depth`) and cuts text rows at
   `host.columns()`. The games and the drawings are composed for a fixed
   128x64 field, and they declare `MIN_SIZE`. On a wider canvas the Actor
-  centers the field. On a smaller canvas `applet` is rejected with
+  centers the field. On a smaller canvas `applet` is denied with
   `applet_too_small`, and `applets` lists only the applets that fit.
   Every Host call takes and returns S-expression values (tokens,
   integers, words). Thus a sandboxed evaluator could expose the same
@@ -493,12 +495,13 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
 - **Coalescing.** A frame is shown only when its bytes changed, and at
   most once per tick. Thus a flood of `pixels` commands costs
   microseconds each and one device write.
-- **Deny by default (P12).** `_topic_in_handler` replaces the
-  framework's. The parser is guarded, because a token such as `12:30`
-  raises inside it. The `oled:` names and `exit` are aliased. Only
-  `WIRE_COMMANDS` reach the mailbox: the abstract methods of the three
-  aspects, plus `stop` and `set_log_level`. Inherited public methods
-  such as `run` are unreachable.
+- **Deny by default (P12).** The `FunctionGate` aspect holds the allow
+  list, and the framework's `_topic_in_handler` asks it. The parser is
+  guarded, because a token such as `12:30` raises inside it. Only
+  `FUNCTIONS` reach the mailbox: the abstract methods of the three
+  aspects, plus `stop` and `set_log_level`. Inherited public functions
+  such as `run` are unreachable, and there are no function name
+  aliases.
 - **The key map on the device.** `key()` runs a mapped key's preset, or
   changes its setting, and passes any other key to the running applet.
   Thus the console, the emulator window, `aiko_display key` and the
@@ -518,8 +521,8 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
   the process lives on.
 - **Failure behavior.** A display that cannot be opened, or that fails,
   is reported (`device` `absent`, `last_error`) and retried every 10 s.
-  The Actor keeps working meanwhile. A rejected command changes nothing
-  but `metrics.rejected` and `last_error`.
+  The Actor keeps working meanwhile. A denied command changes nothing
+  but `metrics.denied` and `last_error`.
 
 ### Implementation notes
 
@@ -532,7 +535,7 @@ MQTT thread ──on_message──► event queue ──► event-loop thread (m
 - A callback from another thread, such as the connection state handler,
   only posts a message to the mailbox.
 - The CLI's `run` installs a SIGTERM handler and blanks the display in a
-  `finally` block. Ctrl-C, `(exit)`, `aiko_display exit` and
+  `finally` block. Ctrl-C, `(stop)`, `aiko_display exit` and
   `systemctl stop` all leave the panel blank.
 - With `-o terminal`, console logging would scribble on the picture.
   `run` sets `AIKO_LOG_MQTT=true` unless it is already set.
@@ -604,7 +607,7 @@ The 142 display tests and the 4 example tests run on Python 3.12
 - The 5x7 font gives 21 characters per row. The aiko_engine_mp 8x8 font
   gives 16.
 - One panel per Actor. aiko_engine_mp spreads text across two panels.
-- `(oled:log a   b)` collapses runs of spaces, because the framework
+- `(log a   b)` collapses runs of spaces, because the framework
   parser tokenizes. aiko_engine_mp keeps them.
 - A mapped letter cannot reach a running applet, because the key map
   runs first. Games use the arrow keys, which are never mapped.

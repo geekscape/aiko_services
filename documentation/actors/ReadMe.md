@@ -11,7 +11,7 @@ source:
   - src/aiko_services/actors
 related: [actor, service]
 version: "0.8-dev"
-last_updated: 2026-09-27
+last_updated: 2026-11-02
 ---
 
 # Actors index
@@ -30,3 +30,4 @@ Navigation: [documentation map](../ReadMe.md) ·
 | Package | Summary |
 |---------|---------|
 | [display/](display/ReadMe.md) | The `display:0` protocol: a remote display as an Actor, with an SSD1306 OLED as the reference device, emulated outputs, applets, a keys console, a Dashboard page, a test guide and unit tests |
+| [whisplay/](../../src/aiko_services/actors/whisplay/ReadMe.md) | The WhisPlay HAT as an Actor: the camera on its 240x280 color panel, and a long button press that starts an action, a clean power off by default. The package ReadMe is its documentation |

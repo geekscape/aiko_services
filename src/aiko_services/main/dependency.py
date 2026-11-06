@@ -46,6 +46,7 @@ from abc import abstractmethod
 __all__ = ["Dependency", "dependency_args", "DependencyImpl"]
 
 from aiko_services.main import *
+from aiko_services.main.utilities.parser import generate_symbol
 
 # --------------------------------------------------------------------------- #
 
@@ -103,10 +104,15 @@ class DependencyImpl(Dependency):
     def is_type(self, type_name):
         return type_name.lower() == "dependency"
 
+# A URL holds whatever it holds, a space and a brace included, and this
+# expression is built here rather than by generate_s_expression(), so each
+# one is length-prefixed the way that would do it.  Without this, a
+# "(list ...)" response of a Category cannot be parsed back
+
     def __repr__(self):
         return f"({self.service_filter} "  \
-               f"{self.lifecycle_manager_url} "  \
-               f"{self.storage_url})"
+               f"{generate_symbol(str(self.lifecycle_manager_url))} "  \
+               f"{generate_symbol(str(self.storage_url))})"
 
 # Note: "entry_name" only needed for Category, not Dependency, ignore it here
 
