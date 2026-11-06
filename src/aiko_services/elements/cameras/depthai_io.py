@@ -34,9 +34,9 @@ INITIAL_SHARE = {                  # never a parameter name: the framework
 #
 # parameter: "data_sources" is "(depthai://)" or "(depthai://<address>)"
 # parameter: "resolution"   "WxH" (default "1920x1080"), "native" / "full"
-# parameter: "frame_rate"   frames per second (default 25.0), "25/1" form
-# parameter: "settle", "resize_mode", "aux_stream", "capture_timeout":
-#            see scheme_depthai.py
+# parameter: "frame_rate"   frames per second (default 8.0), "25/1" form
+# parameter: "settle", "resize_mode", "aux_stream", "capture_timeout",
+#            "focus_assist": see scheme_depthai.py and scheme_camera.py
 # parameter: "media_type"   optional "numpy" or "pil" conversion
 #
 # Note: Only supports Streams with "data_sources" parameter

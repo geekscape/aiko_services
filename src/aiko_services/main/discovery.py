@@ -288,7 +288,12 @@ def do_request(
 
         if finished:
             return
-        command, arguments = parse(payload_in)
+        try:
+            command, arguments = parse(payload_in)
+        except ValueError as value_error:
+            _LOGGER.warning(f"Response on {topic} does not parse, "
+                            f"so it is dropped: {value_error}")
+            return
         if command == "item_count" and len(arguments) == 1:
             item_count = int(arguments[0])
             items_received = 0

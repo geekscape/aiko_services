@@ -33,7 +33,7 @@ The map, on branch `andyg/future`:
 future/
   <ClearName>.md        whole private documents (law, designs, roadmaps)
   adr/                  private ADRs + the full-titles registry
-  potential/            the private roadmap items
+  potential/            the private roadmap items  <!-- future-ref-ok: the private repository's own directory map -->
   pending/              prepared public proposals, awaiting their PR
   originals/            pre-redaction versions of trimmed public docs
   redactions/*.diff     the exact record of every excision

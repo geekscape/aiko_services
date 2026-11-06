@@ -61,7 +61,9 @@ def test_the_plugin_key_is_the_protocol_type():
 def test_the_default_plugin_module_registers_it():
     from aiko_services.ide.tui.dashboard.plugins import plugins as default
 
-    assert sorted(default) == ["process_manager", "recorder", "registrar"]
+    assert sorted(default) ==  \
+        ["category", "hyperspace",
+        "process_manager", "recorder", "registrar"]
 
 def test_the_dashboard_derives_that_key_from_the_protocol():
     from aiko_services.ide.tui.dashboard.dashboard import FrameCommon

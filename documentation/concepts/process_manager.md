@@ -8,10 +8,11 @@ status: work-in-progress
 ste: adapted
 source:
   - src/aiko_services/main/process_manager.py
+  - src/aiko_services/main/process_definition.py
 related: [design_overview, hyperspace, dependency, storage, actor, share,
   lifecycle]
-version: "0.8"
-last_updated: 2026-10-23
+version: "0.9"
+last_updated: 2026-11-02
 ---
 
 # ProcessManager
@@ -122,6 +123,43 @@ and gives no diagnostic, is worse. One bad entry does not stop the other
 processes. The flag applies to the definition file only. Thus
 `aiko_process create true` still runs the `true` command.
 
+An entry is either that string, or an object. The object form carries a
+working directory. It also keeps an argument that contains a space, which
+the string form cannot do:
+
+```json
+[
+  {"enabled": true, "command": "aiko_hyperspace run",
+   "cwd": "/home/claude/hyperspace"},
+  {"enabled": true, "command": ["aiko_chat", "run"],
+   "cwd": "/home/claude/chat_server"}
+]
+```
+
+The string form splits on whitespace. The object form splits the command
+with `shlex`, which keeps a quoted argument together. A command given as a
+list needs no quoting rules at all. The `enabled` flag is necessary in
+both forms, and `cwd` is optional. An unknown key is an error. The
+ProcessManager reports the error, then skips that entry, because a key
+that is nearly correct is the one worth a diagnostic.
+
+### The working directory
+
+A process inherits the ProcessManager's working directory. The `--cwd`
+option, and the `cwd` key in a definition entry, give it a different one.
+
+Some Services find their state by the working directory and nothing else.
+HyperSpace file [Storage](storage.md) is one. It resolves `_hyperspace_`
+and `.root` against the working directory. Thus `aiko_hyperspace run`
+reads the storage of the directory it starts in, and a Service of this
+type needs `cwd`.
+
+The ProcessManager makes sure that the directory exists before it starts
+the process. If the directory does not exist, the ProcessManager reports
+the error and starts no process. `Popen` reports this condition as a file
+not found error. That error names the command, not the directory. Thus
+the ProcessManager does the check itself.
+
 Manage processes:
 
 `create` and `destroy` travel on the message bus, so they need a
@@ -141,6 +179,41 @@ operator looks for first. The keys are `c` create, `d` destroy with SIGTERM,
 A ProcessManager in the default posture denies each of those functions.
 Thus the page says which posture it is in, and why a key does nothing,
 instead of appearing to act. It reads the posture from the shared state.
+
+### A definition held in a Category
+
+A ProcessManager reads its definition from a JSON file. A definition can
+also be held in a [Category](category.md), and
+`main/process_definition.py` is the convention that makes this possible.
+An Entry is a process when its `storage_url` starts with `process:`. What
+comes after is one definition entry, as JSON — the object form that
+`_parse_definition_object()` reads:
+
+```
+process:{"enabled": true, "command": "aiko_registrar run"}
+process:{"enabled": false, "command": "aiko_recorder", "cwd": "/home/x"}
+```
+
+The Entry's `lifecycle_manager_url` names the ProcessManager that runs the
+process. This is the use that [Dependency](dependency.md) gives that
+field: the Actor that manages the Service.
+
+The definition is in these two fields, and not in the Entry's tags,
+because a tag cannot hold a space. A command line and a working directory
+both can. The codec gives each URL field a canonical length prefix, so
+each one arrives complete (see [Dependency](dependency.md)).
+
+The ProcessManager page shows such a Category beside the processes that
+run, and it matches an Entry to a process by the command line. The keys
+are `n` to name the HyperSpace and the Category path, `s` start, `t` stop,
+and `e` enable or disable. `J` gives the JSON that `aiko_process run`
+reads.
+`s` and `t` create and destroy a process. Therefore the default posture
+denies them, for the same reason that it denies `c` and `d`.
+
+`aiko_process run` reads its JSON file at start. Thus a change to the
+Category changes what a person then starts. It does not change what runs.
+A ProcessManager that reads a Category itself is in the roadmap below.
 
 ### The ProcessManagerCache
 
@@ -162,7 +235,8 @@ matches, and the replica of each one. `add_handler()` reports each change.
 `aiko_process list --watch` is the same cache on the command line.
 
 ```bash
-aiko_process create [--name NAME] [--uid UID] COMMAND [ARGUMENTS ...]
+aiko_process create [--name NAME] [--uid UID] [--cwd CWD]
+                    COMMAND [ARGUMENTS ...]
 aiko_process list   [--name NAME] [UID]
 aiko_process destroy [--name NAME] [--kill] UID
 ```
@@ -173,6 +247,7 @@ Examples from the source header — shell and Python scripts:
 aiko_process create -u uid:0 date
 aiko_process create -u uid:1 sleep 5
 aiko_process create -u uid:2 aiko_process exit -gt 0   # self terminate !
+aiko_process create -u uid:3 -c /home/claude/hyperspace aiko_hyperspace run
 ```
 
 Simultaneous processes terminating at different times:
@@ -233,6 +308,11 @@ requester's topic (see [Category](category.md) for the general pattern):
 (response UID PID COMMAND ARG…)      # repeated
 ```
 
+Both replies are built with `generate()`. Thus an argument that holds a
+space, or that starts with digits and a colon, reaches the client
+unchanged. An example is the `-L 8080:127.0.0.1:8080` argument of an
+`ssh` tunnel.
+
 ## For framework developers (internals)
 
 ### Design
@@ -285,14 +365,23 @@ touching `self.processes` from another thread.
 
 **Process creation details:**
 
-- Commands ending in `.py` / `.sh` run as given. Any other command is
-  first resolved as a *Python module name* through
-  `importlib.util.find_spec()`. If found, the module's file path is
-  executed instead — so `aiko_process create my_package.my_module` works
-  without knowing the installation path.
-- `Popen(command_line, bufsize=0, shell=False)` does no shell
+- Commands ending in `.py` / `.sh` run as given. For any other command, an
+  executable on `PATH` wins. A command that is not on `PATH` is resolved as
+  a *Python module name* through `importlib.util.find_spec()`. The module's
+  own file runs, but only if the name is a module and that file is
+  executable. Thus `aiko_process create my_package.my_module` needs no
+  knowledge of the installation path. A command that is neither runs as
+  given, so that `Popen` reports the command it did not find.
+- `PATH` wins because a console script and an importable package often
+  share a name. `aiko_chat` is both, and the package resolved to its
+  `__init__.py`, so the process ran a file nobody asked for.
+- A package is never that file. The file mode does not decide this,
+  because some installations give every library file the execute bit. The
+  hosted Python of the CI runner is one, for Python 3.11 and later.
+- `Popen(command_line, bufsize=0, shell=False, cwd=cwd)` does no shell
   interpretation. To use shell features, invoke the shell explicitly
-  (`/bin/sh -c "…"`, refer to the command-line examples above).
+  (`/bin/sh -c "…"`, refer to the command-line examples above). A `cwd` of
+  `None` is the inherited working directory.
 - Duplicate UIDs are rejected with a warning, and the process does not
   start. `FileNotFoundError` and other exceptions are logged, not
   raised.
@@ -309,10 +398,18 @@ population of every host in real time.
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
 | `ProcessManager` (Interface) | Declare the process-table contract: `create()`, `list()`, `destroy()`, `dump()`, `exit()`; is-an Actor | `Actor` (parent Interface) |
-| `ProcessManagerImpl` | Maintain the `uid → (command_line, Popen)` table; launch through `Popen` with module-name resolution; reap exits on the reaper thread and marshal them back to the main thread; publish metrics through ECProducer; load definition files; graceful `exit()` escalation (SIGTERM → SIGKILL) | `ProcessCurrent` (self-entry shim); `ECProducer` (shared state); [HyperSpace](hyperspace.md) / [Storage](storage.md) (planned lifecycle-driving structure); [Dependency](dependency.md) (`lifecycle_manager_url` target) |
+| `ProcessManagerImpl` | Maintain the `uid → (command_line, Popen)` table; launch through `Popen` with the given working directory, and command resolution that prefers `PATH`; reap exits on the reaper thread and marshal them back to the main thread; publish metrics through ECProducer; load definition files; graceful `exit()` escalation (SIGTERM → SIGKILL) | `ProcessCurrent` (self-entry shim); `ECProducer` (shared state); [HyperSpace](hyperspace.md) / [Storage](storage.md) (planned lifecycle-driving structure); [Dependency](dependency.md) (`lifecycle_manager_url` target) |
 | `ProcessCurrent` | Present the ProcessManager's own OS process with the same interface as a `Popen` child, so UID `000000` gets uniform bookkeeping | `ProcessManagerImpl` (sole user) |
 
 ## Current limitations and roadmap
+
+- Read the definition from a [Category](category.md), and keep that
+  Category current as processes start and stop. The convention is in
+  `main/process_definition.py`, and the Dashboard page reads and writes
+  it. A Category also does not keep an Entry's fields across a restart
+  today (see [HyperSpace](hyperspace.md)), which this needs first
+- `status`: say which Entry each process came from. A client matches them
+  by command line, so two Entries of one command line are one process
 
 Highlights from the source `To Do` list:
 
@@ -323,7 +420,10 @@ Highlights from the source `To Do` list:
 - The HyperSpace-path lifecycle verbs (`enable/disable/start/status/stop`)
   and disambiguating CLI `create` from `start`, and `destroy` from `stop`
 - The `--watchdog` flag is recorded in shared state, but primary/watchdog
-  monitor-and-relaunch behavior is still to come. Likewise "one primary
+  monitor-and-relaunch behavior is still to come. Until then, nothing
+  starts a process again when it exits. A definition entry that must keep
+  running can wrap its command in a respawn loop, as the w3029f1 edge host
+  does. Likewise "one primary
   ProcessManager per host" enforcement and cross-host unification
 - Capture child stdout/stderr. Relaunch failed processes (with
   back-off). Add auto-scaling workers. Add scheduled (crontab-style)

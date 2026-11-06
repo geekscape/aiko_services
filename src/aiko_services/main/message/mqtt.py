@@ -144,8 +144,8 @@ class MQTT(Message):
         if self.mqtt_address and not self.mqtt_tls_enabled  \
                 and self.mqtt_transport == "tcp":
             connect_host = self.mqtt_address
-        _LOGGER.info(f"MQTT server {self.mqtt_host}:{self.mqtt_port} "
-                     f"connecting to {connect_host}")
+        _LOGGER.debug(f"MQTT server {self.mqtt_host}:{self.mqtt_port} "
+                      f"connecting to {connect_host}")
 
         diagnostic = f"Couldn't connect to MQTT server {self.mqtt_info}"
         if server_up:

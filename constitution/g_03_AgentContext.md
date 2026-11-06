@@ -8,7 +8,7 @@ audience: [ai-coding-agents]
 status: operational
 ste: adapted
 related: [a_00_ArchitectureReview_2026-06, p_00_DesignPrinciples]
-last_updated: 2026-07-31
+last_updated: 2026-11-02
 ---
 
 # CLAUDE.md / AGENTS.md — Aiko Services
@@ -253,6 +253,21 @@ aiko_registrar  aiko_dashboard  aiko_pipeline  aiko_process  aiko_hyperspace   #
   broker.
 - **Two proxy mechanisms** (`proxy.py` and `discovery.get_service_proxy`) — their
   consolidation is pending.
+- **`ServiceFilter.__repr__()` does not escape its tags** — it joins them with a space, so
+  one tag of `command=aiko_registrar run` arrives as `command=aiko_registrar` and `run`. A
+  standing deviation from ADR-002. Put a value that holds a space in `lifecycle_manager_url`
+  or `storage_url`, which `Dependency.__repr__()` passes through
+  `utilities/parser.py:generate_symbol()`. Any expression you assemble yourself must use that
+  function for each value.
+- **`pipeline.py` declares no `FUNCTIONS`** — so `Pipeline` has no FunctionGate allow list.
+  `create_stream(stream_id, graph_path, parameters, ...)` is reachable by name from the message
+  bus, with parameters of the caller's choosing. P12 / ADR-023 deny-by-default is not in force
+  there. Do not add a DataScheme that executes what a parameter names until it is.
+- **asciimatics hides what does not fit** — a `PopUpDialog` takes its height from its text and
+  does not grow for a `Layout`: with one line of text it is five rows and every widget after
+  the first is dropped, with no error. Use `ide/tui/dashboard/frames.py:FormFrame` for a
+  dialog of more than one field. A `Text` widget also raises `TypeError` on its first draw
+  unless its value is set.
 - **`discovery.do_command/do_request` lack timeouts** — with a missing responder, the call
   waits forever. Add timeouts when you build on these paths.
 - **Actor dispatch catches broad exceptions** — do not rely on exception propagation from
@@ -265,9 +280,11 @@ aiko_registrar  aiko_dashboard  aiko_pipeline  aiko_process  aiko_hyperspace   #
   avro `validate()` boolean (avro returns False, it does not raise). Thus invalid definitions
   pass silently. The schema also restricts parameter values to bool/int/null/string, yet
   shipped examples use floats.
-- **`process.py remove_message_handler()` is broken for binary topics** — the binary branch
-  removes from the *wildcard* list (`del list[str]` → TypeError). Two reviews found this bug
-  independently. Do not build on it until it is fixed.
+- **`process.py remove_message_handler()` is broken for binary and wildcard topics** — the
+  binary branch removes from the *wildcard* list (`del list[str]` → `TypeError`). The last
+  handler of a topic is never unsubscribed. Two reviews found this independently. PR #55
+  proposes a fix. Until it lands, use one subscription per process, never removed, and stop
+  the traffic at its source (a lease).
 - **`process.py` Service ids can collide** — `remove_service()` decrements `service_count`,
   and `add_service()` uses that count to mint the next id. Thus add→remove→add reuses the id
   and topic path of a live Service.
@@ -280,28 +297,27 @@ aiko_registrar  aiko_dashboard  aiko_pipeline  aiko_process  aiko_hyperspace   #
 - **Never write `self.share[…]` directly** — always use `ec_producer.update()`. Direct writes
   (`ActorImpl.run()` "running", `PipelineImpl.set_parameter()`) are invisible to remote
   observers and the Dashboard.
-- **ECProducer incremental updates are f-string-built, not `generate()`-encoded** — values
-  that contain spaces or nesting do not round-trip. Snapshot and incremental encodings can
-  disagree for the same value.
 - **`event.py remove_timer_handler()` can remove the wrong timer** when one function backs
   several timers — use distinct bound methods per timer (Lease uses this pattern).
-- **Registrar election is fragile under partition** (stale retained `(primary found …)`,
-  simultaneous self-promotion). Also, registrar timestamps use `time.monotonic()` — this
-  value is meaningless across hosts. After a power cycle of the host that runs the broker
-  and the Registrar, the persisted announcement blocks discovery until an operator clears
-  it (`mosquitto_pub -t NAMESPACE/service/registrar -r -n`). A liveness probe is specified
-  in s_00 §1.4 (2026-09-27).
-- **A `.local` host name can resolve to an unroutable IPv6 address first** — paho tries
-  it for 5 s before IPv4. Thus discovery from a client times out at random. Use an IPv4
-  literal in `AIKO_MQTT_HOST` until the IPv4-first connect lands.
-- **`process.py remove_message_handler()` raises `TypeError`** for the last handler of a
-  binary or wildcard topic and never unsubscribes. Design around it: one subscription per
-  process, never removed, and stop the traffic at the source (a lease).
+- **Registrar election is fragile under partition** (simultaneous self-promotion). Also,
+  registrar timestamps use `time.monotonic()` — this value is meaningless across hosts. A
+  stale retained `(primary found …)` after a power cycle no longer needs clearing by hand:
+  the s_00 §1.4 liveness probe replaces it in about 5 s (2026-10-01).
+- **Patch process-global state on its class, not on `aiko.process`** — `ProcessData` holds
+  `message` and `registrar` as class attributes. Undoing a `monkeypatch` on the instance
+  leaves an instance attribute that hides the class attribute for every later test.
 - **`mqtt.publish()` busy-waits up to 2 s when disconnected** — guard publishes with the
   connection state. Timers added before `process.run()` are re-based when the loop starts.
 - **`compose_class()` reads `PROTOCOL` from the seed class only** — a `PROTOCOL` on a mixed-in
   Interface is documentary. A default Impl's methods must work without its constructor
   (s_02 §4).
+- **The ProcessManager does not relaunch a process that exits** — `--watchdog` is recorded,
+  not acted on (ADR-026), and systemd restarts only the ProcessManager. Wrap a long-running
+  definition entry in a respawn loop until it does. A ProcessManager that exits outside
+  systemd leaves its children running (observed 2026-11-02, cause not found).
+- **`CaptureLimit` has no unlimited mode** — without a parameter it applies a default
+  duration. Continuous recording uses a long `duration` and a restart. Project-lead direction
+  (2026-11-02): replace it with a resource limit, probably on a Lease.
 - **Placeholders, not bugs to "fix" casually**: `utilities/metrics.py` does not compile.
   `utilities/probe.py` is a zero-byte file. The `utilities/thread.py` ThreadManager is
   implemented but unwired (ProcessManager carries the `TODO: Use ThreadManager`).

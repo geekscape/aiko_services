@@ -6,6 +6,161 @@ Every substantive change appends an entry under its date heading
 This journal begins at the constitution's first public release. The
 pre-publication history is maintained privately.
 
+## 2026-11-05
+
+- **Creation** — [adr/ADR-028_PowerManagement.md](adr/ADR-028_PowerManagement.md),
+  with its row in [adr/ReadMe.md](adr/ReadMe.md): power management becomes an
+  Aiko Services concern. One `PowerManager` Interface extends Actor and has
+  one Implementation for each platform, in the way that ADR-026 did for
+  `DaemonSupervisor`. The record states why the power hold does not use the
+  GPIO character device. That device releases the pin when the process
+  exits. Thus an Actor that held it would cut the power of a Device each
+  time it restarted. Only the shutdown hook releases the hold, and never on
+  a restart. Safe and unsafe postures follow `ProcessManager`, under
+  ADR-023. Before the power ends, the host synchronizes its file systems
+  and tells its applications to stop writing. At the floor voltage it
+  remounts them read-only, and the cell damage limit is never a trigger.
+  The power-off and the remount both need a grant from the operating
+  system, which `render` prints before `install` writes it.
+
+  The record is a proposal. It is committed on the lead's direction, and it
+  waits for acceptance: a move asks the lead to accept the ADR as written
+  or to amend it, and ADR-025 and ADR-026 became `normative` on the dates
+  their own moves merged.
+
+  Up-time is requested as a `PoweredUpLease`, which extends the framework's
+  Lease so that an expiry acts at the time that was agreed. It has two
+  conditions. The lease time is the period for which it is valid, and a
+  client extends it. A constraint is a quantity of a finite resource, in
+  whatever unit measures it, and the host must still be able to meet it. A
+  constraint in a unit the host cannot measure is refused, because granting
+  what cannot be checked would have a client plan on a promise that nothing
+  can keep.
+
+  The move claims 028 and not 027. The registry shows 027 as free, and an
+  unmerged branch holds a written ADR-027 for P11. The note under the
+  registry records this, so that the two cannot collide.
+
+## 2026-11-02
+
+- **Update** — [adr/ReadMe.md](adr/ReadMe.md),
+  [adr/ADR-025_RemoteDisplayAbstraction.md](adr/ADR-025_RemoteDisplayAbstraction.md)
+  and [adr/ADR-026_DaemonSupervision.md](adr/ADR-026_DaemonSupervision.md):
+  both ADRs become `normative`, accepted on the dates that their moves
+  merged. ADR-025 was accepted on 2026-09-27 (#108), and ADR-026 on
+  2026-10-21 (#119). Each move asked the lead to accept the ADR as written
+  or to amend it, and the lead merged it.
+
+- **Update** — [adr/ReadMe.md](adr/ReadMe.md) and
+  [adr/ADR-025_RemoteDisplayAbstraction.md](adr/ADR-025_RemoteDisplayAbstraction.md):
+  the registry row and the ADR's `last_updated` record the amendment of
+  2026-11-02 (a `down` holds a key for 2 s at most), which the previous
+  move made without them.
+
+- **Update** — the operating lessons of the Display Actor session (CC6a), from
+  bringing an edge host into production and from four framework pull requests:
+  - [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+    section 2: a deployed host has a production account and a development
+    account, and an agent tests in a copy under `/tmp`. Section 9: six
+    failure modes. They are a pattern as the target, an editable install
+    that points elsewhere, a commit after the review push, a copy that
+    carries its host's metadata, a verb that names no object, and a sharp
+    edge that outlives its fix.
+  - [g_03_AgentContext.md](g_03_AgentContext.md): the ECProducer encoding
+    entry is removed, because incremental updates use `generate()` since
+    2026-10-15. New entries: the ProcessManager does not relaunch a process
+    that exits, and `CaptureLimit` has no unlimited mode.
+  - [adr/ADR-002_SExpressionWireEncoding.md](adr/ADR-002_SExpressionWireEncoding.md):
+    the ECProducer deviation is marked closed (2026-10-15).
+  - [e_06_TestingStrategy.md](e_06_TestingStrategy.md): two rules. A timing
+    test waits for its outcome, and the full suite runs on each target host.
+
+- **Update** — the Display Actor's Epic 1 learning, brought up to date with the
+  work that merged after it:
+  - [adr/ADR-025_RemoteDisplayAbstraction.md](adr/ADR-025_RemoteDisplayAbstraction.md)
+    decision 3: an amendment records that a `down` holds a key for 2 s at most
+    (`KEY_DOWN_MAXIMUM`). A client that holds a key sends `down` again.
+  - [adr/ADR-002_SExpressionWireEncoding.md](adr/ADR-002_SExpressionWireEncoding.md):
+    the ProcessManager `(list ...)` reply is a fourth known deviation, closed
+    the same day. An argument such as `8080:127.0.0.1:8080` was read as a
+    length prefix.
+  - [g_03_AgentContext.md](g_03_AgentContext.md): the Registrar entry no longer
+    tells an operator to clear a stale announcement, because the s_00 §1.4
+    liveness probe replaces it (since 2026-10-01). The `.local` IPv6 entry is
+    removed, because the MQTT client tries IPv4 first and connects to the
+    address that answered (2026-10-01). The two `remove_message_handler()`
+    entries become one, which cites PR #55. A new entry: patch process-global
+    state on its class, not on `aiko.process`.
+  - [e_03_FirstClassAgents.md](e_03_FirstClassAgents.md) task T6 names the
+    shape document, `documentation/actors/display/parameters_streams_shape.md`.
+  - [e_06_TestingStrategy.md](e_06_TestingStrategy.md): the rule "Fixtures
+    reset process-global state" cites `tests/unit/conftest.py`, which restores
+    the event loop's timers and mailboxes after each unit test.
+
+- **Update** — [../documentation/ReadMe.md](../documentation/ReadMe.md):
+  the map gains the two areas it never listed, `quick_start_guide.md` and
+  `tutorials/`, and a fast path for deploying an instance. A new tutorial,
+  `tutorials/production_instance.md`, documents a 24x7 instance on Linux.
+  One ProcessManager starts with the operating system, and it owns the
+  Registrar, HyperSpace and the Aiko Chat Server. The same change marks the
+  sanctioned private-directory reference in
+  `tutorials/using_a_private_constitution.md`, which names the private
+  repository's own map. The self-containment check now reports an exception
+  there rather than a violation.
+
+- **Update** — [adr/ADR-002_SExpressionWireEncoding.md](adr/ADR-002_SExpressionWireEncoding.md):
+  the consequence that a value holding a space must round-trip through
+  `generate()` now names each known deviation, and the helper that closes
+  one. `utilities/parser.py:generate_symbol()` applies the canonical rule
+  to a single value, for code that must assemble an expression itself.
+  `Dependency.__repr__()` was a deviation, closed the same day: a
+  `storage_url` holding a space broke every Category `(list ...)` response
+  that carried it. `ServiceFilter.__repr__()` is still one, for its tags.
+
+- **Update** — [s_00_Specifications.md](s_00_Specifications.md) section
+  1.1: the canonical length prefix is extracted as a rule, which the
+  section's `[VERIFY]` asks for. A value holding a delimiter, or beginning
+  `digits:`, must carry the prefix. A reader counts more arguments than the
+  writer sent otherwise, and loses the message with no error. The rest of
+  the grammar stays open.
+
+- **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+  section 9: a new failure mode. A code path that only a person can reach
+  survives review, merge and a demonstration. Build the frame and draw it
+  in the test. Evidence: a Dashboard dialog raised on its first draw,
+  every time anyone pressed the key, for a widget whose value was never
+  set.
+
+- **Update** — [g_03_AgentContext.md](g_03_AgentContext.md): four sharp
+  edges join the list. `ServiceFilter.__repr__()` does not escape its
+  tags. `pipeline.py` declares no `FUNCTIONS`, so `create_stream()` takes
+  its parameters from the message bus with no allow list. P12 / ADR-023 is
+  not in force there. A `PopUpDialog` hides a widget that does not fit it,
+  and a `Text` widget raises unless its value is set.
+
+## 2026-11-01
+
+- **Update** — [s_02_InterfaceComposition.md](s_02_InterfaceComposition.md): the
+  `ProcessManager` entry records the functions the Interface declares. The entry
+  named `spawn` and `terminate`, which it never had. `create` takes a fourth
+  parameter, `cwd`. It is the working directory of the process. A Service that
+  finds its state by the working directory cannot start any other way.
+  HyperSpace file Storage is such a Service, and so is the Chat server that
+  embeds one. Reference implementation
+  `src/aiko_services/main/process_manager.py`.
+
+## 2026-10-30
+
+- **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+  section 9: each failure mode is compressed to the constitution register
+  (project-lead direction). The rule comes first. The narration around it is
+  gone. Three defects go with the compression. The `Agent-claimed "done"` and
+  `D starving` entries shared one paragraph, so neither read as a rule of its
+  own. The `inherited diagnosis` entry now names a note, a memory and a
+  session summary as handovers. A wrong mechanism reached this session from a
+  memory file. `A guard that refuses everything` says `function`, which is
+  the framework's word, not `command`.
+
 ## 2026-10-26
 
 - **Update** — [s_01_RepositoryLayout.md](s_01_RepositoryLayout.md): the

@@ -138,6 +138,8 @@
 #
 # Ideas
 # ~~~~~
+# - Plug-in loading: report a module that could not be loaded, rather
+#   than leaving a page silently absent
 # - Dashboard plug-ins: Metrics for all Services/Actors/Agents/Pipelines
 #   - LISP REPL: Interactive, composable GUI IDE Graph WorkSpace
 #     - Interact with Ollama(Actor), timg (videos, images)
@@ -165,7 +167,8 @@ import aiko_services as aiko  # designed to be external to the main framework
 from aiko_services.main.utilities import load_module
 
 from aiko_services.ide.tui.dashboard.frames import (
-    FrameCommon, LogUI, NICE_COLORS, ServiceFrame,
+    FrameCommon, LogUI, NICE_COLORS, ServiceFrame, display_value,
+    set_display_utc,
 )
 
 __all__ = [
@@ -197,7 +200,7 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
         self.ec_consumer = None
         self._ec_consumer_reset()
         self.filter_out = DashboardFrame.FILTER_OUT.copy()
-        self.services_row = -1
+        self.selected_topic_path = None
         self.selected_service = None
         self.selected_services = {}  # TODO: Make this a set() ?
         self.subscribed_service = None
@@ -212,6 +215,7 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             options=[],
             titles=["Active: Topic", "Name", "Owner", "Protocol", "Transport"],
             on_change=self._on_change_services,
+            on_select=self._on_select_service,
             parser=AnsiTerminalParser()
         )
         self._service_widget = MultiColumnListBox(
@@ -240,6 +244,8 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
         self._ec_consumer_reset()
         services = self.services_cache.get_services()
         self.selected_service = services.get_service(topic_path)
+        if not self.selected_service:  # it exited since the last _update()
+            return
         self.service_tags = self.selected_service[5]
         if aiko.ServiceTags.match_tags(self.service_tags, ["ec=true"]):
             topic_control = f"{topic_path}/control"
@@ -270,11 +276,12 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
 
     def _get_service_topic_path_next(self):
         service_topic_path_next = None
-        services_row_next = self.services_row + 1
-        services = self._services_widget.options
-        if len(services) > services_row_next:
-            service = services[services_row_next]
-            service_topic_path_next = str(service[0][0])  # remove color
+        topic_paths = [
+            topic_path for _, topic_path in self._services_widget.options]
+        if self.selected_topic_path in topic_paths:
+            row_next = topic_paths.index(self.selected_topic_path) + 1
+            if row_next < len(topic_paths):
+                service_topic_path_next = topic_paths[row_next]
         return service_topic_path_next
 
     def _kill_service(self, service):
@@ -291,11 +298,20 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
                 Popen(command_line, bufsize=0, shell=False)
 
     def _on_change_services(self):
-        row = self._services_widget.value
-        if row is not None and row != self.services_row:
-            self.services_row = row
-            topic_path_color = self._services_widget.options[row][0][0]
-            self._ec_consumer_set(str(topic_path_color))  # remove color
+        topic_path = self._services_widget.value
+        if topic_path != self.selected_topic_path:
+            self.selected_topic_path = topic_path
+            if topic_path is None:  # the last Service exited
+                self._ec_consumer_reset()
+                self.selected_service = None
+            else:
+                self._ec_consumer_set(topic_path)
+
+    def _on_select_service(self):
+        """Enter on a Service: its own page, which is what "S" does"""
+
+        if self.selected_service:
+            self._raise_next_scene(self.selected_service)
 
     def _on_select_variable(self):
         text_box = TextBox(1, None, None, False, False)
@@ -367,6 +383,25 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             self.scene.add_effect(
                 PopUpDialog(self._screen, text, ["OK"], theme="nice"))
 
+    def select_service(self, topic_path):
+        """Select a Service, as if a person had chosen it on this page.
+
+        A page calls it to follow a reference from one Service to another,
+        e.g the Category page following an Entry to the Category Service
+        that it refers to.  Returns False when that Service is no longer
+        one the Registrar knows, and changes nothing
+        """
+
+        services = self.services_cache.get_services()
+        if not services.get_service(topic_path):
+            return False
+        self.selected_topic_path = topic_path
+        self._ec_consumer_set(topic_path)
+        topic_paths = [value for _, value in self._services_widget.options]
+        if topic_path in topic_paths:
+            self._services_widget.value = topic_path
+        return True
+
     def _service_selection_clear(self):
         self.selected_services = {}  # TODO: Make this a set() ?
 
@@ -388,8 +423,7 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             self._adjust_palette()
 
         parent = (None, None)
-        services_count = self.services_cache.get_services().count   # correct
-        services = self.services_cache.get_services().copy()  # count is zero
+        services = self.services_cache.get_services().copy()
         services_formatted = []
         for service in services:
             topic_path = aiko.ServiceTopicPath.parse(service[0])
@@ -398,11 +432,15 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             protocol = self._short_name(service[2])
             parent, show = self._filter(parent, service, topic_path, protocol)
             if show:
-                services_formatted.append(
-                    (topic_color, service[1], service[4], protocol, service[3]))
+                service_info = (
+                    topic_color, service[1], service[4], protocol, service[3])
+                services_formatted.append((str(topic_path), service_info))
+        # Each option carries the full topic path as its internal value,
+        # which is what identifies the selected Service.  The first column
+        # holds the terse form, for display, which the cache does not accept
         self._services_widget.options = [
-            (service_info, row_index)
-            for row_index, service_info in enumerate(services_formatted)
+            (service_info, service_topic_path)
+            for service_topic_path, service_info in services_formatted
         ]
 
         variables = []
@@ -412,7 +450,8 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
                 if isinstance(variable_value, dict):
                     variables.append((f"{variable_name} ...", ""))
                     for name, value in variable_value.items():
-                        variables.append((f"  {name}", f"{value}"))
+                        variables.append(
+                            (f"  {name}", f"{display_value(value)}"))
                 else:
                 #   variables.append((variable_name, variable_value))
                     self._update_field(
@@ -581,6 +620,12 @@ def run_dashboard(screen, start_scene):
     screen.play(scenes, stop_on_resize=True, start_scene=start_scene)
 
 def update_plugins(plugins):
+    """Add a plug-in module's pages to the registry.
+
+    The application's own two pages are seeded on the first call only,
+    so that a later module can replace a page under a key it already
+    holds.  The last module named on the command line therefore wins"""
+
     if not _PLUGINS:
         _PLUGINS["Dashboard"] = DashboardFrame
         _PLUGINS["Log"] = LogFrame
@@ -590,18 +635,38 @@ def update_plugins(plugins):
 @click.option("--history_limit", "-hl", type=click.INT, default=32,
     help="History length requested from Registrar")
 @click.option("--plugin", "-p", multiple=True, required=False,
-    default=["aiko_services.ide.tui.dashboard.plugins"])
+    default=["aiko_services.ide.tui.dashboard.plugins"],
+    help="Module that registers pages, repeatable.  A module name, "
+         'e.g "my_application.dashboard_plugin", or a pathname ending '
+         'in ".py".  Prefer the module name.  Giving any of these '
+         "replaces the default, so name the built-in registry too")
+@click.option("--utc", is_flag=True, default=False,
+    help="Show date/times as stored, in UTC, instead of in local time")
 
-def main(plugin, history_limit):
+def main(plugin, history_limit, utc):
     """Aiko Services Dashboard
 
+    Date/times are shown in local time.  Use "--utc" to show them as
+    stored, which is what comparing hosts in different zones needs.
+
     \b
-    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optonal)
+    Pages come from the modules named by "--plugin", and the default
+    registers only the built-in ones.  Each module is loaded once and
+    keeps a namespace of its own.
+    aiko_dashboard -p PACKAGE.MODULE -p PACKAGE.MODULE ...
+
+    \b
+    export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
     """
 
     global _HISTORY_LIMIT
     _HISTORY_LIMIT = history_limit
+    set_display_utc(utc)
 
+    # A module that cannot be imported is ignored, and its pages are
+    # simply absent.  That is a poor diagnosis, and it is what
+    # test_the_plugin_default_actually_resolves() exists to catch for the
+    # default.  The To Do list above carries the general case
     for plugin_name in plugin:
         try:
             module = load_module(plugin_name) if plugin_name else None

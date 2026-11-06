@@ -29,6 +29,8 @@ terminology that links to the owning descriptions.
 
 | Area | What it holds | Start at |
 |------|---------------|----------|
+| [quick_start_guide.md](quick_start_guide.md) | From nothing to a running Pipeline in 15 minutes — the shortest way in | itself |
+| [tutorials/](tutorials/ReadMe.md) | The tutorial ladder in four levels — a first project on the Constitution, the public and the private Constitution workflows, and a 24x7 production instance on Linux | [first_project.md](tutorials/first_project.md) |
 | [concepts/](concepts/ReadMe.md) | The framework itself — 46 OKF concept documents (32 plus 14 in the utilities sub-index), from the per-process event loop to the distributed structural model | [design_overview.md](concepts/design_overview.md) |
 | [actors/](actors/ReadMe.md) | The actors tier (`src/aiko_services/actors/`) — packages of Actors with their own protocols, shipped in the wheel; the `display:0` protocol design and evaluation is the first | [display/](actors/display/ReadMe.md) |
 | [elements/](elements/ReadMe.md) | The PipelineElement library (`src/aiko_services/elements/`) — one document per module, plus the example PipelineDefinitions | its reading paths |
@@ -134,6 +136,12 @@ document in this tree carries an `ste:` front-matter field, and
   Stage 4 before you contribute documentation or code.
 - **Framework contributor**: all stages. Stage 4 and Stage 5 are not
   optional, because the constitution binds every change.
+- **Deploying a 24x7 instance**:
+  [tutorials/production_instance.md](tutorials/production_instance.md),
+  then [concepts/process_manager.md](concepts/process_manager.md) for what
+  the ProcessManager does, and
+  [ADR-026](../constitution/adr/ADR-026_DaemonSupervision.md) for why one
+  host runs one daemon.
 - **AI coding session**: root `CLAUDE.md`,
   [g_03_AgentContext.md](../constitution/g_03_AgentContext.md) and
   [g_04_ModelHandoffGuide.md](../constitution/g_04_ModelHandoffGuide.md)
