@@ -332,3 +332,135 @@ def test_the_loss_can_be_turned_on_while_the_actor_runs():
     assert actor.share["working"]["lost"] is True
 
 # --------------------------------------------------------------------------- #
+
+# The dock line and the supply voltage (§6 item 11) ------------------------ #
+#
+# The forklift found this.  Its supply was powered down and the rail sat
+# between 0.3 V and 2.7 V, and the host reported "docked".  A host that
+# believes it is docked starts no deadline, tells no writer to stop, and
+# holds its own power on until the battery pack is flat.
+#
+# The plan adopted the cross-check in phase 3 and nothing implemented it:
+# "docked" was the GPIO line alone.
+
+from aiko_services.actors.power_manager.policy import (     # noqa: E402
+    DOCK_DISAGREEMENTS, docked_state,
+)
+from aiko_services.actors.power_manager.power_manager import (  # noqa: E402
+    DOCKED_VOLTS_MINIMUM,
+)
+
+DOCK = {"docked_volts_minimum": DOCKED_VOLTS_MINIMUM}
+
+def test_a_floating_rail_does_not_count_as_docked():
+    """The reading that started this: the supply is off and the line
+    still says docked"""
+
+    for volts in (0.3, 1.4, 2.7, 7.9):
+        assert docked_state(True, volts, DOCK) == (
+            False, "line_without_supply"), volts
+
+def test_a_live_rail_with_the_line_docked_is_docked():
+    assert docked_state(True, 12.0, DOCK) == (True, None)
+    assert docked_state(True, 8.0, DOCK) == (True, None)   # At the line
+
+def test_a_line_that_says_undocked_under_a_live_rail_is_reported():
+    """The other way round, which means the line or its sense circuit
+    has failed.  Undocked is still the conservative answer: running the
+    battery pack down is the worse mistake"""
+
+    assert docked_state(False, 12.0, DOCK) == (
+        False, "supply_without_line")
+
+def test_the_two_signals_agreeing_on_undocked_is_not_a_disagreement():
+    assert docked_state(False, 0.3, DOCK) == (False, None)
+
+@pytest.mark.parametrize("disagreement", DOCK_DISAGREEMENTS)
+def test_every_disagreement_is_one_word(disagreement):
+    """It is a shared state value and a log column, so a reader counts
+    them"""
+
+    assert " " not in disagreement
+
+def test_one_signal_is_the_answer_where_the_other_is_absent():
+    """An Implementation with no dock line, or with no supply monitor,
+    must behave as it did"""
+
+    assert docked_state(None, 12.0, DOCK) == (None, None)
+    assert docked_state(True, None, DOCK) == (True, None)
+
+@pytest.mark.parametrize("off", [None, 0, 0.0])
+def test_the_cross_check_can_be_turned_off(off):
+    """One signal where the design calls for two, for a deployment that
+    trusts its dock line"""
+
+    assert docked_state(True, 0.3, {"docked_volts_minimum": off}) == (
+        True, None)
+
+def test_the_threshold_can_be_turned_off_at_run_time():
+    actor = make_actor()
+    actor.set_threshold("docked_volts_minimum", "off")
+
+    assert actor._thresholds["docked_volts_minimum"] is None
+
+# What the Actor does with it ---------------------------------------------- #
+
+def test_a_disagreement_is_published_and_counted():
+    actor = make_actor(script=[
+        {"docked": True, "supply_volts": 1.4, "battery_volts": 11.0}])
+    actor.sample()
+
+    assert actor.share["dock_disagreement"] == "line_without_supply"
+    assert int(actor.share["metrics"]["dock_disagreements"]) == 1
+
+def test_a_disagreement_is_counted_once_and_not_every_sample():
+    """A forklift is powered down for weeks.  A warning every sample for
+    weeks is one an operator stops reading"""
+
+    actor = make_actor(script=[
+        {"docked": True, "supply_volts": 1.4, "battery_volts": 11.0}])
+    for _ in range(5):
+        actor.sample()
+
+    assert int(actor.share["metrics"]["dock_disagreements"]) == 1
+
+def test_the_report_clears_when_the_signals_agree_again():
+    actor = make_actor(script=[
+        {"docked": True, "supply_volts": 1.4, "battery_volts": 11.0},
+        {"docked": True, "supply_volts": 12.0, "battery_volts": 11.0}])
+    actor.sample()
+    assert actor.share["dock_disagreement"] == "line_without_supply"
+
+    actor.sample()
+
+    assert actor.share["dock_disagreement"] == "-"
+
+def test_a_floating_rail_makes_the_host_undocked_to_the_policy():
+    """The whole point.  "docked" published as "no" is what starts the
+    deadline that puts this host away.
+
+    The dock dwell applies to this as it does to the line itself: a host
+    counts as docked until it has been undocked for "dock_dwell_s", so a
+    supply that dips for a moment stops nothing"""
+
+    actor = make_actor(script=[
+        {"docked": True, "supply_volts": 1.4, "battery_volts": 11.0}])
+    dwell = float(THRESHOLDS["dock_dwell_s"])
+    reading = actor.reading()
+
+    actor._evaluate(reading, now=1000.0)
+    assert actor.share["docked"] == "yes"          # Inside the dwell
+
+    actor._evaluate(reading, now=1000.0 + dwell + 1)
+
+    assert actor.share["docked"] == "no"
+
+def test_a_powered_supply_still_reads_as_docked():
+    actor = make_actor(script=[
+        {"docked": True, "supply_volts": 12.0, "battery_volts": 11.0}])
+    actor.sample()
+
+    assert actor.share["docked"] == "yes"
+    assert actor.share["dock_disagreement"] == "-"
+
+# --------------------------------------------------------------------------- #

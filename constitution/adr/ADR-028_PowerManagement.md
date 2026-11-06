@@ -535,6 +535,30 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     read as the time it was last heard, or a client reporting inside the dwell is called
     lost. The two clocks are separate, and a test covers exactly that case.
 
+20. **The dock line is believed only where the supply voltage agrees with it.**
+    Dock detection and supply voltage are two independent signals, and each fails in a way
+    the other does not. A powered-down supply does not fall to zero: it floats, and a rail at
+    a volt or two holds the dock line in the state that means docked.
+
+    A host that wrongly believes it is docked starts no deadline, tells no writer to stop,
+    holds its own power on, and drains the battery pack flat. That is the outcome this whole
+    record exists to prevent, so the two signals are compared and **a disagreement reads as
+    undocked**, whichever signal is wrong. A line that says undocked under a live rail means
+    the line or its sense circuit has failed, and running the battery pack down is still the
+    worse mistake.
+
+    `docked_volts_minimum` is the threshold, 8.0 V by default, read at the monitor rather
+    than at the supply input. The existing dock dwell applies to the result, so a rail that
+    dips for a moment stops nothing. A disagreement is published and counted, on the change
+    only: a host that quietly corrects a broken signal teaches nobody that it is broken, and
+    a warning on every sample for weeks is one an operator stops reading.
+
+    Turning the threshold off leaves one signal where this design calls for two. That is for
+    a deployment whose dock line is trusted on its own, or which has no supply monitor.
+
+    A forklift found this, with its supply powered down and the rail between 0.3 V and 2.7 V.
+    The rule had been adopted for phase 3 and was never written: `docked` was the line alone.
+
 ## Consequences
 
 **Good.**

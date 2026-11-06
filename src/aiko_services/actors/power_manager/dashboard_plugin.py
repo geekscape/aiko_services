@@ -128,7 +128,10 @@ GROUPS = (
         "quiesce_volts", "battery_volts_charged")),
     ("graces and deadlines", ("powered_down_grace_s",
         "powered_down_application_grace_s", "powered_up_grace_s",
-        "undocked_maximum_s", "dock_dwell_s", "battery_dwell_s")),
+        "undocked_maximum_s", "battery_dwell_s")),
+    # Both of these decide whether the host believes it is docked, so
+    # they are read together and edited together
+    ("docking", ("dock_dwell_s", "docked_volts_minimum")),
     ("supply", ("supply_amps_maximum", "supply_amps_fraction",
         "supply_headroom_volts", "supply_warning_dwell_s")),
     ("up-time", ("powered_up_maximum_s", "powered_up_requests_maximum")),

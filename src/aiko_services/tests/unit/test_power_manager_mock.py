@@ -149,16 +149,19 @@ def test_no_threshold_is_the_cell_damage_limit():
     test holds the rule because a threshold is a number an edit can lower.
 
     Only the thresholds that are compared against the battery pack's own
-    voltage are in scope.  A headroom is a difference between two voltages
-    and is small on purpose, so naming every threshold with "volts" in it
-    would fail on something that is not a pack voltage at all"""
+    voltage are in scope.  Two kinds are not, and each is named here, so
+    a new voltage threshold has to be classified rather than skipped: a
+    headroom is a difference between two voltages and is small on
+    purpose, and a supply threshold is read against the rail, which has
+    nothing to do with what damages a cell"""
 
     from aiko_services.actors.power_manager.power_manager import (
         CELL_DAMAGE_VOLTS)
 
     differences = ("supply_headroom_volts",)
+    supply = ("docked_volts_minimum",)      # The rail, not the pack
     absolute = [name for name in THRESHOLDS
-        if "volts" in name and name not in differences]
+        if "volts" in name and name not in differences + supply]
     assert sorted(absolute) == [
         "battery_volts_charged", "battery_volts_floor", "battery_volts_low",
         "quiesce_volts"]
