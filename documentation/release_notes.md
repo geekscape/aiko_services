@@ -8,7 +8,7 @@ audience: [developers, end-users]
 status: operational
 ste: false
 version: "0.8-dev"
-last_updated: 2026-09-28
+last_updated: 2026-11-02
 ---
 
 # Aiko Services release notes
@@ -135,7 +135,42 @@ sections are.
   The Pipeline holds the Stream lock while a frame is encoded, so the
   source is not read meanwhile.  A slow encode thus loses frames at the
   source.  *store_forward_pipeline_0.json* and the cameras' recording
-  example *depthai_pipeline_2.json* encode *avc1*
+  examples *depthai_pipeline_2.json* and *gigev_pipeline_1.json* encode
+  *avc1*
+
+* Camera DataSources gain *focus_assist*: when true, *sensor.sharpness*
+  on the dashboard gives the Laplacian variance of the gray center third
+  of a frame, once a second.  Turn a manual focus ring until it peaks.
+  *VideoReadGigE* gains *max_exposure_us*, the auto-expose ceiling.  Its
+  default is 80 % of the frame period when free-running, 100 ms at 8 fps.
+  The old fixed 250 ms ceiling slowed a camera in a dim scene below its
+  *frame_rate*
+
+* *VideoReadGigE* uses a camera's own image features when it has them.
+  *exposure_us* *auto* is now the camera's continuous auto exposure and
+  gain.  *max_exposure_us* caps it, and *frame_rate* is held.  *host* is
+  the one-shot auto-expose.  It now skips the frames that a free-running
+  camera had queued.  New *brightness_target* and *white_balance*.  In
+  *crop* mode the camera delivers the target size itself when that keeps
+  90 % of the view.  On an embedded ARM computer at 1920x1080 this took
+  the IDS camera from 7.0 to 8.00 fps, with neutral color.  The camera's
+  *sensor.auto_status*, *sensor.white_balance*, *sensor.temperature_c*
+  and *sensor.packets_dropped* are on the dashboard
+
+* The camera DataSources capture on a thread of their own and queue two
+  frames.  *frame_generator()* only takes a ready frame, so the Stream
+  lock is free while the camera waits.  Before, a camera's wait held
+  that lock for most of each frame period.  The event loop then never
+  reached its MQTT messages, so a dashboard showed no variables for the
+  Pipeline.  New share key *frames_dropped*
+
+* New *elements/web* package.  *VideoShowWeb*
+  (*elements/web/web_io.py*) is a pass-through element that shows the
+  latest image in a browser as a live MJPEG stream.  The page also shows
+  the shared state of chosen elements, aiming overlays and a
+  *focus_assist* switch.  It costs nothing while nobody watches.  One
+  browser at 4 fps cost 8 % of one core on an embedded ARM computer.
+  Example *web_pipeline_0.json*
 
 * New DataSchemes *depthai* (*elements/cameras/scheme_depthai.py*) and
   *gigev* (*elements/cameras/scheme_gigev.py*), on the shared
@@ -204,6 +239,45 @@ sections are.
   now converted: 183 documents declare *ste: adapted*, and the five
   historical records keep *ste: false* on purpose
 
+* Daemon supervision, *src/aiko_services/main/daemon_supervisor*
+  (ADR-026): the operating system starts one daemon for each host, the
+  ProcessManager, and its definition file starts everything else.
+  *aiko_supervisor render* shows the service description and changes
+  nothing.  *aiko_supervisor install* writes a systemd unit on Linux or a
+  launchd agent on macOS.  Then *start*, *stop*, *status* and *uninstall*
+
+* ProcessManager definition files: each entry starts with an *enabled*
+  flag, *true* or *false*.  An entry can also be an object with *enabled*,
+  *command* and *cwd*, which starts the process in that working
+  directory.  *aiko_process create* gains *--cwd*
+
+* FunctionGate, *src/aiko_services/main/function_gate.py*: one aspect,
+  composed into every Actor, decides which functions the message bus may
+  call (P12, ADR-023).  An Implementation gives it an allow list, usually
+  *interface_functions()* of its Interfaces.  The default allows every
+  function, as before
+
+* *aiko_process run* is safe by default: from the message bus it accepts
+  only *(list ...)* and *(set_log_level ...)*.  *--unsafe* accepts every
+  function of the ProcessManager Interface.  The shared state holds the
+  process table, one *process.UID* entry for each process
+
+* WhisPlay Actor, *src/aiko_services/actors/whisplay*: the camera on the
+  240x280 color panel of a WhisPlay HAT, and a long button press, more
+  than 3 s, that starts an action.  The default action halts the
+  Raspberry Pi cleanly.  The command is *aiko_whisplay*
+
+* The Recorder works and has tests: the *aiko_recorder* command, filters,
+  dispatch that denies by default, and each record published as it
+  arrived
+
+* The Aiko Dashboard moves to *src/aiko_services/ide/tui/dashboard*.  It
+  gains pages for the ProcessManager, the Recorder, a Category and the
+  HyperSpace.  A ProcessManager definition can be held in a Category
+
+* New tutorial *documentation/tutorials/production_instance.md*: a 24x7
+  instance on Linux, with one ProcessManager that systemd starts
+
 ### Deprecations and compatibility
 
 The wire protocol is unchanged: implementations in other languages and
@@ -240,6 +314,25 @@ remote callers are unaffected.  For Python code:
   new *video* extra installs *opencv-python* for the video and image
   elements.  The project version is now *0.8.dev0*, the PEP 440 form of
   *\_\_version\_\_* *0.8-dev*
+
+* **Breaking:** function name aliases are dropped (ADR-025, amended
+  2026-10-23).  The Display Actor denies *(oled:text ...)*, the other
+  *oled:* names, and *(exit)*.  A client of the aiko_engine_mp vocabulary
+  must send the plain names.  *WIRE_COMMANDS* becomes *FUNCTIONS*, and
+  *metrics.rejected* becomes *metrics.denied*
+
+* **Breaking:** *aiko_process run* denies *(create ...)*, *(destroy ...)*,
+  *(exit ...)* and *(stop)* from the message bus.  Give *--unsafe* to
+  accept them
+
+* **Breaking:** a ProcessManager definition entry without its *enabled*
+  flag is reported and skipped
+
+* **Breaking:** the Dashboard modules move from *aiko_services.main.dashboard*
+  to *aiko_services.ide.tui.dashboard*.  A plug-in outside the repository
+  that imports *aiko_services.main.dashboard* raises *ImportError*.
+  *aiko.ServiceFrame* and *aiko.LogUI* still resolve.  The default
+  plug-in module is *aiko_services.ide.tui.dashboard.plugins*
 
 ### Testing
 
@@ -287,6 +380,14 @@ remote callers are unaffected.  For Python code:
   *vt100* cases are expected failures, because asciimatics cannot start
   there.  A fake output stands in for the panel, so no broker and no panel
   are needed.  New *test_example_oled.py*: 4 tests for the simple example
+
+* New *tests/unit/conftest.py*: after each unit test, an autouse fixture
+  removes the event-loop timers and mailboxes that the test registered.
+  Before, a full unit run left about 490 mailboxes and 70 timers
+  registered, and every event-loop pass visited them all.  A timing test
+  then failed in each full run on a Raspberry Pi 4 and passed alone.  The
+  run is also 8 % faster on macOS.  *AIKO_TEST_REPORT_LEAKS=1* lists the
+  tests that leave registrations behind
 
 ### Bug Fixes
 
@@ -397,6 +498,29 @@ remote callers are unaffected.  For Python code:
   to *#* is also restored after a disconnection.  New tests: in
   *test_mqtt.py*, and *tests/integration/test_mqtt_reconnect.py*, which
   starts and stops its own *mosquitto*
+
+* The ProcessManager's *list* reply is built with *generate()*.  An
+  example of the problem is the *-L 8080:127.0.0.1:8080* argument of an
+  ssh tunnel.  Before, the client read an argument that starts with digits
+  and a colon as a length prefix.  The client's *parse()* then failed with a *TypeError*,
+  and *aiko_process list* timed out.  *parse()* now raises *ValueError* for
+  a malformed payload: a length prefix longer than the payload, or a list
+  without its closing parenthesis.  *do_request()* logs and drops a
+  response that does not parse.  New *test_parser.py*
+
+* *ServicesIterator* gains *__iter__()*.  Before, *aiko_registrar list*
+  raised on Python 3.13, which refuses a list comprehension over an
+  iterator without it.  *Services.copy()* is now a snapshot, with its
+  count
+
+* The Dashboard identifies the selected Service by its full topic path.
+  Before, it read the display column, which abbreviates a topic path
+  longer than 26 characters.  Thus a Service of a remote broker could not
+  be selected
+
+* The MQTT client logs the probed and connected address at DEBUG, not
+  INFO.  Before, each command-line client printed two lines before its
+  own output
 
 ---
 

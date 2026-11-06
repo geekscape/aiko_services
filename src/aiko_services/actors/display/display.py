@@ -27,24 +27,26 @@
 #   aiko_display applet NAME [ARGS ...] | applet -l | stop | key NAME [tap|down|up]
 #   aiko_display keys                   # interactive console: see console.py, keys.py
 #
-#   mosquitto_pub -t $TOPIC_IN -m "(oled:text 0 0 hello)"     # aiko_engine_mp style
+#   mosquitto_pub -t $TOPIC_IN -m "(text 0 0 hello)"           # the bottom row
 #   mosquitto_pub -t $TOPIC_IN -m "(text 0 8 second row)"
 #   mosquitto_pub -t $TOPIC_CONTROL -m "(update contrast 64)"  # what the Dashboard does
 #
 # Wire commands (one-way: outcomes are observed in the shared state)
 # ~~~~~~~~~~~~~
-#   (clear)                     (oled:clear)     erase the canvas
-#   (log WORDS ...)             (oled:log ...)   scroll up, write on the bottom row
-#   (pixel X Y)                 (oled:pixel ...) light a pixel, origin bottom-left
-#   (pixels X Y X Y ...)        (oled:pixels ..) light pixels, at most 256 pairs
+#   (clear)                                      erase the canvas
+#   (log WORDS ...)                              scroll up, write on the bottom row
+#   (pixel X Y)                                  light a pixel, origin bottom-left
+#   (pixels X Y X Y ...)                         light pixels, at most 256 pairs
 #   (line X0 Y0 X1 Y1)                           draw a line
-#   (text X Y WORDS ...)        (oled:text ...)  write text, cell bottom-left at (X, Y)
-#   (exit)                      = (stop)         blank the display and terminate
+#   (text X Y WORDS ...)                         write text, cell bottom-left at (X, Y)
+#   (stop)                                       blank the display and terminate
 #   (applet NAME [ARGS ...])                run an applet; "none" shows the canvas
 #   (key NAME [tap|down|up])                     a key in the map runs its preset,
 #                                                any other goes to the applet
 #   (mirror TOPIC SECONDS)                       a leased feed of raw frames to TOPIC
-#   Anything else on the "in" topic is denied (P12), including "(run)".
+#   Anything else on the "in" topic is denied (P12), including "(run)",
+#   "(exit)" and the aiko_engine_mp names "(oled:text ...)" etc: one
+#   function has one name (ADR-025, amended 2026-10-23).
 #
 # Shared state (aiko_dashboard shows it; the RW keys can be edited there)
 # ~~~~~~~~~~~~
@@ -62,13 +64,15 @@
 # tick (30 Hz) and only when it changed.
 #
 # Coordinates: origin bottom-left, y upwards (aiko_engine_mp compatible);
-# the only y flip is graphics.Canvas._device_y()
+# the only y flip is graphics.FrameBuffer._device_y()
 #
 # Protocol: display:0 (aspects canvas:0 screen:0 interaction:0)
 #
 # To Do
 # ~~~~~
-# - Dashboard plug-in; convergence with aiko_engine_mp (protocol oled:0)
+# - A real depth: gray scale and color, and an image command, so that the
+#   Display Actor can drive a color panel such as the WhisPlay's
+#   (actors/whisplay); then convergence with aiko_engine_mp, which comes last
 
 from abc import abstractmethod
 import collections
@@ -110,7 +114,6 @@ _VERSION = 0
 PROTOCOL_TYPE = "display"
 PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/{PROTOCOL_TYPE}:{_VERSION}"
 
-# aiko_engine_mp names its commands "oled:clear" etc: the same methods
 LOG_LINES = 8                 # the log ring: oldest line dropped
 PIXEL_PAIRS_MAXIMUM = 256     # per (pixels ...) command
 TEXT_LENGTH_MAXIMUM = 128     # characters per (text ...) or (log ...)
@@ -232,9 +235,9 @@ def _words(words):
 class Canvas(aiko.Interface):
     """
     Drawing on a canvas: a one-bit frame buffer of "size" pixels, origin
-    bottom-left and y upwards, wire-compatible with the aiko_engine_mp
-    (MicroPython) OLED: "(oled:text ...)" and "(text ...)" are the same
-    command.  Every method is one-way: a denied command changes nothing
+    bottom-left and y upwards, the same coordinates as the aiko_engine_mp
+    (MicroPython) OLED.  The aiko_engine_mp names "(oled:text ...)" etc are
+    denied: one function has one name.  Every method is one-way: a denied command changes nothing
     but "metrics.denied" and "last_error" in the shared state.  Drawing
     stops any running applet, except "log", whose lines the status applet
     shows itself.  Share: font and title (RW); size, origin, depth,
@@ -247,27 +250,27 @@ class Canvas(aiko.Interface):
     @abstractmethod
     def clear(self):
         """Erase the canvas (the title row stays).
-        Wire form: "(clear)" or "(oled:clear)".
+        Wire form: "(clear)".
         Outcome: the display shows a blank canvas.  Projection: command"""
 
     @abstractmethod
     def log(self, *words):
         """Scroll the canvas up one text row and write WORDS on the bottom
         row; the line is also kept (8 lines) for the status applet.
-        Wire form: "(log WORDS ...)" or "(oled:log WORDS ...)"; runs of
+        Wire form: "(log WORDS ...)"; runs of
         spaces collapse to one.  Outcome: share "log_count" +1.
         Projection: command"""
 
     @abstractmethod
     def pixel(self, x, y):
         """Light one pixel: x 0..width-1 left to right, y 0..height-1
-        bottom to top.  Wire form: "(pixel X Y)" or "(oled:pixel X Y)".
+        bottom to top.  Wire form: "(pixel X Y)".
         Denied when out of range.  Projection: command"""
 
     @abstractmethod
     def pixels(self, *coordinates):
         """Light many pixels: an even number of integers, at most 256 pairs.
-        Wire form: "(pixels X Y X Y ...)" or "(oled:pixels ...)".
+        Wire form: "(pixels X Y X Y ...)".
         Denied as a whole when any coordinate is bad.  Projection: command"""
 
     @abstractmethod
@@ -279,7 +282,7 @@ class Canvas(aiko.Interface):
     def text(self, x, y, *words):
         """Write WORDS in the current font with the text cell's bottom-left
         at (X, Y): Y=0 is the bottom row, Y=8 the row above with the 5x7
-        font.  Wire form: "(text X Y WORDS ...)" or "(oled:text ...)".
+        font.  Wire form: "(text X Y WORDS ...)".
         Projection: command"""
 
 class Screen(aiko.Interface):
@@ -1135,7 +1138,7 @@ class DisplayImpl(Display):
         self.ec_producer.update("connection", _token(connection_state))
         self._title_due = 0.0
 
-    # Rejections, errors, shutdown --------------------------------------- #
+    # Denials, errors, shutdown ------------------------------------------ #
 
     def _deny(self, method, reason, detail=""):
         diagnostic = f"{self.name}: {method} denied: {reason}"

@@ -77,11 +77,26 @@ from .discovery import (
 
 from .dependency import Dependency, dependency_args, DependencyImpl
 
+from .category_view import (
+    CategoryNode, CategoryTree, Entry, entries_of_cache, entry_of,
+    entry_path_join, entry_path_parent, parse_entry_records, root_entry
+)
 from .category import Category, CategoryImpl
 
 from .hyperspace import HyperSpace, HyperSpaceImpl
 
-from .process_manager import ProcessManager, ProcessManagerImpl
+from .recorder import (
+    LRU_CACHE_SIZE, RING_BUFFER_SIZE, Recorder, RecorderImpl
+)
+
+from .process_definition import (
+    PROCESS_SCHEME, Process, command_line, definition_json,
+    is_process_entry, process_of_entry, process_url
+)
+from .process_manager import (
+    ProcessManager, ProcessManagerCache, ProcessManagerImpl,
+    parse_process_share
+)
 
 from .lifecycle import LifeCycleClient, LifeCycleManager
 
@@ -106,6 +121,5 @@ from .registrar import *                  # TODO: Narrow to required references
 
 # from .cli import *
 
-from .dashboard import LogUI, ServiceFrame
 
 aiko.process = process_create()

@@ -13,7 +13,7 @@ source:
 related: [actor, dashboard, dashboard_plugin, registrar, share, lease,
   ../../../constitution/adr/ADR-025_RemoteDisplayAbstraction]
 version: "0.8-dev"
-last_updated: 2026-09-28
+last_updated: 2026-11-02
 ---
 
 # Display Actor design — what it proves, what it taught, where it goes
@@ -104,9 +104,9 @@ SBC, and tmux. The test guide lists them.
 
 | Finding | Status |
 |---|---|
-| A stale retained `(primary found ...)` after a power cycle kept every new Registrar secondary | Fixed on branch `andyg/registrar-liveness`: the Registrar probes a found primary and publishes `(primary absent)` when the probe gets no reply |
-| A `.local` name that resolves to an unroutable IPv6 address stalled the MQTT client for 5 s | Fixed on branch `andyg/mqtt-ipv4-first`: IPv4 first, a 2 s limit for each address, and paho connects to the address that answered |
-| `remove_message_handler()` raises on the last handler of a binary or wildcard topic and never unsubscribes (`process.py`) | Open: on the review agenda. The plug-in does not call it |
+| A stale retained `(primary found ...)` after a power cycle kept every new Registrar secondary | Fixed (#109, 2026-10-01): the Registrar probes a found primary and publishes `(primary absent)` when the probe gets no reply. Verified after two reboots of a Linux SBC |
+| A `.local` name that resolves to an unroutable IPv6 address stalled the MQTT client for 5 s | Fixed (#110, 2026-10-01): IPv4 first, a 2 s limit for each address, and paho connects to the address that answered |
+| `remove_message_handler()` raises on the last handler of a binary or wildcard topic and never unsubscribes (`process.py`) | Open: PR #55 proposes a fix. The plug-in does not call it |
 | `mqtt.publish()` waits in a loop when the client is disconnected | Open. The display guards each publish with the connection state |
 | The event loop handles one message in each 10 ms pass | Open. A flood of `(pixels ...)` commands queues |
 | Timers added before `run()` are re-based when the loop starts | Known |
@@ -146,7 +146,7 @@ does not know is logged as an ERROR, "Function not found".
   in the protocol document. The 8x8 font (deferred phase 5) gives the
   same pixels.
 - **Epic 3.** Events on `out`: `(applet NAME started|finished)`,
-  `(rejected METHOD REASON)`, `(panel DEVICE ok|absent)`,
+  `(denied METHOD REASON)`, `(panel DEVICE ok|absent)`,
   `(mirror TOPIC created|destroyed)`, each also in the share. Promote
   `Canvas`, `Screen` and `Interaction` to framework Interfaces when
   Parameters and Streams compose with Actor

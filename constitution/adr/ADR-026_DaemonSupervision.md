@@ -7,13 +7,13 @@ description: Makes the operating system start one daemon for each host, the
   aspect for composition later
 type: adr
 audience: [project-lead, architects, developers, ai-coding-agents]
-status: proposal
+status: normative
 ste: adapted
 related: [ReadMe, ADR-022_CompositionBoundary, ADR-023_GuardedEvalDefaultDeny,
   ADR-025_RemoteDisplayAbstraction, ../p_00_DesignPrinciples,
   ../p_02_CandidatePrinciples, ../s_02_InterfaceComposition,
   ../s_01_RepositoryLayout]
-last_updated: 2026-10-21
+last_updated: 2026-11-02
 ---
 
 # ADR-026 — Daemon supervision: the `DaemonSupervisor` Interface, one daemon for each host, render before install

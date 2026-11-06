@@ -1,8 +1,24 @@
-from asciimatics.widgets import Layout, MultiColumnListBox, Widget
+#!/usr/bin/env python3
+#
+# Aiko Services: the Registrar's Dashboard page
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# The Services the Registrar knows about, and its log.  It reads the
+# ServicesCache, which the Dashboard already keeps, rather than asking the
+# Registrar itself.
+#
+# Registered through "plugins.py", the Dashboard's default "--plugin"
+# module, so this page needs no flag.  The key is the protocol type.
+#
+# To Do
+# ~~~~~
+# - Show the Service history, which the ServicesCache also holds
+# - Filter the list, as the Dashboard's own page does
+
+from asciimatics.widgets import Layout, MultiColumnListBox
 
 import aiko_services as aiko  # designed to be external to the main framework
 
-__all__ = []
+__all__ = ["RegistrarFrame", "plugins"]
 
 class RegistrarFrame(aiko.ServiceFrame):
     def __init__(self, screen, dashboard):
@@ -45,8 +61,7 @@ class RegistrarFrame(aiko.ServiceFrame):
 
         self.log_ui._update(frame_no)
 
-# plugin key can be either the Service "name" or "protocol"
+# plugin key: the protocol type of registrar:2
+plugins = {"registrar": RegistrarFrame}
 
-plugins = {
-    "registrar": RegistrarFrame
-}
+# --------------------------------------------------------------------------- #

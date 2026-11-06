@@ -79,7 +79,13 @@ def test_plan_resolution():
     assert plan_resolution(native, None) == ((0, 0, 4000, 3000), 1, None)
     aoi, decimation, host = plan_resolution(native, (1920, 1080), "crop")
     assert aoi == (0, 375, 4000, 2250)            # 16:9 crop, centred
-    assert decimation == 1 and host == (1920, 1080)
+    assert decimation == 1 and host == (1920, 1080)  # exact: 48 %, too small
+    aoi, decimation, host = plan_resolution(      # the IDS camera's case
+        native, (1920, 1080), "crop", decimations=(1, 2, 3, 4, 8))
+    assert aoi == (80, 420, 3840, 2160)           # exactly 2 x the target
+    assert decimation == 2 and host is None       # 96 % of the width
+    aoi, decimation, host = plan_resolution(native, (3840, 2160), "crop")
+    assert aoi == (80, 420, 3840, 2160) and host is None
     aoi, decimation, host = plan_resolution(
         native, (2000, 1500), "crop", decimations=(1, 2, 4))
     assert aoi == (0, 0, 4000, 3000) and decimation == 2 and host is None
@@ -292,3 +298,66 @@ def test_scheme_registered_once():
     module = importlib.import_module(
         "aiko_services.elements.cameras.scheme_depthai")
     assert aiko.DataScheme.LOOKUP["depthai"] is module.DataSchemeDepthAI
+
+def _checkerboard(size=240, square=8):
+    tile = (np.indices((size, size)).sum(axis=0) // square) % 2
+    gray = (tile * 255).astype(np.uint8)
+    return np.dstack([gray, gray, gray])
+
+def _box_blur(image, radius=3):
+    blurred = image.astype(np.float32)
+    for axis in (0, 1):
+        blurred = sum(np.roll(blurred, shift, axis=axis)
+                      for shift in range(-radius, radius + 1))  \
+            / (2 * radius + 1)
+    return blurred.astype(np.uint8)
+
+def test_focus_sharpness_peaks_when_sharp():
+    sharp = _checkerboard()
+    assert camera.focus_sharpness(sharp) > 10 * camera.focus_sharpness(
+        _box_blur(sharp))
+    assert camera.focus_sharpness(np.zeros((90, 120, 3), np.uint8)) == 0.0
+    gray = sharp[..., 0]
+    assert camera.focus_sharpness(gray) == pytest.approx(
+        camera.focus_sharpness(sharp), rel=1e-3)
+    assert camera.focus_sharpness(np.zeros((6, 6, 3), np.uint8)) == 0.0
+
+def test_focus_sharpness_matches_the_spike_metric():
+    """The OpenCV form the camera spike used: Laplacian variance of the
+    gray center third.  Pure NumPy here, same kernel"""
+
+    cv2 = pytest.importorskip("cv2")
+    rng = np.random.default_rng(3)
+    image = rng.integers(0, 256, (300, 450, 3), dtype=np.uint8)
+    height, width = image.shape[:2]
+    center = image[height // 3:2 * height // 3, width // 3:2 * width // 3]
+    gray = cv2.cvtColor(center, cv2.COLOR_RGB2GRAY).astype(np.float32)
+    expected = cv2.Laplacian(gray, cv2.CV_32F)[1:-1, 1:-1].var()
+    assert camera.focus_sharpness(image) == pytest.approx(expected, rel=0.02)
+
+def test_camera_auto_settle():
+    settle = camera.CameraAutoSettle(5)
+    assert not settle.feed({"auto_status": "AecActive"})
+    assert not settle.feed({"auto_status": "Done",
+                            "white_balance": "Active"})
+    assert settle.feed({"auto_status": "AecStuckHigh",   # as far as it goes
+                        "white_balance": "Done"})
+    assert not settle.timed_out and settle.frames == 3
+    settle = camera.CameraAutoSettle(2)
+    assert not settle.feed({})
+    assert settle.feed({}) and settle.timed_out
+    assert camera.CameraAutoSettle(0).done
+
+def test_auto_expose_skips_queued_frames():
+    """A free-running camera's queued frames predate each change: two are
+    captured and skipped after every adjustment, one step each"""
+
+    do_fake_initialize()
+    fake = FakeCamera(resolution=(64, 48))
+    fake.open()
+    steps = list(camera.auto_expose(fake, max_iterations=3,
+                                    discard_frames=2))
+    assert len(fake.exposures) == 3               # three adjustments ...
+    assert fake.captured == 3 * (1 + 2)           # ... each metered once
+    assert len(steps) == 3 * (1 + 2) + 1          # and the final give-up
+    assert steps[-1][0] is True
