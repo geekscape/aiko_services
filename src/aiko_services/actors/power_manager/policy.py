@@ -45,10 +45,10 @@
 #   (ADR-028 decision 10).  decide() takes volts today
 
 __all__ = [
-    "Dwell", "EXACT_REASONS", "HOLD", "MODES", "MODE_CONSERVE",
-    "MODE_NORMAL", "MODE_QUIESCE", "REASONS", "SHUTDOWN", "decide",
-    "SUPPLY_WARNINGS", "decide_action", "decide_mode", "supply_warning",
-    "writing_ok",
+    "DOCK_DISAGREEMENTS", "Dwell", "EXACT_REASONS", "HOLD", "MODES",
+    "MODE_CONSERVE", "MODE_NORMAL", "MODE_QUIESCE", "REASONS", "SHUTDOWN",
+    "SUPPLY_WARNINGS", "decide", "decide_action", "decide_mode",
+    "docked_state", "supply_warning", "writing_ok",
 ]
 
 HOLD = "hold"
@@ -388,6 +388,49 @@ def supply_warning(supply_volts, supply_amps, battery_volts, docked,
         and (charged is None or battery_volts < charged):
         return "supply_headroom"
     return None
+
+# What it means when the two signals do not agree.  One word each, for
+# the shared state and for a log a reader can count
+DOCK_DISAGREEMENTS = ("line_without_supply", "supply_without_line")
+
+def docked_state(dock_line, supply_volts, thresholds):
+    """Whether the host is docked, from two independent signals.
+
+    The dock line is one signal and the supply voltage is the other.
+    They are independent on purpose, because each one fails in a way the
+    other does not.
+
+    A powered-down supply does not fall to zero.  It floats, and a rail
+    at a volt or two can hold the dock line in the state that means
+    "docked".  The host then believes a supply is carrying it: no
+    deadline starts, nothing tells the writers to stop, the hold stays
+    on, and the battery pack is drained flat.  That is the outcome this
+    whole design exists to prevent, so the voltage has to agree.
+
+    **A disagreement reads as undocked**, which is the conservative
+    answer whichever signal is wrong.  A line that says docked over a
+    dead rail is the case above.  A line that says undocked under a live
+    rail means the line or its sense circuit has failed, and running the
+    battery pack down is still the worse mistake.
+
+    Returns (docked, disagreement), where "disagreement" is one of
+    DOCK_DISAGREEMENTS or None.  It is reported and counted: a host that
+    quietly corrects a broken signal teaches nobody that it is broken.
+
+    The cross-check needs both signals.  With "docked_volts_minimum"
+    turned off, or with no dock line, or with no supply reading, the one
+    signal that exists is the answer"""
+
+    minimum = _number(thresholds.get("docked_volts_minimum"))
+    if minimum is None or minimum <= 0:
+        return dock_line, None
+    if dock_line is None or supply_volts is None:
+        return dock_line, None
+    supply_present = supply_volts >= minimum
+    if bool(dock_line) == supply_present:
+        return dock_line, None
+    return False, (
+        "line_without_supply" if dock_line else "supply_without_line")
 
 def writing_ok(mode):
     """Whether an application should write to the file systems now.

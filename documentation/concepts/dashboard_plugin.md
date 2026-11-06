@@ -12,9 +12,11 @@ source:
   - src/aiko_services/ide/tui/dashboard/dashboard.py
   - src/aiko_services/ide/tui/dashboard/category_plugin.py
   - src/aiko_services/actors/display/dashboard_plugin.py
+  - src/aiko_services/actors/power_manager/dashboard_plugin.py
+  - src/aiko_services/main/utilities/importer.py
 related: [design_overview, dashboard, service, share, registrar]
 version: "0.7"
-last_updated: 2026-11-02
+last_updated: 2026-11-06
 ---
 
 # Dashboard plug-in
@@ -65,8 +67,47 @@ aiko_dashboard [--plugin MODULE]...   # -p MODULE, may be repeated
   want to keep the Registrar page alongside your own.
 - A module name that cannot be imported is silently ignored
   (`ModuleNotFoundError` is caught and no plug-ins are added).
-- Modules are loaded with `load_module()`, so a Python module path
-  (`package.module`) is expected.
+- Modules are loaded with `load_module()`. A `package.module` name is
+  expected. A pathname that ends in `.py` also loads, and it is the
+  weaker choice: it ties a command line to where a checkout happens to
+  be, and no other import can reach the module it makes.
+- The modules load in the order given, and `update_plugins()` merges
+  each `plugins` dictionary as it goes. So a module late on the command
+  line **replaces** a page that an earlier one registered under the same
+  key.
+- Each module keeps a namespace of its own, whichever form names it.
+
+### One namespace for each module
+
+Until 2026-11-06 that last point was not true of a pathname. Every file
+loaded that way was named `module`, and the deprecated
+`Loader.load_module()` reuses an entry of that name in `sys.modules`.
+The second file therefore ran **into** the first file's namespace, and
+wherever the two shared a name, the second one won.
+
+Two pages found it. The Display page imports the Display Actor's
+`Screen` Interface. The power manager page imports the asciimatics
+`Screen` for its chart colors. The Display page's `Screen` became the
+terminal class, so the page built a remote Service proxy from it, and
+the proxy had no `mirror()`. It failed at the call, far from the cause:
+
+```
+AttributeError: 'ServiceRemoteProxy' object has no attribute 'mirror'
+```
+
+The Display page's own `plugins` dictionary was overwritten too. The
+page appeared at all only because `main()` reads each module's
+dictionary before it loads the next one.
+
+`load_module()` now gives each pathname a name of its own, derived from
+the resolved path. Two rules for a page follow from the episode, and
+they hold whichever form is used:
+
+- **Alias an import that another page may also hold.** Several pages
+  import a class called `Screen` and do not mean the same one.
+- **A plug-in interface that cannot accept two plug-ins is not one.**
+  A test loads two files that both bind `Screen`, and two files that are
+  both called `dashboard_plugin.py`.
 
 ### Public API
 
@@ -279,7 +320,8 @@ details.
 ## Current limitations and roadmap
 
 - Plug-in loading failures are silent — a mistyped `--plugin` module name
-  simply yields no page.
+  simply yields no page. Only the default is covered by a test
+  (`test_the_plugin_default_actually_resolves`).
 - One page per Service *type*. There is no per-instance page state beyond
   the currently selected Service.
 - The Dashboard To Do list envisages plug-ins as the main growth path

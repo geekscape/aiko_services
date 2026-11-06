@@ -48,7 +48,7 @@ from aiko_services.actors.power_manager.hold import (
 )
 from aiko_services.actors.power_manager.button import choose_power_inputs
 from aiko_services.actors.power_manager.power_manager import (
-    BUTTON_SHUTDOWN, ENFORCE, LOG_DIRECTORY,
+    BUTTON_SHUTDOWN, DOCKED_VOLTS_MINIMUM, ENFORCE, LOG_DIRECTORY,
     PERIOD_DEVELOPMENT, SAFE, THRESHOLDS, choose_power_manager,
     power_manager_args, volts_ladder
 )
@@ -68,7 +68,7 @@ def main():
 def _given_thresholds(powered_down_grace, powered_down_application_grace,
     quiesce_volts, battery_volts_low, battery_volts_floor,
     supply_amps_maximum=None, battery_volts_charged=None,
-    working_loss=None):
+    working_loss=None, docked_volts_minimum=None):
 
     """Only what the command line was actually given, so that everything
     else keeps its shipped value"""
@@ -83,6 +83,8 @@ def _given_thresholds(powered_down_grace, powered_down_application_grace,
         **({"battery_volts_charged": battery_volts_charged}
             if battery_volts_charged else {}),
         **({"working_loss_s": working_loss} if working_loss else {}),
+        **({"docked_volts_minimum": docked_volts_minimum}
+            if docked_volts_minimum is not None else {}),
     }
     return thresholds or None
 
@@ -208,6 +210,12 @@ def _thresholds(powered_down_grace, powered_down_application_grace):
     type=float, default=None,
     help="The supply's rated current, from its label.  Given, a supply at "
          "its rating is warned about [default: off]")
+@click.option("--docked_volts_minimum", "-dv", "docked_volts_minimum",
+    type=float, default=None,
+    help="The supply voltage below which the dock line is not believed.  "
+         "A powered-down supply floats rather than falling to zero, and a "
+         "floating rail reads as docked.  Zero turns the cross-check off "
+         f"[default: {DOCKED_VOLTS_MINIMUM:g} V]")
 @click.option("--working_loss", "-wl", "working_loss",
     type=float, default=None,
     help="Seconds of silence from every reporter before the work counts "
@@ -230,7 +238,7 @@ def _thresholds(powered_down_grace, powered_down_application_grace):
 def run_command(name, device, period, log_directory, no_log, keep_days, safe,
     enforce, inputs, quiesce_volts, battery_volts_low, battery_volts_floor,
     battery_volts_charged, supply_amps_maximum, working_loss,
-    button_shutdown,
+    docked_volts_minimum, button_shutdown,
     powered_down_grace, powered_down_application_grace):
     """Run the PowerManager Actor
 
@@ -294,7 +302,8 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
         thresholds=_given_thresholds(
             powered_down_grace, powered_down_application_grace,
             quiesce_volts, battery_volts_low, battery_volts_floor,
-            supply_amps_maximum, battery_volts_charged, working_loss),
+            supply_amps_maximum, battery_volts_charged, working_loss,
+            docked_volts_minimum),
         log_directory=None if no_log else log_directory)
     power_manager = aiko.compose_instance(implementation, init_args)
     try:

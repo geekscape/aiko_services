@@ -53,7 +53,7 @@ from aiko_services.main.utilities import get_hostname
 from aiko_services.actors.power_manager.log import PowerLog
 from aiko_services.actors.power_manager.policy import (
     Dwell, EXACT_REASONS, HOLD, MODE_NORMAL, MODE_QUIESCE, SHUTDOWN, decide,
-    decide_action, decide_mode, supply_warning,
+    decide_action, decide_mode, docked_state, supply_warning,
     writing_ok as policy_writing_ok
 )
 from aiko_services.actors.power_manager.quiesce import (
@@ -82,6 +82,7 @@ __all__ = [
     "BATTERY_VOLTS_CHARGED", "SUPPLY_AMPS_FRACTION",
     "SUPPLY_HEADROOM_VOLTS",
     "SUPPLY_WARNING_DWELL_S", "THRESHOLDS",
+    "DOCKED_VOLTS_MINIMUM",
     "UNDOCKED_MAXIMUM_S", "WORKING_DWELL_S", "WORKING_LOSS_S",
     "WORKING_LOST_PATTERN", "WORKING_PATTERN",
     "WORKING_REPORTERS_MAXIMUM", "PowerManager",
@@ -150,6 +151,14 @@ SUPPLY_WARNING_DWELL_S = 3600.0    # Said once, then at most hourly
 # report makes a noise that reaches a person, so one reporter cannot sound
 # it again until the dwell has passed, and the number of reporters is
 # capped.  Without those two a Service in a loop would be a siren
+# The supply voltage below which a dock line is not believed.  A
+# powered-down supply floats rather than falling to zero, and a rail at a
+# volt or two can hold the line in the state that means "docked": the
+# host then holds its own power on and drains the battery pack flat.
+# 8.0 V suits a 12 V system with room to spare, and it is read at the
+# monitor, which on some hardware sits below the supply input
+DOCKED_VOLTS_MINIMUM = 8.0
+
 WORKING_PATTERN = "pipeline"
 WORKING_LOST_PATTERN = "lost"
 WORKING_DWELL_S = 300.0
@@ -233,6 +242,10 @@ THRESHOLDS = {
     "powered_down_application_grace_s": None,
     "powered_up_grace_s": 60.0,      # After the last Lease is released
     "dock_dwell_s": DOCK_DWELL_S,  # Before an undock is believed
+    # The dock line is believed only where the supply agrees with it.
+    # Off is one signal where the design calls for two, so a deployment
+    # turns it off only where the dock line is trusted on its own
+    "docked_volts_minimum": DOCKED_VOLTS_MINIMUM,
     # The limits on the request surface, which ADR-028 decision 13 makes
     # part of the design: a client can only ask a host to stay up, and
     # these bound what a client in a loop can ask for
@@ -259,7 +272,7 @@ THRESHOLDS = {
 # backstop is then the only deadline
 THRESHOLDS_OPTIONAL = frozenset(
     {name for name, value in THRESHOLDS.items() if value is None}
-    | {"powered_down_grace_s"})
+    | {"powered_down_grace_s", "docked_volts_minimum"})
 
 THRESHOLD_OFF = ("-", "none", "off", "")
 
@@ -698,8 +711,9 @@ class PowerManagerCommon:
                 "quiesces": 0, "button_presses": 0,
                 "powered_up_granted": 0, "powered_up_refused": 0,
                 "powered_up_expired": 0, "working_reports": 0,
-                "working_losses": 0,
+                "working_losses": 0, "dock_disagreements": 0,
                 "supply_warnings": 0},
+            "dock_disagreement": "-",
             "working": {"reporters": 0, "last": "-", "lost": False,
                 "age_s": "-"},
             # The share is a nested dictionary of at most two levels, and a
@@ -882,6 +896,25 @@ class PowerManagerCommon:
         self.logger.info(f"Working: {detail} ({topic})")
         self.signal(WORKING_PATTERN)
         return True
+
+    def _report_dock(self, disagreement):
+        """Report a dock line and a supply that do not agree.
+
+        On the change only.  A forklift is powered down for weeks, and a
+        warning every sample for weeks is one an operator stops reading.
+        The conservative answer is taken either way: a host that quietly
+        corrected a broken signal would teach nobody that it is broken"""
+
+        value = disagreement or "-"
+        if value == self.share.get("dock_disagreement"):
+            return
+        self.ec_producer.update("dock_disagreement", value)
+        if disagreement:
+            self._count("dock_disagreements")
+            self.logger.warning(f"Dock and supply disagree: {disagreement}"
+                ": treated as undocked")
+        else:
+            self.logger.info("Dock and supply agree")
 
     def _check_working(self, now):
         """Report that the work a Service was doing has stopped (§4.16).
@@ -1181,7 +1214,13 @@ class PowerManagerCommon:
         # The dock line glitches, so the host counts as docked until it has
         # been undocked for its dwell.  Holding the power is the safe side
         # of that doubt
-        reported = reading.docked
+        # Two independent signals, and the voltage has the last word.  A
+        # powered-down supply floats, and a floating rail used to read as
+        # "docked": no deadline started, nothing told the writers to
+        # stop, and the battery pack went flat
+        reported, disagreement = docked_state(
+            reading.docked, reading.supply_volts, thresholds)
+        self._report_dock(disagreement)
         undocked_s = self._undocked.update(reported is False, now)
         dock_dwell = float(thresholds.get("dock_dwell_s", DOCK_DWELL_S))
         docked = True if reported is None else (
