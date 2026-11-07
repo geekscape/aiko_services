@@ -37,7 +37,6 @@
 # - Provide add_tags() and remove_tags() (using existing code) ?
 #   - Tags input is a list, but should tags internally be a dictionary ?
 
-from abc import ABC
 from dataclasses import dataclass, field
 from typing import Dict, List
 
@@ -101,7 +100,7 @@ class Context:
         setattr(self, f"initialized_{implementation_name}", True)
 
 
-class Interface(ABC):
+class Interface:
     context = Context()
 
     @classmethod

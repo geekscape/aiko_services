@@ -134,7 +134,7 @@
 
 import random
 import time
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from collections import deque
 
 import click
@@ -259,7 +259,7 @@ class StateMachineModel:
 # --------------------------------------------------------------------------- #
 
 
-class Registrar(Service):
+class Registrar(Service, ABC):
     """
     The Service discovery hub (concepts/registrar.md): the live directory
     of running Services, their history, and the primary election.  Method
