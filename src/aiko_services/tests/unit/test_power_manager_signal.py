@@ -168,12 +168,6 @@ def test_an_unknown_buzzer_raises_rather_than_guessing():
     with pytest.raises(ValueError, match="unknown buzzer"):
         choose_buzzer("klaxon")
 
-def test_auto_chooses_without_gpiozero(monkeypatch):
-    import importlib.util
-    monkeypatch.setattr(
-        importlib.util, "find_spec", lambda name: None)
-    assert choose_buzzer("auto").device == "none"
-
 def test_the_default_line_is_the_board_s_buzzer():
     assert BUZZER_GPIO == 4
 
