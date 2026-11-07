@@ -68,7 +68,7 @@ def test_unimplemented_interface_raises():
 
     try:
         compose_instance(TCmpOrphanImpl, {"context": Context()})
-        assert False, "Expected ValueError for unimplemented Interface"
+        raise AssertionError("Expected ValueError for unimplemented Interface")
     except ValueError as value_error:
         assert "TCmpOrphan" in str(value_error)
 
