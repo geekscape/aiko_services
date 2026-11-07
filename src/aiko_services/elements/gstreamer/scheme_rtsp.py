@@ -45,7 +45,7 @@ class DataSchemeRTSP(aiko.DataScheme):
             width, height = resolution.split("x")
             resolution = (int(width), int(height))
 
-        gst_launch_command = f"rtspsrc location={rtsp_url} latency={RTSP_LATENCY} ! rtph264depay ! h264parse ! {get_h264_decoder()} ! videoconvert ! videorate ! appsink name=sink"
+        gst_launch_command = f"rtspsrc location={rtsp_url} latency={RTSP_LATENCY} ! rtph264depay ! h264parse ! {get_h264_decoder()} ! videoconvert ! videorate ! appsink name=sink"  # noqa: E501
         gst_pipeline = gst.parse_launch(gst_launch_command)
         sink = gst_pipeline.get_by_name("sink")
         sink_caps = f"video/x-raw, format={format}, width={width}, height={height}, framerate={frame_rate}"

@@ -23,7 +23,7 @@ class VideoFileWriter:
         self.queue = Queue(maxsize=30)
 
         # vtenc_h264: 1280x768, 512x288, 256x144
-        gst_launch_command = "appsrc name=source ! videoconvert ! videoscale ! videorate ! video/x-raw,width=1280,height=768,framerate=25/1 ! {} ! splitmuxsink location={}"
+        gst_launch_command = "appsrc name=source ! videoconvert ! videoscale ! videorate ! video/x-raw,width=1280,height=768,framerate=25/1 ! {} ! splitmuxsink location={}"  # noqa: E501
         #   location={}_%03d.mp4
         #   max-files=10
         #   max-size-bytes=1024000

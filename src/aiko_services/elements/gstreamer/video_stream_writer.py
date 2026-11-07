@@ -1,6 +1,6 @@
 # Usage
 # ~~~~~
-# - gst-launch-1.0 videotestsrc ! video/x-raw,width=852,height=480,framerate=\(fraction\)24/1 ! x264enc pass=pass1 threads=0 bitrate=900 tune=zerolatency ! flvmux name=mux ! rtmpsink location="rtmp://highlighter.antmedia.io/WebRTCAppEE/759246100812675440813771"
+# - gst-launch-1.0 videotestsrc ! video/x-raw,width=852,height=480,framerate=\(fraction\)24/1 ! x264enc pass=pass1 threads=0 bitrate=900 tune=zerolatency ! flvmux name=mux ! rtmpsink location="rtmp://highlighter.antmedia.io/WebRTCAppEE/759246100812675440813771"  # noqa: E501
 #
 # To Do
 # ~~~~~
@@ -30,11 +30,11 @@ class VideoStreamWriter:
         self.queue = Queue(maxsize=30)
 
         if rtmp_url:
-            gst_launch_command = 'appsrc name=source ! videoconvert ! x264enc bitrate=1000 me=4 subme=10 ref=2 tune=zerolatency ! video/x-h264 ! h264parse ! video/x-h264 ! queue ! flvmux name=muxer streamable=true ! rtmpsink location="{}" sync=false'.format(
+            gst_launch_command = 'appsrc name=source ! videoconvert ! x264enc bitrate=1000 me=4 subme=10 ref=2 tune=zerolatency ! video/x-h264 ! h264parse ! video/x-h264 ! queue ! flvmux name=muxer streamable=true ! rtmpsink location="{}" sync=false'.format(  # noqa: E501
                 rtmp_url
             )
         else:
-            gst_launch_command = "appsrc name=source ! videoconvert ! {} {} ! rtph264pay config-interval=5 pt=96 ! udpsink host={} port={}".format(
+            gst_launch_command = "appsrc name=source ! videoconvert ! {} {} ! rtph264pay config-interval=5 pt=96 ! udpsink host={} port={}".format(  # noqa: E501
                 utilities.get_h264_encoder(), utilities.get_h264_encoder_options(), hostname, port
             )
 

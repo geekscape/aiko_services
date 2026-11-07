@@ -29,11 +29,11 @@ GRAPHS = [
     #### GRAPH 1 #### Helpful milestone ####
     """ "graph": ["(A B (a_out_0: b_in_0 a_out_1: b_in_1) C Terminate)"], """,
     #### GRAPH 2 #### Helpful milestone ####
-    """ "graph": ["(A B (a_out_0: b_in_0 a_out_1: b_in_1) C (a_out_0: c_in_0 b_out_0: c_in_1 a_out_1: c_in_2) Terminate)"], """,
+    """ "graph": ["(A B (a_out_0: b_in_0 a_out_1: b_in_1) C (a_out_0: c_in_0 b_out_0: c_in_1 a_out_1: c_in_2) Terminate)"], """,  # noqa: E501
     #### GRAPH 3 #### Helpful milestone ####
     """ "graph": ["(A B (A.a_out_0: b_in_0 A.a_out_1: b_in_1) Terminate)"], """,
     #### GRAPH 4 #### Final test ####
-    """ "graph": ["(A B (A.a_out_0: b_in_0 A.a_out_1: b_in_1) C (A.a_out_0: c_in_0 B.b_out_0: c_in_1 A.a_out_1: c_in_2) Terminate)"], """,
+    """ "graph": ["(A B (A.a_out_0: b_in_0 A.a_out_1: b_in_1) C (A.a_out_0: c_in_0 B.b_out_0: c_in_1 A.a_out_1: c_in_2) Terminate)"], """,  # noqa: E501
 ]
 
 ELEMENTS = """

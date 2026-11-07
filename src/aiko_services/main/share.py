@@ -823,7 +823,8 @@ class ServicesCache:
                     self._registrar_service = service_details
         else:
             _LOGGER.debug(
-                f"Service cache: registrar_share_handler(): Unhandled message topic: {topic_path}, payload: {payload_in}"
+                "Service cache: registrar_share_handler(): "
+                f"Unhandled message topic: {topic_path}, payload: {payload_in}"
             )
 
         if self._item_count == 0:
