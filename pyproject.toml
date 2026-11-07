@@ -85,7 +85,10 @@ server = ["flask>=2.3"]
 # the source needs, not what one distribution happens to ship
 video = ["opencv-python>=4.10"]
 # Unit and integration tests
-test = ["pytest~=8.3.4"]
+test = [
+    "pytest~=8.3.4",
+    "pytest-cov"
+]
 # opencv-python = ["opencv-python~=4.10.0.84"]
 # opencv-contrib-python = ["opencv-contrib-python~=4.10.0.84"]
 # linux = ["PyAudio~=0.2.14"]
@@ -147,10 +150,18 @@ exclude = [
 ]
 
 [tool.hatch.envs.default]
+path = ".hatch"
 features = ["test"]
 
 [tool.hatch.envs.default.scripts]
-test = "pytest {args:src/aiko_services/tests/unit}"
+test = "pytest {args:src/aiko_services/tests/unit} && echo Coverage report written to 'coverage/index.html'"
 
 [tool.pytest.ini_options]
 testpaths = ["src/aiko_services/tests/unit"]
+addopts = "--cov --no-cov-on-fail --cov-report=term --cov-report=html"
+
+[tool.coverage.run]
+source = ["aiko_services"]
+
+[tool.coverage.html]
+directory = "coverage"
