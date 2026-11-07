@@ -238,8 +238,8 @@ class ProcessImplementation(ProcessData):
         if service.protocol:
             try:
                 owner = get_username()
-            except:
-                owner = "????????"
+            except OSError:
+                owner = "??????"
                 _LOGGER_PROCESS.warning("Unable to acquire username to identify the Service owner")
             tags = service.get_tags_string()
             # TODO: For payload_out, use parser.generate() ?
