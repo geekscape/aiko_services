@@ -39,6 +39,7 @@
 # - Support .mp3, .ogg and .wav ?
 # - Refactor Speech-To-Text and Text-To-Speech PipelineElements
 
+import importlib.util
 from typing import Tuple
 
 import aiko_services as aiko
@@ -48,32 +49,8 @@ __all__ = ["AudioOutput", "AudioReadFile"]  # "AudioWriteFile"
 
 _LOGGER = aiko.process.logger(__name__)
 
-_XXX_IMPORTED = False
-try:
-    #   import xxx
-    _XXX_IMPORTED = True
-except ModuleNotFoundError:  # TODO: Optional warning flag
-    diagnostic = "audio_io.py: Couldn't import xxx module"
-#   print(f"WARNING: {diagnostic}")
-#   _LOGGER.warning(diagnostic)
-#   raise ModuleNotFoundError(
-#       'xxx package not installed.  '
-#       'Install aiko_services with --extras "xxx" '
-#       'or install xxx manually to use the "audio_io" module')
-
-_CV2_IMPORTED = False
-try:
-    import cv2
-
-    _CV2_IMPORTED = True
-except ModuleNotFoundError:  # TODO: Optional warning flag
-    diagnostic = "audio_io.py: Couldn't import cv2 module"
-#   print(f"WARNING: {diagnostic}")
-#   _LOGGER.warning(diagnostic)
-#   raise ModuleNotFoundError(
-#       'opencv-python package not installed.  '
-#       'Install aiko_services with --extras "opencv" '
-#       'or install opencv-python manually to use the "audio_io" module')
+# cv2 availability check (optional dependency)
+_CV2_AVAILABLE = importlib.util.find_spec("cv2") is not None
 
 # --------------------------------------------------------------------------- #
 # Useful for Pipeline output that should be all of the audios processed
