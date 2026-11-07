@@ -356,6 +356,6 @@ def test_open_is_what_installs_them(monkeypatch):
     monkeypatch.setattr("aiko_services.main.transport.ActorDiscovery", FakeDiscovery)
     client, _ = make_client()
     client.open()
-    assert callable(getattr(client.service, "power_mode"))
+    assert callable(client.service.power_mode)
     client.close()
     assert not hasattr(client.service, "power_mode")
