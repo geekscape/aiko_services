@@ -170,7 +170,7 @@ def _check_interfaces_implemented(cls, implementations):
     unimplemented_interfaces = []
     for ancestor in cls.__mro__[1:]:
         if _is_interface(ancestor) and ancestor not in [ABC, Interface, ServiceProtocolInterface, object]:
-            if not ancestor.__name__ in implementations:
+            if ancestor.__name__ not in implementations:
                 unimplemented_interfaces.append(ancestor.__name__)
     return unimplemented_interfaces
 

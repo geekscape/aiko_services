@@ -123,7 +123,7 @@ class Graph:
 
         def add_successor(node, successor):
             if not isinstance(node, dict):
-                if not node in node_successors:
+                if node not in node_successors:
                     node_successors[node] = OrderedDict()
                 if isinstance(successor, str):
                     node_successors[node][successor] = successor

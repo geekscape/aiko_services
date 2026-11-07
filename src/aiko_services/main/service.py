@@ -410,13 +410,13 @@ class Services:
     def add_service(self, topic_path, service_details):
         process_topic_path, service_topic_path = ServiceTopicPath.topic_paths(topic_path)
         if process_topic_path:
-            if not process_topic_path in self._services:
+            if process_topic_path not in self._services:
                 index = "protocol" if isinstance(service_details, dict) else 2
                 order = service_details[index] != REGISTRAR_PROTOCOL
                 self._services.update({process_topic_path: {}})
                 self._services.move_to_end(process_topic_path, last=order)
             process_services = self._services[process_topic_path]
-            if not service_topic_path in process_services:
+            if service_topic_path not in process_services:
                 process_services[service_topic_path] = service_details
                 self._count += 1
 

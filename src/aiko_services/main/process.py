@@ -211,7 +211,7 @@ class ProcessImplementation(ProcessData):
             sys.exit(self._exit_status)
 
     def add_message_handler(self, message_handler, topic, binary=False):
-        if not topic in self._message_handlers:
+        if topic not in self._message_handlers:
             self._message_handlers[topic] = []
             if binary:
                 self._message_handlers_binary_topics[topic] = True

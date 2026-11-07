@@ -50,7 +50,7 @@ class Connection:
 
     def add_handler(self, connection_state_handler):
         connection_state_handler(self, self.connection_state)
-        if not connection_state_handler in self.connection_state_handlers:
+        if connection_state_handler not in self.connection_state_handlers:
             self.connection_state_handlers.append(connection_state_handler)
 
     def get_state(self):

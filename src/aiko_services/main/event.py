@@ -265,7 +265,7 @@ def mailbox_put(mailbox_name, item):
 def add_queue_handler(queue_handler, item_types=["default"]):
     global _handler_count
     for item_type in item_types:
-        if not item_type in queue_handlers:
+        if item_type not in queue_handlers:
             queue_handlers[item_type] = []
         queue_handlers[item_type].append(queue_handler)
         _handler_count += 1

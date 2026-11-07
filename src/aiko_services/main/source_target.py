@@ -47,7 +47,7 @@ class DataSource(PipelineElementImpl):
         except KeyError as key_error:
             return StreamEvent.ERROR, {"diagnostic": key_error}
 
-        if not scheme in DataScheme.LOOKUP:
+        if scheme not in DataScheme.LOOKUP:
             diagnostic = f'DataSource URL scheme "{scheme}" is not supported'
             return StreamEvent.ERROR, {"diagnostic": diagnostic}
 
@@ -91,7 +91,7 @@ class DataTarget(PipelineElementImpl):
         except KeyError as key_error:
             return StreamEvent.ERROR, {"diagnostic": key_error}
 
-        if not scheme in DataScheme.LOOKUP:
+        if scheme not in DataScheme.LOOKUP:
             diagnostic = f'DataTarget URL scheme "{scheme}" is not supported'
             return StreamEvent.ERROR, {"diagnostic": diagnostic}
 
