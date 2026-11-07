@@ -179,7 +179,7 @@ class LifeCycleManagerImpl(LifeCycleManager, LifeCycleManagerPrivate):
             self.lcm_ec_producer.update("lifecycle_manager_clients_active", 0)
 
     def lcm_create_client(self, parameters=None):
-        if parameters == None:
+        if parameters is None:
             parameters = {}
         client_id = self.lcm_client_count
         self.lcm_client_count += 1

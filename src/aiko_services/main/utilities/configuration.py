@@ -145,7 +145,7 @@ def get_mqtt_configuration(tls_enabled=None):
     username = os.environ.get("AIKO_USERNAME", None)
     password = os.environ.get("AIKO_PASSWORD", None)
 
-    if tls_enabled == None:
+    if tls_enabled is None:
         mqtt_tls = os.environ.get("AIKO_MQTT_TLS", None)
         if mqtt_tls:
             tls_enabled = mqtt_tls == "true"

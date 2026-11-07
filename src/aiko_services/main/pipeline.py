@@ -444,7 +444,7 @@ class PipelineElementImpl(PipelineElement):
     def __init__(self, context):
         self.definition = context.get_definition()
         self.pipeline = context.get_pipeline()
-        self.is_pipeline = self.pipeline == None
+        self.is_pipeline = self.pipeline is None
         if context.protocol == "*":
             context.set_protocol(PROTOCOL_PIPELINE if self.is_pipeline else PROTOCOL_ELEMENT)
         context.call_init(self, "Actor", context)
@@ -1438,7 +1438,7 @@ class PipelineImpl(Pipeline):
                     queue_response=stream.queue_response,
                     topic_response=stream.topic_response,
                 )
-                if status == False:
+                if not status:
                     return None, None
 
         frame_id = stream.frame_id

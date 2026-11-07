@@ -100,7 +100,7 @@ def process_video(video_reader, video_writer):
     while True:
         frame = video_reader.read_frame(0.01)
 
-        if frame != None:
+        if frame is not None:
             if "type" in frame and frame["type"] == "image":
                 #       print("Frame: ", frame["id"], video_reader.queue_size(), video_writer.queue_size())
 

@@ -72,7 +72,7 @@ def compose_class(impl_seed_class, impl_overrides=None):
     may be overridden as required
     """
 
-    if impl_overrides == None:
+    if impl_overrides is None:
         impl_overrides = {}
 
     all_implementations = {**impl_seed_class.get_implementations(), **impl_overrides}
@@ -129,7 +129,7 @@ def compose_instance(impl_seed_class, init_args, impl_overrides=None):
     Build an instance of a FrankensteinClass ... see compose_class()
     """
 
-    if impl_overrides == None:
+    if impl_overrides is None:
         impl_overrides = {}
 
     frankenstein_class, implementations = compose_class(impl_seed_class, impl_overrides)
