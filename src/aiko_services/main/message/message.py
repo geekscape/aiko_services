@@ -15,6 +15,7 @@ class MessageState:
 
 
 class Message(ABC):
+    @abstractmethod
     def __init__(
         self: Any,
         message_handler: Any = None,
