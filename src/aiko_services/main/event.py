@@ -262,7 +262,7 @@ def mailbox_put(mailbox_name, item):
         raise RuntimeError(f"Mailbox {mailbox_name}: Not found")
 
 
-def add_queue_handler(queue_handler, item_types=["default"]):
+def add_queue_handler(queue_handler, item_types=("default",)):
     global _handler_count
     for item_type in item_types:
         if item_type not in queue_handlers:
@@ -271,7 +271,7 @@ def add_queue_handler(queue_handler, item_types=["default"]):
         _handler_count += 1
 
 
-def remove_queue_handler(queue_handler, item_types=["default"]):
+def remove_queue_handler(queue_handler, item_types=("default",)):
     global _handler_count
     for item_type in item_types:
         if item_type in queue_handlers:

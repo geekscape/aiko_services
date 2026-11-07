@@ -143,8 +143,7 @@ class HyperSpace(Category, Actor):
 
 class HyperSpaceImpl(HyperSpace):
     @classmethod
-    def create_hyperspace(cls, hyperspace_name=None, storage_url=_CWD_URL, protocol=PROTOCOL, tags=[], transport=None):
-
+    def create_hyperspace(cls, hyperspace_name=None, storage_url=_CWD_URL, protocol=PROTOCOL, tags=(), transport=None):
         tags = list(tags) + ["ec=true"]
         init_args = actor_args(hyperspace_name, None, None, protocol, tags, transport)
         init_args["storage_url"] = storage_url

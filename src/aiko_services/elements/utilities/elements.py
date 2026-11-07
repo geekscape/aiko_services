@@ -49,7 +49,9 @@ def all_outputs(pipeline_element, stream):
 # - operator:   + - * / < <= > >=
 
 
-def evaluate(expression, arguments={}):
+def evaluate(expression, arguments=None):
+    if arguments is None:
+        arguments = {}
     expression = expression.strip()
 
     if expression in arguments:  # Is an argument ?

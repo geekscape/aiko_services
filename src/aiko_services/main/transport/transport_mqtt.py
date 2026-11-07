@@ -54,7 +54,7 @@ class ActorDiscovery(ServiceDiscovery):  # Move to actor.py or share.py ?
 # -----------------------------------------------------------------------------
 
 
-def create_actor_mqtt(actor_class, name, actor_init_args={}, resources=None, daemon=True):
+def create_actor_mqtt(actor_class, name, actor_init_args=None, resources=None, daemon=True):
     pass
 
 
