@@ -507,7 +507,7 @@ class FilterPopupMenu(PopupMenu):
         self.palette = NICE_COLORS
 
     def _button_handler(self):
-        log_level = self.focussed_widget.text.upper()
+        self.focussed_widget.text.upper()
 
     #   self._set_log_level(log_level)
 

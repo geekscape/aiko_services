@@ -51,7 +51,7 @@ class StateMachineOld(object):
             failure = True
             _LOGGER.critical(machine_error)
 
-        except Exception as exception:
+        except Exception:
             failure = True
             _LOGGER.critical(f"failure during transition: Exception: {traceback.format_exc()}")
 

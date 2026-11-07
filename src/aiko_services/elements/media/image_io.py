@@ -507,7 +507,6 @@ class ImageWriteZMQ(aiko.DataTarget):  # PipelineElement
         context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
-        media_type = "image"  # TODO: "image/zip" ?
         compressed, _ = self.get_parameter("compressed", False)
 
         for image in images:

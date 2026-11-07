@@ -371,7 +371,6 @@ class TextWriteZMQ(aiko.DataTarget):  # PipelineElement
         context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
-        media_type = "text"  # TODO: "text/zip" ?
         for text in texts:
             #      text = f"{media_type}:{len(text)}:{text}"  # "text:length:content" ?
             stream.variables["target_zmq_socket"].send(text.encode())

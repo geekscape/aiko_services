@@ -270,7 +270,7 @@ def main(lru_cache_size, ring_buffer_size, topic_path_filter):
     init_args["topic_path_filter"] = topic_path_filter
     init_args["lru_cache_size"] = lru_cache_size
     init_args["ring_buffer_size"] = ring_buffer_size
-    recorder = compose_instance(RecorderImpl, init_args)
+    compose_instance(RecorderImpl, init_args)
     aiko.process.run()
 
 

@@ -338,7 +338,7 @@ class LifeCycleManagerTestImpl(LifeCycleManagerTest):
     def _connection_state_handler(self, connection, connection_state):
         if connection.is_connected(ConnectionState.REGISTRAR):
             for client_count in range(self.share["client_count"]):
-                lifecycle_client_id = self.lcm_create_client(CLIENT_SHELL_COMMAND)
+                self.lcm_create_client(CLIENT_SHELL_COMMAND)
                 time.sleep(0.01)
 
     def _lifecycle_client_change_handler(self, client_id, command, item_name, item_value):
@@ -457,7 +457,7 @@ def manager(client_count):
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
     init_args = actor_args(ACTOR_TYPE_LIFECYCLE_MANAGER, protocol=PROTOCOL_LIFECYCLE_MANAGER, tags=tags)
     init_args["client_count"] = client_count
-    lifecycle_manager = compose_instance(LifeCycleManagerTestImpl, init_args)
+    compose_instance(LifeCycleManagerTestImpl, init_args)
     aiko.process.run()
 
 
@@ -470,7 +470,7 @@ def client(client_id, lifecycle_manager_topic):
     init_args = actor_args(name, protocol=PROTOCOL_LIFECYCLE_CLIENT, tags=tags)
     init_args["client_id"] = client_id
     init_args["lifecycle_manager_topic"] = lifecycle_manager_topic
-    life_cycle_client = compose_instance(LifeCycleClientTestImpl, init_args)
+    compose_instance(LifeCycleClientTestImpl, init_args)
     aiko.process.run()
 
 

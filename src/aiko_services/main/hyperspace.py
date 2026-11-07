@@ -254,7 +254,6 @@ class HyperSpaceImpl(HyperSpace):
 
     def create(self, category_path, use_storage=True):
         current_category = self
-        category_created = False
         tags = ["ec=true"]
 
         for name, _ in self._path_iterator(category_path):  # TODO: _find_entry()
@@ -662,7 +661,7 @@ def run_command(storage_url, hyperspace_name, protocol, transport, tags):
     """
 
     hyperspace_name = hyperspace_name if hyperspace_name else get_hostname()
-    hyperspace = HyperSpaceImpl.create_hyperspace(hyperspace_name, storage_url, protocol, tags, transport)
+    HyperSpaceImpl.create_hyperspace(hyperspace_name, storage_url, protocol, tags, transport)
     aiko.process.run()
 
 

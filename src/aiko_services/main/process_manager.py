@@ -896,7 +896,7 @@ def run_command(name, watchdog, safe, definition_pathname):
     init_args["definition_pathname"] = definition_pathname
     init_args["watchdog"] = watchdog
     init_args["safe"] = safe
-    process_manager = compose_instance(ProcessManagerImpl, init_args)
+    compose_instance(ProcessManagerImpl, init_args)
     aiko.process.run()
 
 

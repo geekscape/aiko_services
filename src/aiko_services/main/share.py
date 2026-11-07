@@ -997,10 +997,10 @@ def ec_test(ec_producer_pid, ec_producer_sid, filter):
         init_args["ec_producer_pid"] = ec_producer_pid
         init_args["ec_producer_sid"] = ec_producer_sid
         init_args["filter"] = filter
-        ec_consumer_test = compose_instance(ECConsumerTest, init_args)
+        compose_instance(ECConsumerTest, init_args)
     else:
         init_args = service_args(SERVICE_TYPE_EC_PRODUCER, None, None, PROTOCOL_EC_PRODUCER, tags)
-        ec_producer_test = compose_instance(ECProducerTest, init_args)
+        compose_instance(ECProducerTest, init_args)
 
     aiko.process.run(True)
 

@@ -172,7 +172,7 @@ class Message:
                 #       For the specific argument TypeErrors and nothing else
                 try:
                     target_function(*self.arguments)
-                except Exception as exception:  # Used to be only TypeError
+                except Exception:  # Used to be only TypeError
                     arguments = ", ".join(repr(arg) for arg in self.arguments)
                     diagnostic = f"Message.invoke: {self.command}(self, {arguments})"
                     stack_traceback = traceback.format_exc()
@@ -330,7 +330,7 @@ class ActorImpl(Actor):
     def _post_delayed_message_handler(self):
         while self.delayed_message_queue.qsize() > 0:
             delayed_message = self.delayed_message_queue.get()
-            delayed_time = delayed_message[0]
+            delayed_message[0]
             topic = delayed_message[1]
             message = delayed_message[2]
             event.mailbox_put(self._actor_mailbox_name(topic), message)

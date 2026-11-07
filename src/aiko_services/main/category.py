@@ -400,7 +400,7 @@ def run_command(category_name):
 
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
     init_args = actor_args(category_name, None, None, CATEGORY_PROTOCOL, tags)
-    category = compose_instance(CategoryImpl, init_args)
+    compose_instance(CategoryImpl, init_args)
     aiko.process.run()
 
 

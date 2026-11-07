@@ -43,7 +43,7 @@ class ActorDiscovery(ServiceDiscovery):  # Move to actor.py or share.py ?
 
     # TODO: Update to use ServiceFields.name, rather than "actor=name" tag
     def get_actor_mqtt(self, name):
-        actor_topic = ".".join(name.split(".")[:-1])  # WIP: Actor name
+        ".".join(name.split(".")[:-1])  # WIP: Actor name
         services = self.services_cache.get_services()
         raise Exception("Broken: get_actor_mqtt()")  # REVIEW FIXME
         services = services.filter_by_name(name)

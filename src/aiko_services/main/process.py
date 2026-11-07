@@ -181,7 +181,7 @@ class ProcessImplementation(ProcessData):
             if mqtt_connection_required and not mqtt_connected:
                 raise SystemExit()
 
-            context = ContextManager(aiko, aiko.message)
+            ContextManager(aiko, aiko.message)
 
     def run(self, loop_when_no_handlers=False, mqtt_connection_required=True):
         self.initialize(mqtt_connection_required=mqtt_connection_required)
@@ -288,7 +288,7 @@ class ProcessImplementation(ProcessData):
     def on_message(self, mqtt_client, userdata, message):
         try:
             event.queue_put(message, "message")
-        except Exception as exception:
+        except Exception:
             print(traceback.format_exc())
 
     def on_message_queue_handler(self, message, _):
@@ -309,7 +309,7 @@ class ProcessImplementation(ProcessData):
                 try:
                     if message_handler(aiko, topic, payload_in):
                         return
-                except Exception as exception:  # REVIEW
+                except Exception:  # REVIEW
                     payload_out = traceback.format_exc()
                     print(payload_out)
                     aiko.message.publish(aiko.topic_log, payload_out)

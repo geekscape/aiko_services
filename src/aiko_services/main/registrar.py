@@ -252,7 +252,7 @@ class StateMachineModel:
             version = REGISTRAR_VERSION
             payload_out = f"(primary found {topic_path} {version} {time_started})"
             aiko.message.publish(aiko.TOPIC_REGISTRAR_BOOT, payload_out, retain=True)
-        except SystemError as system_error:  # Probably MQTT server not running
+        except SystemError:  # Probably MQTT server not running
             self.service.state_machine.transition("primary_failed", None)
 
 
@@ -523,7 +523,7 @@ def run_command():
 
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
     init_args = service_args(REGISTRAR_SERVICE_TYPE, None, None, REGISTRAR_PROTOCOL, tags)
-    registrar = compose_instance(RegistrarImpl, init_args)
+    compose_instance(RegistrarImpl, init_args)
     aiko.process.run(True)
 
 

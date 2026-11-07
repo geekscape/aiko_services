@@ -214,7 +214,7 @@ class LoggingHandlerMQTT(logging.Handler):
                 self.ring_buffer.append(payload_out)
             self.flush()
         # TODO: Catch specific Exceptions, don't hide other problems !
-        except Exception as exception:  # TODO: When does this occur ?
+        except Exception:  # TODO: When does this occur ?
             self.handleError(record)  # TODO: Start buffering log records
 
     def _publish_ring_buffer(self):

@@ -70,7 +70,7 @@ if __name__ == "__main__":
         else:
             try:
                 input_hostname, input_port = args.input_stream.split(":")
-            except ValueError as exception:
+            except ValueError:
                 print("Error: please specify input as hostname:port")
                 sys.exit(-1)
             video_reader = VideoStreamReader(input_hostname, input_port, width, height, rtp=args.RTP)
@@ -80,7 +80,7 @@ if __name__ == "__main__":
         else:
             try:
                 output_hostname, output_port = args.output_stream.split(":")
-            except ValueError as exception:
+            except ValueError:
                 print("Error: please specify output as hostname:port")
                 sys.exit(-1)
             video_writer = VideoStreamWriter(output_hostname, output_port, width, height, args.framerate)

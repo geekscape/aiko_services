@@ -197,7 +197,7 @@ class StorageFileImpl(Storage):
             cwd = Path.cwd()
             try:
                 storage_path = cwd / _STORAGE_FILENAME
-                relative_path = absolute_target_path.relative_to(storage_path)
+                absolute_target_path.relative_to(storage_path)
             except ValueError:
                 return
 
@@ -692,8 +692,6 @@ def link_command(entry_path_new, entry_path_existing, bootstrap, storage_name):
     • EXISTING_PATH: Entry path that already exists
     """
 
-    dependency = None  # TODO: Implement "dependency"
-
     if bootstrap:
         storage_url = None  # TODO: Implement "storage_url" ?
         storage = StorageFileImpl.create_storage("<no_name>", storage_url)
@@ -772,7 +770,7 @@ def run_command(storage_name, storage_url):
     """
 
     storage_name = storage_name if storage_name else get_hostname()
-    storage = StorageFileImpl.create_storage(storage_name, storage_url)
+    StorageFileImpl.create_storage(storage_name, storage_url)
     aiko.process.run()  # TODO: Actor:aiko.process.run() or storage.run() ?
 
 
@@ -796,7 +794,7 @@ def update_command(entry_path, bootstrap, storage_name, new_entry_name, lifecycl
 
     if bootstrap:
         storage_url = None  # TODO: Implement "storage_url" ?
-        storage = StorageFileImpl.create_storage("<no_name>", storage_url)
+        StorageFileImpl.create_storage("<no_name>", storage_url)
         do_command(
             Storage,
             ServiceFilter(name=storage_name, protocol=PROTOCOL),

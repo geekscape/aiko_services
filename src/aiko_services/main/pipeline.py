@@ -513,7 +513,7 @@ class PipelineElementImpl(PipelineElement):
                 stream.lock.acquire("_create_frames_generator()")
                 try:
                     stream_event, frame_data = frame_generator(stream, frame_id)
-                except Exception as exception:
+                except Exception:
                     self.logger.error("Exception in pipeline_element._create_frames() --> frame_generator()")
                     stream_event = StreamEvent.ERROR
                     frame_data = {"diagnostic": traceback.format_exc()}
@@ -548,7 +548,7 @@ class PipelineElementImpl(PipelineElement):
                         time.sleep(duration)
                 elif stream_event == StreamEvent.NO_FRAME:
                     time.sleep(0.02)  # Avoid frame_generator() busy CPU loop
-        except Exception as exception:
+        except Exception:
             self.logger.error(f"PipelineImpl._create_frames_generator(): {traceback.format_exc()}")
         finally:
             self.pipeline._disable_thread_local("_create_frames_generator()")
@@ -1016,7 +1016,7 @@ class PipelineImpl(Pipeline):
                 if local:  ## Local element ##
                     try:
                         stream_event, diagnostic = element.start_stream(stream, stream_id)
-                    except Exception as exception:
+                    except Exception:
                         self.logger.error("Exception in pipeline.create_stream() --> start_stream()")
                         stream_event = StreamEvent.ERROR
                         diagnostic = {"diagnostic": traceback.format_exc()}
@@ -1090,7 +1090,7 @@ class PipelineImpl(Pipeline):
                 if local:  ## Local element ##
                     try:
                         stream_event, diagnostic = element.stop_stream(stream, stream_id)
-                    except Exception as exception:
+                    except Exception:
                         self.logger.error("Exception in pipeline.destroy_stream() --> stop_stream()")
                         stream_event = StreamEvent.ERROR
                         diagnostic = {"diagnostic": traceback.format_exc()}
@@ -1108,7 +1108,7 @@ class PipelineImpl(Pipeline):
             if use_thread_local:
                 self._disable_thread_local("destroy_stream()")
 
-        stream_lease = self.stream_leases[stream_id]
+        self.stream_leases[stream_id]
         del self.stream_leases[stream_id]
 
         if exit_id and exit_id == stream_id:  # "exit_id" acquired earlier
@@ -1332,7 +1332,7 @@ class PipelineImpl(Pipeline):
                                         graph_node_list = list(
                                             self.pipeline_graph.iterate_after(loop_end_name, stream.graph_path)
                                         )
-                        except Exception as exception:
+                        except Exception:
                             self.logger.error("Exception in pipeline.process_frame() --> frame_generator()")
                             stream_event = StreamEvent.ERROR
                             frame_data_out = {"diagnostic": traceback.format_exc()}
@@ -1372,7 +1372,7 @@ class PipelineImpl(Pipeline):
                             element.process_frame(remote_stream, **inputs)
                             # process_frame_response() --> continue graph
                         break
-                except Exception as exception:
+                except Exception:
                     self._error_pipeline(header, traceback.format_exc())
 
                 loop_node = stream.variables.get("loop_node", None)
@@ -1396,7 +1396,7 @@ class PipelineImpl(Pipeline):
                     try:
                         payload = generate("process_frame", (stream_info, frame_data_out))
                         aiko.message.publish(self.topic_out, payload)
-                    except Exception as exception:
+                    except Exception:
                         diagnostic = 'Couldn\'t generate() "frame_data" output'
                         self._error_pipeline(header, f"{diagnostic}\n{traceback.format_exc()}")
 
@@ -1533,7 +1533,7 @@ class PipelineImpl(Pipeline):
                     inputs[input_name] = swag[map_in_names[input_name]]
                 else:
                     inputs[input_name] = swag[input_name]
-            except KeyError as key_error:
+            except KeyError:
                 self._error_pipeline(header, f'Function parameter "{input_name}" not found')
         return inputs
 
