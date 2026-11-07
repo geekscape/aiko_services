@@ -293,7 +293,7 @@ class IdsPeakCamera(camera.Camera):
     def _apply_frame_rate(self, frame_rate):
         for enable_name, rate_name in FRAME_RATE_NODES:
             try:
-                self._try(lambda: self._node(enable_name).SetValue(True))
+                self._try(lambda: self._node(enable_name).SetValue(True))  # noqa: B023
                 actual = self._set_float(rate_name, frame_rate)
                 if abs(actual - frame_rate) > 0.01:
                     self._log("warning", f"frame_rate {frame_rate} clamped to {actual:.2f} by the camera")
@@ -362,7 +362,7 @@ class IdsPeakCamera(camera.Camera):
             if not self.nodemap:
                 return readouts
             for name, key in (("DeviceTemperature", "temperature_c"), ("DeviceLinkPacketsDropped", "packets_dropped")):
-                value = self._try(lambda: self._node(name).Value())
+                value = self._try(lambda: self._node(name).Value())  # noqa: B023
                 if value is not None:
                     readouts[key] = round(float(value), 1) if key == "temperature_c" else int(value)
         return readouts
@@ -400,12 +400,12 @@ class IdsPeakCamera(camera.Camera):
                 self.stream.QueueBuffer(buffer)
             metadata = {"pixel_format": self._pixel_format}
             for name, key in (("ExposureTime", "exposure_us"), ("Gain", "gain")):
-                value = self._try(lambda: float(self._node(name).Value()))
+                value = self._try(lambda: float(self._node(name).Value()))  # noqa: B023
                 if value is not None:
                     metadata[key] = value
             if self._camera_auto:  # about 0.4 ms per node read
                 for name, key in (("BrightnessAutoStatus", "auto_status"), ("BalanceWhiteAutoStatus", "white_balance")):
-                    value = self._try(lambda: self._node(name).CurrentEntry().SymbolicValue())
+                    value = self._try(lambda: self._node(name).CurrentEntry().SymbolicValue())  # noqa: B023
                     if value is not None:
                         metadata[key] = value
         if self._host_size:
@@ -424,7 +424,7 @@ class IdsPeakCamera(camera.Camera):
                     self._try(lambda: self.stream.StopAcquisition(ids_peak.AcquisitionStopMode_Default))
                     self._try(lambda: self.stream.Flush(ids_peak.DataStreamFlushMode_DiscardAll))
                     for buffer in self._try(self.stream.AnnouncedBuffers, []) or []:
-                        self._try(lambda: self.stream.RevokeBuffer(buffer))
+                        self._try(lambda: self.stream.RevokeBuffer(buffer))  # noqa: B023
                     self.stream = None
                 if self.nodemap:
                     self._try(lambda: self._node("TLParamsLocked").SetValue(0))

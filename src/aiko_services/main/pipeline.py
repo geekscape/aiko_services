@@ -1312,10 +1312,10 @@ class PipelineImpl(Pipeline):
                         self.run_hook(
                             _PIPELINE_HOOK_PROCESS_ELEMENT,
                             lambda: {
-                                "element_name": element_name,
-                                "element": element,
+                                "element_name": element_name,  # noqa: B023
+                                "element": element,  # noqa: B023
                                 "stream": stream,
-                                "inputs": inputs,
+                                "inputs": inputs,  # noqa: B023
                             },
                         )
                         try:
@@ -1340,11 +1340,11 @@ class PipelineImpl(Pipeline):
                         self.run_hook(
                             _PIPELINE_HOOK_PROCESS_ELEMENT_POST,
                             lambda: {
-                                "element_name": element_name,
-                                "element": element,
+                                "element_name": element_name,  # noqa: B023
+                                "element": element,  # noqa: B023
                                 "stream": stream,
-                                "stream_event": stream_event,
-                                "frame_data_out": frame_data_out,
+                                "stream_event": stream_event,  # noqa: B023
+                                "frame_data_out": frame_data_out,  # noqa: B023
                             },
                         )
                         stream.set_state(self._process_stream_event(element_name, stream, stream_event, frame_data_out))

@@ -719,8 +719,11 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
                 response = self._retry(
                     deadline,
                     None,
-                    lambda: self._session.post(
-                        self._url("/in"), data=payload, headers={"Content-Type": "text/plain"}, timeout=_TIMEOUTS
+                    lambda payload=payload: self._session.post(
+                        self._url("/in"),
+                        data=payload,
+                        headers={"Content-Type": "text/plain"},
+                        timeout=_TIMEOUTS,
                     ),
                 )
                 if response.status_code != 202:
@@ -787,7 +790,7 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
                     response = self._retry(
                         deadline,
                         job.cancel,
-                        lambda: self._session.patch(url, data=chunk, headers=headers, timeout=_TIMEOUTS),
+                        lambda: self._session.patch(url, data=chunk, headers=headers, timeout=_TIMEOUTS),  # noqa: B023
                     )
                 except _Deadline:
                     raise
@@ -845,7 +848,9 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
         while offset < job.size:
             headers = {"Range": f"bytes={offset}-"} if offset else {}
             response = self._retry(
-                deadline, job.cancel, lambda: self._session.get(url, headers=headers, stream=True, timeout=_TIMEOUTS)
+                deadline,
+                job.cancel,
+                lambda: self._session.get(url, headers=headers, stream=True, timeout=_TIMEOUTS),  # noqa: B023
             )
             if response.status_code == 200:
                 offset = 0  # server ignored Range: restart

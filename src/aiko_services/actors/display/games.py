@@ -266,7 +266,7 @@ def invaders(rng, host):
         bombs, blasts = [], []
 
         def position(row, column):
-            return grid_x + 12 * column, grid_y + 9 * row
+            return grid_x + 12 * column, grid_y + 9 * row  # noqa: B023
 
         while alive and max(position(*invader)[1] for invader in alive) + 6 < bunker_y:
             tick += 1

@@ -312,7 +312,7 @@ def test_terminal_matrix(term, locale_name, size, tmp_path):
         canvas = SimpleNamespace(
             unicode_aware=found["unicode"],
             colours=colours,
-            print_at=lambda text, x, y, *rest: printed.append((text, x, y, rest)),
+            print_at=lambda text, x, y, *rest: printed.append((text, x, y, rest)),  # noqa: B023
         )
         page = DisplayPage(blocks=wide)
         page.observe({"size": "128x64"}, time.monotonic())
