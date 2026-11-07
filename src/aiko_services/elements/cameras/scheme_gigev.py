@@ -325,8 +325,8 @@ def _optional_float(value, parameter):
         return None
     try:
         number = float(value)
-    except (TypeError, ValueError):
-        raise ValueError(f'{parameter} "{value}" must be a number or auto')
+    except (TypeError, ValueError) as error:
+        raise ValueError(f'{parameter} "{value}" must be a number or auto') from error
     if number < 0 or (number == 0 and parameter != "gain"):
         raise ValueError(f'{parameter} "{value}" must be positive')
     return number
@@ -348,8 +348,8 @@ def _exposure_setting(value):
         return text, None
     try:
         return "fixed", _optional_float(value, "exposure_us")
-    except ValueError:
-        raise ValueError(f'exposure_us "{value}" must be a positive number, auto, camera or host')
+    except ValueError as error:
+        raise ValueError(f'exposure_us "{value}" must be a positive number, auto, camera or host') from error
 
 
 def _brightness_target(value):

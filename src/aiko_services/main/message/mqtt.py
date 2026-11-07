@@ -148,7 +148,7 @@ class MQTT(Message):
                 return
             except OSError as error:  # unresolved, refused, reset, timed out
                 if self.connection_required:
-                    raise SystemError(f"{diagnostic}: {error}")
+                    raise SystemError(f"{diagnostic}: {error}") from error
                 _LOGGER.warning(f"{diagnostic}: {error}")
 
         # MQTT server not available: paho loop_start() retries the first connection

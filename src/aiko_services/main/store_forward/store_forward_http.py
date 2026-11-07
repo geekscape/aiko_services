@@ -676,7 +676,7 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
             except (requests.ConnectionError, requests.Timeout) as exception:
                 self._set_link(False, type(exception).__name__, _describe(exception))
                 if time.monotonic() + backoff > deadline:
-                    raise _Deadline()
+                    raise _Deadline() from None
                 self._stop.wait(backoff)
                 backoff = min(backoff * 2.0, _BACKOFF_MAX)
 
@@ -874,7 +874,7 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
                 self._set_link(False, type(exception).__name__, _describe(exception))
                 self._event(segment_id, RESUME_EVENT, str(offset))
                 if time.monotonic() > deadline:
-                    raise _Deadline()
+                    raise _Deadline() from None
                 self._stop.wait(1.0)
             finally:
                 response.close()

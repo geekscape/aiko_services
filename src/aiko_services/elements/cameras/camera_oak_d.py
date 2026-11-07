@@ -216,7 +216,7 @@ class OakDCamera(camera.Camera):
             try:
                 frame = self.queue.get(timedelta(seconds=timeout_s))
             except dai.MessageQueue.QueueException as queue_exception:
-                raise RuntimeError(f"OAK camera queue closed: {queue_exception}")
+                raise RuntimeError(f"OAK camera queue closed: {queue_exception}") from queue_exception
         if frame is None:
             raise camera.CaptureTimeout(f"OAK camera: no frame within {timeout_s} s")
         image_bgr = frame.getCvFrame()  # NV12 --> BGR, on the host

@@ -446,7 +446,7 @@ class DrawApplet(Applet):
         try:
             return next(self._frames)
         except StopIteration:
-            raise AppletDone
+            raise AppletDone from None
 
 
 APPLETS[DrawApplet.name] = DrawApplet

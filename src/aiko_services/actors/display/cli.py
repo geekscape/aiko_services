@@ -88,8 +88,8 @@ def _remote(interface, options, command_handler):
 def _parse_address(ctx, param, value):
     try:
         return int(value, 0)
-    except ValueError:
-        raise click.BadParameter(f"{value!r} is not a number, e.g. 0x3D")
+    except ValueError as error:
+        raise click.BadParameter(f"{value!r} is not a number, e.g. 0x3D") from error
 
 
 def _parse_colors(ctx, param, value):
@@ -100,7 +100,7 @@ def _parse_colors(ctx, param, value):
     try:
         parse_colors(value)
     except ValueError as error:
-        raise click.BadParameter(f"{value!r}: {error}, e.g. -c yellow or -c 'yellow navy'")
+        raise click.BadParameter(f"{value!r}: {error}, e.g. -c yellow or -c 'yellow navy'") from error
     return str(value).replace(",", " ").split()
 
 
@@ -108,7 +108,7 @@ def _validate_font_size(ctx, param, value):
     try:
         parse_font_size(value)
     except ValueError as error:
-        raise click.BadParameter(str(error))
+        raise click.BadParameter(str(error)) from error
     return value
 
 
@@ -257,7 +257,7 @@ def run_command(options, output, address, bus, applet, font_size, title, color, 
             click.echo(f"Display Actor {name}: {actor.topic_in}")
         aiko.process.run(mqtt_connection_required=not standalone)
     except DisplayNotFound as error:
-        raise click.ClickException(f"{error}\n{_display_hint(bus)}")
+        raise click.ClickException(f"{error}\n{_display_hint(bus)}") from error
     finally:
         if actor:
             actor._shutdown()

@@ -214,8 +214,8 @@ def parse_applet_args(args, spec):
                 raise ValueError(f"unknown option {key!r}")
             try:
                 options[key] = spec[key](value)
-            except (TypeError, ValueError):
-                raise ValueError(f"bad value for {key}: {value!r}")
+            except (TypeError, ValueError) as error:
+                raise ValueError(f"bad value for {key}: {value!r}") from error
         else:
             words.append(arg)
     return words, options
@@ -665,7 +665,7 @@ class DemoApplet(Applet):
                 self._next_step()
             except StopIteration:
                 self._restore()
-                raise AppletDone
+                raise AppletDone from None
             return self._sub.step()
         self._left -= 1
         self._tick += 1

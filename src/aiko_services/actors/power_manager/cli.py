@@ -416,7 +416,7 @@ def run_command(
     try:
         power_manager.open()
     except OSError as error:
-        raise SystemExit(f"Cannot open {implementation.device}: {error}")
+        raise SystemExit(f"Cannot open {implementation.device}: {error}") from error
 
     # The tags carry what this Implementation declares, and the shared state
     # carries what open() actually found on this host
@@ -493,7 +493,7 @@ def sample_command(device, count, utc):
     try:
         found = power_manager.open()
     except OSError as error:
-        raise SystemExit(f"Cannot open {implementation.device}: {error}")
+        raise SystemExit(f"Cannot open {implementation.device}: {error}") from error
     click.echo(f"# device {implementation.device}, found {found or 'nothing'}", err=True)
     try:
         for _ in range(max(1, count)):
@@ -534,9 +534,9 @@ def hold_command(state, gpio, force):
     try:
         result = set_hold(on, gpio)
     except HoldNotAvailable as error:
-        raise SystemExit(f"No hold on this platform: {error}")
+        raise SystemExit(f"No hold on this platform: {error}") from error
     except OSError as error:
-        raise SystemExit(f"The hold did not change: {error}")
+        raise SystemExit(f"The hold did not change: {error}") from error
     click.echo(f"hold {result} (GPIO {gpio})")
 
 
@@ -560,7 +560,7 @@ def signal_command(name, buzzer):
     try:
         device.open()
     except Exception as error:  # noqa: BLE001
-        raise SystemExit(f"No buzzer: {error}")
+        raise SystemExit(f"No buzzer: {error}") from error
     try:
         device.play(name)
         time.sleep(pattern_seconds(name) + 0.1)
@@ -586,7 +586,7 @@ def render_command(artifact, account):
     try:
         click.echo(render(artifact, account=account), nl=False)
     except ValueError as error:
-        raise SystemExit(str(error))
+        raise SystemExit(str(error)) from error
 
 
 @main.command(name="install")
@@ -606,7 +606,7 @@ def install_command(artifact, account, path):
         text = render(artifact, account=account)
         written = install_artifact(artifact, text, path=path)
     except (ValueError, InstallRefused) as error:
-        raise SystemExit(f"Not installed: {error}")
+        raise SystemExit(f"Not installed: {error}") from error
     click.echo(f"{artifact} written to {written}")
     if artifact == "unit":
         click.echo("Now: systemctl daemon-reload && systemctl enable aiko_power_hold", err=True)

@@ -412,7 +412,7 @@ def loop(loop_when_no_handlers=False):
             if sleep_time > 0:
                 time.sleep(sleep_time)
     except KeyboardInterrupt:
-        raise SystemExit("KeyboardInterrupt: abort !")
+        raise SystemExit("KeyboardInterrupt: abort !") from None
     finally:
         try:
             event_loop_lock.acquire("loop() #2")

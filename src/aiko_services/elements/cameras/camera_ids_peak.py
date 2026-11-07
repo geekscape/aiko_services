@@ -383,7 +383,7 @@ class IdsPeakCamera(camera.Camera):
                 buffer = self.stream.WaitForFinishedBuffer(int(timeout_s * 1000))
             except Exception as exception:
                 if "Timeout" in type(exception).__name__:
-                    raise camera.CaptureTimeout(f"GigE camera: no frame within {timeout_s} s")
+                    raise camera.CaptureTimeout(f"GigE camera: no frame within {timeout_s} s") from exception
                 raise
             try:
                 if buffer.IsIncomplete():

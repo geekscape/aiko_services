@@ -91,7 +91,7 @@ class Picamera2CameraImpl(Camera):
             raise CameraNotFound(
                 "picamera2 is not available: a virtual environment needs "
                 f'"--system-site-packages" to reach it ({import_error})'
-            )
+            ) from import_error
 
         self.size = size
         self._camera = Picamera2()

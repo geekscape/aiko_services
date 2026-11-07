@@ -454,13 +454,13 @@ class Ssd1306OutputImpl(Output, OutputControls):
             from luma.core.interface.serial import i2c
             from luma.oled.device import ssd1306
         except ImportError as error:
-            raise DisplayNotFound(f"luma.oled isn't installed ({error}): pip install luma.oled")
+            raise DisplayNotFound(f"luma.oled isn't installed ({error}): pip install luma.oled") from error
         try:
             serial = i2c(port=self.bus, address=self.address)
             self._device = ssd1306(serial, width=self.width, height=self.height)
         except (DeviceNotFoundError, OSError) as error:
             self._device = None
-            raise DisplayNotFound(f"no SSD1306 at 0x{self.address:02X} on I2C bus {self.bus}: {error}")
+            raise DisplayNotFound(f"no SSD1306 at 0x{self.address:02X} on I2C bus {self.bus}: {error}") from error
         self.device = f"ssd1306@0x{self.address:02X}/i2c{self.bus}"
 
     def show(self, image):
@@ -546,14 +546,14 @@ class WindowOutputImpl(_Emulated, Output, OutputControls):
         try:
             import pygame
         except ImportError as error:
-            raise DisplayNotFound(f"pygame isn't installed ({error}): pip install pygame")
+            raise DisplayNotFound(f"pygame isn't installed ({error}): pip install pygame") from error
         try:
             pygame.display.init()
             pygame.display.set_caption(f"Aiko Services: OLED {self.frame.width}x{self.frame.height}")
             size = (self.frame.width * self.scale, self.frame.height * self.scale)
             self._window = pygame.display.set_mode(size)
         except pygame.error as error:
-            raise DisplayNotFound(f"no window: {error}")
+            raise DisplayNotFound(f"no window: {error}") from error
         self.pygame = pygame
         self._grid = Image.new("1", size, INK)  # lit pixels, less a 1 px gap
         draw = ImageDraw.Draw(self._grid)

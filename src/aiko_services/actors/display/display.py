@@ -244,8 +244,8 @@ class _Deny(Exception):
 def _int(value, name, low, high):
     try:
         number = int(str(value).strip())
-    except ValueError:
-        raise _Deny(f"{name}_not_int")
+    except ValueError as error:
+        raise _Deny(f"{name}_not_int") from error
     if not low <= number <= high:
         raise _Deny(f"{name}_range")
     return number

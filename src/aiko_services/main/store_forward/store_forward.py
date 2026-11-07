@@ -888,8 +888,8 @@ def _port_range(text):
         tokens = [tokens[0], tokens[0]]
     try:
         first, last = int(tokens[0]), int(tokens[1])
-    except ValueError:
-        raise click.BadParameter(f'"{text}" must be PORT or FIRST-LAST')
+    except ValueError as error:
+        raise click.BadParameter(f'"{text}" must be PORT or FIRST-LAST') from error
     if first < 1 or last < first:
         raise click.BadParameter(f'"{text}" must be PORT or FIRST-LAST')
     return first, last

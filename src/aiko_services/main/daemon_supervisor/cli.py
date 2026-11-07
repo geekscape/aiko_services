@@ -80,7 +80,7 @@ def _supervisor(platform):
     try:
         return choose_daemon_supervisor(platform)
     except DaemonSupervisorNotSupported as not_supported:
-        raise SystemExit(f"Error: {not_supported}")
+        raise SystemExit(f"Error: {not_supported}") from not_supported
 
 
 def common_options(function):
@@ -253,8 +253,8 @@ def install_command(
     )
     try:
         pathname = supervisor.install(spec, enable=enable)
-    except PermissionError:
-        raise SystemExit(f"Error: can't write {supervisor.pathname(spec)}, try sudo")
+    except PermissionError as error:
+        raise SystemExit(f"Error: can't write {supervisor.pathname(spec)}, try sudo") from error
     print(f"Installed: {pathname}")
 
 

@@ -213,8 +213,8 @@ def parse_resolution(value, parameter="resolution"):
     else:
         try:
             width, height = int(value[0]), int(value[1])
-        except (TypeError, ValueError, IndexError):
-            raise ValueError(f'{parameter} "{value}" must be WxH')
+        except (TypeError, ValueError, IndexError) as error:
+            raise ValueError(f'{parameter} "{value}" must be WxH') from error
     if width <= 0 or height <= 0:
         raise ValueError(f'{parameter} "{value}" must be positive')
     return width, height
@@ -234,13 +234,15 @@ def parse_frame_rate(value, parameter="frame_rate"):
                 frame_rate = numerator / denominator
             else:
                 frame_rate = float(value)
-        except ValueError:
-            raise ValueError(f'{parameter} "{value}" must be a number of frames per second or a fraction such as 25/1')
+        except ValueError as error:
+            raise ValueError(
+                f'{parameter} "{value}" must be a number of frames per second or a fraction such as 25/1'
+            ) from error
     else:
         try:
             frame_rate = float(value)
-        except (TypeError, ValueError):
-            raise ValueError(f'{parameter} "{value}" must be a number')
+        except (TypeError, ValueError) as error:
+            raise ValueError(f'{parameter} "{value}" must be a number') from error
     if not math.isfinite(frame_rate) or frame_rate <= 0:
         raise ValueError(f'{parameter} "{value}" must be positive')
     return frame_rate
@@ -261,13 +263,13 @@ def parse_settle(value, frame_rate, parameter="settle"):
             return int(math.ceil(float(match.group(1)) * frame_rate))
         try:
             frames = int(float(text))
-        except ValueError:
-            raise ValueError(f'{parameter} "{value}" must be a frame count or seconds such as "3s"')
+        except ValueError as error:
+            raise ValueError(f'{parameter} "{value}" must be a frame count or seconds such as "3s"') from error
     else:
         try:
             frames = int(value)
-        except (TypeError, ValueError):
-            raise ValueError(f'{parameter} "{value}" must be a frame count')
+        except (TypeError, ValueError) as error:
+            raise ValueError(f'{parameter} "{value}" must be a frame count') from error
     if frames < 0:
         raise ValueError(f'{parameter} "{value}" must not be negative')
     return frames

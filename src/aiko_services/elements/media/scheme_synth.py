@@ -98,8 +98,8 @@ def parse_synth_url(url):
 def _parse_positive_int(name, value):
     try:
         value = int(value)
-    except (TypeError, ValueError):
-        raise ValueError(f'option "{name}" must be an integer, not "{value}"')
+    except (TypeError, ValueError) as error:
+        raise ValueError(f'option "{name}" must be an integer, not "{value}"') from error
     if value <= 0:
         raise ValueError(f'option "{name}" must be positive, not {value}')
     return value
@@ -112,8 +112,8 @@ def _parse_color(name, value):
         value = f"#{value}"
     try:
         return ImageColor.getrgb(value)[:3]
-    except ValueError:
-        raise ValueError(f'option "{name}" must be a Pillow color name or hex, not "{value}"')
+    except ValueError as error:
+        raise ValueError(f'option "{name}" must be a Pillow color name or hex, not "{value}"') from error
 
 
 def _parse_text(value):

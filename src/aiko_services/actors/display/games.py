@@ -783,7 +783,7 @@ class GeneratorApplet(Applet):
         try:
             return next(self._frames)
         except StopIteration:
-            raise AppletDone
+            raise AppletDone from None
 
 
 class PongApplet(GeneratorApplet):

@@ -83,16 +83,18 @@ def load_calibration(path):
         with open(os.path.expanduser(str(path))) as file:
             calibration = json.load(file)
     except OSError as os_error:
-        raise ValueError(f'calibration "{path}": {os_error}')
+        raise ValueError(f'calibration "{path}": {os_error}') from os_error
     except ValueError as value_error:
-        raise ValueError(f'calibration "{path}": bad JSON: {value_error}')
+        raise ValueError(f'calibration "{path}": bad JSON: {value_error}') from value_error
     if not isinstance(calibration, dict):
         raise ValueError(f'calibration "{path}": not a JSON object')
     try:
         camera_matrix = np.array(calibration["camera_matrix"], dtype=float)
         dist_coeffs = np.array(calibration["dist_coeffs"], dtype=float).reshape(1, -1)
     except (KeyError, TypeError, ValueError) as error:
-        raise ValueError(f'calibration "{path}": camera_matrix (3x3) and dist_coeffs (a list) are required: {error}')
+        raise ValueError(
+            f'calibration "{path}": camera_matrix (3x3) and dist_coeffs (a list) are required: {error}'
+        ) from error
     if camera_matrix.shape != (3, 3):
         raise ValueError(f'calibration "{path}": camera_matrix must be 3x3')
     if dist_coeffs.shape[1] not in COEFFICIENT_COUNTS:
@@ -103,8 +105,8 @@ def load_calibration(path):
     if image_size is not None:
         try:
             image_size = (int(image_size[0]), int(image_size[1]))
-        except (TypeError, ValueError, IndexError):
-            raise ValueError(f'calibration "{path}": image_size must be [width, height]')
+        except (TypeError, ValueError, IndexError) as error:
+            raise ValueError(f'calibration "{path}": image_size must be [width, height]') from error
         if image_size[0] <= 0 or image_size[1] <= 0:
             raise ValueError(f'calibration "{path}": image_size must be positive')
     return camera_matrix, dist_coeffs, image_size
