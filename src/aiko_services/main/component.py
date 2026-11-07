@@ -91,9 +91,9 @@ def compose_class(impl_seed_class, impl_overrides=None):
 
     _add_methods(FrankensteinClass, implementations_loaded)
     if impl_seed_class.__init__ is object.__init__:
-        setattr(FrankensteinClass, "__init__", _synthesize_init(impl_seed_class, implementations))
+        FrankensteinClass.__init__ = _synthesize_init(impl_seed_class, implementations)
     else:
-        setattr(FrankensteinClass, "__init__", impl_seed_class.__init__)
+        FrankensteinClass.__init__ = impl_seed_class.__init__
     _update_abstractmethods(FrankensteinClass)
     FrankensteinClass.__name__ = impl_seed_class.__name__
 
