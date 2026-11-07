@@ -318,7 +318,7 @@ class LogUI:
         )
         layout_0 = Layout([1])
         parent.add_layout(layout_0)
-        recorder_label = Label(f"Log Recorder: TOPIC_PATH")
+        recorder_label = Label("Log Recorder: TOPIC_PATH")
         recorder_label.custom_colour = "title"
         layout_0.add_widget(recorder_label)
         layout_1 = Layout([1], fill_frame=True)

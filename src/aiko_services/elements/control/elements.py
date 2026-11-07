@@ -59,7 +59,7 @@ class Loop(aiko.PipelineElementLoop):
                 evaluate_define(expression, swag)
             event = aiko.StreamEvent.OKAY
         else:
-            self.logger.debug(f"End")
+            self.logger.debug("End")
             event = aiko.StreamEvent.LOOP_END
 
         return event, {}

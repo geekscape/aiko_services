@@ -397,7 +397,7 @@ class ProcessImplementation(ProcessData):
                 finally:
                     self._services_lock.release()
         except Exception as exception:
-            _LOGGER_PROCESS.warning(f"Exception raised when adding to Registrar")
+            _LOGGER_PROCESS.warning("Exception raised when adding to Registrar")
             #   f"Exception raised when adding to Registrar: {exception}\n"
             #   f"{exception.__traceback__.tb_frame} "
             #   f"raised via line {exception.__traceback__.tb_lineno}")

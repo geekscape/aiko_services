@@ -189,7 +189,7 @@ class MQTT(Message):
 
     def _on_disconnect(self: Any, mqtt_client: Any, user_data: Any, return_code: Any) -> None:
 
-        _LOGGER.debug(f"on_disconnect")
+        _LOGGER.debug("on_disconnect")
         was_connected = self.connected == MessageState.CONNECTED
         self.connected = MessageState.DISCONNECTED
         self.wildcard_subscribed = False  # subscribe again on reconnection

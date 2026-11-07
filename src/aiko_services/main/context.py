@@ -129,7 +129,7 @@ class ContextService(Context):
         if self.name is None or not isinstance(self.name, str):
             raise ValueError(f"Service name must be a string: {self.name}")
         elif not len(self.name):
-            raise ValueError(f"Service name must not be an empty string")
+            raise ValueError("Service name must not be an empty string")
         if self.parameters is None:
             self.parameters = dict(DEFAULT_PARAMETERS)  # copy: never share
         if self.protocol is None:

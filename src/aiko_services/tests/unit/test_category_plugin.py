@@ -150,7 +150,7 @@ def test_the_table_shows_one_row_for_each_entry(page):
 
     assert page.table_rows() == [
         (("  dep_one", DEPENDENCY, "andyg", "foo:0"), "dep_one"),
-        ((f"> sub_cat/", CATEGORY, WILDCARD, "category:0"), "sub_cat"),
+        (("> sub_cat/", CATEGORY, WILDCARD, "category:0"), "sub_cat"),
     ]
 
 

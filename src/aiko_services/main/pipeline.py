@@ -723,7 +723,7 @@ class PipelineImpl(Pipeline):
 
         # TODO: Better visualization of the Pipeline / PipelineElements details
         if False:
-            self.logger.info(f"Pipeline graph path ...")
+            self.logger.info("Pipeline graph path ...")
             graph_path = self.pipeline_graph.get_path(self.share["graph_path"])
             for node in graph_path:
                 self.logger.info(f"    PipelineElement: {node.name}")
@@ -1680,7 +1680,7 @@ class PipelineImpl(Pipeline):
                     stream_dict["topic_response"] = topic_response
                 pipeline.create_frame(stream_dict, arguments[0])
             else:
-                raise SystemExit(f"Error: Frame data must be provided")
+                raise SystemExit("Error: Frame data must be provided")
 
 
 class PipelineRemote(PipelineElement):

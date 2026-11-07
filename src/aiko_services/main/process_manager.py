@@ -837,7 +837,7 @@ def list_command(name, uid, watch):
 
     def response_handler(response):
         if len(response):
-            output = f"Processes ..."
+            output = "Processes ..."
             for process_record in response:
                 uid = process_record[0]
                 pid = process_record[1]
