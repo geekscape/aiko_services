@@ -38,7 +38,6 @@
 
 import argparse
 import asyncio
-from contextlib import suppress
 import os
 import random
 import signal
@@ -46,16 +45,18 @@ import socket
 import subprocess
 import sys
 import time
+from contextlib import suppress
 from typing import Optional, Set
 
 PIDFILE = "network_chaos_monkey.pid"
-MODEFILE = "network_chaos_monkey.mode"   # "proxy", "sink", or "drop_midstream"
+MODEFILE = "network_chaos_monkey.mode"  # "proxy", "sink", or "drop_midstream"
 
 ACTIVE_CONNECTIONS: Set[asyncio.StreamWriter] = set()
 
 # -------------
 # Async servers
 # -------------
+
 
 async def _pump(src: asyncio.StreamReader, dst: asyncio.StreamWriter):
     try:
@@ -71,17 +72,23 @@ async def _pump(src: asyncio.StreamReader, dst: asyncio.StreamWriter):
         with suppress(Exception):
             dst.close()
 
+
 async def _handle_proxy_client(
-    cli_reader, cli_writer, backend_host, backend_port,
-    drop_midstream=False, drop_chance=0.2,
-    drop_min_delay=1.0, drop_max_delay=5.0):
+    cli_reader,
+    cli_writer,
+    backend_host,
+    backend_port,
+    drop_midstream=False,
+    drop_chance=0.2,
+    drop_min_delay=1.0,
+    drop_max_delay=5.0,
+):
 
     peer = None
     try:
         peer = cli_writer.get_extra_info("peername")
         print(f"[proxy] client connected: {peer}", flush=True)
-        be_reader, be_writer = await asyncio.open_connection(
-            backend_host, backend_port)
+        be_reader, be_writer = await asyncio.open_connection(backend_host, backend_port)
     except Exception as e:
         # Explicit message so it's obvious in logs what happened.
         print(f"[proxy] backend connect failed for client {peer}: {backend_host}:{backend_port} -> {e}", flush=True)
@@ -112,28 +119,37 @@ async def _handle_proxy_client(
 
         asyncio.create_task(killer())
 
-    t1 = asyncio.create_task(_pump(cli_reader, be_writer))   # client -> backend
-    t2 = asyncio.create_task(_pump(be_reader, cli_writer))   # backend -> client
+    t1 = asyncio.create_task(_pump(cli_reader, be_writer))  # client -> backend
+    t2 = asyncio.create_task(_pump(be_reader, cli_writer))  # backend -> client
     await asyncio.gather(t1, t2)
 
     if drop_midstream:
         ACTIVE_CONNECTIONS.discard(cli_writer)
 
+
 async def _run_proxy(
-    front_host, front_port, backend_host, backend_port,
-    drop_midstream=False, drop_chance=0.2,
-    drop_min_delay=1.0, drop_max_delay=5.0):
+    front_host,
+    front_port,
+    backend_host,
+    backend_port,
+    drop_midstream=False,
+    drop_chance=0.2,
+    drop_min_delay=1.0,
+    drop_max_delay=5.0,
+):
 
     server = await asyncio.start_server(
         lambda r, w: _handle_proxy_client(
-            r, w, backend_host, backend_port,
-            drop_midstream, drop_chance, drop_min_delay, drop_max_delay),
-            front_host, front_port
+            r, w, backend_host, backend_port, drop_midstream, drop_chance, drop_min_delay, drop_max_delay
+        ),
+        front_host,
+        front_port,
     )
     tag = "[proxy+drop_midstream]" if drop_midstream else "[proxy]"
     print(f"{tag} UP: {front_host}:{front_port} → {backend_host}:{backend_port}", flush=True)
     async with server:
         await server.serve_forever()
+
 
 async def _handle_sink_client(cli_reader, cli_writer):
     try:
@@ -150,34 +166,38 @@ async def _handle_sink_client(cli_reader, cli_writer):
         except Exception:
             pass
 
+
 async def _run_sink(front_host, front_port):
-    server = await asyncio.start_server(
-        _handle_sink_client, front_host, front_port)
+    server = await asyncio.start_server(_handle_sink_client, front_host, front_port)
     print(f"[sink] DOWN (blackhole): {front_host}:{front_port}", flush=True)
     async with server:
         await server.serve_forever()
 
+
 # ------------
 # Daemon entry
 # ------------
+
 
 def _serve_entry(args):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
         if args.behavior == "proxy":
-            coro = _run_proxy(args.host, args.frontend_port,
-                              args.backend_host, args.backend_port,
-                              drop_midstream=False)
+            coro = _run_proxy(args.host, args.frontend_port, args.backend_host, args.backend_port, drop_midstream=False)
         elif args.behavior == "sink":
             coro = _run_sink(args.host, args.frontend_port)
         elif args.behavior == "drop_midstream":
-            coro = _run_proxy(args.host, args.frontend_port,
-                              args.backend_host, args.backend_port,
-                              drop_midstream=True,
-                              drop_chance=args.drop_chance,
-                              drop_min_delay=args.drop_min_delay,
-                              drop_max_delay=args.drop_max_delay)
+            coro = _run_proxy(
+                args.host,
+                args.frontend_port,
+                args.backend_host,
+                args.backend_port,
+                drop_midstream=True,
+                drop_chance=args.drop_chance,
+                drop_min_delay=args.drop_min_delay,
+                drop_max_delay=args.drop_max_delay,
+            )
         else:
             print(f"Unknown behavior: {args.behavior}", file=sys.stderr)
             sys.exit(2)
@@ -190,9 +210,11 @@ def _serve_entry(args):
         except Exception:
             pass
 
+
 # ---------------
 # Process helpers
 # ---------------
+
 
 def _read_pid() -> Optional[int]:
     try:
@@ -201,13 +223,16 @@ def _read_pid() -> Optional[int]:
     except Exception:
         return None
 
+
 def _write_pid(pid: int):
     with open(PIDFILE, "w") as f:
         f.write(str(pid))
 
+
 def _write_modefile(behavior: str):
     with open(MODEFILE, "w") as f:
         f.write(behavior)
+
 
 def _read_modefile() -> Optional[str]:
     try:
@@ -215,6 +240,7 @@ def _read_modefile() -> Optional[str]:
             return f.read().strip()
     except Exception:
         return None
+
 
 def _is_running(pid: Optional[int]) -> bool:
     if pid is None:
@@ -224,6 +250,7 @@ def _is_running(pid: Optional[int]) -> bool:
         return True
     except Exception:
         return False
+
 
 def _kill_pid(pid: Optional[int]):
     if pid is None:
@@ -237,6 +264,7 @@ def _kill_pid(pid: Optional[int]):
             except Exception:
                 pass
 
+
 def _spawn_detached(argv_for_child) -> int:
     kwargs = {}
     if os.name == "posix":
@@ -245,12 +273,11 @@ def _spawn_detached(argv_for_child) -> int:
         DETACHED_PROCESS = 0x00000008
         CREATE_NEW_PROCESS_GROUP = 0x00000200
         kwargs["creationflags"] = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
-    proc = subprocess.Popen(argv_for_child,
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                            stdin=subprocess.DEVNULL,
-                            **kwargs)
+    proc = subprocess.Popen(
+        argv_for_child, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, **kwargs
+    )
     return proc.pid
+
 
 def _precheck_backend(host: str, port: int, timeout: float = 1.5) -> bool:
     """Synchronous reachability check to avoid 'UP' when backend is down."""
@@ -261,9 +288,11 @@ def _precheck_backend(host: str, port: int, timeout: float = 1.5) -> bool:
         print(f"[precheck] backend {host}:{port} unreachable: {e}", file=sys.stderr)
         return False
 
+
 # --------
 # Commands
 # --------
+
 
 def cmd_up(args):
     pid = _read_pid()
@@ -279,19 +308,34 @@ def cmd_up(args):
         # Fail fast so the mapping is truly symmetric & predictable.
         sys.exit(1)
 
-    serve_argv = [sys.executable, __file__, "serve",
-                  "--behavior", behavior,
-                  "--host", args.host,
-                  "--frontend_port", str(args.frontend_port),
-                  "--backend_host", args.backend_host,
-                  "--backend_port", str(args.backend_port),
-                  "--drop_chance", str(args.drop_chance),
-                  "--drop_min_delay", str(args.drop_min_delay),
-                  "--drop_max_delay", str(args.drop_max_delay)]
+    serve_argv = [
+        sys.executable,
+        __file__,
+        "serve",
+        "--behavior",
+        behavior,
+        "--host",
+        args.host,
+        "--frontend_port",
+        str(args.frontend_port),
+        "--backend_host",
+        args.backend_host,
+        "--backend_port",
+        str(args.backend_port),
+        "--drop_chance",
+        str(args.drop_chance),
+        "--drop_min_delay",
+        str(args.drop_min_delay),
+        "--drop_max_delay",
+        str(args.drop_max_delay),
+    ]
     child_pid = _spawn_detached(serve_argv)
     _write_pid(child_pid)
     _write_modefile(behavior)
-    print(f"UP: {behavior} {args.host}:{args.frontend_port} → {args.backend_host}:{args.backend_port} (PID {child_pid})")
+    print(
+        f"UP: {behavior} {args.host}:{args.frontend_port} → {args.backend_host}:{args.backend_port} (PID {child_pid})"
+    )
+
 
 def cmd_down(args):
     mode = args.mode
@@ -313,10 +357,17 @@ def cmd_down(args):
         if _is_running(pid):
             _kill_pid(pid)
             time.sleep(0.2)
-        serve_argv = [sys.executable, __file__, "serve",
-                      "--behavior", "sink",
-                      "--host", args.host,
-                      "--frontend_port", str(args.frontend_port)]
+        serve_argv = [
+            sys.executable,
+            __file__,
+            "serve",
+            "--behavior",
+            "sink",
+            "--host",
+            args.host,
+            "--frontend_port",
+            str(args.frontend_port),
+        ]
         child_pid = _spawn_detached(serve_argv)
         _write_pid(child_pid)
         _write_modefile("sink")
@@ -326,19 +377,32 @@ def cmd_down(args):
         if _is_running(pid):
             _kill_pid(pid)
             time.sleep(0.2)
-        serve_argv = [sys.executable, __file__, "serve",
-                      "--behavior", "drop_midstream",
-                      "--host", args.host,
-                      "--frontend_port", str(args.frontend_port),
-                      "--backend_host", args.backend_host,
-                      "--backend_port", str(args.backend_port),
-                      "--drop_chance", str(args.drop_chance),
-                      "--drop_min_delay", str(args.drop_min_delay),
-                      "--drop_max_delay", str(args.drop_max_delay)]
+        serve_argv = [
+            sys.executable,
+            __file__,
+            "serve",
+            "--behavior",
+            "drop_midstream",
+            "--host",
+            args.host,
+            "--frontend_port",
+            str(args.frontend_port),
+            "--backend_host",
+            args.backend_host,
+            "--backend_port",
+            str(args.backend_port),
+            "--drop_chance",
+            str(args.drop_chance),
+            "--drop_min_delay",
+            str(args.drop_min_delay),
+            "--drop_max_delay",
+            str(args.drop_max_delay),
+        ]
         child_pid = _spawn_detached(serve_argv)
         _write_pid(child_pid)
         _write_modefile("drop_midstream")
         print(f"DOWN: drop_midstream at {args.host}:{args.frontend_port} (PID {child_pid})")
+
 
 def cmd_status(_args):
     pid = _read_pid()
@@ -347,6 +411,7 @@ def cmd_status(_args):
         print(f"Status: running ({beh}) PID {pid}")
     else:
         print("Status: DOWN (no process)")
+
 
 def cmd_stop(_args):
     pid = _read_pid()
@@ -372,21 +437,23 @@ def cmd_stop(_args):
                 pass
     print("Stopped.")
 
+
 def _jittered(base: float, jitter: float) -> float:
     if jitter <= 0:
         return max(base, 0.1)
     delta = random.uniform(-jitter, +jitter)
     return max(base + delta, 0.1)
 
+
 def cmd_toggle(args):
     if args.seed is not None:
         random.seed(args.seed)
 
-    j_on  = args.jitter_on  if args.jitter_on  is not None else args.jitter
+    j_on = args.jitter_on if args.jitter_on is not None else args.jitter
     j_off = args.jitter_off if args.jitter_off is not None else args.jitter
 
     for i in range(1, args.cycles + 1):
-        on_dur  = _jittered(args.on,  j_on)
+        on_dur = _jittered(args.on, j_on)
         off_dur = _jittered(args.off, j_off)
 
         print(f"[cycle {i}] UP for {on_dur:.2f}s")
@@ -397,9 +464,11 @@ def cmd_toggle(args):
         cmd_down(args)
         time.sleep(off_dur)
 
+
 # ----------
 # CLI parser
 # ----------
+
 
 def parse_args():
     p = argparse.ArgumentParser(description="Network Chaos Monkey (proxy + hardfail/blackhole/drop_midstream)")
@@ -415,21 +484,26 @@ def parse_args():
     common.add_argument("--drop_min_delay", type=float, default=1.0, help="Earliest kill (seconds)")
     common.add_argument("--drop_max_delay", type=float, default=5.0, help="Latest kill (seconds)")
     # precheck toggle
-    common.add_argument("--no_precheck", dest="precheck", action="store_false",
-                        help="Do not verify backend reachability before UP")
-    common.add_argument("--precheck", dest="precheck", action="store_true",
-                        help=argparse.SUPPRESS)
+    common.add_argument(
+        "--no_precheck", dest="precheck", action="store_false", help="Do not verify backend reachability before UP"
+    )
+    common.add_argument("--precheck", dest="precheck", action="store_true", help=argparse.SUPPRESS)
     common.add_argument("--precheck_timeout", type=float, default=1.5, help="Backend precheck timeout (seconds)")
     common.set_defaults(precheck=True)
 
     up = sub.add_parser("up", parents=[common], help="Start UP state (proxy or drop_midstream)")
-    up.add_argument("--mode", choices=["hardfail", "blackhole", "drop_midstream"], default="hardfail",
-                    help="UP behavior: proxy (hardfail), or proxy with drop_midstream")
+    up.add_argument(
+        "--mode",
+        choices=["hardfail", "blackhole", "drop_midstream"],
+        default="hardfail",
+        help="UP behavior: proxy (hardfail), or proxy with drop_midstream",
+    )
     up.set_defaults(func=cmd_up)
 
     down = sub.add_parser("down", parents=[common], help="Enter DOWN state")
-    down.add_argument("--mode", choices=["hardfail", "blackhole", "drop_midstream"], required=True,
-                      help="DOWN behavior")
+    down.add_argument(
+        "--mode", choices=["hardfail", "blackhole", "drop_midstream"], required=True, help="DOWN behavior"
+    )
     down.set_defaults(func=cmd_down)
 
     status = sub.add_parser("status", help="Show current status")
@@ -439,8 +513,12 @@ def parse_args():
     stop.set_defaults(func=cmd_stop)
 
     toggle = sub.add_parser("toggle", parents=[common], help="Alternate UP/DOWN cycles")
-    toggle.add_argument("--mode", choices=["hardfail", "blackhole", "drop_midstream"], required=True,
-                        help="DOWN behavior during toggling")
+    toggle.add_argument(
+        "--mode",
+        choices=["hardfail", "blackhole", "drop_midstream"],
+        required=True,
+        help="DOWN behavior during toggling",
+    )
     toggle.add_argument("--on", type=float, default=5.0, help="Seconds UP")
     toggle.add_argument("--off", type=float, default=5.0, help="Seconds DOWN")
     toggle.add_argument("--cycles", type=int, default=5, help="Number of cycles")
@@ -463,9 +541,11 @@ def parse_args():
 
     return p.parse_args()
 
+
 def main():
     args = parse_args()
     args.func(args)
+
 
 if __name__ == "__main__":
     main()

@@ -26,9 +26,10 @@ from aiko_services.main.utilities.lock import Lock
 
 __all__ = ["ConnectionState", "Connection"]
 
+
 class ConnectionState:
     NONE = "NONE"
-    NETWORK = "NETWORK"      # Wi-Fi or Ethernet available
+    NETWORK = "NETWORK"  # Wi-Fi or Ethernet available
     BOOTSTRAP = "BOOTSTRAP"  # MQTT configuration found
     TRANSPORT = "TRANSPORT"  # MQTT, Ray, ROS2, ZeroMQ, etc
     REGISTRAR = "REGISTRAR"  # Registrar available for use
@@ -38,6 +39,7 @@ class ConnectionState:
     @classmethod
     def index(cls, connection_state):  # throws ValueError
         return cls.states.index(connection_state)
+
 
 class Connection:
     def __init__(self, id):
@@ -66,7 +68,7 @@ class Connection:
 
     def remove_handler(self, connection_state_handler):
         if connection_state_handler in self.connection_state_handlers:
-           self.connection_state_handlers.remove(connection_state_handler)
+            self.connection_state_handlers.remove(connection_state_handler)
 
     def update_state(self, connection_state, logger=None):
         if logger:

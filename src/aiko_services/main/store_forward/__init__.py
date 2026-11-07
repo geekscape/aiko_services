@@ -7,12 +7,12 @@
 # ~~~~~
 # - None, yet !
 
+from .store_forward import ALLOWED_COMMANDS, PROTOCOL, PROTOCOL_TYPE, SegmentStoreForward, SegmentStoreForwardImpl
 from .store_forward_message import (
-    FetchJob, SendJob, StoreForwardMessage,
-    valid_segment_id, valid_segment_name, valid_sha256
-)
-
-from .store_forward import (
-    ALLOWED_COMMANDS, PROTOCOL, PROTOCOL_TYPE,
-    SegmentStoreForward, SegmentStoreForwardImpl
+    FetchJob,
+    SendJob,
+    StoreForwardMessage,
+    valid_segment_id,
+    valid_segment_name,
+    valid_sha256,
 )

@@ -7,6 +7,7 @@
 
 import os
 import traceback
+
 from transitions import Machine
 from transitions.core import MachineError
 
@@ -18,15 +19,12 @@ __all__ = ["StateMachineOld"]
 _AIKO_LOG_LEVEL_STATE = os.environ.get("AIKO_LOG_LEVEL_STATE", "INFO")
 _LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_STATE)
 
+
 class StateMachineOld(object):
     def __init__(self, model):
         self.model = model
         self.state_machine = Machine(
-            model=self.model,
-            states=model.states,
-            transitions=model.transitions,
-            initial="start",
-            send_event=True
+            model=self.model, states=model.states, transitions=model.transitions, initial="start", send_event=True
         )
 
     def get_state(self):

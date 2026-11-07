@@ -33,14 +33,20 @@
 
 from asciimatics.event import KeyboardEvent
 from asciimatics.widgets import (
-    Label, Layout, MultiColumnListBox, PopUpDialog, Text,
+    Label,
+    Layout,
+    MultiColumnListBox,
+    PopUpDialog,
+    Text,
 )
 
 import aiko_services as aiko
-from aiko_services.main.connection import ConnectionState
 from aiko_services.ide.tui.dashboard import (
-    LogLevelPopupMenu, LogUI, ServiceFrame,
+    LogLevelPopupMenu,
+    LogUI,
+    ServiceFrame,
 )
+from aiko_services.main.connection import ConnectionState
 from aiko_services.main.recorder import Recorder
 
 __all__ = ["RecorderFrame", "RecorderPage", "plugins"]
@@ -53,11 +59,16 @@ KEYS = {
 }
 
 STATE_KEYS = (
-    "filters", "lru_cache_size", "ring_buffer_size", "records_period",
-    "lifecycle", "log_level",
+    "filters",
+    "lru_cache_size",
+    "ring_buffer_size",
+    "records_period",
+    "lifecycle",
+    "log_level",
 )
 
-RECORD_WIDTH = 96          # a log record is long; the table shows the start
+RECORD_WIDTH = 96  # a log record is long; the table shows the start
+
 
 class RecorderPage:
     """The page's decisions, with no screen and no network"""
@@ -120,8 +131,7 @@ class RecorderPage:
             rows.append((name, str(value)))
         metrics = cache.get("metrics")
         if isinstance(metrics, dict):
-            rows += [(f"metrics.{name}", str(metrics[name]))
-                for name in sorted(metrics)]
+            rows += [(f"metrics.{name}", str(metrics[name])) for name in sorted(metrics)]
         return rows
 
     @staticmethod
@@ -132,26 +142,28 @@ class RecorderPage:
         metrics = cache.get("metrics")
         metrics = metrics if isinstance(metrics, dict) else {}
         topics = len(RecorderPage.topic_rows(cache))
-        return (f"topics: {topics}   records: {metrics.get('records', 0)}"
-                f"   evicted: {metrics.get('evicted', 0)}")
+        return f"topics: {topics}   records: {metrics.get('records', 0)}   evicted: {metrics.get('evicted', 0)}"
 
     @staticmethod
     def help_text():
-        return "\n".join([
-            "The Recorder's functions, sent on its in topic:",
-            "  r record_start: record the topics matching a filter",
-            "  R record_stop:  stop a filter, and forget what it recorded",
-            "",
-            "A Recorder holds one ring buffer for each topic, inside an",
-            "LRU cache of topics, so the topic that has gone longest",
-            "without a record is the one it lets go of.  Both sizes are",
-            "shared variables, and small ones show the edge cases sooner:",
-            "  aiko_recorder -l 2 -r 2",
-            "",
-            "This page: Enter the records of the selected topic",
-            "  L log level  H this help",
-            "Esc Backspace q back  x quit the Dashboard",
-        ])
+        return "\n".join(
+            [
+                "The Recorder's functions, sent on its in topic:",
+                "  r record_start: record the topics matching a filter",
+                "  R record_stop:  stop a filter, and forget what it recorded",
+                "",
+                "A Recorder holds one ring buffer for each topic, inside an",
+                "LRU cache of topics, so the topic that has gone longest",
+                "without a record is the one it lets go of.  Both sizes are",
+                "shared variables, and small ones show the edge cases sooner:",
+                "  aiko_recorder -l 2 -r 2",
+                "",
+                "This page: Enter the records of the selected topic",
+                "  L log level  H this help",
+                "Esc Backspace q back  x quit the Dashboard",
+            ]
+        )
+
 
 class RecorderFrame(ServiceFrame):
     """The Dashboard page: the topics, the state, the log"""
@@ -167,16 +179,18 @@ class RecorderFrame(ServiceFrame):
         state_height = min(len(STATE_KEYS) + 4, max(5, screen.height // 3))
         topic_height = max(3, screen.height - state_height - 13)
 
-        self.topic_widget = MultiColumnListBox(topic_height,
-            ["<34", "<6", "<0"], options=[],
+        self.topic_widget = MultiColumnListBox(
+            topic_height,
+            ["<34", "<6", "<0"],
+            options=[],
             titles=["Topic", "Held", "Newest record"],
-            on_select=self._show_records)
+            on_select=self._show_records,
+        )
         layout = Layout([1])
         self.add_layout(layout)
         layout.add_widget(self.topic_widget)
 
-        self.state_widget = MultiColumnListBox(state_height,
-            ["<22", "<0"], options=[], titles=["Variable", "Value"])
+        self.state_widget = MultiColumnListBox(state_height, ["<22", "<0"], options=[], titles=["Variable", "Value"])
         layout = Layout([1])
         self.add_layout(layout)
         layout.add_widget(self.state_widget)
@@ -194,7 +208,7 @@ class RecorderFrame(ServiceFrame):
     def _service_frame_start(self, service, service_ec_consumer):
         topic_path = service[0]
         if topic_path == self.topic_path:
-            return                                       # idempotent
+            return  # idempotent
         self.topic_path = topic_path
         self.service_text = self._service_title.value
         self.proxy = aiko.get_service_proxy(f"{topic_path}/in", Recorder)
@@ -229,22 +243,19 @@ class RecorderFrame(ServiceFrame):
 
     def _act(self, kind):
         if kind == "log_level":
-            self.scene.add_effect(LogLevelPopupMenu(
-                self._screen, self.state_widget, self.topic_path))
+            self.scene.add_effect(LogLevelPopupMenu(self._screen, self.state_widget, self.topic_path))
         elif kind == "help":
             self._popup(self.page.help_text(), ["OK"])
         elif kind == "record_start":
-            self._filter_dialog("Record the topics matching", "Record",
-                lambda filter: self.proxy.record_start(filter))
+            self._filter_dialog("Record the topics matching", "Record", lambda filter: self.proxy.record_start(filter))
         elif kind == "record_stop":
             filters = self.page.filters(self._cache())
-            self._filter_dialog("Stop recording", "Stop",
-                lambda filter: self.proxy.record_stop(filter),
-                filters[0] if filters else "")
+            self._filter_dialog(
+                "Stop recording", "Stop", lambda filter: self.proxy.record_stop(filter), filters[0] if filters else ""
+            )
 
     def _popup(self, text, buttons, on_close=None):
-        self.scene.add_effect(PopUpDialog(
-            self._screen, text, buttons, on_close=on_close, theme="nice"))
+        self.scene.add_effect(PopUpDialog(self._screen, text, buttons, on_close=on_close, theme="nice"))
 
     def _filter_dialog(self, prompt, button, send, value=""):
         text = Text("Filter:", "filter")
@@ -254,8 +265,7 @@ class RecorderFrame(ServiceFrame):
             if button_index == 1 and text.value and self._connected():
                 send(text.value)
 
-        popup = PopUpDialog(self._screen, prompt + " " * 30,
-            ["Cancel", button], on_close=_on_close, theme="nice")
+        popup = PopUpDialog(self._screen, prompt + " " * 30, ["Cancel", button], on_close=_on_close, theme="nice")
         layout = Layout([1])
         popup.add_layout(layout)
         layout.add_widget(text)
@@ -278,20 +288,19 @@ class RecorderFrame(ServiceFrame):
     # Drawing ---------------------------------------------------------- #
 
     def _update(self, frame_no):
-        super()._update(frame_no)                 # may start the Service
+        super()._update(frame_no)  # may start the Service
         if self.topic_path is None:
             return
         cache = self._cache()
 
-        self._service_title.value =  \
-            f"{self.service_text}    {self.page.title(cache)}"
-        self.topic_widget.options = [(row, index)
-            for index, row in enumerate(self.page.topic_rows(cache))]
-        self.state_widget.options = [((name, value), index)
-            for index, (name, value) in enumerate(self.page.state_rows(cache))]
-        self.legend.text = "keys: r record_start  R record_stop  " \
-                           "Enter the records  L log level  H help"
+        self._service_title.value = f"{self.service_text}    {self.page.title(cache)}"
+        self.topic_widget.options = [(row, index) for index, row in enumerate(self.page.topic_rows(cache))]
+        self.state_widget.options = [
+            ((name, value), index) for index, (name, value) in enumerate(self.page.state_rows(cache))
+        ]
+        self.legend.text = "keys: r record_start  R record_stop  Enter the records  L log level  H help"
         self.log_ui._update(frame_no)
+
 
 # plugin key: the protocol type of recorder:0
 plugins = {"recorder": RecorderFrame}

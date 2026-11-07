@@ -21,9 +21,7 @@
 
 from aiko_services.ide.tui.dashboard.category_plugin import CategoryFrame
 from aiko_services.ide.tui.dashboard.hyperspace_plugin import HyperSpaceFrame
-from aiko_services.ide.tui.dashboard.process_manager_plugin import (
-    ProcessManagerFrame
-)
+from aiko_services.ide.tui.dashboard.process_manager_plugin import ProcessManagerFrame
 from aiko_services.ide.tui.dashboard.recorder_plugin import RecorderFrame
 from aiko_services.ide.tui.dashboard.registrar_plugin import RegistrarFrame
 
@@ -36,7 +34,7 @@ plugins = {
     "hyperspace": HyperSpaceFrame,
     "process_manager": ProcessManagerFrame,
     "recorder": RecorderFrame,
-    "registrar": RegistrarFrame
+    "registrar": RegistrarFrame,
 }
 
 # --------------------------------------------------------------------------- #

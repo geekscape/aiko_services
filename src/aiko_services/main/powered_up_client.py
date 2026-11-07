@@ -64,24 +64,22 @@ import os
 
 from aiko_services.main import aiko
 from aiko_services.main.lease import Lease
-from aiko_services.main.power_manager_client import (
-    POWER_MANAGER_PROTOCOL, PowerManagerClient
-)
+from aiko_services.main.power_manager_client import POWER_MANAGER_PROTOCOL, PowerManagerClient
 from aiko_services.main.utilities import generate, get_logger
 
 __all__ = ["POWERED_UP_PROTOCOL", "PoweredUpClient"]
 
 # The same control that lease.py uses, so one variable turns up the logging
 # of both ends of this agreement
-_LOGGER = get_logger(
-    __name__, log_level=os.environ.get("AIKO_LOG_LEVEL_LEASE", "INFO"))
+_LOGGER = get_logger(__name__, log_level=os.environ.get("AIKO_LOG_LEVEL_LEASE", "INFO"))
 
 # The protocol that "actors/power_manager" registers.  One Actor answers
 # every one of these clients, so the string lives in one place and this is
 # the name that the up-time clients have always used for it
 POWERED_UP_PROTOCOL = POWER_MANAGER_PROTOCOL
 
-SECONDS = 300.0                    # The default claim, which a caller sets
+SECONDS = 300.0  # The default claim, which a caller sets
+
 
 class PoweredUpClient(PowerManagerClient):
     """Holds a claim on this host staying powered up, for as long as its
@@ -91,20 +89,27 @@ class PoweredUpClient(PowerManagerClient):
     the answers and the changes of mode.  Nothing is acquired until open()
     """
 
-    def __init__(self, service, seconds=SECONDS, reason="-",
-        constraint=None, protocol=POWERED_UP_PROTOCOL, publish=None,
-        mode_handler=None):
+    def __init__(
+        self,
+        service,
+        seconds=SECONDS,
+        reason="-",
+        constraint=None,
+        protocol=POWERED_UP_PROTOCOL,
+        publish=None,
+        mode_handler=None,
+    ):
 
         super().__init__(service, protocol)
         self.seconds = float(seconds)
         self.reason = str(reason or "-")
         # (unit, quantity), or None for time alone
         self.constraint = tuple(constraint) if constraint else None
-        self._publish = publish    # Injected by a test
+        self._publish = publish  # Injected by a test
         self._mode_handler = mode_handler
         self._lease = None
-        self._installed = ()       # The handler names this client added
-        self.claims = 0            # For the caller's metrics
+        self._installed = ()  # The handler names this client added
+        self.claims = 0  # For the caller's metrics
         self.releases = 0
         # The last answer of each kind, for the caller and for a test
         self.granted = None
@@ -160,8 +165,7 @@ class PoweredUpClient(PowerManagerClient):
         work, rather than plan on time it does not have"""
 
         self.refused = str(why)
-        _LOGGER.warning(
-            f"Powered up refused: {why}{f' {detail}' if detail else ''}")
+        _LOGGER.warning(f"Powered up refused: {why}{f' {detail}' if detail else ''}")
 
     def _released(self, *arguments):
         """The claim is given up, by this client or by its expiry"""
@@ -177,7 +181,7 @@ class PoweredUpClient(PowerManagerClient):
         if self._mode_handler:
             try:
                 self._mode_handler(self.mode, str(reason))
-            except Exception as error:               # noqa: BLE001
+            except Exception as error:  # noqa: BLE001
                 _LOGGER.warning(f"Power mode handler: {error}")
 
     def claim(self, seconds=None, reason=None, constraint=None):
@@ -194,9 +198,8 @@ class PoweredUpClient(PowerManagerClient):
         if constraint is not None:
             self.constraint = tuple(constraint) if constraint else None
         if self._lease is not None:
-            return False           # Held already, and extending itself
-        self._lease = Lease(self.seconds, self._topic(),
-            lease_extend_handler=self._extend, automatic_extend=True)
+            return False  # Held already, and extending itself
+        self._lease = Lease(self.seconds, self._topic(), lease_extend_handler=self._extend, automatic_extend=True)
         self._ask(self.seconds)
         self.claims += 1
         return True
@@ -226,7 +229,7 @@ class PoweredUpClient(PowerManagerClient):
 
         return self._lease is not None
 
-# ---------------------------------------------------------------------- #
+    # ---------------------------------------------------------------------- #
 
     def _extend(self, seconds, uuid):
         """The client's own Lease asks again, before the claim lapses"""
@@ -248,7 +251,7 @@ class PoweredUpClient(PowerManagerClient):
                 self._publish(f"{self._manager}/in", payload)
             else:
                 aiko.process.message.publish(f"{self._manager}/in", payload)
-        except Exception as error:                       # noqa: BLE001
+        except Exception as error:  # noqa: BLE001
             _LOGGER.warning(f"Could not ask for powered up: {error}")
 
     def _topic(self):
@@ -256,6 +259,7 @@ class PoweredUpClient(PowerManagerClient):
         the answers"""
 
         return self.topic()
+
 
 def _seconds(value):
     """An answer's seconds as a number.  It arrives from the wire as a
@@ -266,5 +270,6 @@ def _seconds(value):
         return float(value)
     except (TypeError, ValueError):
         return None
+
 
 # --------------------------------------------------------------------------- #

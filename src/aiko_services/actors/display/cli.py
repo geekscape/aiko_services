@@ -32,21 +32,36 @@ import textwrap
 import click
 
 import aiko_services as aiko
-from aiko_services.main.utilities import get_hostname
-
+from aiko_services.actors.display import keys as keymap
 from aiko_services.actors.display.applets import APPLETS
 from aiko_services.actors.display.display import (
-    DEFAULT_APPLET, KEY_STATES, PIXEL_PAIRS_MAXIMUM, PROTOCOL, SETTINGS,
-    SETTINGS_SPEC, Canvas, Display, DisplayImpl, Interaction, Screen,
-    service_filter, service_tags,
+    DEFAULT_APPLET,
+    KEY_STATES,
+    PIXEL_PAIRS_MAXIMUM,
+    PROTOCOL,
+    SETTINGS,
+    SETTINGS_SPEC,
+    Canvas,
+    Display,
+    DisplayImpl,
+    Interaction,
+    Screen,
+    service_filter,
+    service_tags,
 )
 from aiko_services.actors.display.graphics import parse_font_size
-from aiko_services.actors.display import keys as keymap
 from aiko_services.actors.display.outputs import (
-    ADDRESSES, OUTPUTS, DisplayNotFound, choose_output, parse_colors, scan_i2c,
+    ADDRESSES,
+    OUTPUTS,
+    DisplayNotFound,
+    choose_output,
+    parse_colors,
+    scan_i2c,
 )
+from aiko_services.main.utilities import get_hostname
 
 TIMEOUT = 5.0  # seconds to wait for the Display Actor before giving up
+
 
 def _start_timeout(seconds, what):
     """The framework's do_command() and do_discovery() wait for ever: give up
@@ -59,21 +74,23 @@ def _start_timeout(seconds, what):
 
     aiko.event.add_timer_handler(timed_out, seconds)
 
+
 def _remote(interface, options, command_handler):
     """Discover the Display Actor named in the group options (-n, -t) and
     invoke one command on it"""
 
     name, timeout = options["name"], options["timeout"]
     _start_timeout(timeout, f"no Display Actor named {name or get_hostname()}")
-    aiko.do_command(interface, service_filter(name), command_handler,
-        terminate=True)
+    aiko.do_command(interface, service_filter(name), command_handler, terminate=True)
     aiko.process.run()
+
 
 def _parse_address(ctx, param, value):
     try:
         return int(value, 0)
     except ValueError:
         raise click.BadParameter(f"{value!r} is not a number, e.g. 0x3D")
+
 
 def _parse_colors(ctx, param, value):
     """-c 'FOREGROUND [BACKGROUND]': the color names (or #rrggbb), checked"""
@@ -83,9 +100,9 @@ def _parse_colors(ctx, param, value):
     try:
         parse_colors(value)
     except ValueError as error:
-        raise click.BadParameter(
-            f"{value!r}: {error}, e.g. -c yellow or -c 'yellow navy'")
+        raise click.BadParameter(f"{value!r}: {error}, e.g. -c yellow or -c 'yellow navy'")
     return str(value).replace(",", " ").split()
+
 
 def _validate_font_size(ctx, param, value):
     try:
@@ -94,21 +111,29 @@ def _validate_font_size(ctx, param, value):
         raise click.BadParameter(str(error))
     return value
 
+
 def _display_hint(bus):
     found = scan_i2c(bus)
     if found:
-        return ("An SSD1306 answers at "
-            + " and ".join(f"0x{address:02X}" for address in found) + ": use -a")
-    return ("No SSD1306 answers at "
+        return "An SSD1306 answers at " + " and ".join(f"0x{address:02X}" for address in found) + ": use -a"
+    return (
+        "No SSD1306 answers at "
         + " or ".join(f"0x{address:02X}" for address in ADDRESSES)
-        + ": check the wiring and that I2C is enabled")
+        + ": check the wiring and that I2C is enabled"
+    )
+
 
 @click.group()
 @click.option("--name", "-n", type=str, default=None)
-@click.option("--timeout", "-t", type=float, default=TIMEOUT, show_default=True,
-    help="Seconds to wait for the Display Actor (for list: to collect them)")
+@click.option(
+    "--timeout",
+    "-t",
+    type=float,
+    default=TIMEOUT,
+    show_default=True,
+    help="Seconds to wait for the Display Actor (for list: to collect them)",
+)
 @click.pass_context
-
 def main(ctx, name, timeout):
     """Display Actor: run it, or send commands to the running one
 
@@ -135,38 +160,48 @@ def main(ctx, name, timeout):
 
     ctx.obj = {"name": name, "timeout": timeout}
 
+
 @main.command(name="run")
-@click.option("--output", "-o", type=click.Choice(OUTPUTS), default="auto",
+@click.option(
+    "--output",
+    "-o",
+    type=click.Choice(OUTPUTS),
+    default="auto",
     show_default=True,
     help="oled: the SSD1306 over I2C; window (pygame), terminal, png: "
-         "emulations; auto: the OLED if there is an I2C bus, else a window "
-         "on a desktop with pygame, else the terminal")
-@click.option("--address", "-a", default="0x3C", callback=_parse_address,
-    help="I2C address of the OLED  [default: 0x3C]")
-@click.option("--bus", "-b", type=int, default=1, show_default=True,
-    help="I2C bus number")
-@click.option("--applet", default=DEFAULT_APPLET, show_default=True,
-    help="Applet to run at start; none: show the canvas")
-@click.option("--font_size", "-fs", default="5x7", show_default=True,
+    "emulations; auto: the OLED if there is an I2C bus, else a window "
+    "on a desktop with pygame, else the terminal",
+)
+@click.option(
+    "--address", "-a", default="0x3C", callback=_parse_address, help="I2C address of the OLED  [default: 0x3C]"
+)
+@click.option("--bus", "-b", type=int, default=1, show_default=True, help="I2C bus number")
+@click.option(
+    "--applet", default=DEFAULT_APPLET, show_default=True, help="Applet to run at start; none: show the canvas"
+)
+@click.option(
+    "--font_size",
+    "-fs",
+    default="5x7",
+    show_default=True,
     callback=_validate_font_size,
-    help="5x7 bitmap font, or a TrueType font size in pixels, 6 to 64")
-@click.option("--title", default=None,
-    help="Title row text (use _ for spaces) or off  [default: the Actor name]")
-@click.option("--color", "-c", default=None, callback=_parse_colors,
+    help="5x7 bitmap font, or a TrueType font size in pixels, 6 to 64",
+)
+@click.option("--title", default=None, help="Title row text (use _ for spaces) or off  [default: the Actor name]")
+@click.option(
+    "--color",
+    "-c",
+    default=None,
+    callback=_parse_colors,
     metavar="'FOREGROUND [BACKGROUND]'",
     help="Colors of an emulated display, e.g. 'yellow navy': the settings "
-         "foreground and background, which the keys b and B step through")
-@click.option("--png", type=click.Path(dir_okay=False), default=None,
-    help="File for -o png  [default: oled.png]")
-@click.option("--standalone", is_flag=True,
-    help="Run without an MQTT broker (status display only)")
-@click.option("--strict", is_flag=True,
-    help="Exit when the display can't be opened, instead of retrying")
-
+    "foreground and background, which the keys b and B step through",
+)
+@click.option("--png", type=click.Path(dir_okay=False), default=None, help="File for -o png  [default: oled.png]")
+@click.option("--standalone", is_flag=True, help="Run without an MQTT broker (status display only)")
+@click.option("--strict", is_flag=True, help="Exit when the display can't be opened, instead of retrying")
 @click.pass_obj
-
-def run_command(options, output, address, bus, applet, font_size, title,
-    color, png, standalone, strict):
+def run_command(options, output, address, bus, applet, font_size, title, color, png, standalone, strict):
     """Run the Display Actor in the foreground (append & for the background, or
     start it with "aiko_process create")
 
@@ -205,12 +240,14 @@ def run_command(options, output, address, bus, applet, font_size, title,
         os.environ.setdefault("AIKO_LOG_MQTT", "true")
     backend = choose_output(output, address, bus, png)
     parameters = {
-        "output": backend, "applet": applet, "font": font_size,
-        "title": title, "strict": strict, "colors": color,
+        "output": backend,
+        "applet": applet,
+        "font": font_size,
+        "title": title,
+        "strict": strict,
+        "colors": color,
     }
-    init_args = aiko.actor_args(
-        name, parameters=parameters, protocol=PROTOCOL,
-        tags=service_tags(backend.name))
+    init_args = aiko.actor_args(name, parameters=parameters, protocol=PROTOCOL, tags=service_tags(backend.name))
     signal.signal(signal.SIGTERM, lambda *_: aiko.process.terminate())
     actor = None
     try:
@@ -225,11 +262,10 @@ def run_command(options, output, address, bus, applet, font_size, title,
         if actor:
             actor._shutdown()
 
-@main.command(name="exit")
-@click.option("--all", "every", is_flag=True,
-    help="Allow -n '*': exit every Display Actor")
-@click.pass_obj
 
+@main.command(name="exit")
+@click.option("--all", "every", is_flag=True, help="Allow -n '*': exit every Display Actor")
+@click.pass_obj
 def exit_command(options, every):
     """Blank the display and terminate the Display Actor
 
@@ -244,9 +280,9 @@ def exit_command(options, every):
         raise click.BadParameter("-n '*' would exit every Display Actor: add --all")
     _remote(Display, options, lambda display: display.stop())
 
+
 @main.command(name="list")
 @click.pass_obj
-
 def list_command(options):
     """List the running Display Actors: name, topic path, tags
 
@@ -270,15 +306,13 @@ def list_command(options):
             click.echo("No Display Actors found", err=True)
         aiko.process.terminate(0 if found else 1)
 
-    aiko.do_discovery(Display,
-        aiko.ServiceFilter("*", name, PROTOCOL, "*", "*", "*"), add_handler)
+    aiko.do_discovery(Display, aiko.ServiceFilter("*", name, PROTOCOL, "*", "*", "*"), add_handler)
     aiko.event.add_timer_handler(done, timeout)
     aiko.process.run()
 
+
 @main.command(name="clear")
-
 @click.pass_obj
-
 def clear_command(options):
     """Erase the canvas (the title row stays)
 
@@ -289,11 +323,10 @@ def clear_command(options):
 
     _remote(Canvas, options, lambda oled: oled.clear())
 
+
 @main.command(name="log", no_args_is_help=True)
 @click.argument("words", nargs=-1, required=True)
-
 @click.pass_obj
-
 def log_command(options, words):
     """Scroll the canvas up one text row and write WORDS on the bottom row
 
@@ -306,13 +339,12 @@ def log_command(options, words):
 
     _remote(Canvas, options, lambda oled: oled.log(*words))
 
+
 @main.command(name="text", no_args_is_help=True)
 @click.argument("x", type=int)
 @click.argument("y", type=int)
 @click.argument("words", nargs=-1, required=True)
-
 @click.pass_obj
-
 def text_command(options, x, y, words):
     """Write WORDS on the canvas with the text cell's bottom-left at X Y
 
@@ -326,11 +358,10 @@ def text_command(options, x, y, words):
 
     _remote(Canvas, options, lambda oled: oled.text(x, y, *words))
 
+
 @main.command(name="pixels", no_args_is_help=True)
 @click.argument("coordinates", nargs=-1, type=int, required=True)
-
 @click.pass_obj
-
 def pixels_command(options, coordinates):
     """Light pixels at X Y pairs, origin bottom-left
 
@@ -340,18 +371,16 @@ def pixels_command(options, coordinates):
     """
 
     if len(coordinates) % 2 or len(coordinates) > 2 * PIXEL_PAIRS_MAXIMUM:
-        raise click.BadParameter(
-            f"give X Y pairs, at most {PIXEL_PAIRS_MAXIMUM} of them")
+        raise click.BadParameter(f"give X Y pairs, at most {PIXEL_PAIRS_MAXIMUM} of them")
     _remote(Canvas, options, lambda oled: oled.pixels(*coordinates))
+
 
 @main.command(name="line", no_args_is_help=True)
 @click.argument("x0", type=int)
 @click.argument("y0", type=int)
 @click.argument("x1", type=int)
 @click.argument("y1", type=int)
-
 @click.pass_obj
-
 def line_command(options, x0, y0, x1, y1):
     """Draw a line from X0 Y0 to X1 Y1, origin bottom-left
 
@@ -360,12 +389,11 @@ def line_command(options, x0, y0, x1, y1):
 
     _remote(Canvas, options, lambda oled: oled.line(x0, y0, x1, y1))
 
+
 @main.command(name="set", no_args_is_help=True)
 @click.argument("key", type=click.Choice(SETTINGS))
 @click.argument("value")
-
 @click.pass_obj
-
 def set_command(options, key, value):
     """Change a setting: shared state that the Aiko Dashboard also edits
 
@@ -382,22 +410,19 @@ def set_command(options, key, value):
 
     def add_handler(service_details, service):
         topic_path = service_details[0]
-        aiko.process.message.publish(
-            f"{topic_path}/control", f"(update {key} {value})")
+        aiko.process.message.publish(f"{topic_path}/control", f"(update {key} {value})")
         aiko.process.terminate()
 
     _start_timeout(timeout, what)
     aiko.do_discovery(Display, service_filter(name), add_handler)
     aiko.process.run()
 
+
 @main.command(name="applet")
-@click.option("--list", "-l", "list_applets", is_flag=True,
-    help="List the applets and their options, without an Actor")
+@click.option("--list", "-l", "list_applets", is_flag=True, help="List the applets and their options, without an Actor")
 @click.argument("applet_name", required=False)
 @click.argument("arguments", nargs=-1)
-
 @click.pass_obj
-
 def applet_command(options, list_applets, applet_name, arguments):
     """Run an applet, e.g. status, pong seed=1; none shows the canvas"""
 
@@ -406,18 +431,15 @@ def applet_command(options, list_applets, applet_name, arguments):
         for applet_name, applet_class in sorted(APPLETS.items()):
             options = " ".join(f"{option}=" for option in applet_class.OPTIONS)
             summary = applet_class.summary or " ".join((applet_class.__doc__ or "").split())
-            click.echo(f"{applet_name:{width}}  {summary}"
-                       + (f"  [{options}]" if options else ""))
+            click.echo(f"{applet_name:{width}}  {summary}" + (f"  [{options}]" if options else ""))
         return
     if not applet_name:
         raise click.UsageError("give an applet name, or --list")
-    _remote(Interaction, options,
-        lambda oled: oled.applet(applet_name, *arguments))
+    _remote(Interaction, options, lambda oled: oled.applet(applet_name, *arguments))
+
 
 @main.command(name="stop")
-
 @click.pass_obj
-
 def stop_command(options):
     """Stop the running applet: the canvas is shown again
 
@@ -426,11 +448,11 @@ def stop_command(options):
 
     _remote(Interaction, options, lambda oled: oled.applet("none"))
 
+
 @main.command(name="mirror")
 @click.argument("topic")
 @click.argument("seconds", type=int, default=30)
 @click.pass_obj
-
 def mirror_command(options, topic, seconds):
     """Ask the Actor to publish its frames to TOPIC: a leased feed
 
@@ -443,10 +465,9 @@ def mirror_command(options, topic, seconds):
 
     _remote(Screen, options, lambda screen: screen.mirror(topic, seconds))
 
+
 @main.command(name="keys")
-
 @click.pass_obj
-
 def keys_command(options):
     """Interactive console: keys switch applets and settings, arrows play
 
@@ -461,14 +482,14 @@ def keys_command(options):
     """
 
     from aiko_services.actors.display.console import KeysConsole  # (imports this module)
+
     KeysConsole(options["name"], options["timeout"]).run()
+
 
 @main.command(name="key", no_args_is_help=True)
 @click.argument("key_name")
 @click.argument("state", type=click.Choice(KEY_STATES), default="tap")
-
 @click.pass_obj
-
 def key_command(options, key_name, state):
     """Send a key to the running Display Actor
 
@@ -482,14 +503,16 @@ def key_command(options, key_name, state):
     sends every key this way.
     """
 
-    _remote(Interaction, options,
-        lambda oled: oled.key(key_name, state))
+    _remote(Interaction, options, lambda oled: oled.key(key_name, state))
+
 
 # --------------------------------------------------------------------------- #
 # Reference text for --help, made from the same tables the code uses
 
+
 def _block(lines):
     return "\b\n" + "\n".join(lines)
+
 
 def _applets_reference():
     width = max(len(name) for name in APPLETS)
@@ -497,45 +520,55 @@ def _applets_reference():
     for name, applet_class in sorted(APPLETS.items()):
         options = " ".join(f"{option}=" for option in applet_class.OPTIONS)
         text = applet_class.summary + (f"  [{options}]" if options else "")
-        lines += textwrap.wrap(text, width=75, initial_indent=f"  {name:{width}}  ",
-                               subsequent_indent=" " * (width + 4))
+        lines += textwrap.wrap(
+            text, width=75, initial_indent=f"  {name:{width}}  ", subsequent_indent=" " * (width + 4)
+        )
     return _block(lines)
 
+
 def _settings_reference():
-    lines = ["Settings  (aiko_display set KEY VALUE, or (update KEY VALUE) on the control",
-             "           topic; the Aiko Dashboard edits them; a bad value converges back)"]
+    lines = [
+        "Settings  (aiko_display set KEY VALUE, or (update KEY VALUE) on the control",
+        "           topic; the Aiko Dashboard edits them; a bad value converges back)",
+    ]
     cells = [f"{setting.name:12} {setting.values}" for setting in SETTINGS_SPEC]
     for left, right in zip(cells[0::2], cells[1::2] + [""]):
         lines.append(f"  {left:37}{right}".rstrip())
     return _block(lines)
 
+
 _SETTINGS_REFERENCE = _settings_reference()
-_STATE_REFERENCE = _block([
-    "Shared state  (aiko_dashboard, or (share TOPIC SECONDS *) on control)",
-    "  backend device panels size origin depth settings keys.* connection",
-    "  mirrors applets applet applet_detail fps",
-    "  speed font contrast invert power all_on title blank_after foreground",
-    "  background heartbeat last_error log_count log_pending metrics.commands",
-    "  metrics.denied metrics.frames metrics.frame_ms metrics.errors",
-    "  metrics.mirrored",
-])
-_WIRE_REFERENCE = _block([
-    "Functions on the in topic  (mosquitto_pub -t TOPIC/in -m '...')",
-    "  origin bottom-left; one function has one name, so there are no aliases",
-    "  (clear)                                    erase the canvas",
-    "  (log WORDS ...)                            scroll up, write the bottom row",
-    "  (pixel X Y)                                light a pixel",
-    "  (pixels X Y X Y ...)                       at most 256 pairs",
-    "  (line X0 Y0 X1 Y1)                         draw a line",
-    "  (text X Y WORDS ...)                       text with its bottom-left at X Y",
-    "  (stop)                                     blank the display and terminate",
-    "  (applet NAME [ARGS ...])                   run an applet; none: the canvas",
-    "  (key NAME [tap|down|up])                   a mapped key runs its preset,",
-    "                                             any other goes to the applet",
-    "  (mirror TOPIC SECONDS)                     a leased feed of raw frames to",
-    "                                             TOPIC (the Dashboard plug-in)",
-    "  Anything else is denied (last_error, metrics.denied).",
-])
+_STATE_REFERENCE = _block(
+    [
+        "Shared state  (aiko_dashboard, or (share TOPIC SECONDS *) on control)",
+        "  backend device panels size origin depth settings keys.* connection",
+        "  mirrors applets applet applet_detail fps",
+        "  speed font contrast invert power all_on title blank_after foreground",
+        "  background heartbeat last_error log_count log_pending metrics.commands",
+        "  metrics.denied metrics.frames metrics.frame_ms metrics.errors",
+        "  metrics.mirrored",
+    ]
+)
+_WIRE_REFERENCE = _block(
+    [
+        "Functions on the in topic  (mosquitto_pub -t TOPIC/in -m '...')",
+        "  origin bottom-left; one function has one name, so there are no aliases",
+        "  (clear)                                    erase the canvas",
+        "  (log WORDS ...)                            scroll up, write the bottom row",
+        "  (pixel X Y)                                light a pixel",
+        "  (pixels X Y X Y ...)                       at most 256 pairs",
+        "  (line X0 Y0 X1 Y1)                         draw a line",
+        "  (text X Y WORDS ...)                       text with its bottom-left at X Y",
+        "  (stop)                                     blank the display and terminate",
+        "  (applet NAME [ARGS ...])                   run an applet; none: the canvas",
+        "  (key NAME [tap|down|up])                   a mapped key runs its preset,",
+        "                                             any other goes to the applet",
+        "  (mirror TOPIC SECONDS)                     a leased feed of raw frames to",
+        "                                             TOPIC (the Dashboard plug-in)",
+        "  Anything else is denied (last_error, metrics.denied).",
+    ]
+)
+
 
 def _preset_text(commands):
     words = []
@@ -546,14 +579,16 @@ def _preset_text(commands):
             words.append(" ".join(command[1]))
     return " ".join(words)
 
+
 def _keys_reference():
-    lines = ["Keys  (the map lives on the Actor: \"(key K)\" from the console, the",
-             "       emulator window, the plug-in or \"aiko_display key\"; the same key",
-             "       again: the next preset)"]
+    lines = [
+        'Keys  (the map lives on the Actor: "(key K)" from the console, the',
+        '       emulator window, the plug-in or "aiko_display key"; the same key',
+        "       again: the next preset)",
+    ]
     for key, presets in keymap.PRESETS.items():
         text = " | ".join(_preset_text(preset) for preset in presets)
-        lines += textwrap.wrap(text, width=75, initial_indent=f"  {key}  ",
-                               subsequent_indent="     ")
+        lines += textwrap.wrap(text, width=75, initial_indent=f"  {key}  ", subsequent_indent="     ")
     lines += [
         "  S  the next view of the status screen shown: text, then its charts",
         "  arrows  (key left|right|up|down) for the applet: the forklift game, help",
@@ -566,30 +601,40 @@ def _keys_reference():
     ]
     return _block(lines)
 
+
 def _reference():
-    return "\n\n".join([_applets_reference(), _SETTINGS_REFERENCE, _STATE_REFERENCE,
-                        _WIRE_REFERENCE, _keys_reference()])
+    return "\n\n".join(
+        [_applets_reference(), _SETTINGS_REFERENCE, _STATE_REFERENCE, _WIRE_REFERENCE, _keys_reference()]
+    )
+
 
 main.epilog = _reference()
 main.commands["applet"].help = (
     "Run an applet on the display, replacing the running one; ARGS are words and\n"
-    "key=value options.  \"none\" shows the canvas; --list lists the applets without\n"
+    'key=value options.  "none" shows the canvas; --list lists the applets without\n'
     "an Actor.  Every applet is deterministic for a seed= (no clocks, only frame\n"
-    "counts); \"set speed\" changes their pace.\n\n" + _applets_reference())
+    'counts); "set speed" changes their pace.\n\n' + _applets_reference()
+)
+
+
 def _set_help():
     rows = [f"{'KEY':12} {'VALUE':22} MEANING"]
     for setting in SETTINGS_SPEC:
-        rows += textwrap.wrap(setting.description, width=76,
+        rows += textwrap.wrap(
+            setting.description,
+            width=76,
             initial_indent=f"{setting.name:12} {setting.values:22} ",
-            subsequent_indent=" " * 36)
+            subsequent_indent=" " * 36,
+        )
     return main.commands["set"].help.rstrip() + "\n\n\b\n" + "\n".join(rows)
+
 
 main.commands["set"].help = _set_help()
 main.commands["keys"].help = (
     "Interactive console for the running Display Actor: keys typed here become wire\n"
     "commands and settings, and a status line follows the Actor's shared state.\n"
-    "Needs a terminal.  x or q quits the console; the Actor keeps running.\n\n"
-    + _keys_reference())
+    "Needs a terminal.  x or q quits the console; the Actor keeps running.\n\n" + _keys_reference()
+)
 
 if __name__ == "__main__":
     main()

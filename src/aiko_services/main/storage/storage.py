@@ -17,9 +17,9 @@ __all__ = ["Storage"]
 
 # --------------------------------------------------------------------------- #
 
+
 class Storage(Actor):
-    Interface.default("Storage",
-        "aiko_services.main.storage.storage_file.StorageFileImpl")
+    Interface.default("Storage", "aiko_services.main.storage.storage_file.StorageFileImpl")
 
     @abstractmethod
     def add(self, dependency_name, dependency=None):
@@ -30,7 +30,7 @@ class Storage(Actor):
         pass
 
     @abstractmethod
-    def destroy(self, entry_name):     # Entry is either Category or Dependency
+    def destroy(self, entry_name):  # Entry is either Category or Dependency
         pass
 
     @abstractmethod
@@ -50,17 +50,16 @@ class Storage(Actor):
         pass
 
     @abstractmethod
-    def list(self, topic_path_response, entry_name=None,
-        long_format=False, recursive=False, entry_records=None):
+    def list(self, topic_path_response, entry_name=None, long_format=False, recursive=False, entry_records=None):
         pass
 
     @abstractmethod
-    def remove(self, entry_name):      # Entry is either Category or Dependency
+    def remove(self, entry_name):  # Entry is either Category or Dependency
         pass
 
     @abstractmethod
-    def update(self, entry_name, service=None,
-        service_filter=None, lifecycle_manager_url=None, storage_url=None):
+    def update(self, entry_name, service=None, service_filter=None, lifecycle_manager_url=None, storage_url=None):
         pass
+
 
 # --------------------------------------------------------------------------- #

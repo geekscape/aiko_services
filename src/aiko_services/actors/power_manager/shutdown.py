@@ -33,6 +33,7 @@ __all__ = ["SUDO", "TIMEOUT_S", "power_off", "remount_read_only", "run_granted"]
 SUDO = "/usr/bin/sudo"
 TIMEOUT_S = 30.0
 
+
 def run_granted(command, runner=None, timeout=TIMEOUT_S):
     """Run one granted command through sudo, without a terminal.
 
@@ -46,14 +47,14 @@ def run_granted(command, runner=None, timeout=TIMEOUT_S):
         if runner is not None:
             code, output = runner(arguments)
         else:
-            done = subprocess.run(arguments,
-                capture_output=True, text=True, timeout=timeout)
+            done = subprocess.run(arguments, capture_output=True, text=True, timeout=timeout)
             code, output = done.returncode, (done.stderr or done.stdout)
     except (OSError, subprocess.SubprocessError) as error:
         return False, str(error)[:160]
     if code != 0:
         return False, (output or f"exit {code}").strip()[:160]
     return True, ""
+
 
 def power_off(runner=None, timeout=TIMEOUT_S, **where):
     """Ask the operating system to power the host off.
@@ -63,6 +64,7 @@ def power_off(runner=None, timeout=TIMEOUT_S, **where):
 
     command, _ = granted_commands(**where)
     return run_granted(command, runner=runner, timeout=timeout)
+
 
 def remount_read_only(runner=None, timeout=TIMEOUT_S, **where):
     """Remount the file systems read-only, so that nothing writes while the
@@ -74,5 +76,6 @@ def remount_read_only(runner=None, timeout=TIMEOUT_S, **where):
 
     _, command = granted_commands(**where)
     return run_granted(command, runner=runner, timeout=timeout)
+
 
 # --------------------------------------------------------------------------- #

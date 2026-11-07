@@ -22,13 +22,14 @@
 # * percent, minutes_left and watt_hours, after a discharge curve is
 #   measured on the hardware (ADR-028 decision 10)
 
-from dataclasses import dataclass, asdict, fields
-from datetime import datetime, timezone
 import time
+from dataclasses import asdict, dataclass, fields
+from datetime import datetime, timezone
 
 __all__ = ["PowerReading", "boot_id", "utc_now"]
 
 _BOOT_ID_PATH = "/proc/sys/kernel/random/boot_id"
+
 
 @dataclass(frozen=True)
 class PowerReading:
@@ -90,6 +91,7 @@ class PowerReading:
 
         return tuple(field.name for field in fields(PowerReading))
 
+
 # The one place that maps a field to its shared-state name.  ADR-028 names
 # the battery pack temperature for the battery pack, so that no reader confuses it with the
 # processor temperature beside it
@@ -111,6 +113,7 @@ _SHARE_NAMES = {
     "boot_id": "boot_id",
 }
 
+
 def _token(value):
     """One shared-state token.  None is "-", a bool is "yes" or "no", and a
     float keeps three decimals, which is finer than any sensor here"""
@@ -123,11 +126,13 @@ def _token(value):
         return f"{value:.3f}"
     return str(value)
 
+
 def utc_now():
     """The wall clock, as ISO 8601 with a "Z", to the second.  The same form
     that store_forward:0 publishes"""
 
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
 
 def boot_id():
     """This boot of this host, or None where the kernel does not say.  Two
@@ -140,7 +145,9 @@ def boot_id():
     except OSError:
         return None
 
+
 def _monotonic():
     return round(time.monotonic(), 3)
+
 
 # --------------------------------------------------------------------------- #

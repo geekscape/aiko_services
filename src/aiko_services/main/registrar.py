@@ -132,11 +132,12 @@
 #   - Ordered by Service "topic_path" fields: namespace, host, pid, sid
 #   - Share portions of the tree via Eventual Consistency like GraphQL
 
-from abc import abstractmethod
-import click
-from collections import deque
 import random
 import time
+from abc import abstractmethod
+from collections import deque
+
+import click
 
 from aiko_services.main import *
 from aiko_services.main.utilities import *
@@ -147,42 +148,34 @@ _LOGGER = aiko.logger(__name__)
 
 _HISTORY_LIMIT_DEFAULT = 16
 _HISTORY_RING_BUFFER_SIZE = 4096
-_PRIMARY_PROBE_JITTER = 0.5    # seconds, at most: Registrars probe apart
-_PRIMARY_PROBE_TIMEOUT = 3.0   # seconds a found primary has to reply
+_PRIMARY_PROBE_JITTER = 0.5  # seconds, at most: Registrars probe apart
+_PRIMARY_PROBE_TIMEOUT = 3.0  # seconds a found primary has to reply
 _PRIMARY_SEARCH_TIMEOUT = 2.0  # seconds
 _SERVICE_STATE_TOPIC = f"{get_namespace()}/+/+/+/state"
 _TIME_STARTED = time.monotonic()
 
 # --------------------------------------------------------------------------- #
 
-class StateMachineModel():
+
+class StateMachineModel:
     states = ["start", "primary_search", "primary_probe", "secondary", "primary"]
 
     transitions = [
-        {"source":
-          "start", "trigger": "initialize", "dest": "primary_search"},
-        {"source":
-          "primary_search", "trigger": "primary_found", "dest": "primary_probe"},
-        {"source":
-          "primary_probe", "trigger": "primary_found", "dest": "primary_probe"},
-        {"source":
-          "primary_probe", "trigger": "primary_alive", "dest": "secondary"},
-        {"source":
-          "primary_probe", "trigger": "primary_dead", "dest": "primary_search"},
-        {"source":
-          "primary_probe", "trigger": "primary_absent", "dest": "primary_search"},
-        {"source":
-          "primary_search", "trigger": "primary_promotion", "dest": "primary"},
-        {"source":
-          "primary", "trigger": "primary_failed", "dest": "primary_search"},
-        {"source":
-          "secondary", "trigger": "primary_failed", "dest": "primary_search"}
+        {"source": "start", "trigger": "initialize", "dest": "primary_search"},
+        {"source": "primary_search", "trigger": "primary_found", "dest": "primary_probe"},
+        {"source": "primary_probe", "trigger": "primary_found", "dest": "primary_probe"},
+        {"source": "primary_probe", "trigger": "primary_alive", "dest": "secondary"},
+        {"source": "primary_probe", "trigger": "primary_dead", "dest": "primary_search"},
+        {"source": "primary_probe", "trigger": "primary_absent", "dest": "primary_search"},
+        {"source": "primary_search", "trigger": "primary_promotion", "dest": "primary"},
+        {"source": "primary", "trigger": "primary_failed", "dest": "primary_search"},
+        {"source": "secondary", "trigger": "primary_failed", "dest": "primary_search"},
     ]
 
     def __init__(self, service):
         self.service = service
-        self.probe_target = None       # the found primary's topic_path
-        self._timers = set()           # the timer handlers pending
+        self.probe_target = None  # the found primary's topic_path
+        self._timers = set()  # the timer handlers pending
 
     def _timer_add(self, handler, period):
         if handler not in self._timers:
@@ -199,8 +192,8 @@ class StateMachineModel():
         self.service.ec_producer.update("lifecycle", "primary_search")
         _LOGGER.debug("do primary_search add_timer")
 
-# TODO: If oldest known secondary, then immediately become the primary
-# TODO: Choose timer period as _PRIMARY_SEARCH_TIMEOUT +/- delta to avoid collisions
+        # TODO: If oldest known secondary, then immediately become the primary
+        # TODO: Choose timer period as _PRIMARY_SEARCH_TIMEOUT +/- delta to avoid collisions
         self._timer_add(self.primary_search_timer, _PRIMARY_SEARCH_TIMEOUT)
 
     def on_exit_primary_search(self, event_data):
@@ -221,10 +214,8 @@ class StateMachineModel():
         self.probe_target = parameters.get("topic_path")
         self.service.ec_producer.update("lifecycle", "primary_probe")
         _LOGGER.debug(f"do primary_probe {self.probe_target}")
-        aiko.message.publish(f"{self.probe_target}/in",
-            f"(history {self.service.topic_probe} 0)")
-        self._timer_add(self.primary_probe_timer, _PRIMARY_PROBE_TIMEOUT +
-                        random.uniform(0, _PRIMARY_PROBE_JITTER))
+        aiko.message.publish(f"{self.probe_target}/in", f"(history {self.service.topic_probe} 0)")
+        self._timer_add(self.primary_probe_timer, _PRIMARY_PROBE_TIMEOUT + random.uniform(0, _PRIMARY_PROBE_JITTER))
 
     def on_exit_primary_probe(self, event_data):
         self._timer_remove(self.primary_probe_timer)
@@ -233,11 +224,12 @@ class StateMachineModel():
         self._timer_remove(self.primary_probe_timer)
         if self.service.state_machine.get_state() != "primary_probe":
             return
-        _LOGGER.warning(f"Primary Registrar {self.probe_target} didn't reply "
+        _LOGGER.warning(
+            f"Primary Registrar {self.probe_target} didn't reply "
             f"in {_PRIMARY_PROBE_TIMEOUT:g} s: its announcement is stale, "
-            f"publishing (primary absent)")
-        aiko.message.publish(
-            aiko.TOPIC_REGISTRAR_BOOT, "(primary absent)", retain=True)
+            f"publishing (primary absent)"
+        )
+        aiko.message.publish(aiko.TOPIC_REGISTRAR_BOOT, "(primary absent)", retain=True)
         self.service.state_machine.transition("primary_dead", None)
 
     def on_enter_secondary(self, event_data):
@@ -253,18 +245,19 @@ class StateMachineModel():
         payload_lwt = "(primary absent)"
         try:
             aiko.process.set_last_will_and_testament(  # May raise SystemError
-                aiko.TOPIC_REGISTRAR_BOOT, payload_lwt, True)
+                aiko.TOPIC_REGISTRAR_BOOT, payload_lwt, True
+            )
             topic_path = self.service.topic_path
             time_started = self.service.time_started
             version = REGISTRAR_VERSION
-            payload_out =  \
-                f"(primary found {topic_path} {version} {time_started})"
-            aiko.message.publish(
-                aiko.TOPIC_REGISTRAR_BOOT, payload_out, retain=True)
+            payload_out = f"(primary found {topic_path} {version} {time_started})"
+            aiko.message.publish(aiko.TOPIC_REGISTRAR_BOOT, payload_out, retain=True)
         except SystemError as system_error:  # Probably MQTT server not running
             self.service.state_machine.transition("primary_failed", None)
 
+
 # --------------------------------------------------------------------------- #
+
 
 class Registrar(Service):
     """
@@ -274,6 +267,7 @@ class Registrar(Service):
     collide with universal Service state ("share", "history").  Requests
     reply via messages to "topic_response" (s_02 §2), never return values
     """
+
     Interface.default("Registrar", "aiko_services.main.registrar.RegistrarImpl")
 
     @abstractmethod
@@ -299,13 +293,13 @@ class Registrar(Service):
         after the ones it holds.  Projection: request"""
 
     @abstractmethod
-    def services_share(self, topic_response,
-        name, protocol, transport, owner, tags):
+    def services_share(self, topic_response, name, protocol, transport, owner, tags):
         """Reply with the running Services matching the filter:
         "(item_count n)" then one "(add ...)" for each one to
         topic_response, then "(sync topic_response)" on topic_out.
         Wire form: "(share topic_response name protocol transport owner
         tags)".  Projection: request"""
+
 
 def _service_add_payload(service_details):
     """The "(add ...)" of one Service: the six registered fields.
@@ -314,10 +308,18 @@ def _service_add_payload(service_details):
     diverge.  generate() length-prefixes a field that holds a space, which
     the hand-built payload it replaced did not"""
 
-    return generate("add", [
-        service_details["topic_path"], service_details["name"],
-        service_details["protocol"], service_details["transport"],
-        service_details["owner"], service_details["tags"]])
+    return generate(
+        "add",
+        [
+            service_details["topic_path"],
+            service_details["name"],
+            service_details["protocol"],
+            service_details["transport"],
+            service_details["owner"],
+            service_details["tags"],
+        ],
+    )
+
 
 class RegistrarImpl(Registrar):
     def __init__(self, context):
@@ -326,7 +328,7 @@ class RegistrarImpl(Registrar):
         state_machine_model = StateMachineModel(self)
         self.state_machine = StateMachineOld(state_machine_model)
 
-        self.announced = False           # has been the primary
+        self.announced = False  # has been the primary
         self.history = deque(maxlen=_HISTORY_RING_BUFFER_SIZE)
         self.services = Services()
         self.topic_probe = f"{self.topic_path}/probe"
@@ -336,14 +338,12 @@ class RegistrarImpl(Registrar):
             "lifecycle": "start",
             "log_level": get_log_level_name(_LOGGER),
             "source_file": f"v{REGISTRAR_VERSION}⇒ {__file__}",
-            "service_count": 0
+            "service_count": 0,
         }
-        self.ec_producer = compose_instance(
-            ECProducerImpl, ec_producer_args(self, self.share))
+        self.ec_producer = compose_instance(ECProducerImpl, ec_producer_args(self, self.share))
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
-        self.add_message_handler(
-            self._service_state_handler, _SERVICE_STATE_TOPIC)
+        self.add_message_handler(self._service_state_handler, _SERVICE_STATE_TOPIC)
         self.add_message_handler(self._topic_in_handler, self.topic_in)
         self.add_message_handler(self._probe_handler, self.topic_probe)
         self.set_registrar_handler(self._registrar_handler)
@@ -360,20 +360,21 @@ class RegistrarImpl(Registrar):
             target = registrar.get("topic_path") if registrar else None
             if state == "primary_search":
                 if target == self.topic_path:
-                    if self.announced:           # this Registrar, still primary
+                    if self.announced:  # this Registrar, still primary
                         self.state_machine.transition("primary_promotion", None)
-                    else:                        # a reused PID: stale
-                        _LOGGER.warning(f"Primary Registrar {target} is this "
+                    else:  # a reused PID: stale
+                        _LOGGER.warning(
+                            f"Primary Registrar {target} is this "
                             "Registrar's own topic path, never announced: "
-                            "stale, publishing (primary absent)")
-                        aiko.message.publish(aiko.TOPIC_REGISTRAR_BOOT,
-                            "(primary absent)", retain=True)
+                            "stale, publishing (primary absent)"
+                        )
+                        aiko.message.publish(aiko.TOPIC_REGISTRAR_BOOT, "(primary absent)", retain=True)
                 else:
-                    self.state_machine.transition(
-                        "primary_found", {"topic_path": target})
+                    self.state_machine.transition("primary_found", {"topic_path": target})
             elif state == "primary_probe" and target != self.state_machine.model.probe_target:
-                self.state_machine.transition(       # a newer primary: probe it
-                    "primary_found", {"topic_path": target})
+                self.state_machine.transition(  # a newer primary: probe it
+                    "primary_found", {"topic_path": target}
+                )
 
         if action == "absent":
             if state == "primary_search":
@@ -386,14 +387,13 @@ class RegistrarImpl(Registrar):
 
     def _probe_handler(self, _, topic, payload_in):
         command, _ = parse(payload_in)
-        if command == "item_count" and  \
-                self.state_machine.get_state() == "primary_probe":
+        if command == "item_count" and self.state_machine.get_state() == "primary_probe":
             self.state_machine.transition("primary_alive", None)
 
     def _service_state_handler(self, _, topic, payload_in):
         command, parameters = parse(payload_in)
         if command == "absent" and topic.endswith("/state"):
-            topic_path = topic[:-len("/state")]
+            topic_path = topic[: -len("/state")]
             self.service_remove(topic_path)
 
     def _topic_in_handler(self, _, topic, payload_in):
@@ -424,20 +424,21 @@ class RegistrarImpl(Registrar):
             if count < 1:
                 break
             service_tags = " ".join(service_details["tags"])
-            payload_out =  "(add"                                \
-                          f" {service_details['topic_path']}"    \
-                          f" {service_details['name']}"          \
-                          f" {service_details['protocol']}"      \
-                          f" {service_details['transport']}"     \
-                          f" {service_details['owner']}"         \
-                          f" ({service_tags})"                   \
-                          f" {service_details['time_add']}"      \
-                          f" {service_details['time_remove']})"
+            payload_out = (
+                "(add"
+                f" {service_details['topic_path']}"
+                f" {service_details['name']}"
+                f" {service_details['protocol']}"
+                f" {service_details['transport']}"
+                f" {service_details['owner']}"
+                f" ({service_tags})"
+                f" {service_details['time_add']}"
+                f" {service_details['time_remove']})"
+            )
             aiko.message.publish(topic_response, payload_out)
             count -= 1
 
-    def services_share(self, topic_response,
-        name, protocol, transport, owner, tags):
+    def services_share(self, topic_response, name, protocol, transport, owner, tags):
 
         filter = ServiceFilter("*", name, protocol, transport, owner, tags)
         services_out = self.services.filter_by_attributes(filter)
@@ -446,14 +447,12 @@ class RegistrarImpl(Registrar):
         aiko.message.publish(topic_response, payload=payload_out)
 
         for service_details in services_out:
-            aiko.message.publish(
-                topic_response, _service_add_payload(service_details))
+            aiko.message.publish(topic_response, _service_add_payload(service_details))
 
         payload_out = f"(sync {topic_response})"
         aiko.message.publish(self.topic_out, payload_out)
 
-    def service_add(self,
-        topic_path, name, protocol, transport, owner, tags):
+    def service_add(self, topic_path, name, protocol, transport, owner, tags):
 
         if not self.services.get_service(topic_path):
             _LOGGER.debug(f"Service add: {topic_path}")
@@ -466,7 +465,7 @@ class RegistrarImpl(Registrar):
                 "owner": owner,
                 "tags": tags,
                 "time_add": time.monotonic(),
-                "time_remove": 0
+                "time_remove": 0,
             }
             payload_out = _service_add_payload(service_details)
 
@@ -478,11 +477,10 @@ class RegistrarImpl(Registrar):
     def service_remove(self, topic_path):
         service_topic_path = ServiceTopicPath.parse(topic_path)
         if service_topic_path:
-        # TODO: For this Process, remove *all* Services
+            # TODO: For this Process, remove *all* Services
             if service_topic_path.service_id == "0":  # Process terminated
                 process_topic_path, _ = ServiceTopicPath.topic_paths(topic_path)
-                topic_paths =  \
-                    self.services.get_process_services(process_topic_path)
+                topic_paths = self.services.get_process_services(process_topic_path)
             else:
                 topic_paths = [topic_path]
 
@@ -495,17 +493,17 @@ class RegistrarImpl(Registrar):
                     self.history.appendleft(service_details)
 
                     self.services.remove_service(topic_path)
-                    self.ec_producer.update(
-                        "service_count", self.services.count)
+                    self.ec_producer.update("service_count", self.services.count)
 
                     payload_out = f"(remove {topic_path})"
                     aiko.message.publish(self.topic_out, payload_out)
 
+
 # --------------------------------------------------------------------------- #
+
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-
 def main(context):
     """Maintain active and historical Service Lists
 
@@ -513,41 +511,38 @@ def main(context):
     export AIKO_DISCOVERY_TIMEOUT=5.0  # seconds for remote WAN hosts (optional)
     """
 
-# "aiko_registrar" with no sub-command runs the Registrar (convenient)
+    # "aiko_registrar" with no sub-command runs the Registrar (convenient)
 
     if context.invoked_subcommand is None:
         context.invoke(run_command)
 
-@main.command(name="run")
 
+@main.command(name="run")
 def run_command():
     """Run Registrar (default sub-command)"""
 
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
-    init_args = service_args(
-        REGISTRAR_SERVICE_TYPE, None, None, REGISTRAR_PROTOCOL, tags)
+    init_args = service_args(REGISTRAR_SERVICE_TYPE, None, None, REGISTRAR_PROTOCOL, tags)
     registrar = compose_instance(RegistrarImpl, init_args)
     aiko.process.run(True)
 
+
 @main.command(name="list")
 @click.option("--history", "-h", is_flag=True, help="Terminated Services")
-@click.option("--timeout", "-t", type=click.FLOAT, default=5.0,
-    help="Seconds to wait for the Registrar")
-
+@click.option("--timeout", "-t", type=click.FLOAT, default=5.0, help="Seconds to wait for the Registrar")
 def list_command(history, timeout):
     """List Services: topic path, name and protocol
 
     aiko_registrar list [--history] [--timeout SECONDS]
     """
 
-    services_cache = services_cache_create_singleton(
-        aiko.process, True, history_limit=_HISTORY_RING_BUFFER_SIZE)
+    services_cache = services_cache_create_singleton(aiko.process, True, history_limit=_HISTORY_RING_BUFFER_SIZE)
     services_cache.wait_ready()
-    records = services_cache.get_history() if history  \
-        else services_cache.get_services()
-    rows = [(str(ServiceTopicPath.parse(service_details[0])),
-        service_details[1], service_details[2])
-        for service_details in records]
+    records = services_cache.get_history() if history else services_cache.get_services()
+    rows = [
+        (str(ServiceTopicPath.parse(service_details[0])), service_details[1], service_details[2])
+        for service_details in records
+    ]
     services_cache_delete()
 
     if not rows:
@@ -556,6 +551,7 @@ def list_command(history, timeout):
     print(f"{'Topic path':<28} {'Name':<18} Protocol")
     for topic_path, name, protocol in rows:
         print(f"{topic_path:<28} {name:<18} {protocol}")
+
 
 if __name__ == "__main__":
     main()

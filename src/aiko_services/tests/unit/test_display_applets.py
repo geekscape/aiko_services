@@ -13,21 +13,27 @@ from types import SimpleNamespace
 import pytest
 
 import aiko_services as aiko
-
-from aiko_services.actors.display import DisplayImpl, PROTOCOL
-from aiko_services.actors.display import applets
+from aiko_services.actors.display import PROTOCOL, DisplayImpl, applets
+from aiko_services.actors.display import status as status_module
 from aiko_services.actors.display.applets import (
-    APPLETS, Applet, HelpApplet, Host,
+    APPLETS,
+    Applet,
+    HelpApplet,
+    Host,
     per_second,
 )
-from aiko_services.actors.display.outputs import fake_output
 from aiko_services.actors.display.graphics import HEIGHT, WIDTH, Font
-from aiko_services.actors.display import status as status_module
+from aiko_services.actors.display.outputs import fake_output
 from aiko_services.actors.display.status import (
-    HISTORY, StatusApplet, parse_iw, parse_nmcli, parse_wireless,
+    HISTORY,
+    StatusApplet,
+    parse_iw,
+    parse_nmcli,
+    parse_wireless,
 )
 
 _counter = itertools.count()
+
 
 class FakePsutil:
     """Constant readings"""
@@ -36,9 +42,11 @@ class FakePsutil:
         return 12.0
 
     def net_io_counters(self, pernic=False):
-        return {"lo0": SimpleNamespace(bytes_recv=1, bytes_sent=1),
-                "eth0": SimpleNamespace(bytes_recv=1000, bytes_sent=2000),
-                "wlan0": SimpleNamespace(bytes_recv=500, bytes_sent=300)}
+        return {
+            "lo0": SimpleNamespace(bytes_recv=1, bytes_sent=1),
+            "eth0": SimpleNamespace(bytes_recv=1000, bytes_sent=2000),
+            "wlan0": SimpleNamespace(bytes_recv=500, bytes_sent=300),
+        }
 
     def cpu_freq(self):
         return SimpleNamespace(current=1500.0)
@@ -54,6 +62,7 @@ class FakePsutil:
 
     def disk_usage(self, path):
         return SimpleNamespace(percent=61.0)
+
 
 class StubHost(Host):
     def __init__(self, title_rows=8, lines=None, **geometry):
@@ -74,17 +83,20 @@ class StubHost(Host):
     def log_seen(self):
         self.seen += 1
 
+
 def lit_rows(image):
-    return sorted({y for y in range(image.height)
-        for x in range(image.width) if image.getpixel((x, y))})
+    return sorted({y for y in range(image.height) for x in range(image.width) if image.getpixel((x, y))})
+
 
 WIRELESS = """Inter-| sta-|   Quality        |   Discarded packets               | Missed | WE
  face | tus | link level noise |  nwid  crypt   frag  retry   misc | beacon | 22
  wlan0: 0000   70.  -37.  -256        0      0      0      0      4        0
 """
-NMCLI = ("yes:wlan0:geekscape_n:A6\\:91\\:B1\\:75\\:16\\:82:132:5660 MHz:540 Mbit/s:84:80 MHz\n"
-         "yes:wlan1:hotspot:DC\\:A6\\:32\\:0B\\:AB\\:23:1:2412 MHz:0 Mbit/s:0:0 MHz\n"
-         "no:wlan0:other:00\\:11\\:22\\:33\\:44\\:55:6:2437 MHz:65 Mbit/s:40:20 MHz\n")
+NMCLI = (
+    "yes:wlan0:geekscape_n:A6\\:91\\:B1\\:75\\:16\\:82:132:5660 MHz:540 Mbit/s:84:80 MHz\n"
+    "yes:wlan1:hotspot:DC\\:A6\\:32\\:0B\\:AB\\:23:1:2412 MHz:0 Mbit/s:0:0 MHz\n"
+    "no:wlan0:other:00\\:11\\:22\\:33\\:44\\:55:6:2437 MHz:65 Mbit/s:40:20 MHz\n"
+)
 
 IW_LINK = """Connected to a6:91:b1:75:16:82 (on wlan0)
 \tSSID: geekscape_n
@@ -105,15 +117,17 @@ IW_INFO = """Interface wlan0
 \ttxpower 26.00 dBm
 """
 
+
 def make_status(monkeypatch, options=None, wifi=True, details="iw", **kwargs):
     monkeypatch.setattr(status_module, "ip_address", lambda: "192.168.0.137")
     monkeypatch.setattr(status_module.os, "getloadavg", lambda: (0.42, 0.31, 0.25))
     monkeypatch.setattr(status_module, "fan_state", lambda: "1")
-    monkeypatch.setattr(status_module, "wifi_signal",
-                        lambda: ("wlan0", 70, -37) if wifi else None)
-    monkeypatch.setattr(status_module, "wifi_details",
-                        lambda interface: parse_iw(IW_LINK, IW_INFO) if details == "iw"
-                        else parse_nmcli(NMCLI, interface))
+    monkeypatch.setattr(status_module, "wifi_signal", lambda: ("wlan0", 70, -37) if wifi else None)
+    monkeypatch.setattr(
+        status_module,
+        "wifi_details",
+        lambda interface: parse_iw(IW_LINK, IW_INFO) if details == "iw" else parse_nmcli(NMCLI, interface),
+    )
     for values in HISTORY.values():
         values.clear()
     host = StubHost(**kwargs)
@@ -122,37 +136,41 @@ def make_status(monkeypatch, options=None, wifi=True, details="iw", **kwargs):
     status._before = (time.monotonic(), status._network_bytes())  # the fake's baseline
     return status, host
 
+
 # --------------------------------------------------------------------------- #
+
 
 def test_status_lines_with_a_title_row(monkeypatch):
     status, host = make_status(monkeypatch, lines=["boot ok", "hello"])
     assert status.description == "host_text"
     lines = status.host_lines(status.sample())
     assert lines[0] == "IP 192.168.0.137"
-    assert lines[1] == "CPU 12% Mem 34%"                   # fixed widths
+    assert lines[1] == "CPU 12% Mem 34%"  # fixed widths
     assert lines[2] == "Dsk 61% R   0  T   0 "
-    assert lines[3] == "Load 0.42 0.31 0.25"               # 1, 5 and 15 minutes
-    assert lines[4] == "Temp 45C F 1 1500MHz"              # the fan on GPIO14
+    assert lines[3] == "Load 0.42 0.31 0.25"  # 1, 5 and 15 minutes
+    assert lines[4] == "Temp 45C F 1 1500MHz"  # the fan on GPIO14
     assert lines[5] == "Up 3d04h"
-    assert lines[6] == "hello"                             # the newest line, last
+    assert lines[6] == "hello"  # the newest line, last
     assert all(len(line) <= 21 for line in lines)
     status.options["date"] = True
     lines = status.host_lines(status.sample())
     assert lines[1].endswith(str(time.localtime().tm_year))  # the date row
-    assert lines[-2:] == ["Up 3d04h", "hello"]            # eight rows: the last is
-    frame = status.step()                                # dropped by write_lines
+    assert lines[-2:] == ["Up 3d04h", "hello"]  # eight rows: the last is
+    frame = status.step()  # dropped by write_lines
     assert frame.size == (WIDTH, HEIGHT)
-    assert min(lit_rows(frame)) == 8                     # below the title row
-    assert host.seen == 1                                # "L" annunciator cleared
+    assert min(lit_rows(frame)) == 8  # below the title row
+    assert host.seen == 1  # "L" annunciator cleared
+
 
 def test_status_lines_without_a_title_row(monkeypatch):
     status, host = make_status(monkeypatch, title_rows=0)
     lines = status.host_lines(status.sample())
     assert lines[0] == "oled REGISTRAR"
     assert lines[1] == "IP 192.168.0.137"
-    assert lines[-1].endswith(" up 3d04h") and lines[-1][2] == ":"   # hh:mm:ss up ...
-    assert len(lines) == 7                               # no log lines here
+    assert lines[-1].endswith(" up 3d04h") and lines[-1][2] == ":"  # hh:mm:ss up ...
+    assert len(lines) == 7  # no log lines here
     assert min(lit_rows(status.step())) == 0
+
 
 def test_status_falls_back_without_sensor_fan_and_rate_option(monkeypatch):
     status, host = make_status(monkeypatch)
@@ -165,19 +183,27 @@ def test_status_falls_back_without_sensor_fan_and_rate_option(monkeypatch):
     assert StatusApplet(host, options={"rate": 4}).fps == 4
     assert StatusApplet(host, options={"rate": 99}).fps == 10
 
+
 def test_status_wifi_screen(monkeypatch):
     status, host = make_status(monkeypatch, options={"screen": "wifi"})
     assert status.description == "wifi_text"
     lines = status.wifi_lines(status.sample())
-    assert lines == ["SSID geekscape_n", "Ch 132 5GHz BW 80MHz", "RSSI -37dBm Q 70/70",
-                     "Tx 867 Rx 780 Mb/s", "AP a6:91:b1:75:16:82", "R   0  T   0 ",
-                     "IF wlan0"]
+    assert lines == [
+        "SSID geekscape_n",
+        "Ch 132 5GHz BW 80MHz",
+        "RSSI -37dBm Q 70/70",
+        "Tx 867 Rx 780 Mb/s",
+        "AP a6:91:b1:75:16:82",
+        "R   0  T   0 ",
+        "IF wlan0",
+    ]
     assert all(len(line) <= 21 for line in lines)
     assert min(lit_rows(status.step())) == 8
     manager, _ = make_status(monkeypatch, options={"screen": "wifi"}, details="nmcli")
     assert manager.wifi_lines(manager.sample())[3] == "Rate 540Mb/s Sig 84%"
     none, _ = make_status(monkeypatch, options={"screen": "wifi"}, wifi=False)
     assert none.wifi_lines(none.sample())[0] == "Wi-Fi: none"
+
 
 def test_status_charts(monkeypatch):
     status, host = make_status(monkeypatch, options={"view": "cpu_mem"})
@@ -186,10 +212,10 @@ def test_status_charts(monkeypatch):
         frame = status.step()
     assert len(HISTORY["cpu"]) == 5 and HISTORY["cpu"][-1] == 12.0
     rows = lit_rows(frame)
-    assert 8 in rows and 63 in rows                      # the heading and the baseline
+    assert 8 in rows and 63 in rows  # the heading and the baseline
     assert sum(frame.getpixel((x, 63)) > 0 for x in range(WIDTH)) == WIDTH
     plotted = [y for y in rows if 16 <= y < 63]
-    assert plotted                                       # traces in the plot area
+    assert plotted  # traces in the plot area
     for view, screen in (("rx_tx", "host"), ("rssi", "wifi"), ("rx_tx", "wifi")):
         chart, _ = make_status(monkeypatch, options={"screen": screen, "view": view})
         assert chart.description == f"{screen}_{view}"
@@ -200,7 +226,8 @@ def test_status_charts(monkeypatch):
         parse_applet_args(["screen=moon"], StatusApplet.OPTIONS)
     for _ in range(300):
         HISTORY["cpu"].append(1.0)
-    assert len(HISTORY["cpu"]) == 256                    # bounded
+    assert len(HISTORY["cpu"]) == 256  # bounded
+
 
 def test_status_parsers():
     link = parse_iw(IW_LINK, IW_INFO)
@@ -218,21 +245,32 @@ def test_status_parsers():
     assert parse_nmcli(NMCLI, "wlan1")["band"] == "2.4GHz"
     assert parse_nmcli(NMCLI, "wlan9") == {}
 
+
 def test_per_second():
-    assert [per_second(n) for n in (0, 950, 1200, 12000, 111000, 3.4e6, 2e12)]  \
-        == ["  0 ", "950 ", "1.2k", " 12k", "111k", "3.4M", "  2T"]
+    assert [per_second(n) for n in (0, 950, 1200, 12000, 111000, 3.4e6, 2e12)] == [
+        "  0 ",
+        "950 ",
+        "1.2k",
+        " 12k",
+        "111k",
+        "3.4M",
+        "  2T",
+    ]
     assert all(len(per_second(n)) == 4 for n in (0, 999, 1000, 99999, 1e9))
+
 
 def test_log_applet_shows_the_lines_and_clears_the_annunciator():
     from aiko_services.actors.display.applets import LogApplet
+
     host = StubHost(lines=[f"line {n}" for n in range(9)])
     log = LogApplet(host)
     frame = log.step()
     assert host.seen == 1 and len(lit_rows(frame)) > 40
-    assert min(lit_rows(frame)) == 8                     # below the title row
-    assert log.step() is None                            # nothing new
+    assert min(lit_rows(frame)) == 8  # below the title row
+    assert log.step() is None  # nothing new
     host._lines.append("newest")
     assert log.step() is not None and host.seen == 2
+
 
 def test_help_applet_writes_lines():
     host = StubHost()
@@ -241,22 +279,25 @@ def test_help_applet_writes_lines():
     assert lit_rows(frame)[0] >= 8 and len(lit_rows(frame)) > 20
     assert set(APPLETS) >= {"status", "help"}
 
+
 def test_write_lines_drops_what_does_not_fit():
     host = StubHost(title_rows=0)
     frame = Applet(host).write_lines(["x"] * 20)
     assert max(lit_rows(frame)) <= HEIGHT - 1
     assert len(lit_rows(frame)) <= 8 * 7
 
+
 # --------------------------------------------------------------------------- #
 # The Actor with the status applet, and the no-blocking proof
+
 
 def make_actor(**parameters):
     display = parameters.pop("output", None) or fake_output()
     parameters = {"output": display, **parameters}
     name = f"oled_status_{next(_counter)}"
-    actor = aiko.compose_instance(DisplayImpl,
-        aiko.actor_args(name, parameters=parameters, protocol=PROTOCOL))
+    actor = aiko.compose_instance(DisplayImpl, aiko.actor_args(name, parameters=parameters, protocol=PROTOCOL))
     return actor, display
+
 
 def run_loop(seconds):
     def stop():
@@ -266,6 +307,7 @@ def run_loop(seconds):
     aiko.event.add_timer_handler(stop, seconds)
     aiko.process.run(mqtt_connection_required=False)
 
+
 def test_status_is_the_default_applet(monkeypatch):
     monkeypatch.setattr(applets, "ip_address", lambda: "10.0.0.2")
     actor, display = make_actor()
@@ -273,18 +315,19 @@ def test_status_is_the_default_applet(monkeypatch):
         assert actor.share["applet"] == "status"
         assert set(actor.share["applets"].split(",")) == set(APPLETS)
         assert actor.share["title"] == actor.name
-        actor.log("boot", "ok")                           # log keeps status running
+        actor.log("boot", "ok")  # log keeps status running
         assert actor.share["applet"] == "status"
         run_loop(0.3)
         assert len(display.frames) >= 2 and actor._applet is not None
         frame = display.frames[-1]
-        assert max(lit_rows(frame)) > 40                  # status rows under the title
+        assert max(lit_rows(frame)) > 40  # status rows under the title
         remote = actor._ec_producer_change_handler
         actor.share["applet"] = "help"
         remote("update", "applet", "help")
         assert actor.share["applet"] == "help"
     finally:
         actor._shutdown()
+
 
 class Bouncer(Applet):
     name = "bouncer"
@@ -299,6 +342,7 @@ class Bouncer(Applet):
         frame = self.frame()
         frame.putpixel((self.count % WIDTH, 20), 255)
         return frame
+
 
 def test_slow_display_does_not_block_the_event_loop(monkeypatch):
     """A 30 fps applet on a display that takes 25 ms per frame (an
@@ -329,26 +373,41 @@ def test_slow_display_does_not_block_the_event_loop(monkeypatch):
         assert actor._metrics["frames"] >= 15
         assert actor._metrics["errors"] == 0
         assert results["applied"] - results["posted"] < 0.1
-        assert actor.share["applet"] == "none"       # text stopped it
+        assert actor.share["applet"] == "none"  # text stopped it
     finally:
         actor._shutdown()
+
 
 # --------------------------------------------------------------------------- #
 # Phase 2: pattern, text, blink, demo, games, forklift, drawings
 
+import random  # noqa: E402
+
 from aiko_services.actors.display.applets import (  # noqa: E402
-    TOUR, BlinkApplet, DemoApplet, PatternApplet, TextApplet,
-    parse_applet_args, random_steps,
+    TOUR,
+    AppletDone,  # noqa: E402
+    BlinkApplet,
+    DemoApplet,
+    PatternApplet,
+    TextApplet,
+    parse_applet_args,
+    random_steps,
 )
 from aiko_services.actors.display.drawings import (  # noqa: E402
-    DrawApplet, erase_frames, scene, scene_strokes, sketch_frames,
+    DrawApplet,
+    erase_frames,
+    scene,
+    scene_strokes,
+    sketch_frames,
 )
 from aiko_services.actors.display.games import (  # noqa: E402
-    FORKS_CARRY, GROUND, ForkliftApplet, ForkliftGameApplet,
+    FORKS_CARRY,
+    GROUND,
+    ForkliftApplet,
+    ForkliftGameApplet,
     GamesApplet,
 )
-from aiko_services.actors.display.applets import AppletDone  # noqa: E402
-import random  # noqa: E402
+
 
 class RecordingHost(StubHost):
     """A host that records settings changes and answers setting()"""
@@ -373,13 +432,31 @@ class RecordingHost(StubHost):
     def keys_held(self):
         return self.held
 
+
 def frames_of(applet, count):
     return [applet.step() for _ in range(count)]
 
+
 def test_registry_has_every_applet():
-    assert set(APPLETS) == {"status", "log", "help", "pattern", "text", "blink", "demo",
-        "clock", "eyes", "pong", "asteroids", "invaders", "games", "forklift",
-        "forklift_game", "draw"}
+    assert set(APPLETS) == {
+        "status",
+        "log",
+        "help",
+        "pattern",
+        "text",
+        "blink",
+        "demo",
+        "clock",
+        "eyes",
+        "pong",
+        "asteroids",
+        "invaders",
+        "games",
+        "forklift",
+        "forklift_game",
+        "draw",
+    }
+
 
 @pytest.mark.parametrize("name", ["pong", "asteroids", "invaders", "forklift", "forklift_game"])
 def test_games_are_deterministic_with_a_seed(name):
@@ -390,6 +467,7 @@ def test_games_are_deterministic_with_a_seed(name):
     assert first == again and first != other
     assert all(len(frame) == WIDTH * HEIGHT // 8 for frame in first)
 
+
 def test_games_take_turns():
     host = RecordingHost()
     games = GamesApplet(host, [], {"seed": 1, "duration": 1})
@@ -399,6 +477,7 @@ def test_games_take_turns():
     frames_of(games, 30)
     assert games.description == "invaders"
 
+
 def test_forklift_duration_ends_the_applet():
     host = RecordingHost()
     forklift = ForkliftApplet(host, [], {"seed": 1, "duration": 0.1})
@@ -406,6 +485,7 @@ def test_forklift_duration_ends_the_applet():
     with pytest.raises(AppletDone):
         forklift.step()
     assert host.statuses[0].startswith(("ground_to_bay_", "bay_"))
+
 
 def test_forklift_game_keys_move_the_forklift():
     host = RecordingHost()
@@ -421,17 +501,18 @@ def test_forklift_game_keys_move_the_forklift():
     assert game.forks == forks - 5
     assert host.statuses[0].startswith("to_")
 
+
 def test_forklift_game_places_a_pallet_on_bay_1():
     host = RecordingHost()
     game = ForkliftGameApplet(host, [], {"seed": 1}).game
     game.pallet, game.x, game.forks, game.target = [50.0, GROUND - 1], 0.0, FORKS_CARRY, "bay 1"
-    for keys, count in (({"down"}, 10), ({"right"}, 30), ({"up"}, 20), ({"right"}, 60),
-                        ({"down"}, 30), ({"left"}, 20)):
+    for keys, count in (({"down"}, 10), ({"right"}, 30), ({"up"}, 20), ({"right"}, 60), ({"down"}, 30), ({"left"}, 20)):
         for _ in range(count):
             game.step(keys)
     assert game.placed == 1 and game.broken == 0
     assert any(status.startswith("placed_1") for status in host.statuses)
     assert game.frame().size == (WIDTH, HEIGHT)
+
 
 def test_sketch_frames_count_and_the_finished_drawing():
     rng = random.Random(1)
@@ -443,6 +524,7 @@ def test_sketch_frames_count_and_the_finished_drawing():
     assert lit_rows(finished) and len(lit_rows(finished)) > 30
     erased = list(erase_frames(finished))
     assert lit_rows(erased[-1]) == []
+
 
 def test_draw_applet_sequence_and_options():
     host = RecordingHost()
@@ -458,6 +540,7 @@ def test_draw_applet_sequence_and_options():
         with pytest.raises(ValueError):
             parse_applet_args(bad, DrawApplet.OPTIONS)
 
+
 def test_pattern_and_text_redraw_only_when_the_font_changes():
     host = RecordingHost()
     pattern = PatternApplet(host)
@@ -470,6 +553,7 @@ def test_pattern_and_text_redraw_only_when_the_font_changes():
     digits = TextApplet(host)
     assert digits.description == "digits" and len(lit_rows(digits.step())) > 40
 
+
 def test_blink_toggles_the_power_and_restores_it():
     host = RecordingHost()
     blink = BlinkApplet(host, [], {"rate": 4})
@@ -478,6 +562,7 @@ def test_blink_toggles_the_power_and_restores_it():
     assert blink.step() is None and host.controls[-1] == ("power", "on")
     blink.stop()
     assert host.controls[-1] == ("power", "on")
+
 
 def test_demo_tour_runs_steps_and_restores_settings():
     host = RecordingHost()
@@ -493,9 +578,10 @@ def test_demo_tour_runs_steps_and_restores_settings():
                 seen.append(demo.description)
     assert seen == ["demo_blink", "demo_pattern", "demo_pattern"]
     assert type(subs[0]).name == "blink" and type(subs[2]).name == "pattern"
-    assert ("invert", "on") in host.controls               # the third step's setting
-    assert host.controls[-1] == ("invert", "off")          # put back at the end
-    assert host.settings["power"] == "on"                  # blink stopped cleanly
+    assert ("invert", "on") in host.controls  # the third step's setting
+    assert host.controls[-1] == ("invert", "off")  # put back at the end
+    assert host.settings["power"] == "on"  # blink stopped cleanly
+
 
 def test_random_steps_are_valid_applets():
     steps = list(__import__("itertools").islice(random_steps(random.Random(1)), 40))
@@ -506,11 +592,14 @@ def test_random_steps_are_valid_applets():
     assert len({name for _, name, _, _ in steps}) >= 5
     assert all(name in APPLETS for _, name, _, _ in TOUR)
 
+
 # --------------------------------------------------------------------------- #
 # Help pages, the clock face, the eyes
 
 from datetime import datetime  # noqa: E402
+
 from aiko_services.actors.display.faces import EMOTIONS, ClockApplet, EyesApplet  # noqa: E402
+
 
 def test_help_pages_fit_the_display_and_turn():
     assert len(HelpApplet.PAGES) == 6
@@ -529,8 +618,9 @@ def test_help_pages_fit_the_display_and_turn():
     assert auto.description == "help_1_of_6"
     frames = [auto.step() for _ in range(3)]
     assert auto.description == "help_2_of_6"
-    assert frames[1] is not None and frames[2] is None      # turned on step 2
-    assert min(lit_rows(frames[0])) == 8                  # below the title row
+    assert frames[1] is not None and frames[2] is None  # turned on step 2
+    assert min(lit_rows(frames[0])) == 8  # below the title row
+
 
 def test_clock_face():
     host = RecordingHost()
@@ -541,11 +631,14 @@ def test_clock_face():
     assert face.size == (WIDTH, HEIGHT) and rows[0] <= 1 and rows[-1] >= 62
     assert face.tobytes() != clock.face(datetime(2026, 9, 26, 10, 10, 31)).tobytes()
     still = ClockApplet(host, [], {"seconds": False})
-    assert still.face(datetime(2026, 9, 26, 10, 10, 30)).tobytes()  \
+    assert (
+        still.face(datetime(2026, 9, 26, 10, 10, 30)).tobytes()
         == still.face(datetime(2026, 9, 26, 10, 10, 31)).tobytes()
+    )
     titled = ClockApplet(host, [], {"title": True})
     assert titled.wants_title and min(lit_rows(titled.face(datetime(2026, 1, 1)))) >= 8
-    assert clock.step() is not None and clock.step() is None   # once a second
+    assert clock.step() is not None and clock.step() is None  # once a second
+
 
 def lit_bands(image):
     """The runs of consecutive lit rows: (first, last) of each"""
@@ -558,13 +651,18 @@ def lit_bands(image):
             bands.append([row, row])
     return bands
 
+
 def test_help_pages_list_every_setting():
     from aiko_services.actors.display import SETTINGS
-    page = " ".join(lines for heading, lines in
-                    ((heading, " ".join(lines)) for heading, lines in HelpApplet.PAGES)
-                    if heading == "Dashboard: set")
+
+    page = " ".join(
+        lines
+        for heading, lines in ((heading, " ".join(lines)) for heading, lines in HelpApplet.PAGES)
+        if heading == "Dashboard: set"
+    )
     for name in SETTINGS:
         assert name in page, name
+
 
 def test_clock_digital_face():
     host = RecordingHost()
@@ -572,20 +670,23 @@ def test_clock_digital_face():
     assert digital.wants_title and digital.description == "digital"
     face = digital.face(datetime(2026, 9, 27, 8, 5, 9))
     bands = lit_bands(face)
-    assert len(bands) == 3 and bands[0][0] >= 8 + 2            # below the title, spaced
-    assert all(b[0] - a[1] > 2 for a, b in zip(bands, bands[1:]))   # whitespace between
+    assert len(bands) == 3 and bands[0][0] >= 8 + 2  # below the title, spaced
+    assert all(b[0] - a[1] > 2 for a, b in zip(bands, bands[1:]))  # whitespace between
     assert bands[-1][1] <= HEIGHT - 1 - 2
     size = digital._digital_font[1].size
-    assert 12 <= size <= 20                                    # the largest that fits
+    assert 12 <= size <= 20  # the largest that fits
     assert face.tobytes() != digital.face(datetime(2026, 9, 27, 8, 5, 10)).tobytes()
     full = ClockApplet(host, [], {"face": "digital", "title": False})
     assert not full.wants_title
     assert full._fit_font(["Wednesday", "2026-09-27", "00:00:00"], WIDTH, HEIGHT).size > size
     minutes = ClockApplet(host, [], {"face": "digital", "seconds": False})
-    assert minutes.face(datetime(2026, 9, 27, 8, 5, 9)).tobytes()  \
+    assert (
+        minutes.face(datetime(2026, 9, 27, 8, 5, 9)).tobytes()
         == minutes.face(datetime(2026, 9, 27, 8, 5, 10)).tobytes()
+    )
     with pytest.raises(ValueError):
         parse_applet_args(["face=round"], ClockApplet.OPTIONS)
+
 
 def test_eyes_are_deterministic_and_emotional():
     host = RecordingHost()
@@ -597,7 +698,7 @@ def test_eyes_are_deterministic_and_emotional():
     frames = frames_of(eyes, 400)
     assert len(set(host.statuses)) >= 3 and set(host.statuses) <= set(EMOTIONS)
     lit = [lit_count(frame) for frame in frames]
-    assert min(lit) < 0.6 * max(lit)                       # a blink or a squint
+    assert min(lit) < 0.6 * max(lit)  # a blink or a squint
     fixed_host = RecordingHost()
     angry = EyesApplet(fixed_host, [], {"seed": 4, "emotion": "angry", "blink": False})
     frames_of(angry, 200)
@@ -606,11 +707,14 @@ def test_eyes_are_deterministic_and_emotional():
         parse_applet_args(["emotion=grumpy"], EyesApplet.OPTIONS)
     assert {"clock", "eyes", "help"} <= set(APPLETS)
 
+
 def lit_count(image):
     return sum(1 for y in range(image.height) for x in range(image.width) if image.getpixel((x, y)))
 
+
 # --------------------------------------------------------------------------- #
 # Portability: every applet on a 128x64, a 128x32 and a 256x64 host
+
 
 @pytest.mark.parametrize("size", [(128, 64), (128, 32), (256, 64)])
 def test_every_applet_runs_at_every_size(size, monkeypatch):
@@ -634,9 +738,9 @@ def test_every_applet_runs_at_every_size(size, monkeypatch):
             if frame is not None:
                 assert frame.width <= width and frame.height <= height, name
                 if applet_class.MIN_SIZE == (0, 0):
-                    assert frame.size == size, name         # fills the host
+                    assert frame.size == size, name  # fills the host
                 else:
-                    assert frame.size == (128, 64), name    # the fixed field
+                    assert frame.size == (128, 64), name  # the fixed field
         applet.stop()
         ran.append(name)
     assert {"status", "text", "pattern", "clock", "help"} <= set(ran)

@@ -57,7 +57,7 @@
 #     Replace Service tag "actor=name" marking Actors with
 #     matching via Service protocol "{SERVICE_PROTOCOL_AIKO}/actor:0"
 #
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # def create_actor(actor_class, actor_type, actor_uuid,
 #     actor_check = True, actor_init_args = {}, daemon = False,
 #     max_concurrency = _MAX_CONCURRENCY, resources = None):
@@ -67,18 +67,24 @@
 # get_actor(name,
 #     exit_not_found = False, fail_not_found = True, wait_time = None):
 
-from abc import abstractmethod
-import click
-from inspect import getmembers, isfunction
 import os
+from abc import abstractmethod
+from inspect import getmembers, isfunction
+
+import click
 
 from aiko_services.main import *
 from aiko_services.main.utilities import *
 
 __all__ = [
-    "ServiceDiscovery", "ActorDiscovery",
-    "PipelineElementDiscovery", "PipelineDiscovery",
-    "do_command", "do_discovery", "do_request", "get_service_proxy"
+    "ServiceDiscovery",
+    "ActorDiscovery",
+    "PipelineElementDiscovery",
+    "PipelineDiscovery",
+    "do_command",
+    "do_discovery",
+    "do_request",
+    "get_service_proxy",
 ]
 
 _VERSION = 0
@@ -96,6 +102,7 @@ _LOGGER = aiko.logger(__name__)
 
 # --------------------------------------------------------------------------- #
 
+
 class ServiceDiscovery:
     def __init__(self, service):
         self.services_cache = services_cache_create_singleton(service)
@@ -105,6 +112,7 @@ class ServiceDiscovery:
 
     def remove_handler(self, service_change_handler, filter):
         self.services_cache.remove_handler(service_change_handler, filter)
+
 
 #   def terminate(self):
 #       self.stop()
@@ -124,14 +132,18 @@ class ServiceDiscovery:
 #       actors = services.filter_by_attributes(filter)
 #       return actors
 
+
 class ActorDiscovery(ServiceDiscovery):
     pass
+
 
 class PipelineElementDiscovery(ActorDiscovery):
     pass
 
+
 class PipelineDiscovery(PipelineElementDiscovery):
     pass
+
 
 # def _proxy_post_message(
 #   proxy_name, actual_object, actual_function,
@@ -150,21 +162,20 @@ class PipelineDiscovery(PipelineElementDiscovery):
 # def delete_actor_mqtt(actor):
 #   actor.terminate()
 
+
 def _get_public_method_names(protocol_class):
     if isinstance(protocol_class, str):
-        raise ValueError(
-            f"{protocol_class} is a String, should be a Class reference ?")
+        raise ValueError(f"{protocol_class} is a String, should be a Class reference ?")
     public_method_names = [
-        method_name
-        for method_name, method in getmembers(protocol_class, isfunction)
-        if not method_name.startswith("_")
+        method_name for method_name, method in getmembers(protocol_class, isfunction) if not method_name.startswith("_")
     ]
     if len(public_method_names) == 0:
         raise ValueError(f"Class {protocol_class} has no public methods")
     return public_method_names
 
+
 def _make_service_proxy(target_topic_in, public_method_names):
-    class ServiceRemoteProxy():
+    class ServiceRemoteProxy:
         def is_local(self):
             return False
 
@@ -173,24 +184,25 @@ def _make_service_proxy(target_topic_in, public_method_names):
             arguments = args if not kwargs else [args[0], kwargs]
             payload = generate(method_name, arguments)
             aiko.message.publish(target_topic_in, payload)
+
         return closure
 
     service_remote_proxy = ServiceRemoteProxy()
     for method_name in public_method_names:
-        setattr(service_remote_proxy,
-            method_name, _proxy_send_message(method_name))
+        setattr(service_remote_proxy, method_name, _proxy_send_message(method_name))
     return service_remote_proxy
+
 
 def get_service_proxy(service_topic, protocol_class):
     public_methods = _get_public_method_names(protocol_class)
     service_proxy = _make_service_proxy(service_topic, public_methods)
     return service_proxy
 
+
 # --------------------------------------------------------------------------- #
 
-def do_discovery(
-    service_interface, service_filter,
-    discovery_add_handler=None, discovery_remove_handler=None):
+
+def do_discovery(service_interface, service_filter, discovery_add_handler=None, discovery_remove_handler=None):
 
     def service_discovery_handler(command, service_details):
         if command == "add":
@@ -206,8 +218,10 @@ def do_discovery(
     service_discovery.add_handler(service_discovery_handler, service_filter)
     return service_discovery, service_discovery_handler
 
+
 # Timeout in seconds: None uses AIKO_DISCOVERY_TIMEOUT, if that is defined.
 # A timeout of 0 (or less) means no timeout, i.e wait indefinitely
+
 
 def _get_timeout(timeout):
     if timeout is None:
@@ -216,11 +230,11 @@ def _get_timeout(timeout):
             try:
                 timeout = float(timeout_value)
             except ValueError:
-                _LOGGER.warning(f"{_TIMEOUT_ENVIRONMENT_VARIABLE} must be "
-                                f"a number: {timeout_value}")
+                _LOGGER.warning(f"{_TIMEOUT_ENVIRONMENT_VARIABLE} must be a number: {timeout_value}")
     if timeout is not None and timeout > 0:
         return timeout
     return None
+
 
 def _timeout_expired(diagnostic, timeout_handler, terminate):
     if timeout_handler:
@@ -230,9 +244,8 @@ def _timeout_expired(diagnostic, timeout_handler, terminate):
     if terminate:
         aiko.process.terminate(_TIMEOUT_EXIT_STATUS)
 
-def do_command(
-    service_interface, service_filter,
-    command_handler, terminate=False, timeout=None, timeout_handler=None):
+
+def do_command(service_interface, service_filter, command_handler, terminate=False, timeout=None, timeout_handler=None):
 
     timeout = _get_timeout(timeout)
     discovered = False
@@ -255,24 +268,31 @@ def do_command(
     def timeout_timer_handler():
         event.remove_timer_handler(timeout_timer_handler)
         if not discovered:
-            service_discovery.remove_handler(
-                service_discovery_handler, service_filter)
-            diagnostic = f"Timeout: {timeout} seconds waiting for "  \
-                         f"{service_filter.summary()}"
+            service_discovery.remove_handler(service_discovery_handler, service_filter)
+            diagnostic = f"Timeout: {timeout} seconds waiting for {service_filter.summary()}"
             _timeout_expired(diagnostic, timeout_handler, terminate)
 
     event.add_timer_handler(waiting_timer_handler, _TIMEOUT_DEFAULT)
     if timeout:
         event.add_timer_handler(timeout_timer_handler, timeout)
     service_discovery, service_discovery_handler = do_discovery(
-        service_interface, service_filter, discovery_add_handler)
+        service_interface, service_filter, discovery_add_handler
+    )
+
 
 # The "timeout" covers both Service discovery and receiving the response
 
+
 def do_request(
-    service_interface, service_filter,
-    request_handler, response_handler, response_topic, terminate=False,
-    timeout=None, timeout_handler=None):
+    service_interface,
+    service_filter,
+    request_handler,
+    response_handler,
+    response_topic,
+    terminate=False,
+    timeout=None,
+    timeout_handler=None,
+):
 
     timeout = _get_timeout(timeout)
     item_count = 0
@@ -280,8 +300,8 @@ def do_request(
     response = []
     finished = False
 
-# TODO: The "response_handler" should implement the DiscoveryResponse interface
-#       Use remote function calls, rather than message payload parsing !
+    # TODO: The "response_handler" should implement the DiscoveryResponse interface
+    #       Use remote function calls, rather than message payload parsing !
 
     def response_handler_internal(_aiko, topic, payload_in):
         nonlocal item_count, items_received, response, finished
@@ -291,8 +311,7 @@ def do_request(
         try:
             command, arguments = parse(payload_in)
         except ValueError as value_error:
-            _LOGGER.warning(f"Response on {topic} does not parse, "
-                            f"so it is dropped: {value_error}")
+            _LOGGER.warning(f"Response on {topic} does not parse, so it is dropped: {value_error}")
             return
         if command == "item_count" and len(arguments) == 1:
             item_count = int(arguments[0])
@@ -314,17 +333,19 @@ def do_request(
         event.remove_timer_handler(timeout_timer_handler)
         if not finished:
             finished = True
-            diagnostic = f"Timeout: {timeout} seconds waiting for a "  \
-                         f"response from {service_filter.summary()}"
+            diagnostic = f"Timeout: {timeout} seconds waiting for a response from {service_filter.summary()}"
             _timeout_expired(diagnostic, timeout_handler, terminate)
 
     if timeout:
         event.add_timer_handler(timeout_timer_handler, timeout)
     aiko.process.add_message_handler(response_handler_internal, response_topic)
-    do_command(service_interface, service_filter, request_handler,
-        terminate=False, timeout=0)  # do_request() handles the timeout
+    do_command(
+        service_interface, service_filter, request_handler, terminate=False, timeout=0
+    )  # do_request() handles the timeout
+
 
 # --------------------------------------------------------------------------- #
+
 
 class DiscoveryResponse(Actor):  # TODO: Improve and make part of the API ?
     Interface.default("DiscoveryResponse", None)
@@ -337,6 +358,7 @@ class DiscoveryResponse(Actor):  # TODO: Improve and make part of the API ?
     def response(self, payload):
         pass
 
+
 class Example(Actor):
     Interface.default("Example", "aiko_services.main.discovery.ExampleImpl")
 
@@ -347,6 +369,7 @@ class Example(Actor):
     @abstractmethod
     def request(self, topic_path_response, request):
         pass
+
 
 class ExampleImpl(Example):
     def __init__(self, context):
@@ -361,10 +384,11 @@ class ExampleImpl(Example):
         service.item_count(1)
         service.response(request)
 
+
 # --------------------------------------------------------------------------- #
 
-@click.group()
 
+@click.group()
 def main():
     """Discovery example
 
@@ -373,50 +397,57 @@ def main():
     """
     pass
 
-@main.command(help="Example start")
 
+@main.command(help="Example start")
 def start():
     tags = ["ec=true"]
     init_args = actor_args(ACTOR_TYPE, protocol=PROTOCOL, tags=tags)
     discovery = compose_instance(ExampleImpl, init_args)
     discovery.run()
 
-@main.command(name="test_discovery", help="Example do_discovery()")
 
+@main.command(name="test_discovery", help="Example do_discovery()")
 def test_discovery():
     def discovery_add_handler(service_details, service):
-        print(
-            f"Add:    {service_details[1]}: {service_details[0]}")
+        print(f"Add:    {service_details[1]}: {service_details[0]}")
 
     def discovery_remove_handler(service_details):
-        print(
-            f"Remove: {service_details[1]}: {service_details[0]}")
+        print(f"Remove: {service_details[1]}: {service_details[0]}")
 
-    service_discovery, service_discovery_handler =  \
-        do_discovery(
-            Example, ServiceFilter("*", "*", "*", "*", "*", "*"),
-            discovery_add_handler, discovery_remove_handler)
+    service_discovery, service_discovery_handler = do_discovery(
+        Example, ServiceFilter("*", "*", "*", "*", "*", "*"), discovery_add_handler, discovery_remove_handler
+    )
     aiko.process.run()
+
 
 @main.command(name="test_command", help="Example do_command()")
 @click.argument("argument", default="argument", required=False)
-
 def test_command(argument):
-    do_command(Example, ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
-        lambda discovery: discovery.command(argument), terminate=True)
+    do_command(
+        Example,
+        ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
+        lambda discovery: discovery.command(argument),
+        terminate=True,
+    )
     aiko.process.run(loop_when_no_handlers=True)  # Keep event loop running
+
 
 @main.command(name="test_request", help="Example do_request()")
 @click.argument("request", default="request", required=False)
-
 def test_request(request):
     def response_handler(response):
         print(f"Response: {response}")
 
-    do_request(Example, ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
+    do_request(
+        Example,
+        ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
         lambda discovery: discovery.request(_RESPONSE_TOPIC, request),
-        response_handler, _RESPONSE_TOPIC, terminate=True)
+        response_handler,
+        _RESPONSE_TOPIC,
+        terminate=True,
+    )
     aiko.process.run(loop_when_no_handlers=True)  # Keep event loop running
+
 
 if __name__ == "__main__":
     main()

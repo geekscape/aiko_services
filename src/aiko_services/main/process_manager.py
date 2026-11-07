@@ -144,25 +144,32 @@
 #   - https://docs.python.org/2/library/multiprocessing.html
 #   - https://hackernoon.com/concurrent-programming-in-python-is-not-what-you-think-it-is-b6439c3f3e6a
 
-from abc import abstractmethod
-import click
 import importlib.util
 import json
 import os
 import shlex
 import shutil
-from subprocess import Popen
 import sys
-from threading import Thread
 import time
+from abc import abstractmethod
+from subprocess import Popen
+from threading import Thread
+
+import click
 
 from aiko_services.main import *
 from aiko_services.main.utilities import *
 
 __all__ = [
-    "FUNCTIONS", "SAFE", "SAFE_FUNCTIONS", "ProcessManager",
-    "ProcessManagerCache", "ProcessManagerImpl", "coerce_response_topic",
-    "parse_process_share", "print_processes"
+    "FUNCTIONS",
+    "SAFE",
+    "SAFE_FUNCTIONS",
+    "ProcessManager",
+    "ProcessManagerCache",
+    "ProcessManagerImpl",
+    "coerce_response_topic",
+    "parse_process_share",
+    "print_processes",
 ]
 
 ACTOR_TYPE = "process_manager"
@@ -170,13 +177,13 @@ VERSION = 0
 PROTOCOL = f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE}:{VERSION}"
 
 _DEFINITION_KEYS = frozenset({"enabled", "command", "cwd"})
-_GRACE_TIME=5.0  # seconds
-_MY_UID="000000"  # self-aware 🤔
+_GRACE_TIME = 5.0  # seconds
+_MY_UID = "000000"  # self-aware 🤔
 _PROCESS_POLL_TIME = 1.0  # seconds
 _RESPONSE_TOPIC = f"{aiko.topic_in}"
-_THREAD_NAME=f"aiko-{ACTOR_TYPE}"
+_THREAD_NAME = f"aiko-{ACTOR_TYPE}"
 
-SAFE = True              # the default posture of "aiko_process run"
+SAFE = True  # the default posture of "aiko_process run"
 
 # A ProcessManager starts and stops processes on its host, so what it
 # accepts from the message bus is not a small matter.  Safe mode allows the
@@ -196,6 +203,7 @@ SAFE_FUNCTIONS = frozenset({"list", "set_log_level"})
 # its own "in" topic, so this is not a list of topics to refuse
 _RESPONSE_SUFFIXES = ("in", "out", "control")
 _RESPONSE_TOPIC_LENGTH = 256
+
 
 def coerce_response_topic(topic_path_response, topic_path_own):
     """The response topic a caller asked for, or None when it is not
@@ -222,11 +230,12 @@ def coerce_response_topic(topic_path_response, topic_path_own):
         return None
     return topic_path_response
 
+
 # --------------------------------------------------------------------------- #
 
+
 class ProcessManager(Actor):
-    Interface.default("ProcessManager",
-        "aiko_services.main.process_manager.ProcessManagerImpl")
+    Interface.default("ProcessManager", "aiko_services.main.process_manager.ProcessManagerImpl")
 
     @abstractmethod
     def create(self, command, arguments=None, uid=None, cwd=None):
@@ -248,11 +257,13 @@ class ProcessManager(Actor):
     def list(self, topic_path_response, uid=None):
         pass
 
+
 # --------------------------------------------------------------------------- #
 
 # Everything the Interface declares, plus the framework's two.  Derived, so
 # that the allow list and the contract cannot drift apart (P12, ADR-023)
 FUNCTIONS = interface_functions(ProcessManager)
+
 
 class ProcessCurrent:
     def __init__(self):
@@ -268,26 +279,26 @@ class ProcessCurrent:
     def wait(self, timeout=None):
         raise RuntimeError("Cannot wait on the current process")
 
-class ProcessManagerImpl(ProcessManager):
-    def __init__(self, context, definition_pathname=None,
-        watchdog=False, process_exit_handler=None, safe=SAFE):
 
-    # The FunctionGate aspect, configured before the Actor initializes it.
-    # Safe mode is the default, so a ProcessManager reached by an unknown
-    # client cannot be asked to start or stop a process
+class ProcessManagerImpl(ProcessManager):
+    def __init__(self, context, definition_pathname=None, watchdog=False, process_exit_handler=None, safe=SAFE):
+
+        # The FunctionGate aspect, configured before the Actor initializes it.
+        # Safe mode is the default, so a ProcessManager reached by an unknown
+        # client cannot be asked to start or stop a process
         self._safe = bool(safe)
         functions = FUNCTIONS & SAFE_FUNCTIONS if self._safe else FUNCTIONS
         context.call_init(self, "FunctionGate", context, functions=functions)
         context.call_init(self, "Actor", context)
 
         if process_exit_handler:
-            self.process_exit_handler=process_exit_handler
+            self.process_exit_handler = process_exit_handler
         else:
-            self.process_exit_handler=self._process_exit_handler_default
+            self.process_exit_handler = self._process_exit_handler_default
         self.processes = {
             _MY_UID: {  # self-aware 🤔
                 "command_line": ["aiko_process", "run"],
-                "process": ProcessCurrent()
+                "process": ProcessCurrent(),
             }
         }
         self.uid_default = 1
@@ -301,23 +312,20 @@ class ProcessManagerImpl(ProcessManager):
                 "created": 1,  # Including self, i.e this ProcessManager 😅
                 "running": len(self.processes),
                 "denied": 0,
-            #   "runtime": 0                                    # TODO: Runtime
+                #   "runtime": 0                                    # TODO: Runtime
             },
             "last_error": "-",
-            "safe": self._safe,   # ADR-023 decision 3: an observable policy
+            "safe": self._safe,  # ADR-023 decision 3: an observable policy
             "watchdog": watchdog,
-        # One entry for each process, so that a consumer follows the table
-        # live instead of polling "list".  The ProcessManagerCache reads it
-            "process": {
-                uid: self._process_share(uid) for uid in self.processes
-            }
+            # One entry for each process, so that a consumer follows the table
+            # live instead of polling "list".  The ProcessManagerCache reads it
+            "process": {uid: self._process_share(uid) for uid in self.processes},
         }
-        self.ec_producer = compose_instance(
-            ECProducerImpl, ec_producer_args(self, self.share))
+        self.ec_producer = compose_instance(ECProducerImpl, ec_producer_args(self, self.share))
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
         self.thread = Thread(target=self._run, daemon=True, name=_THREAD_NAME)
-        self.thread.start()                           # TODO: Use ThreadManager
+        self.thread.start()  # TODO: Use ThreadManager
 
         self._parse_definition(definition_pathname)
 
@@ -349,19 +357,19 @@ class ProcessManagerImpl(ProcessManager):
         not find"""
 
         file_extension = os.path.splitext(command)[-1]
-        if file_extension in [".py", ".sh"]:         # TODO: Other extensions ?
+        if file_extension in [".py", ".sh"]:  # TODO: Other extensions ?
             return command
         if shutil.which(command):
             return command
         try:
             specification = importlib.util.find_spec(command)
-        except (ImportError, ValueError):      # not a usable module name
+        except (ImportError, ValueError):  # not a usable module name
             return command
         if specification is None:
             return command
-    # A package is a directory, and its "__init__.py" is not a script to
-    # run.  The file mode does not decide this, because some installations
-    # give every library file the execute bit
+        # A package is a directory, and its "__init__.py" is not a script to
+        # run.  The file mode does not decide this, because some installations
+        # give every library file the execute bit
         if specification.submodule_search_locations is not None:
             return command
         origin = specification.origin
@@ -371,21 +379,19 @@ class ProcessManagerImpl(ProcessManager):
         return command
 
     def create(self, command, arguments=None, uid=None, cwd=None):
-    # Popen reports a working directory that is not one as a file not found
-    # error which names the command, not the directory, so check it here.
-    # Before the uid is allocated, so that nothing starting leaves no gap
-    # in the sequence of uids
+        # Popen reports a working directory that is not one as a file not found
+        # error which names the command, not the directory, so check it here.
+        # Before the uid is allocated, so that nothing starting leaves no gap
+        # in the sequence of uids
         if cwd is not None and not os.path.isdir(cwd):
-            self.logger.error(
-                f"Create: not a directory, process not started: {cwd}")
+            self.logger.error(f"Create: not a directory, process not started: {cwd}")
             return
 
         if not uid:
             uid = f"{self.uid_default:06d}"
             self.uid_default += 1
         if uid in self.processes:
-            self.logger.warning(
-                f"Create: <{uid}> exists, process not started: {command}")
+            self.logger.warning(f"Create: <{uid}> exists, process not started: {command}")
             return
 
         command_line = [self._resolve_command(command)]
@@ -395,15 +401,10 @@ class ProcessManagerImpl(ProcessManager):
         self.logger.info(f"Create: <{uid}>{where} {command_line}")
         try:
             process = Popen(command_line, bufsize=0, shell=False, cwd=cwd)
-            self.processes[uid] = {
-                "command_line": command_line,
-                "cwd": cwd,
-                "process": process
-            }
+            self.processes[uid] = {"command_line": command_line, "cwd": cwd, "process": process}
             self.ec_producer.update(f"process.{uid}", self._process_share(uid))
             self.ec_producer.update("metrics.running", len(self.processes))
-            self.ec_producer.update("metrics.created",
-                self.share["metrics"]["created"] + 1)
+            self.ec_producer.update("metrics.created", self.share["metrics"]["created"] + 1)
         except FileNotFoundError as file_not_found_error:
             self.logger.warning(f"{file_not_found_error}")
         except Exception as exception:
@@ -415,7 +416,7 @@ class ProcessManagerImpl(ProcessManager):
             if self._is_running(uid):
                 process = self.processes[uid]["process"]
                 if kill:
-                    process.kill()       # SIGKILL: Can't catch, no clean-up
+                    process.kill()  # SIGKILL: Can't catch, no clean-up
                 else:
                     process.terminate()  # SIGTERM: Can catch and clean-up
 
@@ -429,10 +430,10 @@ class ProcessManagerImpl(ProcessManager):
     def _ec_producer_change_handler(self, command, item_name, item_value):
         if item_name == "log_level":
             self.logger.setLevel(str(item_value).upper())
-    # "safe" is a report of the posture, not a control for it.  The posture
-    # is decided by the command line, and the FunctionGate holds its own
-    # allow list, so a write here never changed what is enforced -- it only
-    # made the report lie.  Revert it, count it, and say so
+        # "safe" is a report of the posture, not a control for it.  The posture
+        # is decided by the command line, and the FunctionGate holds its own
+        # allow list, so a write here never changed what is enforced -- it only
+        # made the report lie.  Revert it, count it, and say so
         if item_name == "safe" and item_value != self._safe:
             self._function_denied("safe", "read_only", str(item_value)[:20])
             self.ec_producer.update("safe", self._safe)
@@ -443,10 +444,10 @@ class ProcessManagerImpl(ProcessManager):
             self.destroy(uid, kill=False)  # Graceful 😇
 
         self.ec_producer.update("metrics.running", len(self.processes))
-        time.sleep(grace_time)    # TODO: Improve how to wait for all processes
+        time.sleep(grace_time)  # TODO: Improve how to wait for all processes
 
         for uid in self.processes.keys():
-            self.destroy(uid, kill=True)   # Brutal ☠️
+            self.destroy(uid, kill=True)  # Brutal ☠️
         aiko.process.terminate()
 
     def _get_process_info(self, uid):
@@ -473,8 +474,7 @@ class ProcessManagerImpl(ProcessManager):
         return self._get_return_code(uid) is None
 
     def list(self, topic_path_response, uid=None):
-        topic_path_response = coerce_response_topic(
-            topic_path_response, self.topic_path)
+        topic_path_response = coerce_response_topic(topic_path_response, self.topic_path)
         if not topic_path_response:
             return self._function_denied("list", "topic")
         # generate() encodes each argument, so that one that starts with
@@ -485,11 +485,9 @@ class ProcessManagerImpl(ProcessManager):
             if uid is None or uid == uid_key:
                 command, pid = self._get_process_info(uid_key)
                 responses.append([str(uid_key), str(pid), *map(str, command)])
-        aiko.message.publish(
-            topic_path_response, generate("item_count", [str(len(responses))]))
+        aiko.message.publish(topic_path_response, generate("item_count", [str(len(responses))]))
         for response in responses:
-            aiko.message.publish(
-                topic_path_response, generate("response", response))
+            aiko.message.publish(topic_path_response, generate("response", response))
 
     def _parse_definition_entry(self, entry):
         """Parse one definition entry, in either of its two forms.
@@ -513,12 +511,10 @@ class ProcessManagerImpl(ProcessManager):
             return False, None, None, None
         enabled = tokens[0].lower()
         if enabled not in ["true", "false"]:
-            self.logger.error('Definition entry must start with "true" or '
-                f'"false", skipped: {entry}')
+            self.logger.error(f'Definition entry must start with "true" or "false", skipped: {entry}')
             return False, None, None, None
         if len(tokens) < 2:
-            self.logger.error(
-                f"Definition entry has no command, skipped: {entry}")
+            self.logger.error(f"Definition entry has no command, skipped: {entry}")
             return False, None, None, None
         return enabled == "true", tokens[1], tokens[2:], None
 
@@ -531,39 +527,32 @@ class ProcessManagerImpl(ProcessManager):
         skipped = False, None, None, None
         unknown = sorted(set(entry) - _DEFINITION_KEYS)
         if unknown:
-            self.logger.error("Definition entry has unknown key "
-                f"{', '.join(unknown)}, skipped: {entry}")
+            self.logger.error(f"Definition entry has unknown key {', '.join(unknown)}, skipped: {entry}")
             return skipped
         enabled = entry.get("enabled")
         if not isinstance(enabled, bool):
-            self.logger.error('Definition entry must have "enabled" true '
-                f"or false, skipped: {entry}")
+            self.logger.error(f'Definition entry must have "enabled" true or false, skipped: {entry}')
             return skipped
 
         command = entry.get("command")
         if isinstance(command, str):
             try:
                 tokens = shlex.split(command)
-            except ValueError as value_error:          # an unbalanced quote
-                self.logger.error("Definition entry command "
-                    f"{value_error}, skipped: {entry}")
+            except ValueError as value_error:  # an unbalanced quote
+                self.logger.error(f"Definition entry command {value_error}, skipped: {entry}")
                 return skipped
-        elif isinstance(command, list) and  \
-            all(isinstance(token, str) for token in command):
+        elif isinstance(command, list) and all(isinstance(token, str) for token in command):
             tokens = list(command)
         else:
-            self.logger.error('Definition entry "command" must be a string '
-                f"or a list of strings, skipped: {entry}")
+            self.logger.error(f'Definition entry "command" must be a string or a list of strings, skipped: {entry}')
             return skipped
         if not tokens:
-            self.logger.error(
-                f"Definition entry has no command, skipped: {entry}")
+            self.logger.error(f"Definition entry has no command, skipped: {entry}")
             return skipped
 
         cwd = entry.get("cwd")
         if cwd is not None and not isinstance(cwd, str):
-            self.logger.error('Definition entry "cwd" must be a string, '
-                f"skipped: {entry}")
+            self.logger.error(f'Definition entry "cwd" must be a string, skipped: {entry}')
             return skipped
         return enabled, tokens[0], tokens[1:], cwd
 
@@ -574,20 +563,17 @@ class ProcessManagerImpl(ProcessManager):
                 try:
                     entries = json.load(open(definition_pathname, "r"))
                     for entry in entries:
-                        enabled, command, arguments, cwd =  \
-                            self._parse_definition_entry(entry)
+                        enabled, command, arguments, cwd = self._parse_definition_entry(entry)
                         if command is None:
                             continue
                         if enabled:
                             self.create(command, arguments, cwd=cwd)
                         else:
-                            self.logger.info(
-                                f"Disabled: {' '.join([command, *arguments])}")
+                            self.logger.info(f"Disabled: {' '.join([command, *arguments])}")
                 except json.decoder.JSONDecodeError as json_decode_error:
                     diagnostic = f"Definition format: {json_decode_error}"
             else:
-                diagnostic = 'Definition must be a ".json" file: ' +  \
-                    definition_pathname
+                diagnostic = 'Definition must be a ".json" file: ' + definition_pathname
         if diagnostic:
             raise SystemExit(f"Error: {diagnostic}")
 
@@ -607,9 +593,9 @@ class ProcessManagerImpl(ProcessManager):
                 self.ec_producer.remove(f"process.{uid}")
         self.ec_producer.update("metrics.running", len(self.processes))
 
-############################################################################
-# _run() executes on a daemon thread, see concurrency design notes (above) #
-############################################################################
+    ############################################################################
+    # _run() executes on a daemon thread, see concurrency design notes (above) #
+    ############################################################################
 
     def _run(self):
         while True:
@@ -621,11 +607,14 @@ class ProcessManagerImpl(ProcessManager):
                 self._post_message(ActorTopic.IN, "_remove", [zombies])  # safe
             time.sleep(_PROCESS_POLL_TIME)
 
+
 # --------------------------------------------------------------------------- #
+
 
 def get_service_filter(name=None, owner="*"):
     name = name if name else get_hostname()
     return ServiceFilter("*", name, PROTOCOL, "*", owner, "*")
+
 
 # --------------------------------------------------------------------------- #
 # The client side: one live replica of what a ProcessManager publishes, for
@@ -642,12 +631,14 @@ def get_service_filter(name=None, owner="*"):
 # item for each process, so the table arrives and stays current with no
 # polling of "list"
 
+
 def parse_process_share(value):
     """One "process.<uid>" share item as (pid, command).  The Actor writes
     "<pid> <command line>".  Pure, so the format is tested on its own"""
 
     pid, _, command = str(value).partition(" ")
     return pid, command
+
 
 class ProcessManagerCache:
     """A live replica of what one or more ProcessManagers publish.
@@ -660,8 +651,7 @@ class ProcessManagerCache:
     """
 
     def __init__(self, service, name=None, owner="*"):
-        self.cache = compose_instance(ECCacheImpl, ec_cache_args(
-            service, get_service_filter(name, owner)))
+        self.cache = compose_instance(ECCacheImpl, ec_cache_args(service, get_service_filter(name, owner)))
 
     def topic_paths(self):
         """Each ProcessManager the cache has a replica of"""
@@ -672,10 +662,8 @@ class ProcessManagerCache:
         """{uid: (pid, command)}, as the share holds it.  Empty until a
         ProcessManager is discovered and its state arrives"""
 
-        processes = self.cache.get("process", default={},
-            topic_path=topic_path) or {}
-        return {uid: parse_process_share(value)
-            for uid, value in sorted(processes.items())}
+        processes = self.cache.get("process", default={}, topic_path=topic_path) or {}
+        return {uid: parse_process_share(value) for uid, value in sorted(processes.items())}
 
     def get_safe(self, topic_path=None):
         """The posture a ProcessManager advertises: True, False, or None
@@ -689,15 +677,13 @@ class ProcessManagerCache:
     def get_denied(self, topic_path=None):
         """How many functions a ProcessManager has denied"""
 
-        return parse_int(self.cache.get(
-            "metrics.denied", default=0, topic_path=topic_path), 0)
+        return parse_int(self.cache.get("metrics.denied", default=0, topic_path=topic_path), 0)
 
     def get(self, item_name, default=None, topic_path=None):
         """Any other share item, for a client that wants one this class
         does not name"""
 
-        return self.cache.get(item_name, default=default,
-            topic_path=topic_path)
+        return self.cache.get(item_name, default=default, topic_path=topic_path)
 
     def add_handler(self, handler, filter=None):
         """handler(topic_path, command, item_name, item_value) for each
@@ -711,10 +697,11 @@ class ProcessManagerCache:
     def terminate(self):
         self.cache.terminate()
 
+
 # --------------------------------------------------------------------------- #
 
-@click.group()
 
+@click.group()
 def main():
     """Create, Read/List, Update and Destroy Processes
 
@@ -723,17 +710,13 @@ def main():
     """
     pass
 
-@main.command(name="create",
-    context_settings=dict(allow_interspersed_args=False), no_args_is_help=True)
-@click.option("--name", "-n", type=str, default=None,
-    help="ProcessManager name, default is the local hostname")
-@click.option("--uid", "-u", type=str, default=None,
-    help="Unique name for referring to the process")
-@click.option("--cwd", "-c", type=str, default=None,
-    help="Working directory, default is the ProcessManager's")
+
+@main.command(name="create", context_settings=dict(allow_interspersed_args=False), no_args_is_help=True)
+@click.option("--name", "-n", type=str, default=None, help="ProcessManager name, default is the local hostname")
+@click.option("--uid", "-u", type=str, default=None, help="Unique name for referring to the process")
+@click.option("--cwd", "-c", type=str, default=None, help="Working directory, default is the ProcessManager's")
 @click.argument("command", type=str)
 @click.argument("arguments", nargs=-1, type=click.UNPROCESSED)
-
 def create_command(name, uid, cwd, command, arguments):
     """Create Process
 
@@ -749,18 +732,19 @@ def create_command(name, uid, cwd, command, arguments):
     • ARGUMENTS:  Command arguments
     """
 
-    do_command(ProcessManager, get_service_filter(name),
+    do_command(
+        ProcessManager,
+        get_service_filter(name),
         lambda actor: actor.create(command, arguments, uid, cwd),
-        terminate=True)
+        terminate=True,
+    )
     aiko.process.run()
 
-@main.command(name="destroy", no_args_is_help=True)
-@click.option("--kill", "-k", is_flag=True,
-    help="Use SIGKILL, process can't catch and no clean-up")
-@click.option("--name", "-n", type=str, default=None,
-    help="ProcessManager name, default is the local hostname")
-@click.argument("uid", type=str)
 
+@main.command(name="destroy", no_args_is_help=True)
+@click.option("--kill", "-k", is_flag=True, help="Use SIGKILL, process can't catch and no clean-up")
+@click.option("--name", "-n", type=str, default=None, help="ProcessManager name, default is the local hostname")
+@click.argument("uid", type=str)
 def destroy_command(kill, name, uid):
     """Destroy Process
 
@@ -771,29 +755,24 @@ def destroy_command(kill, name, uid):
     • UID:  Unique IDentifier
     """
 
-    do_command(ProcessManager, get_service_filter(name),
-        lambda actor: actor.destroy(uid, kill), terminate=True)
+    do_command(ProcessManager, get_service_filter(name), lambda actor: actor.destroy(uid, kill), terminate=True)
     aiko.process.run()
+
 
 @main.command(name="dump", help="Dump ProcessManager state")
-@click.option("--name", "-n", type=str, default=None,
-    help="ProcessManager name, default is the local hostname")
-
+@click.option("--name", "-n", type=str, default=None, help="ProcessManager name, default is the local hostname")
 def dump_command(name):
-    do_command(ProcessManager, get_service_filter(name),
-        lambda actor: actor.dump(), terminate=True)
+    do_command(ProcessManager, get_service_filter(name), lambda actor: actor.dump(), terminate=True)
     aiko.process.run()
+
 
 @main.command(name="exit", help="Exit ProcessManager")
-@click.option("--grace_time", "-gt", type=int, default=_GRACE_TIME,
-    help="Wait time before killing child processes")
-@click.option("--name", "-n", type=str, default=None,
-    help="ProcessManager name, default is the local hostname")
-
+@click.option("--grace_time", "-gt", type=int, default=_GRACE_TIME, help="Wait time before killing child processes")
+@click.option("--name", "-n", type=str, default=None, help="ProcessManager name, default is the local hostname")
 def exit_command(grace_time, name):
-    do_command(ProcessManager, get_service_filter(name),
-        lambda actor: actor.exit(grace_time), terminate=True)
+    do_command(ProcessManager, get_service_filter(name), lambda actor: actor.exit(grace_time), terminate=True)
     aiko.process.run()
+
 
 def print_processes(cache, uid=None, topic_path=None):
     """One ProcessManager's table, as "list" prints it.  Pure except for
@@ -801,16 +780,14 @@ def print_processes(cache, uid=None, topic_path=None):
 
     safe = cache.get_safe(topic_path)
     posture = "safe" if safe else ("unsafe" if safe is False else "unknown")
-    print(f"\n{topic_path}  posture: {posture}"
-          f"  denied: {cache.get_denied(topic_path)}")
+    print(f"\n{topic_path}  posture: {posture}  denied: {cache.get_denied(topic_path)}")
     processes = cache.get_processes(topic_path)
-    matched = {process_uid: value
-        for process_uid, value in processes.items()
-        if uid is None or uid == process_uid}
+    matched = {process_uid: value for process_uid, value in processes.items() if uid is None or uid == process_uid}
     if not matched:
         print("  no processes")
     for process_uid, (pid, command_line) in matched.items():
         print(f"  uid: {process_uid}, pid: {pid}, {command_line}")
+
 
 def _list_watch(name, uid):
     """Follow the process table live, through the ProcessManagerCache.
@@ -826,22 +803,19 @@ def _list_watch(name, uid):
             return
         processes = cache.get_processes(topic_path)
         if processes == shown.get(topic_path):
-            return                        # a change to something else
+            return  # a change to something else
         shown[topic_path] = processes
         print_processes(cache, uid, topic_path)
 
     cache.add_handler(changed)
-    print(f'Watching ProcessManager "{name or get_hostname()}"'
-          " ... Ctrl-C to stop")
+    print(f'Watching ProcessManager "{name or get_hostname()}" ... Ctrl-C to stop')
     aiko.process.run()
 
-@main.command(name="list")
-@click.option("--name", "-n", type=str, default=None,
-    help="ProcessManager name, default is the local hostname")
-@click.option("--watch", "-w", is_flag=True,
-    help="Follow the process table live, through the ProcessManagerCache")
-@click.argument("uid", type=str, required=False, default=None)
 
+@main.command(name="list")
+@click.option("--name", "-n", type=str, default=None, help="ProcessManager name, default is the local hostname")
+@click.option("--watch", "-w", is_flag=True, help="Follow the process table live, through the ProcessManagerCache")
+@click.argument("uid", type=str, required=False, default=None)
 def list_command(name, uid, watch):
     """List Processes
 
@@ -873,21 +847,27 @@ def list_command(name, uid, watch):
             output = "No processes"
         print(output)
 
-    do_request(ProcessManager, get_service_filter(name),
+    do_request(
+        ProcessManager,
+        get_service_filter(name),
         lambda actor: actor.list(_RESPONSE_TOPIC, uid),
-        response_handler, _RESPONSE_TOPIC, terminate=True)
+        response_handler,
+        _RESPONSE_TOPIC,
+        terminate=True,
+    )
     aiko.process.run()
 
-@main.command(name="run")
-@click.option("--name", "-n", type=str, default=None,
-    help="ProcessManager name, default is the local hostname")
-@click.option("--watchdog", "-w", is_flag=True,
-    help="Monitor ProcessManager, if required relauch it")
-@click.option("--safe/--unsafe", "safe", default=SAFE,
-    help="Accept only (list) and (set_log_level) from the message bus "
-         "[default: --safe]")
-@click.argument("definition_pathname", required=False, default=None)
 
+@main.command(name="run")
+@click.option("--name", "-n", type=str, default=None, help="ProcessManager name, default is the local hostname")
+@click.option("--watchdog", "-w", is_flag=True, help="Monitor ProcessManager, if required relauch it")
+@click.option(
+    "--safe/--unsafe",
+    "safe",
+    default=SAFE,
+    help="Accept only (list) and (set_log_level) from the message bus [default: --safe]",
+)
+@click.argument("definition_pathname", required=False, default=None)
 def run_command(name, watchdog, safe, definition_pathname):
     """Run ProcessManager
 
@@ -911,13 +891,14 @@ def run_command(name, watchdog, safe, definition_pathname):
 
     name = name if name else get_hostname()
 
-    tags = ["ec=true"]       # TODO: Add ECProducer tag before add to Registrar
+    tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
     init_args = actor_args(name, None, None, PROTOCOL, tags)
     init_args["definition_pathname"] = definition_pathname
     init_args["watchdog"] = watchdog
     init_args["safe"] = safe
     process_manager = compose_instance(ProcessManagerImpl, init_args)
     aiko.process.run()
+
 
 if __name__ == "__main__":
     main()

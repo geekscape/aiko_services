@@ -27,8 +27,8 @@ import numpy as np
 
 from aiko_services.elements.cameras import camera
 
-__all__ = ["FakeCamera", "StubElement", "StubProducer",
-           "do_fake_initialize"]
+__all__ = ["FakeCamera", "StubElement", "StubProducer", "do_fake_initialize"]
+
 
 class FakeCamera(camera.Camera):
     FAIL_OPEN = False
@@ -39,11 +39,18 @@ class FakeCamera(camera.Camera):
     AUTO_ACTIVE_FRAMES = 3
     QUEUED = 0
 
-    def __init__(self, address=None, resolution=None, frame_rate=None,
-        resize_mode="crop", trigger="off", aux_stream=None, logger=None):
+    def __init__(
+        self,
+        address=None,
+        resolution=None,
+        frame_rate=None,
+        resize_mode="crop",
+        trigger="off",
+        aux_stream=None,
+        logger=None,
+    ):
 
-        super().__init__(address, resolution, frame_rate, resize_mode,
-                         trigger, aux_stream, logger)
+        super().__init__(address, resolution, frame_rate, resize_mode, trigger, aux_stream, logger)
         self.opened = False
         self.closed = False
         self.captured = 0
@@ -69,22 +76,18 @@ class FakeCamera(camera.Camera):
     def capture(self, timeout_s=camera.CAPTURE_TIMEOUT_S):
         if not self.opened or self.closed:
             raise RuntimeError("fake camera is not open")
-        if FakeCamera.FRAME_LIMIT is not None  \
-            and self.captured >= FakeCamera.FRAME_LIMIT:
+        if FakeCamera.FRAME_LIMIT is not None and self.captured >= FakeCamera.FRAME_LIMIT:
             raise RuntimeError("capture failed")
         if self._frame_rate:
-            time.sleep(1.0 / self._frame_rate)     # the camera's own pace
+            time.sleep(1.0 / self._frame_rate)  # the camera's own pace
         width, height = self._resolution
         image = np.zeros((height, width, 3), dtype=np.uint8)
-        image[0, 0, 0] = self.captured % 256       # the frame index
+        image[0, 0, 0] = self.captured % 256  # the frame index
         lens = 0 if FakeCamera.LENS_SETTLES and self.captured < 2 else 120
-        metadata = {"exposure_us": 15000.0, "iso_sensitivity": 800,
-                    "lens_position": lens, "gain": 1.0}
+        metadata = {"exposure_us": 15000.0, "iso_sensitivity": 800, "lens_position": lens, "gain": 1.0}
         if self.camera_auto:
             self._auto_frames += 1
-            metadata["auto_status"] = "AecActive"  \
-                if self._auto_frames <= FakeCamera.AUTO_ACTIVE_FRAMES  \
-                else "Done"
+            metadata["auto_status"] = "AecActive" if self._auto_frames <= FakeCamera.AUTO_ACTIVE_FRAMES else "Done"
             metadata["white_balance"] = "Done"
         self.captured += 1
         return image, metadata
@@ -106,14 +109,11 @@ class FakeCamera(camera.Camera):
     def camera_auto_available(self):
         return FakeCamera.AUTO_FEATURES
 
-    def set_camera_auto(self, enable, max_exposure_us=None,
-                        brightness_target=None):
-        self.camera_auto_calls.append(
-            (enable, max_exposure_us, brightness_target))
+    def set_camera_auto(self, enable, max_exposure_us=None, brightness_target=None):
+        self.camera_auto_calls.append((enable, max_exposure_us, brightness_target))
         self.camera_auto = enable
         self._auto_frames = 0
-        return {"max_exposure_us": max_exposure_us,
-                "brightness_target": brightness_target}
+        return {"max_exposure_us": max_exposure_us, "brightness_target": brightness_target}
 
     def set_white_balance(self, mode):
         if not FakeCamera.AUTO_FEATURES:
@@ -129,6 +129,7 @@ class FakeCamera(camera.Camera):
     def queued_frames(self):
         return FakeCamera.QUEUED
 
+
 def do_fake_initialize():
     FakeCamera.FAIL_OPEN = False
     FakeCamera.FRAME_LIMIT = None
@@ -138,7 +139,9 @@ def do_fake_initialize():
     FakeCamera.AUTO_ACTIVE_FRAMES = 3
     FakeCamera.QUEUED = 0
 
+
 # --------------------------------------------------------------------------- #
+
 
 class StubProducer:
     """Records ec_producer.update() into the share and keeps handlers"""
@@ -160,7 +163,7 @@ class StubProducer:
     def update(self, item_name, item_value):
         self.share[item_name] = item_value
         self.updates.append((item_name, item_value))
-        for handler in list(self.handlers):      # as ECProducerImpl does
+        for handler in list(self.handlers):  # as ECProducerImpl does
             handler("update", item_name, item_value)
 
     def send(self, item_name, item_value):
@@ -168,6 +171,7 @@ class StubProducer:
 
         for handler in list(self.handlers):
             handler("update", item_name, item_value)
+
 
 class StubElement:
     """What a DataScheme needs from its PipelineElement, without the
@@ -186,5 +190,6 @@ class StubElement:
 
     def create_frames(self, stream, frame_generator, rate=None, **_):
         self.create_frames_calls.append((frame_generator, rate))
+
 
 # --------------------------------------------------------------------------- #

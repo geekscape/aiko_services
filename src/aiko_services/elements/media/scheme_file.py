@@ -22,9 +22,9 @@ __all__ = ["DataSchemeFile"]
 # - "(file:data_out/out_{}.jpeg)"
 # - "(file:data_out/out_{}.mp4)"
 
+
 class DataSchemeFile(aiko.DataScheme):
-    def create_sources(self,
-        stream, data_sources, frame_generator=None, use_create_frame=True):
+    def create_sources(self, stream, data_sources, frame_generator=None, use_create_frame=True):
 
         if not frame_generator:
             frame_generator = self.frame_generator
@@ -50,8 +50,7 @@ class DataSchemeFile(aiko.DataScheme):
                 for path in paths_sorted:
                     file_id = None
                     if file_glob != "*":
-                        file_id = self._file_glob_difference(
-                            file_glob, path.name)
+                        file_id = self._file_glob_difference(file_glob, path.name)
                     file_ids.append(file_id)
                 paths.extend(zip(paths_sorted, file_ids))
             else:
@@ -83,17 +82,16 @@ class DataSchemeFile(aiko.DataScheme):
         token_start = tokens[0]
         token_end = tokens[1] if len(tokens) > 1 else ""
         if filename.startswith(token_start) and filename.endswith(token_end):
-            difference = filename[len(token_start):len(filename)-len(token_end)]
+            difference = filename[len(token_start) : len(filename) - len(token_end)]
         return difference
 
     def frame_generator(self, stream, frame_id):
-        data_batch_size, _ = self.pipeline_element.get_parameter(
-            "data_batch_size", default=1)
+        data_batch_size, _ = self.pipeline_element.get_parameter("data_batch_size", default=1)
         data_batch_size = int(data_batch_size)
 
         paths = []
         try:
-            while (data_batch_size > 0):
+            while data_batch_size > 0:
                 data_batch_size -= 1
                 path, file_id = next(stream.variables["source_paths_generator"])
                 path = Path(path)
@@ -108,6 +106,7 @@ class DataSchemeFile(aiko.DataScheme):
             return aiko.StreamEvent.OKAY, {"paths": paths}
         else:
             return aiko.StreamEvent.STOP, {"diagnostic": "All frames generated"}
+
 
 aiko.DataScheme.add_data_scheme("file", DataSchemeFile)
 

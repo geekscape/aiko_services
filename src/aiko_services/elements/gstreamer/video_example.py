@@ -36,66 +36,61 @@ from aiko_services.elements.gstreamer import *
 # --------------------------------------------------------------------------- #
 
 if __name__ == "__main__":
-  parser = argparse.ArgumentParser()
-  parser.add_argument("-if", "--input_filename", type=str, default="",
-    help="Video input filename")
-  parser.add_argument("-is", "--input_stream", type=str, default="",
-    help="Video input hostname:port")
-  parser.add_argument("-of", "--output_filename", type=str, default="",
-    help="Video output filename")
-  parser.add_argument("-os", "--output_stream", type=str, default="",
-    help="Video output hostname:port")
-  parser.add_argument("-r", "--resolution", type=str, default="", nargs=2,
-    help="Video resolution width and height")
-  parser.add_argument("-f", "--framerate", type=str, default="",
-    help="Video resolution width and height")
-  parser.add_argument("-cv", "--opencv",
-    action='store_true', help="Display on local display and overlay frame id")
-  parser.add_argument("--RTP",
-    action='store_true', help="Use RTP protocol")
-  args = parser.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-if", "--input_filename", type=str, default="", help="Video input filename")
+    parser.add_argument("-is", "--input_stream", type=str, default="", help="Video input hostname:port")
+    parser.add_argument("-of", "--output_filename", type=str, default="", help="Video output filename")
+    parser.add_argument("-os", "--output_stream", type=str, default="", help="Video output hostname:port")
+    parser.add_argument("-r", "--resolution", type=str, default="", nargs=2, help="Video resolution width and height")
+    parser.add_argument("-f", "--framerate", type=str, default="", help="Video resolution width and height")
+    parser.add_argument("-cv", "--opencv", action="store_true", help="Display on local display and overlay frame id")
+    parser.add_argument("--RTP", action="store_true", help="Use RTP protocol")
+    args = parser.parse_args()
 
-  width, height = args.resolution
+    width, height = args.resolution
 
-  if args.opencv: utilities.enable_opencv()
+    if args.opencv:
+        utilities.enable_opencv()
 
-  if (args.input_filename == "" and args.input_stream == "") or  \
-     (args.input_filename != "" and args.input_stream != ""):
-    print("usage: Must provide one of either input filename or hostname:port")
-    sys.exit(-1)
-
-  if (args.output_filename == "" and args.output_stream == "") or  \
-     (args.output_filename != "" and args.output_stream != ""):
-    print("usage: Must provide one of either output filename or hostname:port")
-    sys.exit(-1)
-
-  try:
-    if args.input_filename != "":
-      video_reader = VideoFileReader(args.input_filename, width, height)
-    else:
-      try:
-        input_hostname, input_port = args.input_stream.split(":")
-      except ValueError as exception:
-        print("Error: please specify input as hostname:port")
+    if (args.input_filename == "" and args.input_stream == "") or (
+        args.input_filename != "" and args.input_stream != ""
+    ):
+        print("usage: Must provide one of either input filename or hostname:port")
         sys.exit(-1)
-      video_reader = VideoStreamReader(input_hostname, input_port, width, height, rtp=args.RTP)
 
-    if args.output_filename != "":
-      video_writer = VideoFileWriter(args.output_filename, width, height, args.framerate)
-    else:
-      try:
-        output_hostname, output_port = args.output_stream.split(":")
-      except ValueError as exception:
-        print("Error: please specify output as hostname:port")
+    if (args.output_filename == "" and args.output_stream == "") or (
+        args.output_filename != "" and args.output_stream != ""
+    ):
+        print("usage: Must provide one of either output filename or hostname:port")
         sys.exit(-1)
-      video_writer = VideoStreamWriter(output_hostname, output_port, width, height, args.framerate)
 
-    utilities.process_video(video_reader, video_writer)
+    try:
+        if args.input_filename != "":
+            video_reader = VideoFileReader(args.input_filename, width, height)
+        else:
+            try:
+                input_hostname, input_port = args.input_stream.split(":")
+            except ValueError as exception:
+                print("Error: please specify input as hostname:port")
+                sys.exit(-1)
+            video_reader = VideoStreamReader(input_hostname, input_port, width, height, rtp=args.RTP)
 
-  except ValueError as exception:
-    print("Error: " + str(exception))
+        if args.output_filename != "":
+            video_writer = VideoFileWriter(args.output_filename, width, height, args.framerate)
+        else:
+            try:
+                output_hostname, output_port = args.output_stream.split(":")
+            except ValueError as exception:
+                print("Error: please specify output as hostname:port")
+                sys.exit(-1)
+            video_writer = VideoStreamWriter(output_hostname, output_port, width, height, args.framerate)
 
-  except GStreamerError as exception:           # TODO: Needs better diagnostic
-    print("GStreamer Error: " + str(exception))
+        utilities.process_video(video_reader, video_writer)
+
+    except ValueError as exception:
+        print("Error: " + str(exception))
+
+    except GStreamerError as exception:  # TODO: Needs better diagnostic
+        print("GStreamer Error: " + str(exception))
 
 # --------------------------------------------------------------------------- #

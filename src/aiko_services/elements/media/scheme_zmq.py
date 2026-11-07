@@ -9,6 +9,7 @@
 
 import queue
 from threading import Thread
+
 import zmq
 
 import aiko_services as aiko
@@ -37,9 +38,9 @@ _LOGGER = aiko.process.logger(__name__)
 #   - "(zmq://localhost:6502)"     localhost and TCP port
 #   - "(zmq://0.0.0.0:6502)"       given hostname and TCP port
 
+
 class DataSchemeZMQ(aiko.DataScheme):
-    def create_sources(self,
-        stream, data_sources, frame_generator=None, use_create_frame=False):
+    def create_sources(self, stream, data_sources, frame_generator=None, use_create_frame=False):
 
         if not frame_generator:
             frame_generator = self.frame_generator
@@ -84,12 +85,11 @@ class DataSchemeZMQ(aiko.DataScheme):
         self._zmq_destroy()
 
     def frame_generator(self, stream, frame_id):
-        data_batch_size, _ = self.pipeline_element.get_parameter(
-            "data_batch_size", default=1)
+        data_batch_size, _ = self.pipeline_element.get_parameter("data_batch_size", default=1)
         data_batch_size = int(data_batch_size)
 
         records = []
-        while (data_batch_size > 0):
+        while data_batch_size > 0:
             data_batch_size -= 1
             if not self.queue.qsize():
                 break
@@ -105,8 +105,7 @@ class DataSchemeZMQ(aiko.DataScheme):
         data_url = data_urls[0]
         path = aiko.DataScheme.parse_url_path(data_url)
         tokens = path.split(":")  # "hostname:port_range", e.g "*:6502-6510"
-        diagnostic =  \
-            f'ZMQ Data URL "{data_url}" must be "zmq://host:port_range"'
+        diagnostic = f'ZMQ Data URL "{data_url}" must be "zmq://host:port_range"'
         if len(tokens) != 2:
             raise ValueError(diagnostic)
         hostname = tokens[0]
@@ -144,6 +143,7 @@ class DataSchemeZMQ(aiko.DataScheme):
         if self.zmq_context:
             self.zmq_context.term()
             self.zmq_context = None
+
 
 aiko.DataScheme.add_data_scheme("zmq", DataSchemeZMQ)
 

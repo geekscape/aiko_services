@@ -13,8 +13,8 @@
 # - None, yet !
 
 import pytest
-pytest.importorskip("cv2",
-    reason="aiko_services.elements.media needs cv2 (video_io.py)")
+
+pytest.importorskip("cv2", reason="aiko_services.elements.media needs cv2 (video_io.py)")
 
 from aiko_services.elements.cameras import scheme_gigev
 from aiko_services.tests.unit import do_create_pipeline
@@ -49,6 +49,7 @@ PIPELINE_DEFINITION = """{
   ]
 }
 """
+
 
 def test_gigev_pipeline_delivers_frames(monkeypatch):
     do_fake_initialize()

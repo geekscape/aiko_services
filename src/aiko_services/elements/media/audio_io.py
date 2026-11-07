@@ -40,7 +40,6 @@
 # - Refactor Speech-To-Text and Text-To-Speech PipelineElements
 
 from typing import Tuple
-from pathlib import Path
 
 import aiko_services as aiko
 from aiko_services.elements.media import open_video_capture
@@ -51,7 +50,7 @@ _LOGGER = aiko.process.logger(__name__)
 
 _XXX_IMPORTED = False
 try:
-#   import xxx
+    #   import xxx
     _XXX_IMPORTED = True
 except ModuleNotFoundError:  # TODO: Optional warning flag
     diagnostic = "audio_io.py: Couldn't import xxx module"
@@ -65,6 +64,7 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
 _CV2_IMPORTED = False
 try:
     import cv2
+
     _CV2_IMPORTED = True
 except ModuleNotFoundError:  # TODO: Optional warning flag
     diagnostic = "audio_io.py: Couldn't import cv2 module"
@@ -78,15 +78,16 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
 # --------------------------------------------------------------------------- #
 # Useful for Pipeline output that should be all of the audios processed
 
+
 class AudioOutput(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("audio_output:0")
         context.call_init(self, "PipelineElement", context)
 
-    def process_frame(self, stream, audio_samples)  \
-        -> Tuple[aiko.StreamEvent, dict]:
+    def process_frame(self, stream, audio_samples) -> Tuple[aiko.StreamEvent, dict]:
 
         return aiko.StreamEvent.OKAY, {"audio_samples": bytes}
+
 
 # --------------------------------------------------------------------------- #
 # AudioReadFile is a DataSource which supports ...
@@ -98,31 +99,31 @@ class AudioOutput(aiko.PipelineElement):
 #
 # Note: Only supports Streams with "data_sources" parameter
 
+
 class AudioReadFile(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("audio_read_file:0")
         context.call_init(self, "PipelineElement", context)
 
     def start_stream(self, stream, stream_id):
-    #   stream.variables["audio_capture"] = None
+        #   stream.variables["audio_capture"] = None
         stream.variables["audio_frame_generator"] = None
         return super().start_stream(stream, stream_id, use_create_frame=False)
 
     def audio_frame_iterator(self, audio_capture):
         while True:
-    #       status, image_bgr = audio_capture.read()
-    #       if not status:
-    #           break
-    #       image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-            yield # audio_sample
+            #       status, image_bgr = audio_capture.read()
+            #       if not status:
+            #           break
+            #       image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+            yield  # audio_sample
 
     def frame_generator(self, stream, frame_id):
         audio_frame_generator = stream.variables["audio_frame_generator"]
         while True:
             if not audio_frame_generator:
                 try:
-                    path, file_id = next(
-                        stream.variables["source_paths_generator"])
+                    path, file_id = next(stream.variables["source_paths_generator"])
                 except StopIteration:
                     stream.variables["source_paths_generator"] = None
                     diagnostic = "End of audio file(s)"
@@ -132,9 +133,9 @@ class AudioReadFile(aiko.DataSource):  # PipelineElement
                     diagnostic = f'path "{path}" must be a file'
                     return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
-            # TODO: handle integer audio "path" ... maybe ?
-            #   if isinstance(path, str) and path.isdigit():
-            #       path = int(str(path))
+                # TODO: handle integer audio "path" ... maybe ?
+                #   if isinstance(path, str) and path.isdigit():
+                #       path = int(str(path))
 
                 audio_capture = open_video_capture(str(path))
                 if not audio_capture.isOpened():
@@ -142,8 +143,7 @@ class AudioReadFile(aiko.DataSource):  # PipelineElement
                     return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
                 stream.variables["audio_capture"] = audio_capture
                 audio_frame_generator = self.audio_frame_iterator(audio_capture)
-                stream.variables["audio_frame_generator"] =  \
-                    audio_frame_generator
+                stream.variables["audio_frame_generator"] = audio_frame_generator
 
             try:
                 image_rgb = next(audio_frame_generator)
@@ -162,6 +162,7 @@ class AudioReadFile(aiko.DataSource):  # PipelineElement
             audio_capture.release()
             stream.variables["audio_capture"] = None
         return aiko.StreamEvent.OKAY, {}
+
 
 # --------------------------------------------------------------------------- #
 """

@@ -21,12 +21,10 @@ from typing import Tuple
 import aiko_services as aiko
 from aiko_services.main.utilities import *
 
-__all__ = [
-    "all_outputs", "evaluate", "evaluate_conition", "evaluate_define",
-    "Expression"
-]
+__all__ = ["all_outputs", "evaluate", "evaluate_conition", "evaluate_define", "Expression"]
 
 # --------------------------------------------------------------------------- #
+
 
 def all_outputs(pipeline_element, stream):
     frame = stream.frames[stream.frame_id]
@@ -35,6 +33,7 @@ def all_outputs(pipeline_element, stream):
         output_name = output_definition["name"]
         outputs[output_name] = frame.swag[output_name]
     return outputs
+
 
 # --------------------------------------------------------------------------- #
 # Expression PipelineElement enables modifying process_frame()
@@ -49,6 +48,7 @@ def all_outputs(pipeline_element, stream):
 # - expression: integer, float, string, list, dictionary, argument_name
 # - operator:   + - * / < <= > >=
 
+
 def evaluate(expression, arguments={}):
     expression = expression.strip()
 
@@ -58,8 +58,7 @@ def evaluate(expression, arguments={}):
     if re.fullmatch(r"\d+(\.\d+)?", expression):  # Is a number ?
         return float(expression) if "." in expression else int(expression)
 
-    if re.fullmatch(r"\".*\"|\'.*\'" , expression) or  \
-        re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", expression):
+    if re.fullmatch(r"\".*\"|\'.*\'", expression) or re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", expression):
         return expression.strip("\"'")  # If present, remove quotes
 
     if re.fullmatch(r"\[.*\]", expression):
@@ -68,17 +67,16 @@ def evaluate(expression, arguments={}):
     match = re.search(r"(\+|\-|\*|/|\<|\<=|/>|\>=)", expression)  # operators
     if match:
         operator = match.group()
-        left_expression = expression[:match.start()].strip()
-        right_expression = expression[match.end():].strip()
+        left_expression = expression[: match.start()].strip()
+        right_expression = expression[match.end() :].strip()
 
         left_value = evaluate(left_expression, arguments)
         right_value = evaluate(right_expression, arguments)
 
-        left_value = parse_number(left_value, left_value)     # coerce to number
+        left_value = parse_number(left_value, left_value)  # coerce to number
         right_value = parse_number(right_value, right_value)  # ditto
 
-        if isinstance(left_value, (int, float)) and  \
-             isinstance(right_value, (int, float)):
+        if isinstance(left_value, (int, float)) and isinstance(right_value, (int, float)):
             if operator == "+":
                 return left_value + right_value
             elif operator == "-":
@@ -98,17 +96,19 @@ def evaluate(expression, arguments={}):
             elif operator == ">=":
                 return left_value >= right_value
 
-        elif operator == "+" and  \
-             isinstance(left_value, list) and isinstance(right_value, list):
+        elif operator == "+" and isinstance(left_value, list) and isinstance(right_value, list):
             return left_value + right_value
 
-        elif operator == "+" and  \
-             isinstance(left_value, (int, float, str)) and  \
-             isinstance(right_value, (int, float, str)):
+        elif (
+            operator == "+" and isinstance(left_value, (int, float, str)) and isinstance(right_value, (int, float, str))
+        ):
             return f"{left_value}{right_value}"
 
     return expression  # Treat everything else as a "string"
+
+
 #   raise ValueError(f"Invalid expression: {expression}")
+
 
 def evaluate_condition(expressions, swag, logger=None):
     results = []
@@ -121,6 +121,7 @@ def evaluate_condition(expressions, swag, logger=None):
             results.append(True if expression[0] else False)
     return all(results)
 
+
 def evaluate_define(expressions, swag, logger=None, name="Define"):
     if isinstance(expressions, list):
         for expression in expressions:
@@ -129,6 +130,7 @@ def evaluate_define(expressions, swag, logger=None, name="Define"):
             if isinstance(expression[1], str):
                 expression[1] = evaluate(expression[1], swag)
             swag[expression[0]] = expression[1]
+
 
 class Expression(aiko.PipelineElement):
     def __init__(self, context):
@@ -155,5 +157,6 @@ class Expression(aiko.PipelineElement):
                         if len(name) == 2 and name[0] in swag:
                             swag[name[1]] = swag.pop(name[0])
         return aiko.StreamEvent.OKAY, all_outputs(self, stream)
+
 
 # --------------------------------------------------------------------------- #

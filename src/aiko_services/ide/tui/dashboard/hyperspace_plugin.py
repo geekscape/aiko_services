@@ -36,31 +36,37 @@
 # - "destroy" only destroys an empty Category.  Offer to destroy what it
 #   holds, once "hyperspace.py" removes recursively
 
-from aiko_services.main.category_view import (
-    CATEGORY, PATH_DELIMITER, entry_path_join,
-)
 from aiko_services.ide.tui.dashboard import text_field
-from aiko_services.main.hyperspace import HyperSpace
 from aiko_services.ide.tui.dashboard.category_plugin import (
-    CategoryFrame, CategoryPage,
+    CategoryFrame,
+    CategoryPage,
 )
+from aiko_services.main.category_view import (
+    CATEGORY,
+    PATH_DELIMITER,
+    entry_path_join,
+)
+from aiko_services.main.hyperspace import HyperSpace
 
 __all__ = ["HyperSpaceFrame", "HyperSpacePage", "plugins"]
+
 
 class HyperSpacePage(CategoryPage):
     """The Category page's decisions, where a path is resolved"""
 
     resolves_paths = True
 
-    KEYS = dict(CategoryPage.KEYS, **{
-        "c": ("create",),
-        "k": ("destroy",),
-        "U": ("dump",),
-        "K": ("exit",),
-    })
+    KEYS = dict(
+        CategoryPage.KEYS,
+        **{
+            "c": ("create",),
+            "k": ("destroy",),
+            "U": ("dump",),
+            "K": ("exit",),
+        },
+    )
 
-    STATE_KEYS = ("entries_count", "storage_url",
-        "lifecycle", "log_level", "running")
+    STATE_KEYS = ("entries_count", "storage_url", "lifecycle", "log_level", "running")
 
     def help_lines(self):
         return super().help_lines() + [
@@ -75,6 +81,7 @@ class HyperSpacePage(CategoryPage):
             "  U dump     its state, to its log",
             "  K exit     terminate the HyperSpace",
         ]
+
 
 class HyperSpaceFrame(CategoryFrame):
     """The Dashboard page: the Entry tree, the state, the log"""
@@ -130,9 +137,11 @@ class HyperSpaceFrame(CategoryFrame):
 
         self._form(
             f"Create a Category in {self.page.breadcrumb(category_path)}",
-            [text_field("path", "Path")], "Create", accept,
-            note="A path of more than one name creates each Category"
-                 "\nalong it, as \"mkdir -p\" does.")
+            [text_field("path", "Path")],
+            "Create",
+            accept,
+            note='A path of more than one name creates each Category\nalong it, as "mkdir -p" does.',
+        )
 
     def _destroy(self):
         node = self._selected_node()
@@ -148,25 +157,32 @@ class HyperSpaceFrame(CategoryFrame):
             f"Destroy {self.page.breadcrumb(path)} ?\n\n"
             "A HyperSpace destroys a Category that holds nothing, and"
             "\nleaves one that still holds Entries as it is.",
-            ["Cancel", "Destroy"], _on_close)
+            ["Cancel", "Destroy"],
+            _on_close,
+        )
 
     def _confirm_exit(self):
         def _on_close(button_index):
             if button_index == 1 and self._connected():
                 self.proxy.exit()
 
-        self._popup("Terminate the HyperSpace?\n\n"
+        self._popup(
+            "Terminate the HyperSpace?\n\n"
             "Its Categories are in its own process, so they terminate"
             "\nwith it.  What is persisted is read again when it runs.",
-            ["Cancel", "Exit"], _on_close)
+            ["Cancel", "Exit"],
+            _on_close,
+        )
 
     def _legend_text(self):
-        keys = "keys: Enter open  a add  c create  u update  d remove"  \
-               "  k destroy  r refresh  f filter  s sort  F clear"  \
-               "  U dump  K exit  L log level  H help"
-        notes = [note for note in (self._trail_text(), self._diagnostic)
-            if note]
+        keys = (
+            "keys: Enter open  a add  c create  u update  d remove"
+            "  k destroy  r refresh  f filter  s sort  F clear"
+            "  U dump  K exit  L log level  H help"
+        )
+        notes = [note for note in (self._trail_text(), self._diagnostic) if note]
         return f"{keys}   {'   '.join(notes)}" if notes else keys
+
 
 # plugin key: the protocol type of hyperspace:0
 plugins = {"hyperspace": HyperSpaceFrame}

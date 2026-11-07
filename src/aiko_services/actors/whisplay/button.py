@@ -22,38 +22,45 @@
 # * A double press, for Epic 6.  classify() returns the press kind already,
 #   so the counting of two presses within a window is what is missing
 
-from abc import abstractmethod
 import time
+from abc import abstractmethod
 
 import aiko_services as aiko
 
 __all__ = [
-    "BUTTON_ACTIVE_HIGH", "BUTTON_GPIO", "Button", "FakeButtonImpl",
+    "BUTTON_ACTIVE_HIGH",
+    "BUTTON_GPIO",
+    "Button",
+    "FakeButtonImpl",
     "GpioButtonImpl",
-    "LONG_PRESS_SECONDS", "button_args", "choose_button", "classify"
+    "LONG_PRESS_SECONDS",
+    "button_args",
+    "choose_button",
+    "classify",
 ]
 
-BUTTON_GPIO = 17               # BOARD pin 11
+BUTTON_GPIO = 17  # BOARD pin 11
 LONG_PRESS_SECONDS = 3.0
 # The pin is at 3.3V while the button is held, so gpiozero takes
 # pull_up=False.  Named here so the reason survives, because the cost of
 # getting it wrong is silent: every event arrives inverted
 BUTTON_ACTIVE_HIGH = True
 
+
 def classify(seconds, long_press_seconds=LONG_PRESS_SECONDS):
-    """"long" when the press lasted longer than long_press_seconds, else
+    """ "long" when the press lasted longer than long_press_seconds, else
     "short".  A pure function of the duration, so that the rule is tested
     without a button"""
 
     return "long" if seconds > long_press_seconds else "short"
+
 
 class Button(aiko.Interface):
     """One button.  open() acquires it, add_handler(handler) asks for
     handler(kind, seconds) on each release, and close() releases it.  The
     handler runs on the Impl's own thread, never on the event-loop thread"""
 
-    aiko.Interface.default(
-        "Button", "aiko_services.actors.whisplay.button.FakeButtonImpl")
+    aiko.Interface.default("Button", "aiko_services.actors.whisplay.button.FakeButtonImpl")
 
     @abstractmethod
     def open(self):
@@ -67,6 +74,7 @@ class Button(aiko.Interface):
     @abstractmethod
     def close(self):
         """Release the button"""
+
 
 class FakeButtonImpl(Button):
     """No button: the default Impl, and the test double.  press(seconds)
@@ -103,14 +111,14 @@ class FakeButtonImpl(Button):
         for handler in self._handlers:
             handler("down", 0.0)
 
+
 class GpioButtonImpl(Button):
     """The WhisPlay button through gpiozero.  The press is timed here and
     classified by classify(), so this Impl holds no rule of its own"""
 
     device = "gpio"
 
-    def __init__(self, context, gpio=BUTTON_GPIO,
-        long_press_seconds=LONG_PRESS_SECONDS, **_):
+    def __init__(self, context, gpio=BUTTON_GPIO, long_press_seconds=LONG_PRESS_SECONDS, **_):
 
         self.gpio = gpio
         self.long_press_seconds = long_press_seconds
@@ -119,13 +127,12 @@ class GpioButtonImpl(Button):
         self._pressed_at = None
 
     def open(self):
-        from gpiozero import Button as GpioZeroButton   # only needed here
+        from gpiozero import Button as GpioZeroButton  # only needed here
 
         # Active HIGH: the vendor driver says "pressed is 5V, released is
         # 0V".  With pull_up=True every event arrives inverted, so a press
         # looks like a release and the press is never seen
-        self._button = GpioZeroButton(
-            self.gpio, pull_up=not BUTTON_ACTIVE_HIGH, bounce_time=0.05)
+        self._button = GpioZeroButton(self.gpio, pull_up=not BUTTON_ACTIVE_HIGH, bounce_time=0.05)
         self._button.when_pressed = self._on_pressed
         self._button.when_released = self._on_released
 
@@ -145,19 +152,22 @@ class GpioButtonImpl(Button):
 
     def _on_released(self):
         if self._pressed_at is None:
-            return                     # A release with no press: ignore it
+            return  # A release with no press: ignore it
         seconds = time.monotonic() - self._pressed_at
         self._pressed_at = None
         kind = classify(seconds, self.long_press_seconds)
         for handler in self._handlers:
             handler(kind, seconds)
 
+
 # Composition -------------------------------------------------------------- #
+
 
 def button_args(**parameters):
     """init_args for composing a Button Impl"""
 
     return {"context": aiko.Context(), **parameters}
+
 
 def choose_button(button="auto", **parameters):
     """The composed Button.  "auto" is the real one where gpiozero can be
@@ -171,5 +181,6 @@ def choose_button(button="auto", **parameters):
     if button not in impls:
         raise ValueError(f'unknown button "{button}": one of {sorted(impls)}')
     return aiko.compose_instance(impls[button], button_args(**parameters))
+
 
 # --------------------------------------------------------------------------- #

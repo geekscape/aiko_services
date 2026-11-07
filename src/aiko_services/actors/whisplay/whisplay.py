@@ -29,9 +29,7 @@
 # * Take any video source through a DataSource, not only this camera
 # * The RGB LEDs, as their own Actor
 
-from abc import abstractmethod
 import math
-import os
 import queue
 import socket
 import subprocess
@@ -39,34 +37,31 @@ import time
 from threading import Thread
 
 import aiko_services as aiko
-from aiko_services.main.utilities import get_hostname
-
 from aiko_services.actors.whisplay.button import LONG_PRESS_SECONDS
 from aiko_services.actors.whisplay.camera import CameraNotFound
 from aiko_services.actors.whisplay.frame import compose, parse_resolution
+from aiko_services.main.utilities import get_hostname
 
 try:
     import psutil
-except ImportError:                                      # pragma: no cover
+except ImportError:  # pragma: no cover
     psutil = None
 
-__all__ = [
-    "ACTIONS", "COUNTDOWN_LABEL", "PROTOCOL", "ROW_ALIGNS", "SETTINGS",
-    "FUNCTIONS", "WhisPlay", "WhisPlayImpl"
-]
+__all__ = ["ACTIONS", "COUNTDOWN_LABEL", "PROTOCOL", "ROW_ALIGNS", "SETTINGS", "FUNCTIONS", "WhisPlay", "WhisPlayImpl"]
 
 PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/whisplay:0"
 PROTOCOL_TYPE = "whisplay"
 
-ACTIONS = ("power_off", "none")        # What a long press may do
+ACTIONS = ("power_off", "none")  # What a long press may do
 # Row 2 holds readings, so it is right aligned: a number keeps its place as
 # it gains a digit
 ROW_ALIGNS = ("spread", "fields", "spread", "spread")
-COUNTDOWN_LABEL = "Off: "              # Shown while the button is held
+COUNTDOWN_LABEL = "Off: "  # Shown while the button is held
 SETTINGS = ("action", "rate", "resolution")
 RATE_LOW, RATE_HIGH = 0.1, 30.0
-REOPEN_PERIOD = 10.0                   # Seconds, before trying a device again
+REOPEN_PERIOD = 10.0  # Seconds, before trying a device again
 _THREAD_NAME = "whisplay"
+
 
 class WhisPlay(aiko.Actor):
     """Shows the camera on the WhisPlay panel, and performs an action on a
@@ -77,37 +72,49 @@ class WhisPlay(aiko.Actor):
 
     PROTOCOL = PROTOCOL
 
-    aiko.Interface.default(
-        "WhisPlay", "aiko_services.actors.whisplay.whisplay.WhisPlayImpl")
+    aiko.Interface.default("WhisPlay", "aiko_services.actors.whisplay.whisplay.WhisPlayImpl")
+
 
 # P12, ADR-023: deny by default.  This Actor adds no function of its own,
 # so the allow list is the framework's two and nothing else
 FUNCTIONS = aiko.interface_functions()
 
-class WhisPlayImpl(WhisPlay):
-    def __init__(self, context, panel=None, camera=None, button=None,
-        action="power_off", rate="8.0", resolution="240x180", rotate=0,
-        long_press=LONG_PRESS_SECONDS, worker=True):
 
-        context.call_init(
-            self, "FunctionGate", context, functions=FUNCTIONS)
+class WhisPlayImpl(WhisPlay):
+    def __init__(
+        self,
+        context,
+        panel=None,
+        camera=None,
+        button=None,
+        action="power_off",
+        rate="8.0",
+        resolution="240x180",
+        rotate=0,
+        long_press=LONG_PRESS_SECONDS,
+        worker=True,
+    ):
+
+        context.call_init(self, "FunctionGate", context, functions=FUNCTIONS)
         context.call_init(self, "Actor", context)
 
         self._panel, self._camera, self._button = panel, camera, button
         self._rotate = int(rotate)
         self._long_press = float(long_press)
-        self._queue = queue.Queue()        # settings, into the worker thread
+        self._queue = queue.Queue()  # settings, into the worker thread
         self._stopping = False
 
-        self.share.update({
-            "source_file": f"v{aiko.__version__}⇒ {__file__}",
-            "action": action,
-            "rate": rate,
-            "resolution": resolution,
-            "device": getattr(self._panel, "device", "none"),
-            "frames": "0",
-            "last_error": "-",
-        })
+        self.share.update(
+            {
+                "source_file": f"v{aiko.__version__}⇒ {__file__}",
+                "action": action,
+                "rate": rate,
+                "resolution": resolution,
+                "device": getattr(self._panel, "device", "none"),
+                "frames": "0",
+                "last_error": "-",
+            }
+        )
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
         if self._button:
@@ -118,11 +125,10 @@ class WhisPlayImpl(WhisPlay):
         # the tests exercise the handlers.  Nothing else sets it
         self._thread = None
         if worker:
-            self._thread = Thread(
-                target=self._run, daemon=True, name=_THREAD_NAME)
+            self._thread = Thread(target=self._run, daemon=True, name=_THREAD_NAME)
             self._thread.start()
 
-# The worker thread: it owns the camera and the panel --------------------- #
+    # The worker thread: it owns the camera and the panel --------------------- #
 
     def _run(self):
         """Capture, compose, show.  This thread owns the devices and never
@@ -131,7 +137,7 @@ class WhisPlayImpl(WhisPlay):
         rate, resolution = self._applied_settings()
         opened = False
         frames = 0
-        pressed_at = None                  # When the button went down
+        pressed_at = None  # When the button went down
         while not self._stopping:
             started = time.monotonic()
             changed = self._drain_queue()
@@ -141,7 +147,7 @@ class WhisPlayImpl(WhisPlay):
                 rate = changed.get("rate", rate)
                 if "resolution" in changed and changed["resolution"] != resolution:
                     resolution = changed["resolution"]
-                    opened = False                       # reopen at the new size
+                    opened = False  # reopen at the new size
             if not opened:
                 opened = self._open_devices(resolution)
                 if not opened:
@@ -149,17 +155,20 @@ class WhisPlayImpl(WhisPlay):
                     continue
             try:
                 image = self._camera.capture()
-                self._panel.show(compose(
-                    image, self._rows(),
-                    overlay=self._overlay(frames, self._countdown(pressed_at)),
-                    rotate=self._rotate, aligns=ROW_ALIGNS))
+                self._panel.show(
+                    compose(
+                        image,
+                        self._rows(),
+                        overlay=self._overlay(frames, self._countdown(pressed_at)),
+                        rotate=self._rotate,
+                        aligns=ROW_ALIGNS,
+                    )
+                )
                 frames += 1
                 if frames % 10 == 0:
-                    self._post_message(
-                        aiko.ActorTopic.IN, "_frames", [str(frames)])
-            except Exception as exception:               # noqa: BLE001
-                self._post_message(
-                    aiko.ActorTopic.IN, "_worker_error", [str(exception)])
+                    self._post_message(aiko.ActorTopic.IN, "_frames", [str(frames)])
+            except Exception as exception:  # noqa: BLE001
+                self._post_message(aiko.ActorTopic.IN, "_worker_error", [str(exception)])
                 opened = False
                 time.sleep(REOPEN_PERIOD)
                 continue
@@ -172,8 +181,7 @@ class WhisPlayImpl(WhisPlay):
         is safe: nothing has mutated it since __init__, and after this the
         thread only learns through its queue"""
 
-        return self._rate(self.share["rate"]),  \
-            parse_resolution(self.share["resolution"])
+        return self._rate(self.share["rate"]), parse_resolution(self.share["resolution"])
 
     def _drain_queue(self):
         changed = {}
@@ -189,8 +197,7 @@ class WhisPlayImpl(WhisPlay):
             self._camera.open(resolution)
             return True
         except (CameraNotFound, OSError) as error:
-            self._post_message(
-                aiko.ActorTopic.IN, "_worker_error", [str(error)])
+            self._post_message(aiko.ActorTopic.IN, "_worker_error", [str(error)])
             return False
 
     def _rows(self):
@@ -206,7 +213,8 @@ class WhisPlayImpl(WhisPlay):
             # (prefix, number, suffix): the letters never move, and the
             # number is right aligned between them
             (("C:", cpu, "%"), ("M:", memory, "%"), ("", temperature, "C")),
-            (), (),
+            (),
+            (),
         ]
 
     def _countdown(self, pressed_at):
@@ -235,29 +243,27 @@ class WhisPlayImpl(WhisPlay):
     def _rate(value):
         rate = float(value)
         if not RATE_LOW <= rate <= RATE_HIGH:
-            raise ValueError(
-                f"rate must be {RATE_LOW} to {RATE_HIGH}, not {rate}")
+            raise ValueError(f"rate must be {RATE_LOW} to {RATE_HIGH}, not {rate}")
         return rate
 
-# The button thread -------------------------------------------------------- #
+    # The button thread -------------------------------------------------------- #
 
     def _button_handler(self, kind, seconds):
         """Runs on the button's thread, so it only posts (P11)"""
 
-        self._post_message(
-            aiko.ActorTopic.IN, "_button_press", [kind, f"{seconds:.2f}"])
+        self._post_message(aiko.ActorTopic.IN, "_button_press", [kind, f"{seconds:.2f}"])
 
-# Everything below runs on the event-loop thread --------------------------- #
+    # Everything below runs on the event-loop thread --------------------------- #
 
     def _button_press(self, kind, seconds):
         # Not _button: that name is the Button object, set in __init__
         self.logger.debug(f"Button {kind}, {seconds} s")
-        if kind == "down":               # Start the countdown on the panel
+        if kind == "down":  # Start the countdown on the panel
             self._queue.put({"pressed_at": time.monotonic()})
             return
-        self._queue.put({"pressed_at": None})        # However it ended
+        self._queue.put({"pressed_at": None})  # However it ended
         if kind != "long":
-            return                       # Short and double presses: Epic 6
+            return  # Short and double presses: Epic 6
         action = self.share["action"]
         self.logger.info(f"Long press: {action}")
         if action == "power_off":
@@ -272,12 +278,11 @@ class WhisPlayImpl(WhisPlay):
 
         self._stopping = True
         try:
-            self._panel.show(compose(
-                None, [("Shutting down", None, get_hostname())]))
-        except Exception:                                # noqa: BLE001
-            pass                         # A failing panel must not stop a halt
+            self._panel.show(compose(None, [("Shutting down", None, get_hostname())]))
+        except Exception:  # noqa: BLE001
+            pass  # A failing panel must not stop a halt
         subprocess.Popen(["sudo", "-n", "shutdown", "-h", "now"])
-        self.stop()                      # The sanctioned self-stop (ADR-027)
+        self.stop()  # The sanctioned self-stop (ADR-027)
 
     def _frames(self, frames):
         self.ec_producer.update("frames", frames)
@@ -296,11 +301,9 @@ class WhisPlayImpl(WhisPlay):
             if item_name == "rate":
                 self._queue.put({"rate": self._rate(item_value)})
             elif item_name == "resolution":
-                self._queue.put(
-                    {"resolution": parse_resolution(item_value)})
+                self._queue.put({"resolution": parse_resolution(item_value)})
             elif item_name == "action" and item_value not in ACTIONS:
-                raise ValueError(
-                    f'action must be one of {ACTIONS}, not "{item_value}"')
+                raise ValueError(f'action must be one of {ACTIONS}, not "{item_value}"')
         except ValueError as error:
             self.logger.warning(f"Refused {item_name}: {error}")
             self.ec_producer.update("last_error", str(error)[:120])
@@ -311,9 +314,10 @@ class WhisPlayImpl(WhisPlay):
             try:
                 if device:
                     device.close()
-            except Exception:                            # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 pass
         aiko.process.terminate()
+
 
 def _telemetry():
     """(cpu, memory, temperature) as bare numbers, or "-" when unknown.
@@ -337,20 +341,23 @@ def _telemetry():
         pass
     return cpu, memory, temperature
 
+
 def _address():
     """This host's address on the network, or "-".  No name resolution"""
 
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
             probe.settimeout(0.2)
-            probe.connect(("192.0.2.1", 1))              # TEST-NET-1, no traffic
+            probe.connect(("192.0.2.1", 1))  # TEST-NET-1, no traffic
             return probe.getsockname()[0]
     except OSError:
         return "-"
+
 
 def service_tags(device):
     """The Service tags, with the panel that was opened"""
 
     return ["ec=true", f"device={device}"]
+
 
 # --------------------------------------------------------------------------- #

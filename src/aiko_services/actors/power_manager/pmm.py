@@ -29,32 +29,40 @@
 #   second question the first time the host is undocked
 
 import aiko_services as aiko
-
 from aiko_services.actors.power_manager.at30tse import At30tse
 from aiko_services.actors.power_manager.button import choose_power_inputs
 from aiko_services.actors.power_manager.hold import (
-    HOLD_GPIO, HOLD_UNKNOWN, HoldNotAvailable, hold_state, hold_tool,
-    run_tool, set_hold
+    HOLD_GPIO,
+    HOLD_UNKNOWN,
+    HoldNotAvailable,
+    hold_state,
+    hold_tool,
+    run_tool,
+    set_hold,
 )
 from aiko_services.actors.power_manager.ina260 import Ina260
-from aiko_services.actors.power_manager.power_manager import (
-    PowerManager, PowerManagerCommon
-)
+from aiko_services.actors.power_manager.power_manager import PowerManager, PowerManagerCommon
 from aiko_services.actors.power_manager.reading import PowerReading
+
 # The function is imported under its own name: the package exports a
 # "render" function, which shadows the module of the same name
 from aiko_services.actors.power_manager.render import verify as verify_files
 from aiko_services.actors.power_manager.signal import choose_buzzer
 
 __all__ = [
-    "ADDRESS_BATTERY", "ADDRESS_CHARGER", "ADDRESS_BATTERY_PACK",
-    "I2C_BUS", "PmmPowerManagerImpl", "module_present",
+    "ADDRESS_BATTERY",
+    "ADDRESS_CHARGER",
+    "ADDRESS_BATTERY_PACK",
+    "I2C_BUS",
+    "PmmPowerManagerImpl",
+    "module_present",
 ]
 
 I2C_BUS = 1
-ADDRESS_BATTERY = 0x40             # INA260, across the battery
-ADDRESS_CHARGER = 0x41             # INA260, across the charger
-ADDRESS_BATTERY_PACK = 0x48    # AT30TSE752A, against the battery pack
+ADDRESS_BATTERY = 0x40  # INA260, across the battery
+ADDRESS_CHARGER = 0x41  # INA260, across the charger
+ADDRESS_BATTERY_PACK = 0x48  # AT30TSE752A, against the battery pack
+
 
 class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
     """A power management module through its I2C parts.  Read-only"""
@@ -63,22 +71,39 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
     # What this Implementation offers when its parts are there
     DECLARED_PROPERTIES = ("readings", "hold", "signal", "button", "dock")
 
-    def __init__(self, context, bus=None, bus_number=I2C_BUS,
-        battery_address=ADDRESS_BATTERY, charger_address=ADDRESS_CHARGER,
-        battery_pack_address=ADDRESS_BATTERY_PACK, period=None,
-        log_directory=None, keep_days=None, safe=None, thresholds=None,
-        telemetry=True, timer=True, buzzer=None, hold_gpio=HOLD_GPIO,
-        hold_runner=None, artifact_paths=None, inputs=None, enforce=None,
-        button_shutdown=None, quiesce=None, power_off_runner=None,
-        worker=True):
+    def __init__(
+        self,
+        context,
+        bus=None,
+        bus_number=I2C_BUS,
+        battery_address=ADDRESS_BATTERY,
+        charger_address=ADDRESS_CHARGER,
+        battery_pack_address=ADDRESS_BATTERY_PACK,
+        period=None,
+        log_directory=None,
+        keep_days=None,
+        safe=None,
+        thresholds=None,
+        telemetry=True,
+        timer=True,
+        buzzer=None,
+        hold_gpio=HOLD_GPIO,
+        hold_runner=None,
+        artifact_paths=None,
+        inputs=None,
+        enforce=None,
+        button_shutdown=None,
+        quiesce=None,
+        power_off_runner=None,
+        worker=True,
+    ):
 
         self._buzzer = buzzer if buzzer is not None else choose_buzzer("auto")
-        self._inputs = inputs if inputs is not None  \
-            else choose_power_inputs("auto")
+        self._inputs = inputs if inputs is not None else choose_power_inputs("auto")
         self._hold_gpio = int(hold_gpio)
         self._hold_runner = hold_runner or run_tool
         self._artifact_paths = artifact_paths
-        self._bus = bus                # Given by a test, else open() makes it
+        self._bus = bus  # Given by a test, else open() makes it
         self._bus_number = int(bus_number)
         self._owns_bus = bus is None
         self._addresses = {
@@ -92,19 +117,28 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
             self._attach()
 
         from aiko_services.actors.power_manager.power_manager import (
-            BUTTON_SHUTDOWN, ENFORCE, LOG_DIRECTORY, PERIOD_DEVELOPMENT, SAFE
+            BUTTON_SHUTDOWN,
+            ENFORCE,
+            LOG_DIRECTORY,
+            PERIOD_DEVELOPMENT,
+            SAFE,
         )
-        self._init_power(context,
+
+        self._init_power(
+            context,
             period=PERIOD_DEVELOPMENT if period is None else period,
-            log_directory=LOG_DIRECTORY if log_directory is None
-                else log_directory,
-            keep_days=keep_days, safe=SAFE if safe is None else safe,
-            thresholds=thresholds, telemetry=telemetry, timer=timer,
+            log_directory=LOG_DIRECTORY if log_directory is None else log_directory,
+            keep_days=keep_days,
+            safe=SAFE if safe is None else safe,
+            thresholds=thresholds,
+            telemetry=telemetry,
+            timer=timer,
             enforce=ENFORCE if enforce is None else enforce,
-            button_shutdown=BUTTON_SHUTDOWN if button_shutdown is None
-                else button_shutdown,
+            button_shutdown=BUTTON_SHUTDOWN if button_shutdown is None else button_shutdown,
             quiesce=quiesce,
-            power_off_runner=power_off_runner, worker=worker)
+            power_off_runner=power_off_runner,
+            worker=worker,
+        )
 
     def properties(self):
         """What is real on this host: "readings" while at least one part
@@ -139,13 +173,14 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
         reports: there is nothing to read without it"""
 
         if self._bus is None:
-            from smbus2 import SMBus                     # Only needed here
+            from smbus2 import SMBus  # Only needed here
+
             self._bus = SMBus(self._bus_number)
             self._owns_bus = True
         self._attach()
         try:
             self._buzzer.open()
-        except Exception as error:                       # noqa: BLE001
+        except Exception as error:  # noqa: BLE001
             self.logger.warning(f"No buzzer: {error}")
             self._buzzer = choose_buzzer("none")
         try:
@@ -153,7 +188,7 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
             # nothing it reports touches Actor state there (P11)
             self._inputs.add_handler(self._post_input)
             self._inputs.open()
-        except Exception as error:                       # noqa: BLE001
+        except Exception as error:  # noqa: BLE001
             self.logger.warning(f"No input lines: {error}")
             self._inputs = choose_power_inputs("none")
         return self._found
@@ -167,12 +202,10 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
         values = {}
         if self._battery:
             volts, amps, watts = self._battery.read()
-            values.update(battery_volts=volts, battery_amps=amps,
-                battery_watts=watts)
+            values.update(battery_volts=volts, battery_amps=amps, battery_watts=watts)
         if self._charger:
             volts, amps, watts = self._charger.read()
-            values.update(supply_volts=volts, supply_amps=amps,
-                supply_watts=watts)
+            values.update(supply_volts=volts, supply_amps=amps, supply_watts=watts)
         if self._battery_pack:
             values["battery_pack_celsius"] = self._battery_pack.celsius()
         if "dock" in self.properties():
@@ -182,8 +215,7 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
     def _post_input(self, event, value):
         """Runs on the input device's thread, so it only posts (P11)"""
 
-        self._post_message(
-            aiko.ActorTopic.IN, "_input_event", [event, value])
+        self._post_message(aiko.ActorTopic.IN, "_input_event", [event, value])
 
     def hold(self, on):
         """Assert the power hold.  **A release is refused here.**
@@ -195,11 +227,9 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
         it is called.  "aiko_power_manager hold off" is the mechanism, and
         the hook is its only caller"""
 
-        wanted = on if isinstance(on, bool) else  \
-            str(on).lower() in ("on", "true", "yes", "1")
+        wanted = on if isinstance(on, bool) else str(on).lower() in ("on", "true", "yes", "1")
         if not wanted:
-            self.logger.error("hold(off) refused: only the shutdown hook "
-                "releases the hold (ADR-028 decision 6)")
+            self.logger.error("hold(off) refused: only the shutdown hook releases the hold (ADR-028 decision 6)")
             self.ec_producer.update("last_error", "hold(off) refused")
             self._count("denied")
             return
@@ -255,7 +285,7 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
         for device in (self._buzzer, self._inputs):
             try:
                 device.close()
-            except Exception:                            # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 pass
         if self._owns_bus and self._bus is not None:
             try:
@@ -274,17 +304,19 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
         found = []
         battery = Ina260(self._bus, self._addresses["battery"])
         charger = Ina260(self._bus, self._addresses["charger"])
-        battery_pack = At30tse(
-            self._bus, self._addresses["battery_pack"])
+        battery_pack = At30tse(self._bus, self._addresses["battery_pack"])
         self._battery = battery if battery.identified() else None
         self._charger = charger if charger.identified() else None
-        self._battery_pack =  \
-            battery_pack if battery_pack.identified() else None
-        for name, part in (("battery", self._battery),
-            ("charger", self._charger), ("battery_pack", self._battery_pack)):
+        self._battery_pack = battery_pack if battery_pack.identified() else None
+        for name, part in (
+            ("battery", self._battery),
+            ("charger", self._charger),
+            ("battery_pack", self._battery_pack),
+        ):
             if part is not None:
                 found.append(name)
         self._found = tuple(found)
+
 
 def module_present(bus_number=I2C_BUS, battery_address=ADDRESS_BATTERY):
     """Whether a power management module answers on this host.
@@ -302,5 +334,6 @@ def module_present(bus_number=I2C_BUS, battery_address=ADDRESS_BATTERY):
             return Ina260(bus, battery_address).identified()
     except (OSError, ValueError):
         return False
+
 
 # --------------------------------------------------------------------------- #

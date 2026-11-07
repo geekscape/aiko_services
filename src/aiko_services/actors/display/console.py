@@ -38,18 +38,32 @@ import sys
 import click
 
 import aiko_services as aiko
-from aiko_services.main.utilities import get_hostname
-
-from aiko_services.actors.display.keys import ARROWS
 from aiko_services.actors.display.display import (
-    Display, Interaction, service_filter,
+    Display,
+    Interaction,
+    service_filter,
 )
+from aiko_services.actors.display.keys import ARROWS
+from aiko_services.main.utilities import get_hostname
 
 __all__ = ["Keyboard", "KeysConsole"]
 
 POLL_PERIOD = 0.05
-STATUS_KEYS = ("applet", "applet_detail", "fps", "speed", "font", "contrast",
-               "invert", "power", "all_on", "foreground", "background", "last_error")
+STATUS_KEYS = (
+    "applet",
+    "applet_detail",
+    "fps",
+    "speed",
+    "font",
+    "contrast",
+    "invert",
+    "power",
+    "all_on",
+    "foreground",
+    "background",
+    "last_error",
+)
+
 
 class Keyboard:
     """Keys typed in the terminal, read as they're typed without waiting
@@ -58,6 +72,7 @@ class Keyboard:
     def __init__(self):
         import termios
         import tty
+
         self.termios = termios
         self.saved = termios.tcgetattr(sys.stdin)
         tty.setcbreak(sys.stdin)  # no Enter needed and no echo; Ctrl-C works
@@ -90,6 +105,7 @@ class Keyboard:
     def close(self):
         self.termios.tcsetattr(sys.stdin, self.termios.TCSADRAIN, self.saved)
 
+
 class KeysConsole:
     """The interactive console for one Display Actor"""
 
@@ -99,7 +115,7 @@ class KeysConsole:
         self.keyboard = None
         self.topic_path = None
         self.display = self.interaction = None
-        self.cache = {}                  # the Actor's shared state, kept by an ECConsumer
+        self.cache = {}  # the Actor's shared state, kept by an ECConsumer
         self.status = ""
         self.confirm_exit = False
 
@@ -109,8 +125,7 @@ class KeysConsole:
             raise click.UsageError("keys needs a terminal (stdin isn't one)")
         try:
             aiko.event.add_timer_handler(self._timed_out, self.timeout)
-            aiko.do_discovery(Interaction, service_filter(self.name),
-                self._found, self._lost)
+            aiko.do_discovery(Interaction, service_filter(self.name), self._found, self._lost)
             aiko.process.run()
         finally:
             self.keyboard.close()
@@ -130,8 +145,9 @@ class KeysConsole:
         self.topic_path = service_details[0]
         self.interaction = service
         self.display = aiko.get_service_proxy(f"{self.topic_path}/in", Display)
-        aiko.compose_instance(aiko.ECConsumerImpl, aiko.ec_consumer_args(
-            aiko.process, 0, self.cache, f"{self.topic_path}/control"))
+        aiko.compose_instance(
+            aiko.ECConsumerImpl, aiko.ec_consumer_args(aiko.process, 0, self.cache, f"{self.topic_path}/control")
+        )
         click.echo(f"Display Actor {service_details[1]}: {self.topic_path}  (? for the keys)")
         aiko.event.add_timer_handler(self._poll, POLL_PERIOD)
 
@@ -161,7 +177,7 @@ class KeysConsole:
             self.confirm_exit = True
             click.echo("\r\nExit the Display Actor?  y to confirm", nl=False)
         else:
-            self.interaction.key(key, "tap")    # the Actor's key map decides
+            self.interaction.key(key, "tap")  # the Actor's key map decides
 
     def _show_status(self):
         status = "  ".join(f"{key} {self.cache[key]}" for key in STATUS_KEYS if key in self.cache)

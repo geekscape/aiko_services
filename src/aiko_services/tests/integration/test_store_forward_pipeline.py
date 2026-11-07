@@ -20,15 +20,15 @@ import threading
 import time
 
 import pytest
-pytest.importorskip("flask",
-    reason="StoreForward HTTP server needs flask: pip install flask")
-pytest.importorskip("cv2",
-    reason="aiko_services.elements.media needs cv2 (video_io.py)")
+
+pytest.importorskip("flask", reason="StoreForward HTTP server needs flask: pip install flask")
+pytest.importorskip("cv2", reason="aiko_services.elements.media needs cv2 (video_io.py)")
 
 import aiko_services as aiko
 from aiko_services.main.store_forward import PROTOCOL, SegmentStoreForwardImpl
 from aiko_services.main.store_forward.store_forward_http import (
-    StoreForwardMessageHTTPClient, StoreForwardMessageHTTPServer
+    StoreForwardMessageHTTPClient,
+    StoreForwardMessageHTTPServer,
 )
 from aiko_services.tests.unit import do_compose_pipeline
 
@@ -69,6 +69,7 @@ PIPELINE_DEFINITION = """{
 }
 """
 
+
 class _ServerRecorder:
     def __init__(self):
         self.received = []
@@ -82,9 +83,11 @@ class _ServerRecorder:
             with self.lock:
                 self.received.append(segment_id)
 
+
 def _sha256(path):
     with open(path, "rb") as file:
         return hashlib.sha256(file.read()).hexdigest()
+
 
 def test_pipeline_segments_arrive_at_server(tmp_path):
     server_in, server_out = tmp_path / "server_in", tmp_path / "server_out"
@@ -93,25 +96,26 @@ def test_pipeline_segments_arrive_at_server(tmp_path):
         directory.mkdir()
 
     recorder = _ServerRecorder()
-    server = StoreForwardMessageHTTPServer(str(server_in), str(server_out),
-        bind="127.0.0.1", port_range=(0, 0), advertise_host="127.0.0.1",
-        chunk_size=4096)
+    server = StoreForwardMessageHTTPServer(
+        str(server_in),
+        str(server_out),
+        bind="127.0.0.1",
+        port_range=(0, 0),
+        advertise_host="127.0.0.1",
+        chunk_size=4096,
+    )
     endpoint = server.start(recorder.on_command, recorder.on_event)
 
-    client = StoreForwardMessageHTTPClient(endpoint, str(edge_in),
-        str(edge_out), poll_period=0.2, chunk_size=4096)
-    parameters = {"message": client, "inbox": str(edge_in),
-                  "outbox": str(edge_out), "outbox_period": 0.2}
-    init_args = aiko.actor_args("store_forward_test_edge",
-        parameters=parameters, protocol=PROTOCOL, tags=["role=edge"])
+    client = StoreForwardMessageHTTPClient(endpoint, str(edge_in), str(edge_out), poll_period=0.2, chunk_size=4096)
+    parameters = {"message": client, "inbox": str(edge_in), "outbox": str(edge_out), "outbox_period": 0.2}
+    init_args = aiko.actor_args("store_forward_test_edge", parameters=parameters, protocol=PROTOCOL, tags=["role=edge"])
     actor = aiko.compose_instance(SegmentStoreForwardImpl, init_args)
 
     results = {"ok": False, "watchdog": False}
     started = time.monotonic()
 
     def check():
-        arrived = len([name for name in os.listdir(server_in)
-                       if not name.startswith(".")])
+        arrived = len([name for name in os.listdir(server_in) if not name.startswith(".")])
         if arrived >= SEGMENTS:
             results["ok"] = True
         elif time.monotonic() - started > WATCHDOG_S:
@@ -132,11 +136,9 @@ def test_pipeline_segments_arrive_at_server(tmp_path):
 
     assert not results["watchdog"], f"only {recorder.received} arrived"
     assert sorted(recorder.received) == sorted(actor.share["store_forwards"])
-    arrived = sorted(name for name in os.listdir(server_in)
-                     if not name.startswith("."))
+    arrived = sorted(name for name in os.listdir(server_in) if not name.startswith("."))
     sent = sorted(os.listdir(edge_out / ".sent"))
     assert len(arrived) == SEGMENTS and arrived == sent, (arrived, sent)
     for name in arrived:
         assert _sha256(server_in / name) == _sha256(edge_out / ".sent" / name)
-    assert actor.share["metrics"]["sent_bytes"] ==  \
-        str(sum(os.path.getsize(server_in / name) for name in arrived))
+    assert actor.share["metrics"]["sent_bytes"] == str(sum(os.path.getsize(server_in / name) for name in arrived))

@@ -22,6 +22,7 @@ __all__ = ["SystemdDaemonSupervisorImpl"]
 
 UNIT_DIRECTORY = "/etc/systemd/system"
 
+
 class SystemdDaemonSupervisorImpl(DaemonSupervisor):
     """systemd on Linux: a system service in /etc/systemd/system"""
 
@@ -44,7 +45,7 @@ class SystemdDaemonSupervisorImpl(DaemonSupervisor):
             "# again, rather than this file",
             "",
             "[Unit]",
-            f"Description={spec.description}"
+            f"Description={spec.description}",
         ]
         if spec.after:
             lines.append(f"After={' '.join(spec.after)}")
@@ -66,7 +67,7 @@ class SystemdDaemonSupervisorImpl(DaemonSupervisor):
             "",
             "[Install]",
             "WantedBy=multi-user.target",
-            ""
+            "",
         ]
         return "\n".join(lines)
 
@@ -95,7 +96,7 @@ class SystemdDaemonSupervisorImpl(DaemonSupervisor):
         return run_command(["systemctl", "stop", self._unit_name(spec)])
 
     def status(self, spec):
-        return run_command(
-            ["systemctl", "status", "--no-pager", self._unit_name(spec)])
+        return run_command(["systemctl", "status", "--no-pager", self._unit_name(spec)])
+
 
 # --------------------------------------------------------------------------- #

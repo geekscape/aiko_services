@@ -28,8 +28,8 @@
 from typing import Tuple
 
 import aiko_services as aiko
-from aiko_services.elements.media.image_io import convert_images
 import aiko_services.elements.media.scheme_synth  # registers "synth://"
+from aiko_services.elements.media.image_io import convert_images
 
 __all__ = ["SyntheticVideoRead"]
 
@@ -47,6 +47,7 @@ _LOGGER = aiko.process.logger(__name__)
 #
 # Note: Only supports Streams with "data_sources" parameter
 
+
 class SyntheticVideoRead(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("synthetic_video_read:0")
@@ -57,5 +58,6 @@ class SyntheticVideoRead(aiko.DataSource):  # PipelineElement
         if media_type:
             images = convert_images(images, media_type)
         return aiko.StreamEvent.OKAY, {"images": images}
+
 
 # --------------------------------------------------------------------------- #

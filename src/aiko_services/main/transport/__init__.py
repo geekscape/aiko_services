@@ -4,6 +4,4 @@
 # the source code.
 # We don't need to worry about dynamic references between Actors here.
 
-from .transport_mqtt import (
-    TransportMQTT, TransportMQTTImpl, ActorDiscovery, get_actor_mqtt
-)
+from .transport_mqtt import ActorDiscovery, TransportMQTT, TransportMQTTImpl, get_actor_mqtt

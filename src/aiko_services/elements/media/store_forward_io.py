@@ -35,25 +35,24 @@
 # - Announce each closed segment to the Actor with "(send_segment ...)"
 # - VideoReadStoreForward: a DataSource reading segments from an inbox
 
-from datetime import datetime, timezone
 import os
 import time
+from datetime import datetime, timezone
 from typing import Tuple
 
 import numpy as np
 
 import aiko_services as aiko
-from aiko_services.main.store_forward.store_forward_message import (
-    utc_now, valid_segment_name
-)
-from aiko_services.main.writing_client import WritingClient
 import aiko_services.elements.media.scheme_store_forward  # "store_forward://"
+from aiko_services.main.store_forward.store_forward_message import utc_now, valid_segment_name
+from aiko_services.main.writing_client import WritingClient
 
 __all__ = ["VideoWriteStoreForward", "segment_file_name"]
 
 _CV2_IMPORTED = False
 try:
     import cv2
+
     _CV2_IMPORTED = True
 except ModuleNotFoundError:  # TODO: Optional warning flag
     diagnostic = "store_forward_io.py: Couldn't import cv2 module"
@@ -61,11 +60,12 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
 
 _LOGGER = aiko.process.logger(__name__)
 
-DEFAULT_FORMAT = "avc1"         # H.264 in MP4: 35 ms per 1080p frame on
-                                # an embedded ARM computer, mp4v 111 ms
-DEFAULT_FRAME_RATE = 8.0        # must match the source "rate"
+DEFAULT_FORMAT = "avc1"  # H.264 in MP4: 35 ms per 1080p frame on
+# an embedded ARM computer, mp4v 111 ms
+DEFAULT_FRAME_RATE = 8.0  # must match the source "rate"
 DEFAULT_SEGMENT_SECONDS = 10.0  # close a segment after this many seconds
-DEFAULT_SEGMENT_FRAMES = 0      # or after this many frames (0: unused)
+DEFAULT_SEGMENT_FRAMES = 0  # or after this many frames (0: unused)
+
 
 def segment_file_name(prefix="", now=None):
     """Segment file name from the UTC open time to the microsecond, one
@@ -75,6 +75,7 @@ def segment_file_name(prefix="", now=None):
     now = now or datetime.now(timezone.utc)
     stamp = now.strftime("%Y-%m-%d_%H-%M-%S-%f")
     return f"{prefix}_{stamp}.mp4" if prefix else f"{stamp}.mp4"
+
 
 # --------------------------------------------------------------------------- #
 # VideoWriteStoreForward is a DataTarget at the end of a video Pipeline.  It
@@ -110,31 +111,37 @@ def segment_file_name(prefix="", now=None):
 #
 # Note: Only supports Streams with "data_targets" parameter
 
+
 class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("video_write_store_forward:0")
         context.call_init(self, "PipelineElement", context)
-        self.share.update({
-            "outbox": "-", "segment": "-", "segments_written": "0",
-            "frames_written": "0", "last_segment_utc": "-",
-            # Why nothing is being written, when nothing is
-            "writing_ok": True, "frames_skipped": "0"
-        })
+        self.share.update(
+            {
+                "outbox": "-",
+                "segment": "-",
+                "segments_written": "0",
+                "frames_written": "0",
+                "last_segment_utc": "-",
+                # Why nothing is being written, when nothing is
+                "writing_ok": True,
+                "frames_skipped": "0",
+            }
+        )
         self._segments_written = 0
         self._frames_written = 0
         self._frames_skipped = 0
         # Whether this host wants to be written to.  True until a power
         # manager says otherwise, so a host without one is unaffected
         self._writing = None
-        self._writing_was = True       # What was last published
+        self._writing_was = True  # What was last published
 
     def start_stream(self, stream, stream_id):
         stream_event, diagnostic = super().start_stream(stream, stream_id)
         if stream_event != aiko.StreamEvent.OKAY:
             return stream_event, diagnostic
         if not _CV2_IMPORTED:
-            diagnostic = "VideoWriteStoreForward needs OpenCV: pip install "  \
-                         "opencv-python"
+            diagnostic = "VideoWriteStoreForward needs OpenCV: pip install opencv-python"
             return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
         stream.variables["segment_writer"] = None
         stream.variables["segment_name"] = None
@@ -168,8 +175,7 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
         if writing_ok != self._writing_was:
             self._writing_was = writing_ok
             self.ec_producer.update("writing_ok", writing_ok)
-            self.logger.info(f"{self.my_id()}: writing "
-                f"{'okay' if writing_ok else 'not okay'}")
+            self.logger.info(f"{self.my_id()}: writing {'okay' if writing_ok else 'not okay'}")
         if writing_ok:
             return False
         if stream.variables.get("segment_writer") is not None:
@@ -183,10 +189,8 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
             diagnostic = "Image media_type must be a numpy array"
             return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
-        segment_seconds, _ = self.get_parameter(
-            "segment_seconds", DEFAULT_SEGMENT_SECONDS)
-        segment_frames, _ = self.get_parameter(
-            "segment_frames", DEFAULT_SEGMENT_FRAMES)
+        segment_seconds, _ = self.get_parameter("segment_seconds", DEFAULT_SEGMENT_SECONDS)
+        segment_frames, _ = self.get_parameter("segment_frames", DEFAULT_SEGMENT_FRAMES)
         segment_seconds = float(segment_seconds)  # parameters may be strings
         segment_frames = int(segment_frames)
 
@@ -205,8 +209,9 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
 
             elapsed = time.monotonic() - stream.variables["segment_started"]
             frames = stream.variables["segment_frames"]
-            if (segment_frames > 0 and frames >= segment_frames)  \
-                or (segment_seconds > 0 and elapsed >= segment_seconds):
+            if (segment_frames > 0 and frames >= segment_frames) or (
+                segment_seconds > 0 and elapsed >= segment_seconds
+            ):
                 self._close_segment(stream)
 
         self.ec_producer.update("frames_written", str(self._frames_written))
@@ -218,7 +223,7 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
         if self._writing is not None:
             self._writing.close()
             self._writing = None
-        if stream.variables.get("data_scheme"):    # guard: base has no check
+        if stream.variables.get("data_scheme"):  # guard: base has no check
             return super().stop_stream(stream, stream_id)
         return aiko.StreamEvent.OKAY, {}
 
@@ -227,7 +232,7 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
     def _open_segment(self, stream, image):
         outbox = stream.variables["target_outbox"]
         name = segment_file_name(stream.variables["target_prefix"])
-        if not valid_segment_name(name):        # cannot happen: prefix checked
+        if not valid_segment_name(name):  # cannot happen: prefix checked
             diagnostic = f'segment name "{name}" rejected'
             return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
         temp_path = os.path.join(outbox, f".{name}")
@@ -241,11 +246,9 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
         else:
             resolution = (image.shape[1], image.shape[0])
         fourcc = cv2.VideoWriter_fourcc(*str(format))
-        writer = cv2.VideoWriter(
-            temp_path, fourcc, float(frame_rate), resolution)
+        writer = cv2.VideoWriter(temp_path, fourcc, float(frame_rate), resolution)
         if not writer.isOpened():
-            diagnostic = f'cannot open video writer "{temp_path}" '  \
-                         f'({format} {resolution} {frame_rate} fps)'
+            diagnostic = f'cannot open video writer "{temp_path}" ({format} {resolution} {frame_rate} fps)'
             return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
         stream.variables["segment_writer"] = writer
@@ -264,22 +267,21 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
         frames = stream.variables["segment_frames"]
         stream.variables["segment_writer"] = None
         writer.release()
-        if frames == 0:                         # nothing written: no segment
+        if frames == 0:  # nothing written: no segment
             try:
                 os.remove(temp_path)
             except OSError:
                 pass
             return
         final_path = os.path.join(stream.variables["target_outbox"], name)
-        os.replace(temp_path, final_path)       # appears complete, at once
+        os.replace(temp_path, final_path)  # appears complete, at once
         size = os.path.getsize(final_path)
         self._segments_written += 1
         now = utc_now()
-        self.ec_producer.update(
-            "segments_written", str(self._segments_written))
+        self.ec_producer.update("segments_written", str(self._segments_written))
         self.ec_producer.update("last_segment_utc", now)
         self.ec_producer.update("segment", "-")
-        self.logger.info(
-            f"{self.my_id()}: segment {name}: {frames} frames, {size} B")
+        self.logger.info(f"{self.my_id()}: segment {name}: {frames} frames, {size} B")
+
 
 # --------------------------------------------------------------------------- #

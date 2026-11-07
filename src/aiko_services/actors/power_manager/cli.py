@@ -41,55 +41,68 @@ import signal
 import click
 
 import aiko_services as aiko
-from aiko_services.main.utilities import display_time, get_hostname
-
-from aiko_services.actors.power_manager.hold import (
-    HOLD_GPIO, HoldNotAvailable, hold_state, set_hold
-)
 from aiko_services.actors.power_manager.button import choose_power_inputs
+from aiko_services.actors.power_manager.hold import HOLD_GPIO, HoldNotAvailable, hold_state, set_hold
 from aiko_services.actors.power_manager.power_manager import (
-    BUTTON_SHUTDOWN, DOCKED_VOLTS_MINIMUM, ENFORCE, LOG_DIRECTORY,
-    PERIOD_DEVELOPMENT, SAFE, THRESHOLDS, choose_power_manager,
-    power_manager_args, volts_ladder
+    BUTTON_SHUTDOWN,
+    DOCKED_VOLTS_MINIMUM,
+    ENFORCE,
+    LOG_DIRECTORY,
+    PERIOD_DEVELOPMENT,
+    SAFE,
+    THRESHOLDS,
+    choose_power_manager,
+    power_manager_args,
+    volts_ladder,
 )
 from aiko_services.actors.power_manager.render import (
-    ARTIFACTS, InstallRefused, install as install_artifact, paths, render,
-    verify
+    ARTIFACTS,
+    InstallRefused,
+    paths,
+    render,
+    verify,
+)
+from aiko_services.actors.power_manager.render import (
+    install as install_artifact,
 )
 from aiko_services.actors.power_manager.signal import PATTERNS
+from aiko_services.main.utilities import display_time, get_hostname
 
 DEVICES = ["auto", "pmm", "mock"]
+
 
 @click.group()
 @click.version_option()
 def main():
     """Report the supply and the battery of this host, and log them"""
 
-def _given_thresholds(powered_down_grace, powered_down_application_grace,
-    quiesce_volts, battery_volts_low, battery_volts_floor,
-    supply_amps_maximum=None, battery_volts_charged=None,
-    working_loss=None, docked_volts_minimum=None):
 
+def _given_thresholds(
+    powered_down_grace,
+    powered_down_application_grace,
+    quiesce_volts,
+    battery_volts_low,
+    battery_volts_floor,
+    supply_amps_maximum=None,
+    battery_volts_charged=None,
+    working_loss=None,
+    docked_volts_minimum=None,
+):
     """Only what the command line was actually given, so that everything
     else keeps its shipped value"""
 
     thresholds = {
-        **(_thresholds(
-            powered_down_grace, powered_down_application_grace) or {}),
-        **_volts(quiesce_volts, battery_volts_low, battery_volts_floor,
-            battery_volts_charged),
-        **({"supply_amps_maximum": supply_amps_maximum}
-            if supply_amps_maximum else {}),
-        **({"battery_volts_charged": battery_volts_charged}
-            if battery_volts_charged else {}),
+        **(_thresholds(powered_down_grace, powered_down_application_grace) or {}),
+        **_volts(quiesce_volts, battery_volts_low, battery_volts_floor, battery_volts_charged),
+        **({"supply_amps_maximum": supply_amps_maximum} if supply_amps_maximum else {}),
+        **({"battery_volts_charged": battery_volts_charged} if battery_volts_charged else {}),
         **({"working_loss_s": working_loss} if working_loss else {}),
-        **({"docked_volts_minimum": docked_volts_minimum}
-            if docked_volts_minimum is not None else {}),
+        **({"docked_volts_minimum": docked_volts_minimum} if docked_volts_minimum is not None else {}),
     }
     return thresholds or None
 
-def _volts(quiesce_volts, battery_volts_low, battery_volts_floor,
-    battery_volts_charged=None):
+
+def _volts(quiesce_volts, battery_volts_low, battery_volts_floor, battery_volts_charged=None):
     """The three voltages, and the ladder they have to form.
 
     Stop writing, then start stopping, then stop now, and all of it above
@@ -109,18 +122,23 @@ def _volts(quiesce_volts, battery_volts_low, battery_volts_floor,
     volts_ladder() is the rule, shared with set_threshold(), so that the
     bus and the command line refuse the same value in the same words"""
 
-    given = {name: value for name, value in (
-        ("quiesce_volts", quiesce_volts),
-        ("battery_volts_low", battery_volts_low),
-        ("battery_volts_floor", battery_volts_floor),
-        ("battery_volts_charged", battery_volts_charged))
-        if value is not None}
+    given = {
+        name: value
+        for name, value in (
+            ("quiesce_volts", quiesce_volts),
+            ("battery_volts_low", battery_volts_low),
+            ("battery_volts_floor", battery_volts_floor),
+            ("battery_volts_charged", battery_volts_charged),
+        )
+        if value is not None
+    }
     if not given:
         return {}
     diagnostic = volts_ladder({**THRESHOLDS, **given}, set(given), prefix="--")
     if diagnostic:
         raise click.UsageError(diagnostic)
     return given
+
 
 def _thresholds(powered_down_grace, powered_down_application_grace):
     """The thresholds that the two options set, and the one rule between
@@ -142,12 +160,9 @@ def _thresholds(powered_down_grace, powered_down_application_grace):
     # them alike made "--powered_down_grace 0" silently keep the default
     given = powered_down_grace is not None
     deadlines = []
-    typed = powered_down_grace if given  \
-        else THRESHOLDS.get("powered_down_grace_s")
+    typed = powered_down_grace if given else THRESHOLDS.get("powered_down_grace_s")
     if typed:
-        deadlines.append((float(typed),
-            "--powered_down_grace" if given
-            else "--powered_down_grace (the default)"))
+        deadlines.append((float(typed), "--powered_down_grace" if given else "--powered_down_grace (the default)"))
     backstop = THRESHOLDS.get("undocked_maximum_s")
     if backstop:
         deadlines.append((float(backstop), "the backstop"))
@@ -158,88 +173,169 @@ def _thresholds(powered_down_grace, powered_down_application_grace):
                 f"--powered_down_application_grace "
                 f"{powered_down_application_grace:g} must be less than "
                 f"{what} {deadline:g}: the writers stop before the host "
-                "does")
+                "does"
+            )
     thresholds = {}
     if given:
         # Zero turns it off, and then the backstop is the only deadline
         thresholds["powered_down_grace_s"] = powered_down_grace or None
     if powered_down_application_grace:
-        thresholds["powered_down_application_grace_s"] =  \
-            powered_down_application_grace
+        thresholds["powered_down_application_grace_s"] = powered_down_application_grace
     return thresholds or None
 
-@main.command(name="run")
-@click.option("--name", "-n", type=str, default=None,
-    help="Actor name, default is the local host name")
-@click.option("--device", "-d", type=click.Choice(DEVICES), default="auto",
-    help="Where the readings come from [default: auto]")
-@click.option("--period", "-p", type=float, default=PERIOD_DEVELOPMENT,
-    help=f"Seconds between samples [default: {PERIOD_DEVELOPMENT}]")
-@click.option("--log", "-l", "log_directory", type=str, default=LOG_DIRECTORY,
-    help=f"Where the JSON lines go [default: {LOG_DIRECTORY}]")
-@click.option("--no_log", is_flag=True, help="Do not write a log")
-@click.option("--keep_days", "-k", type=int, default=None,
-    help="Day files to keep [default: every one]")
-@click.option("--safe/--unsafe", "safe", default=SAFE,
-    help="Accept only (sample) and (set_log_level) from the message bus "
-         "[default: --safe]")
-@click.option("--enforce/--advisory", "enforce", default=ENFORCE,
-    help="Act on the policy, or publish it and act on nothing "
-         "[default: --advisory]")
-@click.option("--inputs", "-i", "inputs",
-    type=click.Choice(["auto", "gpio", "none"]), default="auto",
-    help="The button and dock lines [default: auto]")
-@click.option("--quiesce_volts", "-qv", "quiesce_volts", type=float,
-    default=None,
-    help="Volts at which an application is told to stop writing "
-         f"[default: {THRESHOLDS['quiesce_volts']}]")
-@click.option("--battery_volts_low", "-bl", "battery_volts_low", type=float,
-    default=None,
-    help="Volts at which the orderly shutdown starts, after its dwell "
-         f"[default: {THRESHOLDS['battery_volts_low']}]")
-@click.option("--battery_volts_floor", "-bf", "battery_volts_floor",
-    type=float, default=None,
-    help="Volts at which the file systems go read-only and the host stops "
-         f"[default: {THRESHOLDS['battery_volts_floor']}]")
-@click.option("--battery_volts_charged", "-bc", "battery_volts_charged",
-    type=float, default=None,
-    help="Volts above which the battery pack counts as charged, so no "
-         "headroom is expected "
-         f"[default: {THRESHOLDS['battery_volts_charged']}]")
-@click.option("--supply_amps_maximum", "-sm", "supply_amps_maximum",
-    type=float, default=None,
-    help="The supply's rated current, from its label.  Given, a supply at "
-         "its rating is warned about [default: off]")
-@click.option("--docked_volts_minimum", "-dv", "docked_volts_minimum",
-    type=float, default=None,
-    help="The supply voltage below which the dock line is not believed.  "
-         "A powered-down supply floats rather than falling to zero, and a "
-         "floating rail reads as docked.  Zero turns the cross-check off "
-         f"[default: {DOCKED_VOLTS_MINIMUM:g} V]")
-@click.option("--working_loss", "-wl", "working_loss",
-    type=float, default=None,
-    help="Seconds of silence from every reporter before the work counts "
-         "as lost, which sounds once and is published as "
-         '"working.lost" [default: off]')
-@click.option("--button_shutdown/--no_button_shutdown", "button_shutdown",
-    default=BUTTON_SHUTDOWN,
-    help="A three second press stops the host, whatever the posture "
-         "[default: --button_shutdown]")
-@click.option("--powered_down_grace", "-g", "powered_down_grace",
-    type=float, default=None,
-    help="Seconds to stay up after the supply goes, whatever work is "
-         "claimed [default: 600, while the battery pack is unmeasured]")
-@click.option("--powered_down_application_grace", "-a",
-    "powered_down_application_grace", type=float, default=None,
-    help="Seconds to stay undocked before an application is told to stop "
-         "writing.  Must be less than --powered_down_grace "
-         "[default: off, and then an undocked host conserves at once]")
 
-def run_command(name, device, period, log_directory, no_log, keep_days, safe,
-    enforce, inputs, quiesce_volts, battery_volts_low, battery_volts_floor,
-    battery_volts_charged, supply_amps_maximum, working_loss,
-    docked_volts_minimum, button_shutdown,
-    powered_down_grace, powered_down_application_grace):
+@main.command(name="run")
+@click.option("--name", "-n", type=str, default=None, help="Actor name, default is the local host name")
+@click.option(
+    "--device", "-d", type=click.Choice(DEVICES), default="auto", help="Where the readings come from [default: auto]"
+)
+@click.option(
+    "--period",
+    "-p",
+    type=float,
+    default=PERIOD_DEVELOPMENT,
+    help=f"Seconds between samples [default: {PERIOD_DEVELOPMENT}]",
+)
+@click.option(
+    "--log",
+    "-l",
+    "log_directory",
+    type=str,
+    default=LOG_DIRECTORY,
+    help=f"Where the JSON lines go [default: {LOG_DIRECTORY}]",
+)
+@click.option("--no_log", is_flag=True, help="Do not write a log")
+@click.option("--keep_days", "-k", type=int, default=None, help="Day files to keep [default: every one]")
+@click.option(
+    "--safe/--unsafe",
+    "safe",
+    default=SAFE,
+    help="Accept only (sample) and (set_log_level) from the message bus [default: --safe]",
+)
+@click.option(
+    "--enforce/--advisory",
+    "enforce",
+    default=ENFORCE,
+    help="Act on the policy, or publish it and act on nothing [default: --advisory]",
+)
+@click.option(
+    "--inputs",
+    "-i",
+    "inputs",
+    type=click.Choice(["auto", "gpio", "none"]),
+    default="auto",
+    help="The button and dock lines [default: auto]",
+)
+@click.option(
+    "--quiesce_volts",
+    "-qv",
+    "quiesce_volts",
+    type=float,
+    default=None,
+    help=f"Volts at which an application is told to stop writing [default: {THRESHOLDS['quiesce_volts']}]",
+)
+@click.option(
+    "--battery_volts_low",
+    "-bl",
+    "battery_volts_low",
+    type=float,
+    default=None,
+    help=f"Volts at which the orderly shutdown starts, after its dwell [default: {THRESHOLDS['battery_volts_low']}]",
+)
+@click.option(
+    "--battery_volts_floor",
+    "-bf",
+    "battery_volts_floor",
+    type=float,
+    default=None,
+    help="Volts at which the file systems go read-only and the host stops "
+    f"[default: {THRESHOLDS['battery_volts_floor']}]",
+)
+@click.option(
+    "--battery_volts_charged",
+    "-bc",
+    "battery_volts_charged",
+    type=float,
+    default=None,
+    help="Volts above which the battery pack counts as charged, so no "
+    "headroom is expected "
+    f"[default: {THRESHOLDS['battery_volts_charged']}]",
+)
+@click.option(
+    "--supply_amps_maximum",
+    "-sm",
+    "supply_amps_maximum",
+    type=float,
+    default=None,
+    help="The supply's rated current, from its label.  Given, a supply at its rating is warned about [default: off]",
+)
+@click.option(
+    "--docked_volts_minimum",
+    "-dv",
+    "docked_volts_minimum",
+    type=float,
+    default=None,
+    help="The supply voltage below which the dock line is not believed.  "
+    "A powered-down supply floats rather than falling to zero, and a "
+    "floating rail reads as docked.  Zero turns the cross-check off "
+    f"[default: {DOCKED_VOLTS_MINIMUM:g} V]",
+)
+@click.option(
+    "--working_loss",
+    "-wl",
+    "working_loss",
+    type=float,
+    default=None,
+    help="Seconds of silence from every reporter before the work counts "
+    "as lost, which sounds once and is published as "
+    '"working.lost" [default: off]',
+)
+@click.option(
+    "--button_shutdown/--no_button_shutdown",
+    "button_shutdown",
+    default=BUTTON_SHUTDOWN,
+    help="A three second press stops the host, whatever the posture [default: --button_shutdown]",
+)
+@click.option(
+    "--powered_down_grace",
+    "-g",
+    "powered_down_grace",
+    type=float,
+    default=None,
+    help="Seconds to stay up after the supply goes, whatever work is "
+    "claimed [default: 600, while the battery pack is unmeasured]",
+)
+@click.option(
+    "--powered_down_application_grace",
+    "-a",
+    "powered_down_application_grace",
+    type=float,
+    default=None,
+    help="Seconds to stay undocked before an application is told to stop "
+    "writing.  Must be less than --powered_down_grace "
+    "[default: off, and then an undocked host conserves at once]",
+)
+def run_command(
+    name,
+    device,
+    period,
+    log_directory,
+    no_log,
+    keep_days,
+    safe,
+    enforce,
+    inputs,
+    quiesce_volts,
+    battery_volts_low,
+    battery_volts_floor,
+    battery_volts_charged,
+    supply_amps_maximum,
+    working_loss,
+    docked_volts_minimum,
+    button_shutdown,
+    powered_down_grace,
+    powered_down_application_grace,
+):
     """Run the PowerManager Actor
 
     \b
@@ -294,17 +390,28 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
 
     implementation = choose_power_manager(device)
     init_args = power_manager_args(
-        name or get_hostname(), implementation.device,
+        name or get_hostname(),
+        implementation.device,
         declared=implementation.DECLARED_PROPERTIES,
-        period=period, keep_days=keep_days, safe=safe, enforce=enforce,
+        period=period,
+        keep_days=keep_days,
+        safe=safe,
+        enforce=enforce,
         button_shutdown=button_shutdown,
         inputs=choose_power_inputs(inputs),
         thresholds=_given_thresholds(
-            powered_down_grace, powered_down_application_grace,
-            quiesce_volts, battery_volts_low, battery_volts_floor,
-            supply_amps_maximum, battery_volts_charged, working_loss,
-            docked_volts_minimum),
-        log_directory=None if no_log else log_directory)
+            powered_down_grace,
+            powered_down_application_grace,
+            quiesce_volts,
+            battery_volts_low,
+            battery_volts_floor,
+            supply_amps_maximum,
+            battery_volts_charged,
+            working_loss,
+            docked_volts_minimum,
+        ),
+        log_directory=None if no_log else log_directory,
+    )
     power_manager = aiko.compose_instance(implementation, init_args)
     try:
         power_manager.open()
@@ -314,30 +421,31 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
     # The tags carry what this Implementation declares, and the shared state
     # carries what open() actually found on this host
     found = power_manager.publish_properties()
-    click.echo(f"# device {implementation.device}, properties "
-        f"{found or 'none'}, "
-        f"{'ENFORCING' if enforce else 'advisory'}", err=True)
+    click.echo(
+        f"# device {implementation.device}, properties {found or 'none'}, {'ENFORCING' if enforce else 'advisory'}",
+        err=True,
+    )
     if enforce:
-        click.echo("# the policy will stop this host when it decides to",
-            err=True)
-    click.echo("# a three second button press "
-        f"{'stops this host' if button_shutdown else 'is reported and not acted on'}",
-        err=True)
+        click.echo("# the policy will stop this host when it decides to", err=True)
+    click.echo(
+        f"# a three second button press {'stops this host' if button_shutdown else 'is reported and not acted on'}",
+        err=True,
+    )
     if supply_amps_maximum:
         # The fraction, and not the rating twice.  The first version of
         # this line printed "above 1.5 A of its 1.5 A rating", which is
         # not what is checked and reads like a threshold nothing reaches
         at = supply_amps_maximum * THRESHOLDS["supply_amps_fraction"]
-        click.echo(f"# a supply above {at:g} A of its "
-            f"{supply_amps_maximum:g} A rating is warned about", err=True)
+        click.echo(f"# a supply above {at:g} A of its {supply_amps_maximum:g} A rating is warned about", err=True)
     if powered_down_application_grace:
-        click.echo("# the supply going means the writers stop in "
-            f"{powered_down_application_grace:g} s", err=True)
+        click.echo(f"# the supply going means the writers stop in {powered_down_application_grace:g} s", err=True)
     if powered_down_grace:
-        click.echo(f"# the supply going means a stop in "
+        click.echo(
+            f"# the supply going means a stop in "
             f"{powered_down_grace:g} s, whatever work is claimed"
             f"{'' if enforce else ' (advisory: nothing will be stopped)'}",
-            err=True)
+            err=True,
+        )
 
     # A stop must reach close(), so that every line this Actor claimed is
     # released.  Without it the run ends on an unhandled signal, "finally"
@@ -350,13 +458,15 @@ def run_command(name, device, period, log_directory, no_log, keep_days, safe,
     finally:
         power_manager.close()
 
+
 @main.command(name="sample")
-@click.option("--device", "-d", type=click.Choice(DEVICES), default="auto",
-    help="Where the readings come from [default: auto]")
-@click.option("--count", "-c", type=int, default=1,
-    help="Readings to take [default: 1]")
-@click.option("--utc", is_flag=True, default=False,
-    help="Show the sample time as stored, in UTC, instead of in local time")
+@click.option(
+    "--device", "-d", type=click.Choice(DEVICES), default="auto", help="Where the readings come from [default: auto]"
+)
+@click.option("--count", "-c", type=int, default=1, help="Readings to take [default: 1]")
+@click.option(
+    "--utc", is_flag=True, default=False, help="Show the sample time as stored, in UTC, instead of in local time"
+)
 def sample_command(device, count, utc):
     """Print one reading as JSON, with no Actor and no broker
 
@@ -372,16 +482,19 @@ def sample_command(device, count, utc):
 
     implementation = choose_power_manager(device)
     init_args = power_manager_args(
-        get_hostname(), implementation.device,
+        get_hostname(),
+        implementation.device,
         declared=implementation.DECLARED_PROPERTIES,
-        log_directory=None, timer=False, inputs=choose_power_inputs("none"))
+        log_directory=None,
+        timer=False,
+        inputs=choose_power_inputs("none"),
+    )
     power_manager = aiko.compose_instance(implementation, init_args)
     try:
         found = power_manager.open()
     except OSError as error:
         raise SystemExit(f"Cannot open {implementation.device}: {error}")
-    click.echo(f"# device {implementation.device}, found {found or 'nothing'}",
-        err=True)
+    click.echo(f"# device {implementation.device}, found {found or 'nothing'}", err=True)
     try:
         for _ in range(max(1, count)):
             reading = power_manager.reading()
@@ -392,13 +505,11 @@ def sample_command(device, count, utc):
     finally:
         power_manager.close()
 
+
 @main.command(name="hold")
 @click.argument("state", type=click.Choice(["on", "off"]))
-@click.option("--gpio", "-g", type=int, default=HOLD_GPIO,
-    help=f"The hold line [default: {HOLD_GPIO}]")
-@click.option("--force", is_flag=True,
-    help='Required for "off", which cuts the power of an undocked host')
-
+@click.option("--gpio", "-g", type=int, default=HOLD_GPIO, help=f"The hold line [default: {HOLD_GPIO}]")
+@click.option("--force", is_flag=True, help='Required for "off", which cuts the power of an undocked host')
 def hold_command(state, gpio, force):
     """Assert or release the power hold, then exit
 
@@ -418,7 +529,8 @@ def hold_command(state, gpio, force):
     if not on and not force:
         raise SystemExit(
             "hold off cuts the power of an undocked host: pass --force if "
-            "that is what you mean.  The shutdown hook does this itself")
+            "that is what you mean.  The shutdown hook does this itself"
+        )
     try:
         result = set_hold(on, gpio)
     except HoldNotAvailable as error:
@@ -427,37 +539,39 @@ def hold_command(state, gpio, force):
         raise SystemExit(f"The hold did not change: {error}")
     click.echo(f"hold {result} (GPIO {gpio})")
 
+
 @main.command(name="signal")
 @click.argument("name", type=click.Choice(sorted(PATTERNS)))
-@click.option("--buzzer", "-b", type=click.Choice(["auto", "gpio", "none"]),
-    default="auto", help="The buzzer to sound [default: auto]")
-
+@click.option(
+    "--buzzer",
+    "-b",
+    type=click.Choice(["auto", "gpio", "none"]),
+    default="auto",
+    help="The buzzer to sound [default: auto]",
+)
 def signal_command(name, buzzer):
     """Sound one pattern, then exit"""
 
-    from aiko_services.actors.power_manager.signal import (
-        choose_buzzer, pattern_seconds
-    )
     import time
+
+    from aiko_services.actors.power_manager.signal import choose_buzzer, pattern_seconds
 
     device = choose_buzzer(buzzer)
     try:
         device.open()
-    except Exception as error:                           # noqa: BLE001
+    except Exception as error:  # noqa: BLE001
         raise SystemExit(f"No buzzer: {error}")
     try:
         device.play(name)
         time.sleep(pattern_seconds(name) + 0.1)
     finally:
         device.close()
-    click.echo(f"{name} on {device.device} "
-        f"({pattern_seconds(name)} s)")
+    click.echo(f"{name} on {device.device} ({pattern_seconds(name)} s)")
+
 
 @main.command(name="render")
 @click.argument("artifact", type=click.Choice(list(ARTIFACTS)))
-@click.option("--account", "-a", type=str, default=None,
-    help="The account that runs the Actor, for the grant")
-
+@click.option("--account", "-a", type=str, default=None, help="The account that runs the Actor, for the grant")
 def render_command(artifact, account):
     """Print one file that the operating system must hold, and change
     nothing
@@ -474,13 +588,11 @@ def render_command(artifact, account):
     except ValueError as error:
         raise SystemExit(str(error))
 
+
 @main.command(name="install")
 @click.argument("artifact", type=click.Choice(list(ARTIFACTS)))
-@click.option("--account", "-a", type=str, default=None,
-    help="The account that runs the Actor, for the grant")
-@click.option("--path", "-p", type=str, default=None,
-    help="Write here instead of where the artifact belongs")
-
+@click.option("--account", "-a", type=str, default=None, help="The account that runs the Actor, for the grant")
+@click.option("--path", "-p", type=str, default=None, help="Write here instead of where the artifact belongs")
 def install_command(artifact, account, path):
     """Write one rendered file.  The only command here that changes the host
 
@@ -497,8 +609,8 @@ def install_command(artifact, account, path):
         raise SystemExit(f"Not installed: {error}")
     click.echo(f"{artifact} written to {written}")
     if artifact == "unit":
-        click.echo("Now: systemctl daemon-reload && "
-            "systemctl enable aiko_power_hold", err=True)
+        click.echo("Now: systemctl daemon-reload && systemctl enable aiko_power_hold", err=True)
+
 
 @main.command(name="verify")
 def verify_command():
@@ -512,6 +624,7 @@ def verify_command():
     for name, state in verify().items():
         click.echo(f"{name:6} {state:9} {paths()[name]}")
     click.echo(f"{'hold':6} {hold_state():9} GPIO {HOLD_GPIO}")
+
 
 if __name__ == "__main__":
     main()

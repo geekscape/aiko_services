@@ -84,34 +84,41 @@
 # - MQTT push and store / forward StoreForwardMessage implementations
 # - SQLite3 for the store / forward state-of-play
 
-from abc import abstractmethod
 import os
 import re
 import sys
 import threading
 import time
-from urllib.parse import urlsplit
 import uuid
+from abc import abstractmethod
+from urllib.parse import urlsplit
 
 import click
 
 import aiko_services as aiko
 from aiko_services.main.powered_up_client import PoweredUpClient
+from aiko_services.main.store_forward.store_forward_message import (
+    CHUNK_SIZE,
+    LINK_EVENTS,
+    LINK_ID,
+    MAX_SEGMENT_SIZE,
+    NAME_EVENT,
+    PROGRESS_EVENT,
+    RECEIVED_EVENTS,
+    RESUME_EVENT,
+    STORE_FORWARD_EVENTS,
+    FetchJob,
+    SendJob,
+    partial_path,
+    resolve_within,
+    utc_now,
+    valid_segment_id,
+    valid_segment_name,
+    valid_sha256,
+)
 from aiko_services.main.utilities import get_hostname, parse
 
-from aiko_services import __version__
-from aiko_services.main.store_forward.store_forward_message import (
-    CHUNK_SIZE, LINK_EVENTS, LINK_ID, MAX_SEGMENT_SIZE, NAME_EVENT,
-    PROGRESS_EVENT, RECEIVED_EVENTS, RESUME_EVENT, STORE_FORWARD_EVENTS,
-    FetchJob, SendJob, partial_path,
-    resolve_within, utc_now, valid_segment_name, valid_sha256,
-    valid_segment_id
-)
-
-__all__ = [
-    "ALLOWED_COMMANDS", "PROTOCOL", "PROTOCOL_TYPE",
-    "SegmentStoreForward", "SegmentStoreForwardImpl"
-]
+__all__ = ["ALLOWED_COMMANDS", "PROTOCOL", "PROTOCOL_TYPE", "SegmentStoreForward", "SegmentStoreForwardImpl"]
 
 _VERSION = 0
 
@@ -119,16 +126,16 @@ PROTOCOL_TYPE = "store_forward"
 ACTOR_TYPE = "segment_store_forward"
 PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/{PROTOCOL_TYPE}:{_VERSION}"
 
-STATE_LIMIT = 3                # last segments kept per store_forwards /
-                               # received / progress table: oldest evicted
-BOOKKEEPING_LIMIT = 64         # ids remembered for sizes, names, sha256
-SENT_NAMES_LIMIT = 1024        # outbox names already sent: drop oldest
-SENT_DIRECTORY = ".sent"       # under the outbox: acknowledged segments
-LINK_TIMEOUT = 10.0            # server: seconds without an Edge poll -> down
-RETRY_AFTER_S = 600.0          # server: re-offer a segment not acked by then
-RETRY_BACKOFF_MIN_S = 60.0     # first re-send delay after a failure ...
-RETRY_BACKOFF_MAX_S = 3600.0   # ... doubling up to this (P4: eventual)
-PARTIAL_MAX_AGE_S = 86400.0    # .part / .meta older than this are swept
+STATE_LIMIT = 3  # last segments kept per store_forwards /
+# received / progress table: oldest evicted
+BOOKKEEPING_LIMIT = 64  # ids remembered for sizes, names, sha256
+SENT_NAMES_LIMIT = 1024  # outbox names already sent: drop oldest
+SENT_DIRECTORY = ".sent"  # under the outbox: acknowledged segments
+LINK_TIMEOUT = 10.0  # server: seconds without an Edge poll -> down
+RETRY_AFTER_S = 600.0  # server: re-offer a segment not acked by then
+RETRY_BACKOFF_MIN_S = 60.0  # first re-send delay after a failure ...
+RETRY_BACKOFF_MAX_S = 3600.0  # ... doubling up to this (P4: eventual)
+PARTIAL_MAX_AGE_S = 86400.0  # .part / .meta older than this are swept
 # How long a delivered segment is kept in .sent/, as a receipt.  Zero keeps
 # every one of them, which is what this did before the parameter existed,
 # so an upgrade deletes nothing that nobody asked it to delete.  A host
@@ -142,20 +149,21 @@ SENT_MAX_AGE_S = 0.0
 # stopped asking, and not how long the transfer may take.  Zero turns the
 # claim off, which is what a host on mains supply wants
 POWERED_UP_SECONDS = 300.0
-SWEEP_PERIOD_S = 60.0          # how often the partial sweep runs
+SWEEP_PERIOD_S = 60.0  # how often the partial sweep runs
 _RETRY_STATES = ("failed_", "rejected_busy")  # send outcomes that retry
 
 _FAILED_PREFIXES = ("failed_", "rejected_")
 _LOG_INFO_STATES = {"queued", "offered", "done", "acked", "cancelled"}
 
-_RECEIVED_STATES = {           # Message event -> received.<id>
+_RECEIVED_STATES = {  # Message event -> received.<id>
     "receiving": "receiving",
     "received_verifying": "verifying",
     "received_ok": "ok",
     "received_failed_sha256": "failed_sha256",
     "received_failed_timeout": "failed_timeout",
-    "received_failed_store": "failed_store"
+    "received_failed_store": "failed_store",
 }
+
 
 def _token(text, limit=32):
     """Reduce free text to one share-safe token, e.g "no poll for 4 s" ->
@@ -164,12 +172,15 @@ def _token(text, limit=32):
     token = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(text)).strip("_")[:limit]
     return token or "-"
 
+
 def _remember(table, key, value, limit=BOOKKEEPING_LIMIT):
     table[key] = value
     while len(table) > limit:
         del table[next(iter(table))]
 
+
 # --------------------------------------------------------------------------- #
+
 
 class SegmentStoreForward(aiko.Actor):
     """
@@ -181,9 +192,10 @@ class SegmentStoreForward(aiko.Actor):
     "metrics.*"), never returned.  Segment ids are hexadecimal, 8 to 32
     characters, chosen by the sender
     """
-    aiko.Interface.default("SegmentStoreForward",
-        "aiko_services.main.store_forward.store_forward."
-        "SegmentStoreForwardImpl")
+
+    aiko.Interface.default(
+        "SegmentStoreForward", "aiko_services.main.store_forward.store_forward.SegmentStoreForwardImpl"
+    )
 
     @abstractmethod
     def send_segment(self, segment_id, name):
@@ -222,31 +234,31 @@ class SegmentStoreForward(aiko.Actor):
         "received.<id>" and "progress.<id>" are removed.
         Projection: command"""
 
+
 # The HTTP "(command ...)" allow-list is seeded from the Interface (P12):
 # only these public declarations may be dispatched from the peer.
 
-ALLOWED_COMMANDS = frozenset(name
+ALLOWED_COMMANDS = frozenset(
+    name
     for name, member in vars(SegmentStoreForward).items()
-    if getattr(member, "__isabstractmethod__", False)
-    and not name.startswith("_"))
+    if getattr(member, "__isabstractmethod__", False) and not name.startswith("_")
+)
 
 # --------------------------------------------------------------------------- #
+
 
 class SegmentStoreForwardImpl(SegmentStoreForward):
     def __init__(self, context):
         context.call_init(self, "Actor", context)
         parameters = context.get_parameters()
-        self.message = parameters["message"]           # StoreForwardMessage
+        self.message = parameters["message"]  # StoreForwardMessage
         self.inbox = os.path.realpath(parameters["inbox"])
         self.outbox = os.path.realpath(parameters["outbox"])
-        self.partial_directory = partial_path(
-            self.inbox, parameters.get("partial_directory"))
+        self.partial_directory = partial_path(self.inbox, parameters.get("partial_directory"))
         self.outbox_period = float(parameters.get("outbox_period", 2.0))
         self.link_timeout = float(parameters.get("link_timeout", LINK_TIMEOUT))
-        self.partial_max_age = float(
-            parameters.get("partial_max_age", PARTIAL_MAX_AGE_S))
-        self.sent_max_age = float(
-            parameters.get("sent_max_age", SENT_MAX_AGE_S))
+        self.partial_max_age = float(parameters.get("partial_max_age", PARTIAL_MAX_AGE_S))
+        self.sent_max_age = float(parameters.get("sent_max_age", SENT_MAX_AGE_S))
 
         # A battery pack is a finite resource, so a host that must stay up
         # for this Actor asks for the time it needs and holds a Lease.  The
@@ -254,57 +266,67 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         # empty, so a power manager stops asking what work is left and
         # counts claims instead (ADR-028 decision 13).  Zero turns it off,
         # which is what a host on mains wants
-        self.powered_up_seconds = float(
-            parameters.get("powered_up_seconds", POWERED_UP_SECONDS))
-        self._powered_up = PoweredUpClient(
-            self, seconds=self.powered_up_seconds, reason="store_forward")  \
-            if self.powered_up_seconds > 0 else None
-        self.loop_thread = threading.get_ident()      # asserted by tests
-        self.last_event_thread = None                  # asserted by tests
+        self.powered_up_seconds = float(parameters.get("powered_up_seconds", POWERED_UP_SECONDS))
+        self._powered_up = (
+            PoweredUpClient(self, seconds=self.powered_up_seconds, reason="store_forward")
+            if self.powered_up_seconds > 0
+            else None
+        )
+        self.loop_thread = threading.get_ident()  # asserted by tests
+        self.last_event_thread = None  # asserted by tests
 
-        self._jobs = {}            # segment_id -> SendJob | FetchJob
-        self._names = {}           # segment_id -> segment name (bounded)
-        self._sizes = {}           # segment_id -> size in bytes (bounded)
-        self._sha256 = {}          # segment_id -> sha256 sent (bounded)
-        self._sent_names = {}      # outbox name -> segment_id (bounded)
+        self._jobs = {}  # segment_id -> SendJob | FetchJob
+        self._names = {}  # segment_id -> segment name (bounded)
+        self._sizes = {}  # segment_id -> size in bytes (bounded)
+        self._sha256 = {}  # segment_id -> sha256 sent (bounded)
+        self._sent_names = {}  # outbox name -> segment_id (bounded)
         self._pending_outbox = {}  # outbox name -> (size, mtime) seen once
-        self._warned_names = set() # outbox names already reported as bad
-        self._retry_after = {}     # outbox name -> monotonic time to re-send
-        self._retry_backoff = {}   # outbox name -> current back-off seconds
-        self._offered_at = {}      # segment_id -> monotonic time offered
-        self._last_sweep = 0.0     # monotonic time of the last partial sweep
-        self._last_sent_sweep = 0.0            # and of the last .sent sweep
+        self._warned_names = set()  # outbox names already reported as bad
+        self._retry_after = {}  # outbox name -> monotonic time to re-send
+        self._retry_backoff = {}  # outbox name -> current back-off seconds
+        self._offered_at = {}  # segment_id -> monotonic time offered
+        self._last_sweep = 0.0  # monotonic time of the last partial sweep
+        self._last_sent_sweep = 0.0  # and of the last .sent sweep
         self._link = "unknown"
-        self._last_poll = None     # monotonic time of the last Edge poll
+        self._last_poll = None  # monotonic time of the last Edge poll
         self._metrics = {
-            "sent_bytes": 0, "received_bytes": 0, "resumes": 0,
-            "failures": 0, "rejected_commands": 0, "out_dropped": 0,
-            "link_downs": 0, "retries": 0, "sent_swept": 0
+            "sent_bytes": 0,
+            "received_bytes": 0,
+            "resumes": 0,
+            "failures": 0,
+            "rejected_commands": 0,
+            "out_dropped": 0,
+            "link_downs": 0,
+            "retries": 0,
+            "sent_swept": 0,
         }
-        self._queue_state = None   # last published (depth, oldest_s, bytes)
-        self.share.update({                            # initial snapshot
-            "source_file": f"v{_VERSION}⇒ {__file__}",
-            "role": self.message.role,
-            "inbox": self.inbox,
-            "outbox": self.outbox,
-            "partial_directory": self.partial_directory,
-            "link": "unknown",
-            "link_cause": "startup",
-            "link_changed_utc": utc_now(),
-            "last_error": "-",
-            "powered_up": "released",
-            "powered_up_seconds": f"{self.powered_up_seconds:.0f}",
-            "queue": {"depth": "0", "oldest_s": "0", "bytes": "0"},
-            "sampled_utc": utc_now(),
-            "store_forwards": {}, "received": {}, "progress": {},
-            "metrics": dict(self._metrics)
-        })
+        self._queue_state = None  # last published (depth, oldest_s, bytes)
+        self.share.update(
+            {  # initial snapshot
+                "source_file": f"v{_VERSION}⇒ {__file__}",
+                "role": self.message.role,
+                "inbox": self.inbox,
+                "outbox": self.outbox,
+                "partial_directory": self.partial_directory,
+                "link": "unknown",
+                "link_cause": "startup",
+                "link_changed_utc": utc_now(),
+                "last_error": "-",
+                "powered_up": "released",
+                "powered_up_seconds": f"{self.powered_up_seconds:.0f}",
+                "queue": {"depth": "0", "oldest_s": "0", "bytes": "0"},
+                "sampled_utc": utc_now(),
+                "store_forwards": {},
+                "received": {},
+                "progress": {},
+                "metrics": dict(self._metrics),
+            }
+        )
 
         os.makedirs(os.path.join(self.outbox, SENT_DIRECTORY), exist_ok=True)
         os.makedirs(self.partial_directory, exist_ok=True)
         endpoint = self.message.start(self._http_command, self._message_event)
-        endpoint_key = "http_endpoint"  \
-            if self.message.role == "server" else "server_url"
+        endpoint_key = "http_endpoint" if self.message.role == "server" else "server_url"
         self.ec_producer.update(endpoint_key, endpoint)
 
         if self._powered_up is not None:
@@ -314,90 +336,84 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         if self.outbox_period > 0:
             aiko.event.add_timer_handler(self._outbox_scan, self.outbox_period)
         if self.message.role == "server":
-            aiko.event.add_timer_handler(
-                self._link_check, max(1.0, self.link_timeout / 2))
+            aiko.event.add_timer_handler(self._link_check, max(1.0, self.link_timeout / 2))
 
         self.logger.info(f"{self.message.role} {context.name}: {endpoint}")
         self.logger.info(f"inbox: {self.inbox}")
         self.logger.info(f"partial: {self.partial_directory}")
-        self.logger.info(f"outbox: {self.outbox} (scan every "
-            f"{self.outbox_period} s, sent segments move to "
-            f"{SENT_DIRECTORY}/)")
-        self.logger.info(f"{SENT_DIRECTORY}: "
-            + (f"swept above {self.sent_max_age:.0f} s"
-                if self.sent_max_age > 0 else "kept for ever"))
+        self.logger.info(
+            f"outbox: {self.outbox} (scan every {self.outbox_period} s, sent segments move to {SENT_DIRECTORY}/)"
+        )
+        self.logger.info(
+            f"{SENT_DIRECTORY}: "
+            + (f"swept above {self.sent_max_age:.0f} s" if self.sent_max_age > 0 else "kept for ever")
+        )
         print(f"MQTT topic: {self.topic_in}")
 
     # Wire commands (event-loop thread) ------------------------------------- #
 
     def send_segment(self, segment_id, name):
         if not valid_segment_id(segment_id):
-            return self._reject_command(
-                f"send_segment: bad id {segment_id!r} (hex, 8-32 chars)")
-        if segment_id in self._jobs  \
-            or segment_id in self.share["store_forwards"]:
-            return                                     # idempotent
+            return self._reject_command(f"send_segment: bad id {segment_id!r} (hex, 8-32 chars)")
+        if segment_id in self._jobs or segment_id in self.share["store_forwards"]:
+            return  # idempotent
         _remember(self._names, segment_id, str(name))
         path = resolve_within(self.outbox, name)
         if not path:
-            return self._reject_store_forward(segment_id, "rejected_path",
-                "name must be [A-Za-z0-9_-][A-Za-z0-9._-]* and inside outbox")
+            return self._reject_store_forward(
+                segment_id, "rejected_path", "name must be [A-Za-z0-9_-][A-Za-z0-9._-]* and inside outbox"
+            )
         if not os.path.isfile(path):
-            return self._reject_store_forward(segment_id, "rejected_missing",
-                f"{path} is not a regular file")
+            return self._reject_store_forward(segment_id, "rejected_missing", f"{path} is not a regular file")
         size = os.path.getsize(path)
         if size > MAX_SEGMENT_SIZE:
-            return self._reject_store_forward(segment_id, "rejected_size",
-                f"{size} B exceeds {MAX_SEGMENT_SIZE} B")
+            return self._reject_store_forward(segment_id, "rejected_size", f"{size} B exceeds {MAX_SEGMENT_SIZE} B")
         job = SendJob(segment_id, name, path, size)
         if not self.message.send_segment(job):
             self._schedule_retry(segment_id, "rejected_busy")
-            return self._reject_store_forward(segment_id, "rejected_busy",
-                "send queue full")
+            return self._reject_store_forward(segment_id, "rejected_busy", "send queue full")
         self._jobs[segment_id] = job
         _remember(self._sizes, segment_id, size)
         self._set_store_forward(segment_id, "queued", f"{size} B")
 
     def fetch_segment(self, segment_id, name, size, sha256):
         if not valid_segment_id(segment_id):
-            return self._reject_command(
-                f"fetch_segment: bad id {segment_id!r} (hex, 8-32 chars)")
+            return self._reject_command(f"fetch_segment: bad id {segment_id!r} (hex, 8-32 chars)")
         if segment_id in self._jobs:
-            return                                     # idempotent
+            return  # idempotent
         _remember(self._names, segment_id, str(name))
         if self.message.role != "edge":
-            return self._reject_store_forward(segment_id, "rejected_role",
-                "only the edge host fetches")
+            return self._reject_store_forward(segment_id, "rejected_role", "only the edge host fetches")
         try:
             size = int(size)
         except (TypeError, ValueError):
             size = -1
-        if not valid_segment_name(name) or not valid_sha256(sha256)  \
-            or size < 0 or size > MAX_SEGMENT_SIZE:
-            return self._reject_store_forward(segment_id, "rejected_path",
-                f"bad name, size or sha256: {name!r} {size} {sha256!r}")
+        if not valid_segment_name(name) or not valid_sha256(sha256) or size < 0 or size > MAX_SEGMENT_SIZE:
+            return self._reject_store_forward(
+                segment_id, "rejected_path", f"bad name, size or sha256: {name!r} {size} {sha256!r}"
+            )
         job = FetchJob(segment_id, name, size, sha256)
         if not self.message.fetch_segment(job):
-            return self._reject_store_forward(segment_id, "rejected_busy",
-                "fetch queue full")
+            return self._reject_store_forward(segment_id, "rejected_busy", "fetch queue full")
         self._jobs[segment_id] = job
         _remember(self._sizes, segment_id, size)
         self._set_store_forward(segment_id, "fetching", f"{size} B")
 
     def acknowledge(self, segment_id, sha256, status):
         if not valid_segment_id(segment_id):
-            return self._reject_command(
-                f"acknowledge: bad id {segment_id!r}")
+            return self._reject_command(f"acknowledge: bad id {segment_id!r}")
         expected = self._sha256.get(segment_id)
         if expected and expected == sha256 and status == "ok":
             self._set_store_forward(segment_id, "acked")
-            self.message.cancel(segment_id)           # release any offer
+            self.message.cancel(segment_id)  # release any offer
             self._move_to_sent(segment_id)
         else:
-            self.logger.warning(f"acknowledge {segment_id} "
+            self.logger.warning(
+                f"acknowledge {segment_id} "
                 f"{self._names.get(segment_id, '?')}: ignored, status "
                 f"{status!r}, sha256 {sha256[:12]!r} expected "
-                f"{(expected or '?')[:12]!r}")
+                f"{(expected or '?')[:12]!r}"
+            )
 
     def cancel(self, segment_id):
         if not valid_segment_id(segment_id):
@@ -431,8 +447,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
                 self._link_event(event, detail)
             return
         if not valid_segment_id(segment_id):
-            return self._reject_command(
-                f"_store_forward_event: bad id {segment_id!r}")
+            return self._reject_command(f"_store_forward_event: bad id {segment_id!r}")
         name = self._names.get(segment_id, "?")
 
         if event in STORE_FORWARD_EVENTS:
@@ -452,8 +467,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
                 self._add_metric("failures", 1)
             if state.startswith(_RETRY_STATES):
                 self._schedule_retry(segment_id, state)
-            if state.startswith(_FAILED_PREFIXES)  \
-                or state in ("done", "acked", "cancelled"):
+            if state.startswith(_FAILED_PREFIXES) or state in ("done", "acked", "cancelled"):
                 self._jobs.pop(segment_id, None)
                 self._offered_at.pop(segment_id, None)
         elif event in RECEIVED_EVENTS:
@@ -464,18 +478,13 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             size = self._sizes.get(segment_id, 0)
             if event == "received_ok":
                 self._add_metric("received_bytes", size)
-                self.logger.info(
-                    f"received {segment_id} {name}: ok, {size} B, "
-                    f"sha256 {detail[:12]}, into {self.inbox}")
-                if not self.message.send_command(
-                    f"(acknowledge {segment_id} {detail} ok)"):
-                    self.logger.warning(f"received {segment_id} {name}: "
-                        "acknowledge not queued (command queue full)")
+                self.logger.info(f"received {segment_id} {name}: ok, {size} B, sha256 {detail[:12]}, into {self.inbox}")
+                if not self.message.send_command(f"(acknowledge {segment_id} {detail} ok)"):
+                    self.logger.warning(f"received {segment_id} {name}: acknowledge not queued (command queue full)")
             elif event.startswith("received_failed"):
                 self._add_metric("failures", 1)
                 self._note_error(state, segment_id)
-                self.logger.warning(
-                    f"received {segment_id} {name}: {state} {detail}")
+                self.logger.warning(f"received {segment_id} {name}: {state} {detail}")
             elif event == "receiving" and detail.startswith("0/"):
                 self.logger.info(f"receiving {segment_id}: {size} B")
         elif event == NAME_EVENT:
@@ -485,14 +494,12 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             self._set_state("progress", segment_id, detail)
         elif event == RESUME_EVENT:
             self._add_metric("resumes", 1)
-            self.logger.info(f"store_forward {segment_id} {name}: "
-                f"resumed at byte {detail}")
+            self.logger.info(f"store_forward {segment_id} {name}: resumed at byte {detail}")
         else:
-            self._reject_command(
-                f"_store_forward_event {segment_id}: unknown event {event!r}")
+            self._reject_command(f"_store_forward_event {segment_id}: unknown event {event!r}")
 
     def _link_event(self, event, detail):
-        cause, _, text = detail.partition(" ")    # "cause free text ..."
+        cause, _, text = detail.partition(" ")  # "cause free text ..."
         if event == "link_up":
             self._set_link("up", cause or "server_reachable", text)
         elif event == "link_down":
@@ -501,8 +508,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             self._last_poll = time.monotonic()
             self.ec_producer.update("peer.last_poll", detail)
             if hasattr(self.message, "out_queue_depth"):
-                self.ec_producer.update("out_queue_depth",
-                    str(self.message.out_queue_depth()))
+                self.ec_producer.update("out_queue_depth", str(self.message.out_queue_depth()))
             if self._link != "up":
                 self._set_link("up", "edge_polling", "edge host polling /out")
         elif event == "out_dropped":
@@ -512,8 +518,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         elif event == "rejected_command":
             self._add_metric("rejected_commands", 1)
             if not detail.startswith("local:"):  # local ones already logged
-                self.logger.warning(
-                    f"peer rejected or dropped a command: {detail}")
+                self.logger.warning(f"peer rejected or dropped a command: {detail}")
 
     def _link_check(self):
         """Server role timer: no edge poll for link_timeout -> link down"""
@@ -522,8 +527,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             return
         idle = time.monotonic() - self._last_poll
         if idle > self.link_timeout:
-            self._set_link("down", f"no_poll_{int(idle)}s",
-                f"no poll from the edge host for {int(idle)} s")
+            self._set_link("down", f"no_poll_{int(idle)}s", f"no poll from the edge host for {int(idle)} s")
 
     def _set_link(self, state, cause, text=""):
         """Publish a link change with its cause and time, count link
@@ -556,8 +560,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             connection.lock_acquire("SegmentStoreForwardImpl._set_link()")
             state = connection.get_state()
             if up and state == aiko.ConnectionState.NONE:
-                connection.update_state(
-                    aiko.ConnectionState.NETWORK, self.logger)
+                connection.update_state(aiko.ConnectionState.NETWORK, self.logger)
             elif not up and state == aiko.ConnectionState.NETWORK:
                 connection.update_state(aiko.ConnectionState.NONE, self.logger)
         finally:
@@ -569,25 +572,24 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         result = "accepted"
         try:
             command, arguments = parse(payload)
-        except Exception:                  # the parser raises on odd tokens
+        except Exception:  # the parser raises on odd tokens
             result = "rejected_parse"
         else:
             if command not in ALLOWED_COMMANDS:
                 result = "rejected_command"
-            elif not isinstance(arguments, list) or not all(
-                isinstance(argument, str) for argument in arguments):
+            elif not isinstance(arguments, list) or not all(isinstance(argument, str) for argument in arguments):
                 result = "rejected_parse"
         if result != "accepted":
             self.logger.warning(f"{result} from peer: {payload[:80]!r}")
-            self._post_message(aiko.ActorTopic.IN, "_store_forward_event",
-                [LINK_ID, "rejected_command", f"local:{result}"])
+            self._post_message(
+                aiko.ActorTopic.IN, "_store_forward_event", [LINK_ID, "rejected_command", f"local:{result}"]
+            )
             return result
         self._post_message(aiko.ActorTopic.IN, command, arguments)
         return result
 
     def _message_event(self, segment_id, event, detail):
-        self._post_message(aiko.ActorTopic.IN, "_store_forward_event",
-            [str(segment_id), str(event), str(detail)])
+        self._post_message(aiko.ActorTopic.IN, "_store_forward_event", [str(segment_id), str(event), str(detail)])
 
     # Outbox watcher (event-loop timer): list only, no hashing or IO ------- #
 
@@ -603,25 +605,24 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         depth, oldest, size_total = 0, None, 0
         for entry in entries:
             name = entry.name
-            if name.startswith(".")  \
-                or not entry.is_file(follow_symlinks=False):
+            if name.startswith(".") or not entry.is_file(follow_symlinks=False):
                 continue
             stat = entry.stat(follow_symlinks=False)
-            depth += 1                       # in the outbox: not delivered yet
+            depth += 1  # in the outbox: not delivered yet
             size_total += stat.st_size
-            oldest = stat.st_mtime if oldest is None  \
-                else min(oldest, stat.st_mtime)
+            oldest = stat.st_mtime if oldest is None else min(oldest, stat.st_mtime)
             if name in self._sent_names:
                 continue
             if name in self._retry_after:
                 if now_monotonic < self._retry_after[name]:
-                    continue                 # still backing off
+                    continue  # still backing off
                 del self._retry_after[name]
             if not valid_segment_name(name):
                 if name not in self._warned_names:
                     self._warned_names.add(name)
-                    self.logger.warning(f"outbox: ignoring {name!r}, names "
-                        "must match [A-Za-z0-9_-][A-Za-z0-9._-]{0,127}")
+                    self.logger.warning(
+                        f"outbox: ignoring {name!r}, names must match [A-Za-z0-9_-][A-Za-z0-9._-]{{0,127}}"
+                    )
                 continue
             signature = (stat.st_size, stat.st_mtime_ns)
             seen.add(name)
@@ -630,17 +631,15 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
                 segment_id = uuid.uuid4().hex[:12]
                 if name in self._retry_backoff:
                     self._add_metric("retries", 1)
-                    self.logger.info(
-                        f"retry {name}: re-sending as {segment_id}")
+                    self.logger.info(f"retry {name}: re-sending as {segment_id}")
                 self._remember_sent(name, segment_id)
                 self.send_segment(segment_id, name)
             else:
-                self._pending_outbox[name] = signature   # still being written
+                self._pending_outbox[name] = signature  # still being written
         for name in list(self._pending_outbox):
             if name not in seen:
                 del self._pending_outbox[name]
-        self._publish_queue(depth, 0 if oldest is None else int(now - oldest),
-            size_total)
+        self._publish_queue(depth, 0 if oldest is None else int(now - oldest), size_total)
         self._retry_stale_offers(now_monotonic)
         self._sweep_partial(now_monotonic)
         self._sweep_sent(now_monotonic)
@@ -658,14 +657,13 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
                 if sent_id == segment_id:
                     name = sent_name
         if not name or not os.path.isfile(os.path.join(self.outbox, name)):
-            return                           # nothing left to re-send
+            return  # nothing left to re-send
         backoff = self._retry_backoff.get(name, RETRY_BACKOFF_MIN_S / 2)
         backoff = min(backoff * 2, RETRY_BACKOFF_MAX_S)
         self._retry_backoff[name] = backoff
         self._retry_after[name] = time.monotonic() + backoff
         self._sent_names.pop(name, None)
-        self.logger.warning(f"store_forward {segment_id} {name}: {state}, "
-            f"re-send in {int(backoff)} s")
+        self.logger.warning(f"store_forward {segment_id} {name}: {state}, re-send in {int(backoff)} s")
 
     def _retry_stale_offers(self, now_monotonic):
         """Server role: an offer the edge host never fetched and
@@ -675,7 +673,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             if now_monotonic - offered_at < RETRY_AFTER_S:
                 continue
             del self._offered_at[segment_id]
-            self.message.cancel(segment_id)              # withdraw the offer
+            self.message.cancel(segment_id)  # withdraw the offer
             self._schedule_retry(segment_id, "offer_not_acked")
             self._jobs.pop(segment_id, None)
 
@@ -697,8 +695,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             if not entry.name.endswith((".part", ".meta")):
                 continue
             try:
-                if entry.is_file(follow_symlinks=False)  \
-                    and entry.stat(follow_symlinks=False).st_mtime < cutoff:
+                if entry.is_file(follow_symlinks=False) and entry.stat(follow_symlinks=False).st_mtime < cutoff:
                     os.remove(entry.path)
                     self.logger.info(f"swept stale partial {entry.name}")
             except OSError as os_error:
@@ -724,8 +721,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
 
         if self.sent_max_age <= 0:
             return
-        if not force  \
-            and now_monotonic - self._last_sent_sweep < SWEEP_PERIOD_S:
+        if not force and now_monotonic - self._last_sent_sweep < SWEEP_PERIOD_S:
             return
         self._last_sent_sweep = now_monotonic
         directory = os.path.join(self.outbox, SENT_DIRECTORY)
@@ -753,10 +749,10 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             self.logger.info(
                 f"swept {removed} delivered segments from "
                 f"{SENT_DIRECTORY}/, {freed / 1e6:.1f} MB, older than "
-                f"{self.sent_max_age:.0f} s")
+                f"{self.sent_max_age:.0f} s"
+            )
         if failed:
-            self.logger.warning(
-                f"{SENT_DIRECTORY}/ sweep: {failed} could not be removed")
+            self.logger.warning(f"{SENT_DIRECTORY}/ sweep: {failed} could not be removed")
 
     def _publish_queue(self, depth, oldest_s, size_total):
         """queue.* only when changed; sampled_utc on every scan"""
@@ -782,9 +778,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             return
         if depth > 0:
             if self._powered_up.claim():
-                self.logger.info(
-                    f"powered up claimed: {self.powered_up_seconds:.0f} s, "
-                    f"{depth} segments wait")
+                self.logger.info(f"powered up claimed: {self.powered_up_seconds:.0f} s, {depth} segments wait")
             self.ec_producer.update("powered_up", "held")
         elif self._powered_up.release():
             self.logger.info("powered up released: the outbox is empty")
@@ -808,11 +802,9 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             if os.path.isfile(source):
                 os.replace(source, target)
         except OSError as os_error:
-            self.logger.warning(
-                f"store_forward {segment_id} {name}: move to "
-                f"{SENT_DIRECTORY}/ failed: {os_error}")
+            self.logger.warning(f"store_forward {segment_id} {name}: move to {SENT_DIRECTORY}/ failed: {os_error}")
         self._sent_names.pop(name, None)
-        self._retry_backoff.pop(name, None)             # delivered: reset
+        self._retry_backoff.pop(name, None)  # delivered: reset
         self._retry_after.pop(name, None)
 
     # Shared state: bounded tables and counters ---------------------------- #
@@ -824,13 +816,9 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             detail = f"sha256 {detail[:12]}"
         if state.startswith(_FAILED_PREFIXES):
             self._note_error(state, segment_id)
-            self.logger.warning(
-                f"store_forward {segment_id} {name}: {state} {detail}"
-                .rstrip())
+            self.logger.warning(f"store_forward {segment_id} {name}: {state} {detail}".rstrip())
         elif state in _LOG_INFO_STATES:
-            self.logger.info(
-                f"store_forward {segment_id} {name}: {state} {detail}"
-                .rstrip())
+            self.logger.info(f"store_forward {segment_id} {name}: {state} {detail}".rstrip())
         else:
             self.logger.debug(f"store_forward {segment_id} {name}: {state}")
 
@@ -858,15 +846,15 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         """last_error: one token "<state>/<segment id or ->@<utc>"; the
         diagnosable free text goes to the WARNING log"""
 
-        self.ec_producer.update("last_error",
-            f"{_token(state)}/{segment_id}@{utc_now()}")
+        self.ec_producer.update("last_error", f"{_token(state)}/{segment_id}@{utc_now()}")
+
 
 # --------------------------------------------------------------------------- #
 
 DEFAULT_SERVER_PORT = 8080
 
-def server_endpoint(server_url=None, server_host=None,
-    server_port=DEFAULT_SERVER_PORT):
+
+def server_endpoint(server_url=None, server_host=None, server_port=DEFAULT_SERVER_PORT):
     """The edge host's server endpoint URL from --server_url or from
     --server_host [--server_port].  --server_url wins when both are given.
     A URL without a scheme is taken as HOST[:PORT]; a missing port is
@@ -879,9 +867,7 @@ def server_endpoint(server_url=None, server_host=None,
         url = url.rstrip("/")
         parsed = urlsplit(url)
         if not parsed.hostname:
-            raise click.BadParameter(
-                f'"{server_url}" must be http://HOST[:PORT]',
-                param_hint="--server_url")
+            raise click.BadParameter(f'"{server_url}" must be http://HOST[:PORT]', param_hint="--server_url")
         if parsed.port is None:
             host = parsed.hostname
             if ":" in host:
@@ -890,11 +876,11 @@ def server_endpoint(server_url=None, server_host=None,
         return url
     if server_host and server_host.strip():
         host = server_host.strip()
-        if ":" in host and not host.startswith("["):    # bare IPv6 address
+        if ":" in host and not host.startswith("["):  # bare IPv6 address
             host = f"[{host}]"
         return f"http://{host}:{int(server_port)}"
-    raise click.UsageError("edge: give --server_host HOST (IP address or "
-        "host name) or --server_url http://HOST:PORT")
+    raise click.UsageError("edge: give --server_host HOST (IP address or host name) or --server_url http://HOST:PORT")
+
 
 def _port_range(text):
     tokens = text.split("-")
@@ -908,6 +894,7 @@ def _port_range(text):
         raise click.BadParameter(f'"{text}" must be PORT or FIRST-LAST')
     return first, last
 
+
 def _check_partial_directory(inbox, outbox, partial_directory):
     """The partial directory must not be the inbox or the outbox: parts
     there would be sent as segments, or be seen by the inbox's reader"""
@@ -915,24 +902,35 @@ def _check_partial_directory(inbox, outbox, partial_directory):
     partial = partial_path(inbox, partial_directory)
     for option, directory in (("--inbox", inbox), ("--outbox", outbox)):
         if partial == os.path.realpath(directory):
-            raise click.BadParameter(
-                f"must not be the {option} directory {partial}",
-                param_hint="--partial_directory")
+            raise click.BadParameter(f"must not be the {option} directory {partial}", param_hint="--partial_directory")
 
-def _run(name, role, message, inbox, outbox, outbox_period, link_timeout,
-    partial_max_age, sent_max_age=SENT_MAX_AGE_S, partial_directory=None,
-    powered_up_seconds=POWERED_UP_SECONDS):
+
+def _run(
+    name,
+    role,
+    message,
+    inbox,
+    outbox,
+    outbox_period,
+    link_timeout,
+    partial_max_age,
+    sent_max_age=SENT_MAX_AGE_S,
+    partial_directory=None,
+    powered_up_seconds=POWERED_UP_SECONDS,
+):
 
     parameters = {
-        "message": message, "inbox": inbox, "outbox": outbox,
-        "outbox_period": outbox_period, "link_timeout": link_timeout,
+        "message": message,
+        "inbox": inbox,
+        "outbox": outbox,
+        "outbox_period": outbox_period,
+        "link_timeout": link_timeout,
         "partial_max_age": partial_max_age,
         "sent_max_age": sent_max_age,
         "partial_directory": partial_directory,
-        "powered_up_seconds": powered_up_seconds
+        "powered_up_seconds": powered_up_seconds,
     }
-    init_args = aiko.actor_args(name,
-        parameters=parameters, protocol=PROTOCOL, tags=[f"role={role}"])
+    init_args = aiko.actor_args(name, parameters=parameters, protocol=PROTOCOL, tags=[f"role={role}"])
     try:
         aiko.compose_instance(SegmentStoreForwardImpl, init_args)
     except OSError as os_error:
@@ -940,109 +938,196 @@ def _run(name, role, message, inbox, outbox, outbox_period, link_timeout,
         sys.exit(1)
     aiko.process.run()
 
+
 def _common_options(function):
     options = [
-        click.option("--name", "-n", default=None,
-            help="Actor name (default: store_forward_<hostname>_<role>)"),
-        click.option("--inbox", "-i", required=True,
+        click.option("--name", "-n", default=None, help="Actor name (default: store_forward_<hostname>_<role>)"),
+        click.option(
+            "--inbox",
+            "-i",
+            required=True,
             type=click.Path(exists=True, file_okay=False),
-            help="Directory that receives segments from the peer"),
-        click.option("--outbox", "-o", required=True,
+            help="Directory that receives segments from the peer",
+        ),
+        click.option(
+            "--outbox",
+            "-o",
+            required=True,
             type=click.Path(exists=True, file_okay=False),
-            help="Directory watched for segments to send"),
-        click.option("--partial_directory", "-pd", default=None,
+            help="Directory watched for segments to send",
+        ),
+        click.option(
+            "--partial_directory",
+            "-pd",
+            default=None,
             type=click.Path(file_okay=False),
             help="Directory for resumable parts and .meta sidecars "
-                 "(default: <inbox>/.partial); set it when another "
-                 "application reads the inbox"),
-        click.option("--outbox_period", "-op", default=2.0, show_default=True,
-            help="Seconds between outbox scans (0 disables)"),
-        click.option("--chunk_size", "-cs", default=CHUNK_SIZE,
-            show_default=True, help="Bytes per HTTP chunk"),
-        click.option("--partial_max_age", "-pa", default=PARTIAL_MAX_AGE_S,
+            "(default: <inbox>/.partial); set it when another "
+            "application reads the inbox",
+        ),
+        click.option(
+            "--outbox_period", "-op", default=2.0, show_default=True, help="Seconds between outbox scans (0 disables)"
+        ),
+        click.option("--chunk_size", "-cs", default=CHUNK_SIZE, show_default=True, help="Bytes per HTTP chunk"),
+        click.option(
+            "--partial_max_age",
+            "-pa",
+            default=PARTIAL_MAX_AGE_S,
             show_default=True,
-            help="Seconds before a stale part is swept from the partial "
-                 "directory"),
-        click.option("--sent_max_age", "-sa", default=SENT_MAX_AGE_S,
+            help="Seconds before a stale part is swept from the partial directory",
+        ),
+        click.option(
+            "--sent_max_age",
+            "-sa",
+            default=SENT_MAX_AGE_S,
             show_default=True,
             help="Seconds a delivered segment is kept in .sent/ "
-                 "(0 keeps every one, and a recording host fills its disk)"),
-        click.option("--powered_up_seconds", "-pu", default=POWERED_UP_SECONDS,
+            "(0 keeps every one, and a recording host fills its disk)",
+        ),
+        click.option(
+            "--powered_up_seconds",
+            "-pu",
+            default=POWERED_UP_SECONDS,
             show_default=True,
-            help="Seconds of host power to claim while segments wait "
-                 "(0 does not claim, which suits a host on mains)")
+            help="Seconds of host power to claim while segments wait (0 does not claim, which suits a host on mains)",
+        ),
     ]
     for option in reversed(options):
         function = option(function)
     return function
 
+
 def _default_name(name, role):
     return name or f"store_forward_{get_hostname()}_{role}"
 
-@click.group(help="Aiko Services: segment store / forward between two hosts")
 
+@click.group(help="Aiko Services: segment store / forward between two hosts")
 def main():
     pass
 
+
 @main.command(help="Run the server host Actor and its HTTP routes")
 @_common_options
-@click.option("--http_port_range", "-pr", default="8080-8089",
+@click.option(
+    "--http_port_range",
+    "-pr",
+    default="8080-8089",
     show_default=True,
-    help="TCP port or FIRST-LAST range to bind (Aiko Services ZMQ uses 6502)")
-@click.option("--bind", "-b", default="0.0.0.0", show_default=True,
-    help="Interface address to bind")
-@click.option("--advertise_host", "-ah", default=None,
-    help="Host name in the advertised endpoint (default: this host name)")
-@click.option("--link_timeout", "-lt", default=LINK_TIMEOUT, show_default=True,
-    help="Seconds without an edge host poll before link is down")
-
-def server(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
-    partial_max_age, sent_max_age, powered_up_seconds, http_port_range, bind,
-    advertise_host, link_timeout):
+    help="TCP port or FIRST-LAST range to bind (Aiko Services ZMQ uses 6502)",
+)
+@click.option("--bind", "-b", default="0.0.0.0", show_default=True, help="Interface address to bind")
+@click.option(
+    "--advertise_host", "-ah", default=None, help="Host name in the advertised endpoint (default: this host name)"
+)
+@click.option(
+    "--link_timeout",
+    "-lt",
+    default=LINK_TIMEOUT,
+    show_default=True,
+    help="Seconds without an edge host poll before link is down",
+)
+def server(
+    name,
+    inbox,
+    outbox,
+    partial_directory,
+    outbox_period,
+    chunk_size,
+    partial_max_age,
+    sent_max_age,
+    powered_up_seconds,
+    http_port_range,
+    bind,
+    advertise_host,
+    link_timeout,
+):
 
     _check_partial_directory(inbox, outbox, partial_directory)
-    from aiko_services.main.store_forward.store_forward_http import (
-        StoreForwardMessageHTTPServer
-    )
-    message = StoreForwardMessageHTTPServer(inbox, outbox, bind=bind,
+    from aiko_services.main.store_forward.store_forward_http import StoreForwardMessageHTTPServer
+
+    message = StoreForwardMessageHTTPServer(
+        inbox,
+        outbox,
+        bind=bind,
         port_range=_port_range(http_port_range),
-        advertise_host=advertise_host, chunk_size=chunk_size,
-        partial_directory=partial_directory)
-    _run(_default_name(name, "server"), "server", message,
-        inbox, outbox, outbox_period, link_timeout, partial_max_age,
+        advertise_host=advertise_host,
+        chunk_size=chunk_size,
+        partial_directory=partial_directory,
+    )
+    _run(
+        _default_name(name, "server"),
+        "server",
+        message,
+        inbox,
+        outbox,
+        outbox_period,
+        link_timeout,
+        partial_max_age,
         sent_max_age,
-        partial_directory, powered_up_seconds)
+        partial_directory,
+        powered_up_seconds,
+    )
+
 
 @main.command(help="Run the edge host Actor, polling the server host")
 @_common_options
-@click.option("--server_host", "-sh", default=None,
-    help="server host IP address or host name (when .local names do not "
-         "resolve, give the IP address)")
-@click.option("--server_port", "-sp", default=DEFAULT_SERVER_PORT,
-    show_default=True, help="server host HTTP port, with --server_host")
-@click.option("--server_url", "-su", default=None,
-    help="server host endpoint, e.g http://HOST:8080 (alternative to "
-         "--server_host, wins when both are given)")
-@click.option("--poll_period", "-pp", default=2.0, show_default=True,
-    help="Seconds between /out polls")
-
-def edge(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
-    partial_max_age, sent_max_age, powered_up_seconds, server_host,
-    server_port, server_url,
-    poll_period):
+@click.option(
+    "--server_host",
+    "-sh",
+    default=None,
+    help="server host IP address or host name (when .local names do not resolve, give the IP address)",
+)
+@click.option(
+    "--server_port",
+    "-sp",
+    default=DEFAULT_SERVER_PORT,
+    show_default=True,
+    help="server host HTTP port, with --server_host",
+)
+@click.option(
+    "--server_url",
+    "-su",
+    default=None,
+    help="server host endpoint, e.g http://HOST:8080 (alternative to --server_host, wins when both are given)",
+)
+@click.option("--poll_period", "-pp", default=2.0, show_default=True, help="Seconds between /out polls")
+def edge(
+    name,
+    inbox,
+    outbox,
+    partial_directory,
+    outbox_period,
+    chunk_size,
+    partial_max_age,
+    sent_max_age,
+    powered_up_seconds,
+    server_host,
+    server_port,
+    server_url,
+    poll_period,
+):
 
     _check_partial_directory(inbox, outbox, partial_directory)
     server_url = server_endpoint(server_url, server_host, server_port)
-    from aiko_services.main.store_forward.store_forward_http import (
-        StoreForwardMessageHTTPClient
+    from aiko_services.main.store_forward.store_forward_http import StoreForwardMessageHTTPClient
+
+    message = StoreForwardMessageHTTPClient(
+        server_url, inbox, outbox, poll_period=poll_period, chunk_size=chunk_size, partial_directory=partial_directory
     )
-    message = StoreForwardMessageHTTPClient(server_url, inbox, outbox,
-        poll_period=poll_period, chunk_size=chunk_size,
-        partial_directory=partial_directory)
-    _run(_default_name(name, "edge"), "edge", message,
-        inbox, outbox, outbox_period, LINK_TIMEOUT, partial_max_age,
+    _run(
+        _default_name(name, "edge"),
+        "edge",
+        message,
+        inbox,
+        outbox,
+        outbox_period,
+        LINK_TIMEOUT,
+        partial_max_age,
         sent_max_age,
-        partial_directory, powered_up_seconds)
+        partial_directory,
+        powered_up_seconds,
+    )
+
 
 if __name__ == "__main__":
     main()

@@ -19,16 +19,20 @@
 #   The default of 11 bits is finer than a battery decision needs
 
 __all__ = [
-    "At30tse", "CELSIUS_PER_BIT", "REGISTER_TEMPERATURE", "RESOLUTION_BITS",
+    "At30tse",
+    "CELSIUS_PER_BIT",
+    "REGISTER_TEMPERATURE",
+    "RESOLUTION_BITS",
 ]
 
 REGISTER_TEMPERATURE = 0x00
-RESOLUTION_BITS = 11               # Left justified in the two bytes
+RESOLUTION_BITS = 11  # Left justified in the two bytes
 CELSIUS_PER_BIT = 0.125
 
-_SHIFT = 16 - RESOLUTION_BITS      # The low bits that carry nothing
+_SHIFT = 16 - RESOLUTION_BITS  # The low bits that carry nothing
 _SIGN = 1 << (RESOLUTION_BITS - 1)
 _RANGE = 1 << RESOLUTION_BITS
+
 
 class At30tse:
     """One AT30TSE752A at "address" on "bus".
@@ -44,10 +48,9 @@ class At30tse:
         """The temperature of whatever the part is against, which on a
         battery board is the battery pack.  Raises OSError when it does not answer"""
 
-        data = self.bus.read_i2c_block_data(
-            self.address, REGISTER_TEMPERATURE, 2)
+        data = self.bus.read_i2c_block_data(self.address, REGISTER_TEMPERATURE, 2)
         raw = ((data[0] << 8) | data[1]) >> _SHIFT
-        if raw & _SIGN:                            # Two's complement, 11 bits
+        if raw & _SIGN:  # Two's complement, 11 bits
             raw -= _RANGE
         return raw * CELSIUS_PER_BIT
 
@@ -61,5 +64,6 @@ class At30tse:
             return -55.0 <= self.celsius() <= 125.0
         except OSError:
             return False
+
 
 # --------------------------------------------------------------------------- #

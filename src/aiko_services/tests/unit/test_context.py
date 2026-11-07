@@ -26,8 +26,10 @@ TRANSPORT = "mqtt"
 #         transport="mqtt")
 # }
 
+
 def actor_args(name):
     return aiko.actor_args(name)
+
 
 def test_actor_args():
     init_args = actor_args(ACTOR_NAME)
@@ -42,6 +44,7 @@ def test_actor_args():
     assert context.protocol == "*"
     assert context.tags == []
     assert context.transport == TRANSPORT
+
 
 def test_actor_args_defaults_not_shared():
     # Regression: with tags/parameters omitted, each context must receive

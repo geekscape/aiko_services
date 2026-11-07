@@ -29,29 +29,43 @@
 # - Give LogLevelPopupMenu the dashboard as an argument, so that it joins
 #   the rest of the interface here
 
-from collections import defaultdict, deque, namedtuple
 import time
+from collections import defaultdict, deque, namedtuple
 
 from asciimatics.event import KeyboardEvent
 from asciimatics.exceptions import NextScene, StopApplication
 from asciimatics.screen import Screen
-from asciimatics.widgets import Frame as asciimatics_Frame  # avoid confusion !
 from asciimatics.widgets import (
-    Button, Divider, DropdownList, Label, Layout, MultiColumnListBox,
-    PopUpDialog, RadioButtons, Text, Widget
+    Button,
+    Divider,
+    DropdownList,
+    Label,
+    Layout,
+    MultiColumnListBox,
+    PopUpDialog,
+    RadioButtons,
+    Text,
+    Widget,
 )
+from asciimatics.widgets import Frame as asciimatics_Frame  # avoid confusion !
 from asciimatics.widgets.utilities import THEMES
 
 import aiko_services as aiko  # designed to be external to the main framework
 from aiko_services.main.connection import ConnectionState
-from aiko_services.main.utilities import (
-    display_time, get_mqtt_configuration, parse
-)
+from aiko_services.main.utilities import display_time, get_mqtt_configuration, parse
 
 __all__ = [
-    "Field", "FormFrame", "FrameCommon", "ListRequest", "LogUI",
-    "ServiceFrame", "choice_field", "display_value", "radio_field",
-    "set_display_utc", "text_field",
+    "Field",
+    "FormFrame",
+    "FrameCommon",
+    "ListRequest",
+    "LogUI",
+    "ServiceFrame",
+    "choice_field",
+    "display_value",
+    "radio_field",
+    "set_display_utc",
+    "text_field",
 ]
 
 # Date and time on display
@@ -64,12 +78,15 @@ __all__ = [
 
 _DISPLAY_UTC = False
 
+
 def set_display_utc(utc):
     global _DISPLAY_UTC
     _DISPLAY_UTC = bool(utc)
 
+
 def display_value(value):
     return display_time(value, _DISPLAY_UTC)
+
 
 _FRAME_UPDATE_RATE = 20 / 4  # 5 Hz (assuming update rate is roughly 20 Hz)
 _LOG_RING_BUFFER_SIZE = 128
@@ -86,10 +103,10 @@ NICE_COLORS["selected_focus_field"] = (GREEN, FONT_BOLD, BLACK)
 NICE_COLORS["title"] = (BLACK, FONT_BOLD, WHITE)
 THEMES["nice"] = NICE_COLORS
 
+
 class FrameCommon:
     def __init__(self, screen, height, width, has_border, name):
-        super(FrameCommon, self).__init__(
-            screen, height, width, has_border=has_border, name=name)
+        super(FrameCommon, self).__init__(screen, height, width, has_border=has_border, name=name)
         self.adjust_palette_required = True
 
         mqtt_configuration = get_mqtt_configuration()
@@ -101,6 +118,7 @@ class FrameCommon:
 
         self.connection_popup = None
         self.connection_state_last = None
+
     #   aiko.process.connection.add_handler(self._connection_state_handler)
 
     def _add_service_bar(self):
@@ -155,13 +173,13 @@ class FrameCommon:
             self.connection_state_last = connection_state
             if connection.is_connected(ConnectionState.REGISTRAR):
                 if self.connection_popup:
-                      self.scene.remove_effect(self.connection_popup)
-                      self.connection_popup = False
+                    self.scene.remove_effect(self.connection_popup)
+                    self.connection_popup = False
                 raise NextScene("Dashboard")
             elif not self.connection_popup:
-                self.connection_popup = PopUpDialog(self._screen,
-                    "MQTT server and/or Aiko Registar not found",
-                    ["OK"], on_close=_on_close, theme="nice")
+                self.connection_popup = PopUpDialog(
+                    self._screen, "MQTT server and/or Aiko Registar not found", ["OK"], on_close=_on_close, theme="nice"
+                )
                 self.scene.add_effect(self.connection_popup)
 
     @property
@@ -188,38 +206,39 @@ class FrameCommon:
         payload_out = f"(update {name} {value})"
         aiko.process.message.publish(topic_path_control, payload_out)
 
-# TODO: Replace _process_event_common() with the following ...
-# https://asciimatics.readthedocs.io/en/stable/widgets.html#global-key-handling
+    # TODO: Replace _process_event_common() with the following ...
+    # https://asciimatics.readthedocs.io/en/stable/widgets.html#global-key-handling
     def _process_event_common(self, event):
         if isinstance(event, KeyboardEvent):
             if event.key_code == ord("?"):
-            # TODO: [h] History / Log multiple Services (toggle)
-            # TODO: [p] Publish to Service
-            # TODO: [K] Kill Service (dialog for terminate / kill, remote)
-            #       [Delete] As above
-            # TODO: [L] Show Log page: Support multiple Service logs
-            # TODO: [N] New Service / Actor / Pipeline (parameters)
-            # TODO: [S] Show Service page: Generic page, log level, subscribe
-            #                              Parameters
-            #       [Enter] As above
-            # TODO: [T] Terminate Actor
-                text = " Help   Aiko Services Dashboard\n"        \
-                       " ----   -----------------------\n"        \
-                       " Enter  Services: show Service page\n"    \
-                       "        Variables: update the value\n"     \
-                       " Tab    Move to next section\n"           \
-                       " c      Copy topic path to clipboard \n"  \
-                       " f      Filter Service (toggle)\n"        \
-                       " l      Log level change\n"               \
-                       " s      Select Service (toggle)\n"        \
-                       " C      Clear selection\n"                \
-                       " D      Show Dashboard page\n"            \
-                       " K      Kill Service (local)\n"           \
-                       " L      Show Log page\n"                  \
-                       " S      Show Service page\n"              \
-                       " x      Exit"
-                self.scene.add_effect(
-                    PopUpDialog(self._screen, text, ["OK"], theme="nice"))
+                # TODO: [h] History / Log multiple Services (toggle)
+                # TODO: [p] Publish to Service
+                # TODO: [K] Kill Service (dialog for terminate / kill, remote)
+                #       [Delete] As above
+                # TODO: [L] Show Log page: Support multiple Service logs
+                # TODO: [N] New Service / Actor / Pipeline (parameters)
+                # TODO: [S] Show Service page: Generic page, log level, subscribe
+                #                              Parameters
+                #       [Enter] As above
+                # TODO: [T] Terminate Actor
+                text = (
+                    " Help   Aiko Services Dashboard\n"
+                    " ----   -----------------------\n"
+                    " Enter  Services: show Service page\n"
+                    "        Variables: update the value\n"
+                    " Tab    Move to next section\n"
+                    " c      Copy topic path to clipboard \n"
+                    " f      Filter Service (toggle)\n"
+                    " l      Log level change\n"
+                    " s      Select Service (toggle)\n"
+                    " C      Clear selection\n"
+                    " D      Show Dashboard page\n"
+                    " K      Kill Service (local)\n"
+                    " L      Show Log page\n"
+                    " S      Show Service page\n"
+                    " x      Exit"
+                )
+                self.scene.add_effect(PopUpDialog(self._screen, text, ["OK"], theme="nice"))
             if event.key_code in [ord("x"), ord("X"), Screen.ctrl("c")]:
                 self.services_cache = None
                 aiko.services_cache_delete()
@@ -230,25 +249,25 @@ class FrameCommon:
         padding = 0
         while len(value):
             if isinstance(name, str):
-                field = (name, " "*padding + value[0:width-padding])
+                field = (name, " " * padding + value[0 : width - padding])
                 name = ""
             else:
-                field = (" "*padding + value[0:width-padding],)
+                field = (" " * padding + value[0 : width - padding],)
             list.append(field)
-            value = value[width-padding:]
+            value = value[width - padding :]
             if padding == 0:
                 padding = 2
 
+
 class ServiceFrame(FrameCommon, asciimatics_Frame):
     def __init__(self, screen, dashboard, name="service_frame"):
-        super(ServiceFrame, self).__init__(
-            screen, screen.height, screen.width, has_border=False, name=name
-        )
+        super(ServiceFrame, self).__init__(screen, screen.height, screen.width, has_border=False, name=name)
 
         self.dashboard = dashboard
         self.service = None
         self._add_title_bar()
         self._service_title = self._add_service_bar()
+
     #   self._value_width = self._service_widget.width
 
     def _update(self, frame_no):
@@ -261,7 +280,7 @@ class ServiceFrame(FrameCommon, asciimatics_Frame):
             topic_path = aiko.ServiceTopicPath.parse(self.service[0]).terse
             name = self._short_name(self.service[1])
             self._service_title.value = f"Service: {topic_path}: {name}"
-        # Plugins that add handlers to the ec_consumer must also remove them !
+            # Plugins that add handlers to the ec_consumer must also remove them !
             self._service_frame_start(self.service, self.dashboard.ec_consumer)
 
         super(ServiceFrame, self)._update(frame_no)
@@ -281,8 +300,10 @@ class ServiceFrame(FrameCommon, asciimatics_Frame):
         self._process_event_common(event)
         return super(ServiceFrame, self).process_event(event)
 
+
 # Re-usable logging user interface  # TODO: Consider turning into a Widget ?
 # https://asciimatics.readthedocs.io/en/stable/widgets.html#custom-widgets
+
 
 class LogUI:
     def __init__(self, parent, height=Widget.FILL_FRAME):
@@ -293,8 +314,7 @@ class LogUI:
         self.topic_paths = {}
 
         self._log_widget = MultiColumnListBox(
-            height, ["<0"], options=[],
-            titles=["Date       Time        Log level Message"]
+            height, ["<0"], options=[], titles=["Date       Time        Log level Message"]
         )
         layout_0 = Layout([1])
         parent.add_layout(layout_0)
@@ -310,8 +330,7 @@ class LogUI:
             self.topic_paths[topic_path] = topic_path
             topic_path, _, _ = topic_path.rpartition("/")
             topic_path += "/0/log"  # TODO: Use correct Service Id
-            aiko.process.add_message_handler(
-                self._topic_log_handler, topic_path)
+            aiko.process.add_message_handler(self._topic_log_handler, topic_path)
 
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
@@ -335,8 +354,7 @@ class LogUI:
             del self.topic_paths[topic_path]
             topic_path, _, _ = topic_path.rpartition("/")
             topic_path += "/0/log"  # TODO: Use correct Service Id
-            aiko.process.remove_message_handler(
-                self._topic_log_handler, topic_path)
+            aiko.process.remove_message_handler(self._topic_log_handler, topic_path)
 
     def _service_frame_start(self, service, service_ec_consumer):
         self.log_buffer = deque(maxlen=_LOG_RING_BUFFER_SIZE)
@@ -361,13 +379,11 @@ class LogUI:
         log_records = []
         if self.log_buffer:
             for log_record in self.log_buffer:
-            #   log_records.append((log_record,))  # No record line wrapping
-                self.parent._update_field(         # With record line wrapping
-                    log_records, None, log_record, self._log_widget.width)
-        self._log_widget.options = [
-            (log_record, row_index)
-            for row_index, log_record in enumerate(log_records)
-        ]
+                #   log_records.append((log_record,))  # No record line wrapping
+                self.parent._update_field(  # With record line wrapping
+                    log_records, None, log_record, self._log_widget.width
+                )
+        self._log_widget.options = [(log_record, row_index) for row_index, log_record in enumerate(log_records)]
 
 
 # --------------------------------------------------------------------------- #
@@ -388,8 +404,10 @@ class LogUI:
 Field = namedtuple("Field", "name label kind options value")
 Field.__new__.__defaults__ = ("text", (), "")
 
+
 def text_field(name, label, value=""):
     return Field(name, label, "text", (), value)
+
 
 def choice_field(name, label, options, value=None):
     """options is [(label, value)], and the first is the default"""
@@ -397,9 +415,11 @@ def choice_field(name, label, options, value=None):
     value = options[0][1] if value is None and options else value
     return Field(name, label, "choice", tuple(options), value)
 
+
 def radio_field(name, label, options, value=None):
     value = options[0][1] if value is None and options else value
     return Field(name, label, "radio", tuple(options), value)
+
 
 class FormFrame(asciimatics_Frame):
     """A modal form.  "on_accept" is called with {name: value} for every
@@ -414,14 +434,19 @@ class FormFrame(asciimatics_Frame):
         self.fields = list(fields)
         self.on_accept = on_accept
         note_lines = len(note.split("\n")) if note else 0
-        height = min(screen.height - 2,
-            sum(self._field_height(field) for field in self.fields)
-            + note_lines + 5)
+        height = min(screen.height - 2, sum(self._field_height(field) for field in self.fields) + note_lines + 5)
         width = min(screen.width - 2, max(64, len(title) + 8))
 
-        super(FormFrame, self).__init__(screen, height, width,
-            has_border=True, is_modal=True, name="form_frame",
-            title=title[:width - 4], reduce_cpu=True)
+        super(FormFrame, self).__init__(
+            screen,
+            height,
+            width,
+            has_border=True,
+            is_modal=True,
+            name="form_frame",
+            title=title[: width - 4],
+            reduce_cpu=True,
+        )
         self.set_theme("nice")
 
         layout = Layout([1], fill_frame=True)
@@ -455,7 +480,7 @@ class FormFrame(asciimatics_Frame):
             widget = DropdownList(list(field.options), label, field.name)
         else:
             widget = Text(label, field.name)
-        widget.value = field.value          # never None: Text raises on one
+        widget.value = field.value  # never None: Text raises on one
         return widget
 
     @property
@@ -475,11 +500,11 @@ class FormFrame(asciimatics_Frame):
             self.scene.remove_effect(self)
 
     def process_event(self, event):
-        if isinstance(event, KeyboardEvent)  \
-            and event.key_code == Screen.KEY_ESCAPE:
+        if isinstance(event, KeyboardEvent) and event.key_code == Screen.KEY_ESCAPE:
             self._destroy()
             return None
         return super(FormFrame, self).process_event(event)
+
 
 # --------------------------------------------------------------------------- #
 # A "(list ...)" request, and the response it collects
@@ -489,19 +514,20 @@ class FormFrame(asciimatics_Frame):
 # that the request names.  The response arrives on the event loop's
 # thread, so what it carries is left for the drawing thread to take.
 
+
 class ListRequest:
     """One request at a time, which is all a page shows at a time"""
 
-    TIMEOUT = 5.0                                           # seconds
+    TIMEOUT = 5.0  # seconds
 
     def __init__(self, timeout=None):
         self.timeout = self.TIMEOUT if timeout is None else timeout
         self.topic = aiko.process.topic_in
-        self.pending = None               # what the request asked about
+        self.pending = None  # what the request asked about
         self._records = None
         self._count = 0
         self._started = 0.0
-        self._ready = None                # (asked, records), for the drawer
+        self._ready = None  # (asked, records), for the drawer
 
     def start(self):
         aiko.process.add_message_handler(self.handler, self.topic)
@@ -552,5 +578,6 @@ class ListRequest:
             return None
         asked, self.pending, self._records = self.pending, None, None
         return asked
+
 
 # --------------------------------------------------------------------------- #

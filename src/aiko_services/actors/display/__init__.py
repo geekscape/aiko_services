@@ -13,13 +13,33 @@
 # outputs, console and dashboard_plugin by name.
 
 from aiko_services.actors.display.display import (  # noqa: F401
-    ASPECT_TAGS, Canvas, Display, DisplayImpl, FUNCTIONS, Interaction,
-    PROTOCOL, PROTOCOL_TYPE, SETTINGS, SETTINGS_SPEC, Screen,
-    service_filter, service_tags,
+    ASPECT_TAGS,
+    FUNCTIONS,
+    PROTOCOL,
+    PROTOCOL_TYPE,
+    SETTINGS,
+    SETTINGS_SPEC,
+    Canvas,
+    Display,
+    DisplayImpl,
+    Interaction,
+    Screen,
+    service_filter,
+    service_tags,
 )
 
 __all__ = [
-    "ASPECT_TAGS", "Canvas", "Display", "DisplayImpl", "FUNCTIONS",
-    "Interaction", "PROTOCOL", "PROTOCOL_TYPE", "SETTINGS", "SETTINGS_SPEC",
-    "Screen", "service_filter", "service_tags",
+    "ASPECT_TAGS",
+    "Canvas",
+    "Display",
+    "DisplayImpl",
+    "FUNCTIONS",
+    "Interaction",
+    "PROTOCOL",
+    "PROTOCOL_TYPE",
+    "SETTINGS",
+    "SETTINGS_SPEC",
+    "Screen",
+    "service_filter",
+    "service_tags",
 ]

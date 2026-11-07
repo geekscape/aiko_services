@@ -72,11 +72,12 @@
 # ToDo:
 #   - Move --show to shim so Click doesn't complain about required params
 
-import click
+import json
 import re
 import sys
+
+import click
 import yaml
-import json
 
 from aiko_services.main import *
 from aiko_services.main.utilities import *
@@ -85,13 +86,14 @@ __all__ = []
 
 MATCH_CAMEL_CASE = re.compile(r"(?<!^)(?=[A-Z])")
 DEFAULT_PIPELINE_NAME = "pipeline_definition"
-DEFAULT_PIPELINE_FRAME_RATE = 0.05 # 20 FPS, 0 for flat-out!
+DEFAULT_PIPELINE_FRAME_RATE = 0.05  # 20 FPS, 0 for flat-out!
 SEP = "_SEP_"
 pipeline_definition = []
 
 
 def to_snake_case(val):
-  return MATCH_CAMEL_CASE.sub("_", val).lower()
+    return MATCH_CAMEL_CASE.sub("_", val).lower()
+
 
 def cli_shim():
     """
@@ -126,15 +128,16 @@ def options_from_pipeline_def(pipeline_definition):
 
 
     """
+
     def infer_help(component_name, param_name):
         help_str = f"Overrides {component_name}.{param_name}"
-        #if value is not None:
+        # if value is not None:
         #    help_str += f" [{value}]"
         return help_str
 
     def infer_flag(component_name, param_name):
         snake_name = to_snake_case(component_name)
-        return f"--{snake_name}-{param_name}".replace("_","-").replace(" ", "-")
+        return f"--{snake_name}-{param_name}".replace("_", "-").replace(" ", "-")
 
     def validate_attributes(attributes, component_name, param_name):
         valid_attrs = {
@@ -143,31 +146,25 @@ def options_from_pipeline_def(pipeline_definition):
             "help": str,
             "hidden": bool,
         }
-        for k,v in attributes.items():
+        for k, v in attributes.items():
             if k not in valid_attrs:
                 ks = list(valid_attrs.keys())
-                msg = (
-                    f"Invalid cli attribute {component_name}.{param_name}. "
-                    f"Got: {k}. Valid attributes are {ks}.")
+                msg = f"Invalid cli attribute {component_name}.{param_name}. Got: {k}. Valid attributes are {ks}."
                 raise ValueError(msg)
 
     def validate_value_type(value, attributes, component_name, param_name):
         if not isinstance(value, attributes["type"]):
             t = attributes["type"]
-            msg = (
-                f"Type missmatch in {component_name}.{param_name} "
-                f"type of {t} specified, but got {type(value)}"
-            )
+            msg = f"Type missmatch in {component_name}.{param_name} type of {t} specified, but got {type(value)}"
             raise ValueError(msg)
-
 
     def decorator(f):
         for ele in reversed([e for e in pipeline_definition if "parameters" in e]):
             component_name = ele["name"]
 
             # Required cli params
-            params = {k:v for k,v in ele["parameters"].items() if not k.endswith("_cli")}
-            cli_attrs = {k:v for k,v in ele["parameters"].items() if k.endswith("_cli")}
+            params = {k: v for k, v in ele["parameters"].items() if not k.endswith("_cli")}
+            cli_attrs = {k: v for k, v in ele["parameters"].items() if k.endswith("_cli")}
             for param_name, value in params.items():
                 attributes = cli_attrs.pop(f"{param_name}_cli", {})
                 if attributes.get("hidden", False):
@@ -178,7 +175,6 @@ def options_from_pipeline_def(pipeline_definition):
                 if not attributes.get("required", False):
                     attributes["default"] = value
                     attributes["show_default"] = True
-
 
                 attributes["type"] = type(value)
                 if "help" not in attributes:
@@ -192,6 +188,7 @@ def options_from_pipeline_def(pipeline_definition):
                 flags += [variable_name]
                 click.option(*flags, **attributes)(f)
         return f
+
     return decorator
 
 
@@ -203,22 +200,29 @@ def clean_cli_params(pipeline_definition):
                 component["parameters"].pop(param_name)
     return pipeline_definition
 
+
 pipeline_definition = cli_shim()
 
-@click.command("main", help=(
-  "Load Pipeline Definition, build cli, override parameters if needed, run "
-  "pipeline. Like a boss!\n\nUsage:\n\n"
 
-  "  aiko <pipeline_definition.py> --help"))
+@click.command(
+    "main",
+    help=(
+        "Load Pipeline Definition, build cli, override parameters if needed, run "
+        "pipeline. Like a boss!\n\nUsage:\n\n"
+        "  aiko <pipeline_definition.py> --help"
+    ),
+)
 @options_from_pipeline_def(pipeline_definition)
-@click.option("--pipeline-frame-rate", "-fps", type=int,
-  required=False, default=DEFAULT_PIPELINE_FRAME_RATE,
-  help=f"Rate at which to run the pipeline over frames [{DEFAULT_PIPELINE_FRAME_RATE}]")
-@click.option("--show", is_flag=True,
-  help="Only print the pipeline, dont run it.")
-@click.option("--dump", type=str, default=None,
-  help="Save the file to yaml or json")
-
+@click.option(
+    "--pipeline-frame-rate",
+    "-fps",
+    type=int,
+    required=False,
+    default=DEFAULT_PIPELINE_FRAME_RATE,
+    help=f"Rate at which to run the pipeline over frames [{DEFAULT_PIPELINE_FRAME_RATE}]",
+)
+@click.option("--show", is_flag=True, help="Only print the pipeline, dont run it.")
+@click.option("--dump", type=str, default=None, help="Save the file to yaml or json")
 def main(**kwargs):
     dump = kwargs["dump"]
     if dump is not None:
@@ -236,7 +240,7 @@ def main(**kwargs):
     _pipeline_def = clean_cli_params(pipeline_definition)
     pipeline = Pipeline_2020(_pipeline_def, kwargs["pipeline_frame_rate"])
 
-    for k,v in kwargs.items():
+    for k, v in kwargs.items():
         if SEP in k:
             node_name, param_name = k.split(SEP)
             pipeline.update_node_parameter(node_name, param_name, v)
@@ -246,15 +250,18 @@ def main(**kwargs):
         for node in _pipeline_def:
             node_name = node["name"]
             info = pipeline.get_node(node_name)
-            d.append({
-                "name": node_name,
-                "module": info["module"],
-                "successors": info["successors"],
-                "parameters": info["parameters"]
-            })
+            d.append(
+                {
+                    "name": node_name,
+                    "module": info["module"],
+                    "successors": info["successors"],
+                    "parameters": info["parameters"],
+                }
+            )
         print(yaml.dump(d))
     else:
         pipeline.run(mqtt_connection_required=False)
+
 
 if __name__ == "__main__":
     main()

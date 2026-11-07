@@ -46,15 +46,23 @@ import subprocess
 import tempfile
 
 from aiko_services.actors.power_manager.hold import HOLD_GPIO
-from aiko_services.actors.power_manager.signal import (
-    BUZZER_GPIO, PATTERNS
-)
+from aiko_services.actors.power_manager.signal import BUZZER_GPIO, PATTERNS
 
 __all__ = [
-    "ARTIFACTS", "GRANT_PATH", "HOOK_PATH", "HOLD_RELEASE_DELAY_S",
-    "InstallRefused", "POWEROFF_COMMAND", "RELEASE_ACTIONS",
-    "REMOUNT_COMMAND", "UNIT_PATH", "granted_commands", "install", "paths",
-    "render", "verify",
+    "ARTIFACTS",
+    "GRANT_PATH",
+    "HOOK_PATH",
+    "HOLD_RELEASE_DELAY_S",
+    "InstallRefused",
+    "POWEROFF_COMMAND",
+    "RELEASE_ACTIONS",
+    "REMOUNT_COMMAND",
+    "UNIT_PATH",
+    "granted_commands",
+    "install",
+    "paths",
+    "render",
+    "verify",
 ]
 
 UNIT_PATH = "/etc/systemd/system/aiko_power_hold.service"
@@ -84,6 +92,7 @@ _MOUNT = "/usr/bin/mount"
 POWEROFF_COMMAND = (_SYSTEMCTL, "poweroff")
 REMOUNT_COMMAND = (_MOUNT, "-o", "remount", "-o", "ro")
 
+
 def granted_commands(mount_point="/", systemctl=_SYSTEMCTL, mount=_MOUNT):
     """The exact argument vectors that the grant permits, in the order the
     grant lists them.  A caller of either one uses this, so that what it
@@ -94,14 +103,24 @@ def granted_commands(mount_point="/", systemctl=_SYSTEMCTL, mount=_MOUNT):
         (mount, "-o", "remount", "-o", "ro", mount_point),
     )
 
+
 class InstallRefused(Exception):
     """install() would not write: the text did not validate, or the caller
     has no privilege"""
 
-def render(artifact, account=None, pinctrl=_PINCTRL, hold_gpio=HOLD_GPIO,
-    buzzer_gpio=BUZZER_GPIO, delay=HOLD_RELEASE_DELAY_S,
-    mount_point="/", systemctl=_SYSTEMCTL, mount=_MOUNT, sleep=_SLEEP):
 
+def render(
+    artifact,
+    account=None,
+    pinctrl=_PINCTRL,
+    hold_gpio=HOLD_GPIO,
+    buzzer_gpio=BUZZER_GPIO,
+    delay=HOLD_RELEASE_DELAY_S,
+    mount_point="/",
+    systemctl=_SYSTEMCTL,
+    mount=_MOUNT,
+    sleep=_SLEEP,
+):
     """The text of one artifact: "unit", "hook" or "grant".
 
     Pure: it reads nothing and writes nothing.  "account" is the account
@@ -109,8 +128,7 @@ def render(artifact, account=None, pinctrl=_PINCTRL, hold_gpio=HOLD_GPIO,
     code, so one deployment's account never reaches another's"""
 
     if artifact not in ARTIFACTS:
-        raise ValueError(
-            f'unknown artifact "{artifact}": one of {list(ARTIFACTS)}')
+        raise ValueError(f'unknown artifact "{artifact}": one of {list(ARTIFACTS)}')
     if artifact == "unit":
         return _unit(pinctrl, hold_gpio, buzzer_gpio, sleep)
     if artifact == "hook":
@@ -118,6 +136,7 @@ def render(artifact, account=None, pinctrl=_PINCTRL, hold_gpio=HOLD_GPIO,
     if not account:
         raise ValueError('the grant needs "account": whose privilege it is')
     return _grant(account, systemctl, mount, mount_point)
+
 
 def _beep_commands(pinctrl, buzzer_gpio, pattern, sleep):
     """The commands that play one pattern through pinctrl: a level, a wait,
@@ -134,6 +153,7 @@ def _beep_commands(pinctrl, buzzer_gpio, pattern, sleep):
         commands.append(f"{sleep} {seconds}")
     commands.append(f"{pinctrl} set {buzzer_gpio} op dl")
     return commands
+
 
 def _unit(pinctrl, hold_gpio, buzzer_gpio, sleep=_SLEEP):
     """The start-up unit.  It is a oneshot that exits, and the pin keeps its
@@ -155,10 +175,8 @@ def _unit(pinctrl, hold_gpio, buzzer_gpio, sleep=_SLEEP):
     (ADR-028 decision 6), and a release here would cut the power of a host
     that is restarting"""
 
-    beeps = "\n".join(f"ExecStartPost=-{command}"
-        for command in _beep_commands(pinctrl, buzzer_gpio, "booted", sleep))
-    stopping = "\n".join(f"ExecStop=-{command}"
-        for command in _beep_commands(pinctrl, buzzer_gpio, "shutdown", sleep))
+    beeps = "\n".join(f"ExecStartPost=-{command}" for command in _beep_commands(pinctrl, buzzer_gpio, "booted", sleep))
+    stopping = "\n".join(f"ExecStop=-{command}" for command in _beep_commands(pinctrl, buzzer_gpio, "shutdown", sleep))
     return f"""\
 [Unit]
 Description=Aiko Services: assert the power hold
@@ -192,6 +210,7 @@ ExecStart={pinctrl} set {hold_gpio} op dh
 WantedBy=multi-user.target
 """
 
+
 def _hook(pinctrl, hold_gpio, buzzer_gpio, delay, sleep=_SLEEP):
     """The shutdown hook.  It releases the hold for a stop, and never for a
     restart, and it waits before the release.
@@ -201,8 +220,7 @@ def _hook(pinctrl, hold_gpio, buzzer_gpio, delay, sleep=_SLEEP):
     built-in, so a PATH that the shutdown environment did not set would
     skip the wait and release the hold at once"""
 
-    beeps = "\n".join(
-        _beep_commands(pinctrl, buzzer_gpio, "shutdown", sleep))
+    beeps = "\n".join(_beep_commands(pinctrl, buzzer_gpio, "shutdown", sleep))
     return f"""\
 #!/bin/sh
 # Aiko Services: release the power hold, after the file systems are gone.
@@ -232,13 +250,15 @@ esac
 {pinctrl} set {hold_gpio} op dl
 """
 
+
 def _grant(account, systemctl, mount, mount_point):
     """The privilege grant: two exact commands, absolute paths, no wildcard,
     and never NOPASSWD: ALL"""
 
     commands = "\n".join(
         f"{account} ALL=(root) NOPASSWD: {' '.join(command)}"
-        for command in granted_commands(mount_point, systemctl, mount))
+        for command in granted_commands(mount_point, systemctl, mount)
+    )
     return f"""\
 # Aiko Services: the power manager's two privileged operations.
 # Rendered by "aiko_power_manager render grant" -- do not edit here.
@@ -254,10 +274,12 @@ def _grant(account, systemctl, mount, mount_point):
 {commands}
 """
 
+
 def paths(unit=UNIT_PATH, hook=HOOK_PATH, grant=GRANT_PATH):
     """Where each artifact belongs"""
 
     return {"unit": unit, "hook": hook, "grant": grant}
+
 
 def verify(where=None):
     """Which artifacts are in place: {"unit": "installed" | "missing", ...}.
@@ -267,8 +289,8 @@ def verify(where=None):
     and an operator must be able to see that"""
 
     where = where or paths()
-    return {name: ("installed" if os.path.exists(path) else "missing")
-        for name, path in where.items()}
+    return {name: ("installed" if os.path.exists(path) else "missing") for name, path in where.items()}
+
 
 def install(artifact, text, path=None, mode=None, validator=None):
     """Write one rendered artifact.  The only operation here that changes
@@ -291,8 +313,7 @@ def install(artifact, text, path=None, mode=None, validator=None):
     if not os.path.isdir(directory):
         raise InstallRefused(f"{directory} does not exist: make it first")
     try:
-        handle, temporary = tempfile.mkstemp(
-            dir=directory, prefix=f".{os.path.basename(path)}.")
+        handle, temporary = tempfile.mkstemp(dir=directory, prefix=f".{os.path.basename(path)}.")
         with os.fdopen(handle, "w", encoding="utf-8") as file:
             file.write(text)
         os.chmod(temporary, mode)
@@ -301,10 +322,13 @@ def install(artifact, text, path=None, mode=None, validator=None):
         raise InstallRefused(str(error)) from error
     return path
 
+
 _MODES = {"unit": 0o644, "hook": 0o755, "grant": 0o440}
+
 
 def _validate_nothing(text):
     return None if text.strip() else "the text is empty"
+
 
 def _validate_grant(text):
     """The sudoers file must parse, and it must not grant everything.
@@ -323,8 +347,7 @@ def _validate_grant(text):
         with os.fdopen(handle, "w", encoding="utf-8") as file:
             file.write(text)
         os.chmod(temporary, 0o440)
-        done = subprocess.run([tool, "-c", "-f", temporary],
-            capture_output=True, text=True, timeout=10)
+        done = subprocess.run([tool, "-c", "-f", temporary], capture_output=True, text=True, timeout=10)
         if done.returncode != 0:
             return (done.stderr or done.stdout).strip()[:120]
     except (OSError, subprocess.SubprocessError) as error:
@@ -335,6 +358,7 @@ def _validate_grant(text):
         except OSError:
             pass
     return None
+
 
 _VALIDATORS = {
     "unit": _validate_nothing,

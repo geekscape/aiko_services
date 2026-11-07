@@ -18,8 +18,8 @@
 # - None, yet !
 
 import pytest
-pytest.importorskip("cv2",
-    reason="aiko_services.elements.media needs cv2 (video_io.py)")
+
+pytest.importorskip("cv2", reason="aiko_services.elements.media needs cv2 (video_io.py)")
 
 from aiko_services.elements.cameras import scheme_depthai
 from aiko_services.tests.unit import do_create_pipeline
@@ -55,6 +55,7 @@ PIPELINE_DEFINITION = """{
 }
 """
 
+
 @pytest.fixture
 def fake(monkeypatch):
     do_fake_initialize()
@@ -62,15 +63,15 @@ def fake(monkeypatch):
     yield FakeCamera
     do_fake_initialize()
 
+
 def _run(settle, frame_count):
     results = do_results_initialize()
-    definition = PIPELINE_DEFINITION  \
-        .replace("SETTLE", str(settle))  \
-        .replace("FRAME_COUNT", str(frame_count))
+    definition = PIPELINE_DEFINITION.replace("SETTLE", str(settle)).replace("FRAME_COUNT", str(frame_count))
     do_create_pipeline(definition, frame_data=None)
     assert not results["watchdog"], "Stream did not stop: watchdog fired"
     assert results["stopped"], "ImageSink.stop_stream() was not invoked"
     return results
+
 
 def test_capture_limit_bounds_the_run(fake):
     results = _run(settle=0, frame_count=3)
@@ -80,11 +81,12 @@ def test_capture_limit_bounds_the_run(fake):
     assert instance.opened and instance.closed
     assert instance._resolution == (64, 48)
 
+
 def test_settle_discards_then_capture_failure_stops(fake):
     """Warm-up frames are not delivered; a capture exception ends the
     Stream through STOP on the main event thread, not the watchdog"""
 
-    fake.FRAME_LIMIT = 7                # 5 warm-up frames + 2 delivered
+    fake.FRAME_LIMIT = 7  # 5 warm-up frames + 2 delivered
     results = _run(settle=10, frame_count=100)
     assert results["frame_ids"] == [0, 1]
     assert results["shapes"] == [(48, 64, 3)] * 2

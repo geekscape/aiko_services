@@ -62,6 +62,7 @@
 #   * Security design and implementation: owners, roles, ACLs
 
 from abc import abstractmethod
+
 import click
 
 from aiko_services.main import *
@@ -72,12 +73,12 @@ _RESPONSE_TOPIC = f"{aiko.topic_in}"
 
 # --------------------------------------------------------------------------- #
 
+
 class Category(Actor, Dependency):
     Interface.default("Category", "aiko_services.main.category.CategoryImpl")
 
     @abstractmethod
-    def add(self, entry_name,
-        service_filter=None, lifecycle_manager_url=None, storage_url=None):
+    def add(self, entry_name, service_filter=None, lifecycle_manager_url=None, storage_url=None):
         pass
 
     @abstractmethod
@@ -85,34 +86,35 @@ class Category(Actor, Dependency):
         pass
 
     @abstractmethod
-    def list(self, topic_path_response, entry_name=None,
-        long_format=False, recursive=False, entry_records=None):
+    def list(self, topic_path_response, entry_name=None, long_format=False, recursive=False, entry_records=None):
         pass
 
     @abstractmethod
     def remove(self, entry_name):
         pass
 
+
 # --------------------------------------------------------------------------- #
+
 
 class CategoryImpl(Category):
     def __init__(self, context, service_filter=None):
         context.call_init(self, "Actor", context)
-        context.call_init(self, "Dependency", context,
-            service_filter=service_filter)
+        context.call_init(self, "Dependency", context, service_filter=service_filter)
 
-        self.dependency = context.get_implementation("Dependency")    # methods
+        self.dependency = context.get_implementation("Dependency")  # methods
 
-        self.share.update({                       # Inherit from Actor
-            "source_file": f"v{CATEGORY_VERSION}⇒ {__file__}",
-            "entries": {},                        # Categories and Dependencies
-            "entries_count": 0})
-        self.ec_producer = compose_instance(
-            ECProducerImpl, ec_producer_args(self, self.share))
+        self.share.update(
+            {  # Inherit from Actor
+                "source_file": f"v{CATEGORY_VERSION}⇒ {__file__}",
+                "entries": {},  # Categories and Dependencies
+                "entries_count": 0,
+            }
+        )
+        self.ec_producer = compose_instance(ECProducerImpl, ec_producer_args(self, self.share))
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
-    def add(self, entry_name,
-        service_filter, lifecycle_manager_url=None, storage_url=None):
+    def add(self, entry_name, service_filter, lifecycle_manager_url=None, storage_url=None):
 
         if service_filter and not isinstance(service_filter, ServiceFilter):
             service_filter = ServiceFilter(*service_filter)
@@ -120,8 +122,9 @@ class CategoryImpl(Category):
             service_filter.name = entry_name
 
         if entry_name not in self.share["entries"]:
-            dependency = compose_instance(DependencyImpl, dependency_args(
-                None, service_filter, lifecycle_manager_url, storage_url))
+            dependency = compose_instance(
+                DependencyImpl, dependency_args(None, service_filter, lifecycle_manager_url, storage_url)
+            )
             self.ec_producer.update(f"entries.{entry_name}", dependency)
             self.ec_producer.update("entries_count", len(self.share["entries"]))
 
@@ -136,7 +139,7 @@ class CategoryImpl(Category):
         entry_records = []
         for entry_key, entry in self.share["entries"].items():
             if entry_name is None or entry_name == entry_key:
-            # TODO: "(dn (None * * * * (a=b c=d)) 0: 0:)"         # None --> 0:
+                # TODO: "(dn (None * * * * (a=b c=d)) 0: 0:)"         # None --> 0:
                 entry = str(entry).replace("None", "0:")
                 entry_record = f"{level} {entry_key} {entry}"
                 entry_records.append(entry_record)
@@ -151,18 +154,15 @@ class CategoryImpl(Category):
             return True
         return self.dependency.is_type(self, type_name)
 
-# Note: "recursive" only needed for HyperSpace, not Category, ignore it here
+    # Note: "recursive" only needed for HyperSpace, not Category, ignore it here
 
-    def list(self, topic_path_response, entry_name=None,
-        long_format=False, recursive=False, entry_records=None):
+    def list(self, topic_path_response, entry_name=None, long_format=False, recursive=False, entry_records=None):
 
         entry_records = self._get_entry_records(entry_name)
-        CategoryImpl._list_publish(
-            topic_path_response, entry_records, long_format)
+        CategoryImpl._list_publish(topic_path_response, entry_records, long_format)
 
     @classmethod
-    def list_command(cls,
-        actor_name, entry_name, long_format, recursive, protocol):
+    def list_command(cls, actor_name, entry_name, long_format, recursive, protocol):
 
         # TODO: Turn the "response" into @dataclass(es)
         # Record types: A) new child Category, B) current Catefory Entry
@@ -175,20 +175,23 @@ class CategoryImpl(Category):
         def response_handler(response):
             CategoryImpl._list_print(response, long_format)
 
-        do_request(Category,
+        do_request(
+            Category,
             ServiceFilter(name=actor_name, protocol=protocol),
-            lambda actor: actor.list(
-                _RESPONSE_TOPIC, entry_name, long_format, recursive, None),
-            response_handler, _RESPONSE_TOPIC, terminate=True)
+            lambda actor: actor.list(_RESPONSE_TOPIC, entry_name, long_format, recursive, None),
+            response_handler,
+            _RESPONSE_TOPIC,
+            terminate=True,
+        )
 
     @classmethod
     def _list_print(cls, entry_records, long_format):
         if len(entry_records):
             if long_format:
-                output =  "Name  (ServiceFields)  LifeCycleManager, Storage\n"
+                output = "Name  (ServiceFields)  LifeCycleManager, Storage\n"
                 output += "      (Topic Name  Protocol Transport Owner Tags)"
             else:
-                output =  "Name  Protocol  Owner"
+                output = "Name  Protocol  Owner"
         else:
             output = "No category entries"
 
@@ -198,10 +201,10 @@ class CategoryImpl(Category):
                 continue
 
             level = int(record[0])
-            if level < 0:                   # new child Category
+            if level < 0:  # new child Category
                 indent = "  " * (abs(level) - 1)
                 output += f"\n\n{indent}{record[1]}/"
-            else:                           # current Category Entry
+            else:  # current Category Entry
                 entry_name = record[1]
                 if record[2][0]:
                     service_filter = ServiceFilter(*record[2][0])
@@ -215,29 +218,23 @@ class CategoryImpl(Category):
                 if long_format:
                     lifecycle_manager_url = record[2][1]
                     storage_url = record[2][2]
-                    output += f"\n{indent}{entry_name} {padding}"  \
-                              f"{service_filter} "  \
-                              f"{lifecycle_manager_url}, "  \
-                              f"{storage_url}"
+                    output += f"\n{indent}{entry_name} {padding}{service_filter} {lifecycle_manager_url}, {storage_url}"
                 else:
                     name = service_filter.name
                     if name is None or name == "*" or name == entry_name:
                         name = ""
-                        output += f"\n{indent}{entry_name} {padding}"  \
-                                  f"{service_filter.protocol} "  \
-                                  f"{service_filter.owner}  {name}"
+                        output += (
+                            f"\n{indent}{entry_name} {padding}{service_filter.protocol} {service_filter.owner}  {name}"
+                        )
         print(output)
 
     @classmethod
-    def _list_publish(cls,
-        topic_path_response, entry_records, long_format=False):
+    def _list_publish(cls, topic_path_response, entry_records, long_format=False):
 
         if topic_path_response:
-            aiko.message.publish(
-                topic_path_response, f"(item_count {len(entry_records)})")
+            aiko.message.publish(topic_path_response, f"(item_count {len(entry_records)})")
             for entry_record in entry_records:
-                aiko.message.publish(
-                    topic_path_response, f"(response {entry_record})")
+                aiko.message.publish(topic_path_response, f"(response {entry_record})")
         else:
             CategoryImpl._list_print(entry_records, long_format)
 
@@ -249,10 +246,9 @@ class CategoryImpl(Category):
     def __repr__(self):
         return self.dependency.__repr__(self)
 
-    def update(self, entry_name, service=None,
-        service_filter=None, lifecycle_manager_url=None, storage_url=None):
+    def update(self, entry_name, service=None, service_filter=None, lifecycle_manager_url=None, storage_url=None):
 
-    # Prevent ServiceFilter() from overriding "name" with "hostname()"
+        # Prevent ServiceFilter() from overriding "name" with "hostname()"
         if service_filter and not isinstance(service_filter, ServiceFilter):
             service_filter_name_null = service_filter[1] is None
             service_filter = ServiceFilter(*service_filter)
@@ -281,10 +277,11 @@ class CategoryImpl(Category):
 
             self.ec_producer.update(f"entries.{entry_name}", entry)
 
+
 # --------------------------------------------------------------------------- #
 
-@click.group()
 
+@click.group()
 def main():
     """Create, Read/List, Update and Destroy Categories
 
@@ -293,28 +290,20 @@ def main():
     """
     pass
 
+
 @main.command(name="add", no_args_is_help=True)
 @click.argument("category_name", type=str, required=True, default=None)
 @click.argument("entry_name", type=str, required=True, default=None)
-@click.option("--service_name", "-n", type=str, default="*",
-    help="Service name")
-@click.option("--protocol", "-p", type=str, default="*",
-    help="Service protocol")
-@click.option("--transport", "-tr", type=str, default="*",
-    help="Service transport")
-@click.option("--owner", "-o", type=str, default="*",
-    help="Service owner")
-@click.option("--tags", "-t", type=str, multiple=True, default=None,
-    help="Service tags")
-@click.option("--lifecycle_manager_url", "-lcm", type=str, default=None,
-    help="LifeCycleManager URL")
-@click.option("--storage_url", "-s", type=str, default=None,
-    help="Storage URL")
-
-def add_command(category_name, entry_name,
-    service_name, protocol, transport, owner, tags,
-    lifecycle_manager_url, storage_url):
-
+@click.option("--service_name", "-n", type=str, default="*", help="Service name")
+@click.option("--protocol", "-p", type=str, default="*", help="Service protocol")
+@click.option("--transport", "-tr", type=str, default="*", help="Service transport")
+@click.option("--owner", "-o", type=str, default="*", help="Service owner")
+@click.option("--tags", "-t", type=str, multiple=True, default=None, help="Service tags")
+@click.option("--lifecycle_manager_url", "-lcm", type=str, default=None, help="LifeCycleManager URL")
+@click.option("--storage_url", "-s", type=str, default=None, help="Storage URL")
+def add_command(
+    category_name, entry_name, service_name, protocol, transport, owner, tags, lifecycle_manager_url, storage_url
+):
     """Add Category Entry
 
     aiko_category add CATEGORY_NAME ENTRY_NAME
@@ -324,19 +313,22 @@ def add_command(category_name, entry_name,
     • ENTRY_NAME: Entry name
     """
 
-    tags = tags if tags else []                 # Assign default tags value
-    service_filter = ServiceFilter(             # TODO: Or use ServiceFields ??
-        "*", service_name, protocol, transport, owner, tags)
+    tags = tags if tags else []  # Assign default tags value
+    service_filter = ServiceFilter(  # TODO: Or use ServiceFields ??
+        "*", service_name, protocol, transport, owner, tags
+    )
 
-    do_command(Category,
+    do_command(
+        Category,
         ServiceFilter(name=category_name, protocol=CATEGORY_PROTOCOL),
-        lambda category: category.add(entry_name,
-            service_filter, lifecycle_manager_url, storage_url), terminate=True)
+        lambda category: category.add(entry_name, service_filter, lifecycle_manager_url, storage_url),
+        terminate=True,
+    )
     aiko.process.run()
+
 
 @main.command(name="exit", no_args_is_help=True)
 @click.argument("category_name", required=True)
-
 def exit_command(category_name):
     """Exit Category
 
@@ -346,17 +338,19 @@ def exit_command(category_name):
     • CATEGORY_NAME: Category name
     """
 
-    do_command(Category,
+    do_command(
+        Category,
         ServiceFilter(name=category_name, protocol=CATEGORY_PROTOCOL),
-        lambda category: category.exit(), terminate=True)
+        lambda category: category.exit(),
+        terminate=True,
+    )
     aiko.process.run()
+
 
 @main.command(name="list", no_args_is_help=True)
 @click.argument("category_name", type=str, required=True, default=None)
 @click.argument("entry_name", type=str, required=False, default=None)
-@click.option("--long_format", "-l", is_flag=True,
-    help="Long format with Service, LifeCycleManager URL, Storage URL")
-
+@click.option("--long_format", "-l", is_flag=True, help="Long format with Service, LifeCycleManager URL, Storage URL")
 def list_command(category_name, entry_name, long_format):
     """List Category Entries
 
@@ -367,14 +361,13 @@ def list_command(category_name, entry_name, long_format):
     • ENTRY_NAME: Entry name
     """
 
-    CategoryImpl.list_command(
-        category_name, entry_name, long_format, False, CATEGORY_PROTOCOL)
+    CategoryImpl.list_command(category_name, entry_name, long_format, False, CATEGORY_PROTOCOL)
     aiko.process.run()
+
 
 @main.command(name="remove", no_args_is_help=True)
 @click.argument("category_name", type=str, required=True, default=None)
 @click.argument("entry_name", type=str, required=True, default=None)
-
 def remove_command(category_name, entry_name):
     """Remove Category Entry
 
@@ -385,14 +378,17 @@ def remove_command(category_name, entry_name):
     • ENTRY_NAME: Entry name
     """
 
-    do_command(Category,
+    do_command(
+        Category,
         ServiceFilter(name=category_name, protocol=CATEGORY_PROTOCOL),
-        lambda category: category.remove(entry_name), terminate=True)
+        lambda category: category.remove(entry_name),
+        terminate=True,
+    )
     aiko.process.run()
+
 
 @main.command(name="run", no_args_is_help=True)
 @click.argument("category_name", required=True)
-
 def run_command(category_name):
     """Run Category
 
@@ -402,33 +398,49 @@ def run_command(category_name):
     • CATEGORY_NAME: Category name
     """
 
-    tags = ["ec=true"]       # TODO: Add ECProducer tag before add to Registrar
+    tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
     init_args = actor_args(category_name, None, None, CATEGORY_PROTOCOL, tags)
     category = compose_instance(CategoryImpl, init_args)
     aiko.process.run()
 
+
 @main.command(name="update", no_args_is_help=True)
 @click.argument("category_name", type=str, required=True, default=None)
 @click.argument("entry_name", type=str, required=True, default=None)
-@click.option("--service_name", "-n", type=str, default="0:",     # None --> 0:
-    help="Service name")
-@click.option("--protocol", "-p", type=str, default="0:",         # None --> 0:
-    help="Service protocol")
-@click.option("--transport", "-tr", type=str, default="0:",       # None --> 0:
-    help="Service transport")
-@click.option("--owner", "-o", type=str, default="0:",            # None --> 0:
-    help="Service owner")
-@click.option("--tags", "-t", type=str, multiple=True, default=None,
-    help="Service tags")
-@click.option("--lifecycle_manager_url", "-lcm", type=str, default=None,
-    help="LifeCycleManager URL")
-@click.option("--storage_url", "-s", type=str, default=None,
-    help="Storage URL")
-
-def update_command(category_name, entry_name,
-    service_name, protocol, transport, owner, tags,
-    lifecycle_manager_url, storage_url):
-
+@click.option(
+    "--service_name",
+    "-n",
+    type=str,
+    default="0:",  # None --> 0:
+    help="Service name",
+)
+@click.option(
+    "--protocol",
+    "-p",
+    type=str,
+    default="0:",  # None --> 0:
+    help="Service protocol",
+)
+@click.option(
+    "--transport",
+    "-tr",
+    type=str,
+    default="0:",  # None --> 0:
+    help="Service transport",
+)
+@click.option(
+    "--owner",
+    "-o",
+    type=str,
+    default="0:",  # None --> 0:
+    help="Service owner",
+)
+@click.option("--tags", "-t", type=str, multiple=True, default=None, help="Service tags")
+@click.option("--lifecycle_manager_url", "-lcm", type=str, default=None, help="LifeCycleManager URL")
+@click.option("--storage_url", "-s", type=str, default=None, help="Storage URL")
+def update_command(
+    category_name, entry_name, service_name, protocol, transport, owner, tags, lifecycle_manager_url, storage_url
+):
     """Update Category Entry
 
     aiko_category update CATEGORY_NAME ENTRY_NAME
@@ -438,15 +450,19 @@ def update_command(category_name, entry_name,
     • ENTRY_NAME: Entry name
     """
 
-    tags = tags if tags else []                 # Assign default tags value
-    service_filter = ServiceFilter(             # TODO: Or use ServiceFields ??
-        "*", service_name, protocol, transport, owner, tags)
+    tags = tags if tags else []  # Assign default tags value
+    service_filter = ServiceFilter(  # TODO: Or use ServiceFields ??
+        "*", service_name, protocol, transport, owner, tags
+    )
 
-    do_command(Category,
+    do_command(
+        Category,
         ServiceFilter(name=category_name, protocol=CATEGORY_PROTOCOL),
-        lambda category: category.update(entry_name, None,
-            service_filter, lifecycle_manager_url, storage_url), terminate=True)
+        lambda category: category.update(entry_name, None, service_filter, lifecycle_manager_url, storage_url),
+        terminate=True,
+    )
     aiko.process.run()
+
 
 if __name__ == "__main__":
     main()

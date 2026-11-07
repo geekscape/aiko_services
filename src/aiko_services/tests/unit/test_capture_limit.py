@@ -13,12 +13,12 @@
 # - Test the "duration" bound with a controlled clock instead of real time
 
 import pytest
-pytest.importorskip("cv2",
-    reason="aiko_services.elements.media needs cv2 (video_io.py)")
+
+pytest.importorskip("cv2", reason="aiko_services.elements.media needs cv2 (video_io.py)")
 
 from aiko_services.elements.control.elements import _parse_seconds
 from aiko_services.tests.unit import do_create_pipeline
-from aiko_services.tests.unit.image_sink import RESULTS, do_results_initialize
+from aiko_services.tests.unit.image_sink import do_results_initialize
 
 PIPELINE_DEFINITION = """{
   "version": 0, "name": "p_test_capture_limit", "runtime": "python",
@@ -47,18 +47,20 @@ PIPELINE_DEFINITION = """{
 }
 """
 
+
 def _run(parameters):
     results = do_results_initialize()
-    do_create_pipeline(PIPELINE_DEFINITION,
-        frame_data=None, parameters=parameters)
+    do_create_pipeline(PIPELINE_DEFINITION, frame_data=None, parameters=parameters)
     assert not results["watchdog"], "Stream did not stop: watchdog fired"
     assert results["stopped"], "ImageSink.stop_stream() was not invoked"
     return results
+
 
 def test_capture_limit_frame_count():
     results = _run({"CaptureLimit.frame_count": 3})
     assert results["frame_ids"] == [0, 1, 2]
     assert results["shapes"] == [(48, 64, 3)] * 3
+
 
 def test_capture_limit_duration():
     results = _run({"CaptureLimit.duration": 0.45})
@@ -68,13 +70,16 @@ def test_capture_limit_duration():
     assert 3 <= len(results["frame_ids"]) <= 4
     assert results["frame_ids"] == list(range(len(results["frame_ids"])))
 
+
 def test_capture_limit_run_time():
     results = _run({"CaptureLimit.run_time": 0.4, "frame_rate": 5})
     assert results["frame_ids"] == [0, 1]  # media time 0.4 s at 5 fps
 
+
 def test_capture_limit_condition():
     results = _run({"CaptureLimit.condition": "((count<3))"})
     assert results["frame_ids"] == [0, 1, 2]
+
 
 def test_parse_seconds():
     assert _parse_seconds(10) == 10.0

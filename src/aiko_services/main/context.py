@@ -42,10 +42,20 @@ from dataclasses import dataclass, field
 from typing import Dict, List
 
 __all__ = [
-    "Context", "Interface", "ServiceProtocolInterface", "ContextService",
-    "ContextPipelineElement", "ContextPipeline", "context_args",
-    "ec_cache_args", "ec_consumer_args", "ec_producer_args",
-    "service_args", "actor_args", "pipeline_element_args", "pipeline_args"
+    "Context",
+    "Interface",
+    "ServiceProtocolInterface",
+    "ContextService",
+    "ContextPipelineElement",
+    "ContextPipeline",
+    "context_args",
+    "ec_cache_args",
+    "ec_consumer_args",
+    "ec_producer_args",
+    "service_args",
+    "actor_args",
+    "pipeline_element_args",
+    "pipeline_args",
 ]
 
 DEFAULT_PARAMETERS = {}
@@ -56,6 +66,7 @@ DEFAULT_DEFINITION = ""
 DEFAULT_DEFINITION_PATHNAME = ""
 DEFAULT_STREAM_ID = 0
 DEFAULT_FRAME_ID = 0
+
 
 @dataclass
 class Context:
@@ -89,6 +100,7 @@ class Context:
     def set_initialized(self, implementation_name):
         setattr(self, f"initialized_{implementation_name}", True)
 
+
 class Interface(ABC):
     context = Context()
 
@@ -100,8 +112,10 @@ class Interface(ABC):
     def get_implementations(cls):
         return cls.context.get_implementations()
 
+
 class ServiceProtocolInterface(Interface):
     """Interface marker represents an Aiko Service implementing a protocol"""
+
 
 # Service and Actor use the same data structure
 @dataclass
@@ -122,7 +136,7 @@ class ContextService(Context):
             self.protocol = DEFAULT_PROTOCOL
         if self.tags is None:
             self.tags = list(DEFAULT_TAGS)  # copy: add_tags() must not
-        if self.transport is None:          # pollute the module default
+        if self.transport is None:  # pollute the module default
             self.transport = DEFAULT_TRANSPORT
 
     def get_parameters(self) -> Dict[str, str]:
@@ -139,6 +153,7 @@ class ContextService(Context):
 
     def set_protocol(self, protocol):
         self.protocol = protocol
+
 
 @dataclass
 class ContextPipelineElement(ContextService):
@@ -157,6 +172,7 @@ class ContextPipelineElement(ContextService):
     def get_pipeline(self) -> str:
         return self.pipeline
 
+
 @dataclass
 class ContextPipeline(ContextPipelineElement):
     definition_pathname: str = DEFAULT_DEFINITION_PATHNAME
@@ -173,59 +189,93 @@ class ContextPipeline(ContextPipelineElement):
     def get_graph_path(self) -> str:
         return self.graph_path
 
+
 def context_args():
     return {"context": Context()}
+
 
 def ec_cache_args(service, service_filter, variable_filter="*"):
     """init_args for composing an ECCacheImpl (see share.py)"""
 
-    return {"context": Context(), "service": service,
+    return {
+        "context": Context(),
+        "service": service,
         "service_filter": service_filter,
-        "variable_filter": variable_filter}
+        "variable_filter": variable_filter,
+    }
 
-def ec_consumer_args(service, ec_consumer_id, cache,
-    ec_producer_topic_control, filter="*"):
+
+def ec_consumer_args(service, ec_consumer_id, cache, ec_producer_topic_control, filter="*"):
     """init_args for composing an ECConsumerImpl (see share.py)"""
 
-    return {"context": Context(), "service": service,
-        "ec_consumer_id": ec_consumer_id, "cache": cache,
+    return {
+        "context": Context(),
+        "service": service,
+        "ec_consumer_id": ec_consumer_id,
+        "cache": cache,
         "ec_producer_topic_control": ec_producer_topic_control,
-        "filter": filter}
+        "filter": filter,
+    }
+
 
 def ec_producer_args(service, share, topic_in=None, topic_out=None):
     """init_args for composing an ECProducerImpl (see share.py)"""
 
-    return {"context": Context(), "service": service, "share": share,
-        "topic_in": topic_in, "topic_out": topic_out}
+    return {"context": Context(), "service": service, "share": share, "topic_in": topic_in, "topic_out": topic_out}
 
-def service_args(name, implementations=None,
-    parameters=None, protocol=None, tags=None, transport=None):
 
-    return {"context":
-        ContextService(name, implementations,
-            parameters, protocol, tags, transport)}
+def service_args(name, implementations=None, parameters=None, protocol=None, tags=None, transport=None):
 
-def actor_args(name, implementations=None,
-    parameters=None, protocol=None, tags=None, transport=None):
+    return {"context": ContextService(name, implementations, parameters, protocol, tags, transport)}
 
-    return service_args(name, implementations,
-        parameters, protocol, tags, transport)
 
-def pipeline_element_args(name, implementations=None,
-    parameters=None, protocol=None, tags=None, transport=None,
-    definition=None, pipeline=None):
+def actor_args(name, implementations=None, parameters=None, protocol=None, tags=None, transport=None):
 
-    return {"context":
-        ContextPipelineElement(name, implementations,
-            parameters, protocol, tags, transport,
-            definition, pipeline)}
+    return service_args(name, implementations, parameters, protocol, tags, transport)
 
-def pipeline_args(name, implementations=None,
-    parameters=None, protocol=None, tags=None, transport=None,
-    definition=None, pipeline=None, definition_pathname=None,
-    graph_path=None):
 
-    return {"context":
-        ContextPipeline(name, implementations,
-            parameters, protocol, tags, transport,
-            definition, pipeline, definition_pathname, graph_path)}
+def pipeline_element_args(
+    name,
+    implementations=None,
+    parameters=None,
+    protocol=None,
+    tags=None,
+    transport=None,
+    definition=None,
+    pipeline=None,
+):
+
+    return {
+        "context": ContextPipelineElement(
+            name, implementations, parameters, protocol, tags, transport, definition, pipeline
+        )
+    }
+
+
+def pipeline_args(
+    name,
+    implementations=None,
+    parameters=None,
+    protocol=None,
+    tags=None,
+    transport=None,
+    definition=None,
+    pipeline=None,
+    definition_pathname=None,
+    graph_path=None,
+):
+
+    return {
+        "context": ContextPipeline(
+            name,
+            implementations,
+            parameters,
+            protocol,
+            tags,
+            transport,
+            definition,
+            pipeline,
+            definition_pathname,
+            graph_path,
+        )
+    }

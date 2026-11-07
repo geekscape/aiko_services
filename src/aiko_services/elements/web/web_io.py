@@ -47,9 +47,9 @@ import json
 import socket
 import threading
 import time
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Tuple
-import urllib.parse
 
 import numpy as np
 
@@ -61,7 +61,7 @@ DEFAULT_PORT = 8090
 DEFAULT_MAX_FPS = 4.0
 DEFAULT_WIDTH = 960
 DEFAULT_QUALITY = 80
-WRITABLE_KEYS = ("focus_assist",)      # what the page may change
+WRITABLE_KEYS = ("focus_assist",)  # what the page may change
 PUBLISH_PERIOD_S = 1.0
 
 # --------------------------------------------------------------------------- #
@@ -69,11 +69,20 @@ PUBLISH_PERIOD_S = 1.0
 # without a Pipeline).  offer() is O(1) on the caller's thread; encoding
 # happens on the encoder thread, only while a viewer is connected
 
+
 class FrameWebServer:
-    def __init__(self, port=DEFAULT_PORT, host="0.0.0.0", title="Camera",
-        max_fps=DEFAULT_MAX_FPS, width=DEFAULT_WIDTH,
-        quality=DEFAULT_QUALITY, status_provider=None, update_handler=None,
-        logger=None):
+    def __init__(
+        self,
+        port=DEFAULT_PORT,
+        host="0.0.0.0",
+        title="Camera",
+        max_fps=DEFAULT_MAX_FPS,
+        width=DEFAULT_WIDTH,
+        quality=DEFAULT_QUALITY,
+        status_provider=None,
+        update_handler=None,
+        logger=None,
+    ):
 
         self.port = int(port)
         self.host = host
@@ -106,8 +115,7 @@ class FrameWebServer:
         self._server = server
         self.port = server.server_address[1]
         self._stopped = False
-        for target, name in ((server.serve_forever, "web_server"),
-                             (self._encode_loop, "web_encoder")):
+        for target, name in ((server.serve_forever, "web_server"), (self._encode_loop, "web_encoder")):
             thread = threading.Thread(target=target, name=name, daemon=True)
             thread.start()
             self._threads.append(thread)
@@ -137,28 +145,30 @@ class FrameWebServer:
 
     def stats(self):
         with self._condition:
-            return {"port": self.port, "viewers": self.viewers,
-                    "frames_offered": self.frames_offered,
-                    "frames_encoded": self.frames_encoded,
-                    "max_fps": self.max_fps, "width": self.width}
+            return {
+                "port": self.port,
+                "viewers": self.viewers,
+                "frames_offered": self.frames_offered,
+                "frames_encoded": self.frames_encoded,
+                "max_fps": self.max_fps,
+                "width": self.width,
+            }
 
     def encode(self, image, width=None):
         """uint8 RGB (or gray) image --> JPEG bytes, scaled to width"""
 
-        import cv2                      # lazy: imports without OpenCV
+        import cv2  # lazy: imports without OpenCV
+
         image = np.asarray(image)
         width = self.width if width is None else width
         height, image_width = image.shape[:2]
         if width and image_width > width:
             scaled_height = max(1, int(round(height * width / image_width)))
-            interpolation = cv2.INTER_AREA  \
-                if image_width >= 2 * width else cv2.INTER_LINEAR
-            image = cv2.resize(image, (width, scaled_height),
-                               interpolation=interpolation)
+            interpolation = cv2.INTER_AREA if image_width >= 2 * width else cv2.INTER_LINEAR
+            image = cv2.resize(image, (width, scaled_height), interpolation=interpolation)
         if image.ndim == 3 and image.shape[2] == 3:
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        ok, buffer = cv2.imencode(
-            ".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, self.quality])
+        ok, buffer = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, self.quality])
         return buffer.tobytes() if ok else None
 
     def _encode_loop(self):
@@ -168,8 +178,7 @@ class FrameWebServer:
             if delay > 0:
                 time.sleep(delay)
             with self._condition:
-                while not self._stopped and (self.viewers == 0
-                        or self._image_seq == self._encoded_image_seq):
+                while not self._stopped and (self.viewers == 0 or self._image_seq == self._encoded_image_seq):
                     self._condition.wait(timeout=1.0)
                 if self._stopped:
                     return
@@ -192,8 +201,9 @@ class FrameWebServer:
         if self.logger:
             getattr(self.logger, level)(f"VideoShowWeb: {message}")
 
+
 class _Handler(BaseHTTPRequestHandler):
-    def log_message(self, format, *args):    # no line per request
+    def log_message(self, format, *args):  # no line per request
         pass
 
     def do_GET(self):
@@ -201,23 +211,20 @@ class _Handler(BaseHTTPRequestHandler):
         url = urllib.parse.urlparse(self.path)
         try:
             if url.path == "/":
-                self._send(200, "text/html; charset=utf-8",
-                           _page(web.title).encode("utf-8"))
+                self._send(200, "text/html; charset=utf-8", _page(web.title).encode("utf-8"))
             elif url.path == "/stream.mjpg":
                 self._stream(web)
             elif url.path == "/snapshot.jpg":
                 with web._condition:
                     image = web._latest
-                jpeg = web.encode(image, width=0)  \
-                    if image is not None else None
+                jpeg = web.encode(image, width=0) if image is not None else None
                 if jpeg:
                     self._send(200, "image/jpeg", jpeg)
                 else:
                     self._send(503, "text/plain", b"no frame yet")
             elif url.path == "/status":
                 status = {"viewer": web.stats(), **web.status_provider()}
-                self._send(200, "application/json",
-                           json.dumps(status).encode("utf-8"))
+                self._send(200, "application/json", json.dumps(status).encode("utf-8"))
             elif url.path == "/update":
                 self._update(web, urllib.parse.parse_qs(url.query))
             else:
@@ -237,8 +244,7 @@ class _Handler(BaseHTTPRequestHandler):
         element = query.get("element", [""])[0]
         name = query.get("name", [""])[0]
         value = query.get("value", [""])[0]
-        if name not in WRITABLE_KEYS or not web.update_handler  \
-            or not element or not value or " " in value:
+        if name not in WRITABLE_KEYS or not web.update_handler or not element or not value or " " in value:
             self._send(403, "text/plain", b"not writable")
             return
         web.update_handler(element, name, value)
@@ -246,8 +252,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _stream(self, web):
         self.send_response(200)
-        self.send_header("Content-Type",
-                         "multipart/x-mixed-replace; boundary=frame")
+        self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         with web._condition:
@@ -262,21 +267,26 @@ class _Handler(BaseHTTPRequestHandler):
                     if web._stopped:
                         return
                     jpeg, last = web._jpeg, web._jpeg_seq
-                self.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\n"
+                self.wfile.write(
+                    b"--frame\r\nContent-Type: image/jpeg\r\n"
                     + f"Content-Length: {len(jpeg)}\r\n\r\n".encode()
-                    + jpeg + b"\r\n")
+                    + jpeg
+                    + b"\r\n"
+                )
         except (BrokenPipeError, ConnectionResetError, OSError):
             pass
         finally:
             with web._condition:
                 web.viewers -= 1
 
+
 def _page(title):
     return _PAGE.replace("__TITLE__", _escape(title))
 
+
 def _escape(text):
-    return (str(text).replace("&", "&amp;").replace("<", "&lt;")
-            .replace(">", "&gt;").replace('"', "&quot;"))
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
 
 _PAGE = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
@@ -397,16 +407,17 @@ setInterval(poll, 1000);
 
 # --------------------------------------------------------------------------- #
 
+
 class VideoShowWeb(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("video_show_web:0")
         context.call_init(self, "PipelineElement", context)
         self.web = None
-        self._followed = {}            # element name --> topic_control
+        self._followed = {}  # element name --> topic_control
         self._consumers = []
-        self._status = {}              # element name --> {item: value}
+        self._status = {}  # element name --> {item: value}
         self._status_lock = threading.Lock()
-        self._source = None            # the element the focus switch drives
+        self._source = None  # the element the focus switch drives
         self._timer_armed = False
 
     def start_stream(self, stream, stream_id):
@@ -445,8 +456,7 @@ class VideoShowWeb(aiko.PipelineElement):
     def _start_web(self):
         get = self.get_parameter
         try:
-            title = get("title", None)[0] or getattr(
-                self.pipeline, "name", "camera")
+            title = get("title", None)[0] or getattr(self.pipeline, "name", "camera")
             self.web = FrameWebServer(
                 port=int(get("port", DEFAULT_PORT)[0]),
                 host=str(get("host", "0.0.0.0")[0]),
@@ -455,7 +465,9 @@ class VideoShowWeb(aiko.PipelineElement):
                 width=int(get("width", DEFAULT_WIDTH)[0]),
                 quality=int(get("quality", DEFAULT_QUALITY)[0]),
                 status_provider=self._status_snapshot,
-                update_handler=self._send_update, logger=self.logger)
+                update_handler=self._send_update,
+                logger=self.logger,
+            )
             port = self.web.start()
         except Exception as exception:  # never break the Pipeline
             self.web = None
@@ -466,8 +478,7 @@ class VideoShowWeb(aiko.PipelineElement):
         self._publish("state", "serving")
         self._publish("port", port)
         self._publish("url", url)
-        self.logger.info(f"VideoShowWeb: open {url} "
-                         f"(or http://{socket.gethostname()}.local:{port})")
+        self.logger.info(f"VideoShowWeb: open {url} (or http://{socket.gethostname()}.local:{port})")
 
     # Other elements' shared state, as on aiko_dashboard ------------------- #
 
@@ -493,12 +504,12 @@ class VideoShowWeb(aiko.PipelineElement):
                 if element is self:
                     continue
                 topic_control = f"{element.topic_path}/control"
-                consumer = aiko.compose_instance(aiko.ECConsumerImpl,
-                    aiko.ec_consumer_args(self, index, {}, topic_control))
+                consumer = aiko.compose_instance(
+                    aiko.ECConsumerImpl, aiko.ec_consumer_args(self, index, {}, topic_control)
+                )
                 consumer.add_handler(self._consumer_handler(name))
             except Exception as exception:
-                self.logger.warning(
-                    f"VideoShowWeb: cannot follow {name}: {exception}")
+                self.logger.warning(f"VideoShowWeb: cannot follow {name}: {exception}")
                 continue
             self._followed[name] = topic_control
             self._consumers.append(consumer)
@@ -513,12 +524,12 @@ class VideoShowWeb(aiko.PipelineElement):
                     values[item_name] = item_value
                 elif command == "remove":
                     values.pop(item_name, None)
+
         return handler
 
     def _status_snapshot(self):
         with self._status_lock:
-            elements = {name: dict(values)
-                        for name, values in self._status.items()}
+            elements = {name: dict(values) for name, values in self._status.items()}
         return {"source": self._source, "elements": elements}
 
     def _send_update(self, element_name, item_name, item_value):
@@ -526,8 +537,7 @@ class VideoShowWeb(aiko.PipelineElement):
 
         topic_control = self._followed.get(element_name)
         if topic_control:
-            aiko.process.message.publish(
-                topic_control, f"(update {item_name} {item_value})")
+            aiko.process.message.publish(topic_control, f"(update {item_name} {item_value})")
 
     # This element's own shared state -------------------------------------- #
 
@@ -542,18 +552,20 @@ class VideoShowWeb(aiko.PipelineElement):
         if self.ec_producer.get(key) != value:
             self.ec_producer.update(key, value)
 
+
 def _names(value):
     if value is None:
         return []
     text = str(value).strip().strip("()")
     return [name for name in text.replace(",", " ").split() if name]
 
+
 def _host_address():
     """This host's address on the network with the default route"""
 
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
-            probe.connect(("192.0.2.1", 9))    # no packet is sent
+            probe.connect(("192.0.2.1", 9))  # no packet is sent
             return probe.getsockname()[0]
     except OSError:
         return socket.gethostname()

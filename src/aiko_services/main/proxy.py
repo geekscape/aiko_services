@@ -28,6 +28,7 @@
 #   - Intercept: timing (performance)
 
 from inspect import getmembers, isfunction, ismethod
+
 import wrapt
 
 __all__ = ["is_callable", "ProxyAllMethods", "proxy_trace"]
@@ -36,19 +37,16 @@ __all__ = ["is_callable", "ProxyAllMethods", "proxy_trace"]
 def is_callable(attribute):
     return isfunction(attribute) or ismethod(attribute)
 
+
 class ProxyAllMethods(wrapt.ObjectProxy):
-    def __init__(
-        self, proxy_name, actual_object, proxy_function,
-        attribute_filter=ismethod, ignore_prefix="_"):
+    def __init__(self, proxy_name, actual_object, proxy_function, attribute_filter=ismethod, ignore_prefix="_"):
 
         super(ProxyAllMethods, self).__init__(actual_object)
 
         def make_closure(actual_function, actual_function_name):
             def closure(*args, **kwargs):
-                return proxy_function(
-                    proxy_name, actual_object, actual_function,
-                    actual_function_name, *args, **kwargs
-                )
+                return proxy_function(proxy_name, actual_object, actual_function, actual_function_name, *args, **kwargs)
+
             return closure
 
         members = getmembers(actual_object, attribute_filter)
@@ -58,18 +56,17 @@ class ProxyAllMethods(wrapt.ObjectProxy):
                 setattr(self, name, closure)
 
     def __repr__(self):
-        return f"[{self.__module__}.{type(self).__name__} " \
-               f"object at {hex(id(self))}]"
+        return f"[{self.__module__}.{type(self).__name__} object at {hex(id(self))}]"
 
-def proxy_trace(
-    proxy_name, actual_object, actual_function,
-    actual_function_name, *args, **kwargs):
+
+def proxy_trace(proxy_name, actual_object, actual_function, actual_function_name, *args, **kwargs):
 
     print(f"### Enter: {proxy_name}.{actual_function_name}{args} {kwargs} ###")
     try:
         return actual_function(*args, **kwargs)
     finally:
         print(f"### Exit:  {proxy_name}.{actual_function_name} ###")
+
 
 class Example:
     def __init__(self, argument_0):
@@ -78,6 +75,7 @@ class Example:
     def function_0(self, argument_0, argument_1=None):
         print(f"           Example.function_0({argument_0}, {argument_1})")
         return f"          {argument_0} {argument_1}"
+
 
 # TODO: @proxy Decorator returns an instance of the "actual_class"
 #       Need a factory "actual_class" that creates proxy instances !

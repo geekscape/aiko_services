@@ -43,18 +43,16 @@
 
 import os
 
-from aiko_services.main.power_manager_client import (
-    POWER_MANAGER_PROTOCOL, PowerManagerClient
-)
+from aiko_services.main.power_manager_client import POWER_MANAGER_PROTOCOL, PowerManagerClient
 from aiko_services.main.utilities import get_logger
 
 __all__ = ["POWER_MANAGER_PROTOCOL", "WRITING_ITEM", "WritingClient"]
 
-_LOGGER = get_logger(
-    __name__, log_level=os.environ.get("AIKO_LOG_LEVEL_LEASE", "INFO"))
+_LOGGER = get_logger(__name__, log_level=os.environ.get("AIKO_LOG_LEVEL_LEASE", "INFO"))
 
 # The one item this client replicates
 WRITING_ITEM = "writing_ok"
+
 
 class WritingClient(PowerManagerClient):
     """Whether this host wants its file systems written to now.
@@ -65,8 +63,7 @@ class WritingClient(PowerManagerClient):
     instead.  Nothing is acquired until open()
     """
 
-    def __init__(self, service, protocol=POWER_MANAGER_PROTOCOL,
-        handler=None):
+    def __init__(self, service, protocol=POWER_MANAGER_PROTOCOL, handler=None):
 
         super().__init__(service, protocol)
         self._handler = handler
@@ -75,7 +72,7 @@ class WritingClient(PowerManagerClient):
         # True until something says otherwise.  A host with no power
         # manager must write exactly as it did before this existed
         self._writing_ok = True
-        self.changes = 0           # For the caller's metrics
+        self.changes = 0  # For the caller's metrics
 
     def writing_ok(self):
         """Whether to write now.  True unless a power manager says not.
@@ -100,7 +97,7 @@ class WritingClient(PowerManagerClient):
         super().close()
         self._writing_ok = True
 
-# ---------------------------------------------------------------------- #
+    # ---------------------------------------------------------------------- #
 
     def lost(self):
         """A power manager that went away says nothing, so writing is
@@ -123,16 +120,18 @@ class WritingClient(PowerManagerClient):
             return
         try:
             self._consumer = aiko.compose_instance(
-                aiko.ECConsumerImpl, {
+                aiko.ECConsumerImpl,
+                {
                     "context": aiko.Context(),
                     "service": self.service,
                     "ec_consumer_id": 0,
                     "cache": self._cache,
                     "ec_producer_topic_control": f"{self._manager}/control",
                     "filter": WRITING_ITEM,
-                })
+                },
+            )
             self._consumer.add_handler(self._item_change)
-        except Exception as error:                       # noqa: BLE001
+        except Exception as error:  # noqa: BLE001
             _LOGGER.warning(f"Could not watch the power manager: {error}")
             self._consumer = None
 
@@ -142,7 +141,7 @@ class WritingClient(PowerManagerClient):
         if self._consumer is not None:
             try:
                 self._consumer.terminate()
-            except Exception as error:                   # noqa: BLE001
+            except Exception as error:  # noqa: BLE001
                 _LOGGER.debug(f"Writing consumer: {error}")
             self._consumer = None
         self._cache = {}
@@ -165,14 +164,13 @@ class WritingClient(PowerManagerClient):
             return
         self._writing_ok = writing_ok
         self.changes += 1
-        _LOGGER.info(
-            f"Writing {'okay' if writing_ok else 'not okay'}: the power "
-            "manager said so")
+        _LOGGER.info(f"Writing {'okay' if writing_ok else 'not okay'}: the power manager said so")
         if self._handler:
             try:
                 self._handler(writing_ok)
-            except Exception as error:                   # noqa: BLE001
+            except Exception as error:  # noqa: BLE001
                 _LOGGER.warning(f"Writing handler: {error}")
+
 
 def _boolean(value):
     """A shared value as a boolean.  It arrives as a string on the wire and
@@ -185,5 +183,6 @@ def _boolean(value):
     if text in ("false", "0", "no", "off"):
         return False
     return True
+
 
 # --------------------------------------------------------------------------- #

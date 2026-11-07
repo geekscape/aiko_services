@@ -58,6 +58,7 @@ from aiko_services.main.utilities import *
 
 __all__ = ["compose_class", "compose_instance"]
 
+
 def compose_class(impl_seed_class, impl_overrides=None):
     """
     Build a concrete FrankensteinClass whose API is defined using Interfaces
@@ -74,14 +75,10 @@ def compose_class(impl_seed_class, impl_overrides=None):
     if impl_overrides == None:
         impl_overrides = {}
 
-    all_implementations = {
-        **impl_seed_class.get_implementations(), **impl_overrides
-    }
-    implementations = _keep_specified_implementations(
-        impl_seed_class, all_implementations)
+    all_implementations = {**impl_seed_class.get_implementations(), **impl_overrides}
+    implementations = _keep_specified_implementations(impl_seed_class, all_implementations)
 
-    unimplemented_interfaces = _check_interfaces_implemented(
-        impl_seed_class, implementations)
+    unimplemented_interfaces = _check_interfaces_implemented(impl_seed_class, implementations)
 
     if len(unimplemented_interfaces) > 0:
         interface_names = ", ".join(unimplemented_interfaces)
@@ -94,14 +91,14 @@ def compose_class(impl_seed_class, impl_overrides=None):
 
     _add_methods(FrankensteinClass, implementations_loaded)
     if impl_seed_class.__init__ is object.__init__:
-        setattr(FrankensteinClass, "__init__",
-            _synthesize_init(impl_seed_class, implementations))
+        setattr(FrankensteinClass, "__init__", _synthesize_init(impl_seed_class, implementations))
     else:
         setattr(FrankensteinClass, "__init__", impl_seed_class.__init__)
     _update_abstractmethods(FrankensteinClass)
     FrankensteinClass.__name__ = impl_seed_class.__name__
 
     return FrankensteinClass, implementations_loaded
+
 
 def _synthesize_init(impl_seed_class, implementations):
     """
@@ -114,8 +111,8 @@ def _synthesize_init(impl_seed_class, implementations):
     """
 
     interface_names = [
-        base.__name__ for base in impl_seed_class.__bases__
-        if _is_interface(base) and base.__name__ in implementations]
+        base.__name__ for base in impl_seed_class.__bases__ if _is_interface(base) and base.__name__ in implementations
+    ]
     protocol = impl_seed_class.__dict__.get("PROTOCOL", None)
 
     def __init__(self, context, **kwargs):
@@ -123,7 +120,9 @@ def _synthesize_init(impl_seed_class, implementations):
             context.set_protocol(protocol)
         for interface_name in interface_names:
             context.call_init(self, interface_name, context, **kwargs)
+
     return __init__
+
 
 def compose_instance(impl_seed_class, init_args, impl_overrides=None):
     """
@@ -133,8 +132,7 @@ def compose_instance(impl_seed_class, init_args, impl_overrides=None):
     if impl_overrides == None:
         impl_overrides = {}
 
-    frankenstein_class, implementations = compose_class(
-        impl_seed_class, impl_overrides)
+    frankenstein_class, implementations = compose_class(impl_seed_class, impl_overrides)
 
     # It's alive ... https://www.youtube.com/watch?v=1qNeGSJaQ9Q&t=2m24s !!
     # Of course, Frankstein was the doctor's name and not his creation :)
@@ -142,6 +140,7 @@ def compose_instance(impl_seed_class, init_args, impl_overrides=None):
     context = init_args["context"]
     context.set_implementations(implementations)
     return frankenstein_class(**init_args)
+
 
 def _add_methods(base_class, implementations):
     """
@@ -159,6 +158,7 @@ def _add_methods(base_class, implementations):
                 if base_class_attr is None or _is_abstract(base_class_attr):
                     setattr(base_class, impl_attr_name, impl_attr)
 
+
 def _check_interfaces_implemented(cls, implementations):
     """
     Every Interface ancestor must have an implementation.  The seed class
@@ -169,37 +169,38 @@ def _check_interfaces_implemented(cls, implementations):
     """
     unimplemented_interfaces = []
     for ancestor in cls.__mro__[1:]:
-        if _is_interface(ancestor) and  \
-            ancestor not in [ABC, Interface, ServiceProtocolInterface, object]:
-
+        if _is_interface(ancestor) and ancestor not in [ABC, Interface, ServiceProtocolInterface, object]:
             if not ancestor.__name__ in implementations:
                 unimplemented_interfaces.append(ancestor.__name__)
     return unimplemented_interfaces
 
+
 def _is_abstract(method):
-    return  \
-        hasattr(method, "__isabstractmethod__") and method.__isabstractmethod__
+    return hasattr(method, "__isabstractmethod__") and method.__isabstractmethod__
+
 
 def _is_interface(cls):
     all_methods_abstract = True
     methods = getmembers(cls, isfunction)
     for method_name, method in methods:
-        if not (hasattr(method, "__isabstractmethod__")  \
-                and method.__isabstractmethod__):
+        if not (hasattr(method, "__isabstractmethod__") and method.__isabstractmethod__):
             all_methods_abstract = False
             break
     return all_methods_abstract
+
 
 def _keep_specified_implementations(impl_seed_class, implementations):
     """Keep implementations that correspond to inherited interfaces"""
     specified_impls = {}
     for ancestor in impl_seed_class.__mro__:
         if _is_interface(ancestor) and ancestor.__name__ in implementations:
-            specified_impls[ancestor.__name__] =  \
-                implementations[ancestor.__name__]
+            specified_impls[ancestor.__name__] = implementations[ancestor.__name__]
         elif (not _is_interface(ancestor)) and ancestor.__name__ in implementations:
-            print(f"Warning: When composing {impl_seed_class}, ignoring parent {ancestor}, because some methods are not abstract")
+            print(
+                f"Warning: When composing {impl_seed_class}, ignoring parent {ancestor}, because some methods are not abstract"
+            )
     return specified_impls
+
 
 def _load_implementations(implementations):
     """
@@ -215,14 +216,15 @@ def _load_implementations(implementations):
             module_name, _, class_name = impl_path.rpartition(".")
             if module_name == "":
                 raise ValueError(
-                    f"For {impl_alias} interface, the implementation "
-                    f"module name must be provided: {impl_path}")
+                    f"For {impl_alias} interface, the implementation module name must be provided: {impl_path}"
+                )
             module = load_module(module_name)
             impl_class = getattr(module, class_name)
         else:
             impl_class = impl_path
         implementations_loaded[impl_alias] = impl_class
     return implementations_loaded
+
 
 def _update_abstractmethods(cls):
     """
@@ -241,7 +243,7 @@ def _update_abstractmethods(cls):
     Returns cls, to allow usage as a class decorator.
     If cls is not an instance of ABC, does nothing.
     """
-    if not hasattr(cls, '__abstractmethods__'):
+    if not hasattr(cls, "__abstractmethods__"):
         # We check for __abstractmethods__ here because cls might by a C
         # implementation or a python implementation (especially during
         # testing), and we want to handle both cases.
@@ -251,7 +253,7 @@ def _update_abstractmethods(cls):
     # Check the existing abstract methods of the ancestors and
     # keep only the ones that are not implemented
     for scls in cls.__bases__:
-        for name in getattr(scls, '__abstractmethods__', ()):
+        for name in getattr(scls, "__abstractmethods__", ()):
             value = getattr(cls, name, None)
             if getattr(value, "__isabstractmethod__", False):
                 abstracts.add(name)

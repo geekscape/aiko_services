@@ -45,10 +45,23 @@
 #   (ADR-028 decision 10).  decide() takes volts today
 
 __all__ = [
-    "DOCK_DISAGREEMENTS", "Dwell", "EXACT_REASONS", "HOLD", "MODES",
-    "MODE_CONSERVE", "MODE_NORMAL", "MODE_QUIESCE", "REASONS", "SHUTDOWN",
-    "SUPPLY_WARNINGS", "decide", "decide_action", "decide_mode",
-    "docked_state", "supply_warning", "writing_ok",
+    "DOCK_DISAGREEMENTS",
+    "Dwell",
+    "EXACT_REASONS",
+    "HOLD",
+    "MODES",
+    "MODE_CONSERVE",
+    "MODE_NORMAL",
+    "MODE_QUIESCE",
+    "REASONS",
+    "SHUTDOWN",
+    "SUPPLY_WARNINGS",
+    "decide",
+    "decide_action",
+    "decide_mode",
+    "docked_state",
+    "supply_warning",
+    "writing_ok",
 ]
 
 HOLD = "hold"
@@ -62,10 +75,19 @@ MODES = (MODE_NORMAL, MODE_CONSERVE, MODE_QUIESCE)
 # Every word that a decision can carry.  One token, no spaces, so it is a
 # shared variable and a log column that a reader can count
 REASONS = (
-    "button_held", "battery_floor", "battery_pack_temperature",
-    "no_hold_property", "docked", "battery_low", "undocked_timeout",
-    "powered_down_grace", "powered_up_held", "powered_up_idle",
-    "powered_up_grace", "hook_missing", "application_grace",
+    "button_held",
+    "battery_floor",
+    "battery_pack_temperature",
+    "no_hold_property",
+    "docked",
+    "battery_low",
+    "undocked_timeout",
+    "powered_down_grace",
+    "powered_up_held",
+    "powered_up_idle",
+    "powered_up_grace",
+    "hook_missing",
+    "application_grace",
 )
 
 # The reasons that act whatever the posture is.
@@ -83,11 +105,14 @@ REASONS = (
 #
 # A deployment turns the two deadlines off by setting neither of them.
 # Setting a deadline is how a deployment asks for the action.
-EXACT_REASONS = frozenset({
-    "button_held",                 # A person asked
-    "powered_down_grace",          # The deployment's own deadline
-    "undocked_timeout",            # The backstop on an undocked hold
-})
+EXACT_REASONS = frozenset(
+    {
+        "button_held",  # A person asked
+        "powered_down_grace",  # The deployment's own deadline
+        "undocked_timeout",  # The backstop on an undocked hold
+    }
+)
+
 
 class Dwell:
     """How long a condition has been true, without sleeping.
@@ -119,9 +144,19 @@ class Dwell:
 
         return self.since is not None and self.seconds(now) >= float(limit)
 
-def decide(volts, battery_pack_celsius, docked, properties, powered_up_held,
-    button_held, undocked_s, battery_low_s, powered_up_idle_s, thresholds):
 
+def decide(
+    volts,
+    battery_pack_celsius,
+    docked,
+    properties,
+    powered_up_held,
+    button_held,
+    undocked_s,
+    battery_low_s,
+    powered_up_idle_s,
+    thresholds,
+):
     """What to do now: (HOLD, reason) or (SHUTDOWN, reason).
 
     Pure.  Every argument is a number, a token or a boolean, and no argument
@@ -152,18 +187,41 @@ def decide(volts, battery_pack_celsius, docked, properties, powered_up_held,
     powered_down = _number(thresholds.get("powered_down_grace_s"))
     grace = _number(thresholds.get("powered_up_grace_s"), 0.0)
 
-    for decision, reason in _rows(volts, battery_pack_celsius, docked,
-        properties, powered_up_held, button_held, undocked_s, battery_low_s,
-        powered_up_idle_s, floor, low, hot, dwell, maximum, powered_down,
-        grace):
+    for decision, reason in _rows(
+        volts,
+        battery_pack_celsius,
+        docked,
+        properties,
+        powered_up_held,
+        button_held,
+        undocked_s,
+        battery_low_s,
+        powered_up_idle_s,
+        floor,
+        low,
+        hot,
+        dwell,
+        maximum,
+        powered_down,
+        grace,
+    ):
+        return decision, reason  # The first, and the most
+        #   urgent, is the answer
 
-        return decision, reason                  # The first, and the most
-                                                 #   urgent, is the answer
 
-def decide_action(volts, battery_pack_celsius, docked, properties,
-    powered_up_held, button_held, undocked_s, battery_low_s,
-    powered_up_idle_s, thresholds, actionable=None):
-
+def decide_action(
+    volts,
+    battery_pack_celsius,
+    docked,
+    properties,
+    powered_up_held,
+    button_held,
+    undocked_s,
+    battery_low_s,
+    powered_up_idle_s,
+    thresholds,
+    actionable=None,
+):
     """The first decision a caller can act on, and the one word that says
     why.
 
@@ -193,21 +251,49 @@ def decide_action(volts, battery_pack_celsius, docked, properties,
     powered_down = _number(thresholds.get("powered_down_grace_s"))
     grace = _number(thresholds.get("powered_up_grace_s"), 0.0)
 
-    for decision, reason in _rows(volts, battery_pack_celsius, docked,
-        properties, powered_up_held, button_held, undocked_s, battery_low_s,
-        powered_up_idle_s, floor, low, hot, dwell, maximum, powered_down,
-        grace):
-
+    for decision, reason in _rows(
+        volts,
+        battery_pack_celsius,
+        docked,
+        properties,
+        powered_up_held,
+        button_held,
+        undocked_s,
+        battery_low_s,
+        powered_up_idle_s,
+        floor,
+        low,
+        hot,
+        dwell,
+        maximum,
+        powered_down,
+        grace,
+    ):
         if decision == HOLD:
-            return decision, reason              # A hold is final
+            return decision, reason  # A hold is final
         if actionable is None or reason in actionable:
             return decision, reason
-    return HOLD, "powered_up_grace"              # The rows end in a hold
+    return HOLD, "powered_up_grace"  # The rows end in a hold
 
-def _rows(volts, battery_pack_celsius, docked, properties, powered_up_held,
-    button_held, undocked_s, battery_low_s, powered_up_idle_s, floor, low,
-    hot, dwell, maximum, powered_down, grace):
 
+def _rows(
+    volts,
+    battery_pack_celsius,
+    docked,
+    properties,
+    powered_up_held,
+    button_held,
+    undocked_s,
+    battery_low_s,
+    powered_up_idle_s,
+    floor,
+    low,
+    hot,
+    dwell,
+    maximum,
+    powered_down,
+    grace,
+):
     """Every decision the rule reaches, in its order.
 
     One rule, read two ways.  decide() takes the first of these, which is
@@ -220,8 +306,7 @@ def _rows(volts, battery_pack_celsius, docked, properties, powered_up_held,
         yield SHUTDOWN, "button_held"
     if volts is not None and floor is not None and volts < floor:
         yield SHUTDOWN, "battery_floor"
-    if battery_pack_celsius is not None and hot is not None  \
-        and battery_pack_celsius > hot:
+    if battery_pack_celsius is not None and hot is not None and battery_pack_celsius > hot:
         yield SHUTDOWN, "battery_pack_temperature"
     if "hold" not in properties:
         yield HOLD, "no_hold_property"
@@ -231,12 +316,10 @@ def _rows(volts, battery_pack_celsius, docked, properties, powered_up_held,
         return
 
     # Undocked from here down
-    if volts is not None and low is not None and volts < low  \
-        and battery_low_s >= dwell:
+    if volts is not None and low is not None and volts < low and battery_low_s >= dwell:
         yield SHUTDOWN, "battery_low"
     deadline, deadline_reason = _deadline(powered_down, maximum)
-    if deadline is not None and undocked_s is not None  \
-        and undocked_s > deadline:
+    if deadline is not None and undocked_s is not None and undocked_s > deadline:
         yield SHUTDOWN, deadline_reason
     if powered_up_held:
         yield HOLD, "powered_up_held"
@@ -244,6 +327,7 @@ def _rows(volts, battery_pack_celsius, docked, properties, powered_up_held,
     if powered_up_idle_s >= grace:
         yield SHUTDOWN, "powered_up_idle"
     yield HOLD, "powered_up_grace"
+
 
 def _deadline(powered_down_grace_s, undocked_maximum_s):
     """The deadline on an undocked hold, and the word for whichever
@@ -265,16 +349,17 @@ def _deadline(powered_down_grace_s, undocked_maximum_s):
 
     if powered_down_grace_s is not None and powered_down_grace_s <= 0:
         powered_down_grace_s = None
-    found = [(seconds, reason) for seconds, reason in (
-        (powered_down_grace_s, "powered_down_grace"),
-        (undocked_maximum_s, "undocked_timeout"))
-        if seconds is not None]
+    found = [
+        (seconds, reason)
+        for seconds, reason in ((powered_down_grace_s, "powered_down_grace"), (undocked_maximum_s, "undocked_timeout"))
+        if seconds is not None
+    ]
     if not found:
         return None, None
     return min(found, key=lambda item: item[0])
 
-def decide_mode(mode, decision, volts, docked, hook_state, thresholds,
-    undocked_s=0.0):
+
+def decide_mode(mode, decision, volts, docked, hook_state, thresholds, undocked_s=0.0):
     """The next mode: one of MODES, and the one word that says why.
 
     Pure.  "mode" is the mode now, because this decision has memory: a mode
@@ -314,30 +399,27 @@ def decide_mode(mode, decision, volts, docked, hook_state, thresholds,
         return MODE_QUIESCE, "policy"
     if docked:
         return MODE_NORMAL, "docked"
-    if volts is not None and quiesce_volts is not None  \
-        and volts <= quiesce_volts:
+    if volts is not None and quiesce_volts is not None and volts <= quiesce_volts:
         return MODE_QUIESCE, "battery"
     if hook_state == "missing":
         return MODE_QUIESCE, "hook_missing"
     if mode == MODE_QUIESCE:
-        return MODE_QUIESCE, "held"              # Never back, without a dock
+        return MODE_QUIESCE, "held"  # Never back, without a dock
 
     # Undocked, and nothing above applies.  The application grace is the
     # last word: a supply that went for a moment must not stop a recording
-    application = _number(
-        thresholds.get("powered_down_application_grace_s"))
-    if application is not None and application > 0  \
-        and (undocked_s or 0.0) <= application:
+    application = _number(thresholds.get("powered_down_application_grace_s"))
+    if application is not None and application > 0 and (undocked_s or 0.0) <= application:
         return MODE_NORMAL, "application_grace"
     return MODE_CONSERVE, "undocked"
+
 
 # What a warning about the supply can say.  One token each, for a shared
 # variable and a log column
 SUPPLY_WARNINGS = ("supply_current", "supply_headroom")
 
-def supply_warning(supply_volts, supply_amps, battery_volts, docked,
-    thresholds):
 
+def supply_warning(supply_volts, supply_amps, battery_volts, docked, thresholds):
     """Whether the supply looks too small for this host, and the one word
     that says how.  None when it looks adequate, or when there is nothing
     to judge it by.
@@ -376,22 +458,28 @@ def supply_warning(supply_volts, supply_amps, battery_volts, docked,
 
     rating = _number(thresholds.get("supply_amps_maximum"))
     fraction = _number(thresholds.get("supply_amps_fraction"), 0.95)
-    if rating is not None and rating > 0 and supply_amps is not None  \
-        and supply_amps >= rating * fraction:
+    if rating is not None and rating > 0 and supply_amps is not None and supply_amps >= rating * fraction:
         return "supply_current"
     headroom = _number(thresholds.get("supply_headroom_volts"))
     charged = _number(thresholds.get("battery_volts_charged"))
-    if docked and headroom is not None and headroom > 0  \
-        and supply_volts is not None and battery_volts is not None  \
-        and supply_volts > 0  \
-        and supply_volts - battery_volts < headroom  \
-        and (charged is None or battery_volts < charged):
+    if (
+        docked
+        and headroom is not None
+        and headroom > 0
+        and supply_volts is not None
+        and battery_volts is not None
+        and supply_volts > 0
+        and supply_volts - battery_volts < headroom
+        and (charged is None or battery_volts < charged)
+    ):
         return "supply_headroom"
     return None
+
 
 # What it means when the two signals do not agree.  One word each, for
 # the shared state and for a log a reader can count
 DOCK_DISAGREEMENTS = ("line_without_supply", "supply_without_line")
+
 
 def docked_state(dock_line, supply_volts, thresholds):
     """Whether the host is docked, from two independent signals.
@@ -429,8 +517,8 @@ def docked_state(dock_line, supply_volts, thresholds):
     supply_present = supply_volts >= minimum
     if bool(dock_line) == supply_present:
         return dock_line, None
-    return False, (
-        "line_without_supply" if dock_line else "supply_without_line")
+    return False, ("line_without_supply" if dock_line else "supply_without_line")
+
 
 def writing_ok(mode):
     """Whether an application should write to the file systems now.
@@ -440,6 +528,7 @@ def writing_ok(mode):
     reason needs no change in any client"""
 
     return mode == MODE_NORMAL
+
 
 def _number(value, default=None):
     """A threshold as a float.  A missing or unreadable one is "default",
@@ -452,5 +541,6 @@ def _number(value, default=None):
         return float(value)
     except (TypeError, ValueError):
         return default
+
 
 # --------------------------------------------------------------------------- #

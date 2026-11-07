@@ -19,6 +19,7 @@ from collections import OrderedDict  # All OrderedDict operations are O(1)
 
 __all__ = ["LRUCache"]
 
+
 class LRUCache:
     def __init__(self, size):
         self.size = size
@@ -38,7 +39,7 @@ class LRUCache:
             return self.lru_cache[key]
 
     def get_list(self):
-        return(list(self.lru_cache.values()))
+        return list(self.lru_cache.values())
 
     def put(self, key, value):
         """Add or refresh an item.  Returns the (key, value) that this put

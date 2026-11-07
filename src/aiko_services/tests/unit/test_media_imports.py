@@ -20,18 +20,20 @@
 
 import inspect
 
+
 def test_the_package_imports_without_opencv():
     """It is imported by this test file either way, so reaching this line
     is the assertion.  The skip that every other test in this package
     needs is what this one must never have"""
 
-    import aiko_services.elements.media            # noqa: F401
+    import aiko_services.elements.media  # noqa: F401
+
 
 def test_the_writer_imports_without_opencv():
-    from aiko_services.elements.media.store_forward_io import (
-        VideoWriteStoreForward)
+    from aiko_services.elements.media.store_forward_io import VideoWriteStoreForward
 
     assert VideoWriteStoreForward is not None
+
 
 def test_no_opencv_constant_is_read_while_the_module_is_read():
     """The shape of the fault, and the guard against it returning.  A cv2
@@ -43,15 +45,16 @@ def test_no_opencv_constant_is_read_while_the_module_is_read():
     offenders = []
     for number, line in enumerate(source.splitlines(), start=1):
         if line[:1] in (" ", "\t", "#", ""):
-            continue                   # Indented, a comment, or blank
-        if line.startswith(("import ", "from ", "try:", "except", "def ",
-            "class ", "@")):
+            continue  # Indented, a comment, or blank
+        if line.startswith(("import ", "from ", "try:", "except", "def ", "class ", "@")):
             continue
         if "cv2." in line:
             offenders.append((number, line.strip()))
     assert offenders == [], offenders
 
+
 # The back end lookup ------------------------------------------------------ #
+
 
 def test_the_back_end_is_auto_select_without_opencv(monkeypatch):
     """0 is OpenCV's "choose for yourself".  Returning it means the one
@@ -65,17 +68,19 @@ def test_the_back_end_is_auto_select_without_opencv(monkeypatch):
     monkeypatch.setattr(video_io, "_CV2_IMPORTED", False)
     assert video_io.camera_api("linux") == 0
     assert video_io.camera_api("darwin") == 0
-    assert video_io.camera_api() == 0               # This platform, too
+    assert video_io.camera_api() == 0  # This platform, too
+
 
 def test_an_unknown_platform_is_auto_select():
     from aiko_services.elements.media.video_io import camera_api
 
     assert camera_api("plan9") == 0
 
+
 def test_each_platform_has_a_back_end_where_opencv_is_there():
     import aiko_services.elements.media.video_io as video_io
 
     if not video_io._CV2_IMPORTED:
-        return                         # Nothing to look up
+        return  # Nothing to look up
     for system in ("darwin", "linux", "windows"):
         assert isinstance(video_io.camera_api(system), int), system

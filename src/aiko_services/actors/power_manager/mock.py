@@ -21,19 +21,23 @@
 #   and asserts what the policy does at each step (phase 3)
 
 from aiko_services.actors.power_manager.button import FakePowerInputs
-from aiko_services.actors.power_manager.power_manager import (
-    PowerManager, PowerManagerCommon
-)
+from aiko_services.actors.power_manager.power_manager import PowerManager, PowerManagerCommon
 from aiko_services.actors.power_manager.reading import PowerReading
 
 __all__ = ["DEFAULT_READING", "MockPowerManagerImpl"]
 
 # A healthy docked host: above every threshold, so nothing is provoked
 DEFAULT_READING = {
-    "supply_volts": 12.0, "supply_amps": 1.0, "supply_watts": 12.0,
-    "battery_volts": 12.6, "battery_amps": 0.1, "battery_watts": 1.26,
-    "battery_pack_celsius": 25.0, "docked": True,
+    "supply_volts": 12.0,
+    "supply_amps": 1.0,
+    "supply_watts": 12.0,
+    "battery_volts": 12.6,
+    "battery_amps": 0.1,
+    "battery_watts": 1.26,
+    "battery_pack_celsius": 25.0,
+    "docked": True,
 }
+
 
 class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
     """A PowerManager with no hardware.  The default Implementation"""
@@ -41,11 +45,25 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
     device = "mock"
     DECLARED_PROPERTIES = ("readings", "dock")
 
-    def __init__(self, context, script=None, properties=("readings", "dock"),
-        period=None, log_directory=None, keep_days=None, safe=None,
-        thresholds=None, telemetry=None, timer=None, inputs=None,
-        enforce=None, button_shutdown=None, quiesce=None,
-        power_off_runner=None, worker=None):
+    def __init__(
+        self,
+        context,
+        script=None,
+        properties=("readings", "dock"),
+        period=None,
+        log_directory=None,
+        keep_days=None,
+        safe=None,
+        thresholds=None,
+        telemetry=None,
+        timer=None,
+        inputs=None,
+        enforce=None,
+        button_shutdown=None,
+        quiesce=None,
+        power_off_runner=None,
+        worker=None,
+    ):
 
         self._inputs = inputs if inputs is not None else FakePowerInputs()
         self._script = list(script) if script else []
@@ -53,11 +71,11 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
         self._index = 0
         self.opened = False
         self.closed = False
-        self.holds = []                # Every hold() call, for a test
-        self.signals = []              # Every signal() call, for a test
-        self.power_offs = []           # Every power-off, for a test
-        self.remounts = []             # Every read-only remount, for a test
-        self.syncs = []                # Every file-system flush, for a test
+        self.holds = []  # Every hold() call, for a test
+        self.signals = []  # Every signal() call, for a test
+        self.power_offs = []  # Every power-off, for a test
+        self.remounts = []  # Every read-only remount, for a test
+        self.syncs = []  # Every file-system flush, for a test
 
         # The mock never touches a real host.  Without this a test that
         # reaches the acting path runs the privileged commands of the
@@ -72,16 +90,15 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
         if quiesce is None:
             from aiko_services.actors.power_manager.quiesce import Quiesce
 
-            quiesce = Quiesce(
-                syncer=lambda: self.syncs.append(True),
-                runner=self._record_remount)
+            quiesce = Quiesce(syncer=lambda: self.syncs.append(True), runner=self._record_remount)
 
-        from aiko_services.actors.power_manager.power_manager import (
-            BUTTON_SHUTDOWN, ENFORCE, PERIOD_DEVELOPMENT, SAFE
-        )
-        self._init_power(context,
+        from aiko_services.actors.power_manager.power_manager import BUTTON_SHUTDOWN, ENFORCE, PERIOD_DEVELOPMENT, SAFE
+
+        self._init_power(
+            context,
             period=PERIOD_DEVELOPMENT if period is None else period,
-            log_directory=log_directory, keep_days=keep_days,
+            log_directory=log_directory,
+            keep_days=keep_days,
             safe=SAFE if safe is None else safe,
             thresholds=thresholds,
             # None here means "what the Interface says", and not "off".
@@ -94,11 +111,11 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
             telemetry=True if telemetry is None else telemetry,
             timer=True if timer is None else timer,
             enforce=ENFORCE if enforce is None else enforce,
-            button_shutdown=BUTTON_SHUTDOWN if button_shutdown is None
-                else button_shutdown,
+            button_shutdown=BUTTON_SHUTDOWN if button_shutdown is None else button_shutdown,
             quiesce=quiesce,
             power_off_runner=power_off_runner,
-            worker=True if worker is None else worker)
+            worker=True if worker is None else worker,
+        )
         self._inputs.add_handler(self._input_event)
 
     def properties(self):
@@ -131,7 +148,7 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
         self._index += 1
         if isinstance(step, PowerReading):
             return step
-        if isinstance(step, OSError):                    # A failing bus
+        if isinstance(step, OSError):  # A failing bus
             raise step
         return PowerReading(device=self.device, **step)
 
@@ -159,5 +176,6 @@ class MockPowerManagerImpl(PowerManagerCommon, PowerManager):
     def close(self):
         self.closed = True
         super().close()
+
 
 # --------------------------------------------------------------------------- #

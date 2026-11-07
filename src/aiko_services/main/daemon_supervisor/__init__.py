@@ -10,8 +10,13 @@
 # Usage: aiko_supervisor --help  (see cli.py)
 
 from aiko_services.main.daemon_supervisor.daemon_supervisor import (  # noqa: F401
-    GRACE_TIME, STOP_TIMEOUT_MARGIN, DaemonDefinition, DaemonSupervisor,
-    DaemonSupervisorNotSupported, UnsupportedDaemonSupervisorImpl, choose_daemon_supervisor,
+    GRACE_TIME,
+    STOP_TIMEOUT_MARGIN,
+    DaemonDefinition,
+    DaemonSupervisor,
+    DaemonSupervisorNotSupported,
+    UnsupportedDaemonSupervisorImpl,
+    choose_daemon_supervisor,
     daemon_supervisor_args,
 )
 from aiko_services.main.daemon_supervisor.launchd import (  # noqa: F401
@@ -22,8 +27,14 @@ from aiko_services.main.daemon_supervisor.systemd import (  # noqa: F401
 )
 
 __all__ = [
-    "GRACE_TIME", "STOP_TIMEOUT_MARGIN",
-    "DaemonDefinition", "DaemonSupervisor", "DaemonSupervisorNotSupported", "LaunchdDaemonSupervisorImpl",
-    "SystemdDaemonSupervisorImpl", "UnsupportedDaemonSupervisorImpl", "choose_daemon_supervisor",
+    "GRACE_TIME",
+    "STOP_TIMEOUT_MARGIN",
+    "DaemonDefinition",
+    "DaemonSupervisor",
+    "DaemonSupervisorNotSupported",
+    "LaunchdDaemonSupervisorImpl",
+    "SystemdDaemonSupervisorImpl",
+    "UnsupportedDaemonSupervisorImpl",
+    "choose_daemon_supervisor",
     "daemon_supervisor_args",
 ]

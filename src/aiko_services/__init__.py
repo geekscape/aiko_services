@@ -4,7 +4,8 @@ __version__ = "0.8-dev"
 __id__ = "2026-10-29_a"
 
 from aiko_services.main import *
-aiko.id = __id__        # aiko = main.process.ProcessData
+
+aiko.id = __id__  # aiko = main.process.ProcessData
 process = aiko.process
 
 # The Dashboard lives in the actors tier (s_01_RepositoryLayout), so the
@@ -12,5 +13,8 @@ process = aiko.process
 # "main/__init__.py".  A plug-in keeps using "aiko.ServiceFrame", and
 # "main" does not import "actors"
 from aiko_services.ide.tui.dashboard import (  # noqa: E402, F401
-    FrameCommon, LogLevelPopupMenu, LogUI, ServiceFrame,
+    FrameCommon,
+    LogLevelPopupMenu,
+    LogUI,
+    ServiceFrame,
 )

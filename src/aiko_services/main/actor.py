@@ -108,27 +108,33 @@
 # - Multiple threads and multithreading support
 # - State Machine
 
-from abc import abstractmethod
 import os
 import queue
 import time
 import traceback
+from abc import abstractmethod
 
 from aiko_services.main import *
 from aiko_services.main.utilities import *
 
 __all__ = [
-    "Actor", "ActorImpl", "ActorTest", "ActorTestImpl", "ActorTopic",
-    "ACTOR_HOOK_MESSAGE_CALL", "ACTOR_HOOK_MESSAGE_IN"
+    "Actor",
+    "ActorImpl",
+    "ActorTest",
+    "ActorTestImpl",
+    "ActorTopic",
+    "ACTOR_HOOK_MESSAGE_CALL",
+    "ACTOR_HOOK_MESSAGE_IN",
 ]
 
 _AIKO_LOG_LEVEL_ACTOR = os.environ.get("AIKO_LOG_LEVEL_ACTOR", "INFO")
 _LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_ACTOR)
 
 ACTOR_HOOK_MESSAGE_CALL = "actor.message_call:"
-_ACTOR_HOOK_MESSAGE_CALL = ACTOR_HOOK_MESSAGE_CALL+"0"
+_ACTOR_HOOK_MESSAGE_CALL = ACTOR_HOOK_MESSAGE_CALL + "0"
 ACTOR_HOOK_MESSAGE_IN = "actor.message_in:"
-_ACTOR_HOOK_MESSAGE_IN = ACTOR_HOOK_MESSAGE_IN+"0"
+_ACTOR_HOOK_MESSAGE_IN = ACTOR_HOOK_MESSAGE_IN + "0"
+
 
 class Message:
     def __init__(self, target_object, command, arguments, target_function=None):
@@ -146,8 +152,7 @@ class Message:
         target_function = self.target_function
         if not target_function:
             try:
-                target_function = self.target_object.__getattribute__(
-                    self.command)
+                target_function = self.target_object.__getattribute__(self.command)
             except AttributeError:
                 pass
 
@@ -162,15 +167,14 @@ class Message:
             diagnostic = f"{self}: Function not found in: {target_object_name}"
         else:
             if callable(target_function):
-            # TODO: Catching all TypeError hides problems in "target_function"
-            #       Must only catch TypeError problems in this actor code below
-            #       For the specific argument TypeErrors and nothing else
+                # TODO: Catching all TypeError hides problems in "target_function"
+                #       Must only catch TypeError problems in this actor code below
+                #       For the specific argument TypeErrors and nothing else
                 try:
                     target_function(*self.arguments)
                 except Exception as exception:  # Used to be only TypeError
                     arguments = ", ".join(repr(arg) for arg in self.arguments)
-                    diagnostic =  \
-                        f"Message.invoke: {self.command}(self, {arguments})"
+                    diagnostic = f"Message.invoke: {self.command}(self, {arguments})"
                     stack_traceback = traceback.format_exc()
             else:
                 diagnostic = f"{self}: isn't callable"
@@ -180,6 +184,7 @@ class Message:
             #   raise SystemExit(f"SystemExit: actor.py: {diagnostic}")
             else:
                 _LOGGER.error(diagnostic)
+
 
 class ActorTopic:
     # Application topics
@@ -195,6 +200,7 @@ class ActorTopic:
     def __init__(self, topic_name):  # TODO: Implement user defined topics
         self.topic_name = topic_name
 
+
 class Actor(Service, FunctionGate):
     Interface.default("Actor", "aiko_services.main.actor.ActorImpl")
 
@@ -206,24 +212,22 @@ class Actor(Service, FunctionGate):
     def set_log_level(self, level):
         pass
 
+
 class ActorImpl(Actor):
     @classmethod
-    def proxy_post_message(
-        cls, proxy_name, actual_object, actual_function, *args, **kwargs):
+    def proxy_post_message(cls, proxy_name, actual_object, actual_function, *args, **kwargs):
 
         command = actual_function.__name__
         control_command = command.startswith(f"{ActorTopic.CONTROL}_")
         topic = ActorTopic.CONTROL if control_command else ActorTopic.IN
 
-        actual_object._post_message(
-            topic, command, args, target_function=actual_function)
+        actual_object._post_message(topic, command, args, target_function=actual_function)
 
     def __init__(self, context, register_service=True):
-        context.call_init(self, "Service", context,
-            register_service=register_service)
-    # The FunctionGate aspect: an Implementation that wants deny by
-    # default calls this first, with its own allow list.  call_init() is
-    # idempotent, so this call then leaves that configuration alone
+        context.call_init(self, "Service", context, register_service=register_service)
+        # The FunctionGate aspect: an Implementation that wants deny by
+        # default calls this first, with its own allow list.  call_init() is
+        # idempotent, so this call then leaves that configuration alone
         context.call_init(self, "FunctionGate", context)
 
         if not hasattr(self, "logger"):
@@ -235,10 +239,9 @@ class ActorImpl(Actor):
         self.share = {
             "lifecycle": "ready",
             "log_level": get_log_level_name(self.logger),
-            "running": False  # TODO: Consolidate into self.share ?
+            "running": False,  # TODO: Consolidate into self.share ?
         }
-        self.ec_producer = compose_instance(
-            ECProducerImpl, ec_producer_args(self, self.share))
+        self.ec_producer = compose_instance(ECProducerImpl, ec_producer_args(self, self.share))
         self.ec_producer.add_handler(self.ec_producer_change_handler)
 
         self.delayed_message_queue = queue.Queue()
@@ -253,20 +256,21 @@ class ActorImpl(Actor):
         return f"{self.name}/{self.service_id}/{topic}"
 
     def _mailbox_handler(self, topic, message, time_posted):
-        self.run_hook(_ACTOR_HOOK_MESSAGE_CALL, lambda: {
-            "topic": topic, "message": message, "time_posted": time_posted})
+        self.run_hook(
+            _ACTOR_HOOK_MESSAGE_CALL, lambda: {"topic": topic, "message": message, "time_posted": time_posted}
+        )
 
         message.invoke()
 
     def _topic_in_handler(self, _aiko, topic, payload_in):
         try:
             name, parameters = parse(payload_in)
-        except Exception:         # the parser raises on an odd payload
+        except Exception:  # the parser raises on an odd payload
             return self._function_denied("", DENY_PARSE, payload_in[:80])
-    #   if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
-    #       _LOGGER.debug(
-    #           f"{self.name}: topic_in_handler(): {name}:{parameters}"
-    #       )
+        #   if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
+        #       _LOGGER.debug(
+        #           f"{self.name}: topic_in_handler(): {name}:{parameters}"
+        #       )
         reason = self.deny_function(name, parameters)
         if reason:
             return self._function_denied(name, reason)
@@ -298,16 +302,21 @@ class ActorImpl(Actor):
         if isinstance(metrics, dict) and "denied" in metrics:
             self.ec_producer.update("metrics.denied", self._denied_count)
 
-    def _post_message(
-        self, topic, command, args, delay=None, target_function=None):
+    def _post_message(self, topic, command, args, delay=None, target_function=None):
 
-        self.run_hook(_ACTOR_HOOK_MESSAGE_IN, lambda: {
-            "topic": topic, "command": command, "args": args,
-            "delay": delay, "target_function": target_function})
+        self.run_hook(
+            _ACTOR_HOOK_MESSAGE_IN,
+            lambda: {
+                "topic": topic,
+                "command": command,
+                "args": args,
+                "delay": delay,
+                "target_function": target_function,
+            },
+        )
 
         target_object = self
-        message = Message(
-            target_object, command, args, target_function=target_function)
+        message = Message(target_object, command, args, target_function=target_function)
 
         if not delay:
             event.mailbox_put(self._actor_mailbox_name(topic), message)
@@ -316,8 +325,7 @@ class ActorImpl(Actor):
             delayed_message = (delay_time, topic, message)
             self.delayed_message_queue.put(delayed_message, block=False)
             if self.delayed_message_queue.qsize() == 1:
-                event.add_timer_handler(
-                    self._post_delayed_message_handler, delay)
+                event.add_timer_handler(self._post_delayed_message_handler, delay)
 
     def _post_delayed_message_handler(self):
         while self.delayed_message_queue.qsize() > 0:
@@ -329,12 +337,11 @@ class ActorImpl(Actor):
         event.remove_timer_handler(self._post_delayed_message_handler)
 
     def __repr__(self):
-        return f"[{self.__module__}.{type(self).__name__} " \
-               f"object at {hex(id(self))}]"
+        return f"[{self.__module__}.{type(self).__name__} object at {hex(id(self))}]"
 
     def ec_producer_change_handler(self, command, item_name, item_value):
-    #   if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
-    #       _LOGGER.debug(f"ECProducer: {command} {item_name} {item_value}")
+        #   if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
+        #       _LOGGER.debug(f"ECProducer: {command} {item_name} {item_value}")
         if item_name == "log_level":
             try:
                 self.logger.setLevel(log_level_real(item_value))
@@ -344,19 +351,20 @@ class ActorImpl(Actor):
     def is_running(self):
         return self.share["running"]
 
-# TODO: Refactor this method into "process.py" or maybe "service.py"
+    # TODO: Refactor this method into "process.py" or maybe "service.py"
     def run(self, mqtt_connection_required=True):
         self.share["running"] = True
         try:
             aiko.process.run(mqtt_connection_required=mqtt_connection_required)
         except Exception as exception:
-        #   _LOGGER.error(f"Exception caught in {self.__class__.__name__}: {type(exception).__name__}: {exception}")
+            #   _LOGGER.error(f"Exception caught in {self.__class__.__name__}: {type(exception).__name__}: {exception}")
             _LOGGER.error(traceback.format_exc())
             raise exception
         self.share["running"] = False
 
     def set_log_level(self, level):
         self.ec_producer.update("log_level", level.upper())
+
 
 class ActorTest(Actor):  # TODO: Move into "../examples/"
     Interface.default("ActorTest", "aiko_services.main.actor.ActorTestImpl")
@@ -375,6 +383,7 @@ class ActorTest(Actor):  # TODO: Move into "../examples/"
     def test(self, value):
         pass
 
+
 class ActorTestImpl(ActorTest):  # TODO: Move into "../examples/" showing hooks
     def __init__(self, context):
         context.call_init(self, "Actor", context)
@@ -388,8 +397,7 @@ class ActorTestImpl(ActorTest):  # TODO: Move into "../examples/" showing hooks
         self.test_count = 4
 
     def _mailbox_handler(self, topic, message, time_posted):
-        print(f"Actor.handle(): {time_posted%100:07.3f}, " \
-              f"{topic}: {message.command}{message.arguments}")
+        print(f"Actor.handle(): {time_posted % 100:07.3f}, {topic}: {message.command}{message.arguments}")
         super()._mailbox_handler(topic, message, time_posted)
 
         if topic == self._actor_mailbox_name(ActorTopic.IN):

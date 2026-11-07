@@ -103,12 +103,22 @@ except BaseException as exception:
             "traceback": traceback.format_exc()})
 '''
 
+
 def pty_available():
     return hasattr(os, "fork") and hasattr(os, "openpty")
 
-def draw_frame(module_name, class_name, cache, tmp_path,
-    service=None, size=(100, 30), term="xterm-256color", timeout=30.0,
-    passes=2):
+
+def draw_frame(
+    module_name,
+    class_name,
+    cache,
+    tmp_path,
+    service=None,
+    size=(100, 30),
+    term="xterm-256color",
+    timeout=30.0,
+    passes=2,
+):
     """Build the frame on a pseudo-terminal and draw it once.
 
     Returns the result dictionary: "ok" with "lines" and "size", or "ok"
@@ -121,26 +131,25 @@ def draw_frame(module_name, class_name, cache, tmp_path,
     import struct
     import termios
 
-    service = service or [
-        "aiko/host/1234/1", class_name, "protocol:0", "mqtt", "owner", []]
+    service = service or ["aiko/host/1234/1", class_name, "protocol:0", "mqtt", "owner", []]
     state_pathname = str(tmp_path / "state.json")
     out_pathname = str(tmp_path / "drawn.json")
     with open(state_pathname, "w") as file:
         json.dump({"cache": cache, "service": service, "passes": passes}, file)
 
-    environment = {name: value for name, value in os.environ.items()
-        if name not in ("TERM",)}
+    environment = {name: value for name, value in os.environ.items() if name not in ("TERM",)}
     environment["TERM"] = term
     environment.setdefault("LANG", "en_AU.UTF-8")
 
     pid, fd = pty.fork()
-    if pid == 0:                           # the child: its size, then exec
+    if pid == 0:  # the child: its size, then exec
         try:
-            fcntl.ioctl(0, termios.TIOCSWINSZ,
-                struct.pack("HHHH", size[1], size[0], 0, 0))
-            os.execve(sys.executable, [sys.executable, "-c", _CHILD,
-                module_name, class_name, state_pathname, out_pathname],
-                environment)
+            fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack("HHHH", size[1], size[0], 0, 0))
+            os.execve(
+                sys.executable,
+                [sys.executable, "-c", _CHILD, module_name, class_name, state_pathname, out_pathname],
+                environment,
+            )
         finally:
             os._exit(127)
 
@@ -150,7 +159,7 @@ def draw_frame(module_name, class_name, cache, tmp_path,
             if select.select([fd], [], [], 0.1)[0]:
                 try:
                     chunk = os.read(fd, 4096)
-                except OSError:            # the child closed the terminal
+                except OSError:  # the child closed the terminal
                     break
                 if not chunk:
                     break
@@ -167,10 +176,10 @@ def draw_frame(module_name, class_name, cache, tmp_path,
             pass
 
     if not os.path.exists(out_pathname):
-        return {"ok": False, "error": "the child wrote nothing",
-                "traceback": output.decode("utf-8", "replace")[-400:]}
+        return {"ok": False, "error": "the child wrote nothing", "traceback": output.decode("utf-8", "replace")[-400:]}
     with open(out_pathname) as file:
         return json.load(file)
+
 
 # --------------------------------------------------------------------------- #
 
@@ -178,26 +187,38 @@ def draw_frame(module_name, class_name, cache, tmp_path,
 # A FormFrame the fixture above can build, because draw_frame() calls a
 # class with the screen and a Dashboard, and a form takes its fields
 
+
 class FormProbe:
     """Every kind of field, so that one draw shows each widget"""
 
     def __new__(cls, screen, dashboard):
         from aiko_services.ide.tui.dashboard import (
-            FormFrame, choice_field, radio_field, text_field,
+            FormFrame,
+            choice_field,
+            radio_field,
+            text_field,
         )
+
         cls.accepted = {}
-        return FormFrame(screen, "Probe the form", [
-            text_field("name", "Name", "a name"),
-            radio_field("kind", "Entry",
-                [("Dependency", "dependency"), ("Category", "category")]),
-            choice_field("field", "Field",
-                [("name", "name"), ("owner", "owner")]),
-            text_field("tags", "Tags"),
-        ], "Accept", cls.accepted.update, note="A note, above the fields")
+        return FormFrame(
+            screen,
+            "Probe the form",
+            [
+                text_field("name", "Name", "a name"),
+                radio_field("kind", "Entry", [("Dependency", "dependency"), ("Category", "category")]),
+                choice_field("field", "Field", [("name", "name"), ("owner", "owner")]),
+                text_field("tags", "Tags"),
+            ],
+            "Accept",
+            cls.accepted.update,
+            note="A note, above the fields",
+        )
+
 
 # --------------------------------------------------------------------------- #
 # A page that has more than one view needs one probe for each, because
 # draw_frame() delivers no key events and a view is reached with a key
+
 
 class PowerManagerProbe:
     """A PowerManagerFrame already showing one view"""
@@ -208,19 +229,24 @@ class PowerManagerProbe:
         from aiko_services.actors.power_manager.dashboard_plugin import (
             PowerManagerFrame,
         )
+
         frame = PowerManagerFrame(screen, dashboard)
         if cls.view:
             frame.page.view = cls.view
         return frame
 
+
 class PowerManagerSummary(PowerManagerProbe):
     view = "summary"
+
 
 class PowerManagerDetail(PowerManagerProbe):
     view = "detail"
 
+
 class PowerManagerInformation(PowerManagerProbe):
     view = "information"
+
 
 class PowerManagerChart:
     """The chart is a Frame of its own, so it has a probe of its own"""
@@ -229,7 +255,9 @@ class PowerManagerChart:
         from aiko_services.actors.power_manager.dashboard_plugin import (
             PowerManagerChartFrame,
         )
+
         return PowerManagerChartFrame(screen, dashboard)
+
 
 class PowerManagerChartFilled:
     """The chart with a window of samples already in it.
@@ -240,19 +268,32 @@ class PowerManagerChartFilled:
 
     def __new__(cls, screen, dashboard):
         import math
+
         from aiko_services.actors.power_manager.dashboard_plugin import (
-            PowerManagerChartFrame, page_singleton,
+            PowerManagerChartFrame,
+            page_singleton,
         )
+
         page = page_singleton()
         page.samples.clear()
         now = 1_762_000_000.0
         for step in range(120):
             wave = math.sin(step / 9.0)
-            page.samples.append((now + step * 15.0,
-                11.4 + wave * 0.1, 0.7 + wave * 0.2, 8.0 + wave * 2.0,
-                11.1 + wave * 0.1, 0.7 + wave * 0.2, 7.8 + wave * 2.0,
-                32.0 + wave, 52.0 + wave * 4))
+            page.samples.append(
+                (
+                    now + step * 15.0,
+                    11.4 + wave * 0.1,
+                    0.7 + wave * 0.2,
+                    8.0 + wave * 2.0,
+                    11.1 + wave * 0.1,
+                    0.7 + wave * 0.2,
+                    7.8 + wave * 2.0,
+                    32.0 + wave,
+                    52.0 + wave * 4,
+                )
+            )
         page.end = now + 119 * 15.0
         return PowerManagerChartFrame(screen, dashboard)
+
 
 # --------------------------------------------------------------------------- #

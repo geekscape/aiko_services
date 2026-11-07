@@ -14,6 +14,7 @@ __all__ = ["DataScheme"]
 
 # --------------------------------------------------------------------------- #
 
+
 class DataScheme:
     LOOKUP = {}  # key: name, value: class
 
@@ -24,8 +25,7 @@ class DataScheme:
     @classmethod
     def add_data_scheme(cls, name, data_scheme_class):
         if name in DataScheme.LOOKUP:
-            raise RuntimeError(
-                f'DataScheme.add_data_scheme(): scheme "{name}" already exists')
+            raise RuntimeError(f'DataScheme.add_data_scheme(): scheme "{name}" already exists')
         DataScheme.LOOKUP[name] = data_scheme_class
 
     @classmethod
@@ -33,8 +33,7 @@ class DataScheme:
         return False not in [character in source for character in match]
 
     @abstractmethod
-    def create_sources(self, stream, data_sources,
-        frame_generator=None, use_create_frame=True):
+    def create_sources(self, stream, data_sources, frame_generator=None, use_create_frame=True):
         return aiko.StreamEvent.OKAY, {}
 
     def create_targets(self, stream, data_targets):
@@ -46,7 +45,7 @@ class DataScheme:
     def destroy_targets(self, stream):
         pass
 
-# TODO: "def parse_url()", which returns "scheme", "authority", "path"
+    # TODO: "def parse_url()", which returns "scheme", "authority", "path"
 
     @classmethod
     def parse_data_url_path(cls, url):  # data_source or data_target
@@ -66,5 +65,6 @@ class DataScheme:
     @classmethod
     def parse_url_scheme(cls, url):
         return DataScheme.parse_data_url_scheme(url)
+
 
 # --------------------------------------------------------------------------- #

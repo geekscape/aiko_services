@@ -14,12 +14,12 @@
 # - None, yet !
 
 import aiko_services as aiko
-from aiko_services.main.context import Context
 
 
 def _make_actor(name):
     class TShareActor(aiko.Actor):  # synthesized __init__ (ADR-021)
         pass
+
     TShareActor.__name__ = f"TShareActor_{name}"
     return aiko.compose_instance(TShareActor, aiko.actor_args(name))
 
@@ -31,6 +31,7 @@ def test_actor_ec_producer_is_composed():
     actor.ec_producer.update("lifecycle", "testing")
     assert actor.ec_producer.get("lifecycle") == "testing"
     assert actor.share["lifecycle"] == "testing"
+
 
 def test_ec_producer_deprecated_positional_shim():
     # One-release shim: "ECProducer(service, share)" still works, returning
@@ -45,35 +46,34 @@ def test_ec_producer_deprecated_positional_shim():
     producer.remove("key_1")
     assert producer.get("key_1") is None
 
+
 def test_ec_consumer_deprecated_positional_shim():
     actor = _make_actor("t_share_consumer")
     cache = {}
-    consumer = aiko.ECConsumer(
-        actor, 0, cache, f"{actor.topic_path}/control")
+    consumer = aiko.ECConsumer(actor, 0, cache, f"{actor.topic_path}/control")
     assert isinstance(consumer, aiko.ECConsumerImpl)
     events = []
-    consumer.add_handler(
-        lambda consumer_id, command, name, value:
-            events.append((command, name, value)))
+    consumer.add_handler(lambda consumer_id, command, name, value: events.append((command, name, value)))
     consumer.terminate()
     assert consumer.cache_state == "empty"
 
+
 def test_ec_cache_local_get_and_handlers():
     actor = _make_actor("t_share_cache")
-    cache = aiko.compose_instance(aiko.ECCacheImpl, aiko.ec_cache_args(
-        actor, aiko.ServiceFilter("*", "t_producer", "*", "*", "*", "*")))
+    cache = aiko.compose_instance(
+        aiko.ECCacheImpl, aiko.ec_cache_args(actor, aiko.ServiceFilter("*", "t_producer", "*", "*", "*", "*"))
+    )
     assert cache.get("anything", default="fallback") == "fallback"
 
     # A producer appears (simulated discovery event, no broker required)
     topic_path = "aiko/host/1234/1"
-    cache._service_change_handler("add",
-        [topic_path, "t_producer", "*", "*", "*", []])
+    cache._service_change_handler("add", [topic_path, "t_producer", "*", "*", "*", []])
     assert topic_path in cache.consumers
     assert isinstance(cache.consumers[topic_path], aiko.ECConsumerImpl)
 
     # Local, non-blocking reads from the replica
     cache.caches[topic_path]["battery"] = {"percent": "82"}
-    assert cache.get("battery.percent") == "82"           # sole producer
+    assert cache.get("battery.percent") == "82"  # sole producer
     assert cache.get("battery.percent", topic_path=topic_path) == "82"
     assert cache.get("absent", default=0) == 0
 
@@ -82,17 +82,17 @@ def test_ec_cache_local_get_and_handlers():
     seen = []
     cache.add_handler(
         lambda tp, command, name, value: seen.append((tp, name, value)),
-        filter=lambda name, value: name.startswith("battery"))
+        filter=lambda name, value: name.startswith("battery"),
+    )
     assert seen == [(topic_path, "battery.percent", "82")]  # replay
     relay = cache._make_consumer_relay_handler(topic_path)
     relay(1, "update", "battery.percent", "81")
-    relay(1, "update", "screen.detail", "off")              # filtered out
+    relay(1, "update", "screen.detail", "off")  # filtered out
     assert seen[-1] == (topic_path, "battery.percent", "81")
     assert len(seen) == 2
 
     # Producer disappears; replica and consumer are cleaned up
-    cache._service_change_handler("remove",
-        [topic_path, "t_producer", "*", "*", "*", []])
+    cache._service_change_handler("remove", [topic_path, "t_producer", "*", "*", "*", []])
     assert cache.consumers == {}
     assert cache.get("battery.percent", default=None) is None
     cache.terminate()
@@ -100,6 +100,7 @@ def test_ec_cache_local_get_and_handlers():
 
 # --------------------------------------------------------------------------- #
 # ServicesCache: a bounded warning when the Registrar never replies
+
 
 class _StubService:
     topic_path = "aiko/t_host/1/1"
@@ -124,8 +125,7 @@ def test_services_cache_warns_once_when_the_registrar_is_silent(monkeypatch):
     from aiko_services.main import aiko as process_data
 
     published, warnings = [], []
-    stub = type("Message", (), {"publish": lambda self, topic, payload:
-                                published.append((topic, payload))})()
+    stub = type("Message", (), {"publish": lambda self, topic, payload: published.append((topic, payload))})()
     monkeypatch.setattr(process_data, "message", stub)
     monkeypatch.setattr(process_data, "registrar", {"topic_path": "aiko/dead/9/1"})
     monkeypatch.setattr(share_module._LOGGER, "warning", warnings.append)
@@ -133,27 +133,29 @@ def test_services_cache_warns_once_when_the_registrar_is_silent(monkeypatch):
     try:
         cache._connection_state_handler(_Connected(True), None)
         assert published[-1][0] == "aiko/dead/9/1/in" and cache._reply_timer_pending
-        cache._reply_timer()                             # no (item_count ...)
+        cache._reply_timer()  # no (item_count ...)
         assert len(warnings) == 1 and "aiko/dead/9/1" in warnings[0]
         assert "mosquitto_pub" in warnings[0] and not cache._reply_timer_pending
 
-        cache._connection_state_handler(_Connected(False), None)   # reset
+        cache._connection_state_handler(_Connected(False), None)  # reset
         cache._connection_state_handler(_Connected(True), None)
         assert cache._reply_timer_pending
-        cache.registrar_share_handler(None, "t", "(item_count 0)")   # a reply
+        cache.registrar_share_handler(None, "t", "(item_count 0)")  # a reply
         assert not cache._reply_timer_pending
 
         cache._connection_state_handler(_Connected(False), None)
         cache._connection_state_handler(_Connected(True), None)
-        cache._connection_state_handler(_Connected(False), None)   # lost: cancelled
+        cache._connection_state_handler(_Connected(False), None)  # lost: cancelled
         assert not cache._reply_timer_pending and len(warnings) == 1
     finally:
         process_data.connection.remove_handler(cache._connection_state_handler)
         cache._reply_timer_cancel()
 
+
 # ECProducer incremental updates must survive the wire: values that contain
 # white space, parenthesis, nested lists or are empty, round-trip through an
 # ECConsumer cache unchanged
+
 
 class _FakeMessage:
     def __init__(self):
@@ -168,10 +170,12 @@ class _FakeMessage:
     def unsubscribe(self, topics):
         pass
 
+
 class _FakeLease:
     def __init__(self, lease_uuid, filter="*"):
         self.lease_uuid = lease_uuid
         self.filter = filter
+
 
 def test_ec_producer_incremental_update_round_trip(monkeypatch):
     from aiko_services.main import share as share_module
@@ -209,6 +213,7 @@ def test_ec_producer_incremental_update_round_trip(monkeypatch):
     assert cache["nested"]["item"] == "deep value"
     consumer.terminate()
 
+
 def test_ec_consumer_share_request_filter_list(monkeypatch):
     from aiko_services.main import share as share_module
 
@@ -223,8 +228,7 @@ def test_ec_consumer_share_request_filter_list(monkeypatch):
     topic, payload = fake_message.published[-1]
     assert topic == "producer/control"
     command, parameters = share_module.parse(payload)
-    response_topic, lease_time, filter = \
-        actor.ec_producer._ec_parse_share(command, parameters)
+    response_topic, lease_time, filter = actor.ec_producer._ec_parse_share(command, parameters)
     assert response_topic == consumer.topic_share_in
     assert lease_time == 60
     assert filter == ["lifecycle", "metrics.running"]

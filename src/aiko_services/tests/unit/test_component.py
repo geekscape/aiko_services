@@ -31,7 +31,9 @@ from aiko_services.main.context import Context, Interface
 
 class TCmpGreeter(Interface):
     @abstractmethod
-    def greet(self, name): pass
+    def greet(self, name):
+        pass
+
 
 class TCmpGreeterImpl(TCmpGreeter):
     def __init__(self, context):
@@ -39,6 +41,7 @@ class TCmpGreeterImpl(TCmpGreeter):
 
     def greet(self, name):
         self.greeted.append(name)
+
 
 Interface.default("TCmpGreeter", TCmpGreeterImpl)
 
@@ -49,10 +52,12 @@ def test_compose_instance_basic():
     assert greeter.greeted == ["Pele"]
     assert type(greeter).__name__ == "TCmpGreeterImpl"
 
+
 def test_unimplemented_interface_raises():
     class TCmpOrphan(Interface):  # no Interface.default() registration
         @abstractmethod
-        def method_0(self): pass
+        def method_0(self):
+            pass
 
     class TCmpOrphanImpl(TCmpOrphan):
         def __init__(self, context):
@@ -66,6 +71,7 @@ def test_unimplemented_interface_raises():
         assert False, "Expected ValueError for unimplemented Interface"
     except ValueError as value_error:
         assert "TCmpOrphan" in str(value_error)
+
 
 def test_marker_interface_composes():
     # Empty marker Interfaces (e.g. Registrar today) must compose when a
@@ -82,6 +88,7 @@ def test_marker_interface_composes():
     marker = compose_instance(TCmpMarkerImpl, {"context": Context()})
     assert marker is not None
 
+
 def test_unrelated_defaults_not_picked_up():
     # The default registry is global: get_implementations() returns every
     # registered default.  Composition must keep only the Interfaces in the
@@ -90,7 +97,8 @@ def test_unrelated_defaults_not_picked_up():
 
     class TCmpUnrelated(Interface):
         @abstractmethod
-        def unrelated_method(self): pass
+        def unrelated_method(self):
+            pass
 
     class TCmpUnrelatedImpl(TCmpUnrelated):
         def __init__(self, context):
@@ -105,6 +113,7 @@ def test_unrelated_defaults_not_picked_up():
     frankenstein_class, implementations = compose_class(TCmpGreeterImpl)
     assert "TCmpUnrelated" not in implementations
     assert not hasattr(frankenstein_class, "unrelated_method")
+
 
 def test_impl_override():
     # Overrides substitute an Interface's implementation beneath an
@@ -123,10 +132,10 @@ def test_impl_override():
         def greet(self, name):
             pass  # quietly ignore
 
-    greeter = compose_instance(TCmpGreeterApp, {"context": Context()},
-        impl_overrides={"TCmpGreeter": TCmpGreeterQuiet})
+    greeter = compose_instance(TCmpGreeterApp, {"context": Context()}, impl_overrides={"TCmpGreeter": TCmpGreeterQuiet})
     greeter.greet("Pele")
     assert greeter.greeted == []  # quiet override, not the default Impl
+
 
 def test_seed_concrete_methods_never_replaced():
     # _add_methods contract: a concrete method on the seed class always
@@ -143,6 +152,7 @@ def test_seed_concrete_methods_never_replaced():
     greeter.greet("Pele")
     assert greeter.greeted == ["PELE"]
 
+
 def test_call_init_idempotent():
     # Context.call_init() must initialize each implementation exactly once
     # (diamond hierarchies reach a shared base Interface a single time).
@@ -151,7 +161,8 @@ def test_call_init_idempotent():
 
     class TCmpCounting(Interface):
         @abstractmethod
-        def count(self): pass
+        def count(self):
+            pass
 
     class TCmpCountingImpl(TCmpCounting):
         def __init__(self, context):
@@ -164,13 +175,15 @@ def test_call_init_idempotent():
 
     context = Context()
     instance = compose_instance(TCmpCountingImpl, {"context": context})
-    assert instance.count() == 1        # direct construction
+    assert instance.count() == 1  # direct construction
     context.call_init(instance, "TCmpCounting", context)
-    assert instance.count() == 2        # first call_init() executes ...
+    assert instance.count() == 2  # first call_init() executes ...
     context.call_init(instance, "TCmpCounting", context)
-    assert instance.count() == 2        # ... second is guarded
+    assert instance.count() == 2  # ... second is guarded
+
 
 # Synthesized default __init__ (ADR-021) ------------------------------------
+
 
 def test_synthesized_init():
     class TCmpNoInit(TCmpGreeter):  # no __init__() at all
@@ -179,6 +192,7 @@ def test_synthesized_init():
     greeter = compose_instance(TCmpNoInit, {"context": Context()})
     greeter.greet("Pele")
     assert greeter.greeted == ["Pele"]  # TCmpGreeterImpl.__init__ ran
+
 
 def test_synthesized_init_actor_with_protocol():
     class TCmpAloha(aiko.Actor):  # no __init__(); protocol via attribute
@@ -194,10 +208,12 @@ def test_synthesized_init_actor_with_protocol():
     instance.aloha("Pele")
     assert instance.share["aloha"] == "Pele"
 
+
 def test_synthesized_init_dual_interface():
     class TCmpOther(Interface):
         @abstractmethod
-        def other(self): pass
+        def other(self):
+            pass
 
     class TCmpOtherImpl(TCmpOther):
         def __init__(self, context):
@@ -213,13 +229,15 @@ def test_synthesized_init_dual_interface():
 
     dual = compose_instance(TCmpDual, {"context": Context()})
     dual.greet("Pele")
-    assert dual.greeted == ["Pele"]     # first parent initialized ...
-    assert dual.other() is True         # ... and the second
+    assert dual.greeted == ["Pele"]  # first parent initialized ...
+    assert dual.other() is True  # ... and the second
+
 
 def test_synthesized_init_forwards_kwargs():
     class TCmpConfigurable(Interface):
         @abstractmethod
-        def get_option(self): pass
+        def get_option(self):
+            pass
 
     class TCmpConfigurableImpl(TCmpConfigurable):
         def __init__(self, context, option="default"):
@@ -233,9 +251,9 @@ def test_synthesized_init_forwards_kwargs():
     class TCmpConfigured(TCmpConfigurable):  # no __init__()
         pass
 
-    instance = compose_instance(
-        TCmpConfigured, {"context": Context(), "option": "custom"})
+    instance = compose_instance(TCmpConfigured, {"context": Context(), "option": "custom"})
     assert instance.get_option() == "custom"
+
 
 def test_explicit_init_always_wins():
     class TCmpExplicit(TCmpGreeter):

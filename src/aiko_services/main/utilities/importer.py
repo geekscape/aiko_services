@@ -47,6 +47,7 @@ if os.environ.get("AIKO_IMPORTER_USE_CURRENT_DIRECTORY"):
 
 MODULES_LOADED = {}
 
+
 def load_module(module_descriptor):
     if module_descriptor in MODULES_LOADED:
         module = MODULES_LOADED[module_descriptor]
@@ -61,6 +62,7 @@ def load_module(module_descriptor):
         MODULES_LOADED[module_descriptor] = module
     return module
 
+
 def _module_name(pathname):
     """A name of this file's own, which is stable across calls.
 
@@ -71,6 +73,7 @@ def _module_name(pathname):
     digest = hashlib.sha1(resolved.encode("utf-8")).hexdigest()[:12]
     stem = pathlib.Path(pathname).stem or "module"
     return f"aiko_file_{stem}_{digest}"
+
 
 def _load_module_from_path(pathname):
     """Load a Python source file as a module of its own.
@@ -98,9 +101,10 @@ def _load_module_from_path(pathname):
     try:
         spec.loader.exec_module(module)
     except BaseException:
-        sys.modules.pop(name, None)     # A half-run module helps nobody
+        sys.modules.pop(name, None)  # A half-run module helps nobody
         raise
     return module
+
 
 def load_modules(module_pathnames):
     modules = []

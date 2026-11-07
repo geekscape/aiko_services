@@ -50,9 +50,9 @@ from aiko_services.main.utilities.parser import generate_symbol
 
 # --------------------------------------------------------------------------- #
 
+
 class Dependency(Interface):
-    Interface.default(
-        "Dependency", "aiko_services.main.dependency.DependencyImpl")
+    Interface.default("Dependency", "aiko_services.main.dependency.DependencyImpl")
 
     @abstractmethod
     def get_type(self):
@@ -63,20 +63,23 @@ class Dependency(Interface):
         pass
 
     @abstractmethod
-    def update(self, entry_name, service=None,
-        service_filter=None, lifecycle_manager_url=None, storage_url=None):
+    def update(self, entry_name, service=None, service_filter=None, lifecycle_manager_url=None, storage_url=None):
         pass
 
-def dependency_args(service=None,
-    service_filter=None, lifecycle_manager_url=None, storage_url=None):
+
+def dependency_args(service=None, service_filter=None, lifecycle_manager_url=None, storage_url=None):
 
     init_args = context_args()
-    init_args.update({
-        "service": service,
-        "service_filter": service_filter,
-        "lifecycle_manager_url": lifecycle_manager_url,
-        "storage_url": storage_url})
+    init_args.update(
+        {
+            "service": service,
+            "service_filter": service_filter,
+            "lifecycle_manager_url": lifecycle_manager_url,
+            "storage_url": storage_url,
+        }
+    )
     return init_args
+
 
 # --------------------------------------------------------------------------- #
 # "self.service" reference values ...
@@ -89,12 +92,12 @@ def dependency_args(service=None,
 #     - "*":  Discover ProcessManager and/or Storage (default)
 #     - "URL" Specified ProcessManager and/or Storage
 
-class DependencyImpl(Dependency):
-    def __init__(self, context, service=None,
-        service_filter=None, lifecycle_manager_url=None, storage_url=None):
 
-        self.service = service                     # Service instance reference
-        self.service_filter = service_filter       # Used for discovery
+class DependencyImpl(Dependency):
+    def __init__(self, context, service=None, service_filter=None, lifecycle_manager_url=None, storage_url=None):
+
+        self.service = service  # Service instance reference
+        self.service_filter = service_filter  # Used for discovery
         self.lifecycle_manager_url = lifecycle_manager_url
         self.storage_url = storage_url
 
@@ -104,20 +107,21 @@ class DependencyImpl(Dependency):
     def is_type(self, type_name):
         return type_name.lower() == "dependency"
 
-# A URL holds whatever it holds, a space and a brace included, and this
-# expression is built here rather than by generate_s_expression(), so each
-# one is length-prefixed the way that would do it.  Without this, a
-# "(list ...)" response of a Category cannot be parsed back
+    # A URL holds whatever it holds, a space and a brace included, and this
+    # expression is built here rather than by generate_s_expression(), so each
+    # one is length-prefixed the way that would do it.  Without this, a
+    # "(list ...)" response of a Category cannot be parsed back
 
     def __repr__(self):
-        return f"({self.service_filter} "  \
-               f"{generate_symbol(str(self.lifecycle_manager_url))} "  \
-               f"{generate_symbol(str(self.storage_url))})"
+        return (
+            f"({self.service_filter} "
+            f"{generate_symbol(str(self.lifecycle_manager_url))} "
+            f"{generate_symbol(str(self.storage_url))})"
+        )
 
-# Note: "entry_name" only needed for Category, not Dependency, ignore it here
+    # Note: "entry_name" only needed for Category, not Dependency, ignore it here
 
-    def update(self, entry_name, service=None,
-        service_filter=None, lifecycle_manager_url=None, storage_url=None):
+    def update(self, entry_name, service=None, service_filter=None, lifecycle_manager_url=None, storage_url=None):
 
         if service:
             self.service = service
@@ -127,5 +131,6 @@ class DependencyImpl(Dependency):
             self.lifecycle_manager_url = lifecycle_manager_url
         if storage_url:
             self.storage_url = storage_url
+
 
 # --------------------------------------------------------------------------- #

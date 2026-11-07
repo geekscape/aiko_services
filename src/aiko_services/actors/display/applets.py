@@ -45,20 +45,41 @@ import socket
 from PIL import Image, ImageDraw
 
 from aiko_services.actors.display.graphics import (
-    HEIGHT, INK, WIDTH, blank, paste_centred, pixels, stamp,
+    HEIGHT,
+    INK,
+    WIDTH,
+    blank,
+    paste_centred,
+    pixels,
+    stamp,
 )
 
 __all__ = [
-    "APPLETS", "OPTION_LENGTH_MAXIMUM", "TOUR", "Applet",
-    "AppletDone", "BlinkApplet", "DemoApplet", "HelpApplet",
-    "Host", "LogApplet", "PatternApplet", "TextApplet", "fits",
-    "on_off", "parse_applet_args", "pattern_image", "random_steps",
+    "APPLETS",
+    "OPTION_LENGTH_MAXIMUM",
+    "TOUR",
+    "Applet",
+    "AppletDone",
+    "BlinkApplet",
+    "DemoApplet",
+    "HelpApplet",
+    "Host",
+    "LogApplet",
+    "PatternApplet",
+    "TextApplet",
+    "fits",
+    "on_off",
+    "parse_applet_args",
+    "pattern_image",
+    "random_steps",
 ]
 
 OPTION_LENGTH_MAXIMUM = 64  # characters per word or option value (P9 bound)
 
+
 class AppletDone(Exception):
     """The applet finished: the Actor goes back to its default"""
+
 
 class Host:
     """What an applet may use.  The Actor implements this; tests can
@@ -79,8 +100,7 @@ class Host:
         """Characters per text row in the font (21 for 5x7 on 128 pixels);
         an average for a proportional font"""
 
-        cell = self.font.cell_width  \
-            or max(1, round(self.font.render_line("0123456789").width / 10))
+        cell = self.font.cell_width or max(1, round(self.font.render_line("0123456789").width / 10))
         return max(1, self.width // cell)
 
     def title_rows(self):
@@ -118,11 +138,13 @@ class Host:
     def control(self, name, value):
         """Change a display setting, e.g. control("power", "off")"""
 
+
 def fits(applet_class, width, height):
     """Whether the applet's MIN_SIZE fits a host of the size"""
 
     minimum_width, minimum_height = applet_class.MIN_SIZE
     return width >= minimum_width and height >= minimum_height
+
 
 class Applet:
     """A source of frames.  Subclasses set "name", "fps" (frames per second
@@ -131,10 +153,10 @@ class Applet:
     name = "base"
     fps = 30
     wants_title = False  # True: the title row is drawn over the frame
-    MIN_SIZE = (0, 0)    # the smallest host (width, height) that fits: games
-    OPTIONS = {}         # option name: type, e.g. {"seed": int}
-    description = ""     # one token for observers
-    summary = ""         # one line for "aiko_display applet --list"
+    MIN_SIZE = (0, 0)  # the smallest host (width, height) that fits: games
+    OPTIONS = {}  # option name: type, e.g. {"seed": int}
+    description = ""  # one token for observers
+    summary = ""  # one line for "aiko_display applet --list"
 
     def __init__(self, host, words=(), options=None):
         self.host = host
@@ -174,6 +196,7 @@ class Applet:
             y += font.cell_height
         return frame
 
+
 def parse_applet_args(args, spec):
     """Split wire arguments into plain words and key=value options, coercing
     each option with the type in spec.  Raises ValueError for an unknown
@@ -197,7 +220,9 @@ def parse_applet_args(args, spec):
             words.append(arg)
     return words, options
 
+
 # --------------------------------------------------------------------------- #
+
 
 def ip_address():
     """The address of the interface that reaches the network, else "none" """
@@ -208,6 +233,7 @@ def ip_address():
             return udp.getsockname()[0]
         except OSError:
             return "none"
+
 
 def per_second(count):
     """A rate in four characters, three for the number and one for the unit
@@ -221,6 +247,7 @@ def per_second(count):
         count /= 1000
     return f"{count:3.0f}T"
 
+
 def on_off(text):
     """True for on/true/1/yes, False for off/false/0/no; ValueError otherwise"""
 
@@ -229,6 +256,7 @@ def on_off(text):
     if text in ("off", "false", "0", "no"):
         return False
     raise ValueError(text)
+
 
 class LogApplet(Applet):
     """The last eight (log ...) lines, oldest first, as they arrive; showing
@@ -255,6 +283,7 @@ class LogApplet(Applet):
         self.host.log_seen()
         return self.write_lines(lines[-rows:])
 
+
 class HelpApplet(Applet):
     """Help on the display, in pages that fit it: the keys of the console
     (applets, then actions), the Dashboard settings and state, and the LISP
@@ -267,54 +296,72 @@ class HelpApplet(Applet):
     OPTIONS = {"page": int, "hold": float}
     summary = "Help pages: console keys, Dashboard variables, LISP commands"
     PAGES = [  # (heading, up to six lines of 21 characters)
-        ("Keys: applets", [
-            "s status l log h help",
-            "p pattern t text",
-            "d draw D demo",
-            "g games G forklift",
-            "P blink C clock",
-            "e eyes  S status view",
-        ]),
-        ("Keys: actions", [
-            "arrows: applet keys",
-            "0-9 speed f F font",
-            "T title  i invert",
-            "o power  a all_on",
-            "+/- contrast c clear",
-            "b B color R reset x X",
-        ]),
-        ("Dashboard: set", [
-            "applet contrast font",
-            "invert power all_on",
-            "title speed",
-            "blank_after",
-            "mirror_rate",
-            "foreground background",
-        ]),
-        ("Dashboard: state", [
-            "backend device panels",
-            "size depth settings",
-            "keys.* connection fps",
-            "applets applet_detail",
-            "heartbeat last_error",
-            "log_count metrics.*",
-        ]),
-        ("LISP on topic/in", [
-            "(text X Y WORDS)",
-            "(log WORDS) (clear)",
-            "(pixel X Y) (pixels)",
-            "(line X0 Y0 X1 Y1)",
-            "(applet NAME ARGS)",
-            "(key NAME) (stop)",
-        ]),
-        ("LISP: notes", [
-            "no oled: prefixes",
-            "origin bottom-left",
-            "y=0 is the bottom row",
-            "aiko_display set K V",
-            "aiko_display applet",
-            "mosquitto_pub -t T/in",
-        ]),
+        (
+            "Keys: applets",
+            [
+                "s status l log h help",
+                "p pattern t text",
+                "d draw D demo",
+                "g games G forklift",
+                "P blink C clock",
+                "e eyes  S status view",
+            ],
+        ),
+        (
+            "Keys: actions",
+            [
+                "arrows: applet keys",
+                "0-9 speed f F font",
+                "T title  i invert",
+                "o power  a all_on",
+                "+/- contrast c clear",
+                "b B color R reset x X",
+            ],
+        ),
+        (
+            "Dashboard: set",
+            [
+                "applet contrast font",
+                "invert power all_on",
+                "title speed",
+                "blank_after",
+                "mirror_rate",
+                "foreground background",
+            ],
+        ),
+        (
+            "Dashboard: state",
+            [
+                "backend device panels",
+                "size depth settings",
+                "keys.* connection fps",
+                "applets applet_detail",
+                "heartbeat last_error",
+                "log_count metrics.*",
+            ],
+        ),
+        (
+            "LISP on topic/in",
+            [
+                "(text X Y WORDS)",
+                "(log WORDS) (clear)",
+                "(pixel X Y) (pixels)",
+                "(line X0 Y0 X1 Y1)",
+                "(applet NAME ARGS)",
+                "(key NAME) (stop)",
+            ],
+        ),
+        (
+            "LISP: notes",
+            [
+                "no oled: prefixes",
+                "origin bottom-left",
+                "y=0 is the bottom row",
+                "aiko_display set K V",
+                "aiko_display applet",
+                "mosquitto_pub -t T/in",
+            ],
+        ),
     ]
 
     def __init__(self, host, words=(), options=None):
@@ -355,7 +402,9 @@ class HelpApplet(Applet):
         heading = f"{heading:16.16s} {self.page + 1}/{len(self.PAGES)}"
         return self.write_lines([heading] + lines)
 
+
 # --------------------------------------------------------------------------- #
+
 
 def pattern_image(font, width=WIDTH, height=HEIGHT):
     """The test pattern: a border on all four edges; ruler ticks every 8
@@ -373,8 +422,7 @@ def pattern_image(font, width=WIDTH, height=HEIGHT):
     draw.line((0, 0, width - 1, height - 1), fill=INK)
     draw.line((0, height - 1, width - 1, 0), fill=INK)
     cx, cy, radius = width // 2, height // 2, min(width, height) // 2 - 8
-    draw.ellipse((cx - radius, cy - radius, cx + radius - 1, cy + radius - 1),
-                 outline=INK)
+    draw.ellipse((cx - radius, cy - radius, cx + radius - 1, cy + radius - 1), outline=INK)
     blocks = [
         (8, cy - 14, lambda x, y: y % 2 == 0),
         (8, cy + 2, lambda x, y: y % 2 == 1),
@@ -383,10 +431,10 @@ def pattern_image(font, width=WIDTH, height=HEIGHT):
     ]
     for left, top, lit in blocks:
         top = max(1, top)
-        image.paste(pixels(lit, width, height).crop(
-            (left, top, left + 16, top + 12)), (left, top))
+        image.paste(pixels(lit, width, height).crop((left, top, left + 16, top + 12)), (left, top))
     paste_centred(image, "centre", font)
     return image
+
 
 def digits_image(font, width=WIDTH, height=HEIGHT):
     """A screen full of digits: each row counts 0123456789012... across every
@@ -396,14 +444,14 @@ def digits_image(font, width=WIDTH, height=HEIGHT):
     font = font.mono()
     digits = [font.render_line(str(digit)) for digit in range(10)]
     _, top, _, bottom = font.render("0123456789").getbbox()
-    digits = [digit.crop((0, top - font.top, digit.width, bottom - font.top))
-              for digit in digits]
+    digits = [digit.crop((0, top - font.top, digit.width, bottom - font.top)) for digit in digits]
     cell = 6 if font.truetype is None else round(font.truetype.getlength("0"))
     pitch = bottom - top + 1
     for row in range(math.ceil(height / pitch)):
         for column in range(math.ceil(width / cell)):
             stamp(image, digits[(row + column) % 10], column * cell, row * pitch)
     return image
+
 
 class StillApplet(Applet):
     """One picture, drawn again only when the font changes"""
@@ -423,6 +471,7 @@ class StillApplet(Applet):
         self._font = self.host.font
         return self.picture()
 
+
 class PatternApplet(StillApplet):
     """The test pattern, to check a panel for shifted, missing, stretched or
     interleaved rows and columns"""
@@ -433,6 +482,7 @@ class PatternApplet(StillApplet):
 
     def picture(self):
         return pattern_image(self.host.font, self.host.width, self.host.height)
+
 
 class TextApplet(StillApplet):
     """WORDS centred in the current font, or without words the screen full
@@ -451,6 +501,7 @@ class TextApplet(StillApplet):
         frame = self.frame()
         paste_centred(frame, " ".join(self.words), self.host.font)
         return frame
+
 
 class BlinkApplet(Applet):
     """The panel's power switched off and on, "rate" times a second, over
@@ -479,6 +530,7 @@ class BlinkApplet(Applet):
     def stop(self):
         self.host.control("power", "on")
 
+
 # The fixed tour: (seconds, applet, arguments, settings for the step)
 TOUR = [
     (3, "blink", ["rate=4"], {}),
@@ -499,6 +551,7 @@ TOUR = [
     (25, "forklift", [], {}),
 ]
 
+
 def random_steps(rng):
     """Endless demo steps like those in TOUR, chosen at random; never the
     same kind twice in a row"""
@@ -510,25 +563,34 @@ def random_steps(rng):
         return [f"seed={rng.randrange(1000000)}"]
 
     def screen():
-        return rng.choice([
-            (3, "pattern", [], {"invert": "on"}),
-            (3, "blink", [f"rate={rng.choice('248')}"], {}),
-            (3, "pattern", [], {"contrast": rng.choice(["8", "64", "160"])}),
-        ])
+        return rng.choice(
+            [
+                (3, "pattern", [], {"invert": "on"}),
+                (3, "blink", [f"rate={rng.choice('248')}"], {}),
+                (3, "pattern", [], {"contrast": rng.choice(["8", "64", "160"])}),
+            ]
+        )
 
     def draw():
         speed = rng.choice((4, 6, 8))
         options = rng.choice([[], ["shade=off"], [f"style={rng.choice(('outline', 'hatch', 'stipple'))}"]])
-        subject = [f"subject={rng.choice(('house', 'tree', 'pine', 'cat', 'dog', 'bicycle', 'flower', 'forklift'))}"]  \
-            if rng.random() < 0.5 else []
+        subject = (
+            [f"subject={rng.choice(('house', 'tree', 'pine', 'cat', 'dog', 'bicycle', 'flower', 'forklift'))}"]
+            if rng.random() < 0.5
+            else []
+        )
         return (speed + 5, "draw", ["count=1", f"speed={speed}", "hold=3", *options, *subject, *seed()], {})
 
     makers = [
         screen,
         lambda: (4, "pattern", [], font()),
         lambda: (4, "text", [], font()),
-        lambda: (3, "text", [rng.choice(["Hello!", "SSD1306", "128x64", "OLED", "Pi 4B"])],
-                 {"font": rng.choice(["10", "16", "24"])}),
+        lambda: (
+            3,
+            "text",
+            [rng.choice(["Hello!", "SSD1306", "128x64", "OLED", "Pi 4B"])],
+            {"font": rng.choice(["10", "16", "24"])},
+        ),
         lambda: (5, "status", [f"rate={rng.choice('124')}"], font()),
         draw,
         lambda: (10, rng.choice(["pong", "asteroids", "invaders"]), seed(), font()),
@@ -540,6 +602,7 @@ def random_steps(rng):
         previous = maker
         yield maker()
 
+
 class DemoApplet(Applet):
     """A tour of the applets and settings, a few seconds each: at
     random (default) or the fixed TOUR ("random=off"); "count" steps, 0 for
@@ -547,17 +610,14 @@ class DemoApplet(Applet):
 
     name = "demo"
     fps = 30
-    OPTIONS = {"random": lambda text: text not in ("off", "false", "0", "no"),
-               "count": int, "seed": int}
+    OPTIONS = {"random": lambda text: text not in ("off", "false", "0", "no"), "count": int, "seed": int}
     description = "demo"
     summary = "A tour of the applets and settings, a few seconds each"
 
     def __init__(self, host, words=(), options=None):
         super().__init__(host, words, options)
-        rng = host.rng if "seed" not in self.options  \
-            else random.Random(self.options["seed"])
-        steps = random_steps(rng) if self.options.get("random", True)  \
-            else itertools.cycle(TOUR)
+        rng = host.rng if "seed" not in self.options else random.Random(self.options["seed"])
+        steps = random_steps(rng) if self.options.get("random", True) else itertools.cycle(TOUR)
         count = self.options.get("count", 0)
         self._steps = itertools.islice(steps, count) if count else steps
         self._sub = None
@@ -582,8 +642,7 @@ class DemoApplet(Applet):
         while True:
             seconds, name, args, settings = next(self._steps)  # StopIteration: done
             applet_class = APPLETS.get(name)
-            if applet_class is None  \
-                    or not fits(applet_class, self.host.width, self.host.height):
+            if applet_class is None or not fits(applet_class, self.host.width, self.host.height):
                 continue
             try:
                 words, options = parse_applet_args(args, applet_class.OPTIONS)
@@ -621,6 +680,7 @@ class DemoApplet(Applet):
     def stop(self):
         self._restore()
 
-APPLETS = {applet.name: applet for applet in (
-    LogApplet, HelpApplet, PatternApplet, TextApplet,
-    BlinkApplet, DemoApplet)}
+
+APPLETS = {
+    applet.name: applet for applet in (LogApplet, HelpApplet, PatternApplet, TextApplet, BlinkApplet, DemoApplet)
+}

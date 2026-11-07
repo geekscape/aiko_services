@@ -8,9 +8,7 @@ from .scheme_file import DataSchemeFile
 
 from .scheme_store_forward import DataSchemeStoreForward
 
-from .scheme_synth import (
-    DataSchemeSynthetic, parse_synth_url, render_text_frame
-)
+from .scheme_synth import DataSchemeSynthetic, parse_synth_url, render_text_frame
 
 from .scheme_tty import DataSchemeTTY
 
@@ -19,22 +17,34 @@ from .scheme_zmq import DataSchemeZMQ
 from .elements import Mock, NoOp
 
 from .image_io import (
-    bytes_to_image, image_to_bytes,
-    convert_image, convert_images,
-    convert_image_to_numpy, convert_image_to_pil,
-    ImageConvert, ImageOutput, ImageOverlay, ImageOverlayFilter,
-    ImageReadFile, ImageReadZMQ, ImageResize, ImageSquareCenterCrop,
-    ImageWriteFile, ImageWriteZMQ
+    bytes_to_image,
+    image_to_bytes,
+    convert_image,
+    convert_images,
+    convert_image_to_numpy,
+    convert_image_to_pil,
+    ImageConvert,
+    ImageOutput,
+    ImageOverlay,
+    ImageOverlayFilter,
+    ImageReadFile,
+    ImageReadZMQ,
+    ImageResize,
+    ImageSquareCenterCrop,
+    ImageWriteFile,
+    ImageWriteZMQ,
 )
 
-from .text_io import (
-    TextOutput, TextReadFile, TextReadZMQ,
-    TextSample, TextTransform, TextWriteFile, TextWriteZMQ
-)
+from .text_io import TextOutput, TextReadFile, TextReadZMQ, TextSample, TextTransform, TextWriteFile, TextWriteZMQ
 
 from .video_io import (
-    VideoOutput, VideoReadFile, VideoSample, VideoShow,
-    VideoWriteFile, VideoWriteFiles, open_video_capture
+    VideoOutput,
+    VideoReadFile,
+    VideoSample,
+    VideoShow,
+    VideoWriteFile,
+    VideoWriteFiles,
+    open_video_capture,
 )
 
 from .synthetic_io import SyntheticVideoRead
@@ -44,8 +54,8 @@ from .store_forward_io import VideoWriteStoreForward
 from .webcam_io import VideoReadWebcam
 
 from .audio_io import (
-      AudioOutput
-#     PE_AudioFilter, PE_AudioResampler,
-#     PE_FFT, PE_GraphXY,
-#     PE_MicrophonePA, PE_MicrophoneSD, PE_Speaker
+    AudioOutput,
+    #     PE_AudioFilter, PE_AudioResampler,
+    #     PE_FFT, PE_GraphXY,
+    #     PE_MicrophonePA, PE_MicrophoneSD, PE_Speaker
 )

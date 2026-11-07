@@ -55,42 +55,43 @@
 # - Manual exposure and ISO through the Camera control queue
 # - Convert NV12 to RGB in one step to save the BGR -> RGB copy
 
-from datetime import timedelta
 import time
+from datetime import timedelta
 
 from aiko_services.elements.cameras import camera
 
-__all__ = ["DEPTHAI_DIAGNOSTIC", "DEPTHAI_IMPORTED", "OakDCamera",
-           "aux_stream_default"]
+__all__ = ["DEPTHAI_DIAGNOSTIC", "DEPTHAI_IMPORTED", "OakDCamera", "aux_stream_default"]
 
 DEPTHAI_IMPORTED = False
 DEPTHAI_DIAGNOSTIC = ""
 try:
     import depthai as dai
+
     DEPTHAI_IMPORTED = True
-except ImportError:                     # missing, or a wheel for another CPU
+except ImportError:  # missing, or a wheel for another CPU
     dai = None
-    DEPTHAI_DIAGNOSTIC = "camera_oak_d.py: the depthai SDK is not "  \
-        'installed: pip install "aiko_services[depthai]" or pip install '  \
+    DEPTHAI_DIAGNOSTIC = (
+        "camera_oak_d.py: the depthai SDK is not "
+        'installed: pip install "aiko_services[depthai]" or pip install '
         "depthai (3.9 or later)"
+    )
 
 NATIVE_RESOLUTION = camera.NATIVE_RESOLUTION
-MIN_FRAME_RATE = 1.42           # the sensor configuration's minimum
-AUX_RESOLUTION = (640, 480)     # the 3A accelerator stream ...
-AUX_FRAME_RATE = 10.0           # ... and its rate
-QUEUE_MAX_SIZE = 2              # 18 MB per 12 MP NV12 frame: keep it tiny
-OUTPUT_TYPE = "NV12"            # dai.ImgFrame.Type name: link bandwidth
-OPEN_RETRY_S = 30.0             # a closed device reboots for 8 to 13 s
-OPEN_RETRY_PERIOD_S = 1.0       # discovery polled this often meanwhile
-DISCOVERY_GRACE_S = 20.0        # past the reboot window: then an explicit
-                                # address connects directly, undiscovered
-READY_STATES = ("X_LINK_BOOTLOADER", "X_LINK_UNBOOTED",
-                "X_LINK_FLASH_BOOTED", "X_LINK_GATE")
+MIN_FRAME_RATE = 1.42  # the sensor configuration's minimum
+AUX_RESOLUTION = (640, 480)  # the 3A accelerator stream ...
+AUX_FRAME_RATE = 10.0  # ... and its rate
+QUEUE_MAX_SIZE = 2  # 18 MB per 12 MP NV12 frame: keep it tiny
+OUTPUT_TYPE = "NV12"  # dai.ImgFrame.Type name: link bandwidth
+OPEN_RETRY_S = 30.0  # a closed device reboots for 8 to 13 s
+OPEN_RETRY_PERIOD_S = 1.0  # discovery polled this often meanwhile
+DISCOVERY_GRACE_S = 20.0  # past the reboot window: then an explicit
+# address connects directly, undiscovered
+READY_STATES = ("X_LINK_BOOTLOADER", "X_LINK_UNBOOTED", "X_LINK_FLASH_BOOTED", "X_LINK_GATE")
 _NOT_FOUND = ("X_LINK_DEVICE_NOT_FOUND", "Failed to find device")
-_RESIZE_MODES = {"crop": "CROP", "letterbox": "LETTERBOX",
-                 "stretch": "STRETCH"}
+_RESIZE_MODES = {"crop": "CROP", "letterbox": "LETTERBOX", "stretch": "STRETCH"}
 
 # --------------------------------------------------------------------------- #
+
 
 def aux_stream_default(resolution):
     """The auxiliary 3A stream is on by default for the native output
@@ -98,17 +99,25 @@ def aux_stream_default(resolution):
 
     return resolution is None or tuple(resolution) == NATIVE_RESOLUTION
 
-class OakDCamera(camera.Camera):
-    def __init__(self, address=None, resolution=None, frame_rate=None,
-        resize_mode="crop", trigger="off", aux_stream=None, logger=None):
 
-        super().__init__(address, resolution, frame_rate, resize_mode,
-                         trigger, aux_stream, logger)
+class OakDCamera(camera.Camera):
+    def __init__(
+        self,
+        address=None,
+        resolution=None,
+        frame_rate=None,
+        resize_mode="crop",
+        trigger="off",
+        aux_stream=None,
+        logger=None,
+    ):
+
+        super().__init__(address, resolution, frame_rate, resize_mode, trigger, aux_stream, logger)
         self.device = None
         self.pipeline = None
         self.queue = None
         self.aux_queue = None
-        if self.aux_stream is None:                    # auto
+        if self.aux_stream is None:  # auto
             self.aux_stream = aux_stream_default(self._resolution)
 
     @classmethod
@@ -128,29 +137,25 @@ class OakDCamera(camera.Camera):
             raise RuntimeError(DEPTHAI_DIAGNOSTIC)
         frame_rate = self._frame_rate or camera.DEFAULT_FRAME_RATE
         if frame_rate < MIN_FRAME_RATE:
-            self._log("warning", f"OAK frame_rate {frame_rate} is below "
-                      f"the sensor minimum {MIN_FRAME_RATE}")
+            self._log("warning", f"OAK frame_rate {frame_rate} is below the sensor minimum {MIN_FRAME_RATE}")
         self.device = self._boot_device()
         self.pipeline = dai.Pipeline(self.device)
-        node = self.pipeline.create(dai.node.Camera).build(
-            dai.CameraBoardSocket.CAM_A)
-        if self.aux_stream:      # self-overwriting queue, no draining needed
-            self.aux_queue = node.requestOutput(
-                AUX_RESOLUTION, fps=AUX_FRAME_RATE).createOutputQueue(
-                maxSize=1, blocking=False)
+        node = self.pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_A)
+        if self.aux_stream:  # self-overwriting queue, no draining needed
+            self.aux_queue = node.requestOutput(AUX_RESOLUTION, fps=AUX_FRAME_RATE).createOutputQueue(
+                maxSize=1, blocking=False
+            )
         output_type = getattr(dai.ImgFrame.Type, OUTPUT_TYPE)
-        if self._resolution is None  \
-            or tuple(self._resolution) == NATIVE_RESOLUTION:
+        if self._resolution is None or tuple(self._resolution) == NATIVE_RESOLUTION:
             output = node.requestFullResolutionOutput(
-                type=output_type, fps=frame_rate,
-                useHighestResolution=True)  # else capped below 4000x3000
+                type=output_type, fps=frame_rate, useHighestResolution=True
+            )  # else capped below 4000x3000
         else:
-            resize_mode = getattr(
-                dai.ImgResizeMode, _RESIZE_MODES[self.resize_mode])
-            output = node.requestOutput(tuple(self._resolution),
-                type=output_type, resizeMode=resize_mode, fps=frame_rate)
-        self.queue = output.createOutputQueue(
-            maxSize=QUEUE_MAX_SIZE, blocking=False)
+            resize_mode = getattr(dai.ImgResizeMode, _RESIZE_MODES[self.resize_mode])
+            output = node.requestOutput(
+                tuple(self._resolution), type=output_type, resizeMode=resize_mode, fps=frame_rate
+            )
+        self.queue = output.createOutputQueue(maxSize=QUEUE_MAX_SIZE, blocking=False)
         self.pipeline.start()
         self._frame_rate = frame_rate
 
@@ -166,30 +171,27 @@ class OakDCamera(camera.Camera):
         while True:
             info = self._discover()
             if info is None:
-                direct = self.address  \
-                    and time.monotonic() >= started + DISCOVERY_GRACE_S
+                direct = self.address and time.monotonic() >= started + DISCOVERY_GRACE_S
                 if not direct:
                     if time.monotonic() >= deadline:
                         raise RuntimeError(
                             f"OAK camera {self.address or '(any)'} not "
                             f"ready within {OPEN_RETRY_S} s: not found, "
-                            "or in use by another process")
+                            "or in use by another process"
+                        )
                     if not waiting:
-                        self._log("info", "OAK camera not ready yet "
-                                  "(rebooting after a close?), waiting")
+                        self._log("info", "OAK camera not ready yet (rebooting after a close?), waiting")
                         waiting = True
                     time.sleep(OPEN_RETRY_PERIOD_S)
                     continue
-                info = dai.DeviceInfo(self.address)   # not discoverable
+                info = dai.DeviceInfo(self.address)  # not discoverable
             try:
                 return dai.Device(info)
             except RuntimeError as runtime_error:
-                not_found = any(text in str(runtime_error)
-                                for text in _NOT_FOUND)
+                not_found = any(text in str(runtime_error) for text in _NOT_FOUND)
                 if not not_found or time.monotonic() >= deadline:
                     raise
-                self._log("info", "OAK camera not found yet (rebooting "
-                          "after a close?), retrying")
+                self._log("info", "OAK camera not found yet (rebooting after a close?), retrying")
                 time.sleep(OPEN_RETRY_PERIOD_S)
 
     def _discover(self):
@@ -197,8 +199,7 @@ class OakDCamera(camera.Camera):
         discovery reports in a ready state, else None"""
 
         for info in dai.Device.getAllAvailableDevices():
-            if self.address and self.address not in (
-                    info.name, info.getDeviceId()):
+            if self.address and self.address not in (info.name, info.getDeviceId()):
                 continue
             state = getattr(info.state, "name", str(info.state))
             if state in READY_STATES:
@@ -214,21 +215,20 @@ class OakDCamera(camera.Camera):
             try:
                 frame = self.queue.get(timedelta(seconds=timeout_s))
             except dai.MessageQueue.QueueException as queue_exception:
-                raise RuntimeError(f"OAK camera queue closed: "
-                                   f"{queue_exception}")
+                raise RuntimeError(f"OAK camera queue closed: {queue_exception}")
         if frame is None:
-            raise camera.CaptureTimeout(
-                f"OAK camera: no frame within {timeout_s} s")
-        image_bgr = frame.getCvFrame()            # NV12 --> BGR, on the host
-        image_rgb = image_bgr[..., ::-1].copy()   # BGR --> RGB
+            raise camera.CaptureTimeout(f"OAK camera: no frame within {timeout_s} s")
+        image_bgr = frame.getCvFrame()  # NV12 --> BGR, on the host
+        image_rgb = image_bgr[..., ::-1].copy()  # BGR --> RGB
         self._resolution = (image_rgb.shape[1], image_rgb.shape[0])
 
         metadata = {"pixel_format": OUTPUT_TYPE}
         for name, getter in [
-                ("exposure_us", frame.getExposureTime),
-                ("iso_sensitivity", frame.getSensitivity),
-                ("lens_position", frame.getLensPosition),
-                ("color_temperature_k", frame.getColorTemperature)]:
+            ("exposure_us", frame.getExposureTime),
+            ("iso_sensitivity", frame.getSensitivity),
+            ("lens_position", frame.getLensPosition),
+            ("color_temperature_k", frame.getColorTemperature),
+        ]:
             try:
                 value = getter()
                 if isinstance(value, timedelta):
@@ -260,5 +260,6 @@ class OakDCamera(camera.Camera):
                 self.device = None
             self.queue = None
             self.aux_queue = None
+
 
 # --------------------------------------------------------------------------- #

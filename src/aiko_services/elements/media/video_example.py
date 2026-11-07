@@ -33,60 +33,49 @@ WINDOW_TITLE = "Astra"
 ELEMENTS_IMAGE = "aiko_services.elements.image_io"
 ELEMENTS_VIDEO = "aiko_services.elements.video_io"
 
-class StateMachineModel(object):
-    states = [
-        "start",
-        "alternate"
-    ]
 
-    transitions = [
-        {"source": "start", "trigger": "alternate", "dest": "alternate"}
-    ]
+class StateMachineModel(object):
+    states = ["start", "alternate"]
+
+    transitions = [{"source": "start", "trigger": "alternate", "dest": "alternate"}]
+
 
 pipeline_definition = [
-    {   "name": "VideoReadFile", "module": ELEMENTS_VIDEO,
+    {
+        "name": "VideoReadFile",
+        "module": ELEMENTS_VIDEO,
         "parameters": {
-#           "state_action": (5, "alternate"),
+            #           "state_action": (5, "alternate"),
             "video_pathname": VIDEO_INPUT_PATHNAME
         },
-        "successors": {
-                "default": ["ImageAnnotate1"],
-                "alternate": ["ImageAnnotate2"]
-        }
+        "successors": {"default": ["ImageAnnotate1"], "alternate": ["ImageAnnotate2"]},
     },
-    {   "name": "ImageAnnotate1", "module": ELEMENTS_IMAGE,
-        "successors": ["ImageOverlay"]
+    {"name": "ImageAnnotate1", "module": ELEMENTS_IMAGE, "successors": ["ImageOverlay"]},
+    {"name": "ImageAnnotate2", "module": ELEMENTS_IMAGE, "successors": ["ImageOverlay"]},
+    {"name": "ImageOverlay", "module": ELEMENTS_IMAGE, "successors": ["VideoShow"]},
+    {
+        "name": "VideoShow",
+        "module": ELEMENTS_VIDEO,
+        "parameters": {"window_location": WINDOW_LOCATION, "window_title": WINDOW_TITLE},
+        "successors": ["ImageResize"],
     },
-    {   "name": "ImageAnnotate2", "module": ELEMENTS_IMAGE,
-        "successors": ["ImageOverlay"]
+    {
+        "name": "ImageResize",
+        "module": ELEMENTS_IMAGE,
+        "parameters": {"new_width": 640, "new_height": 360},
+        "successors": ["VideoWriteFile"],
     },
-    {   "name": "ImageOverlay", "module": ELEMENTS_IMAGE,
-        "successors": ["VideoShow"]
+    {
+        "name": "VideoWriteFile",
+        "module": ELEMENTS_VIDEO,
+        "parameters": {"video_frame_rate": VIDEO_FRAME_RATE, "video_pathname": VIDEO_OUTPUT_PATHNAME},
     },
-    {   "name": "VideoShow", "module": ELEMENTS_VIDEO,
-        "parameters": {
-            "window_location": WINDOW_LOCATION,
-            "window_title": WINDOW_TITLE
-        },
-        "successors": ["ImageResize"]
-    },
-    {   "name": "ImageResize", "module": ELEMENTS_IMAGE,
-        "parameters": {
-            "new_width": 640,
-            "new_height": 360
-        },
-        "successors": ["VideoWriteFile"]
-    },
-    {   "name": "VideoWriteFile", "module": ELEMENTS_VIDEO,
-        "parameters": {
-            "video_frame_rate": VIDEO_FRAME_RATE,
-            "video_pathname": VIDEO_OUTPUT_PATHNAME
-        }
-    }
 ]
+
 
 def timer_test():
     aiko.logger(__name__).info("Timer test")
+
 
 # if __name__ == "__main__":
 #   event.add_timer_handler(timer_test, 0.1)

@@ -24,10 +24,22 @@ import math
 from PIL import Image, ImageDraw, ImageFont
 
 __all__ = [
-    "FONT_5X7", "FONT_SIZES", "FONT_SIZE_MAXIMUM", "FONT_SIZE_MINIMUM",
-    "HEIGHT", "INK", "WIDTH",
-    "FrameBuffer", "Font", "blank", "parse_font_size", "paste_centred", "pixels",
-    "sprite", "stamp", "title_strip",
+    "FONT_5X7",
+    "FONT_SIZES",
+    "FONT_SIZE_MAXIMUM",
+    "FONT_SIZE_MINIMUM",
+    "HEIGHT",
+    "INK",
+    "WIDTH",
+    "FrameBuffer",
+    "Font",
+    "blank",
+    "parse_font_size",
+    "paste_centred",
+    "pixels",
+    "sprite",
+    "stamp",
+    "title_strip",
 ]
 
 WIDTH, HEIGHT = 128, 64
@@ -55,6 +67,7 @@ FONT_5X7 = bytes.fromhex("""
 
 # --------------------------------------------------------------------------- #
 
+
 def find_truetype(size, mono):
     """The first of the fonts that is installed (Pillow searches the system's
     font folders), else Pillow's own"""
@@ -65,6 +78,7 @@ def find_truetype(size, mono):
         except OSError:
             pass
     return ImageFont.load_default(size)
+
 
 class Font:
     """The built-in 5x7 bitmap font, or a TrueType font (DejaVu Sans on
@@ -77,8 +91,7 @@ class Font:
             self.truetype = find_truetype(size, mono)
         # The rows that letters use, from the top of capitals to the bottom
         # of descenders
-        _, self.top, _, self.bottom = (0, 0, 0, 7) if size == "5x7"  \
-            else self.render("Ajgy").getbbox()
+        _, self.top, _, self.bottom = (0, 0, 0, 7) if size == "5x7" else self.render("Ajgy").getbbox()
         self.line_height = self.bottom - self.top
         # The row pitch: what a text row occupies on the FrameBuffer
         self.cell_height = 8 if size == "5x7" else self.line_height + 1
@@ -101,7 +114,7 @@ class Font:
             image = Image.new("1", (max(1, 6 * len(text) - 1), 7))
             for i, char in enumerate(text):
                 code = ord(char if " " <= char <= "~" else "?") - 32
-                for column, bits in enumerate(FONT_5X7[5 * code:5 * code + 5]):
+                for column, bits in enumerate(FONT_5X7[5 * code : 5 * code + 5]):
                     for row in range(7):
                         if bits >> row & 1:
                             image.putpixel((6 * i + column, row), INK)
@@ -119,6 +132,7 @@ class Font:
         image = self.render(text)
         return image.crop((0, self.top, image.width, self.bottom))
 
+
 def parse_font_size(text):
     """Font for a wire or command-line value: "5x7", or a size in pixels
     from 6 to 64.  Raises ValueError otherwise"""
@@ -126,25 +140,25 @@ def parse_font_size(text):
     text = str(text)
     if text == "5x7":
         return Font(text)
-    if not text.isdigit() or  \
-            not FONT_SIZE_MINIMUM <= int(text) <= FONT_SIZE_MAXIMUM:
-        raise ValueError(
-            f"{text!r} is neither 5x7 nor a size from "
-            f"{FONT_SIZE_MINIMUM} to {FONT_SIZE_MAXIMUM}")
+    if not text.isdigit() or not FONT_SIZE_MINIMUM <= int(text) <= FONT_SIZE_MAXIMUM:
+        raise ValueError(f"{text!r} is neither 5x7 nor a size from {FONT_SIZE_MINIMUM} to {FONT_SIZE_MAXIMUM}")
     return Font(int(text))
+
 
 # --------------------------------------------------------------------------- #
 
+
 def blank(fill=0, width=WIDTH, height=HEIGHT):
     return Image.new("1", (width, height), fill)
+
 
 def pixels(lit, width=WIDTH, height=HEIGHT):
     """Image with the pixels lit where lit(x, y) is true"""
 
     image = blank(width=width, height=height)
-    image.putdata(
-        [INK if lit(x, y) else 0 for y in range(height) for x in range(width)])
+    image.putdata([INK if lit(x, y) else 0 for y in range(height) for x in range(width)])
     return image
+
 
 def sprite(rows):
     """Image from rows of "#" (lit) and "." (unlit)"""
@@ -153,10 +167,12 @@ def sprite(rows):
     image.putdata([INK if char == "#" else 0 for row in rows for char in row])
     return image
 
+
 def stamp(image, mask, x, y):
     """Light the pixels of the mask on the image at (x, y), top-left"""
 
     image.paste(INK, (round(x), round(y)), mask)
+
 
 def paste_centred(image, text, font):
     """Draw text with its actual lit pixels centred on the image, on a
@@ -166,11 +182,12 @@ def paste_centred(image, text, font):
     ink = ink.crop(ink.getbbox())
     x = (image.width - ink.width) // 2
     y = (image.height - ink.height) // 2
-    ImageDraw.Draw(image).rectangle(
-        (x - 2, y - 2, x + ink.width + 1, y + ink.height + 1), fill=0)
+    ImageDraw.Draw(image).rectangle((x - 2, y - 2, x + ink.width + 1, y + ink.height + 1), fill=0)
     stamp(image, ink, x, y)
 
+
 # --------------------------------------------------------------------------- #
+
 
 class FrameBuffer:
     """The frame buffer that the wire commands draw on (event-loop thread
@@ -197,8 +214,7 @@ class FrameBuffer:
         return self.height - height - y
 
     def clear(self):
-        ImageDraw.Draw(self._image).rectangle(
-            (0, self.title_rows, self.width - 1, self.height - 1), fill=0)
+        ImageDraw.Draw(self._image).rectangle((0, self.title_rows, self.width - 1, self.height - 1), fill=0)
 
     def pixel(self, x, y):
         self._image.putpixel((x, self._device_y(y)), INK)
@@ -208,23 +224,19 @@ class FrameBuffer:
             self.pixel(x, y)
 
     def line(self, x0, y0, x1, y1):
-        ImageDraw.Draw(self._image).line(
-            (x0, self._device_y(y0), x1, self._device_y(y1)), fill=INK)
+        ImageDraw.Draw(self._image).line((x0, self._device_y(y0), x1, self._device_y(y1)), fill=INK)
 
     def text(self, x, y, string):
         """Write a string with its text cell's bottom-left at wire (x, y);
         pixels off the right edge are lost"""
 
-        stamp(self._image, self.font.render_line(string),
-            x, self._device_y(y, self.font.cell_height))
+        stamp(self._image, self.font.render_line(string), x, self._device_y(y, self.font.cell_height))
 
     def scroll_up(self, rows):
         """Move everything below the title row up, clearing the bottom"""
 
-        region = self._image.crop(
-            (0, self.title_rows + rows, self.width, self.height))
-        ImageDraw.Draw(self._image).rectangle(
-            (0, self.title_rows, self.width - 1, self.height - 1), fill=0)
+        region = self._image.crop((0, self.title_rows + rows, self.width, self.height))
+        ImageDraw.Draw(self._image).rectangle((0, self.title_rows, self.width - 1, self.height - 1), fill=0)
         self._image.paste(region, (0, self.title_rows))
 
     def log(self, string):
@@ -232,6 +244,7 @@ class FrameBuffer:
 
         self.scroll_up(self.font.cell_height)
         self.text(0, 0, string)
+
 
 def title_strip(font, title, annunciators="", clock="", width=WIDTH):
     """The inverse-video title row: the title (9 characters with the 5x7

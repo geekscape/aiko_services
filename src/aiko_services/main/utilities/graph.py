@@ -39,6 +39,7 @@ __all__ = ["Graph", "Node"]
 
 # --------------------------------------------------------------------------- #
 
+
 class Graph:
     def __init__(self, head_nodes=None):
         self._graph = OrderedDict()
@@ -98,7 +99,7 @@ class Graph:
         node = self.get_node(node_name)
         try:
             index = ordered_nodes.index(node)
-            return ordered_nodes[index+1:]
+            return ordered_nodes[index + 1 :]
         except ValueError:
             return []
 
@@ -117,8 +118,8 @@ class Graph:
         node_heads = OrderedDict()
         node_successors = OrderedDict()
 
-# if "node" is a dictionary of properties, then ignore it ... because ...
-# if "successor" is a dictionary of properties, then optionally invoke callback
+        # if "node" is a dictionary of properties, then ignore it ... because ...
+        # if "successor" is a dictionary of properties, then optionally invoke callback
 
         def add_successor(node, successor):
             if not isinstance(node, dict):
@@ -131,8 +132,7 @@ class Graph:
                         successor_name = list(node_successors[node].keys())[-1]
                         properties = successor
                         predecessor_name = node
-                        node_properties_callback(
-                            successor_name, properties, predecessor_name)
+                        node_properties_callback(successor_name, properties, predecessor_name)
 
         def traverse_successors(node, successors):
             for successor in successors:
@@ -150,6 +150,7 @@ class Graph:
             traverse_successors(node, successors)
 
         return node_heads, node_successors
+
 
 class Node:
     def __init__(self, name, element=None, successors=None):
@@ -179,5 +180,6 @@ class Node:
 
     def __repr__(self):
         return f"{self._name}: {list(self._successors)}"
+
 
 # --------------------------------------------------------------------------- #
