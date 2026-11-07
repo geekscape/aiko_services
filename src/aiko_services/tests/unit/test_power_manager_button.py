@@ -10,6 +10,7 @@
 # fails silently: both are active LOW on this board, and with the wrong
 # sense every event arrives inverted and a press is never seen.
 
+
 import pytest
 
 from aiko_services.actors.power_manager import (

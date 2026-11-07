@@ -22,6 +22,8 @@
 # - Retest streaming after the camera firmware update
 # - Binning through Aravis.Camera.set_binning()
 
+from contextlib import suppress
+
 import numpy as np
 
 from aiko_services.elements.cameras import camera
@@ -88,10 +90,8 @@ class AravisCamera(camera.Camera):
         if not ARAVIS_IMPORTED:
             raise RuntimeError(ARAVIS_DIAGNOSTIC)
         self.camera = Aravis.Camera.new(self.address)  # None: the first
-        try:
+        with suppress(Exception):
             self.camera.set_pixel_format(Aravis.PIXEL_FORMAT_BAYER_RG_8)
-        except Exception:
-            pass  # mono model: keep the camera's format
         try:
             native = self.camera.get_width_bounds()[1], self.camera.get_height_bounds()[1]
         except Exception:
@@ -104,10 +104,8 @@ class AravisCamera(camera.Camera):
         if self.trigger == "software":
             self.camera.set_trigger("Software")
         else:
-            try:
+            with suppress(Exception):
                 self.camera.set_trigger("Off")
-            except Exception:
-                pass
             if self._frame_rate:
                 try:
                     self.camera.set_frame_rate(float(self._frame_rate))
@@ -124,11 +122,9 @@ class AravisCamera(camera.Camera):
         for _ in range(BUFFER_COUNT):
             self.stream.push_buffer(Aravis.Buffer.new_allocate(payload))
         self.camera.start_acquisition()
-        try:
+        with suppress(Exception):
             _, _, width, height = self.camera.get_region()
             self._resolution = self._host_size or (width, height)
-        except Exception:
-            pass
 
     def capture(self, timeout_s=camera.CAPTURE_TIMEOUT_S):
         """Returns (numpy uint8 HxWx3 RGB image, metadata dict)"""
@@ -154,10 +150,8 @@ class AravisCamera(camera.Camera):
                 self.stream.push_buffer(buffer)
             metadata = {"pixel_format": "BayerRG8"}
             for key, getter in (("exposure_us", "get_exposure_time"), ("gain", "get_gain")):
-                try:
+                with suppress(Exception):
                     metadata[key] = float(getattr(self.camera, getter)())
-                except Exception:
-                    pass
         if self._host_size:
             image = camera.resize_image(image, self._host_size, self.resize_mode)
         return image, metadata
@@ -181,10 +175,8 @@ class AravisCamera(camera.Camera):
     def close(self):
         with self.lock:
             if self.camera:
-                try:
+                with suppress(Exception):
                     self.camera.stop_acquisition()
-                except Exception:
-                    pass
                 self.camera = None
             self.stream = None
 

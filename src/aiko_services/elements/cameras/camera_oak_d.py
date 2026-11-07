@@ -56,6 +56,7 @@
 # - Convert NV12 to RGB in one step to save the BGR -> RGB copy
 
 import time
+from contextlib import suppress
 from datetime import timedelta
 
 from aiko_services.elements.cameras import camera
@@ -229,13 +230,11 @@ class OakDCamera(camera.Camera):
             ("lens_position", frame.getLensPosition),
             ("color_temperature_k", frame.getColorTemperature),
         ]:
-            try:
+            with suppress(Exception):
                 value = getter()
                 if isinstance(value, timedelta):
                     value = value / timedelta(microseconds=1)
                 metadata[name] = value
-            except Exception:
-                pass
         return image_rgb, metadata
 
     def device_id(self):

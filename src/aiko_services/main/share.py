@@ -292,15 +292,15 @@ class ECProducerImpl(ECProducer):
         return payloads
 
     def _ec_parse_share(self, command, parameters):
+        from contextlib import suppress
+
         response_topic = None
         lease_time = None
         filter = []
 
         if command == "share" and len(parameters) == 3:
-            try:
+            with suppress(Exception):
                 lease_time = int(parameters[1])
-            except Exception:
-                pass
             if isinstance(lease_time, int):
                 filter = parameters[2]
                 if filter != "*" and not isinstance(filter, list):

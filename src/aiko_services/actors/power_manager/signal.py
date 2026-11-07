@@ -48,6 +48,7 @@
 
 import threading
 import time
+from contextlib import suppress
 
 from aiko_services.actors.power_manager.hold import hold_tool, run_tool
 
@@ -170,10 +171,8 @@ class GpioBuzzer:
         """Leave the line low.  There is nothing to give back, because
         nothing was claimed"""
 
-        try:
+        with suppress(Exception):
             self._set(False)
-        except Exception:  # noqa: BLE001
-            pass  # A close must not raise
         self.opened = False
 
     def _run(self, name):

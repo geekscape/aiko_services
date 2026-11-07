@@ -61,13 +61,15 @@ ACTIVE_CONNECTIONS: Set[asyncio.StreamWriter] = set()
 async def _pump(src: asyncio.StreamReader, dst: asyncio.StreamWriter):
     try:
         while True:
-            data = await src.read(65536)
-            if not data:
-                break
-            dst.write(data)
-            await dst.drain()
+            with suppress(Exception):
+                data = await src.read(65536)
+                if not data:
+                    break
+                dst.write(data)
+                await dst.drain()
     except Exception:
-        pass
+        with suppress(Exception):
+            pass
     finally:
         with suppress(Exception):
             dst.close()
@@ -92,10 +94,8 @@ async def _handle_proxy_client(
     except Exception as e:
         # Explicit message so it's obvious in logs what happened.
         print(f"[proxy] backend connect failed for client {peer}: {backend_host}:{backend_port} -> {e}", flush=True)
-        try:
+        with suppress(Exception):
             cli_writer.close()
-        except Exception:
-            pass
         return
 
     if drop_midstream:
@@ -108,14 +108,10 @@ async def _handle_proxy_client(
             await asyncio.sleep(delay)
             if random.random() < max(0.0, min(1.0, float(drop_chance))) and not cli_writer.is_closing():
                 print(f"[drop_midstream] killing session {peer} after {delay:.2f}s", flush=True)
-                try:
+                with suppress(Exception):
                     cli_writer.close()
-                except Exception:
-                    pass
-                try:
+                with suppress(Exception):
                     be_writer.close()
-                except Exception:
-                    pass
 
         asyncio.create_task(killer())
 
@@ -159,12 +155,11 @@ async def _handle_sink_client(cli_reader, cli_writer):
                 break
             # discard; never respond
     except Exception:
-        pass
-    finally:
-        try:
-            cli_writer.close()
-        except Exception:
+        with suppress(Exception):
             pass
+    finally:
+        with suppress(Exception):
+            cli_writer.close()
 
 
 async def _run_sink(front_host, front_port):
@@ -205,10 +200,8 @@ def _serve_entry(args):
     except KeyboardInterrupt:
         pass
     finally:
-        try:
+        with suppress(Exception):
             loop.close()
-        except Exception:
-            pass
 
 
 # ---------------
@@ -255,14 +248,11 @@ def _is_running(pid: Optional[int]) -> bool:
 def _kill_pid(pid: Optional[int]):
     if pid is None:
         return
-    try:
+    with suppress(Exception):
         os.kill(pid, signal.SIGTERM)
-    except Exception:
-        if sys.platform.startswith("win"):
-            try:
-                os.kill(pid, signal.SIGBREAK)
-            except Exception:
-                pass
+    if sys.platform.startswith("win"):
+        with suppress(Exception):
+            os.kill(pid, signal.SIGBREAK)
 
 
 def _spawn_detached(argv_for_child) -> int:
@@ -347,10 +337,8 @@ def cmd_down(args):
             time.sleep(0.2)
         for f in (PIDFILE, MODEFILE):
             if os.path.exists(f):
-                try:
+                with suppress(Exception):
                     os.remove(f)
-                except Exception:
-                    pass
         print("DOWN: hardfail (port closed).")
 
     elif mode == "blackhole":
@@ -419,10 +407,8 @@ def cmd_stop(_args):
         print("Nothing to stop (no running process).")
         for f in (PIDFILE, MODEFILE):
             if os.path.exists(f):
-                try:
+                with suppress(Exception):
                     os.remove(f)
-                except Exception:
-                    pass
         return
 
     print(f"Stopping chaos monkey (PID {pid}) ...")
@@ -431,10 +417,8 @@ def cmd_stop(_args):
 
     for f in (PIDFILE, MODEFILE):
         if os.path.exists(f):
-            try:
+            with suppress(Exception):
                 os.remove(f)
-            except Exception:
-                pass
     print("Stopped.")
 
 

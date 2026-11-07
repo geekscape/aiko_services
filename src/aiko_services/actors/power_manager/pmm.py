@@ -28,6 +28,8 @@
 #   and the direction of each shunt is unconfirmed.  The log answers the
 #   second question the first time the host is undocked
 
+from contextlib import suppress
+
 import aiko_services as aiko
 from aiko_services.actors.power_manager.at30tse import At30tse
 from aiko_services.actors.power_manager.button import choose_power_inputs
@@ -283,15 +285,11 @@ class PmmPowerManagerImpl(PowerManagerCommon, PowerManager):
 
         super().close()
         for device in (self._buzzer, self._inputs):
-            try:
+            with suppress(Exception):
                 device.close()
-            except Exception:  # noqa: BLE001
-                pass
         if self._owns_bus and self._bus is not None:
-            try:
+            with suppress(AttributeError, OSError):
                 self._bus.close()
-            except (AttributeError, OSError):
-                pass
         if self._owns_bus:
             self._bus = None
             self._battery = self._charger = self._battery_pack = None

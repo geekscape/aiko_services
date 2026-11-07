@@ -182,13 +182,11 @@ class LoggingHandlerMQTT(logging.Handler):
             self.ready = False
 
     def __del__(self):
-        try:
-            pass  # TODO: release resources
-        except:
+        from contextlib import suppress
+
+        with suppress(Exception):  # TODO: release resources
             pass
-        try:
-            pass  # TODO: self.???? = None
-        except:
+        with suppress(Exception):  # TODO: self.???? = None
             pass
 
     def emit(self, record):  # record: logging.LogRecord has lots of details

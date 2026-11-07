@@ -84,14 +84,15 @@ def gst_initialise(multiple_return_values=False):
 cv2 = None
 
 
+from contextlib import suppress
+
+
 def enable_opencv():
     global cv2
     cv2 = None
 
-    try:
+    with suppress(Exception):
         cv2 = __import__("cv2")
-    except Exception:
-        pass
 
     return cv2
 

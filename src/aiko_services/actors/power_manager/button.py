@@ -36,6 +36,7 @@
 #   classify() returns the kind already
 
 import time
+from contextlib import suppress
 
 __all__ = [
     "BUTTON_ACTIVE_LOW",
@@ -174,11 +175,9 @@ class GpioPowerInputs:
 
     def close(self):
         for device in (self._button, self._dock):
-            try:
+            with suppress(Exception):
                 if device is not None:
                     device.close()
-            except Exception:  # noqa: BLE001
-                pass
         self._button = self._dock = None
         self._handlers = []
 

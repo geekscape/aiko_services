@@ -74,6 +74,7 @@ import atexit
 import threading
 import time
 from collections import deque
+from contextlib import suppress
 
 import aiko_services as aiko
 from aiko_services.elements.cameras import camera
@@ -305,10 +306,8 @@ class DataSchemeCamera(aiko.DataScheme):
         self._join_capture_thread()
         camera_instance, self.camera = self.camera, None
         if camera_instance:
-            try:
+            with suppress(Exception):
                 camera_instance.close()
-            except Exception:
-                pass
 
     def _join_capture_thread(self):
         """The capture thread ends within one capture: at most the capture

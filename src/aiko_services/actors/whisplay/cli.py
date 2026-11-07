@@ -15,6 +15,8 @@
 # This module is a command line shell: ADR-022 "presentation/CLI shell"
 # exemption from Interface composition
 
+from contextlib import suppress
+
 import click
 
 import aiko_services as aiko
@@ -72,10 +74,8 @@ def run_command(name, panel, camera, button, action, rate, resolution, rotate, l
         aiko.process.run()
     finally:
         for device in (camera_impl, panel_impl, button_impl):
-            try:
+            with suppress(Exception):
                 device.close()
-            except Exception:  # noqa: BLE001
-                pass
 
 
 if __name__ == "__main__":

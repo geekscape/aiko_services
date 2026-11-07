@@ -16,6 +16,7 @@
 # its own time and defeat the dwell.
 
 import itertools
+from contextlib import suppress
 
 import aiko_services as aiko
 from aiko_services.actors.power_manager import (
@@ -38,10 +39,8 @@ import pytest
 def close_actors():
     yield
     while _made:
-        try:
+        with suppress(Exception):
             _made.pop().close()
-        except Exception:  # noqa: BLE001
-            pass
 
 
 def make_actor(**parameters):

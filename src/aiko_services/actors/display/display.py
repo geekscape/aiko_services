@@ -81,6 +81,7 @@ import threading
 import time
 import traceback
 from abc import abstractmethod
+from contextlib import suppress
 from typing import NamedTuple
 
 from PIL import ImageColor
@@ -983,10 +984,8 @@ class DisplayImpl(Display):
         self.logger.error(f"{self.name}: output {self._output.name} failed: {reason}")
         self._note_error("display_failed")
         self._set_device("absent")
-        try:
+        with suppress(Exception):
             self._output.close(blank_first=False)
-        except Exception:
-            pass
         self._start_reopening()
 
     def _control_output(self, name, *args, **kwargs):
@@ -1211,10 +1210,8 @@ class DisplayImpl(Display):
             lease.terminate()
         self._mirrors.clear()
         for timer in (self._tick, self._heartbeat, self._metrics_flush, self._reopen):
-            try:
+            with suppress(Exception):
                 aiko.event.remove_timer_handler(timer)
-            except Exception:
-                pass
         aiko.process.connection.remove_handler(self._connection_handler)
         try:
             self._output.close(blank_first=True)

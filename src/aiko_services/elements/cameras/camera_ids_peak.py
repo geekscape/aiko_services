@@ -33,6 +33,7 @@
 
 import glob
 import os
+from contextlib import suppress
 
 import numpy as np
 
@@ -152,10 +153,8 @@ class IdsPeakCamera(camera.Camera):
     def _set_integer(self, name, value):
         node = self._node(name)
         increment = 1
-        try:
+        with suppress(Exception):
             increment = max(1, int(node.Increment()))
-        except Exception:
-            pass
         value = int(value) - int(value) % increment
         value = int(min(max(value, node.Minimum()), node.Maximum()))
         node.SetValue(value)

@@ -48,6 +48,7 @@ import socket
 import threading
 import time
 import urllib.parse
+from contextlib import suppress
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Tuple
 
@@ -439,10 +440,8 @@ class VideoShowWeb(aiko.PipelineElement):
             aiko.remove_timer_handler(self._publish_handler)
             self._timer_armed = False
         for consumer in self._consumers:
-            try:
+            with suppress(Exception):
                 consumer.terminate()
-            except Exception:
-                pass
         self._consumers = []
         self._followed = {}
         if self.web:

@@ -16,6 +16,7 @@
 # likes.
 
 import itertools
+from contextlib import suppress
 
 import pytest
 
@@ -273,10 +274,8 @@ def close_what_was_made():
 
     yield
     while _made:
-        try:
+        with suppress(Exception):
             _made.pop().close()
-        except Exception:  # noqa: BLE001
-            pass
 
 
 def make_actor(**parameters):

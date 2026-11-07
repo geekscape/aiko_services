@@ -34,6 +34,7 @@ import queue
 import socket
 import subprocess
 import time
+from contextlib import suppress
 from threading import Thread
 
 import aiko_services as aiko
@@ -277,10 +278,8 @@ class WhisPlayImpl(WhisPlay):
         PiSugar output needs the I2C write that the power Actor will bring"""
 
         self._stopping = True
-        try:
+        with suppress(Exception):
             self._panel.show(compose(None, [("Shutting down", None, get_hostname())]))
-        except Exception:  # noqa: BLE001
-            pass  # A failing panel must not stop a halt
         subprocess.Popen(["sudo", "-n", "shutdown", "-h", "now"])
         self.stop()  # The sanctioned self-stop (ADR-027)
 
@@ -311,11 +310,9 @@ class WhisPlayImpl(WhisPlay):
     def stop(self):
         self._stopping = True
         for device in (self._camera, self._panel, self._button):
-            try:
+            with suppress(Exception):
                 if device:
                     device.close()
-            except Exception:  # noqa: BLE001
-                pass
         aiko.process.terminate()
 
 
