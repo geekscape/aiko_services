@@ -638,7 +638,7 @@ def test_canonical_symbol_hazard_documented():
     """A value such as 12:34 is not a plain token: the parser reads it as a
     canonical symbol length prefix.  Never publish such values"""
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         parse("(update store_forwards.0123abcd 12:34)")
 
 
