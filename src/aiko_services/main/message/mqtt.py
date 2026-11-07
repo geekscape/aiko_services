@@ -281,43 +281,33 @@ class MQTT(Message):
 
     def wait_disconnected(self: Any) -> None:
         #       _LOGGER.debug("wait disconnected")
-        for counter in range(_MAXIMUM_WAIT_TIME + 1):
+        for _ in range(_MAXIMUM_WAIT_TIME + 1):
             if self.connected == MessageState.DISCONNECTED:
                 break
             time.sleep(0.001)
-        if counter >= _MAXIMUM_WAIT_TIME:
-            _LOGGER.error(f"wait disconnected timeout: {counter}")
-
-    #       else:
-    #           _LOGGER.debug(f"wait disconnected: {counter}")
+        else:
+            _LOGGER.error(f"wait disconnected timeout: {_}")
 
     # TODO: Only wait a limited time and either carry on without failing ...
     #       or fail and choose to reconnect to MQTT
 
     def wait_connected(self: Any) -> None:
         #       _LOGGER.debug("wait connected")
-        for counter in range(_MAXIMUM_WAIT_TIME + 1):
+        for _ in range(_MAXIMUM_WAIT_TIME + 1):
             if self.connected == MessageState.CONNECTED:
                 break
             time.sleep(0.001)
-        if counter >= _MAXIMUM_WAIT_TIME:
-            _LOGGER.error(f"wait connected timeout: {counter}")
-
-    #       else:
-    #           _LOGGER.debug(f"wait connected: {counter}")
+        else:
+            _LOGGER.error(f"wait connected timeout: {_}")
 
     # TODO: Only wait a limited time and either carry on without failing ...
     #       or fail and choose to reconnect to MQTT
 
     def wait_published(self: Any) -> None:
         #       _LOGGER.debug("wait published")
-        for counter in range(_MAXIMUM_WAIT_TIME + 1):
+        for _ in range(_MAXIMUM_WAIT_TIME + 1):
             if self.published:
                 break
             time.sleep(0.001)
-        if counter >= _MAXIMUM_WAIT_TIME:
-            _LOGGER.error(f"wait published timeout: {counter}")
-
-
-#       else:
-#           _LOGGER.debug(f"wait published: {counter}")
+        else:
+            _LOGGER.error(f"wait published timeout: {_}")

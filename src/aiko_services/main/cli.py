@@ -146,7 +146,7 @@ def options_from_pipeline_def(pipeline_definition):
             "help": str,
             "hidden": bool,
         }
-        for k, v in attributes.items():
+        for k in attributes.keys():
             if k not in valid_attrs:
                 ks = list(valid_attrs.keys())
                 msg = f"Invalid cli attribute {component_name}.{param_name}. Got: {k}. Valid attributes are {ks}."

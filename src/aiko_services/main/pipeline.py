@@ -1520,7 +1520,7 @@ class PipelineImpl(Pipeline):
         map_in_names = {}
         if element_name in self.definition.map_in_nodes:
             map_in_elements = self.definition.map_in_nodes[element_name]
-            for in_element, in_map in map_in_elements.items():
+            for in_map in map_in_elements.values():
                 from_name, to_name = next(iter(in_map.items()))
                 map_in_names[to_name] = f"{element_name}.{to_name}"
 

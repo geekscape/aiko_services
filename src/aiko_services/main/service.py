@@ -457,7 +457,7 @@ class Services:
         services = services._services if services else self._services
         results = Services()
 
-        for process_topic_path, process_services in services.items():
+        for process_services in services.values():
             for service_topic, service_details in process_services.items():
                 # TODO: Consolidate into consistent ServiceDetails() data structure
                 if isinstance(service_details, dict):

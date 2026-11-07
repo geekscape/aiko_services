@@ -337,7 +337,7 @@ class LifeCycleManagerTestImpl(LifeCycleManagerTest):
 
     def _connection_state_handler(self, connection, connection_state):
         if connection.is_connected(ConnectionState.REGISTRAR):
-            for client_count in range(self.share["client_count"]):
+            for _ in range(self.share["client_count"]):
                 self.lcm_create_client(CLIENT_SHELL_COMMAND)
                 time.sleep(0.01)
 

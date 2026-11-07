@@ -182,7 +182,7 @@ def _is_abstract(method):
 def _is_interface(cls):
     all_methods_abstract = True
     methods = getmembers(cls, isfunction)
-    for method_name, method in methods:
+    for _, method in methods:
         if not (hasattr(method, "__isabstractmethod__") and method.__isabstractmethod__):
             all_methods_abstract = False
             break

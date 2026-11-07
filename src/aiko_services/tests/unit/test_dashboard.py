@@ -371,7 +371,7 @@ def test_each_row_carries_a_topic_path_the_cache_accepts():
 
     rows = frame._services_widget.options
     assert len(rows) == 2
-    for columns, topic_path in rows:
+    for _, topic_path in rows:
         assert services.get_service(topic_path) is not None, topic_path
     assert [columns[0] for columns, _ in rows] == ["aiko/amr-inst+/1727706/1", TOPIC_PATH_SHORT]
 
