@@ -157,9 +157,10 @@ def test_second_registrar_stays_secondary(namespace, observer, registrars):
     before = len(observer.boot_payloads())
 
     registrars()
-    replied = lambda: any(
-        topic.endswith("/probe") and payload == "(item_count 0)" for topic, payload, _ in observer.messages
-    )
+
+    def replied():
+        return any(topic.endswith("/probe") and payload == "(item_count 0)" for topic, payload, _ in observer.messages)
+
     assert observer.wait_for(replied, ELECTION_TIMEOUT), observer.messages
     time.sleep(1.0)  # nothing more on the boot topic
     assert observer.boot_payloads()[before:] == []

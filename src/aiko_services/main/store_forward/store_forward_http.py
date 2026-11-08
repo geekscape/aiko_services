@@ -83,6 +83,12 @@ from aiko_services.main.store_forward.store_forward_message import (
     valid_sha256,
 )
 
+try:
+    from flask import Flask, jsonify, request, send_file
+    from werkzeug.serving import make_server
+except ImportError:
+    _FLASK_IMPORTED = False
+
 __all__ = ["StoreForwardMessageHTTPClient", "StoreForwardMessageHTTPServer"]
 
 _LOGGER = logging.getLogger(__name__)

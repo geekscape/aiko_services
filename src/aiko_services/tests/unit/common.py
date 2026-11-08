@@ -37,15 +37,14 @@ def do_compose_pipeline(
     pipeline_definition_json, stream_id=None, frame_data=None, parameters=PARAMETERS, grace_time=GRACE_TIME
 ):
 
-    file = None
-    with tempfile.NamedTemporaryFile(delete=True, mode="w") as file:
-        file.write(pipeline_definition_json)
-        file.flush()
+    with tempfile.NamedTemporaryFile(delete=True, mode="w") as temp_file:
+        temp_file.write(pipeline_definition_json)
+        temp_file.flush()
 
-        pipeline_definition = aiko.PipelineImpl.parse_pipeline_definition(file.name)
+        pipeline_definition = aiko.PipelineImpl.parse_pipeline_definition(temp_file.name)
 
         return aiko.PipelineImpl.create_pipeline(
-            file.name,
+            temp_file.name,
             pipeline_definition,
             name=None,
             graph_path=None,
