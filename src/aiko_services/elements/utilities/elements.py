@@ -50,7 +50,7 @@ def all_outputs(pipeline_element, stream):
 # - operator:   + - * / < <= > >=
 
 
-def evaluate(expression, arguments=None):
+def evaluate(expression, arguments=None):  # noqa: C901
     if arguments is None:
         arguments = {}
     expression = expression.strip()

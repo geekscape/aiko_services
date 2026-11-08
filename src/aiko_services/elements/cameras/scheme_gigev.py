@@ -268,7 +268,7 @@ class DataSchemeGigE(DataSchemeCamera):
         except Exception as exception:
             self.pipeline_element.logger.warning(f"{self.camera_name} exposure set-up failed: {exception}")
 
-    def _apply_update(self, item_name, item_value):
+    def _apply_update(self, item_name, item_value):  # noqa: C901
         if item_name not in ("exposure_us", "gain", "max_exposure_us", "brightness_target", "white_balance"):
             return
         if not self.camera:

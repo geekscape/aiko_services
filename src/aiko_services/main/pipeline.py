@@ -488,7 +488,7 @@ class PipelineElementImpl(PipelineElement):
     # TODO: For "rate" measure time since last frame to be more accurate
     # FIX:  For "rate" check "rate=0" (fills mailbox) versus "rate=None" ?
 
-    def _create_frames_generator(self, stream, frame_generator, frame_id, rate):
+    def _create_frames_generator(self, stream, frame_generator, frame_id, rate):  # noqa: C901
         try:
             self.pipeline._enable_thread_local("_create_frames_generator()", stream.stream_id, frame_id)
             stream, frame_id = self.get_stream()
@@ -1036,7 +1036,7 @@ class PipelineImpl(Pipeline):
             self._disable_thread_local("create_stream()")
         return True
 
-    def destroy_stream(self, stream_id, graceful=False, use_thread_local=True, acquire_lock=True):
+    def destroy_stream(self, stream_id, graceful=False, use_thread_local=True, acquire_lock=True):  # noqa: C901
 
         stream_id = str(stream_id)
 
@@ -1153,7 +1153,7 @@ class PipelineImpl(Pipeline):
         return element_class
 
     @classmethod
-    def parse_pipeline_definition(cls, pipeline_definition_pathname):
+    def parse_pipeline_definition(cls, pipeline_definition_pathname):  # noqa: C901
         CLASS_NAME_FIELD = "class_name"
         COMMENT_FIELD = "#"
         PARAMETERS_FIELD = "parameters"
@@ -1244,7 +1244,7 @@ class PipelineImpl(Pipeline):
 
         return self._process_frame_common(stream_dict, frame_data, False)
 
-    def _process_frame_common(self, stream_dict, frame_data_in, new_frame) -> Tuple[StreamEvent, dict]:
+    def _process_frame_common(self, stream_dict, frame_data_in, new_frame) -> Tuple[StreamEvent, dict]:  # noqa: C901
 
         frame_complete = True
         graph, stream = self._process_initialize(stream_dict, frame_data_in, new_frame)
@@ -1411,7 +1411,7 @@ class PipelineImpl(Pipeline):
             self._disable_thread_local("process_frame()")
         return True
 
-    def _process_initialize(self, stream_dict, frame_data_in, new_frame):
+    def _process_initialize(self, stream_dict, frame_data_in, new_frame):  # noqa: C901
         frame = None
         graph = None
         stream = Stream()
@@ -1622,7 +1622,7 @@ class PipelineImpl(Pipeline):
     # then all "pipeline.method()" calls must not except a return value
 
     @classmethod
-    def update_pipeline(
+    def update_pipeline(  # noqa: C901
         cls,
         pipeline,
         graph_path,

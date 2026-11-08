@@ -432,7 +432,7 @@ class ProcessManagerFrame(ServiceFrame):
                 return None
         return super().process_event(event)
 
-    def _act(self, action):
+    def _act(self, action):  # noqa: C901
         kind = action[0]
         if kind == "log_level":
             self.scene.add_effect(LogLevelPopupMenu(self._screen, self.state_widget, self.topic_path))

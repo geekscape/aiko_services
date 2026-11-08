@@ -435,7 +435,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
 
     # Message layer hand-off (event-loop thread) ---------------------------- #
 
-    def _store_forward_event(self, segment_id, event, detail):
+    def _store_forward_event(self, segment_id, event, detail):  # noqa: C901
         """Posted by _message_event() from message-layer threads.
         Reachable from the local bus too, so every argument is validated"""
 

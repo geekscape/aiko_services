@@ -816,7 +816,7 @@ class DisplayImpl(Display):
     def _set_applet(self, value):
         self.applet(*str(value).split(","))
 
-    def _apply_setting(self, setting, value):
+    def _apply_setting(self, setting, value):  # noqa: C901
         """Apply a declared setting (SETTINGS_SPEC) by its kind; a bad value
         is denied and the value in force published again"""
 

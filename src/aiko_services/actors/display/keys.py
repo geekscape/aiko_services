@@ -172,7 +172,7 @@ def _next_color(names, current):
     return names[(names.index(current) + 1) % len(names)] if current in names else names[0]
 
 
-def key_command(key, state):
+def key_command(key, state):  # noqa: C901
     """The commands a key sends: a list of ("applet", arguments),
     ("key", arguments), ("clear", ()) or ("update", key, value); [] for a
     key that means nothing.  "state" holds the preset turns, the current

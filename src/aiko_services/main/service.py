@@ -453,7 +453,7 @@ class Services:
     #       The registrar should also use general filters
     # services dict: Key: Process topic_path --> Value: Per Processs Services dict
 
-    def filter_by_attributes(self, filter, services=None):
+    def filter_by_attributes(self, filter, services=None):  # noqa: C901
         services = services._services if services else self._services
         results = Services()
 

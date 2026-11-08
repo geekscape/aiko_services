@@ -112,7 +112,7 @@ def cli_shim():
     return pipeline_definition
 
 
-def options_from_pipeline_def(pipeline_definition):
+def options_from_pipeline_def(pipeline_definition):  # noqa: C901
     """
     Cli with default:
 

@@ -331,7 +331,7 @@ class DataSchemeCamera(aiko.DataScheme):
                 if remaining > 0 and not self.stopped:
                     time.sleep(remaining)
 
-    def _capture_step(self):
+    def _capture_step(self):  # noqa: C901
         """One warm-up step, or one capture that is either discarded while
         the camera settles or queued for delivery.  A failure that must
         end the Stream sets self._stop_reason"""

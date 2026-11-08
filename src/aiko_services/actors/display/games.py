@@ -112,7 +112,7 @@ def pong(rng, host):
         yield image
 
 
-def asteroids(rng, host):
+def asteroids(rng, host):  # noqa: C901
     """A ship turns, aims and fires at the nearest rock; big rocks split"""
 
     cx, cy = FIELD_WIDTH / 2, FIELD_HEIGHT / 2
@@ -249,7 +249,7 @@ BLAST = sprite(["#..#..#.", ".#.#.#..", "#......#", "..#.#.#.", ".#..#..#"])
 BUNKER = sprite(["..########..", ".##########.", "############", "############", "####....####", "###......###"])
 
 
-def invaders(rng, host):
+def invaders(rng, host):  # noqa: C901
     """Marching invaders, a cannon that picks them off, bombs, crumbling
     bunkers and a passing saucer"""
 

@@ -321,7 +321,7 @@ class StorageFileImpl(Storage):
     # TODO: Load Dependency information ...
     #       service_filter=None, lifecycle_manager_url=None, storage_url=None
 
-    def list(self, topic_path_response, entry_path=None, long_format=False, recursive=False, entry_records=None):
+    def list(self, topic_path_response, entry_path=None, long_format=False, recursive=False, entry_records=None):  # noqa: C901
 
         if not isinstance(long_format, bool):
             long_format = long_format.lower() in ("true", "t")

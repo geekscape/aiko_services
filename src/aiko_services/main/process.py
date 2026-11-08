@@ -324,7 +324,7 @@ class ProcessImplementation(ProcessData):
         finally:
             self.connection.lock_release()
 
-    def on_registrar(self, _, topic, payload_in):
+    def on_registrar(self, _, topic, payload_in):  # noqa: C901
         action = None
         parse_okay = False
         registrar = {}

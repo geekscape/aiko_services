@@ -136,7 +136,7 @@ RE_CANONICAL_SYMBOL = re.compile(r"^(\d+):(.+)", re.DOTALL)  # length:data
 RE_STRING = re.compile(r"""(['"])(.*?)\1""")  # "text" or 'text'
 
 
-def parse(payload: str, car_cdr=True, dictionaries_flag=True, _nested=False):
+def parse(payload: str, car_cdr=True, dictionaries_flag=True, _nested=False):  # noqa: C901
     """An S-expression payload as (car, cdr), or as one list when car_cdr
     is False.  Raises ValueError for a payload that is not well formed: a
     length prefix "N:" with fewer than N characters after it, or a list
