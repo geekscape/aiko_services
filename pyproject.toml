@@ -155,7 +155,7 @@ features = ["test"]
 
 [tool.hatch.envs.default.scripts]
 test = [
-    "- check", # TODO(nic): remove leading `-` and make this enforcing rather than advisory
+    "check",
     "pytest {args:src/aiko_services/tests/unit}",
 ]
 check = [
