@@ -262,7 +262,7 @@ def probe_terminal(term, locale_env, size, path, timeout=20.0):
     if pid == 0:  # the child: set the size first
         try:
             fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack("HHHH", size[1], size[0], 0, 0))
-            os.execve(sys.executable, [sys.executable, "-c", PROBE, str(path)], environment)
+            os.execve(sys.executable, [sys.executable, "-c", PROBE, str(path)], environment)  # noqa: S606
         finally:
             os._exit(127)
     output, deadline = b"", time.monotonic() + timeout

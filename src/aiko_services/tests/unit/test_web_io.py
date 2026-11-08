@@ -54,7 +54,7 @@ def server():
 
 
 def _get(url, timeout=3.0):
-    with urllib.request.urlopen(url, timeout=timeout) as response:
+    with urllib.request.urlopen(url, timeout=timeout) as response:  # noqa: S310
         return response.status, response.headers, response.read()
 
 
@@ -94,7 +94,7 @@ def test_stream_is_scaled_and_rate_capped(server):
     feeder = threading.Thread(target=feed, daemon=True)
     feeder.start()
     try:
-        response = urllib.request.urlopen(server.url + "/stream.mjpg", timeout=3.0)
+        response = urllib.request.urlopen(server.url + "/stream.mjpg", timeout=3.0)  # noqa: S310
         assert "multipart/x-mixed-replace" in response.headers["Content-Type"]
         data, started = b"", time.monotonic()
         while time.monotonic() - started < 1.2:

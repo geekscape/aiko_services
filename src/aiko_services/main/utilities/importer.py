@@ -70,7 +70,7 @@ def _module_name(pathname):
     in front of it makes a traceback readable"""
 
     resolved = str(pathlib.Path(pathname).resolve())
-    digest = hashlib.sha1(resolved.encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha1(resolved.encode("utf-8")).hexdigest()[:12]  # noqa: S324
     stem = pathlib.Path(pathname).stem or "module"
     return f"aiko_file_{stem}_{digest}"
 

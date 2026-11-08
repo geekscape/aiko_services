@@ -136,8 +136,8 @@ def test_systemd_render_omits_what_is_not_set():
 
 
 def test_launchd_pathname():
-    supervisor = make_supervisor(LaunchdDaemonSupervisorImpl, agent_directory="/tmp/LaunchAgents")
-    assert str(supervisor.pathname(make_spec())) == "/tmp/LaunchAgents/io.aiko_services.aiko01.plist"
+    supervisor = make_supervisor(LaunchdDaemonSupervisorImpl, agent_directory="/tmp/LaunchAgents")  # noqa: S108
+    assert str(supervisor.pathname(make_spec())) == "/tmp/LaunchAgents/io.aiko_services.aiko01.plist"  # noqa: S108
 
 
 def test_launchd_render():
@@ -159,7 +159,7 @@ def test_launchd_render_escapes_xml():
     """A definition pathname is not trusted to be XML-safe"""
 
     supervisor = make_supervisor(LaunchdDaemonSupervisorImpl)
-    spec = DaemonDefinition.for_process_manager(name="aiko01", definition_pathname="/tmp/a&b.json")
+    spec = DaemonDefinition.for_process_manager(name="aiko01", definition_pathname="/tmp/a&b.json")  # noqa: S108
     plist = supervisor.render(spec)
 
     assert "<string>/tmp/a&amp;b.json</string>" in plist

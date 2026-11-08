@@ -216,7 +216,7 @@ def test_object_entry_command_as_a_list(process_manager):
     )
 
 
-def test_object_entry_keeps_an_argument_that_contains_a_space(process_manager):
+def test_object_entry_keeps_an_argument_that_contains_a_space(process_manager):  # noqa: S108
     """What the string form cannot do"""
 
     _, command, arguments, _ = process_manager._parse_definition_entry(
@@ -239,7 +239,7 @@ def test_object_entry_with_an_unknown_key_is_skipped(process_manager):
     """A key that is nearly right is the one worth reporting"""
 
     assert process_manager._parse_definition_entry(
-        {"enabled": True, "command": "date", "working_directory": "/tmp"}
+        {"enabled": True, "command": "date", "working_directory": "/tmp"}  # noqa: S108
     ) == (False, None, None, None)
     assert "unknown key working_directory" in process_manager.logger.errors[0]
 

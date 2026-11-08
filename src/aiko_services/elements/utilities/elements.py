@@ -15,6 +15,7 @@
 # - Alter Pipeline Graph control flow
 #   - Conditionals
 
+import ast
 import re
 from typing import Tuple
 
@@ -64,7 +65,7 @@ def evaluate(expression, arguments=None):
         return expression.strip("\"'")  # If present, remove quotes
 
     if re.fullmatch(r"\[.*\]", expression):
-        return eval(expression)  # Convert "list" to a [list]
+        return ast.literal_eval(expression)  # Convert "list" to a [list]
 
     match = re.search(r"(\+|\-|\*|/|\<|\<=|/>|\>=)", expression)  # operators
     if match:

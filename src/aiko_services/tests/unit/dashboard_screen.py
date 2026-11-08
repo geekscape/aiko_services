@@ -145,7 +145,7 @@ def draw_frame(
     if pid == 0:  # the child: its size, then exec
         try:
             fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack("HHHH", size[1], size[0], 0, 0))
-            os.execve(
+            os.execve(  # noqa: S606
                 sys.executable,
                 [sys.executable, "-c", _CHILD, module_name, class_name, state_pathname, out_pathname],
                 environment,
