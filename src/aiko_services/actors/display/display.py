@@ -156,6 +156,9 @@ HEARTBEAT_PERIOD = 1.0
 METRICS_PERIOD = 2.0
 REOPEN_PERIOD = 10.0  # retry a failed display this often
 DEFAULT_APPLET = "status"
+FLAG_ON = "on"
+FLAG_OFF = "off"
+COLOR_DEFAULT = "default"
 
 # Settings: shared state that anyone may write with "(update KEY VALUE)" on
 # the control topic; the change handler applies them through one setter each
@@ -874,7 +877,7 @@ class DisplayImpl(Display):
         token = _token(text)
         if token in ("off", "-"):
             self._title_text = ""
-        elif token == "on":
+        elif token == FLAG_ON:
             self._title_text = self._title_saved
         else:
             self._title_text = token.replace("_", " ")
@@ -907,7 +910,7 @@ class DisplayImpl(Display):
         yellow, or #rrggbb; "default" is the color the Actor started with"""
 
         token = str(value).strip()
-        if token == "default":
+        if token == COLOR_DEFAULT:
             token = self._start_colors[key]
         try:
             if not re.fullmatch(r"[#A-Za-z0-9]+", token):
