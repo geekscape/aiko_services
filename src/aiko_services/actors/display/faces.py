@@ -219,7 +219,7 @@ class EyesApplet(Applet):
 
     def __init__(self, host, words=(), options=None):
         super().__init__(host, words, options)
-        self.rng = host.rng if "seed" not in self.options else random.Random(self.options["seed"])
+        self.rng = host.rng if "seed" not in self.options else random.Random(self.options["seed"])  # noqa: S311
         self.blinking = self.options.get("blink", True)
         self.emotion = self.options.get("emotion", "neutral")
         self.description = self.emotion

@@ -17,6 +17,7 @@
 
 import itertools
 from contextlib import suppress
+
 import pytest
 
 import aiko_services as aiko

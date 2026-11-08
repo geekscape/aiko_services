@@ -18,23 +18,21 @@
 # the processes created and the messages logged: no Actor is composed, no
 # thread is started and no MQTT broker is used.
 
-import aiko_services as aiko
-import click
-from click.testing import CliRunner
-
 import importlib
 import itertools
 import json
 
 import pytest
+from click.testing import CliRunner
 
+import aiko_services as aiko
 from aiko_services.main.process_manager import (
     FUNCTIONS,
-    ProcessManagerCache,
-    ProcessManagerImpl,
     PROTOCOL,
     SAFE,
     SAFE_FUNCTIONS,
+    ProcessManagerCache,
+    ProcessManagerImpl,
     coerce_response_topic,
     main,
     parse_process_share,

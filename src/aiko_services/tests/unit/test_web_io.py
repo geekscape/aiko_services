@@ -15,11 +15,11 @@
 import json
 import threading
 import time
-import numpy as np
-import pytest
-
 import urllib.error
 import urllib.request
+
+import numpy as np
+import pytest
 
 from aiko_services.elements.web.web_io import FrameWebServer
 from aiko_services.tests.unit import do_create_pipeline

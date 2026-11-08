@@ -515,7 +515,7 @@ def test_forklift_game_places_a_pallet_on_bay_1():
 
 
 def test_sketch_frames_count_and_the_finished_drawing():
-    rng = random.Random(1)
+    rng = random.Random(1)  # noqa: S311
     names, shapes = scene(rng, ["house"], "outline")
     strokes = scene_strokes(shapes, "outline", rng)
     frames = list(sketch_frames(strokes, 40))
@@ -584,7 +584,7 @@ def test_demo_tour_runs_steps_and_restores_settings():
 
 
 def test_random_steps_are_valid_applets():
-    steps = list(__import__("itertools").islice(random_steps(random.Random(1)), 40))
+    steps = list(__import__("itertools").islice(random_steps(random.Random(1)), 40))  # noqa: S311
     for seconds, name, args, settings in steps:
         assert seconds > 0 and name in APPLETS
         parse_applet_args(args, APPLETS[name].OPTIONS)

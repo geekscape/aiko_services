@@ -517,7 +517,7 @@ class DisplayImpl(Display):
         self._log = collections.deque(maxlen=LOG_LINES)
         self._log_total = 0
         self._log_pending = False  # the "L" annunciator
-        self._rng = random.Random()
+        self._rng = random.Random()  # noqa: S311
         self._metrics = {"commands": 0, "denied": 0, "frames": 0, "frame_ms": 0, "errors": 0, "mirrored": 0}
         self._speed = 1.0
         self._blank_after = 0

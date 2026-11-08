@@ -104,9 +104,9 @@ async def _handle_proxy_client(
         async def killer():
             mn = max(0.0, float(min(drop_min_delay, drop_max_delay)))
             mx = max(0.0, float(max(drop_min_delay, drop_max_delay)))
-            delay = random.uniform(mn, mx)
+            delay = random.uniform(mn, mx)  # noqa: S311
             await asyncio.sleep(delay)
-            if random.random() < max(0.0, min(1.0, float(drop_chance))) and not cli_writer.is_closing():
+            if random.random() < max(0.0, min(1.0, float(drop_chance))) and not cli_writer.is_closing():  # noqa: S311
                 print(f"[drop_midstream] killing session {peer} after {delay:.2f}s", flush=True)
                 with suppress(Exception):
                     cli_writer.close()
@@ -425,7 +425,7 @@ def cmd_stop(_args):
 def _jittered(base: float, jitter: float) -> float:
     if jitter <= 0:
         return max(base, 0.1)
-    delta = random.uniform(-jitter, +jitter)
+    delta = random.uniform(-jitter, +jitter)  # noqa: S311
     return max(base + delta, 0.1)
 
 

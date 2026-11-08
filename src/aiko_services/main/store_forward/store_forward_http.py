@@ -55,6 +55,7 @@ from collections import deque
 from typing import Dict
 
 import requests
+
 from aiko_services import __version__
 from aiko_services.main.store_forward.store_forward_message import (
     CHUNK_SIZE,

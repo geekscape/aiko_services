@@ -92,7 +92,7 @@ class Host:
 
     def __init__(self, font, rng=None, speed=1.0, width=WIDTH, height=HEIGHT):
         self.font = font
-        self.rng = rng or random.Random()
+        self.rng = rng or random.Random()  # noqa: S311
         self.speed = speed
         self.width, self.height = width, height
 
@@ -616,7 +616,7 @@ class DemoApplet(Applet):
 
     def __init__(self, host, words=(), options=None):
         super().__init__(host, words, options)
-        rng = host.rng if "seed" not in self.options else random.Random(self.options["seed"])
+        rng = host.rng if "seed" not in self.options else random.Random(self.options["seed"])  # noqa: S311
         steps = random_steps(rng) if self.options.get("random", True) else itertools.cycle(TOUR)
         count = self.options.get("count", 0)
         self._steps = itertools.islice(steps, count) if count else steps

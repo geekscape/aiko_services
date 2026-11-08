@@ -18,13 +18,11 @@
 # - None, yet !
 
 import time
-from datetime import datetime
-
-import aiko_services.main.process as process_module
 
 import pytest
 
 import aiko_services as aiko
+import aiko_services.main.process as process_module
 import aiko_services.main.registrar as registrar_module
 from aiko_services.main import REGISTRAR_VERSION, event
 from aiko_services.main import aiko as process_data

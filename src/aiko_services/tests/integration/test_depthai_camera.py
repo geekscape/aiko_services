@@ -15,7 +15,6 @@
 # can deliver a frame or two more before the process ends
 
 import os
-import os
 import time
 
 import pytest

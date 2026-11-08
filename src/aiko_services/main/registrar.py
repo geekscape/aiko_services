@@ -215,7 +215,7 @@ class StateMachineModel:
         self.service.ec_producer.update("lifecycle", "primary_probe")
         _LOGGER.debug(f"do primary_probe {self.probe_target}")
         aiko.message.publish(f"{self.probe_target}/in", f"(history {self.service.topic_probe} 0)")
-        self._timer_add(self.primary_probe_timer, _PRIMARY_PROBE_TIMEOUT + random.uniform(0, _PRIMARY_PROBE_JITTER))
+        self._timer_add(self.primary_probe_timer, _PRIMARY_PROBE_TIMEOUT + random.uniform(0, _PRIMARY_PROBE_JITTER))  # noqa: S311
 
     def on_exit_primary_probe(self, event_data):
         self._timer_remove(self.primary_probe_timer)

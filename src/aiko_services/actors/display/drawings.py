@@ -418,7 +418,7 @@ class DrawApplet(Applet):
 
     def __init__(self, host, words=(), options=None):
         super().__init__(host, words, options)
-        self.rng = host.rng if "seed" not in self.options else random.Random(self.options["seed"])
+        self.rng = host.rng if "seed" not in self.options else random.Random(self.options["seed"])  # noqa: S311
         self.subjects = [self.options["subject"]] if "subject" in self.options else sorted(SUBJECTS)
         self.seconds = max(0.5, self.options.get("speed", DRAW_SECONDS))
         self.hold = max(0.0, self.options.get("hold", 3.0))
