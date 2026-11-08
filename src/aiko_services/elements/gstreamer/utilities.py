@@ -3,6 +3,7 @@
 # ... or ...
 # - apt-get install python3-gi
 
+from contextlib import suppress
 from sys import platform
 
 __all__ = [
@@ -51,8 +52,6 @@ def get_h264_encoder_options():
 
 # --------------------------------------------------------------------------- #
 
-import gi
-
 Gst = None
 GstBase = None
 GObject = None
@@ -67,6 +66,8 @@ def gst_initialise(multiple_return_values=False):
     global Gst, GstBase, GObject
 
     if not Gst:
+        import gi
+
         gi.require_version("Gst", "1.0")
         gi.require_version("GstBase", "1.0")
         from gi.repository import GObject, Gst, GstBase
@@ -82,9 +83,6 @@ def gst_initialise(multiple_return_values=False):
 # --------------------------------------------------------------------------- #
 
 cv2 = None
-
-
-from contextlib import suppress
 
 
 def enable_opencv():

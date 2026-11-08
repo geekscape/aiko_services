@@ -45,6 +45,7 @@ import errno
 import json
 import logging
 import os
+import queue
 import re
 import shutil
 import socket
@@ -54,18 +55,6 @@ from collections import deque
 from typing import Dict
 
 import requests
-
-_FLASK_IMPORTED = False
-try:
-    from flask import Flask, jsonify, request, send_file
-    from werkzeug.serving import make_server
-
-    _FLASK_IMPORTED = True
-except ModuleNotFoundError:  # server role only: "pip install flask"
-    pass
-
-import queue
-
 from aiko_services import __version__
 from aiko_services.main.store_forward.store_forward_message import (
     CHUNK_SIZE,

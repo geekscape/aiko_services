@@ -15,16 +15,17 @@
 # can deliver a frame or two more before the process ends
 
 import os
+import os
 import time
 
 import pytest
 
-pytest.importorskip("cv2", reason="aiko_services.elements.media needs cv2 (video_io.py)")
-depthai = pytest.importorskip("depthai", reason='pip install "aiko_services[depthai]" to run the OAK camera test')
-
 from aiko_services.elements.cameras.camera_oak_d import OakDCamera
 from aiko_services.tests.unit import do_create_pipeline
 from aiko_services.tests.unit.image_sink import do_results_initialize
+
+pytest.importorskip("cv2", reason="aiko_services.elements.media needs cv2 (video_io.py)")
+depthai = pytest.importorskip("depthai", reason='pip install "aiko_services[depthai]" to run the OAK camera test')
 
 ADDRESS = os.environ.get("AIKO_TEST_DEPTHAI")
 pytestmark = pytest.mark.skipif(not ADDRESS, reason="set AIKO_TEST_DEPTHAI=1 (discover) or =<address> to run")

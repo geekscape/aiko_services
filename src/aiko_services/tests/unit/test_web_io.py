@@ -15,17 +15,17 @@
 import json
 import threading
 import time
-import urllib.error
-import urllib.request
-
 import numpy as np
 import pytest
 
-cv2 = pytest.importorskip("cv2", reason="VideoShowWeb encodes with cv2")
+import urllib.error
+import urllib.request
 
 from aiko_services.elements.web.web_io import FrameWebServer
 from aiko_services.tests.unit import do_create_pipeline
 from aiko_services.tests.unit.image_sink import do_results_initialize
+
+cv2 = pytest.importorskip("cv2", reason="VideoShowWeb encodes with cv2")
 
 
 def _image(width=1280, height=720, value=90):

@@ -18,12 +18,28 @@
 # the processes created and the messages logged: no Actor is composed, no
 # thread is started and no MQTT broker is used.
 
+import aiko_services as aiko
+import click
+from click.testing import CliRunner
+
 import importlib
+import itertools
 import json
 
 import pytest
 
-from aiko_services.main.process_manager import ProcessManagerImpl
+from aiko_services.main.process_manager import (
+    FUNCTIONS,
+    ProcessManagerCache,
+    ProcessManagerImpl,
+    PROTOCOL,
+    SAFE,
+    SAFE_FUNCTIONS,
+    coerce_response_topic,
+    main,
+    parse_process_share,
+    print_processes,
+)
 from aiko_services.main.utilities.parser import parse
 
 
@@ -560,17 +576,6 @@ def test_create_still_runs_the_true_command(process_manager):
 # the default.  The allow lists are derived, and the response topic rule is
 # a pure function, so most of this needs no Actor and no broker.
 
-import itertools
-
-import aiko_services as aiko
-from aiko_services.main.process_manager import (
-    FUNCTIONS,
-    PROTOCOL,
-    SAFE,
-    SAFE_FUNCTIONS,
-    coerce_response_topic,
-)
-
 _counter = itertools.count()
 OWN = "aiko/host/1000/1/in"
 
@@ -867,15 +872,11 @@ def test_a_falsified_denial_count_is_corrected_by_the_next_denial():
 
 # The ProcessManagerCache: a live replica, with no broker --------------- #
 #
+
 # The cache is thin, because ECCache does the work: discovery through the
 # ServicesCache, one leased ECConsumer for each ProcessManager, and a local
 # replica.  These tests simulate a discovery event and write the replica
 # directly, the way test_share.py exercises ECCache.
-
-from aiko_services.main.process_manager import (
-    ProcessManagerCache,
-    parse_process_share,
-)
 
 TOPIC = "aiko/host/1234/1"
 
@@ -987,10 +988,6 @@ def test_two_process_managers_are_separate_replicas():
 #
 # This path had no test, and the whole suite passed while the function it
 # calls was missing from the file.  A command line is code too.
-
-from click.testing import CliRunner
-
-from aiko_services.main.process_manager import main, print_processes
 
 
 class _CacheDouble:

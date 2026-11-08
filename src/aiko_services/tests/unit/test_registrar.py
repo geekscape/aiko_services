@@ -18,6 +18,9 @@
 # - None, yet !
 
 import time
+from datetime import datetime
+
+import aiko_services.main.process as process_module
 
 import pytest
 
@@ -28,8 +31,12 @@ from aiko_services.main import aiko as process_data
 from aiko_services.main.registrar import Registrar, RegistrarImpl
 from aiko_services.main.utilities import (
     datetime_now_utc_iso,
+    epoch_to_utc_iso,
+    local_iso_now,
     parse,
     utc_iso_since_epoch,
+    utc_iso_to_datetime,
+    utc_iso_to_local,
 )
 
 
@@ -341,13 +348,6 @@ def test_the_list_subcommand_exists():
 # call: it subtracted a naive epoch from an aware datetime.  Nothing
 # called it, so nothing reported it.
 
-from aiko_services.main.utilities import (
-    epoch_to_utc_iso,
-    local_iso_now,
-    utc_iso_to_datetime,
-    utc_iso_to_local,
-)
-
 
 def test_a_stamp_converts_to_seconds_and_back():
     stamp = datetime_now_utc_iso()
@@ -442,8 +442,6 @@ def test_a_reader_still_reads_the_codecs_none():
 # adding to Registrar" and every Service failed to register against a
 # registrar:2 Registrar.  The same shape as the deny-by-default guard that
 # called a function that does not exist: a guard nothing executes.
-
-import aiko_services.main.process as process_module
 
 FOUND_OLDER = "(primary found aiko/host/1/1 1 1234.5)"
 FOUND_MATCHING = f"(primary found aiko/host/1/1 {REGISTRAR_VERSION} 1234.5)"

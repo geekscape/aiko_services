@@ -30,21 +30,21 @@ from types import SimpleNamespace
 
 import pytest
 
-asciimatics = pytest.importorskip("asciimatics")
-
 from aiko_services.ide.tui.dashboard import (
-    ListRequest,  # noqa: E402
-    dashboard,  # noqa: E402
+    ListRequest,
+    dashboard,
 )
-from aiko_services.main.service import (  # noqa: E402
+from aiko_services.main.service import (
     Services,
     ServiceTopicPath,
 )
-from aiko_services.main.utilities import load_module  # noqa: E402
-from aiko_services.tests.unit.dashboard_screen import (  # noqa: E402
+from aiko_services.main.utilities import load_module
+from aiko_services.tests.unit.dashboard_screen import (
     draw_frame,
     pty_available,
 )
+
+asciimatics = pytest.importorskip("asciimatics")
 
 PLUGIN_DEFAULT = "aiko_services.ide.tui.dashboard.plugins"
 

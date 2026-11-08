@@ -72,7 +72,10 @@
 #   does not send a remove message for the component
 
 import os
+import time
 from abc import ABCMeta, abstractmethod
+from collections import deque
+from threading import Thread
 
 import click
 
@@ -691,10 +694,6 @@ class ECCacheImpl(ECCache):
 # - Reimplement ServicesCache using ECProducer / ECConsumer
 # - aiko_services.registrar should have identical code to the cache code !
 # - services_cache_delete() should be a class method delete()
-
-import time
-from collections import deque
-from threading import Thread
 
 _HISTORY_RING_BUFFER_SIZE = 4096
 _REGISTRAR_REPLY_TIMEOUT = 5.0  # seconds: warn when the Registrar is silent

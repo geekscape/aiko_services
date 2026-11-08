@@ -70,7 +70,6 @@ import sys
 import time
 from collections import deque
 from typing import Any
-
 from aiko_services.main.utilities import *
 
 __all__ = [
@@ -150,8 +149,6 @@ def print_error(*args, **kwargs):
 
 # -----------------------------------------------------------------------------
 
-from aiko_services.main.connection import ConnectionState
-
 
 class LoggingHandlerMQTT(logging.Handler):
     def __init__(self, aiko, topic, option="all", ring_buffer_size=_RING_BUFFER_SIZE):
@@ -175,6 +172,8 @@ class LoggingHandlerMQTT(logging.Handler):
         aiko.connection.add_handler(self._connection_state_handler)
 
     def _connection_state_handler(self, connection, connection_state):
+        from aiko_services.main.connection import ConnectionState
+
         if connection.is_connected(ConnectionState.TRANSPORT):
             self.ready = True
             self._publish_ring_buffer()

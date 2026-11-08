@@ -17,6 +17,7 @@
 
 import itertools
 from contextlib import suppress
+import pytest
 
 import aiko_services as aiko
 from aiko_services.actors.power_manager import (
@@ -31,8 +32,6 @@ from aiko_services.actors.power_manager.power_manager import (
 
 _counter = itertools.count()
 _made = []
-
-import pytest
 
 
 @pytest.fixture(autouse=True)
