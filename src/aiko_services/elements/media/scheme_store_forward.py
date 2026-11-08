@@ -12,7 +12,7 @@ import aiko_services as aiko
 
 __all__ = ["DataSchemeStoreForward"]
 
-_PREFIX_RE = re.compile(r"^[A-Za-z0-9_-]{0,32}$")   # "": no prefix
+_PREFIX_RE = re.compile(r"^[A-Za-z0-9_-]{0,32}$")  # "": no prefix
 
 # --------------------------------------------------------------------------- #
 # parameter: "data_targets" names the outbox directory that a
@@ -31,9 +31,9 @@ _PREFIX_RE = re.compile(r"^[A-Za-z0-9_-]{0,32}$")   # "": no prefix
 # Actor's watcher ignores, then renames it into place when the segment
 # closes, so every segment appears complete and at once
 
+
 class DataSchemeStoreForward(aiko.DataScheme):
-    def create_sources(self,
-        stream, data_sources, frame_generator=None, use_create_frame=True):
+    def create_sources(self, stream, data_sources, frame_generator=None, use_create_frame=True):
 
         diagnostic = "store_forward:// is a target-only scheme (for now)"
         return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
@@ -51,8 +51,7 @@ class DataSchemeStoreForward(aiko.DataScheme):
         prefix, _ = self.pipeline_element.get_parameter("segment_prefix", "")
         prefix = "" if prefix is None else str(prefix)
         if not _PREFIX_RE.match(prefix):
-            diagnostic =  \
-                f'segment_prefix "{prefix}" must be [A-Za-z0-9_-], 32 max'
+            diagnostic = f'segment_prefix "{prefix}" must be [A-Za-z0-9_-], 32 max'
             return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
         stream.variables["target_outbox"] = path
@@ -61,6 +60,7 @@ class DataSchemeStoreForward(aiko.DataScheme):
         if ec_producer:
             ec_producer.update("outbox", path)
         return aiko.StreamEvent.OKAY, {}
+
 
 aiko.DataScheme.add_data_scheme("store_forward", DataSchemeStoreForward)
 

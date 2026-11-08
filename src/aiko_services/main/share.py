@@ -71,18 +71,28 @@
 # - When subscribed to a component of a dictionary, removal of the dictionary
 #   does not send a remove message for the component
 
-from abc import ABCMeta, abstractmethod
-import click
 import os
+import time
+from abc import ABCMeta, abstractmethod
+from collections import deque
+from threading import Thread
+
+import click
 
 from aiko_services.main import *
 from aiko_services.main.utilities import *
 
 __all__ = [
-    "ECCache", "ECCacheImpl",
-    "ECConsumer", "ECConsumerImpl", "PROTOCOL_EC_CONSUMER",
-    "ECProducer", "ECProducerImpl", "PROTOCOL_EC_PRODUCER",
-    "services_cache_create_singleton", "services_cache_delete"
+    "ECCache",
+    "ECCacheImpl",
+    "ECConsumer",
+    "ECConsumerImpl",
+    "PROTOCOL_EC_CONSUMER",
+    "ECProducer",
+    "ECProducerImpl",
+    "PROTOCOL_EC_PRODUCER",
+    "services_cache_create_singleton",
+    "services_cache_delete",
 ]
 
 # Deprecated (one release, removed after v0.8): the positional construction
@@ -93,23 +103,22 @@ __all__ = [
 
 _EC_COMPAT = {}  # Interface name --> (Impl class, init_args factory)
 
+
 class _ECCompatShim(ABCMeta):
     def __call__(cls, *args, **kwargs):
         if cls.__abstractmethods__ and cls.__name__ in _EC_COMPAT:
             impl_class, args_factory = _EC_COMPAT[cls.__name__]
-            return compose_instance(
-                impl_class, args_factory(*args, **kwargs))
+            return compose_instance(impl_class, args_factory(*args, **kwargs))
         return super().__call__(*args, **kwargs)
+
 
 _VERSION = 0
 
 SERVICE_TYPE_EC_CONSUMER = "ec_consumer_test"
-PROTOCOL_EC_CONSUMER =  \
-    f"{SERVICE_PROTOCOL_AIKO}/{SERVICE_TYPE_EC_CONSUMER}:{_VERSION}"
+PROTOCOL_EC_CONSUMER = f"{SERVICE_PROTOCOL_AIKO}/{SERVICE_TYPE_EC_CONSUMER}:{_VERSION}"
 
 SERVICE_TYPE_EC_PRODUCER = "ec_producer_test"
-PROTOCOL_EC_PRODUCER =  \
-    f"{SERVICE_PROTOCOL_AIKO}/{SERVICE_TYPE_EC_PRODUCER}:{_VERSION}"
+PROTOCOL_EC_PRODUCER = f"{SERVICE_PROTOCOL_AIKO}/{SERVICE_TYPE_EC_PRODUCER}:{_VERSION}"
 
 _LEASE_TIME = 300  # seconds
 
@@ -117,6 +126,7 @@ _AIKO_LOG_LEVEL_SHARE = os.environ.get("AIKO_LOG_LEVEL_SHARE", "INFO")
 _LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_SHARE)
 
 # --------------------------------------------------------------------------- #
+
 
 def _ec_modify_item(items, item_path, modify_operation, create_path=False):
     if not isinstance(items, dict):
@@ -140,22 +150,28 @@ def _ec_modify_item(items, item_path, modify_operation, create_path=False):
             items[item_key] = nested_items
             _ec_modify_item(nested_items, item_path_tail, modify_operation)
 
+
 def _ec_parse_item_path(name):
-   item_path = name.split(".")
-   if len(item_path) > 2:
-       raise ValueError(f'EC "share" dictionary depth maximum is 2: {name}')
-   return item_path
+    item_path = name.split(".")
+    if len(item_path) > 2:
+        raise ValueError(f'EC "share" dictionary depth maximum is 2: {name}')
+    return item_path
+
 
 def _ec_remove_item(share, item_path):
     def remove_item(items, item_key):
         if item_key in items:
             del items[item_key]
+
     _ec_modify_item(share, item_path, remove_item)
+
 
 def _ec_update_item(share, item_path, item_value):
     def update_item(items, item_key):
         items[item_key] = item_value
+
     _ec_modify_item(share, item_path, update_item, create_path=True)
+
 
 def _flatten_dictionary(dictionary):
     result = []
@@ -168,15 +184,16 @@ def _flatten_dictionary(dictionary):
             result.append((item_name, item))
     return result
 
+
 # --------------------------------------------------------------------------- #
 
-class ECLease(Lease):
-    def __init__(
-        self, lease_time, topic, filter=None, lease_expired_handler=None):
 
-        super().__init__(
-            lease_time, topic, lease_expired_handler=lease_expired_handler)
+class ECLease(Lease):
+    def __init__(self, lease_time, topic, filter=None, lease_expired_handler=None):
+
+        super().__init__(lease_time, topic, lease_expired_handler=lease_expired_handler)
         self.filter = filter
+
 
 class ECProducer(Interface, metaclass=_ECCompatShim):
     """
@@ -187,6 +204,7 @@ class ECProducer(Interface, metaclass=_ECCompatShim):
     "(add|remove|update item_name item_value)" on the producer's state
     topic; "(share topic lease_time filter)" requests on its control topic
     """
+
     Interface.default("ECProducer", "aiko_services.main.share.ECProducerImpl")
 
     @abstractmethod
@@ -212,6 +230,7 @@ class ECProducer(Interface, metaclass=_ECCompatShim):
     def update(self, item_name, item_value):
         """Update a share item and publish to consumers.
         Projection: command"""
+
 
 class ECProducerImpl(ECProducer):
     def __init__(self, context, service, share, topic_in=None, topic_out=None):
@@ -248,7 +267,7 @@ class ECProducerImpl(ECProducer):
             _ec_update_item(self.share, item_path, item_value)
             success = True
         except ValueError as value_error:
-            diagnostic = f'update {item_name}: {value_error}'
+            diagnostic = f"update {item_name}: {value_error}"
             _LOGGER.error(f"update(): {diagnostic}")
         if success:
             self._update_consumers("update", item_name, item_value)
@@ -260,7 +279,7 @@ class ECProducerImpl(ECProducer):
             _ec_remove_item(self.share, item_path)
             success = True
         except ValueError as value_error:
-            diagnostic = f'remove {item_name}: {value_error}'
+            diagnostic = f"remove {item_name}: {value_error}"
             _LOGGER.error(f"remove(): {diagnostic}")
         if success:
             self._update_consumers("remove", item_name, None)
@@ -276,15 +295,15 @@ class ECProducerImpl(ECProducer):
         return payloads
 
     def _ec_parse_share(self, command, parameters):
+        from contextlib import suppress
+
         response_topic = None
         lease_time = None
         filter = []
 
         if command == "share" and len(parameters) == 3:
-            try:
+            with suppress(Exception):
                 lease_time = int(parameters[1])
-            except Exception:
-                pass
             if isinstance(lease_time, int):
                 filter = parameters[2]
                 if filter != "*" and not isinstance(filter, list):
@@ -299,8 +318,7 @@ class ECProducerImpl(ECProducer):
             match = True
         else:
             for filter_item in filter:
-                if item_name == filter_item or \
-                   item_name.startswith(f"{filter_item}."):
+                if item_name == filter_item or item_name.startswith(f"{filter_item}."):
                     match = True
         return match
 
@@ -344,8 +362,7 @@ class ECProducerImpl(ECProducer):
                 self._update_consumers(command, item_name, None)
 
         if command == "share":
-            response_topic, lease_time, filter = self._ec_parse_share(
-                command, parameters)
+            response_topic, lease_time, filter = self._ec_parse_share(command, parameters)
             if response_topic:
                 if lease_time == 0:
                     if response_topic in self.leases:
@@ -358,10 +375,8 @@ class ECProducerImpl(ECProducer):
                         self.leases[response_topic].extend(lease_time)
                     else:
                         lease = ECLease(
-                            lease_time,
-                            response_topic,
-                            filter=filter,
-                            lease_expired_handler=self._lease_expired_handler)
+                            lease_time, response_topic, filter=filter, lease_expired_handler=self._lease_expired_handler
+                        )
                         self.leases[response_topic] = lease
                         self._synchronize(response_topic, filter)
 
@@ -407,8 +422,10 @@ class ECProducerImpl(ECProducer):
                 response_topic = lease.lease_uuid
                 aiko.message.publish(response_topic, payload_out)
 
+
 # --------------------------------------------------------------------------- #
 # Note: For non-Service use, can substitute "aiko.process" for "service"
+
 
 class ECConsumer(Interface, metaclass=_ECCompatShim):
     """
@@ -418,6 +435,7 @@ class ECConsumer(Interface, metaclass=_ECCompatShim):
     topic_share_in lease_time filter)" to the producer's control topic;
     receives "(item_count|add|remove|update|sync ...)" replies
     """
+
     Interface.default("ECConsumer", "aiko_services.main.share.ECConsumerImpl")
 
     @abstractmethod
@@ -435,9 +453,9 @@ class ECConsumer(Interface, metaclass=_ECCompatShim):
         """Cancel the lease and share subscription; empty the cache.
         Projection: command"""
 
+
 class ECConsumerImpl(ECConsumer):
-    def __init__(self, context,
-        service, ec_consumer_id, cache, ec_producer_topic_control, filter="*"):
+    def __init__(self, context, service, ec_consumer_id, cache, ec_producer_topic_control, filter="*"):
 
         self.service = service
         self.ec_consumer_id = ec_consumer_id
@@ -451,8 +469,7 @@ class ECConsumerImpl(ECConsumer):
         self.items_received = 0
         self.lease = None
 
-        self.topic_share_in = \
-            f"{self.service.topic_path}/{self.ec_producer_topic_control}/{self.ec_consumer_id}/in"
+        self.topic_share_in = f"{self.service.topic_path}/{self.ec_producer_topic_control}/{self.ec_consumer_id}/in"
         self.service.add_message_handler(self._consumer_handler, self.topic_share_in)
         aiko.connection.add_handler(self._connection_state_handler)
 
@@ -472,7 +489,7 @@ class ECConsumerImpl(ECConsumer):
             item_name = parameters[0]
             item_path = _ec_parse_item_path(item_name)
             item_value = parameters[1]
-# TODO: Catch ValueError and provide better console log (see ECProducer)
+            # TODO: Catch ValueError and provide better console log (see ECProducer)
             _ec_update_item(self.cache, item_path, item_value)
             self.items_received += 1
             if self.items_received == self.item_count:
@@ -482,7 +499,7 @@ class ECConsumerImpl(ECConsumer):
         elif command == "remove" and len(parameters) == 1:
             item_name = parameters[0]
             item_path = _ec_parse_item_path(item_name)
-# TODO: Catch ValueError and provide better console log (see ECProducer)
+            # TODO: Catch ValueError and provide better console log (see ECProducer)
             _ec_remove_item(self.cache, item_path)
             self._update_handlers(command, item_name, None)
 
@@ -490,26 +507,24 @@ class ECConsumerImpl(ECConsumer):
             item_name = parameters[0]
             item_path = _ec_parse_item_path(item_name)
             item_value = parameters[1]
-# TODO: Catch ValueError and provide better console log (see ECProducer)
+            # TODO: Catch ValueError and provide better console log (see ECProducer)
             _ec_update_item(self.cache, item_path, item_value)
             self._update_handlers(command, item_name, item_value)
         elif command == "sync":
-            #pass  # ECConsumer doesn't use the share "(sync ...)" command
+            # pass  # ECConsumer doesn't use the share "(sync ...)" command
             self._update_handlers(command, None, None)
         else:
             diagnostic = f"Unknown command: {command}, {parameters}"
             _LOGGER.debug(f"_consumer_handler(): {diagnostic}")
 
-     #   for item_name, item in self.cache.items():
-     #       _LOGGER.debug(f"ECConsumer cache {item_name}: {item}")
-     #   _LOGGER.debug("----------------------------")
+    #   for item_name, item in self.cache.items():
+    #       _LOGGER.debug(f"ECConsumer cache {item_name}: {item}")
+    #   _LOGGER.debug("----------------------------")
 
     def _connection_state_handler(self, connection, connection_state):
         if connection.is_connected(ConnectionState.REGISTRAR):
             if not self.lease:
-                self.lease = Lease(
-                    _LEASE_TIME, None, automatic_extend=True,
-                    lease_extend_handler=self._share_request)
+                self.lease = Lease(_LEASE_TIME, None, automatic_extend=True, lease_extend_handler=self._share_request)
                 self._share_request()
 
     def remove_handler(self, handler):
@@ -518,8 +533,7 @@ class ECConsumerImpl(ECConsumer):
 
     def _share_request(self, lease_time=_LEASE_TIME, lease_uuid=None):
         aiko.message.publish(
-            self.ec_producer_topic_control,
-            generate("share", [self.topic_share_in, lease_time, self.filter])
+            self.ec_producer_topic_control, generate("share", [self.topic_share_in, lease_time, self.filter])
         )
 
     def _update_handlers(self, command, item_name, item_value):
@@ -527,8 +541,7 @@ class ECConsumerImpl(ECConsumer):
             handler(self.ec_consumer_id, command, item_name, item_value)
 
     def terminate(self):
-        self.service.remove_message_handler(
-            self._consumer_handler, self.topic_share_in)
+        self.service.remove_message_handler(self._consumer_handler, self.topic_share_in)
         aiko.connection.remove_handler(self._connection_state_handler)
         self.cache = {}
         self.cache_state = "empty"
@@ -538,11 +551,13 @@ class ECConsumerImpl(ECConsumer):
             self.lease = None
             self._share_request(lease_time=0)  # cancel share request
 
+
 # Deprecated positional-construction shim registrations (one release)
 _EC_COMPAT["ECProducer"] = (ECProducerImpl, ec_producer_args)
 _EC_COMPAT["ECConsumer"] = (ECConsumerImpl, ec_consumer_args)
 
 # --------------------------------------------------------------------------- #
+
 
 class ECCache(Interface):
     """
@@ -553,6 +568,7 @@ class ECCache(Interface):
     (e_04_McpIntegration).  ServicesCache is the Registrar-specific
     precursor; freshness is the eventual-consistency guarantee
     """
+
     Interface.default("ECCache", "aiko_services.main.share.ECCacheImpl")
 
     @abstractmethod
@@ -581,20 +597,20 @@ class ECCache(Interface):
         """Detach from discovery, terminate every ECConsumer (cancelling
         its lease) and empty the replicas.  Projection: command"""
 
+
 class ECCacheImpl(ECCache):
     def __init__(self, context, service, service_filter, variable_filter="*"):
         self.service = service
         self.service_filter = service_filter
         self.variable_filter = variable_filter
 
-        self.caches = {}      # topic_path --> replica dictionary
-        self.consumers = {}   # topic_path --> composed ECConsumer
-        self.handlers = set() # (handler, filter) pairs
+        self.caches = {}  # topic_path --> replica dictionary
+        self.consumers = {}  # topic_path --> composed ECConsumer
+        self.handlers = set()  # (handler, filter) pairs
         self._ec_consumer_counter = 0
 
         self._services_cache = services_cache_create_singleton(service)
-        self._services_cache.add_handler(
-            self._service_change_handler, service_filter)
+        self._services_cache.add_handler(self._service_change_handler, service_filter)
 
     def get(self, item_name, default=None, topic_path=None):
         if topic_path is None:
@@ -621,13 +637,11 @@ class ECCacheImpl(ECCache):
 
     def remove_handler(self, handler):
         self.handlers = set(
-            (cache_handler, filter)
-            for cache_handler, filter in self.handlers
-            if cache_handler != handler)
+            (cache_handler, filter) for cache_handler, filter in self.handlers if cache_handler != handler
+        )
 
     def terminate(self):
-        self._services_cache.remove_handler(
-            self._service_change_handler, self.service_filter)
+        self._services_cache.remove_handler(self._service_change_handler, self.service_filter)
         for consumer in self.consumers.values():
             consumer.terminate()
         self.caches = {}
@@ -640,12 +654,13 @@ class ECCacheImpl(ECCache):
                 self._ec_consumer_counter += 1
                 cache = {}
                 self.caches[topic_path] = cache
-                consumer = compose_instance(ECConsumerImpl,
+                consumer = compose_instance(
+                    ECConsumerImpl,
                     ec_consumer_args(
-                        self.service, self._ec_consumer_counter, cache,
-                        f"{topic_path}/control", self.variable_filter))
-                consumer.add_handler(
-                    self._make_consumer_relay_handler(topic_path))
+                        self.service, self._ec_consumer_counter, cache, f"{topic_path}/control", self.variable_filter
+                    ),
+                )
+                consumer.add_handler(self._make_consumer_relay_handler(topic_path))
                 self.consumers[topic_path] = consumer
         elif command == "remove" and service_details:
             topic_path = service_details[0]
@@ -659,7 +674,9 @@ class ECCacheImpl(ECCache):
             for handler, filter in self.handlers:
                 if filter is None or filter(item_name, item_value):
                     handler(topic_path, command, item_name, item_value)
+
         return relay_handler
+
 
 # --------------------------------------------------------------------------- #
 # Note: For use by non-Service, can substitute "aiko.process" for "service"
@@ -678,14 +695,11 @@ class ECCacheImpl(ECCache):
 # - aiko_services.registrar should have identical code to the cache code !
 # - services_cache_delete() should be a class method delete()
 
-from collections import deque
-from threading import Thread
-import time
-
 _HISTORY_RING_BUFFER_SIZE = 4096
 _REGISTRAR_REPLY_TIMEOUT = 5.0  # seconds: warn when the Registrar is silent
 
-class ServicesCache():
+
+class ServicesCache:
     def __init__(self, service, event_loop_start=False, history_limit=0):
         self._service = service
         self._event_loop_start = event_loop_start
@@ -711,7 +725,7 @@ class ServicesCache():
 
     def add_handler(self, service_change_handler, service_filter):
         if self._state in ["loaded", "ready"]:
-        # TODO: Provide filtered Services to "service_change_handler"
+            # TODO: Provide filtered Services to "service_change_handler"
             service_change_handler("sync", None)
         self._handlers.add((service_change_handler, service_filter))
 
@@ -725,12 +739,8 @@ class ServicesCache():
                 self._begin_registration = True
                 self._registrar_topic_in = f"{aiko.registrar['topic_path']}/in"
                 self._registrar_topic_out = f"{aiko.registrar['topic_path']}/out"
-                self._service.add_message_handler(
-                    self.registrar_out_handler, self._registrar_topic_out
-                )
-                self._service.add_message_handler(
-                    self.registrar_share_handler, self._registrar_topic_share
-                )
+                self._service.add_message_handler(self.registrar_out_handler, self._registrar_topic_out)
+                self._service.add_message_handler(self.registrar_share_handler, self._registrar_topic_share)
                 if self._history_limit > 0:
                     self._publish_registrar_history()
                     self._state = "history"
@@ -738,16 +748,11 @@ class ServicesCache():
                     self._publish_registrar_share()
                     self._state = "share"
                 self._reply_timer_pending = True
-                event.add_timer_handler(
-                    self._reply_timer, _REGISTRAR_REPLY_TIMEOUT)
+                event.add_timer_handler(self._reply_timer, _REGISTRAR_REPLY_TIMEOUT)
         else:
             if self._registrar_topic_out:
-                self._service.remove_message_handler(
-                    self.registrar_out_handler, self._registrar_topic_out
-                )
-                self._service.remove_message_handler(
-                    self.registrar_share_handler, self._registrar_topic_share
-                )
+                self._service.remove_message_handler(self.registrar_out_handler, self._registrar_topic_out)
+                self._service.remove_message_handler(self.registrar_share_handler, self._registrar_topic_share)
                 if self._registrar_service:
                     self._history.appendleft(self._registrar_service)
                 self._cache_reset()
@@ -762,7 +767,8 @@ class ServicesCache():
             f"Service cache: no reply from the Registrar {registrar} in "
             f"{_REGISTRAR_REPLY_TIMEOUT:g} s: its announcement may be stale.  "
             f"Start a Registrar (a current one replaces a stale announcement), "
-            f"or clear it: mosquitto_pub -t {aiko.TOPIC_REGISTRAR_BOOT} -r -n")
+            f"or clear it: mosquitto_pub -t {aiko.TOPIC_REGISTRAR_BOOT} -r -n"
+        )
 
     def _reply_timer_cancel(self):
         # remove_timer_handler() counts down even when nothing is removed
@@ -771,16 +777,10 @@ class ServicesCache():
             event.remove_timer_handler(self._reply_timer)
 
     def _publish_registrar_history(self):
-        aiko.message.publish(
-            self._registrar_topic_in,
-            f"(history {self._registrar_topic_share} {self._history_limit})"
-        )
+        aiko.message.publish(self._registrar_topic_in, f"(history {self._registrar_topic_share} {self._history_limit})")
 
     def _publish_registrar_share(self):
-        aiko.message.publish(
-            self._registrar_topic_in,
-            f"(share {self._registrar_topic_share} * * * * *)"
-        )
+        aiko.message.publish(self._registrar_topic_in, f"(share {self._registrar_topic_share} * * * * *)")
 
     def _update_handlers(self, command, service_details=None):
         topic_path = service_details[0] if service_details else None
@@ -809,8 +809,7 @@ class ServicesCache():
             self._item_count = int(parameters[0])
         elif command == "add" and len(parameters) >= 6:
             if self._item_count is None:
-                _LOGGER.error("Service cache: registrar_share_handler(): "
-                    "(item_count N) was incorrect")
+                _LOGGER.error("Service cache: registrar_share_handler(): (item_count N) was incorrect")
                 return
             self._item_count -= 1
             service_details = parameters
@@ -822,7 +821,10 @@ class ServicesCache():
                 if service_topic_path == aiko.registrar["topic_path"]:
                     self._registrar_service = service_details
         else:
-            _LOGGER.debug(f"Service cache: registrar_share_handler(): Unhandled message topic: {topic_path}, payload: {payload_in}")
+            _LOGGER.debug(
+                "Service cache: registrar_share_handler(): "
+                f"Unhandled message topic: {topic_path}, payload: {payload_in}"
+            )
 
         if self._item_count == 0:
             self._item_count = None
@@ -842,11 +844,11 @@ class ServicesCache():
             if sync_topic == self._registrar_topic_share and self._state == "loaded":
                 self._state = "ready"
         elif command == "add" and len(parameters) >= 6:
-        # ">=", as registrar_share_handler() already has it.  A Registrar
-        # that carries more fields than this client knows about is then a
-        # Registrar this client still works with, and the extra fields are
-        # there for the code that wants them.  "== 6" silently dropped
-        # every registration from a newer Registrar, with one debug line
+            # ">=", as registrar_share_handler() already has it.  A Registrar
+            # that carries more fields than this client knows about is then a
+            # Registrar this client still works with, and the extra fields are
+            # there for the code that wants them.  "== 6" silently dropped
+            # every registration from a newer Registrar, with one debug line
             service_details = parameters
             self._services.add_service(service_details[0], service_details)
             self._update_handlers(command, service_details)
@@ -858,7 +860,9 @@ class ServicesCache():
                 self._services.remove_service(topic_path)
                 self._history.appendleft(service_details)
         else:
-            _LOGGER.debug(f"Service cache: registrar_out_handler(): Unknown command: topic: {topic}, payload: {payload_in}")
+            _LOGGER.debug(
+                f"Service cache: registrar_out_handler(): Unknown command: topic: {topic}, payload: {payload_in}"
+            )
 
     def run(self):
         if self._event_loop_start and not event.event_loop_running:
@@ -880,10 +884,11 @@ class ServicesCache():
         while self._state != "ready":
             time.sleep(0.1)
 
+
 services_cache = None
 
-def services_cache_create_singleton(
-    service, event_loop_start=False, history_limit=0):
+
+def services_cache_create_singleton(service, event_loop_start=False, history_limit=0):
 
     global services_cache
 
@@ -892,6 +897,7 @@ def services_cache_create_singleton(
         Thread(target=services_cache.run).start()
     return services_cache
 
+
 def services_cache_delete():
     global services_cache
 
@@ -899,7 +905,9 @@ def services_cache_delete():
         services_cache.terminate()
         services_cache = None
 
+
 # --------------------------------------------------------------------------- #
+
 
 class ECProducerTest(Service):
     def __init__(self, context):
@@ -910,13 +918,9 @@ class ECProducerTest(Service):
             "lifecycle": "ready",
             "log_level": get_log_level_name(_LOGGER),
             "source_file": f"v{_VERSION}⇒ {__file__}",
-            "items": {
-                "key_1": ["item_1a", "item_1b"],
-                "key_2": ["item_2a", "item_2b"]
-            }
+            "items": {"key_1": ["item_1a", "item_1b"], "key_2": ["item_2a", "item_2b"]},
         }
-        self.ec_producer = compose_instance(
-            ECProducerImpl, ec_producer_args(self, self.share))
+        self.ec_producer = compose_instance(ECProducerImpl, ec_producer_args(self, self.share))
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
     def _ec_producer_change_handler(self, command, item_name, item_value):
@@ -924,7 +928,9 @@ class ECProducerTest(Service):
         if item_name == "log_level":
             _LOGGER.setLevel(str(item_value).upper())
 
+
 # --------------------------------------------------------------------------- #
+
 
 class ECConsumerTest(Service):
     def __init__(self, context, ec_producer_pid, ec_producer_sid, filter):
@@ -936,36 +942,32 @@ class ECConsumerTest(Service):
             "log_level": get_log_level_name(_LOGGER),
             "source_file": f"v{_VERSION}⇒ {__file__}",
             "ec_producer_pid": ec_producer_pid,
-            "ec_producer_sid": ec_producer_sid
+            "ec_producer_sid": ec_producer_sid,
         }
-        self.ec_producer = compose_instance(
-            ECProducerImpl, ec_producer_args(self, self.share_producer))
+        self.ec_producer = compose_instance(ECProducerImpl, ec_producer_args(self, self.share_producer))
 
         self.share_consumer = {}
-        ec_producer_topic_control =  \
-            f"{get_namespace()}/{get_hostname()}/{ec_producer_pid}/{ec_producer_sid}/control"
-        self.ec_consumer = compose_instance(ECConsumerImpl, ec_consumer_args(
-            self, 0, self.share_consumer, ec_producer_topic_control, filter))
+        ec_producer_topic_control = f"{get_namespace()}/{get_hostname()}/{ec_producer_pid}/{ec_producer_sid}/control"
+        self.ec_consumer = compose_instance(
+            ECConsumerImpl, ec_consumer_args(self, 0, self.share_consumer, ec_producer_topic_control, filter)
+        )
         self.ec_consumer.add_handler(self._ec_consumer_change_handler)
 
-    def _ec_consumer_change_handler(
-        self, client_id, command, item_name, item_value):
-        _LOGGER.info(
-            f"ECConsumer: {client_id}: {command} {item_name} {item_value}")
+    def _ec_consumer_change_handler(self, client_id, command, item_name, item_value):
+        _LOGGER.info(f"ECConsumer: {client_id}: {command} {item_name} {item_value}")
+
 
 # --------------------------------------------------------------------------- #
 
-@click.group()
 
+@click.group()
 def main():
     pass
 
-@main.command("sc_test",
-    help=("Test Registrar Services Cache"))
 
+@main.command("sc_test", help=("Test Registrar Services Cache"))
 def sc_test():
-    services_cache = services_cache_create_singleton(
-        aiko.process, True, history_limit=4)
+    services_cache = services_cache_create_singleton(aiko.process, True, history_limit=4)
 
     _LOGGER.info("ServicesCache: Wait ready")
     services_cache.wait_ready()
@@ -982,28 +984,26 @@ def sc_test():
 
     aiko.process.terminate()
 
-@main.command("ec_test",
-    help=("Test Eventual Consistency Producer and Consumer"))
+
+@main.command("ec_test", help=("Test Eventual Consistency Producer and Consumer"))
 @click.argument("ec_producer_pid", nargs=1, required=False)
 @click.argument("ec_producer_sid", nargs=1, required=False, default="1")
 @click.argument("filter", nargs=1, default="*", required=False)
-
 def ec_test(ec_producer_pid, ec_producer_sid, filter):
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
 
     if ec_producer_pid:
-        init_args = service_args(
-            SERVICE_TYPE_EC_CONSUMER, None, None, PROTOCOL_EC_CONSUMER, tags)
+        init_args = service_args(SERVICE_TYPE_EC_CONSUMER, None, None, PROTOCOL_EC_CONSUMER, tags)
         init_args["ec_producer_pid"] = ec_producer_pid
         init_args["ec_producer_sid"] = ec_producer_sid
         init_args["filter"] = filter
-        ec_consumer_test = compose_instance(ECConsumerTest, init_args)
+        compose_instance(ECConsumerTest, init_args)
     else:
-        init_args = service_args(
-            SERVICE_TYPE_EC_PRODUCER, None, None, PROTOCOL_EC_PRODUCER, tags)
-        ec_producer_test = compose_instance(ECProducerTest, init_args)
+        init_args = service_args(SERVICE_TYPE_EC_PRODUCER, None, None, PROTOCOL_EC_PRODUCER, tags)
+        compose_instance(ECProducerTest, init_args)
 
     aiko.process.run(True)
+
 
 if __name__ == "__main__":
     main()

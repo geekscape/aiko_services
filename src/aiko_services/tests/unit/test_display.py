@@ -14,43 +14,67 @@ import threading
 import pytest
 
 import aiko_services as aiko
-from aiko_services.main.utilities import parse
-
 from aiko_services.actors.display import (
-    Canvas, Display, Interaction, DisplayImpl, PROTOCOL, SETTINGS,
-    SETTINGS_SPEC, Screen, FUNCTIONS, service_tags,
+    FUNCTIONS,
+    PROTOCOL,
+    SETTINGS,
+    SETTINGS_SPEC,
+    Canvas,
+    Display,
+    DisplayImpl,
+    Interaction,
+    Screen,
+    applets,
+    service_tags,
 )
-from aiko_services.actors.display import applets
 from aiko_services.actors.display.applets import (
-    Applet, AppletDone, parse_applet_args,
-)
-from aiko_services.actors.display.outputs import (
-    OUTPUTS, DisplayNotFound, FakeOutputImpl, NullOutputImpl, Output,
-    OutputControls, PngOutputImpl, choose_output, fake_output, parse_colors,
-    text_lines,
+    Applet,
+    AppletDone,
+    parse_applet_args,
 )
 from aiko_services.actors.display.graphics import (
-    HEIGHT, WIDTH, Font, FrameBuffer, parse_font_size, title_strip,
+    HEIGHT,
+    WIDTH,
+    Font,
+    FrameBuffer,
+    parse_font_size,
+    title_strip,
 )
+from aiko_services.actors.display.outputs import (
+    OUTPUTS,
+    DisplayNotFound,
+    FakeOutputImpl,
+    NullOutputImpl,
+    Output,
+    OutputControls,
+    PngOutputImpl,
+    choose_output,
+    fake_output,
+    parse_colors,
+    text_lines,
+)
+from aiko_services.main.utilities import parse
 
 _counter = itertools.count()
 
 # --------------------------------------------------------------------------- #
 # Helpers
 
+
 def make_actor(**parameters):
     display = parameters.pop("output", None) or fake_output()
     parameters = {"output": display, "title": "off", "applet": "none", **parameters}
     name = f"oled_test_{next(_counter)}"
-    actor = aiko.compose_instance(DisplayImpl,
-        aiko.actor_args(name, parameters=parameters, protocol=PROTOCOL))
+    actor = aiko.compose_instance(DisplayImpl, aiko.actor_args(name, parameters=parameters, protocol=PROTOCOL))
     return actor, display
+
 
 @pytest.fixture
 def actor_display():
     actor, display = make_actor()
     yield actor, display
     actor._shutdown()
+
 
 def run_loop(seconds=0.2):
     """Run the event loop for a moment: mailboxes and timers"""
@@ -62,13 +86,14 @@ def run_loop(seconds=0.2):
     aiko.event.add_timer_handler(stop, seconds)
     aiko.process.run(mqtt_connection_required=False)
 
+
 def lit_rows(image):
-    return sorted({y for y in range(image.height)
-        for x in range(image.width) if image.getpixel((x, y))})
+    return sorted({y for y in range(image.height) for x in range(image.width) if image.getpixel((x, y))})
+
 
 def lit_count(image):
-    return sum(1 for y in range(image.height)
-        for x in range(image.width) if image.getpixel((x, y)))
+    return sum(1 for y in range(image.height) for x in range(image.width) if image.getpixel((x, y)))
+
 
 class Bouncer(Applet):
     """A test applet: one moving pixel per frame, records keys"""
@@ -96,11 +121,13 @@ class Bouncer(Applet):
     def stop(self):
         self.stopped = True
 
+
 class Failing(Applet):
     name = "failing"
 
     def step(self):
         raise RuntimeError("boom")
+
 
 class Finishing(Applet):
     name = "finishing"
@@ -108,22 +135,33 @@ class Finishing(Applet):
     def step(self):
         raise AppletDone
 
+
 @pytest.fixture
 def test_applets(monkeypatch):
     for applet in (Bouncer, Failing, Finishing):
         monkeypatch.setitem(applets.APPLETS, applet.name, applet)
 
+
 # --------------------------------------------------------------------------- #
 # Graphics
+
 
 def test_font_5x7_renders_glyphs():
     font = Font("5x7")
     image = font.render("A")
     assert image.size == (5, 7)
     assert font.cell_height == 8 and font.cell_width == 6
-    assert [image.getpixel((0, row)) > 0 for row in range(7)] ==  \
-        [False, True, True, True, True, True, True]   # 0x7e: rows 1..6
+    assert [image.getpixel((0, row)) > 0 for row in range(7)] == [
+        False,
+        True,
+        True,
+        True,
+        True,
+        True,
+        True,
+    ]  # 0x7e: rows 1..6
     assert font.render("AB").size == (11, 7)
+
 
 def test_parse_font_size():
     assert parse_font_size("5x7").token() == "5x7"
@@ -132,6 +170,7 @@ def test_parse_font_size():
     for bad in ("5", "65", "abc", "", "12.5"):
         with pytest.raises(ValueError):
             parse_font_size(bad)
+
 
 def test_canvas_origin_is_bottom_left():
     canvas = FrameBuffer(Font("5x7"))
@@ -149,6 +188,7 @@ def test_canvas_origin_is_bottom_left():
     canvas.line(0, 0, 0, 63)
     assert lit_count(canvas.image) == HEIGHT
 
+
 def test_canvas_log_scrolls_below_the_title_row():
     canvas = FrameBuffer(Font("5x7"))
     canvas.title_rows = 8
@@ -156,22 +196,25 @@ def test_canvas_log_scrolls_below_the_title_row():
     assert lit_rows(canvas.image) == list(range(56, 63))
     canvas.log("TWO")
     rows = lit_rows(canvas.image)
-    assert rows[0] == 48 and rows[-1] == 62         # "ONE" moved up a row
+    assert rows[0] == 48 and rows[-1] == 62  # "ONE" moved up a row
     canvas.clear()
     assert lit_count(canvas.image) == 0
     canvas.title_rows = 8
     for _ in range(9):
         canvas.log("x")
-    assert min(lit_rows(canvas.image)) >= 8           # never into the title
+    assert min(lit_rows(canvas.image)) >= 8  # never into the title
+
 
 def test_title_strip_is_inverse_video():
     strip = title_strip(Font("5x7"), "nomad", "LMR", "12:30:45")
     assert strip.size == (WIDTH, 8)
     lit = lit_count(strip)
-    assert WIDTH * 8 * 0.6 < lit < WIDTH * 8          # mostly lit, text unlit
+    assert WIDTH * 8 * 0.6 < lit < WIDTH * 8  # mostly lit, text unlit
+
 
 # --------------------------------------------------------------------------- #
 # Display backends
+
 
 def test_fake_output_emulates_the_panel():
     output = fake_output()
@@ -197,15 +240,17 @@ def test_fake_output_emulates_the_panel():
     output.close()
     assert output.closed and output.blanked
 
+
 def test_text_lines():
     canvas = FrameBuffer(Font("5x7"))
-    canvas.pixel(0, HEIGHT - 1)                          # top-left pixel
+    canvas.pixel(0, HEIGHT - 1)  # top-left pixel
     lines = text_lines(canvas.image, blocks=True)
     assert len(lines) == HEIGHT // 2 and all(len(line) == WIDTH for line in lines)
     assert lines[0][0] == "▀"
     lines = text_lines(canvas.image, blocks=False)
     assert len(lines) == HEIGHT // 4 and len(lines[0]) == WIDTH // 2
     assert lines[0][0] == chr(0x2801)
+
 
 def test_png_output_writes_a_file(tmp_path):
     path = tmp_path / "oled.png"
@@ -214,26 +259,43 @@ def test_png_output_writes_a_file(tmp_path):
     output.show(FrameBuffer(Font("5x7")).image)
     output.close()
     from PIL import Image
+
     assert Image.open(path).size == (WIDTH * 4, HEIGHT * 4)
+
 
 def test_choose_output_composes_every_backend(tmp_path):
     """Every -o choice composes to an instance with the full Output and
     OutputControls method set (the default Impl fills what a backend lacks)"""
 
-    methods = [name for interface in (Output, OutputControls)
-               for name, member in vars(interface).items()
-               if getattr(member, "__isabstractmethod__", False)]
-    assert sorted(methods) == sorted([
-        "add_handler", "all_on", "close", "contrast", "invert", "message",
-        "open", "power", "pump", "set_colors", "show"])
+    methods = [
+        name
+        for interface in (Output, OutputControls)
+        for name, member in vars(interface).items()
+        if getattr(member, "__isabstractmethod__", False)
+    ]
+    assert sorted(methods) == sorted(
+        [
+            "add_handler",
+            "all_on",
+            "close",
+            "contrast",
+            "invert",
+            "message",
+            "open",
+            "power",
+            "pump",
+            "set_colors",
+            "show",
+        ]
+    )
     for name in [*OUTPUTS, "fake"]:
         if name == "auto":
             continue
         output = choose_output(name, png_path=tmp_path / "x.png")
         assert output.name == name, name
         assert all(callable(getattr(output, method)) for method in methods), name
-        output.add_handler(lambda event: None)   # the no-ops work unopened,
-        output.pump()                            # whatever __init__ ran
+        output.add_handler(lambda event: None)  # the no-ops work unopened,
+        output.pump()  # whatever __init__ ran
         output.message("hello")
         output.set_colors((1, 2, 3), None)
     assert isinstance(choose_output("fake"), FakeOutputImpl)
@@ -241,6 +303,7 @@ def test_choose_output_composes_every_backend(tmp_path):
     assert isinstance(choose_output("png", png_path=tmp_path / "x.png"), PngOutputImpl)
     with pytest.raises(ValueError):
         choose_output("holodeck")
+
 
 def test_colors_and_pumped_events():
     output = fake_output()
@@ -254,29 +317,42 @@ def test_colors_and_pumped_events():
     output.pump()
     assert seen == [("tap", "g"), "quit"] and output.events == []
 
+
 # --------------------------------------------------------------------------- #
 # The Actor: composition and dispatch
+
 
 def test_composition_and_wire_commands(actor_display):
     actor, display = actor_display
     for aspect in (Display, Canvas, Screen, Interaction):
         assert isinstance(actor, aspect)
-    assert FUNCTIONS == {"clear", "log", "pixel", "pixels", "line", "text",
-        "applet", "key", "mirror", "set_log_level", "stop"}
+    assert FUNCTIONS == {
+        "clear",
+        "log",
+        "pixel",
+        "pixels",
+        "line",
+        "text",
+        "applet",
+        "key",
+        "mirror",
+        "set_log_level",
+        "stop",
+    }
     assert PROTOCOL.endswith("/display:0")
-    assert service_tags("fake") == ["ec=true", "device=fake", "canvas=0", "screen=0",
-                                    "interaction=0"]
+    assert service_tags("fake") == ["ec=true", "device=fake", "canvas=0", "screen=0", "interaction=0"]
     assert actor.share["settings"] == ",".join(SETTINGS)
     assert actor.share["depth"] == "1" and actor.share["panels"] == "fake"
     assert actor.share["keys"]["g"] == "pong|asteroids|invaders|forklift"
     assert [setting.name for setting in SETTINGS_SPEC] == list(SETTINGS)
     for name in ("run", "add_tags", "_tick", "_shutdown", "ec_producer_change_handler"):
         assert name not in FUNCTIONS
-    assert "oled_test" not in sys.modules                 # R0: never imported
+    assert "oled_test" not in sys.modules  # R0: never imported
     assert actor.share["backend"] == "fake" and actor.share["device"] == "fake"
     assert actor.share["size"] == "128x64" and actor.share["origin"] == "bottom"
     assert actor.share["applet"] == "none"
-    assert display.opened and len(display.frames) == 1   # the blank canvas
+    assert display.opened and len(display.frames) == 1  # the blank canvas
+
 
 def test_dispatch_allow_list_and_parse_guard(actor_display):
     """Every one of these is denied: a prefixed name (no aliases since
@@ -284,17 +360,25 @@ def test_dispatch_allow_list_and_parse_guard(actor_display):
     parser cannot read, and an inherited public function"""
 
     actor, display = actor_display
-    for payload in ("(oled:text 0 0 hello)", "(run)", "(bogus 1)",
-                    "(log 12:30 lunch)", "(text x: 1 y: 2)", "(add_tags t)"):
+    for payload in (
+        "(oled:text 0 0 hello)",
+        "(run)",
+        "(bogus 1)",
+        "(log 12:30 lunch)",
+        "(text x: 1 y: 2)",
+        "(add_tags t)",
+    ):
         actor._topic_in_handler(None, actor.topic_in, payload)
     run_loop()
     assert actor._metrics["denied"] == 6
     assert actor._metrics["commands"] == 0
     assert actor.share["last_error"].startswith("dispatch_")
-    assert len(display.frames) == 1              # nothing was drawn
+    assert len(display.frames) == 1  # nothing was drawn
+
 
 # --------------------------------------------------------------------------- #
 # The Actor: wire commands
+
 
 def test_pixel(actor_display):
     actor, display = actor_display
@@ -309,16 +393,18 @@ def test_pixel(actor_display):
     assert len(display.frames) == frames and actor._metrics["denied"] == 3
     assert actor.share["last_error"].startswith("pixel_y_range@")
 
+
 def test_pixels_is_atomic(actor_display):
     actor, display = actor_display
     actor.pixels("0", "0", "127", "63")
     assert display.frames[-1].getpixel((0, 63)) and display.frames[-1].getpixel((127, 0))
     frames = len(display.frames)
-    actor.pixels("1", "1", "200")             # odd count
-    actor.pixels("1", "1", "5", "64")         # one out of range: nothing lit
+    actor.pixels("1", "1", "200")  # odd count
+    actor.pixels("1", "1", "5", "64")  # one out of range: nothing lit
     actor.pixels()
     assert len(display.frames) == frames and actor._metrics["denied"] == 3
     assert not display.frames[-1].getpixel((1, 62))
+
 
 def test_line(actor_display):
     actor, display = actor_display
@@ -328,23 +414,26 @@ def test_line(actor_display):
     actor.line("0", "0", "128", "0")
     assert len(display.frames) == frames and actor._metrics["denied"] == 1
 
+
 def test_text(actor_display):
     actor, display = actor_display
     actor.text("0", "8", "hello", "world")
     assert lit_rows(display.frames[-1]) == list(range(48, 55))
     frames = len(display.frames)
     actor.text("a", "0", "x")
-    actor.text("0", "0")                      # no words
+    actor.text("0", "0")  # no words
     actor.text("0", "0", ["nested"])
     actor.text("0", "0", "x" * 129)
     assert len(display.frames) == frames and actor._metrics["denied"] == 4
     assert actor.share["last_error"].startswith("text_too_long@")
+
 
 def test_clear(actor_display):
     actor, display = actor_display
     actor.text(0, 0, "hello")
     actor.clear()
     assert lit_count(display.frames[-1]) == 0
+
 
 def test_log_scrolls_and_keeps_eight_lines(actor_display):
     actor, display = actor_display
@@ -357,11 +446,12 @@ def test_log_scrolls_and_keeps_eight_lines(actor_display):
     actor._host.log_seen()
     assert actor.share["log_pending"] == "off"
     frame = display.frames[-1]
-    assert min(lit_rows(frame)) < 8                       # scrolled to the top
+    assert min(lit_rows(frame)) < 8  # scrolled to the top
     frames = len(display.frames)
     actor.log()
     actor.log(["nested"])
     assert len(display.frames) == frames and actor._metrics["denied"] == 2
+
 
 def test_stop_terminates_and_exit_is_denied(actor_display, monkeypatch):
     """(stop) is the only name for it.  (exit) was an alias until the
@@ -382,8 +472,10 @@ def test_stop_terminates_and_exit_is_denied(actor_display, monkeypatch):
     actor.stop()
     assert calls == [()]
 
+
 # --------------------------------------------------------------------------- #
 # The Actor: applets
+
 
 def test_applet_lifecycle(actor_display, test_applets):
     actor, display = actor_display
@@ -394,15 +486,16 @@ def test_applet_lifecycle(actor_display, test_applets):
     run_loop(0.3)
     assert actor._applet.count >= 3 and len(display.frames) >= 4
     bouncer = actor._applet
-    actor.log("still", "running")                          # log doesn't stop it
+    actor.log("still", "running")  # log doesn't stop it
     assert actor._applet is bouncer
-    actor.text(0, 0, "canvas")                            # drawing does
+    actor.text(0, 0, "canvas")  # drawing does
     assert actor._applet is None and bouncer.stopped
     assert actor.share["applet"] == "none"
     assert actor.share["applet_detail"] == "-"
     actor.applet("bouncer")
     actor.applet("none")
     assert actor._applet is None
+
 
 def test_applet_rejections(actor_display, test_applets):
     actor, _ = actor_display
@@ -413,6 +506,7 @@ def test_applet_rejections(actor_display, test_applets):
     actor.applet("bouncer", "colour=red")
     actor.applet("bouncer", "x" * 65)
     assert actor._metrics["denied"] == 4 and actor._applet is None
+
 
 def test_finished_applet_returns_to_default(actor_display, test_applets):
     actor, _ = actor_display
@@ -425,13 +519,15 @@ def test_finished_applet_returns_to_default(actor_display, test_applets):
     run_loop(0.2)
     assert actor.share["applet"] == "none"
 
+
 def test_failing_applet_is_stopped_not_the_process(actor_display, test_applets):
     actor, _ = actor_display
     actor.applet("failing")
-    run_loop(0.2)                                          # the loop survives
+    run_loop(0.2)  # the loop survives
     assert actor.share["applet"] == "none"
     assert actor._metrics["errors"] >= 1
     assert actor.share["last_error"].startswith("tick_RuntimeError@")
+
 
 def test_keys(actor_display, test_applets):
     actor, _ = actor_display
@@ -445,15 +541,17 @@ def test_keys(actor_display, test_applets):
     actor.key("select")
     actor.key("up", "sideways")
     assert actor._metrics["denied"] == 2
-    for name in "jkmnuvw":                                 # keys the map ignores
+    for name in "jkmnuvw":  # keys the map ignores
         actor.key(name, "down")
-    assert len(actor._held) == 5                           # bounded
+    assert len(actor._held) == 5  # bounded
+
 
 def test_key_down_is_bounded(actor_display, test_applets, monkeypatch):
     """A lost "up" can't hold a key for ever: "down" lasts KEY_DOWN_MAXIMUM
     seconds unless the client repeats it (P9)"""
 
     import aiko_services.actors.display.display as display_module
+
     actor, _ = actor_display
     actor.applet("bouncer")
     clock = [1000.0]
@@ -461,34 +559,36 @@ def test_key_down_is_bounded(actor_display, test_applets, monkeypatch):
     actor.key("left", "down")
     clock[0] += display_module.KEY_DOWN_MAXIMUM - 0.1
     assert actor._keys_held() == {"left"}
-    actor.key("left", "down")                              # the client renews
+    actor.key("left", "down")  # the client renews
     clock[0] += display_module.KEY_DOWN_MAXIMUM - 0.1
     assert actor._keys_held() == {"left"}
-    clock[0] += 0.2                                        # no renewal: let go
+    clock[0] += 0.2  # no renewal: let go
     assert actor._keys_held() == set()
+
 
 def test_window_renews_a_held_arrow(monkeypatch):
     import aiko_services.actors.display.outputs as outputs_module
-    window = aiko.compose_instance(outputs_module.WindowOutputImpl,
-                                   outputs_module.output_args())
+
+    window = aiko.compose_instance(outputs_module.WindowOutputImpl, outputs_module.output_args())
     delivered = []
     window.add_handler(delivered.append)
     clock = [50.0]
     monkeypatch.setattr(outputs_module.time, "monotonic", lambda: clock[0])
-    window._arrows_down["up"] = clock[0]                   # as a KEYDOWN records it
+    window._arrows_down["up"] = clock[0]  # as a KEYDOWN records it
     window.pump()
     assert delivered == []
     clock[0] += outputs_module.KEY_DOWN_RENEW
     window.pump()
     assert delivered == [("down", "up")]
-    window._arrows_down.clear()                            # KEYUP
+    window._arrows_down.clear()  # KEYUP
     clock[0] += 5
     window.pump()
     assert delivered == [("down", "up")]
 
+
 def test_wire_key_runs_the_map(actor_display, test_applets):
     actor, _ = actor_display
-    actor.key("g")                                         # a mapped key: its preset
+    actor.key("g")  # a mapped key: its preset
     assert actor.share["applet"] == "pong"
     actor.key("g", "down")
     assert actor.share["applet"] == "asteroids"
@@ -499,12 +599,14 @@ def test_wire_key_runs_the_map(actor_display, test_applets):
     actor.key("R")
     assert actor.share["applet"] == "status" and actor.share["speed"] == "1"
     actor.applet("bouncer")
-    actor.key("w")                                         # not mapped: the applet's
-    actor.key("g", "up")                                   # a release does nothing
+    actor.key("w")  # not mapped: the applet's
+    actor.key("g", "up")  # a release does nothing
     assert actor._applet.keys == [("w", "tap")]
+
 
 # --------------------------------------------------------------------------- #
 # The Actor: settings through the shared state
+
 
 def remote_update(actor, key, value):
     """What ECProducer does for "(update KEY VALUE)" on the control topic:
@@ -512,6 +614,7 @@ def remote_update(actor, key, value):
 
     actor.share[key] = value
     actor._ec_producer_change_handler("update", key, value)
+
 
 def test_settings_apply_and_bad_values_converge(actor_display):
     actor, display = actor_display
@@ -544,6 +647,7 @@ def test_settings_apply_and_bad_values_converge(actor_display):
     for key in SETTINGS:
         assert actor.share[key] == actor._applied[key]
 
+
 def test_color_settings_apply_and_reset(actor_display, monkeypatch):
     actor, display = actor_display
     assert actor.share["foreground"] == "white" and actor.share["background"] == "black"
@@ -553,11 +657,11 @@ def test_color_settings_apply_and_reset(actor_display, monkeypatch):
     remote_update(actor, "background", "#000080")
     assert display.background == (0, 0, 128) and actor.share["background"] == "#000080"
     remote_update(actor, "foreground", "not_a_color")
-    assert actor.share["foreground"] == "yellow"            # converged back
+    assert actor.share["foreground"] == "yellow"  # converged back
     assert actor.share["last_error"].startswith("set_foreground_not_color@")
     remote_update(actor, "foreground", "default")
     assert actor.share["foreground"] == "white" and display.foreground == (255, 255, 255)
-    started, _ = make_actor(colors=["lime", "navy"])       # -c 'lime navy'
+    started, _ = make_actor(colors=["lime", "navy"])  # -c 'lime navy'
     try:
         assert started.share["foreground"] == "lime"
         assert started._output.foreground == (0, 255, 0)
@@ -567,6 +671,7 @@ def test_color_settings_apply_and_reset(actor_display, monkeypatch):
         assert started.share["background"] == "navy"
     finally:
         started._shutdown()
+
 
 def test_window_keys_use_the_console_map(actor_display, test_applets, monkeypatch):
     actor, display = actor_display
@@ -580,52 +685,55 @@ def test_window_keys_use_the_console_map(actor_display, test_applets, monkeypatc
     typed("g")
     assert actor.share["applet"] == "pong"
     typed("g")
-    assert actor.share["applet"] == "asteroids"              # the next preset
+    assert actor.share["applet"] == "asteroids"  # the next preset
     typed("5", "b", "b", "B", "-")
     assert actor.share["speed"] == "0.707"
-    assert actor.share["foreground"] == "yellow"             # white, deepskyblue, yellow
+    assert actor.share["foreground"] == "yellow"  # white, deepskyblue, yellow
     assert display.foreground == (255, 255, 0)
     assert actor.share["background"] == "midnightblue"
     assert actor.share["contrast"] == "239"
     typed("c")
-    assert actor.share["applet"] == "none"                   # clear: a drawing command
+    assert actor.share["applet"] == "none"  # clear: a drawing command
     typed("?")
-    assert actor.share["applet"] == "help"                   # ? is help, as h
+    assert actor.share["applet"] == "help"  # ? is help, as h
     typed("R")
     assert actor.share["applet"] == "status"
     assert actor.share["foreground"] == "white" and actor.share["contrast"] == "255"
     assert actor.share["speed"] == "1"
     actor.applet("bouncer")
-    typed("w")                                               # not a console key
+    typed("w")  # not a console key
     assert actor._applet.keys[-1] == ("w", "tap")
-    display.events = [("down", "left"), ("up", "left")]     # arrows: the applet's
+    display.events = [("down", "left"), ("up", "left")]  # arrows: the applet's
     actor._step()
     assert actor._applet.keys[-2:] == [("left", "down"), ("left", "up")]
     typed("x")
-    assert exits                                             # as Esc: the Actor exits
+    assert exits  # as Esc: the Actor exits
+
 
 def mirror_setup(actor, monkeypatch, connected=True):
     published = []
-    monkeypatch.setattr(aiko.process.message, "publish",
-                        lambda topic, payload, **kwargs: published.append((topic, payload)))
+    monkeypatch.setattr(
+        aiko.process.message, "publish", lambda topic, payload, **kwargs: published.append((topic, payload))
+    )
     monkeypatch.setattr(aiko.process.connection, "is_connected", lambda state: connected)
     return published
+
 
 def test_mirror_publishes_on_change_and_caps_rate(actor_display, monkeypatch):
     actor, display = actor_display
     published = mirror_setup(actor, monkeypatch)
     actor.mirror("aiko/probe/mirror", "30")
     assert actor.share["mirrors"] == "1" and actor._metrics["denied"] == 0
-    actor._step()                                          # the holder sees the panel now
+    actor._step()  # the holder sees the panel now
     assert published[-1][0] == "aiko/probe/mirror" and len(published[-1][1]) == 1024
     assert published[-1][1] == display.frames[-1].tobytes()
     count = len(published)
-    actor.text("0", "0", "hi")                             # within the rate: pending
+    actor.text("0", "0", "hi")  # within the rate: pending
     assert len(published) == count and actor._mirror_pending == display.frames[-1].tobytes()
     actor._mirror_due = 0.0
-    actor._step()                                          # the end of the burst
+    actor._step()  # the end of the burst
     assert len(published) == count + 1 and actor._mirror_pending is None
-    actor.text("0", "0", "hi")                             # unchanged: nothing
+    actor.text("0", "0", "hi")  # unchanged: nothing
     actor._mirror_due = 0.0
     actor._step()
     assert len(published) == count + 1
@@ -634,17 +742,19 @@ def test_mirror_publishes_on_change_and_caps_rate(actor_display, monkeypatch):
     actor._flush_metrics()
     assert actor.share["metrics"]["mirrored"] == "2"
 
+
 def test_mirror_leases_extend_expire_and_destroy(actor_display, monkeypatch):
     actor, _ = actor_display
     mirror_setup(actor, monkeypatch)
     actor.mirror("aiko/probe/a", "1")
-    actor.mirror("aiko/probe/a", "1")                      # extend, not a second holder
+    actor.mirror("aiko/probe/a", "1")  # extend, not a second holder
     assert actor.share["mirrors"] == "1"
     run_loop(1.4)
-    assert actor.share["mirrors"] == "0" and not actor._mirrors   # expired
+    assert actor.share["mirrors"] == "0" and not actor._mirrors  # expired
     actor.mirror("aiko/probe/b", "30")
-    actor.mirror("aiko/probe/b", "0")                      # destroy
+    actor.mirror("aiko/probe/b", "0")  # destroy
     assert actor.share["mirrors"] == "0"
+
 
 def test_mirror_rejections_and_bounds(actor_display, monkeypatch):
     actor, _ = actor_display
@@ -657,11 +767,12 @@ def test_mirror_rejections_and_bounds(actor_display, monkeypatch):
     assert actor.share["last_error"].startswith("mirror_seconds_not_int@")
     for holder in range(5):
         actor.mirror(f"aiko/probe/{holder}", "30")
-    assert actor.share["mirrors"] == "4"                   # bounded
+    assert actor.share["mirrors"] == "4"  # bounded
     assert actor.share["last_error"].startswith("mirror_full@")
     assert actor._metrics["denied"] == 4
     actor._shutdown()
-    assert not actor._mirrors                              # leases terminated
+    assert not actor._mirrors  # leases terminated
+
 
 def test_mirror_drops_frames_while_disconnected(actor_display, monkeypatch):
     actor, _ = actor_display
@@ -671,33 +782,35 @@ def test_mirror_drops_frames_while_disconnected(actor_display, monkeypatch):
     actor.text("0", "0", "hi")
     actor._mirror_due = 0.0
     actor._step()
-    assert published == [] and actor._metrics["mirrored"] == 0   # no block, no send
+    assert published == [] and actor._metrics["mirrored"] == 0  # no block, no send
+
 
 def test_title_setting(actor_display):
     actor, display = actor_display
     assert actor.share["title"] == "off" and actor._canvas.title_rows == 0
     remote_update(actor, "title", "Aiko_v0.8")
     assert actor._title_text == "Aiko v0.8" and actor._canvas.title_rows == 8
-    assert lit_count(display.frames[-1]) > 200                # the strip
+    assert lit_count(display.frames[-1]) > 200  # the strip
     remote_update(actor, "title", "off")
     assert actor.share["title"] == "off" and lit_count(display.frames[-1]) == 0
-    remote_update(actor, "title", "on")                      # the last text again
+    remote_update(actor, "title", "on")  # the last text again
     assert actor.share["title"] == "Aiko_v0.8" and actor._title_text == "Aiko v0.8"
     remote_update(actor, "title", "off")
     remote_update(actor, "title", "x" * 33)
     assert actor.share["title"] == "off" and actor._metrics["denied"] == 1
 
+
 def test_own_updates_do_not_loop_and_replay_is_ignored(actor_display, monkeypatch):
     actor, display = actor_display
     calls = []
     original = actor._setters["contrast"]
-    monkeypatch.setitem(actor._setters, "contrast",
-        lambda value: (calls.append(value), original(value)))
+    monkeypatch.setitem(actor._setters, "contrast", lambda value: (calls.append(value), original(value)))
     remote_update(actor, "contrast", "100")
-    assert calls == ["100"]                                # once, not re-entered
+    assert calls == ["100"]  # once, not re-entered
     actor._ec_producer_change_handler("add", "contrast", "100")
     actor._ec_producer_change_handler("update", "metrics.frames", "3")
     assert calls == ["100"]
+
 
 def test_applet_setting_starts_an_applet(actor_display, test_applets):
     actor, _ = actor_display
@@ -707,8 +820,10 @@ def test_applet_setting_starts_an_applet(actor_display, test_applets):
     remote_update(actor, "applet", "nosuch")
     assert actor.share["applet"] == "bouncer"
 
+
 # --------------------------------------------------------------------------- #
 # The Actor: display failure, blanking, threads, shutdown
+
 
 def test_display_not_found_degrades_and_reopens():
     display = fake_output(fail_open=True)
@@ -726,10 +841,12 @@ def test_display_not_found_degrades_and_reopens():
     finally:
         actor._shutdown()
 
+
 def test_strict_display_not_found_raises():
     display = fake_output(fail_open=True)
     with pytest.raises(DisplayNotFound):
         make_actor(output=display, strict=True)
+
 
 def test_show_failure_marks_the_display_absent(actor_display, monkeypatch):
     actor, display = actor_display
@@ -741,7 +858,8 @@ def test_show_failure_marks_the_display_absent(actor_display, monkeypatch):
     actor.text(0, 0, "x")
     assert actor.share["device"] == "absent" and not actor._output_ok
     assert actor.share["last_error"].startswith("display_failed@")
-    actor.text(0, 8, "y")                                  # no exception
+    actor.text(0, 8, "y")  # no exception
+
 
 def test_blank_after_powers_down_until_activity(actor_display):
     actor, display = actor_display
@@ -751,6 +869,7 @@ def test_blank_after_powers_down_until_activity(actor_display):
     assert actor._blanked and display.controls[-1] == ("power", False)
     actor.text(0, 0, "wake")
     assert not actor._blanked and ("power", True) in display.controls
+
 
 def test_callbacks_from_other_threads_reach_the_event_loop(actor_display):
     actor, _ = actor_display
@@ -767,6 +886,7 @@ def test_callbacks_from_other_threads_reach_the_event_loop(actor_display):
     assert actor.share["connection"] == "TRANSPORT"
     assert actor.last_event_thread == threading.get_ident() != poster["thread"]
 
+
 def test_heartbeat_and_metrics_flush(actor_display):
     actor, display = actor_display
     actor.text(0, 0, "a")
@@ -778,10 +898,11 @@ def test_heartbeat_and_metrics_flush(actor_display):
     published = []
     actor.ec_producer.add_handler(lambda *args: published.append(args))
     published.clear()
-    actor._flush_metrics()                                 # nothing changed
-    assert all(item[1] == "fps" for item in published)   # (fps is time based)
+    actor._flush_metrics()  # nothing changed
+    assert all(item[1] == "fps" for item in published)  # (fps is time based)
     run_loop(1.2)
     assert int(actor.share["heartbeat"]) >= 1
+
 
 def test_shutdown_blanks_and_is_idempotent(actor_display):
     actor, display = actor_display
@@ -789,23 +910,24 @@ def test_shutdown_blanks_and_is_idempotent(actor_display):
     assert display.closed and display.blanked
     actor._shutdown()
 
+
 # --------------------------------------------------------------------------- #
 # Share tokens: every value must survive the unencoded "(update K V)" publish
 
+
 def test_share_values_are_single_tokens(actor_display, test_applets):
     actor, _ = actor_display
-    remote_update(actor, "title", "12:30 lunch")           # would break the parser
+    remote_update(actor, "title", "12:30 lunch")  # would break the parser
     actor.pixel("x", 0)
     actor.applet("bouncer")
     remote_update(actor, "font", "16")
     actor._flush_metrics()
-    values = {key: value for key, value in actor.share.items()
-              if key not in ("source_file", "metrics", "keys")}
-    for group in ("metrics", "keys"):                     # the two-level keys
-        values.update({f"{group}.{key}": value
-                       for key, value in actor.share[group].items()})
+    values = {key: value for key, value in actor.share.items() if key not in ("source_file", "metrics", "keys")}
+    for group in ("metrics", "keys"):  # the two-level keys
+        values.update({f"{group}.{key}": value for key, value in actor.share[group].items()})
     for key, value in values.items():
         assert parse(f"(update {key} {value})") == ("update", [key, str(value)]), key
+
 
 def test_parse_applet_args():
     words, options = parse_applet_args(["hello", "seed=3"], {"seed": int})
@@ -814,13 +936,15 @@ def test_parse_applet_args():
         with pytest.raises(ValueError):
             parse_applet_args(bad, {"seed": int})
 
+
 # --------------------------------------------------------------------------- #
 # The Actor: the output's events, the canvas size and applet portability
+
 
 def test_output_events_drive_the_display(monkeypatch):
     actor, output = make_actor()
     try:
-        output.events = [("tap", "g")]                    # the window's g key
+        output.events = [("tap", "g")]  # the window's g key
         actor._step()
         assert actor.share["applet"] == "pong"
         stopped = []
@@ -830,6 +954,7 @@ def test_output_events_drive_the_display(monkeypatch):
         assert stopped
     finally:
         actor._shutdown()
+
 
 def test_applet_too_small_is_rejected_and_hidden():
     actor, output = make_actor(size=(128, 32))
@@ -845,6 +970,7 @@ def test_applet_too_small_is_rejected_and_hidden():
     finally:
         actor._shutdown()
 
+
 def test_a_fixed_field_is_centered_on_a_wide_canvas():
     actor, output = make_actor(size=(256, 64))
     try:
@@ -854,6 +980,6 @@ def test_a_fixed_field_is_centered_on_a_wide_canvas():
         frame = output.frames[-1]
         assert frame.size == (256, 64)
         left, _, right, _ = frame.getbbox()
-        assert 64 <= left and right <= 192               # the 128-wide field, centered
+        assert 64 <= left and right <= 192  # the 128-wide field, centered
     finally:
         actor._shutdown()

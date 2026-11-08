@@ -60,35 +60,41 @@
 #   - cv2.createTrackbar() ?
 #   - Integrate with tkinter ?
 
-from datetime import datetime
-from typing import Tuple
-from pathlib import Path
 import platform
+from datetime import datetime
+from pathlib import Path
+from typing import Tuple
 
 import aiko_services as aiko
 from aiko_services.elements.media import convert_images
 from aiko_services.main.utilities import parse_int
 
 __all__ = [
-    "VideoOutput", "VideoReadFile", "VideoSample", "VideoShow",
-    "VideoWriteFile", "VideoWriteFiles", "open_video_capture"
+    "VideoOutput",
+    "VideoReadFile",
+    "VideoSample",
+    "VideoShow",
+    "VideoWriteFile",
+    "VideoWriteFiles",
+    "open_video_capture",
 ]
 
 _LOGGER = aiko.process.logger(__name__)
 
-_DEFAULT_MINUTE_RANGE = "*"   # "*" or specific minute range to capture "00-01"
+_DEFAULT_MINUTE_RANGE = "*"  # "*" or specific minute range to capture "00-01"
 
 _DEFAULT_VIDEO_NAME = "data_out"
 _DEFAULT_VIDEO_DIRECTORY = "{video_name}/{y:04d}/{m:02d}/{d:02d}/{h:02d}"
 _DEFAULT_VIDEO_PATHNAME = "{directory}/{m:02d}m_{s:02d}s.mp4"
 
-_DEFAULT_VIDEO_FILE_DURATION = 1       # minutes
-_DEFAULT_VIDEO_FRAME_RATE = 4.0        # frames per second
+_DEFAULT_VIDEO_FILE_DURATION = 1  # minutes
+_DEFAULT_VIDEO_FRAME_RATE = 4.0  # frames per second
 _DEFAULT_VIDEO_RESOLUTION = "640x480"  # width x height
 
 _CV2_IMPORTED = False
 try:
     import cv2
+
     _CV2_IMPORTED = True
 except ModuleNotFoundError:  # TODO: Optional warning flag
     diagnostic = "video_io.py: Couldn't import cv2 module"
@@ -102,6 +108,7 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
 _NUMPY_IMPORTED = False
 try:
     import numpy as np
+
     _NUMPY_IMPORTED = True
 except ModuleNotFoundError:  # TODO: Optional warning flag
     diagnostic = "video_io.py: Couldn't import numpy module"
@@ -109,6 +116,7 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
 #   _LOGGER.warning(diagnostic)
 
 # --------------------------------------------------------------------------- #
+
 
 def camera_api(system=None):
     """The capture back end for this platform, or 0 to let OpenCV choose.
@@ -125,10 +133,11 @@ def camera_api(system=None):
         return 0
     system = platform.system().lower() if system is None else system
     return {
-        "darwin":  cv2.CAP_AVFOUNDATION,
-        "linux":   cv2.CAP_V4L2,
+        "darwin": cv2.CAP_AVFOUNDATION,
+        "linux": cv2.CAP_V4L2,
         "windows": cv2.CAP_MSMF,
     }.get(system, 0)
+
 
 def open_video_capture(camera_id=0):
     video_capture = cv2.VideoCapture(camera_id, camera_api())
@@ -137,8 +146,10 @@ def open_video_capture(camera_id=0):
         video_capture = cv2.VideoCapture(camera_id)
     return video_capture
 
+
 # --------------------------------------------------------------------------- #
 # Useful for Pipeline output that should be all of the images processed
+
 
 class VideoOutput(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
@@ -147,6 +158,7 @@ class VideoOutput(aiko.PipelineElement):
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         return aiko.StreamEvent.OKAY, {"images": images}
+
 
 # --------------------------------------------------------------------------- #
 # VideoReadFile is a DataSource which supports ...
@@ -158,6 +170,7 @@ class VideoOutput(aiko.PipelineElement):
 #
 # Note: Only supports Streams with "data_sources" parameter
 
+
 class VideoReadFile(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("video_read_file:0")
@@ -166,8 +179,7 @@ class VideoReadFile(aiko.DataSource):  # PipelineElement
     def start_stream(self, stream, stream_id):
         stream.variables["video_capture"] = None
         stream.variables["video_frame_generator"] = None
-        return super().start_stream(stream, stream_id,
-            frame_generator=self.frame_generator, use_create_frame=False)
+        return super().start_stream(stream, stream_id, frame_generator=self.frame_generator, use_create_frame=False)
 
     def video_frame_iterator(self, video_capture):
         while True:
@@ -182,8 +194,7 @@ class VideoReadFile(aiko.DataSource):  # PipelineElement
         while True:
             if not video_frame_generator:
                 try:
-                    path, file_id = next(
-                        stream.variables["source_paths_generator"])
+                    path, file_id = next(stream.variables["source_paths_generator"])
                 except StopIteration:
                     stream.variables["source_paths_generator"] = None
                     diagnostic = "End of video file(s)"
@@ -193,9 +204,9 @@ class VideoReadFile(aiko.DataSource):  # PipelineElement
                     diagnostic = f'path "{path}" must be a file'
                     return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
-            # TODO: handle integer video "path" ... maybe ?
-            #   if isinstance(path, str) and path.isdigit():
-            #       path = int(str(path))
+                # TODO: handle integer video "path" ... maybe ?
+                #   if isinstance(path, str) and path.isdigit():
+                #       path = int(str(path))
 
                 video_capture = open_video_capture(str(path))
                 if not video_capture.isOpened():
@@ -203,8 +214,7 @@ class VideoReadFile(aiko.DataSource):  # PipelineElement
                     return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
                 stream.variables["video_capture"] = video_capture
                 video_frame_generator = self.video_frame_iterator(video_capture)
-                stream.variables["video_frame_generator"] =  \
-                    video_frame_generator
+                stream.variables["video_frame_generator"] = video_frame_generator
 
             try:
                 image_rgb = next(video_frame_generator)
@@ -229,7 +239,9 @@ class VideoReadFile(aiko.DataSource):  # PipelineElement
             stream.variables["video_capture"] = None
         return aiko.StreamEvent.OKAY, {}
 
+
 # --------------------------------------------------------------------------- #
+
 
 class VideoSample(aiko.PipelineElement):
     def __init__(self, context):
@@ -245,17 +257,19 @@ class VideoSample(aiko.PipelineElement):
             self.logger.debug(f"{self.my_id()}: frame not dropped")
             return aiko.StreamEvent.OKAY, {"images": images}
 
+
 # --------------------------------------------------------------------------- #
 # TODO: Change color, title and resolution
+
 
 class VideoShow(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("video_show:0")
         context.call_init(self, "PipelineElement", context)
 
-#   def slider_handler(self, value):
-#       print(f"slider: {value}")
-#       cv2.imshow(title, image_bgr)  # TODO: "title" ?!?
+    #   def slider_handler(self, value):
+    #       print(f"slider: {value}")
+    #       cv2.imshow(title, image_bgr)  # TODO: "title" ?!?
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         for image in images:
@@ -270,7 +284,7 @@ class VideoShow(aiko.PipelineElement):
 
             title, _ = self.get_parameter("title", "Video")
             cv2.namedWindow(title)
-        #   cv2.createTrackbar("Slider", title, 0, 9, self.slider_handler)
+            #   cv2.createTrackbar("Slider", title, 0, 9, self.slider_handler)
             cv2.imshow(title, image_bgr)
             if stream.frame_id == 0:
                 position, _ = self.get_parameter("position", "1280:0")
@@ -289,12 +303,14 @@ class VideoShow(aiko.PipelineElement):
         cv2.destroyAllWindows()  # TODO: when all Streams stopped
         return aiko.StreamEvent.OKAY, {}
 
+
 # --------------------------------------------------------------------------- #
 # VideoWriteFile is a DataTarget that writes images to a video file
 #
 # parameter: "data_targets" is the write file path, format variable: "frame_id"
 #
 # Note: Only supports Streams with "data_targets" parameters
+
 
 class VideoWriteFile(aiko.DataTarget):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
@@ -315,14 +331,13 @@ class VideoWriteFile(aiko.DataTarget):  # PipelineElement
             diagnostic = {}
         return stream_event, diagnostic
 
-# Show codec list by invoking cv2.VideoWriter(..., fourcc=-1)
-# video_output.avi: format: XVID
-# video_output.mp4: format: MP4V, DIVX, H264, X264
-# Linux:   DIVX, XVID, MJPG, X264, WMV1, WMV2
-# WIndows: DIVX
+    # Show codec list by invoking cv2.VideoWriter(..., fourcc=-1)
+    # video_output.avi: format: XVID
+    # video_output.mp4: format: MP4V, DIVX, H264, X264
+    # Linux:   DIVX, XVID, MJPG, X264, WMV1, WMV2
+    # WIndows: DIVX
 
-    def _create_video_writer(
-        self, path, resolution, format="MP4V", frame_rate=30.0):
+    def _create_video_writer(self, path, resolution, format="MP4V", frame_rate=30.0):
 
         format, _ = self.get_parameter("format", format)
         format = cv2.VideoWriter_fourcc(*format)
@@ -334,8 +349,7 @@ class VideoWriteFile(aiko.DataTarget):  # PipelineElement
         parent_path = Path(path).parent
         parent_path.mkdir(exist_ok=True, parents=True)
         path = str(path)
-        video_writer = cv2.VideoWriter(
-            path, format, float(frame_rate), resolution)
+        video_writer = cv2.VideoWriter(path, format, float(frame_rate), resolution)
         return video_writer
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
@@ -366,6 +380,7 @@ class VideoWriteFile(aiko.DataTarget):  # PipelineElement
                 stream.variables["video_writer"] = None
         return aiko.StreamEvent.OKAY, {}
 
+
 # --------------------------------------------------------------------------- #
 # VideoWriteFiles is a DataTarget that writes images to a video files
 #
@@ -374,6 +389,7 @@ class VideoWriteFile(aiko.DataTarget):  # PipelineElement
 # Note: Only supports Streams with "data_targets" parameters
 
 # TODO: class VideoWriteFiles(VideoWriteFile):  # DataTarget(PipelineElement)
+
 
 class VideoWriteFiles(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
@@ -384,30 +400,24 @@ class VideoWriteFiles(aiko.PipelineElement):
         stream.variables["last_minute"] = 0
         stream.variables["video_writer"] = None
         stream.variables["video_file_duration"], _ = self.get_parameter(
-            "video_file_duration", _DEFAULT_VIDEO_FILE_DURATION)
+            "video_file_duration", _DEFAULT_VIDEO_FILE_DURATION
+        )
         return aiko.StreamEvent.OKAY, {}
 
     def _create_video_writer(self):
         video_name, _ = self.get_parameter("video_name", _DEFAULT_VIDEO_NAME)
-        directory_template, _ = self.get_parameter(
-            "directory", _DEFAULT_VIDEO_DIRECTORY)
-        pathname_template, _ = self.get_parameter(
-            "pathname", _DEFAULT_VIDEO_PATHNAME)
-        frame_rate, _ = self.get_parameter(
-            "frame_rate", _DEFAULT_VIDEO_FRAME_RATE)
-        resolution, _ = self.get_parameter(
-            "resolution", _DEFAULT_VIDEO_RESOLUTION)
+        directory_template, _ = self.get_parameter("directory", _DEFAULT_VIDEO_DIRECTORY)
+        pathname_template, _ = self.get_parameter("pathname", _DEFAULT_VIDEO_PATHNAME)
+        frame_rate, _ = self.get_parameter("frame_rate", _DEFAULT_VIDEO_FRAME_RATE)
+        resolution, _ = self.get_parameter("resolution", _DEFAULT_VIDEO_RESOLUTION)
         if isinstance(resolution, str):
             width, height = resolution.split("x")
             resolution = (int(width), int(height))
 
         now = datetime.now()
-        directory = directory_template.format(
-            video_name=video_name,
-            y=now.year, m=now.month, d=now.day, h=now.hour)
+        directory = directory_template.format(video_name=video_name, y=now.year, m=now.month, d=now.day, h=now.hour)
         Path(directory).mkdir(exist_ok=True, parents=True)
-        pathname = pathname_template.format(
-            directory=directory, m=now.minute, s=now.second)
+        pathname = pathname_template.format(directory=directory, m=now.minute, s=now.second)
         fourcc = cv2.VideoWriter_fourcc(*"MP4V")
         video_writer = cv2.VideoWriter(pathname, fourcc, frame_rate, resolution)
         return video_writer, pathname
@@ -419,12 +429,10 @@ class VideoWriteFiles(aiko.PipelineElement):
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         now_minute = datetime.now().minute
-        minute_range, _ = self.get_parameter(
-            "minute_range", _DEFAULT_MINUTE_RANGE)
+        minute_range, _ = self.get_parameter("minute_range", _DEFAULT_MINUTE_RANGE)
         self.share["minute_range"] = minute_range
         if minute_range != "*":
-            minute_start, minute_end =  \
-                (lambda x: (int(x[0]), int(x[-1])))(minute_range.split('-'))
+            minute_start, minute_end = (lambda x: (int(x[0]), int(x[-1])))(minute_range.split("-"))
             minute_start = parse_int(minute_start)
             minute_end = parse_int(minute_end)
             if now_minute < minute_start or now_minute > minute_end:
@@ -439,8 +447,7 @@ class VideoWriteFiles(aiko.PipelineElement):
                 if now_minute % stream.variables["video_file_duration"] == 0:
                     self._destroy_video_writer(stream)
         if not stream.variables["video_writer"]:
-            stream.variables["video_writer"], video_pathname =  \
-                self._create_video_writer()
+            stream.variables["video_writer"], video_pathname = self._create_video_writer()
             self.ec_producer.update("video_pathname", video_pathname)
         stream.variables["last_minute"] = now_minute
 
@@ -452,5 +459,6 @@ class VideoWriteFiles(aiko.PipelineElement):
     def stop_stream(self, stream, stream_id):
         self._destroy_video_writer(stream)
         return aiko.StreamEvent.OKAY, {}
+
 
 # --------------------------------------------------------------------------- #

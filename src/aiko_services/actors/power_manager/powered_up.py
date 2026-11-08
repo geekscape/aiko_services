@@ -79,15 +79,22 @@ from dataclasses import dataclass
 from aiko_services.main.lease import Lease
 
 __all__ = [
-    "BRIDGE_TOPIC", "CONSTRAINTS", "CONSTRAINT_WATT_HOURS",
-    "LeaseConstraint", "POWERED_UP_MAXIMUM_S",
-    "POWERED_UP_REQUESTS_MAXIMUM", "REFUSED_MAXIMUM",
-    "REFUSED_NO_MEASUREMENT", "REFUSED_NO_RESOURCE", "REFUSED_PARAMETERS",
-    "PoweredUpLease", "PoweredUpRegister",
+    "BRIDGE_TOPIC",
+    "CONSTRAINTS",
+    "CONSTRAINT_WATT_HOURS",
+    "LeaseConstraint",
+    "POWERED_UP_MAXIMUM_S",
+    "POWERED_UP_REQUESTS_MAXIMUM",
+    "REFUSED_MAXIMUM",
+    "REFUSED_NO_MEASUREMENT",
+    "REFUSED_NO_RESOURCE",
+    "REFUSED_PARAMETERS",
+    "PoweredUpLease",
+    "PoweredUpRegister",
 ]
 
-POWERED_UP_MAXIMUM_S = 600.0         # The longest single request that is given
-POWERED_UP_REQUESTS_MAXIMUM = 32     # How many may be held at once
+POWERED_UP_MAXIMUM_S = 600.0  # The longest single request that is given
+POWERED_UP_REQUESTS_MAXIMUM = 32  # How many may be held at once
 
 # The reserved key of a Lease that the power manager holds for a client
 # that cannot yet ask for itself.  It is not a topic, so nothing is ever
@@ -105,6 +112,7 @@ REFUSED_PARAMETERS = "parameters"
 # lease_time is already the time condition
 CONSTRAINT_WATT_HOURS = "watt_hours"
 CONSTRAINTS = (CONSTRAINT_WATT_HOURS,)
+
 
 @dataclass(frozen=True)
 class LeaseConstraint:
@@ -129,8 +137,7 @@ class LeaseConstraint:
         if name is None or name == "-":
             return None
         if name not in CONSTRAINTS:
-            raise ValueError(
-                f'unknown constraint "{name}": one of {list(CONSTRAINTS)}')
+            raise ValueError(f'unknown constraint "{name}": one of {list(CONSTRAINTS)}')
         try:
             quantity = float(value)
         except (TypeError, ValueError):
@@ -142,6 +149,7 @@ class LeaseConstraint:
     def __str__(self):
         return f"{self.name} {self.value:g}"
 
+
 class PoweredUpLease(Lease):
     """One client's claim on staying powered up, for a time that was agreed.
 
@@ -149,13 +157,11 @@ class PoweredUpLease(Lease):
     on the event loop at the agreed time.  The "reason" is one token, for
     the operator, and the lease_uuid is the client's own topic"""
 
-    def __init__(self, lease_time, topic, reason="-", constraint=None,
-        lease_expired_handler=None):
+    def __init__(self, lease_time, topic, reason="-", constraint=None, lease_expired_handler=None):
 
-        super().__init__(lease_time, topic,
-            lease_expired_handler=lease_expired_handler)
+        super().__init__(lease_time, topic, lease_expired_handler=lease_expired_handler)
         self.reason = str(reason or "-")
-        self.constraint = constraint       # LeaseConstraint, or None
+        self.constraint = constraint  # LeaseConstraint, or None
 
     @property
     def topic(self):
@@ -172,6 +178,7 @@ class PoweredUpLease(Lease):
             return 0.0
         return self.constraint.value
 
+
 class PoweredUpRegister:
     """Every live claim on the host, keyed by the client that made it.
 
@@ -183,21 +190,20 @@ class PoweredUpRegister:
     moment a Lease ends, so the holder is told and the policy is asked
     again at once"""
 
-    def __init__(self, maximum_seconds=POWERED_UP_MAXIMUM_S,
-        maximum_requests=POWERED_UP_REQUESTS_MAXIMUM, expired_handler=None):
+    def __init__(
+        self, maximum_seconds=POWERED_UP_MAXIMUM_S, maximum_requests=POWERED_UP_REQUESTS_MAXIMUM, expired_handler=None
+    ):
 
         self.maximum_seconds = float(maximum_seconds)
         self.maximum_requests = int(maximum_requests)
         self.expired_handler = expired_handler
         self._leases = {}
-        self.granted = 0           # For the metrics
+        self.granted = 0  # For the metrics
         self.refused = 0
         self.expired = 0
         self.released = 0
 
-    def request(self, topic, seconds, reason, constraint=None,
-        available=None):
-
+    def request(self, topic, seconds, reason, constraint=None, available=None):
         """Take, extend or release one claim.
 
         Returns (outcome, detail).  The outcome is "granted" with the
@@ -230,15 +236,15 @@ class PoweredUpRegister:
         if lease is not None:
             lease.reason = str(reason or "-")
             lease.constraint = constraint
-            lease.extend(seconds)              # Its timer moves with it
+            lease.extend(seconds)  # Its timer moves with it
             self.granted += 1
             return "granted", f"{seconds:.0f}"
         if len(self._leases) >= self.maximum_requests:
             self.refused += 1
             return "refused", f"{REFUSED_NO_RESOURCE} requests"
-        self._leases[topic] = PoweredUpLease(seconds, topic, reason,
-            constraint=constraint,
-            lease_expired_handler=self._lease_expired)
+        self._leases[topic] = PoweredUpLease(
+            seconds, topic, reason, constraint=constraint, lease_expired_handler=self._lease_expired
+        )
         self.granted += 1
         return "granted", f"{seconds:.0f}"
 
@@ -256,8 +262,7 @@ class PoweredUpRegister:
         if constraint.name not in available:
             return f"{REFUSED_NO_MEASUREMENT} {constraint.name}"
         quantity = float(available[constraint.name])
-        committed = sum(lease.asks(constraint.name)
-            for key, lease in self._leases.items() if key != topic)
+        committed = sum(lease.asks(constraint.name) for key, lease in self._leases.items() if key != topic)
         if committed + constraint.value > quantity:
             left = max(0.0, quantity - committed)
             return f"{REFUSED_NO_RESOURCE} {constraint.name} {left:g}"
@@ -284,8 +289,7 @@ class PoweredUpRegister:
         A unit that "available" does not mention cannot be checked, so such
         a Lease is unmet: the same answer its request would have had"""
 
-        available = {name: float(value)
-            for name, value in (available or {}).items()}
+        available = {name: float(value) for name, value in (available or {}).items()}
         met, unmet = [], []
         for topic, lease in self._leases.items():
             constraint = lease.constraint
@@ -332,8 +336,7 @@ class PoweredUpRegister:
     def topics(self):
         """The client topics that hold a claim, except the reserved one"""
 
-        return tuple(topic for topic in self._leases
-            if topic != BRIDGE_TOPIC)
+        return tuple(topic for topic in self._leases if topic != BRIDGE_TOPIC)
 
     def reasons(self):
         """The reasons given, each one once, in the order they were made"""
@@ -347,8 +350,7 @@ class PoweredUpRegister:
     def seconds(self):
         """The longest Lease time that is held, for the operator"""
 
-        return max((lease.lease_time for lease in self._leases.values()),
-            default=0.0)
+        return max((lease.lease_time for lease in self._leases.values()), default=0.0)
 
     def as_share(self):
         """The shared-state items, so an operator sees who is holding the
@@ -359,9 +361,7 @@ class PoweredUpRegister:
             "powered_up.reasons": "+".join(self.reasons()) or "-",
             "powered_up.seconds": f"{self.seconds():.0f}",
             "powered_up.maximum_s": f"{self.maximum_seconds:.0f}",
-            "powered_up.demand": "+".join(
-                f"{name}:{value:g}"
-                for name, value in sorted(self.demand().items())) or "-",
+            "powered_up.demand": "+".join(f"{name}:{value:g}" for name, value in sorted(self.demand().items())) or "-",
         }
 
     def _lease_expired(self, topic):
@@ -375,5 +375,6 @@ class PoweredUpRegister:
         self.expired += 1
         if self.expired_handler:
             self.expired_handler(topic)
+
 
 # --------------------------------------------------------------------------- #

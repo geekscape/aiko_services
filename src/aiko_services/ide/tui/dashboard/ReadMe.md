@@ -98,12 +98,13 @@ Service, so `.../process_manager:0` selects the page registered as
 ```python
 from aiko_services.ide.tui.dashboard import LogUI, ServiceFrame
 
+
 class ExampleFrame(ServiceFrame):
     def __init__(self, screen, dashboard):
         super().__init__(screen, dashboard, name="example_frame")
         # ... add each Layout and Widget ...
         self.log_ui = LogUI(self)
-        self.fix()                 # necessary: asciimatics needs it
+        self.fix()  # necessary: asciimatics needs it
 
     def _service_frame_start(self, service, service_ec_consumer):
         self.log_ui._service_frame_start(service, service_ec_consumer)
@@ -115,6 +116,7 @@ class ExampleFrame(ServiceFrame):
         super()._update(frame_no)
         # ... set each Widget from self.dashboard.ec_consumer.cache ...
         self.log_ui._update(frame_no)
+
 
 plugins = {"example": ExampleFrame}
 ```

@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
-import psutil
 import socket
+
+import psutil
 
 __all__ = ["get_network_port_free", "get_network_ports_used"]
 
-DYNAMIC_PORTS = [49152,65535]  # unassigned range for temporary / private ports
+DYNAMIC_PORTS = [49152, 65535]  # unassigned range for temporary / private ports
+
 
 def get_network_port_free(port_range=DYNAMIC_PORTS, type="tcp"):
     if port_range == [0, 0]:  # default range
@@ -21,28 +23,28 @@ def get_network_port_free(port_range=DYNAMIC_PORTS, type="tcp"):
 
     for port_used in ports_used:  # relies on "ports_used" being sorted
         if port_used > port_end:
-            break      # beyond port_range
+            break  # beyond port_range
         if port < port_used:
-            break      # found free port
+            break  # found free port
         if port == port_used:
             port += 1  # Move to the next port if the current one is used
 
     return port if port <= port_end else None
 
+
 def get_network_ports_used():
     all_ports = psutil.net_connections(kind="inet")
-    tcp_used_ports = [conn.laddr.port for conn in all_ports  \
-                         if conn.status == psutil.CONN_LISTEN]
+    tcp_used_ports = [conn.laddr.port for conn in all_ports if conn.status == psutil.CONN_LISTEN]
     tcp_used_ports = list(set(tcp_used_ports))  # remove duplication
     tcp_used_ports.sort()
 
-    udp_conns = [conn for conn in psutil.net_connections(kind="inet")  \
-                    if conn.type == socket.SOCK_DGRAM]
+    udp_conns = [conn for conn in psutil.net_connections(kind="inet") if conn.type == socket.SOCK_DGRAM]
     udp_used_ports = [conn.laddr.port for conn in udp_conns]
     udp_used_ports = list(set(udp_used_ports))  # remove duplication
     udp_used_ports.sort()
 
     return tcp_used_ports, udp_used_ports
+
 
 def main():
     tcp_used_ports, udp_used_ports = get_network_ports_used()
@@ -53,6 +55,7 @@ def main():
 
     for port in udp_used_ports:
         print(f"UDP port: {port:5d}")
+
 
 if __name__ == "__main__":
     main()

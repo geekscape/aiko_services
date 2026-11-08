@@ -34,11 +34,18 @@ import shutil
 import subprocess
 
 __all__ = [
-    "HOLD_GPIO", "HOLD_OFF", "HOLD_ON", "HOLD_UNKNOWN", "HoldNotAvailable",
-    "hold_state", "hold_tool", "run_tool", "set_hold",
+    "HOLD_GPIO",
+    "HOLD_OFF",
+    "HOLD_ON",
+    "HOLD_UNKNOWN",
+    "HoldNotAvailable",
+    "hold_state",
+    "hold_tool",
+    "run_tool",
+    "set_hold",
 ]
 
-HOLD_GPIO = 5                      # BCM, active high
+HOLD_GPIO = 5  # BCM, active high
 
 HOLD_ON = "on"
 HOLD_OFF = "off"
@@ -56,8 +63,10 @@ _TIMEOUT = 2.0
 _MODE = re.compile(r"^\s*\d+:\s*(?P<mode>[a-z]+)")
 _LEVEL = re.compile(r"\|\s*(?P<level>hi|lo)\b")
 
+
 class HoldNotAvailable(OSError):
     """The platform has no pin utility, so there is no hold here"""
+
 
 def hold_tool(name=_TOOL):
     """The path of the pin utility, looking in /usr/sbin and /sbin as well
@@ -71,6 +80,7 @@ def hold_tool(name=_TOOL):
             return path
     return None
 
+
 def run_tool(arguments, timeout=_TIMEOUT):
     """Run the pin utility and return (returncode, stdout).  The default
     runner, which a test replaces"""
@@ -79,11 +89,11 @@ def run_tool(arguments, timeout=_TIMEOUT):
     if tool is None:
         raise HoldNotAvailable(f'no "{_TOOL}" on this platform')
     try:
-        done = subprocess.run([tool, *arguments],
-            capture_output=True, text=True, timeout=timeout)
+        done = subprocess.run([tool, *arguments], capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.SubprocessError) as error:
         raise HoldNotAvailable(str(error)) from error
     return done.returncode, done.stdout
+
 
 def set_hold(on, gpio=HOLD_GPIO, runner=run_tool):
     """Drive the hold line high, or low.
@@ -100,8 +110,9 @@ def set_hold(on, gpio=HOLD_GPIO, runner=run_tool):
         raise OSError(f"set {gpio} op {level} failed: {output.strip()[:80]}")
     return HOLD_ON if on else HOLD_OFF
 
+
 def hold_state(gpio=HOLD_GPIO, runner=run_tool):
-    """"on" while the line is a driven output that is high, "off" while it
+    """ "on" while the line is a driven output that is high, "off" while it
     is a driven output that is low, and "unknown" for anything else.
 
     An input that floats high through its pull-up is **not** a hold, and it
@@ -117,10 +128,11 @@ def hold_state(gpio=HOLD_GPIO, runner=run_tool):
         return HOLD_UNKNOWN
     mode = _MODE.match(output)
     if not mode or mode.group("mode") != "op":
-        return HOLD_UNKNOWN                      # Not a driven output
+        return HOLD_UNKNOWN  # Not a driven output
     level = _LEVEL.search(output)
     if not level:
         return HOLD_UNKNOWN
     return HOLD_ON if level.group("level") == "hi" else HOLD_OFF
+
 
 # --------------------------------------------------------------------------- #

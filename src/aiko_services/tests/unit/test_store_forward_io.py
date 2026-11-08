@@ -28,24 +28,21 @@
 # ~~~~~
 # - None, yet !
 
-from datetime import datetime, timezone
 import os
 import re
+from datetime import datetime, timezone
 
 import pytest
-pytest.importorskip("cv2",
-    reason="aiko_services.elements.media needs cv2 (video_io.py)")
+
+pytest.importorskip("cv2", reason="aiko_services.elements.media needs cv2 (video_io.py)")
 import cv2
 
-from aiko_services.main.store_forward.store_forward_message import (
-    valid_segment_name
-)
 from aiko_services.elements.media.store_forward_io import segment_file_name
+from aiko_services.main.store_forward.store_forward_message import valid_segment_name
 from aiko_services.tests.unit import do_create_pipeline
 from aiko_services.tests.unit.image_sink import do_results_initialize
 
-SEGMENT_NAME_RE = re.compile(
-    r"^(cam0_)?\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d-\d{6}\.mp4$")
+SEGMENT_NAME_RE = re.compile(r"^(cam0_)?\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d-\d{6}\.mp4$")
 
 PIPELINE_DEFINITION = """{
   "version": 0, "name": "p_test_store_forward_io", "runtime": "python",
@@ -87,6 +84,7 @@ PIPELINE_DEFINITION = """{
 }
 """
 
+
 def _frame_count(path):
     """(frames decoded, (width, height)): decoding, because the container's
     frame-count property is not exact for every codec and OpenCV build"""
@@ -102,24 +100,26 @@ def _frame_count(path):
         capture.release()
     return count, (width, height)
 
+
 def _run(outbox, frame_count, segment_frames, segment_seconds, prefix=""):
     results = do_results_initialize()
-    definition = PIPELINE_DEFINITION  \
-        .replace("OUTBOX", str(outbox))  \
-        .replace("PREFIX", prefix)  \
-        .replace("FRAME_COUNT", str(frame_count))  \
-        .replace("SEGMENT_FRAMES", str(segment_frames))  \
+    definition = (
+        PIPELINE_DEFINITION.replace("OUTBOX", str(outbox))
+        .replace("PREFIX", prefix)
+        .replace("FRAME_COUNT", str(frame_count))
+        .replace("SEGMENT_FRAMES", str(segment_frames))
         .replace("SEGMENT_SECONDS", str(segment_seconds))
+    )
     do_create_pipeline(definition, frame_data=None)
     assert not results["watchdog"], "Stream did not stop: watchdog fired"
     assert results["stopped"], "ImageSink.stop_stream() was not invoked"
     names = sorted(os.listdir(outbox))
-    assert not [name for name in names if name.startswith(".")],  \
-        f"temporary segment left behind: {names}"
+    assert not [name for name in names if name.startswith(".")], f"temporary segment left behind: {names}"
     for name in names:
         assert SEGMENT_NAME_RE.match(name), name
-        assert valid_segment_name(name), name    # the Actor accepts it
+        assert valid_segment_name(name), name  # the Actor accepts it
     return results, names
+
 
 def test_segments_by_frame_count(tmp_path):
     results, names = _run(tmp_path, 7, 3, 0, prefix="cam0")
@@ -130,15 +130,16 @@ def test_segments_by_frame_count(tmp_path):
     assert all(size == (64, 48) for _, size in counts)
     assert all(name.startswith("cam0_") for name in names)
 
+
 def test_segment_file_name():
     now = datetime(2026, 9, 15, 3, 0, 7, 413882, tzinfo=timezone.utc)
     assert segment_file_name(now=now) == "2026-09-15_03-00-07-413882.mp4"
-    assert segment_file_name("cam0", now)  \
-        == "cam0_2026-09-15_03-00-07-413882.mp4"
+    assert segment_file_name("cam0", now) == "cam0_2026-09-15_03-00-07-413882.mp4"
     assert valid_segment_name(segment_file_name("cam0", now))
-    assert SEGMENT_NAME_RE.match(segment_file_name())        # now, UTC
+    assert SEGMENT_NAME_RE.match(segment_file_name())  # now, UTC
     later = now.replace(microsecond=413883)
     assert segment_file_name(now=now) < segment_file_name(now=later)
+
 
 def test_segments_by_seconds(tmp_path):
     results, names = _run(tmp_path, 7, 0, 0.45)

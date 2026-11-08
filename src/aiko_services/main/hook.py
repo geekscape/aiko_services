@@ -51,7 +51,8 @@
 from abc import abstractmethod
 from collections import OrderedDict as OrderedDictCollections
 from dataclasses import dataclass, field, is_dataclass
-from typing import Any, Callable, Dict, OrderedDict as OrderedDictTyping
+from typing import Any, Callable, Dict
+from typing import OrderedDict as OrderedDictTyping
 
 from aiko_services.main import *
 
@@ -61,6 +62,7 @@ ENABLED_DEFAULT = False
 
 # --------------------------------------------------------------------------- #
 
+
 @dataclass
 class HookHandler:
     function: Callable[[object, object, dict], None]
@@ -69,13 +71,14 @@ class HookHandler:
     def __post_init__(self):
         self.hash = hash(self.function) + hash(repr(self.options))
 
+
 @dataclass
 class Hook:
     name: str  # "component_name.hook_name:version"
     enabled: bool = ENABLED_DEFAULT
-    handlers: OrderedDictTyping[str, HookHandler] =  \
-                  field(default_factory=OrderedDictCollections)
+    handlers: OrderedDictTyping[str, HookHandler] = field(default_factory=OrderedDictCollections)
     invoked: int = 0
+
 
 class Hooks(Interface):
     """
@@ -85,6 +88,7 @@ class Hooks(Interface):
     2026-07-13 — previously a class-level dictionary shared by every
     Service in the process).  Local API only — hooks do not cross the wire
     """
+
     Interface.default("Hooks", "aiko_services.main.hook.HooksImpl")
 
     @abstractmethod
@@ -120,6 +124,7 @@ class Hooks(Interface):
     @abstractmethod
     def set_hook_enabled(self, hook_name, enabled_flag):
         """Enable or disable firing (also auto-managed by handler count)"""
+
 
 class HooksImpl(Hooks):
     def __init__(self, context, hooks=None):
@@ -172,15 +177,16 @@ class HooksImpl(Hooks):
             hook.invoked += 1
             for hook_handler in hook.handlers.values():
                 options = hook_handler.options
-                hook_handler.function(
-                    hook_name, component, logger, variables, options)
+                hook_handler.function(hook_name, component, logger, variables, options)
 
     def set_hook_enabled(self, hook_name, enabled_flag):
         hook = self.get_hook(hook_name)
         if hook:
             hook.enabled = enabled_flag
 
+
 # --------------------------------------------------------------------------- #
+
 
 def hook_function(hook_name, component, logger, variables, hook_options=None):
     show = variables
@@ -198,6 +204,7 @@ def hook_function(hook_name, component, logger, variables, hook_options=None):
 
             show[name] = value
     logger.info(f"Hook {hook_name}: {show}")
+
 
 DEFAULT_HOOK = hook_function
 

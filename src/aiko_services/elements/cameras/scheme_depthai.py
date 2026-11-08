@@ -29,8 +29,10 @@
 
 import aiko_services as aiko
 from aiko_services.elements.cameras import camera
-from aiko_services.elements.cameras.camera_oak_d import OakDCamera  # seam
-from aiko_services.elements.cameras.camera_oak_d import aux_stream_default
+from aiko_services.elements.cameras.camera_oak_d import (
+    OakDCamera,  # seam
+    aux_stream_default,
+)
 from aiko_services.elements.cameras.scheme_camera import DataSchemeCamera
 
 __all__ = ["DataSchemeDepthAI"]
@@ -40,13 +42,14 @@ DEFAULT_SETTLE = "30"
 
 # --------------------------------------------------------------------------- #
 
+
 class DataSchemeDepthAI(DataSchemeCamera):
     scheme = SCHEME
     camera_name = "OAK camera"
     default_settle = DEFAULT_SETTLE
 
     def _camera_class(self, settings):
-        camera_class = OakDCamera         # module global: tests patch it
+        camera_class = OakDCamera  # module global: tests patch it
         if not camera_class.available():
             raise RuntimeError(camera_class.diagnostic())
         return camera_class
@@ -54,14 +57,14 @@ class DataSchemeDepthAI(DataSchemeCamera):
     def _extra_settings(self, settings):
         value = self.pipeline_element.get_parameter("aux_stream", "auto")[0]
         if str(value).strip().lower() == "auto":
-            settings["aux_stream"] = aux_stream_default(
-                settings["resolution"])
+            settings["aux_stream"] = aux_stream_default(settings["resolution"])
         else:
             settings["aux_stream"] = camera.parse_bool(value, "aux_stream")
 
     def _start_warm_up(self, settings):
         self.settle = camera.SettleMonitor(settings["settle"])
         self._publish("aux_stream", str(settings["aux_stream"]).lower())
+
 
 aiko.DataScheme.add_data_scheme(SCHEME, DataSchemeDepthAI)
 

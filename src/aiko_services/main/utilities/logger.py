@@ -64,19 +64,23 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
 # * Add support for AIKO_LOG_REPEAT_DEPTH to handle multiple repeated messages
 
-from collections import deque
 import logging
-from logging.config import dictConfig
 import os
 import sys
 import time
+from collections import deque
 from typing import Any
 
 from aiko_services.main.utilities import *
 
 __all__ = [
-    "DEBUG", "get_level_name", "get_logger", "LoggingHandlerMQTT",
-    "log_level_all", "log_level_real", "print_error"
+    "DEBUG",
+    "get_level_name",
+    "get_logger",
+    "LoggingHandlerMQTT",
+    "log_level_all",
+    "log_level_real",
+    "print_error",
 ]
 
 DEBUG = logging.DEBUG
@@ -85,18 +89,19 @@ DEFAULT_LOG_REPEAT_PERIOD = "6"  # seconds for "AIKO_LOG_REPEAT_PERIOD"
 _RING_BUFFER_SIZE = 128  # Maximum log messages to store before MQTT available
 
 _LEVEL_NAMES = {
-    0: "LOG_LEVEL_NOTSET",        #  0
-    logging.DEBUG: "DEBUG",       # 10
-    logging.INFO: "INFO",         # 20
-    logging.WARNING: "WARNING",   # 30
-    logging.ERROR: "ERROR",       # 40
-    logging.CRITICAL: "CRITICAL"  # 50
+    0: "LOG_LEVEL_NOTSET",  #  0
+    logging.DEBUG: "DEBUG",  # 10
+    logging.INFO: "INFO",  # 20
+    logging.WARNING: "WARNING",  # 30
+    logging.ERROR: "ERROR",  # 40
+    logging.CRITICAL: "CRITICAL",  # 50
 }
 
 _LOG_FORMAT = "%(asctime)s.%(msecs)03d %(levelname) 8s"
 _LOG_FORMAT_DEBUG = f"{_LOG_FORMAT}s %(module)s.%(funcName)s() %(message)s"
 _LOG_FORMAT_DEFAULT = f"{_LOG_FORMAT} %(name)18s %(message)s"
 _LOG_FORMAT_DATETIME = "%Y-%m-%d_%H:%M:%S"
+
 
 def get_log_level_name(logger):
     if logger.level in _LEVEL_NAMES:
@@ -105,11 +110,12 @@ def get_log_level_name(logger):
         level_name = str(logger.level)
     return level_name
 
-def get_logger(name: str, log_level=None, logging_handler=None) -> Any:
-#   logging.basicConfig(filename="aiko.log")  # TODO: Implement logging to file
 
-    name = name.rpartition('.')[-1].upper()
-#   print(f"Create logger {name}: {log_level}, {logging_handler}")
+def get_logger(name: str, log_level=None, logging_handler=None) -> Any:
+    #   logging.basicConfig(filename="aiko.log")  # TODO: Implement logging to file
+
+    name = name.rpartition(".")[-1].upper()
+    #   print(f"Create logger {name}: {log_level}, {logging_handler}")
 
     if log_level is None:
         log_level = os.environ.get("AIKO_LOG_LEVEL", logging.INFO)
@@ -127,32 +133,33 @@ def get_logger(name: str, log_level=None, logging_handler=None) -> Any:
     logger.setLevel(log_level)
     return logger
 
+
 def log_level_all(log_level):
     return log_level.upper().endswith("_ALL")
+
 
 def log_level_real(log_level):  # Make uppercase and strip "_ALL" suffix
     log_level = log_level.upper()
     log_level = log_level[:-4] if log_level_all(log_level) else log_level
     return log_level
 
+
 def print_error(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
+
 # -----------------------------------------------------------------------------
 
-from aiko_services.main.connection import ConnectionState
 
 class LoggingHandlerMQTT(logging.Handler):
-    def __init__(
-        self, aiko, topic, option="all", ring_buffer_size=_RING_BUFFER_SIZE):
+    def __init__(self, aiko, topic, option="all", ring_buffer_size=_RING_BUFFER_SIZE):
 
         super().__init__()
         self.aiko = aiko
         self.console_flag = option == "all"
         self.topic = topic
 
-        self.repeated_period = os.environ.get(
-            "AIKO_LOG_REPEAT_PERIOD", DEFAULT_LOG_REPEAT_PERIOD)
+        self.repeated_period = os.environ.get("AIKO_LOG_REPEAT_PERIOD", DEFAULT_LOG_REPEAT_PERIOD)
         if self.repeated_period.isnumeric():
             self.repeated_period = int(self.repeated_period)
         else:
@@ -166,6 +173,8 @@ class LoggingHandlerMQTT(logging.Handler):
         aiko.connection.add_handler(self._connection_state_handler)
 
     def _connection_state_handler(self, connection, connection_state):
+        from aiko_services.main.connection import ConnectionState
+
         if connection.is_connected(ConnectionState.TRANSPORT):
             self.ready = True
             self._publish_ring_buffer()
@@ -173,13 +182,11 @@ class LoggingHandlerMQTT(logging.Handler):
             self.ready = False
 
     def __del__(self):
-        try:
-            pass  # TODO: release resources
-        except:
+        from contextlib import suppress
+
+        with suppress(Exception):  # TODO: release resources
             pass
-        try:
-            pass  # TODO: self.???? = None
-        except:
+        with suppress(Exception):  # TODO: self.???? = None
             pass
 
     def emit(self, record):  # record: logging.LogRecord has lots of details
@@ -204,8 +211,8 @@ class LoggingHandlerMQTT(logging.Handler):
             else:
                 self.ring_buffer.append(payload_out)
             self.flush()
-    # TODO: Catch specific Exceptions, don't hide other problems !
-        except Exception as exception:  # TODO: When does this occur ?
+        # TODO: Catch specific Exceptions, don't hide other problems !
+        except Exception:  # TODO: When does this occur ?
             self.handleError(record)  # TODO: Start buffering log records
 
     def _publish_ring_buffer(self):
@@ -215,10 +222,12 @@ class LoggingHandlerMQTT(logging.Handler):
 
     def _repeated_record(self, record):
         message = None
-        repeated = self.record_previous and  \
-                   self.record_previous.msg == record.msg and  \
-                   self.record_previous.name == record.name and  \
-                   self.record_previous.levelname == record.levelname
+        repeated = (
+            self.record_previous
+            and self.record_previous.msg == record.msg
+            and self.record_previous.name == record.name
+            and self.record_previous.levelname == record.levelname
+        )
         if self.repeated_period > 0 and repeated:
             self.record_repeat_count += 1
             if time.time() > self.record_time + self.repeated_period:
@@ -231,5 +240,6 @@ class LoggingHandlerMQTT(logging.Handler):
             self.record_repeat_count = 0
             self.record_time = time.time()
         return repeated, message
+
 
 # -----------------------------------------------------------------------------

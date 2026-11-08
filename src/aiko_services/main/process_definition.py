@@ -47,13 +47,18 @@
 # - An Entry of a Pipeline or an Agent, which is a process with more to
 #   say about it
 
-from collections import namedtuple
 import json
 import shlex
+from collections import namedtuple
 
 __all__ = [
-    "PROCESS_SCHEME", "Process", "command_line", "definition_json",
-    "is_process_entry", "process_of_entry", "process_url",
+    "PROCESS_SCHEME",
+    "Process",
+    "command_line",
+    "definition_json",
+    "is_process_entry",
+    "process_of_entry",
+    "process_url",
 ]
 
 PROCESS_SCHEME = "process:"
@@ -63,10 +68,12 @@ PROCESS_SCHEME = "process:"
 # runs in, or None for the ProcessManager's own
 Process = namedtuple("Process", "enabled command arguments cwd")
 
+
 def is_process_entry(entry):
     """Whether an Entry says anything about a process"""
 
     return str(getattr(entry, "storage_url", "")).startswith(PROCESS_SCHEME)
+
 
 def process_of_entry(entry):
     """(Process, diagnostic) from one Entry.  The Process is None when the
@@ -76,7 +83,7 @@ def process_of_entry(entry):
 
     if not is_process_entry(entry):
         return None, "not a process"
-    text = entry.storage_url[len(PROCESS_SCHEME):]
+    text = entry.storage_url[len(PROCESS_SCHEME) :]
     try:
         definition = json.loads(text)
     except ValueError as value_error:
@@ -92,10 +99,9 @@ def process_of_entry(entry):
     if isinstance(command, str):
         try:
             tokens = shlex.split(command)
-        except ValueError as value_error:          # an unbalanced quote
+        except ValueError as value_error:  # an unbalanced quote
             return None, f"command {value_error}"
-    elif isinstance(command, list) and  \
-        all(isinstance(token, str) for token in command):
+    elif isinstance(command, list) and all(isinstance(token, str) for token in command):
         tokens = list(command)
     else:
         return None, 'definition needs "command", a string or a list'
@@ -107,6 +113,7 @@ def process_of_entry(entry):
         return None, 'definition "cwd" must be a string'
     return Process(enabled, tokens[0], tokens[1:], cwd), ""
 
+
 def process_url(enabled, command, cwd=None):
     """The storage_url of an Entry that says what to run.  "command" is a
     command line, or the tokens of one"""
@@ -116,6 +123,7 @@ def process_url(enabled, command, cwd=None):
         definition["cwd"] = cwd
     return PROCESS_SCHEME + json.dumps(definition, sort_keys=True)
 
+
 def command_line(process):
     """What a person reads, and what a running process is matched by"""
 
@@ -123,17 +131,18 @@ def command_line(process):
         return ""
     return " ".join([process.command, *process.arguments])
 
+
 def definition_json(processes):
     """The JSON that "aiko_process run definition.json" reads, from each
     Process of a Category, in the order given"""
 
     entries = []
     for process in processes:
-        entry = {"enabled": process.enabled,
-            "command": command_line(process)}
+        entry = {"enabled": process.enabled, "command": command_line(process)}
         if process.cwd:
             entry["cwd"] = process.cwd
         entries.append(entry)
     return json.dumps(entries, indent=2)
+
 
 # --------------------------------------------------------------------------- #

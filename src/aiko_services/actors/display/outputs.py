@@ -28,44 +28,62 @@
 # - Output worker thread for the SSD1306, if frame_ms measurements demand
 # - PanelsOutputImpl: both panels as one display (Epic 1 phase 4)
 
-from abc import abstractmethod
-from dataclasses import dataclass
 import importlib.util
 import os
-from pathlib import Path
 import shutil
 import sys
 import time
+from abc import abstractmethod
+from dataclasses import dataclass
+from pathlib import Path
 
 from PIL import Image, ImageChops, ImageColor, ImageDraw
 
 import aiko_services as aiko
-
 from aiko_services.actors.display.graphics import HEIGHT, INK, WIDTH, blank
 
 __all__ = [
-    "ADDRESSES", "KEY_DOWN_RENEW", "OUTPUTS", "Appearance", "ascii_lines", "DisplayNotFound", "FakeOutputImpl",
-    "NullOutputImpl", "Output", "OutputControls", "PngOutputImpl",
-    "Ssd1306OutputImpl", "TerminalOutputImpl", "WindowOutputImpl",
-    "choose_output", "fake_output", "output_args", "parse_colors", "scan_i2c",
-    "text_lines", "xterm_color",
+    "ADDRESSES",
+    "KEY_DOWN_RENEW",
+    "OUTPUTS",
+    "Appearance",
+    "ascii_lines",
+    "DisplayNotFound",
+    "FakeOutputImpl",
+    "NullOutputImpl",
+    "Output",
+    "OutputControls",
+    "PngOutputImpl",
+    "Ssd1306OutputImpl",
+    "TerminalOutputImpl",
+    "WindowOutputImpl",
+    "choose_output",
+    "fake_output",
+    "output_args",
+    "parse_colors",
+    "scan_i2c",
+    "text_lines",
+    "xterm_color",
 ]
 
 ADDRESSES = (0x3C, 0x3D)  # the two addresses an SSD1306 can have (SA0 pin)
 OUTPUTS = ("auto", "oled", "window", "terminal", "png", "none")
 PNG_PERIOD = 1.0  # seconds between PNG files, at most
 KEY_DOWN_RENEW = 1.0  # seconds: a client repeats "down" for a key still held
-                      # (the Actor lets go after display.KEY_DOWN_MAXIMUM)
+# (the Actor lets go after display.KEY_DOWN_MAXIMUM)
 
 # SSD1306 raw commands, sent directly so the display memory is left alone
 _INVERT, _NORMAL = 0xA7, 0xA6
 _ALL_ON, _ALL_OFF = 0xA5, 0xA4
 
+
 class DisplayNotFound(OSError):
     """The output can't be opened: no OLED at the I2C address, a library
     isn't installed, no desktop for a window, ..."""
 
+
 # The emulation ------------------------------------------------------------ #
+
 
 @dataclass
 class Appearance:
@@ -93,8 +111,7 @@ class Appearance:
         contrast (as far as a quarter)"""
 
         level = 0.25 + 0.75 * self.brightness / 255
-        return tuple(round(back + (fore - back) * level)
-            for fore, back in zip(self.foreground, self.background))
+        return tuple(round(back + (fore - back) * level) for fore, back in zip(self.foreground, self.background))
 
     def colored(self, image):
         """An RGB image of lit and unlit pixels in the colors, dimmed by
@@ -104,8 +121,18 @@ class Appearance:
         unlit = Image.new("RGB", image.size, self.background)
         return Image.composite(lit, unlit, image)
 
-BRAILLE_DOTS = {(0, 0): 0x01, (0, 1): 0x02, (0, 2): 0x04, (1, 0): 0x08,
-                (1, 1): 0x10, (1, 2): 0x20, (0, 3): 0x40, (1, 3): 0x80}
+
+BRAILLE_DOTS = {
+    (0, 0): 0x01,
+    (0, 1): 0x02,
+    (0, 2): 0x04,
+    (1, 0): 0x08,
+    (1, 1): 0x10,
+    (1, 2): 0x20,
+    (0, 3): 0x40,
+    (1, 3): 0x80,
+}
+
 
 def text_lines(image, blocks=True):
     """A one-bit picture as rows of text: Unicode half blocks (2 pixel rows
@@ -113,14 +140,22 @@ def text_lines(image, blocks=True):
 
     lit = image.load()
     if blocks:
-        return ["".join(" ▀▄█"[(lit[x, y] > 0) + 2 * (lit[x, y + 1] > 0)]
-            for x in range(image.width)) for y in range(0, image.height, 2)]
-    return ["".join(chr(0x2800 + sum(bit
-        for (dx, dy), bit in BRAILLE_DOTS.items() if lit[x + dx, y + dy]))
-        for x in range(0, image.width, 2)) for y in range(0, image.height, 4)]
+        return [
+            "".join(" ▀▄█"[(lit[x, y] > 0) + 2 * (lit[x, y + 1] > 0)] for x in range(image.width))
+            for y in range(0, image.height, 2)
+        ]
+    return [
+        "".join(
+            chr(0x2800 + sum(bit for (dx, dy), bit in BRAILLE_DOTS.items() if lit[x + dx, y + dy]))
+            for x in range(0, image.width, 2)
+        )
+        for y in range(0, image.height, 4)
+    ]
 
-ASCII_PAIRS = " '.:"         # top pixel, bottom pixel, both
-ASCII_SHADES = " .:#"        # lit pixels in a 2x4 cell: 0, 1-2, 3-5, 6-8
+
+ASCII_PAIRS = " '.:"  # top pixel, bottom pixel, both
+ASCII_SHADES = " .:#"  # lit pixels in a 2x4 cell: 0, 1-2, 3-5, 6-8
+
 
 def ascii_lines(image, blocks=True):
     """A one-bit picture as rows of plain ASCII, for a terminal that isn't
@@ -129,12 +164,19 @@ def ascii_lines(image, blocks=True):
 
     lit = image.load()
     if blocks:
-        return ["".join(ASCII_PAIRS[(lit[x, y] > 0) + 2 * (lit[x, y + 1] > 0)]
-            for x in range(image.width)) for y in range(0, image.height, 2)]
+        return [
+            "".join(ASCII_PAIRS[(lit[x, y] > 0) + 2 * (lit[x, y + 1] > 0)] for x in range(image.width))
+            for y in range(0, image.height, 2)
+        ]
     shade = (0, 1, 1, 2, 2, 2, 3, 3, 3)
-    return ["".join(ASCII_SHADES[shade[sum(1 for dx, dy in BRAILLE_DOTS
-                                           if lit[x + dx, y + dy])]]
-        for x in range(0, image.width, 2)) for y in range(0, image.height, 4)]
+    return [
+        "".join(
+            ASCII_SHADES[shade[sum(1 for dx, dy in BRAILLE_DOTS if lit[x + dx, y + dy])]]
+            for x in range(0, image.width, 2)
+        )
+        for y in range(0, image.height, 4)
+    ]
+
 
 def xterm_color(rgb):
     """The nearest of the xterm 256 colors (the 6x6x6 color cube or the
@@ -151,7 +193,9 @@ def xterm_color(rgb):
         return 16 + 36 * cube[0] + 6 * cube[1] + cube[2]
     return 232 + grey
 
+
 # The Interfaces ----------------------------------------------------------- #
+
 
 class Output(aiko.Interface):
     """
@@ -192,14 +236,14 @@ class Output(aiko.Interface):
     def message(self, text):
         """A status line beside the picture, where there is room for one"""
 
+
 class OutputControls(aiko.Interface):
     """
     The glass: the panel's own settings.  An emulated output imitates them
     by changing the picture it shows; the SSD1306 sends its commands.
     """
 
-    aiko.Interface.default(
-        "OutputControls", "aiko_services.actors.display.outputs.NullOutputImpl")
+    aiko.Interface.default("OutputControls", "aiko_services.actors.display.outputs.NullOutputImpl")
 
     @abstractmethod
     def contrast(self, value):
@@ -221,7 +265,9 @@ class OutputControls(aiko.Interface):
     def set_colors(self, foreground=None, background=None):
         """Colors of lit and unlit pixels (RGB tuples): emulated outputs"""
 
+
 # The Impls ---------------------------------------------------------------- #
+
 
 class NullOutputImpl(Output, OutputControls):
     """No output at all: the Actor still works (share, applets).  The
@@ -270,6 +316,7 @@ class NullOutputImpl(Output, OutputControls):
     def set_colors(self, foreground=None, background=None):
         self.appearance.foreground = foreground or self.appearance.foreground
         self.appearance.background = background or self.appearance.background
+
 
 class _Emulated:
     """The shared emulation for the outputs that draw a picture: the
@@ -320,6 +367,7 @@ class _Emulated:
             for handler in self._handlers:
                 handler(event)
 
+
 class FakeOutputImpl(_Emulated, Output, OutputControls):
     """Records every frame and control call: the test double.  "show_delay"
     imitates a slow device; "events" is what the next pump() delivers"""
@@ -329,13 +377,13 @@ class FakeOutputImpl(_Emulated, Output, OutputControls):
 
     def __init__(self, context, show_delay=0.0, fail_open=False, **_):
         self._emulate()
-        self.frames = []     # every frame shown, in order
-        self.controls = []   # ("contrast", 128), ("power", False), ...
+        self.frames = []  # every frame shown, in order
+        self.controls = []  # ("contrast", 128), ("power", False), ...
         self.show_delay = show_delay
         self.fail_open = fail_open
         self.opened = self.closed = False
         self.blanked = False
-        self.events = []     # what pump() delivers next, e.g. ("tap", "g")
+        self.events = []  # what pump() delivers next, e.g. ("tap", "g")
 
     def open(self):
         if self.fail_open:
@@ -386,6 +434,7 @@ class FakeOutputImpl(_Emulated, Output, OutputControls):
     def background(self):
         return self.appearance.background
 
+
 class Ssd1306OutputImpl(Output, OutputControls):
     """The SSD1306 on an I2C bus, driven by luma.oled.  No window events
     and no message: the default Impl's no-ops"""
@@ -393,11 +442,10 @@ class Ssd1306OutputImpl(Output, OutputControls):
     name = "oled"
     device = "-"
 
-    def __init__(self, context, address=ADDRESSES[0], bus=1, width=WIDTH,
-                 height=HEIGHT, **_):
+    def __init__(self, context, address=ADDRESSES[0], bus=1, width=WIDTH, height=HEIGHT, **_):
         self.address, self.bus = address, bus
         self.width, self.height = width, height
-        self.appearance = Appearance()   # tracked, though the glass shows it
+        self.appearance = Appearance()  # tracked, though the glass shows it
         self._device = None
 
     def open(self):
@@ -406,16 +454,13 @@ class Ssd1306OutputImpl(Output, OutputControls):
             from luma.core.interface.serial import i2c
             from luma.oled.device import ssd1306
         except ImportError as error:
-            raise DisplayNotFound(
-                f"luma.oled isn't installed ({error}): pip install luma.oled")
+            raise DisplayNotFound(f"luma.oled isn't installed ({error}): pip install luma.oled") from error
         try:
             serial = i2c(port=self.bus, address=self.address)
             self._device = ssd1306(serial, width=self.width, height=self.height)
         except (DeviceNotFoundError, OSError) as error:
             self._device = None
-            raise DisplayNotFound(
-                f"no SSD1306 at 0x{self.address:02X} on I2C bus {self.bus}: "
-                f"{error}")
+            raise DisplayNotFound(f"no SSD1306 at 0x{self.address:02X} on I2C bus {self.bus}: {error}") from error
         self.device = f"ssd1306@0x{self.address:02X}/i2c{self.bus}"
 
     def show(self, image):
@@ -450,6 +495,7 @@ class Ssd1306OutputImpl(Output, OutputControls):
                 self._device.hide()
             self._device = None
 
+
 def scan_i2c(bus=1, addresses=ADDRESSES):
     """The addresses that answer on the bus, for a hint when the OLED isn't
     found; [] when smbus2 isn't installed"""
@@ -471,6 +517,7 @@ def scan_i2c(bus=1, addresses=ADDRESSES):
         pass
     return found
 
+
 class WindowOutputImpl(_Emulated, Output, OutputControls):
     """An emulated panel in a desktop window (pygame), with dark gaps
     between the pixels.  Esc or closing the window is delivered as "quit";
@@ -485,7 +532,7 @@ class WindowOutputImpl(_Emulated, Output, OutputControls):
         self.scale = scale
         self.pygame = None
         self._events = []
-        self._arrows_down = {}       # arrow: monotonic time "down" last sent
+        self._arrows_down = {}  # arrow: monotonic time "down" last sent
 
     def open(self):
         os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
@@ -499,16 +546,14 @@ class WindowOutputImpl(_Emulated, Output, OutputControls):
         try:
             import pygame
         except ImportError as error:
-            raise DisplayNotFound(
-                f"pygame isn't installed ({error}): pip install pygame")
+            raise DisplayNotFound(f"pygame isn't installed ({error}): pip install pygame") from error
         try:
             pygame.display.init()
-            pygame.display.set_caption(
-                f"Aiko Services: OLED {self.frame.width}x{self.frame.height}")
+            pygame.display.set_caption(f"Aiko Services: OLED {self.frame.width}x{self.frame.height}")
             size = (self.frame.width * self.scale, self.frame.height * self.scale)
             self._window = pygame.display.set_mode(size)
         except pygame.error as error:
-            raise DisplayNotFound(f"no window: {error}")
+            raise DisplayNotFound(f"no window: {error}") from error
         self.pygame = pygame
         self._grid = Image.new("1", size, INK)  # lit pixels, less a 1 px gap
         draw = ImageDraw.Draw(self._grid)
@@ -531,11 +576,9 @@ class WindowOutputImpl(_Emulated, Output, OutputControls):
 
     def _collect(self):
         pygame = self.pygame
-        arrows = {pygame.K_UP: "up", pygame.K_DOWN: "down",
-                  pygame.K_LEFT: "left", pygame.K_RIGHT: "right"}
+        arrows = {pygame.K_UP: "up", pygame.K_DOWN: "down", pygame.K_LEFT: "left", pygame.K_RIGHT: "right"}
         for event in pygame.event.get():
-            if event.type == pygame.QUIT or (
-                    event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+            if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
                 self._events.append("quit")
             elif event.type in (pygame.KEYDOWN, pygame.KEYUP):
                 state = "down" if event.type == pygame.KEYDOWN else "up"
@@ -545,8 +588,7 @@ class WindowOutputImpl(_Emulated, Output, OutputControls):
                         self._arrows_down[arrows[event.key]] = time.monotonic()
                     else:
                         self._arrows_down.pop(arrows[event.key], None)
-                elif state == "down" and len(event.unicode) == 1  \
-                        and event.unicode.isprintable():
+                elif state == "down" and len(event.unicode) == 1 and event.unicode.isprintable():
                     self._events.append(("tap", event.unicode))
 
     def pump(self):
@@ -564,6 +606,7 @@ class WindowOutputImpl(_Emulated, Output, OutputControls):
         if self.pygame is not None:
             self.pygame.quit()
             self.pygame = None
+
 
 class TerminalOutputImpl(_Emulated, Output, OutputControls):
     """An emulated panel in the terminal, drawn with Unicode half blocks:
@@ -599,10 +642,8 @@ class TerminalOutputImpl(_Emulated, Output, OutputControls):
     def render(self, image):
         if not self._opened:
             return
-        colors = f"38;5;{xterm_color(self.appearance.lit_color())};"  \
-                 f"48;5;{xterm_color(self.appearance.background)}"
-        self.stream.write(f"\x1b[H\x1b[{colors}m" + "\n".join(self.lines(image))
-            + f"\x1b[0m\n\x1b[K{self._message}")
+        colors = f"38;5;{xterm_color(self.appearance.lit_color())};48;5;{xterm_color(self.appearance.background)}"
+        self.stream.write(f"\x1b[H\x1b[{colors}m" + "\n".join(self.lines(image)) + f"\x1b[0m\n\x1b[K{self._message}")
         self.stream.flush()
 
     def pump(self):
@@ -617,6 +658,7 @@ class TerminalOutputImpl(_Emulated, Output, OutputControls):
             self.stream.write("\x1b[0m\x1b[?25h\n")  # colors and cursor back
             self.stream.flush()
             self._opened = False
+
 
 class PngOutputImpl(_Emulated, Output, OutputControls):
     """The latest frame, saved as a PNG file at 4 times the size (at most
@@ -641,8 +683,7 @@ class PngOutputImpl(_Emulated, Output, OutputControls):
 
     def _save(self):
         if self._pending is not None:
-            picture = self._pending.resize(
-                (self._pending.width * 4, self._pending.height * 4), Image.NEAREST)
+            picture = self._pending.resize((self._pending.width * 4, self._pending.height * 4), Image.NEAREST)
             self.appearance.colored(picture).save(self.path)
             self._saved_at = time.monotonic()
             self._pending = None
@@ -656,17 +697,21 @@ class PngOutputImpl(_Emulated, Output, OutputControls):
     def close(self, blank_first=True):
         self._save()
 
+
 # Composition -------------------------------------------------------------- #
+
 
 def output_args(**parameters):
     """init_args for composing an output Impl (like ec_consumer_args)"""
 
     return {"context": aiko.Context(), **parameters}
 
+
 def fake_output(**parameters):
     """A composed FakeOutputImpl: the test double"""
 
     return aiko.compose_instance(FakeOutputImpl, output_args(**parameters))
+
 
 def parse_colors(text):
     """(foreground, background) RGB tuples from "yellow", "yellow navy" or
@@ -675,10 +720,10 @@ def parse_colors(text):
 
     names = str(text).replace(",", " ").split()
     if not 1 <= len(names) <= 2:
-        raise ValueError(
-            "give a foreground color and optionally a background color")
+        raise ValueError("give a foreground color and optionally a background color")
     colors = [ImageColor.getrgb(name)[:3] for name in names]
     return colors[0], (colors[1] if len(colors) == 2 else None)
+
 
 def choose_output(output="auto", address=ADDRESSES[0], bus=1, png_path=None):
     """The composed output for an --output choice.  "auto": the OLED when
@@ -686,8 +731,7 @@ def choose_output(output="auto", address=ADDRESSES[0], bus=1, png_path=None):
     else the terminal.  Nothing is imported or opened here: see open()"""
 
     if output == "auto":
-        has_desktop = sys.platform == "darwin" or os.environ.get("DISPLAY")  \
-            or os.environ.get("WAYLAND_DISPLAY")
+        has_desktop = sys.platform == "darwin" or os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
         if Path(f"/dev/i2c-{bus}").exists():
             output = "oled"
         elif has_desktop and importlib.util.find_spec("pygame"):

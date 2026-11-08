@@ -5,5 +5,4 @@
 # - None, yet !
 
 from .storage import Storage
-
 from .storage_file import StorageFileImpl

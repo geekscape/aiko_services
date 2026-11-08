@@ -21,16 +21,14 @@ from abc import abstractmethod
 import numpy
 
 import aiko_services as aiko
-
 from aiko_services.actors.whisplay.frame import IMAGE_SIZE
 
-__all__ = [
-    "Camera", "CameraNotFound", "FakeCameraImpl", "Picamera2CameraImpl",
-    "camera_args", "choose_camera"
-]
+__all__ = ["Camera", "CameraNotFound", "FakeCameraImpl", "Picamera2CameraImpl", "camera_args", "choose_camera"]
+
 
 class CameraNotFound(OSError):
     """No camera, or no bindings to reach one"""
+
 
 class Camera(aiko.Interface):
     """Where frames come from.  open(size) acquires the camera at that
@@ -38,8 +36,7 @@ class Camera(aiko.Interface):
     HxWx3 array of RGB, and close() releases it.  Every function is called
     from the Actor's own worker thread, which owns this object"""
 
-    aiko.Interface.default(
-        "Camera", "aiko_services.actors.whisplay.camera.FakeCameraImpl")
+    aiko.Interface.default("Camera", "aiko_services.actors.whisplay.camera.FakeCameraImpl")
 
     @abstractmethod
     def open(self, size=IMAGE_SIZE):
@@ -52,6 +49,7 @@ class Camera(aiko.Interface):
     @abstractmethod
     def close(self):
         """Release the camera"""
+
 
 class FakeCameraImpl(Camera):
     """No camera: the default Impl, and the test double.  capture() returns
@@ -69,12 +67,13 @@ class FakeCameraImpl(Camera):
     def capture(self):
         width, height = self.size
         frame = numpy.zeros((height, width, 3), dtype=numpy.uint8)
-        frame[:, :, self.captures % 3] = 255       # A different plane each time
+        frame[:, :, self.captures % 3] = 255  # A different plane each time
         self.captures += 1
         return frame
 
     def close(self):
         pass
+
 
 class Picamera2CameraImpl(Camera):
     """A Raspberry Pi camera, through picamera2"""
@@ -87,16 +86,18 @@ class Picamera2CameraImpl(Camera):
 
     def open(self, size=IMAGE_SIZE):
         try:
-            from picamera2 import Picamera2         # only needed here
+            from picamera2 import Picamera2  # only needed here
         except ImportError as import_error:
             raise CameraNotFound(
                 "picamera2 is not available: a virtual environment needs "
-                f'"--system-site-packages" to reach it ({import_error})')
+                f'"--system-site-packages" to reach it ({import_error})'
+            ) from import_error
 
         self.size = size
         self._camera = Picamera2()
-        self._camera.configure(self._camera.create_preview_configuration(
-            main={"size": tuple(size), "format": "RGB888"}))
+        self._camera.configure(
+            self._camera.create_preview_configuration(main={"size": tuple(size), "format": "RGB888"})
+        )
         self._camera.start()
 
     def capture(self):
@@ -110,12 +111,15 @@ class Picamera2CameraImpl(Camera):
             self._camera.close()
             self._camera = None
 
+
 # Composition -------------------------------------------------------------- #
+
 
 def camera_args(**parameters):
     """init_args for composing a Camera Impl"""
 
     return {"context": aiko.Context(), **parameters}
+
 
 def choose_camera(camera="auto", **parameters):
     """The composed Camera.  "auto" is a Raspberry Pi camera where picamera2
@@ -130,5 +134,6 @@ def choose_camera(camera="auto", **parameters):
     if camera not in impls:
         raise ValueError(f'unknown camera "{camera}": one of {sorted(impls)}')
     return aiko.compose_instance(impls[camera], camera_args(**parameters))
+
 
 # --------------------------------------------------------------------------- #

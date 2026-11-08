@@ -51,25 +51,28 @@ import numpy as np
 import aiko_services as aiko
 from aiko_services.elements.cameras import camera
 
-__all__ = ["Dewarper", "ImageDewarp", "load_calibration",
-           "scale_camera_matrix"]
+__all__ = ["Dewarper", "ImageDewarp", "load_calibration", "scale_camera_matrix"]
 
 _CV2_IMPORTED = False
 try:
     import cv2
+
     _CV2_IMPORTED = True
 except ModuleNotFoundError:
     cv2 = None
-_CV2_DIAGNOSTIC = "image_dewarp.py: OpenCV is needed: "  \
-                  "pip install opencv-python"
+_CV2_DIAGNOSTIC = "image_dewarp.py: OpenCV is needed: pip install opencv-python"
 
 COEFFICIENT_COUNTS = (4, 5, 8, 12, 14)
-INITIAL_SHARE = {                  # never a parameter name: the framework
-    "image_size": "-", "coefficients": "0", "frames": "0",  # reads share
-    "maps": "0", "last_error": "-"                          # first
+INITIAL_SHARE = {  # never a parameter name: the framework
+    "image_size": "-",
+    "coefficients": "0",
+    "frames": "0",  # reads share
+    "maps": "0",
+    "last_error": "-",  # first
 }
 
 # --------------------------------------------------------------------------- #
+
 
 def load_calibration(path):
     """--> (camera_matrix 3x3 float64, dist_coeffs 1xN float64,
@@ -80,34 +83,34 @@ def load_calibration(path):
         with open(os.path.expanduser(str(path))) as file:
             calibration = json.load(file)
     except OSError as os_error:
-        raise ValueError(f'calibration "{path}": {os_error}')
+        raise ValueError(f'calibration "{path}": {os_error}') from os_error
     except ValueError as value_error:
-        raise ValueError(f'calibration "{path}": bad JSON: {value_error}')
+        raise ValueError(f'calibration "{path}": bad JSON: {value_error}') from value_error
     if not isinstance(calibration, dict):
         raise ValueError(f'calibration "{path}": not a JSON object')
     try:
         camera_matrix = np.array(calibration["camera_matrix"], dtype=float)
-        dist_coeffs = np.array(calibration["dist_coeffs"],
-                               dtype=float).reshape(1, -1)
+        dist_coeffs = np.array(calibration["dist_coeffs"], dtype=float).reshape(1, -1)
     except (KeyError, TypeError, ValueError) as error:
-        raise ValueError(f'calibration "{path}": camera_matrix (3x3) and '
-                         f'dist_coeffs (a list) are required: {error}')
+        raise ValueError(
+            f'calibration "{path}": camera_matrix (3x3) and dist_coeffs (a list) are required: {error}'
+        ) from error
     if camera_matrix.shape != (3, 3):
         raise ValueError(f'calibration "{path}": camera_matrix must be 3x3')
     if dist_coeffs.shape[1] not in COEFFICIENT_COUNTS:
-        raise ValueError(f'calibration "{path}": dist_coeffs must hold '
-                         f'{", ".join(map(str, COEFFICIENT_COUNTS))} values')
+        raise ValueError(
+            f'calibration "{path}": dist_coeffs must hold {", ".join(map(str, COEFFICIENT_COUNTS))} values'
+        )
     image_size = calibration.get("image_size")
     if image_size is not None:
         try:
             image_size = (int(image_size[0]), int(image_size[1]))
-        except (TypeError, ValueError, IndexError):
-            raise ValueError(
-                f'calibration "{path}": image_size must be [width, height]')
+        except (TypeError, ValueError, IndexError) as error:
+            raise ValueError(f'calibration "{path}": image_size must be [width, height]') from error
         if image_size[0] <= 0 or image_size[1] <= 0:
-            raise ValueError(f'calibration "{path}": image_size must be '
-                             'positive')
+            raise ValueError(f'calibration "{path}": image_size must be positive')
     return camera_matrix, dist_coeffs, image_size
+
 
 def scale_camera_matrix(camera_matrix, from_size, to_size):
     """The camera matrix for a frame of to_size (w, h) when the fit was
@@ -123,6 +126,7 @@ def scale_camera_matrix(camera_matrix, from_size, to_size):
     scaled[1, 2] *= height_ratio
     return scaled
 
+
 class Dewarper:
     """One calibration and its cached remap tables per frame size and
     alpha; the element delegates to it, so it is testable without a
@@ -137,8 +141,7 @@ class Dewarper:
         self._maps = {}
 
     def load(self, path):
-        self.camera_matrix, self.dist_coeffs, self.image_size =  \
-            load_calibration(path)
+        self.camera_matrix, self.dist_coeffs, self.image_size = load_calibration(path)
         self.path = str(path)
         self._maps.clear()
 
@@ -167,13 +170,11 @@ class Dewarper:
                 raise RuntimeError(_CV2_DIAGNOSTIC)
             camera_matrix = self.camera_matrix
             if self.image_size and tuple(self.image_size) != key[:2]:
-                camera_matrix = scale_camera_matrix(
-                    camera_matrix, self.image_size, key[:2])
-            new_matrix, _ = cv2.getOptimalNewCameraMatrix(
-                camera_matrix, self.dist_coeffs, key[:2], self.alpha)
+                camera_matrix = scale_camera_matrix(camera_matrix, self.image_size, key[:2])
+            new_matrix, _ = cv2.getOptimalNewCameraMatrix(camera_matrix, self.dist_coeffs, key[:2], self.alpha)
             self._maps[key] = cv2.initUndistortRectifyMap(
-                camera_matrix, self.dist_coeffs, None, new_matrix, key[:2],
-                cv2.CV_16SC2)
+                camera_matrix, self.dist_coeffs, None, new_matrix, key[:2], cv2.CV_16SC2
+            )
         return self._maps[key]
 
     def apply(self, image):
@@ -181,7 +182,9 @@ class Dewarper:
         map_1, map_2 = self.maps((image.shape[1], image.shape[0]))
         return cv2.remap(image, map_1, map_2, cv2.INTER_LINEAR)
 
+
 # --------------------------------------------------------------------------- #
+
 
 class ImageDewarp(aiko.PipelineElement):
     def __init__(self, context):
@@ -198,8 +201,7 @@ class ImageDewarp(aiko.PipelineElement):
             return aiko.StreamEvent.ERROR, {"diagnostic": _CV2_DIAGNOSTIC}
         path, found = self.get_parameter("calibration_path", None)
         if not found or not path:
-            diagnostic = 'ImageDewarp requires the "calibration_path" '  \
-                         "parameter"
+            diagnostic = 'ImageDewarp requires the "calibration_path" parameter'
             return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
         alpha, _ = self.get_parameter("alpha", 0.0)
         try:
@@ -236,16 +238,15 @@ class ImageDewarp(aiko.PipelineElement):
     def _publish_calibration(self):
         dewarper = self.dewarper
         self._publish("calibration_path", dewarper.path)
-        self._publish("image_size", "-" if dewarper.image_size is None
-                      else f"{dewarper.image_size[0]}x"
-                           f"{dewarper.image_size[1]}")
+        self._publish(
+            "image_size", "-" if dewarper.image_size is None else f"{dewarper.image_size[0]}x{dewarper.image_size[1]}"
+        )
         self._publish("coefficients", dewarper.dist_coeffs.shape[1])
         self._publish("alpha", dewarper.alpha)
         self._publish("maps", dewarper.map_count)
 
     def _publish_error(self, error):
-        self._publish("last_error", f"{camera.share_token(error)}@"
-                                    f"{camera.utc_now()}")
+        self._publish("last_error", f"{camera.share_token(error)}@{camera.utc_now()}")
 
     def _ec_producer_change_handler(self, command, item_name, item_value):
         if command != "update" or self._publishing:
@@ -261,7 +262,7 @@ class ImageDewarp(aiko.PipelineElement):
                     self._publish_calibration()
         except (TypeError, ValueError) as error:
             self._publish_error(error)
-            self.logger.warning(
-                f"share update {item_name}={item_value!r} rejected: {error}")
+            self.logger.warning(f"share update {item_name}={item_value!r} rejected: {error}")
+
 
 # --------------------------------------------------------------------------- #

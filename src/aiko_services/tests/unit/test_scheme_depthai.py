@@ -17,17 +17,14 @@ import time
 import pytest
 
 import aiko_services as aiko
-from aiko_services.elements.cameras import camera
-from aiko_services.elements.cameras import scheme_camera
-from aiko_services.elements.cameras import scheme_depthai
+from aiko_services.elements.cameras import camera, scheme_camera, scheme_depthai
 from aiko_services.elements.cameras.scheme_depthai import DataSchemeDepthAI
-from aiko_services.tests.unit.fake_camera import (
-    FakeCamera, StubElement, do_fake_initialize
-)
+from aiko_services.tests.unit.fake_camera import FakeCamera, StubElement, do_fake_initialize
 
-ADDRESS = "192.0.2.10"        # RFC 5737 documentation address
+ADDRESS = "192.0.2.10"  # RFC 5737 documentation address
 
 # --------------------------------------------------------------------------- #
+
 
 class FakeAtexit:
     """atexit with the registered callables visible"""
@@ -41,16 +38,17 @@ class FakeAtexit:
     def unregister(self, handler):
         self.handlers = [h for h in self.handlers if h != handler]
 
+
 @pytest.fixture
 def fake(monkeypatch):
     do_fake_initialize()
     monkeypatch.setattr(scheme_depthai, "OakDCamera", FakeCamera)
-    monkeypatch.setattr(scheme_camera.DataSchemeCamera, "CAPTURE_THREAD",
-                        False)          # frame_generator() captures: steps
+    monkeypatch.setattr(scheme_camera.DataSchemeCamera, "CAPTURE_THREAD", False)  # frame_generator() captures: steps
     FakeCamera.ATEXIT = FakeAtexit()
     monkeypatch.setattr(scheme_camera, "atexit", FakeCamera.ATEXIT)
     yield FakeCamera
     do_fake_initialize()
+
 
 def make_scheme(parameters=None):
     element = StubElement(parameters)
@@ -58,27 +56,29 @@ def make_scheme(parameters=None):
     stream = aiko.Stream(stream_id="1")
     return scheme, element, stream
 
+
 def start(parameters=None, url="depthai://"):
     scheme, element, stream = make_scheme(parameters)
     event, detail = scheme.create_sources(stream, [url])
     return scheme, element, stream, event, detail
 
+
 def stop(scheme, stream):
     scheme.destroy_sources(stream)
     assert not scheme._timer_armed and not scheme._handler_armed
-    assert FakeCamera.ATEXIT.handlers == []          # unregistered
+    assert FakeCamera.ATEXIT.handlers == []  # unregistered
+
 
 # --------------------------------------------------------------------------- #
+
 
 def test_scheme_registered():
     assert aiko.DataScheme.LOOKUP["depthai"] is DataSchemeDepthAI
 
+
 def test_url_forms(fake):
-    for url, expected in (("depthai://", None),
-                          (f"depthai://{ADDRESS}", ADDRESS),
-                          (f"depthai:{ADDRESS}", ADDRESS)):
-        scheme, element, stream, event, _ = start(
-            {"settle": 0, "frame_rate": 100}, url)
+    for url, expected in (("depthai://", None), (f"depthai://{ADDRESS}", ADDRESS), (f"depthai:{ADDRESS}", ADDRESS)):
+        scheme, element, stream, event, _ = start({"settle": 0, "frame_rate": 100}, url)
         assert event == aiko.StreamEvent.OKAY, url
         assert fake.INSTANCES[-1].address == expected
         assert element.share["address"] == (expected or "-")
@@ -87,12 +87,13 @@ def test_url_forms(fake):
     scheme, _, stream, event, detail = start(url="depthai://?fps=2")
     assert event == aiko.StreamEvent.ERROR
     assert "URL options" in detail["diagnostic"]
-    assert len(fake.INSTANCES) == constructed       # rejected before open
+    assert len(fake.INSTANCES) == constructed  # rejected before open
+
 
 def test_create_sources_with_fake_camera(fake):
-    scheme, element, stream, event, _ = start({
-        "resolution": "640x480", "frame_rate": "30/1", "settle": 0,
-        "resize_mode": "letterbox", "aux_stream": "false"})
+    scheme, element, stream, event, _ = start(
+        {"resolution": "640x480", "frame_rate": "30/1", "settle": 0, "resize_mode": "letterbox", "aux_stream": "false"}
+    )
     assert event == aiko.StreamEvent.OKAY
     instance = fake.INSTANCES[-1]
     assert instance.opened and instance.address is None
@@ -102,15 +103,16 @@ def test_create_sources_with_fake_camera(fake):
     assert element.create_frames_calls == [(scheme.frame_generator, None)]
     assert element.share["device_id"] == "fake-0"
     assert element.share["sdk_version"] == "fake-1.0"
-    assert element.share["resolution"] == "640x480"     # the parameter
+    assert element.share["resolution"] == "640x480"  # the parameter
     assert element.share["sensor.resolution"] == "640x480"  # delivered
     assert element.share["frame_rate"] == "30.0"
-    assert element.share["state"] == "streaming"    # settle 0
+    assert element.share["state"] == "streaming"  # settle 0
     assert element.share["settled"] == "off"
     assert scheme._timer_armed and scheme._handler_armed
     stop(scheme, stream)
     assert instance.closed
     assert element.share["state"] == "stopped"
+
 
 def test_defaults_and_rate(fake):
     scheme, element, stream, event, _ = start({})
@@ -119,7 +121,7 @@ def test_defaults_and_rate(fake):
     assert instance._resolution == (1920, 1080)
     assert instance._frame_rate == 8.0
     assert element.share["settle"] == "30"
-    assert element.share["aux_stream"] == "false"     # auto: not native
+    assert element.share["aux_stream"] == "false"  # auto: not native
     assert element.share["capture_timeout"] == "1.0"
     assert element.share["state"] == "settling"
     assert element.share["settled"] == "waiting"
@@ -127,19 +129,20 @@ def test_defaults_and_rate(fake):
 
     scheme, element, stream, event, _ = start({"rate": "5", "fps": "2"})
     assert event == aiko.StreamEvent.OKAY
-    assert fake.INSTANCES[-1]._frame_rate == 2.0    # deprecated alias
+    assert fake.INSTANCES[-1]._frame_rate == 2.0  # deprecated alias
     assert element.create_frames_calls[0][1] == 5.0  # delivery throttle
     stop(scheme, stream)
+
 
 def test_aux_stream_auto(fake):
     """auto is true for the native output only; true and false override"""
 
-    for parameters, expected in (({"resolution": "native"}, True),
-                                 ({"resolution": "1920x1080"}, False),
-                                 ({"resolution": "1920x1080",
-                                   "aux_stream": "true"}, True),
-                                 ({"resolution": "native",
-                                   "aux_stream": "false"}, False)):
+    for parameters, expected in (
+        ({"resolution": "native"}, True),
+        ({"resolution": "1920x1080"}, False),
+        ({"resolution": "1920x1080", "aux_stream": "true"}, True),
+        ({"resolution": "native", "aux_stream": "false"}, False),
+    ):
         parameters["settle"] = 0
         scheme, element, stream, event, _ = start(parameters)
         assert event == aiko.StreamEvent.OKAY, parameters
@@ -150,25 +153,26 @@ def test_aux_stream_auto(fake):
     assert event == aiko.StreamEvent.ERROR
     assert "aux_stream" in detail["diagnostic"]
 
+
 def test_native_resolution(fake):
-    scheme, element, stream, event, _ = start({"resolution": "native",
-                                               "settle": 0})
+    scheme, element, stream, event, _ = start({"resolution": "native", "settle": 0})
     assert event == aiko.StreamEvent.OKAY
     assert fake.INSTANCES[-1]._resolution == camera.NATIVE_RESOLUTION
-    assert element.share["resolution"] == "native"      # stays a parameter
+    assert element.share["resolution"] == "native"  # stays a parameter
     assert element.share["sensor.resolution"] == "4000x3000"
     stop(scheme, stream)
 
+
 def test_sdk_missing_diagnostic(fake, monkeypatch):
     monkeypatch.setattr(FakeCamera, "available", classmethod(lambda c: False))
-    monkeypatch.setattr(FakeCamera, "diagnostic",
-                        classmethod(lambda c: "pip install depthai"))
+    monkeypatch.setattr(FakeCamera, "diagnostic", classmethod(lambda c: "pip install depthai"))
     scheme, element, stream, event, detail = start({})
     assert event == aiko.StreamEvent.ERROR
     assert "pip install depthai" in detail["diagnostic"]
-    assert fake.INSTANCES == []                     # nothing constructed
+    assert fake.INSTANCES == []  # nothing constructed
     assert element.share["state"] == "error"
     assert element.share["last_error"].startswith("pip_install_depthai@")
+
 
 def test_device_not_found(fake):
     fake.FAIL_OPEN = True
@@ -179,21 +183,24 @@ def test_device_not_found(fake):
     assert element.share["state"] == "error"
     assert element.create_frames_calls == []
 
+
 def test_bad_parameters(fake):
-    for parameters, word in (({"resolution": "abc"}, "resolution"),
-                             ({"frame_rate": "0"}, "frame_rate"),
-                             ({"settle": "x"}, "settle"),
-                             ({"resize_mode": "zoom"}, "resize_mode"),
-                             ({"data_batch_size": 2}, "data_batch_size"),
-                             ({"capture_timeout": "0"}, "capture_timeout")):
+    for parameters, word in (
+        ({"resolution": "abc"}, "resolution"),
+        ({"frame_rate": "0"}, "frame_rate"),
+        ({"settle": "x"}, "settle"),
+        ({"resize_mode": "zoom"}, "resize_mode"),
+        ({"data_batch_size": 2}, "data_batch_size"),
+        ({"capture_timeout": "0"}, "capture_timeout"),
+    ):
         scheme, element, stream, event, detail = start(parameters)
         assert event == aiko.StreamEvent.ERROR, parameters
         assert word in detail["diagnostic"]
-        assert fake.INSTANCES == [], parameters       # rejected before open
+        assert fake.INSTANCES == [], parameters  # rejected before open
+
 
 def test_frame_generator_settles_then_delivers(fake):
-    scheme, element, stream, event, _ = start({"settle": 10,
-                                               "frame_rate": 200})
+    scheme, element, stream, event, _ = start({"settle": 10, "frame_rate": 200})
     assert event == aiko.StreamEvent.OKAY
     events = []
     for _ in range(8):
@@ -205,7 +212,7 @@ def test_frame_generator_settles_then_delivers(fake):
     assert events == [aiko.StreamEvent.NO_FRAME] * 5 + [aiko.StreamEvent.OKAY]
     assert data["images"][0].shape == (1080, 1920, 3)
     assert stream.variables["timestamps"]
-    scheme._publish_handler()                       # what the timer does
+    scheme._publish_handler()  # what the timer does
     assert element.share["settled"] == "5_frames"
     assert element.share["state"] == "streaming"
     assert element.share["frames"] == "1"
@@ -213,9 +220,9 @@ def test_frame_generator_settles_then_delivers(fake):
     assert element.share["last_frame_utc"].endswith("Z")
     stop(scheme, stream)
 
+
 def test_frame_generator_stop_on_capture_exception(fake):
-    scheme, element, stream, event, _ = start({"settle": 0,
-                                               "frame_rate": 200})
+    scheme, element, stream, event, _ = start({"settle": 0, "frame_rate": 200})
     fake.FRAME_LIMIT = 1
     assert scheme.frame_generator(stream, 0)[0] == aiko.StreamEvent.OKAY
     frame_event, detail = scheme.frame_generator(stream, 1)
@@ -226,9 +233,9 @@ def test_frame_generator_stop_on_capture_exception(fake):
     assert element.share["last_error"].startswith("RuntimeError@")
     stop(scheme, stream)
 
+
 def test_frame_generator_timeouts(fake):
-    scheme, element, stream, event, _ = start({"settle": 0,
-                                               "frame_rate": 200})
+    scheme, element, stream, event, _ = start({"settle": 0, "frame_rate": 200})
     original = FakeCamera.capture
 
     def timing_out(self, timeout_s=None):
@@ -236,18 +243,16 @@ def test_frame_generator_timeouts(fake):
 
     FakeCamera.capture = timing_out
     try:
-        results = [scheme.frame_generator(stream, i)[0]
-                   for i in range(camera.CAPTURE_TIMEOUT_LIMIT)]
+        results = [scheme.frame_generator(stream, i)[0] for i in range(camera.CAPTURE_TIMEOUT_LIMIT)]
     finally:
         FakeCamera.capture = original
-    assert results[:-1] == [aiko.StreamEvent.NO_FRAME] * (
-        camera.CAPTURE_TIMEOUT_LIMIT - 1)
+    assert results[:-1] == [aiko.StreamEvent.NO_FRAME] * (camera.CAPTURE_TIMEOUT_LIMIT - 1)
     assert results[-1] == aiko.StreamEvent.STOP
     scheme._publish_handler()
-    assert element.share["capture_timeouts"] == str(
-        camera.CAPTURE_TIMEOUT_LIMIT)
+    assert element.share["capture_timeouts"] == str(camera.CAPTURE_TIMEOUT_LIMIT)
     assert element.share["last_error"].startswith("capture_timeout@")
     stop(scheme, stream)
+
 
 def test_destroy_then_generator_stops(fake):
     scheme, element, stream, event, _ = start({"settle": 0})
@@ -255,6 +260,7 @@ def test_destroy_then_generator_stops(fake):
     frame_event, detail = scheme.frame_generator(stream, 0)
     assert frame_event == aiko.StreamEvent.STOP
     assert "destroyed" in detail["diagnostic"]
+
 
 def test_process_abort_closes_the_camera(fake):
     """The atexit hook, registered while the camera is open, closes it
@@ -265,19 +271,19 @@ def test_process_abort_closes_the_camera(fake):
     handlers = fake.ATEXIT.handlers
     assert handlers == [scheme._close_at_exit]
     instance = fake.INSTANCES[-1]
-    handlers[0]()                                    # what SystemExit does
+    handlers[0]()  # what SystemExit does
     assert instance.closed and scheme.camera is None and scheme.stopped
     assert scheme.frame_generator(stream, 0)[0] == aiko.StreamEvent.STOP
-    handlers[0]()                                    # idempotent
-    stop(scheme, stream)                             # still clean
-    scheme._close_at_exit()                          # after destroy: no-op
+    handlers[0]()  # idempotent
+    stop(scheme, stream)  # still clean
+    scheme._close_at_exit()  # after destroy: no-op
+
 
 def test_focus_assist_publishes_sharpness(fake):
     """Off by default; on, one sharpness value per publish period; the
     dashboard turns it on and off mid-Stream"""
 
-    scheme, element, stream, event, _ = start({"settle": 0,
-                                               "frame_rate": 200})
+    scheme, element, stream, event, _ = start({"settle": 0, "frame_rate": 200})
     assert element.share["focus_assist"] == "false"
     assert scheme.frame_generator(stream, 0)[0] == aiko.StreamEvent.OKAY
     scheme._publish_handler()
@@ -286,9 +292,9 @@ def test_focus_assist_publishes_sharpness(fake):
     element.ec_producer.send("focus_assist", "true")
     assert scheme.frame_generator(stream, 1)[0] == aiko.StreamEvent.OKAY
     scheme._publish_handler()
-    assert element.share["sensor.sharpness"] == "0.0"   # black fake frames
+    assert element.share["sensor.sharpness"] == "0.0"  # black fake frames
     due = scheme._focus_due
-    scheme.frame_generator(stream, 2)                   # within the period
+    scheme.frame_generator(stream, 2)  # within the period
     assert scheme._focus_due == due
 
     element.ec_producer.send("focus_assist", "false")
@@ -296,13 +302,13 @@ def test_focus_assist_publishes_sharpness(fake):
     assert element.share["sensor.sharpness"] == "-"
     stop(scheme, stream)
 
-    scheme, element, stream, event, _ = start(
-        {"settle": 0, "frame_rate": 200, "focus_assist": "true"})
+    scheme, element, stream, event, _ = start({"settle": 0, "frame_rate": 200, "focus_assist": "true"})
     assert element.share["focus_assist"] == "true"
     scheme.frame_generator(stream, 0)
     scheme._publish_handler()
     assert element.share["sensor.sharpness"] == "0.0"
     stop(scheme, stream)
+
 
 def test_writable_keys(fake):
     scheme, element, stream, event, _ = start({"settle": 0})
@@ -310,19 +316,21 @@ def test_writable_keys(fake):
     assert scheme.capture_timeout == 2.5
     element.ec_producer.send("log_frames", "true")
     assert scheme.log_frames is True
-    element.ec_producer.send("capture_timeout", "-1")   # rejected, logged
+    element.ec_producer.send("capture_timeout", "-1")  # rejected, logged
     assert scheme.capture_timeout == 2.5
-    element.ec_producer.send("unknown_key", "x")        # ignored
+    element.ec_producer.send("unknown_key", "x")  # ignored
     stop(scheme, stream)
     assert element.ec_producer.handlers == []
 
+
 # The capture thread ------------------------------------------------------- #
+
 
 @pytest.fixture
 def threaded(fake, monkeypatch):
-    monkeypatch.setattr(scheme_camera.DataSchemeCamera, "CAPTURE_THREAD",
-                        True)
+    monkeypatch.setattr(scheme_camera.DataSchemeCamera, "CAPTURE_THREAD", True)
     return fake
+
 
 def wait_for(condition, timeout_s=3.0):
     deadline = time.monotonic() + timeout_s
@@ -332,13 +340,13 @@ def wait_for(condition, timeout_s=3.0):
         time.sleep(0.005)
     return False
 
+
 def test_capture_thread_frees_the_generator(threaded):
     """The camera waits a frame period in capture(), on the capture thread:
     frame_generator() returns at once, so the Stream lock the framework
     holds around it stays free"""
 
-    scheme, element, stream, event, _ = start({"settle": 0,
-                                               "frame_rate": 20})
+    scheme, element, stream, event, _ = start({"settle": 0, "frame_rate": 20})
     assert event == aiko.StreamEvent.OKAY
     assert scheme._capture_thread.is_alive()
     delivered, slowest = [], 0.0
@@ -351,17 +359,17 @@ def test_capture_thread_frees_the_generator(threaded):
             delivered.append(data["images"][0][0, 0, 0])
         else:
             assert frame_event == aiko.StreamEvent.NO_FRAME
-            time.sleep(0.02)                # as the framework does
+            time.sleep(0.02)  # as the framework does
     assert len(delivered) == 5
-    assert slowest < 0.01                   # never a 50 ms camera wait
+    assert slowest < 0.01  # never a 50 ms camera wait
     thread = scheme._capture_thread
     stop(scheme, stream)
     assert not thread.is_alive() and scheme._capture_thread is None
-    assert threaded.INSTANCES[-1].closed        # after the thread ended
+    assert threaded.INSTANCES[-1].closed  # after the thread ended
+
 
 def test_capture_thread_drops_the_oldest_when_behind(threaded):
-    scheme, element, stream, event, _ = start({"settle": 0,
-                                               "frame_rate": 200})
+    scheme, element, stream, event, _ = start({"settle": 0, "frame_rate": 200})
     assert wait_for(lambda: scheme.frames_dropped >= 3)
     frame_event, data = scheme.frame_generator(stream, 0)
     assert frame_event == aiko.StreamEvent.OKAY
@@ -371,10 +379,10 @@ def test_capture_thread_drops_the_oldest_when_behind(threaded):
     assert int(element.share["frames_dropped"]) >= 3
     stop(scheme, stream)
 
+
 def test_capture_thread_failure_stops_after_the_queued_frames(threaded):
     threaded.FRAME_LIMIT = 2
-    scheme, element, stream, event, _ = start({"settle": 0,
-                                               "frame_rate": 200})
+    scheme, element, stream, event, _ = start({"settle": 0, "frame_rate": 200})
     assert wait_for(lambda: scheme._stop_reason is not None)
     events = [scheme.frame_generator(stream, i)[0] for i in range(3)]
     assert events == [aiko.StreamEvent.OKAY] * 2 + [aiko.StreamEvent.STOP]

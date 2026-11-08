@@ -35,9 +35,9 @@ import pytest
 
 from aiko_services.main import event
 
-_REPORT_LEAKS = os.environ.get("AIKO_TEST_REPORT_LEAKS", "").lower() in (
-    "1", "true", "yes")
-_leaks = []                      # (nodeid, timer names, mailbox names)
+_REPORT_LEAKS = os.environ.get("AIKO_TEST_REPORT_LEAKS", "").lower() in ("1", "true", "yes")
+_leaks = []  # (nodeid, timer names, mailbox names)
+
 
 def _timer_events():
     events = []
@@ -47,11 +47,13 @@ def _timer_events():
         current = current.next
     return events
 
+
 def _timer_name(timer_event):
     handler = timer_event.handler
     owner = getattr(handler, "__self__", None)
     name = getattr(handler, "__name__", repr(handler))
     return f"{type(owner).__name__}.{name}" if owner is not None else name
+
 
 def _remove_timer_event(timer_event):
     """Remove this Event, not the first Event with the same handler"""
@@ -59,26 +61,24 @@ def _remove_timer_event(timer_event):
     if event.event_list._remove(lambda current: current is timer_event):
         event._handler_count -= 1
 
+
 @pytest.fixture(autouse=True)
 def restore_event_loop_registrations(request):
-    timers_before = _timer_events()   # held, so that ids are not reused
+    timers_before = _timer_events()  # held, so that ids are not reused
     timer_ids_before = {id(timer_event) for timer_event in timers_before}
     mailboxes_before = set(event.mailboxes)
 
     yield
 
-    leaked_timers = [timer_event for timer_event in _timer_events()
-                     if id(timer_event) not in timer_ids_before]
-    leaked_mailboxes = [name for name in event.mailboxes
-                        if name not in mailboxes_before]
+    leaked_timers = [timer_event for timer_event in _timer_events() if id(timer_event) not in timer_ids_before]
+    leaked_mailboxes = [name for name in event.mailboxes if name not in mailboxes_before]
     if _REPORT_LEAKS and (leaked_timers or leaked_mailboxes):
-        _leaks.append((request.node.nodeid,
-                       sorted(_timer_name(timer) for timer in leaked_timers),
-                       leaked_mailboxes))
+        _leaks.append((request.node.nodeid, sorted(_timer_name(timer) for timer in leaked_timers), leaked_mailboxes))
     for timer_event in leaked_timers:
         _remove_timer_event(timer_event)
     for mailbox_name in leaked_mailboxes:
         event.remove_mailbox_handler(None, mailbox_name)
+
 
 def pytest_terminal_summary(terminalreporter):
     if not _REPORT_LEAKS:
@@ -87,6 +87,4 @@ def pytest_terminal_summary(terminalreporter):
     if not _leaks:
         terminalreporter.write_line("none")
     for nodeid, timers, mailboxes in _leaks:
-        terminalreporter.write_line(
-            f"{nodeid}: {len(timers)} timers {timers}, "
-            f"{len(mailboxes)} mailboxes")
+        terminalreporter.write_line(f"{nodeid}: {len(timers)} timers {timers}, {len(mailboxes)} mailboxes")

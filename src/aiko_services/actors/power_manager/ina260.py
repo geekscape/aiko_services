@@ -26,10 +26,18 @@
 #   sample period is seconds
 
 __all__ = [
-    "AMPS_PER_BIT", "DIE_ID", "Ina260", "MANUFACTURER_ID",
-    "REGISTER_BUS_VOLTAGE", "REGISTER_CONFIGURATION", "REGISTER_CURRENT",
-    "REGISTER_DIE_ID", "REGISTER_MANUFACTURER_ID", "REGISTER_POWER",
-    "VOLTS_PER_BIT", "WATTS_PER_BIT",
+    "AMPS_PER_BIT",
+    "DIE_ID",
+    "Ina260",
+    "MANUFACTURER_ID",
+    "REGISTER_BUS_VOLTAGE",
+    "REGISTER_CONFIGURATION",
+    "REGISTER_CURRENT",
+    "REGISTER_DIE_ID",
+    "REGISTER_MANUFACTURER_ID",
+    "REGISTER_POWER",
+    "VOLTS_PER_BIT",
+    "WATTS_PER_BIT",
 ]
 
 REGISTER_CONFIGURATION = 0x00
@@ -39,14 +47,15 @@ REGISTER_POWER = 0x03
 REGISTER_MANUFACTURER_ID = 0xFE
 REGISTER_DIE_ID = 0xFF
 
-MANUFACTURER_ID = 0x5449           # "TI"
+MANUFACTURER_ID = 0x5449  # "TI"
 DIE_ID = 0x2270
 
 # From the data sheet, and the reason each one is written as a quotient is
 # that the data sheet gives it that way
-AMPS_PER_BIT = 1.25 / 1000.0       # 1.25 mA
-VOLTS_PER_BIT = 1.25 / 1000.0      # 1.25 mV
-WATTS_PER_BIT = 10.0 / 1000.0      # 10 mW
+AMPS_PER_BIT = 1.25 / 1000.0  # 1.25 mA
+VOLTS_PER_BIT = 1.25 / 1000.0  # 1.25 mV
+WATTS_PER_BIT = 10.0 / 1000.0  # 10 mW
+
 
 class Ina260:
     """One INA260 at "address" on "bus".
@@ -68,8 +77,7 @@ class Ina260:
     def read_identity(self):
         """(manufacturer, die) as read from the part"""
 
-        return (self.read_register(REGISTER_MANUFACTURER_ID),
-            self.read_register(REGISTER_DIE_ID))
+        return (self.read_register(REGISTER_MANUFACTURER_ID), self.read_register(REGISTER_DIE_ID))
 
     def identified(self):
         """Whether an INA260 answers at this address.  False for every
@@ -101,9 +109,11 @@ class Ina260:
 
         return self.volts(), self.amps(), self.watts()
 
+
 def _signed(value):
     """A 16-bit two's complement value as a Python integer"""
 
     return value - 0x10000 if value & 0x8000 else value
+
 
 # --------------------------------------------------------------------------- #

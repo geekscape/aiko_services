@@ -60,20 +60,31 @@
 #
 # - Metrics: Determine what to metrics to capture, e.g frame rates ?
 
-from PIL import Image
 import io
-from typing import Tuple
 import zlib
+from typing import Tuple
+
+from PIL import Image
 
 import aiko_services as aiko
 
 __all__ = [
-    "bytes_to_image", "image_to_bytes",
-    "convert_image", "convert_images",
-    "convert_image_to_numpy", "convert_image_to_pil",
-    "ImageConvert", "ImageOutput", "ImageOverlay", "ImageOverlayFilter",
-    "ImageReadFile", "ImageReadZMQ", "ImageResize", "ImageSquareCenterCrop",
-    "ImageWriteFile", "ImageWriteZMQ"
+    "bytes_to_image",
+    "image_to_bytes",
+    "convert_image",
+    "convert_images",
+    "convert_image_to_numpy",
+    "convert_image_to_pil",
+    "ImageConvert",
+    "ImageOutput",
+    "ImageOverlay",
+    "ImageOverlayFilter",
+    "ImageReadFile",
+    "ImageReadZMQ",
+    "ImageResize",
+    "ImageSquareCenterCrop",
+    "ImageWriteFile",
+    "ImageWriteZMQ",
 ]
 
 _LOGGER = aiko.process.logger(__name__)
@@ -81,6 +92,7 @@ _LOGGER = aiko.process.logger(__name__)
 _CV2_IMPORTED = False
 try:
     import cv2
+
     _CV2_IMPORTED = True
 except ModuleNotFoundError:  # TODO: Optional warning flag
     diagnostic = "image_io.py: Couldn't import cv2 module"
@@ -94,6 +106,7 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
 _NUMPY_IMPORTED = False
 try:
     import numpy as np
+
     _NUMPY_IMPORTED = True
 except ModuleNotFoundError:  # TODO: Optional warning flag
     diagnostic = "image_io.py: Couldn't import numpy module"
@@ -103,14 +116,15 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
 # --------------------------------------------------------------------------- #
 # str: "JPEG" or "PNG"
 
-def image_to_bytes(image: Image.Image, format: str="JPEG") -> bytes:
+
+def image_to_bytes(image: Image.Image, format: str = "JPEG") -> bytes:
     with io.BytesIO() as image_bytes_io:
         image = convert_image_to_pil(image)
         if not image:
-            raise ValueError(
-                f"image_to_bytes(): Unknown image type: {type(image)}")
+            raise ValueError(f"image_to_bytes(): Unknown image type: {type(image)}")
         image.save(image_bytes_io, format=format)
         return image_bytes_io.getvalue()
+
 
 def bytes_to_image(image_bytes: bytes) -> Image.Image:
     image_bytes_io = io.BytesIO(image_bytes)
@@ -118,6 +132,7 @@ def bytes_to_image(image_bytes: bytes) -> Image.Image:
     image.load()
     image_bytes_io.close()
     return image
+
 
 def convert_image_to_numpy(image):
     if not isinstance(image, np.ndarray):
@@ -127,6 +142,7 @@ def convert_image_to_numpy(image):
             image = None
     return image
 
+
 def convert_image_to_pil(image):
     if not isinstance(image, Image.Image):
         if isinstance(image, np.ndarray):  # TODO: Check NUMPY_IMPORTED
@@ -135,21 +151,22 @@ def convert_image_to_pil(image):
             image = None
     return image
 
-convert_image_handlers = {
-    "numpy": convert_image_to_numpy,
-    "pil": convert_image_to_pil
-}
+
+convert_image_handlers = {"numpy": convert_image_to_numpy, "pil": convert_image_to_pil}
+
 
 def convert_image(image, media_type):
     if media_type not in convert_image_handlers:
-        raise ValueError(
-            f"image_io:convert_image(): Unknown media type: {media_type}")
+        raise ValueError(f"image_io:convert_image(): Unknown media type: {media_type}")
     return convert_image_handlers[media_type](image)
+
 
 def convert_images(images, media_type):
     return [convert_image(image, media_type) for image in images]
 
+
 # --------------------------------------------------------------------------- #
+
 
 class ImageConvert(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
@@ -162,8 +179,10 @@ class ImageConvert(aiko.PipelineElement):
             images = convert_images(images, media_type)
         return aiko.StreamEvent.OKAY, {"images": images}
 
+
 # --------------------------------------------------------------------------- #
 # Useful for Pipeline output that should be all of the images processed
+
 
 class ImageOutput(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
@@ -173,12 +192,14 @@ class ImageOutput(aiko.PipelineElement):
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         return aiko.StreamEvent.OKAY, {"images": images}
 
+
 # --------------------------------------------------------------------------- #
 # TODO: Change color (text, boxes face / YOLO), font, line thickness
 # TODO: Display camera name/path, date/time, FPS
 # TODO: Display specified elipses, lines, mask, rectangles, polygons, text
 # TODO: Display metrics
 # TODO: Display pose stick figures
+
 
 class ImageOverlay(aiko.PipelineElement):
     def __init__(self, context):
@@ -190,8 +211,7 @@ class ImageOverlay(aiko.PipelineElement):
         self.thickness = 2
         self.threshold = 0.0
 
-    def process_frame(self, stream, images, overlay)  \
-        -> Tuple[aiko.StreamEvent, dict]:
+    def process_frame(self, stream, images, overlay) -> Tuple[aiko.StreamEvent, dict]:
 
         images_overlaid = []
         for image in images:
@@ -223,8 +243,7 @@ class ImageOverlay(aiko.PipelineElement):
                         bottom_right = (x + w, y + h)
                         if name:
                             text = f"{name}: {confidence:0.2f}"
-                            width_height, _ = cv2.getTextSize(text,
-                                self.font, self.font_scale, self.thickness)
+                            width_height, _ = cv2.getTextSize(text, self.font, self.font_scale, self.thickness)
                             tw, th = width_height
                             tx = x
                             if y > th * 1.5:
@@ -234,11 +253,17 @@ class ImageOverlay(aiko.PipelineElement):
                             if x + tw > image_width:
                                 tx = x - tw
                                 ty = y + th
-                            image_bgr = cv2.putText(image_bgr, text, (tx, ty),
-                                self.font, self.font_scale, self.color,
-                                self.thickness, cv2.LINE_AA)
-                        image_bgr = cv2.rectangle(image_bgr,
-                            top_left, bottom_right, self.color, self.thickness)
+                            image_bgr = cv2.putText(
+                                image_bgr,
+                                text,
+                                (tx, ty),
+                                self.font,
+                                self.font_scale,
+                                self.color,
+                                self.thickness,
+                                cv2.LINE_AA,
+                            )
+                        image_bgr = cv2.rectangle(image_bgr, top_left, bottom_right, self.color, self.thickness)
 
             if grayscale:
                 image_overlaid = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
@@ -248,15 +273,16 @@ class ImageOverlay(aiko.PipelineElement):
 
         return aiko.StreamEvent.OKAY, {"images": images_overlaid}
 
+
 # --------------------------------------------------------------------------- #
+
 
 class ImageOverlayFilter(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("image_overlay_filter:0")
         context.call_init(self, "PipelineElement", context)
 
-    def process_frame(self, stream, overlay)  \
-        -> Tuple[aiko.StreamEvent, dict]:
+    def process_frame(self, stream, overlay) -> Tuple[aiko.StreamEvent, dict]:
 
         deny, _ = self.get_parameter("deny", [])
         threshold, _ = self.get_parameter("threshold", 0.0)
@@ -284,6 +310,7 @@ class ImageOverlayFilter(aiko.PipelineElement):
 
         return aiko.StreamEvent.OKAY, {"overlay": overlay_filtered}
 
+
 # --------------------------------------------------------------------------- #
 # ImageReadFile is a DataSource which supports ...
 # - Individual image files
@@ -293,6 +320,7 @@ class ImageOverlayFilter(aiko.PipelineElement):
 # parameter: "data_sources" is the read file path, format variable: "frame_id"
 #
 # Note: Only supports Streams with "data_sources" parameter
+
 
 class ImageReadFile(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
@@ -316,6 +344,7 @@ class ImageReadFile(aiko.DataSource):  # PipelineElement
 
         return aiko.StreamEvent.OKAY, {"images": images}
 
+
 # --------------------------------------------------------------------------- #
 # ImageReadZMQ is a DataSource which supports ...
 # - ImageWriteZMQ(DataTarget) ZMQ client --> ImageReadZMQ(DataSource) ZMQ server
@@ -326,6 +355,7 @@ class ImageReadFile(aiko.DataSource):  # PipelineElement
 #            "compressed" (boolean) indicated whether to decompress the payload
 #
 # Note: Only supports Streams with "data_sources" parameter
+
 
 class ImageReadZMQ(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
@@ -346,13 +376,14 @@ class ImageReadZMQ(aiko.DataSource):  # PipelineElement
             record = zlib.decompress(record) if compressed else record
             image = bytes_to_image(record)
             self.logger.debug(f"{self.my_id()}: {len(record)} --> {image.size}")
-    #       if image.startswith("image:"):  # TODO: "image:length:content" ?
-    #           tokens = image.split(":")
-    #           image = tokens[2:][0]      # just the "content"
+            #       if image.startswith("image:"):  # TODO: "image:length:content" ?
+            #           tokens = image.split(":")
+            #           image = tokens[2:][0]      # just the "content"
             if media_type:
                 image = convert_image(image, media_type)
             images.append(image)
         return aiko.StreamEvent.OKAY, {"images": images}
+
 
 # --------------------------------------------------------------------------- #
 # TODO: Combine ImageResize and ImageSquareCenterCrop PipelineElements
@@ -364,6 +395,7 @@ class ImageReadZMQ(aiko.DataSource):  # PipelineElement
 #       parameter: "speed": "fast" --> INTER_AREA or INTER_CUBIC
 #       parameter: "speed": "slow" --> INTER_LINEAR
 #       https://gist.github.com/georgeblck/e3e0274d725c858ba98b1c36c14e2835
+
 
 class ImageResize(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
@@ -387,10 +419,12 @@ class ImageResize(aiko.PipelineElement):
             images_resized.append(image_resized)
         return aiko.StreamEvent.OKAY, {"images": images_resized}
 
+
 # --------------------------------------------------------------------------- #
 # TODO: Combine ImageResize and ImageSquareCenterCrop PipelineElements
 #       ImageResize should be able to handle both Pillow and NumPy array
 #       ImageResize should have a "square_centre_crop=boolean" parameter
+
 
 def square_center_crop(image):  # Either Pillow or NumPy array Image
     if isinstance(image, Image.Image):
@@ -400,19 +434,17 @@ def square_center_crop(image):  # Either Pillow or NumPy array Image
         height, width = image.shape[:2]
         is_pil = False
     else:
-        raise TypeError(
-            f"square_center_crop() requires PIL.Image or np.ndarray, "
-            f"but received type {type(image)}"
-        )
+        raise TypeError(f"square_center_crop() requires PIL.Image or np.ndarray, but received type {type(image)}")
 
     side = min(width, height)  # Maintain shortest side
     left = (width - side) // 2
-    top  = (height - side) // 2
+    top = (height - side) // 2
 
     if is_pil:
         return image.crop((left, top, left + side, top + side))
     else:
         return image[top : top + side, left : left + side, ...]
+
 
 class ImageSquareCenterCrop(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
@@ -423,12 +455,14 @@ class ImageSquareCenterCrop(aiko.PipelineElement):
         images_cropped = [square_center_crop(image) for image in images]
         return aiko.StreamEvent.OKAY, {"images": images_cropped}
 
+
 # --------------------------------------------------------------------------- #
 # ImageWriteFile is a DataTarget that writes images to files
 #
 # parameter: "data_targets" is the write file path, format variable: "frame_id"
 #
 # Note: Only supports Streams with "data_targets" parameter
+
 
 class ImageWriteFile(aiko.DataTarget):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
@@ -455,6 +489,7 @@ class ImageWriteFile(aiko.DataTarget):  # PipelineElement
 
         return aiko.StreamEvent.OKAY, {}
 
+
 # --------------------------------------------------------------------------- #
 # ImageWriteZMQ is a DataTarget which supports ...
 # - ImageWriteZMQ(DataTarget) ZMQ client --> ImageReadZMQ(DataSource) ZMQ server
@@ -465,22 +500,23 @@ class ImageWriteFile(aiko.DataTarget):  # PipelineElement
 #
 # Note: Only supports Streams with "data_targets" parameter
 
+
 class ImageWriteZMQ(aiko.DataTarget):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("image_write_zmq:0")
         context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
-        media_type = "image"                            # TODO: "image/zip" ?
         compressed, _ = self.get_parameter("compressed", False)
 
         for image in images:
-     #      image = f"{media_type}:{len(image)}:{image}"  # "image:length:content" ?
+            #      image = f"{media_type}:{len(image)}:{image}"  # "image:length:content" ?
             record = image_to_bytes(image)
             record = zlib.compress(record) if compressed else record
             self.logger.debug(f"{self.my_id()}: {image.size} --> {len(record)}")
             stream.variables["target_zmq_socket"].send(record)
 
         return aiko.StreamEvent.OKAY, {}
+
 
 # --------------------------------------------------------------------------- #

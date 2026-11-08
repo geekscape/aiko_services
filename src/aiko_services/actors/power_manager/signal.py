@@ -48,15 +48,20 @@
 
 import threading
 import time
+from contextlib import suppress
 
 from aiko_services.actors.power_manager.hold import hold_tool, run_tool
 
 __all__ = [
-    "BUZZER_GPIO", "FakeBuzzer", "GpioBuzzer", "PATTERNS", "choose_buzzer",
+    "BUZZER_GPIO",
+    "FakeBuzzer",
+    "GpioBuzzer",
+    "PATTERNS",
+    "choose_buzzer",
     "pattern_seconds",
 ]
 
-BUZZER_GPIO = 4                    # BCM, active high
+BUZZER_GPIO = 4  # BCM, active high
 
 # Durations in seconds: on, off, on, off ...
 #
@@ -73,8 +78,8 @@ PATTERNS = {
     # It reports that an application does its work, and it must not sound
     # like any of the others
     "pipeline": (0.07, 0.06, 0.07, 0.06, 0.07, 0.06, 0.35),
-    "shutdown": (0.05, 0.05, 0.05, 0.05, 0.05),     # Three fast chirps
-    "accepted": (0.5,),              # The press reached its three seconds
+    "shutdown": (0.05, 0.05, 0.05, 0.05, 0.05),  # Three fast chirps
+    "accepted": (0.5,),  # The press reached its three seconds
     # "pipeline" turned around: the long note first, then taps trailing
     # away.  It reports that the work an application was doing has stopped,
     # so it must be heard as the opposite of the cheerful one, and must not
@@ -85,11 +90,13 @@ PATTERNS = {
     "lost": (0.45, 0.08, 0.06, 0.08, 0.06, 0.08),
 }
 
+
 def pattern_seconds(name):
     """How long the pattern takes.  A caller that must wait for a sound to
     finish, such as the shutdown hook, needs this and not a guess"""
 
     return round(sum(PATTERNS[name]), 3)
+
 
 class FakeBuzzer:
     """No buzzer: the test double, and what a platform without one gets.
@@ -111,6 +118,7 @@ class FakeBuzzer:
     def close(self):
         self.closed = True
 
+
 class GpioBuzzer:
     """A buzzer on one output line, driven by the platform's pin utility.
 
@@ -123,8 +131,7 @@ class GpioBuzzer:
 
     device = "gpio"
 
-    def __init__(self, gpio=BUZZER_GPIO, thread=True, sleeper=time.sleep,
-        runner=None, **_):
+    def __init__(self, gpio=BUZZER_GPIO, thread=True, sleeper=time.sleep, runner=None, **_):
 
         self.gpio = gpio
         self._thread = bool(thread)
@@ -151,13 +158,10 @@ class GpioBuzzer:
         silent rather than a long note"""
 
         if name not in PATTERNS:
-            raise ValueError(
-                f'unknown pattern "{name}": one of {sorted(PATTERNS)}')
+            raise ValueError(f'unknown pattern "{name}": one of {sorted(PATTERNS)}')
         self.played.append(name)
         if self._thread:
-            worker = threading.Thread(
-                target=self._run, args=(name,), daemon=True,
-                name=f"buzzer_{name}")
+            worker = threading.Thread(target=self._run, args=(name,), daemon=True, name=f"buzzer_{name}")
             worker.start()
             return worker
         self._run(name)
@@ -167,10 +171,8 @@ class GpioBuzzer:
         """Leave the line low.  There is nothing to give back, because
         nothing was claimed"""
 
-        try:
+        with suppress(Exception):
             self._set(False)
-        except Exception:                            # noqa: BLE001
-            pass                       # A close must not raise
         self.opened = False
 
     def _run(self, name):
@@ -192,8 +194,8 @@ class GpioBuzzer:
         level = "dh" if on else "dl"
         code, output = self._runner(["set", str(self.gpio), "op", level])
         if code != 0:
-            raise OSError(
-                f"set {self.gpio} op {level} failed: {output.strip()[:80]}")
+            raise OSError(f"set {self.gpio} op {level} failed: {output.strip()[:80]}")
+
 
 def choose_buzzer(buzzer="auto", **parameters):
     """The buzzer for "buzzer": "gpio", "none", or "auto", which is the real
@@ -205,8 +207,8 @@ def choose_buzzer(buzzer="auto", **parameters):
         buzzer = "gpio" if hold_tool() else "none"
     buzzers = {"gpio": GpioBuzzer, "none": FakeBuzzer}
     if buzzer not in buzzers:
-        raise ValueError(
-            f'unknown buzzer "{buzzer}": one of {sorted(buzzers)}')
+        raise ValueError(f'unknown buzzer "{buzzer}": one of {sorted(buzzers)}')
     return buzzers[buzzer](**parameters)
+
 
 # --------------------------------------------------------------------------- #

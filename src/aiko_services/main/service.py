@@ -101,18 +101,24 @@
 #   - Ordered by Service "topic_path" fields: namespace, host, pid, sid
 #   - Share portions of the tree via Eventual Consistency like GraphQL
 
+import time
 from abc import abstractmethod
 from collections import OrderedDict  # All OrderedDict operations are O(1)
-import time
 
 from aiko_services.main import *
 from aiko_services.main.utilities import get_hostname
 
 __all__ = [
-    "ServiceFields", "ServiceFilter", "ServiceProtocol",
-    "ServiceTags", "ServiceTopicPath", "Services",
-    "Service", "ServiceImpl"
+    "ServiceFields",
+    "ServiceFilter",
+    "ServiceProtocol",
+    "ServiceTags",
+    "ServiceTopicPath",
+    "Services",
+    "Service",
+    "ServiceImpl",
 ]
+
 
 class ServiceProtocol:
     def __init__(self, url_prefix, name, version):
@@ -147,6 +153,7 @@ class ServiceProtocol:
     def version(self, value):
         self._version = value
 
+
 # class ServiceField:  # TODO: Support integer index plus string name
 #   TOPIC = "TOPIC"          # 0
 #   NAME = "NAME"            # 1
@@ -156,6 +163,7 @@ class ServiceProtocol:
 #   TAGS = "TAGS"            # 5
 
 #   fields = [TOPIC, NAME, PROTOCOL, TRANSPORT, OWNER, TAGS]
+
 
 class ServiceFields:
     def __init__(self, topic_path, name, protocol, transport, owner, tags):
@@ -167,9 +175,7 @@ class ServiceFields:
         self._tags = tags
 
     def __repr__(self):
-        return f"{self._topic_path}, {self._name}, "  \
-               f"{self._protocol}, {self._transport}, "      \
-               f"{self._owner}, {self._tags}"
+        return f"{self._topic_path}, {self._name}, {self._protocol}, {self._transport}, {self._owner}, {self._tags}"
 
     @property
     def topic_path(self):
@@ -219,17 +225,15 @@ class ServiceFields:
     def tags(self, value):
         self._tags = value
 
+
 class ServiceFilter:
     @classmethod
-    def with_topic_path(cls, topic_path="*",
-        name="*", protocol="*", transport="*", owner="*", tags="*"):
+    def with_topic_path(cls, topic_path="*", name="*", protocol="*", transport="*", owner="*", tags="*"):
 
         topic_paths = topic_path if topic_path == "*" else [topic_path]
-        return ServiceFilter(
-            topic_paths, name, protocol, transport, owner, tags)
+        return ServiceFilter(topic_paths, name, protocol, transport, owner, tags)
 
-    def __init__(self, topic_paths="*",
-        name="*", protocol="*", transport="*", owner="*", tags="*"):
+    def __init__(self, topic_paths="*", name="*", protocol="*", transport="*", owner="*", tags="*"):
 
         name = name if name else get_hostname()
 
@@ -241,18 +245,17 @@ class ServiceFilter:
         self.tags = tags
 
     def __repr__(self):
-        return f"({self.topic_paths} {self.name} "   \
-               f"{self.protocol} {self.transport} "  \
-               f"{self.owner} ({' '.join(self.tags)}))"
+        return f"({self.topic_paths} {self.name} {self.protocol} {self.transport} {self.owner} ({' '.join(self.tags)}))"
 
     def summary(self):
-        summary  = "" if self.topic_paths == "*" else f", {self.topic_paths}"
-        summary += "" if self.name        == "*" else f", {self.name}"
-        summary += "" if self.protocol    == "*" else f", {self.protocol}"
-        summary += "" if self.transport   == "*" else f", {self.transport}"
-        summary += "" if self.owner       == "*" else f", {self.owner}"
-        summary += "" if self.tags        == "*" else f", {self.tags}"
+        summary = "" if self.topic_paths == "*" else f", {self.topic_paths}"
+        summary += "" if self.name == "*" else f", {self.name}"
+        summary += "" if self.protocol == "*" else f", {self.protocol}"
+        summary += "" if self.transport == "*" else f", {self.transport}"
+        summary += "" if self.owner == "*" else f", {self.owner}"
+        summary += "" if self.tags == "*" else f", {self.tags}"
         return summary[2:] if len(summary) else "any"
+
 
 class ServiceTags:  # TODO: Dictionary of keyword / value pairs
     @classmethod
@@ -272,6 +275,7 @@ class ServiceTags:  # TODO: Dictionary of keyword / value pairs
             tags[key] = value
         return tags
 
+
 class ServiceTopicPath:
     @classmethod
     def parse(cls, topic_path):
@@ -288,7 +292,6 @@ class ServiceTopicPath:
         if service_topic_path:
             process_topic_path = service_topic_path.topic_path_process
         return process_topic_path, str(service_topic_path)
-
 
     def __init__(self, namespace, hostname, process_id=0, service_id=0):
         self._namespace = namespace
@@ -350,8 +353,10 @@ class ServiceTopicPath:
     def topic_path_process(self):
         return f"{self._namespace}/{self._hostname}/{self._process_id}"
 
+
 # --------------------------------------------------------------------------- #
 # services dict: Key: Process topic_path --> Value: Per Processs Services dict
+
 
 class ServicesIterator:
     def __init__(self, services):
@@ -359,20 +364,20 @@ class ServicesIterator:
         self._process_iterator = iter(self._services)
         self.iterate_process()
 
-# An iterator must also be iterable.  Without this, "ServicesIterator" has
-# "__next__" and no "__iter__", and "iter()" refuses it: "TypeError:
-# 'ServicesIterator' object is not iterable".  Which consumer that stops is
-# a function of the Python version, so measure it, as below (2026-10-30)
-#
-#   construct                          3.12.15   3.13.5   3.14.9
-#   plain "for" statement              ok        ok       ok
-#   list comprehension, generator      ok        raises   ok
-#   "list()", "sorted()", "tuple()"    ok        ok       ok
-#   "iter(iterator)"                   raises    raises   raises
-#
-# Python 3.13 alone refuses a comprehension, which is why
-# "registrar.py:list_command()" crashed on aiko01, on 3.13, and passed on a
-# 3.12 Mac.  Each other loop over a "Services" is a plain "for" statement
+    # An iterator must also be iterable.  Without this, "ServicesIterator" has
+    # "__next__" and no "__iter__", and "iter()" refuses it: "TypeError:
+    # 'ServicesIterator' object is not iterable".  Which consumer that stops is
+    # a function of the Python version, so measure it, as below (2026-10-30)
+    #
+    #   construct                          3.12.15   3.13.5   3.14.9
+    #   plain "for" statement              ok        ok       ok
+    #   list comprehension, generator      ok        raises   ok
+    #   "list()", "sorted()", "tuple()"    ok        ok       ok
+    #   "iter(iterator)"                   raises    raises   raises
+    #
+    # Python 3.13 alone refuses a comprehension, which is why
+    # "registrar.py:list_command()" crashed on aiko01, on 3.13, and passed on a
+    # 3.12 Mac.  Each other loop over a "Services" is a plain "for" statement
 
     def __iter__(self):
         return self
@@ -390,6 +395,7 @@ class ServicesIterator:
             service_topic_path = self._service_iterator.__next__()
         return self._process_services[service_topic_path]
 
+
 class Services:
     def __init__(self):
         self._count = 0
@@ -402,16 +408,15 @@ class Services:
         return "\n".join(self.get_topic_paths())
 
     def add_service(self, topic_path, service_details):
-        process_topic_path, service_topic_path =  \
-            ServiceTopicPath.topic_paths(topic_path)
+        process_topic_path, service_topic_path = ServiceTopicPath.topic_paths(topic_path)
         if process_topic_path:
-            if not process_topic_path in self._services:
+            if process_topic_path not in self._services:
                 index = "protocol" if isinstance(service_details, dict) else 2
                 order = service_details[index] != REGISTRAR_PROTOCOL
                 self._services.update({process_topic_path: {}})
                 self._services.move_to_end(process_topic_path, last=order)
             process_services = self._services[process_topic_path]
-            if not service_topic_path in process_services:
+            if service_topic_path not in process_services:
                 process_services[service_topic_path] = service_details
                 self._count += 1
 
@@ -426,8 +431,8 @@ class Services:
         clone = Services()
         clone._services = OrderedDict(
             (process_topic_path, process_services.copy())
-            for process_topic_path, process_services
-            in self._services.items())
+            for process_topic_path, process_services in self._services.items()
+        )
         clone._count = self._count
         return clone
 
@@ -442,19 +447,19 @@ class Services:
         results = self.filter_by_attributes(filter, services=results)
         return results
 
-# TODO: Make this a more general "filter" that is compatible with
-#       "aiko_services/share.py:_filter_compare()" and keep them together
-# TODO: Note this code is copied from "aiko_services/registrar.py"
-#       The registrar should also use general filters
-# services dict: Key: Process topic_path --> Value: Per Processs Services dict
+    # TODO: Make this a more general "filter" that is compatible with
+    #       "aiko_services/share.py:_filter_compare()" and keep them together
+    # TODO: Note this code is copied from "aiko_services/registrar.py"
+    #       The registrar should also use general filters
+    # services dict: Key: Process topic_path --> Value: Per Processs Services dict
 
-    def filter_by_attributes(self, filter, services=None):
+    def filter_by_attributes(self, filter, services=None):  # noqa: C901
         services = services._services if services else self._services
         results = Services()
 
-        for process_topic_path, process_services in services.items():
+        for process_services in services.values():
             for service_topic, service_details in process_services.items():
-            # TODO: Consolidate into consistent ServiceDetails() data structure
+                # TODO: Consolidate into consistent ServiceDetails() data structure
                 if isinstance(service_details, dict):
                     name = service_details["name"]
                     protocol = service_details["protocol"]
@@ -487,17 +492,17 @@ class Services:
                     results.add_service(service_topic, service_details)
         return results
 
-# TODO: Currently unused
-# TODO: Update to use ServiceFields.name, rather than "actor=name" tag
-#   def filter_by_name(self, name):
-#       services = {}
-#       topic_path = ".".join(name.split(".")[:-1])
-#       if topic_path in self._services.keys():
-#           service = self._services[topic_path]
-#           match_tag = f"actor={name}"  # TODO: service.name
-#           if ServiceTags.match_tags(service[4], [match_tag]):
-#               services[name] = service
-#       return services
+    # TODO: Currently unused
+    # TODO: Update to use ServiceFields.name, rather than "actor=name" tag
+    #   def filter_by_name(self, name):
+    #       services = {}
+    #       topic_path = ".".join(name.split(".")[:-1])
+    #       if topic_path in self._services.keys():
+    #           service = self._services[topic_path]
+    #           match_tag = f"actor={name}"  # TODO: service.name
+    #           if ServiceTags.match_tags(service[4], [match_tag]):
+    #               services[name] = service
+    #       return services
 
     def filter_by_topic_paths(self, topic_paths):
         if topic_paths == "*":
@@ -509,8 +514,7 @@ class Services:
                 if process_topic_path in self._services:
                     process_services = self._services[process_topic_path]
                     if topic_path in process_services:
-                        results.add_service(
-                            topic_path, process_services[topic_path])
+                        results.add_service(topic_path, process_services[topic_path])
         return results
 
     def get_process_services(self, process_topic_path):
@@ -519,8 +523,7 @@ class Services:
         return []
 
     def get_service(self, topic_path):
-        process_topic_path, service_topic_path =  \
-            ServiceTopicPath.topic_paths(topic_path)
+        process_topic_path, service_topic_path = ServiceTopicPath.topic_paths(topic_path)
         if process_topic_path in self._services:
             process_services = self._services[process_topic_path]
             if service_topic_path in process_services:
@@ -534,8 +537,7 @@ class Services:
         return topic_paths
 
     def remove_service(self, topic_path):
-        process_topic_path, service_topic_path =  \
-            ServiceTopicPath.topic_paths(topic_path)
+        process_topic_path, service_topic_path = ServiceTopicPath.topic_paths(topic_path)
         if process_topic_path in self._services:
             process_services = self._services[process_topic_path]
             if service_topic_path in process_services:
@@ -544,7 +546,9 @@ class Services:
             if len(process_services) == 0:
                 del self._services[process_topic_path]
 
+
 # --------------------------------------------------------------------------- #
+
 
 class Service(ServiceProtocolInterface, Hooks):  # TODO: Make Hooks be optional
     Interface.default("Service", "aiko_services.main.service.ServiceImpl")
@@ -585,13 +589,15 @@ class Service(ServiceProtocolInterface, Hooks):  # TODO: Make Hooks be optional
     def get_tags_string(self):
         pass
 
+
 # --------------------------------------------------------------------------- #
+
 
 class ServiceImpl(Service):
     def __init__(self, context, register_service=True):
         context.call_init(self, "Hooks", context)  # per-instance hook state
 
-    # TODO: Move name, protocol, tags, topic_path, transport into ServiceFields
+        # TODO: Move name, protocol, tags, topic_path, transport into ServiceFields
         self.time_started = time.monotonic()
         self.name = context.name
         self.protocol = context.protocol
@@ -640,6 +646,7 @@ class ServiceImpl(Service):
             self.add_tags(tags)
 
     def get_tags_string(self):
-        return ' '.join([str(tag) for tag in self._tags])
+        return " ".join([str(tag) for tag in self._tags])
+
 
 # --------------------------------------------------------------------------- #

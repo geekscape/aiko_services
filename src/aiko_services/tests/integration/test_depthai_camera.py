@@ -18,18 +18,16 @@ import os
 import time
 
 import pytest
-pytest.importorskip("cv2",
-    reason="aiko_services.elements.media needs cv2 (video_io.py)")
-depthai = pytest.importorskip("depthai",
-    reason='pip install "aiko_services[depthai]" to run the OAK camera test')
 
 from aiko_services.elements.cameras.camera_oak_d import OakDCamera
 from aiko_services.tests.unit import do_create_pipeline
 from aiko_services.tests.unit.image_sink import do_results_initialize
 
+pytest.importorskip("cv2", reason="aiko_services.elements.media needs cv2 (video_io.py)")
+depthai = pytest.importorskip("depthai", reason='pip install "aiko_services[depthai]" to run the OAK camera test')
+
 ADDRESS = os.environ.get("AIKO_TEST_DEPTHAI")
-pytestmark = pytest.mark.skipif(not ADDRESS,
-    reason="set AIKO_TEST_DEPTHAI=1 (discover) or =<address> to run")
+pytestmark = pytest.mark.skipif(not ADDRESS, reason="set AIKO_TEST_DEPTHAI=1 (discover) or =<address> to run")
 
 PIPELINE_DEFINITION = """{
   "version": 0, "name": "p_test_depthai_camera", "runtime": "python",
@@ -61,7 +59,8 @@ PIPELINE_DEFINITION = """{
 }
 """
 
-DISCOVERY_WAIT_S = 30.0     # a closed device is absent while it reboots
+DISCOVERY_WAIT_S = 30.0  # a closed device is absent while it reboots
+
 
 def _url():
     if ADDRESS != "1":
@@ -69,17 +68,16 @@ def _url():
     deadline = time.monotonic() + DISCOVERY_WAIT_S
     while not depthai.Device.getAllAvailableDevices():
         if time.monotonic() >= deadline:
-            pytest.skip("AIKO_TEST_DEPTHAI is set, but no OAK camera was "
-                        f"found within {DISCOVERY_WAIT_S} s")
+            pytest.skip(f"AIKO_TEST_DEPTHAI is set, but no OAK camera was found within {DISCOVERY_WAIT_S} s")
         time.sleep(1.0)
     return "depthai://"
+
 
 def test_open_capture_close_three_times():
     address = None if ADDRESS == "1" else ADDRESS
     _url()
     for _ in range(3):
-        camera = OakDCamera(address=address, resolution=(1280, 720),
-                            frame_rate=10.0)
+        camera = OakDCamera(address=address, resolution=(1280, 720), frame_rate=10.0)
         camera.open()
         try:
             image, metadata = camera.capture(timeout_s=10.0)
@@ -89,11 +87,11 @@ def test_open_capture_close_three_times():
         finally:
             camera.close()
 
+
 def test_pipeline_delivers_frames():
     results = do_results_initialize()
-    do_create_pipeline(PIPELINE_DEFINITION.replace("URL", _url()),
-                       frame_data=None)
+    do_create_pipeline(PIPELINE_DEFINITION.replace("URL", _url()), frame_data=None)
     assert not results["watchdog"], "no frames within 60 s"
     assert results["stopped"]
-    assert results["frame_ids"][:3] == [0, 1, 2]     # strays may follow
+    assert results["frame_ids"][:3] == [0, 1, 2]  # strays may follow
     assert all(shape == (720, 1280, 3) for shape in results["shapes"])

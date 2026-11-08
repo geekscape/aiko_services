@@ -73,18 +73,16 @@
 #
 # - Text Framing for LLM
 
-from typing import Tuple
 from pathlib import Path
+from typing import Tuple
 
 import aiko_services as aiko
 
-__all__ = [
-    "TextOutput", "TextReadFile", "TextReadZMQ",
-    "TextSample", "TextTransform", "TextWriteFile", "TextWriteZMQ"
-]
+__all__ = ["TextOutput", "TextReadFile", "TextReadZMQ", "TextSample", "TextTransform", "TextWriteFile", "TextWriteZMQ"]
 
 # --------------------------------------------------------------------------- #
 # Useful for Pipeline output that should be all of the text processed
+
 
 class TextOutput(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
@@ -93,6 +91,7 @@ class TextOutput(aiko.PipelineElement):
 
     def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
         return aiko.StreamEvent.OKAY, {"texts": texts}
+
 
 # --------------------------------------------------------------------------- #
 # TextReadFile is a DataSource which supports ...
@@ -103,6 +102,7 @@ class TextOutput(aiko.PipelineElement):
 # parameter: "data_sources" is the read file path, format variable: "frame_id"
 #
 # Note: Only supports Streams with "data_sources" parameter
+
 
 class TextReadFile(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
@@ -123,7 +123,9 @@ class TextReadFile(aiko.DataSource):  # PipelineElement
 
         return aiko.StreamEvent.OKAY, {"texts": texts}
 
+
 # --------------------------------------------------------------------------- #
+
 
 class TextReadTTY(aiko.DataSource):  # PipelineElement
     def __init__(self, context):
@@ -133,11 +135,11 @@ class TextReadTTY(aiko.DataSource):  # PipelineElement
     def start_stream(self, stream, stream_id):
         print('# Type "/?" for help and "/x" to exit')
         self.commands = {
-            "/?":   (self._command_help,    "Help"),
-            "//":   (None,                  "Escape sequence for '/'"),
-            "/h":   (self._command_history, "List command line history"),
+            "/?": (self._command_help, "Help"),
+            "//": (None, "Escape sequence for '/'"),
+            "/h": (self._command_history, "List command line history"),
             "/h N": (self._command_history, "Execute command line 'N'"),
-            "/x":   (self._command_exit,    "Exit")
+            "/x": (self._command_exit, "Exit"),
         }
         stream.variables["tty_command_lines"] = []
         return super().start_stream(stream, stream_id)
@@ -188,7 +190,9 @@ class TextReadTTY(aiko.DataSource):  # PipelineElement
                     stream.variables["tty_command_lines"].append(command_line)
                 texts.append(command_line)
         return aiko.StreamEvent.OKAY, {"texts": texts}
+
     #   return aiko.StreamEvent.DROP_FRAME, {}  # TODO: If command_line is None
+
 
 # --------------------------------------------------------------------------- #
 # TextReadZMQ is a DataSource which supports ...
@@ -199,6 +203,7 @@ class TextReadTTY(aiko.DataSource):  # PipelineElement
 #
 # Note: Only supports Streams with "data_sources" parameter
 
+
 class TextReadZMQ(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("text_read_zmq:0")
@@ -208,14 +213,16 @@ class TextReadZMQ(aiko.DataSource):  # PipelineElement
         texts = []
         for record in records:
             text = record.decode()
-    #       if text.startswith("text:"):  # TODO: "text:length:content" ?
-    #           tokens = text.split(":")
-    #           text = tokens[2:][0]      # just the "content"
+            #       if text.startswith("text:"):  # TODO: "text:length:content" ?
+            #           tokens = text.split(":")
+            #           text = tokens[2:][0]      # just the "content"
             texts.append(text)
             self.logger.debug(f"{self.my_id()}: {text} ({len(text)})")
         return aiko.StreamEvent.OKAY, {"texts": texts}
 
+
 # --------------------------------------------------------------------------- #
+
 
 class TextSample(aiko.PipelineElement):
     def __init__(self, context):
@@ -231,7 +238,9 @@ class TextSample(aiko.PipelineElement):
             self.logger.debug(f"{self.my_id()}: frame not dropped")
             return aiko.StreamEvent.OKAY, {"texts": texts}
 
+
 # --------------------------------------------------------------------------- #
+
 
 class TextTransform(aiko.PipelineElement):
     def __init__(self, context: aiko.ContextPipelineElement):
@@ -240,9 +249,9 @@ class TextTransform(aiko.PipelineElement):
 
         self.transforms = {
             "lowercase": lambda text: text.lower(),  # looks like this !
-            "none":      lambda text: text,          # looks unchanged !
+            "none": lambda text: text,  # looks unchanged !
             "titlecase": lambda text: text.title(),  # Looks Like This !
-            "uppercase": lambda text: text.upper()   # LOOKS LIKE THIS !
+            "uppercase": lambda text: text.upper(),  # LOOKS LIKE THIS !
         }
 
     def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
@@ -263,6 +272,7 @@ class TextTransform(aiko.PipelineElement):
 
         return aiko.StreamEvent.OKAY, {"texts": texts_transformed}
 
+
 # --------------------------------------------------------------------------- #
 # TextWriteFile is a DataTarget with a text string parameter
 #
@@ -273,6 +283,7 @@ class TextTransform(aiko.PipelineElement):
 # - True:  Each text record is written to a different "target_path_template"
 #
 # Note: Only supports Streams with "data_targets" parameter
+
 
 class TextWriteFile(aiko.DataTarget):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
@@ -325,7 +336,9 @@ class TextWriteFile(aiko.DataTarget):  # PipelineElement
             del stream.variables["target_file"]
         return stream_event, diagnostic
 
+
 # --------------------------------------------------------------------------- #
+
 
 class TextWriteTTY(aiko.DataTarget):  # PipelineElement
     def __init__(self, context):
@@ -341,6 +354,7 @@ class TextWriteTTY(aiko.DataTarget):  # PipelineElement
         print(f"{tty_prompt}", flush=True, end="")
         return aiko.StreamEvent.OKAY, {}
 
+
 # --------------------------------------------------------------------------- #
 # TextWriteZMQ is a DataTarget which supports ...
 # - TextWriteZMQ(DataTarget) ZMQ client --> TextReadZMQ(DataSource) ZMQ server
@@ -350,17 +364,18 @@ class TextWriteTTY(aiko.DataTarget):  # PipelineElement
 #
 # Note: Only supports Streams with "data_targets" parameter
 
+
 class TextWriteZMQ(aiko.DataTarget):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("text_write_zmq:0")
         context.call_init(self, "PipelineElement", context)
 
     def process_frame(self, stream, texts) -> Tuple[aiko.StreamEvent, dict]:
-        media_type = "text"                            # TODO: "text/zip" ?
         for text in texts:
-     #      text = f"{media_type}:{len(text)}:{text}"  # "text:length:content" ?
+            #      text = f"{media_type}:{len(text)}:{text}"  # "text:length:content" ?
             stream.variables["target_zmq_socket"].send(text.encode())
 
         return aiko.StreamEvent.OKAY, {}
+
 
 # --------------------------------------------------------------------------- #

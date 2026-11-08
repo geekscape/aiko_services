@@ -31,6 +31,7 @@ __all__ = ["LaunchdDaemonSupervisorImpl"]
 AGENT_DIRECTORY = "~/Library/LaunchAgents"
 LABEL_PREFIX = "io.aiko_services"
 
+
 class LaunchdDaemonSupervisorImpl(DaemonSupervisor):
     """launchd on macOS: a user agent in ~/Library/LaunchAgents"""
 
@@ -47,18 +48,15 @@ class LaunchdDaemonSupervisorImpl(DaemonSupervisor):
         return directory / f"{self._label(spec)}.plist"
 
     def render(self, spec):
-        arguments = "\n".join(
-            f"      <string>{escape(argument)}</string>"
-            for argument in spec.command_line())
+        arguments = "\n".join(f"      <string>{escape(argument)}</string>" for argument in spec.command_line())
         environment = "\n".join(
-            f"      <key>{escape(name)}</key>"
-            f"<string>{escape(str(value))}</string>"
-            for name, value in spec.environment.items())
+            f"      <key>{escape(name)}</key><string>{escape(str(value))}</string>"
+            for name, value in spec.environment.items()
+        )
 
         lines = [
             '<?xml version="1.0" encoding="UTF-8"?>',
-            '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" '
-            '"http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+            '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
             '<plist version="1.0">',
             "<dict>",
             f"  <!-- {escape(spec.description)} -->",
@@ -69,26 +67,17 @@ class LaunchdDaemonSupervisorImpl(DaemonSupervisor):
             "  <key>ProgramArguments</key>",
             "  <array>",
             arguments,
-            "  </array>"
+            "  </array>",
         ]
         if spec.working_directory:
-            lines += [
-                "  <key>WorkingDirectory</key>",
-                f"  <string>{escape(spec.working_directory)}</string>"
-            ]
+            lines += ["  <key>WorkingDirectory</key>", f"  <string>{escape(spec.working_directory)}</string>"]
         if spec.environment:
-            lines += [
-                "  <key>EnvironmentVariables</key>", "  <dict>", environment,
-                "  </dict>"
-            ]
+            lines += ["  <key>EnvironmentVariables</key>", "  <dict>", environment, "  </dict>"]
         lines += ["  <key>RunAtLoad</key>", "  <true/>"]
         if spec.restart == "always":
             lines += ["  <key>KeepAlive</key>", "  <true/>"]
         elif spec.restart == "on-failure":
-            lines += [
-                "  <key>KeepAlive</key>", "  <dict>",
-                "    <key>SuccessfulExit</key><false/>", "  </dict>"
-            ]
+            lines += ["  <key>KeepAlive</key>", "  <dict>", "    <key>SuccessfulExit</key><false/>", "  </dict>"]
         lines += [
             "  <key>ThrottleInterval</key>",
             f"  <integer>{spec.restart_seconds}</integer>",
@@ -96,7 +85,7 @@ class LaunchdDaemonSupervisorImpl(DaemonSupervisor):
             f"  <integer>{spec.stop_timeout_seconds}</integer>",
             "</dict>",
             "</plist>",
-            ""
+            "",
         ]
         return "\n".join(lines)
 
@@ -108,8 +97,7 @@ class LaunchdDaemonSupervisorImpl(DaemonSupervisor):
         pathname.parent.mkdir(parents=True, exist_ok=True)
         pathname.write_text(self.render(spec))
         if enable:
-            run_command(
-                ["launchctl", "bootstrap", f"gui/{os.getuid()}", str(pathname)])
+            run_command(["launchctl", "bootstrap", f"gui/{os.getuid()}", str(pathname)])
         return pathname
 
     def uninstall(self, spec):
@@ -127,5 +115,6 @@ class LaunchdDaemonSupervisorImpl(DaemonSupervisor):
 
     def status(self, spec):
         return run_command(["launchctl", "print", self._domain_target(spec)])
+
 
 # --------------------------------------------------------------------------- #

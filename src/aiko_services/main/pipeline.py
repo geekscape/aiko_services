@@ -168,68 +168,71 @@
 #     - Provide "absent" / "ready" status
 #   - Collect "topic_path", etc into a "service_filter" structure
 
-from abc import abstractmethod
-import avro.schema
-from avro_validator.schema import Schema
-import click
-import copy
-from collections import OrderedDict  # All OrderedDict operations are O(1)
-from dataclasses import dataclass, asdict
 import datetime
-from enum import Enum
 import json
 import os
-import psutil
 import queue
 import threading
-from threading import Thread
 import time
 import traceback
-from typing import Any, Dict, List, Tuple
+from abc import abstractmethod
+from collections import OrderedDict  # All OrderedDict operations are O(1)
+from dataclasses import dataclass
+from enum import Enum
+from threading import Thread
+from typing import Dict, List, Tuple
+
+import avro.schema
+import click
+import psutil
 
 from aiko_services.main import *
 from aiko_services.main.utilities import *
 
 __all__ = [
-    "Pipeline", "PipelineElement", "PipelineElementImpl",
+    "Pipeline",
+    "PipelineElement",
+    "PipelineElementImpl",
     "PipelineElementLoop",
     "PipelineImpl",
-    "PIPELINE_HOOK_PROCESS_ELEMENT", "PIPELINE_HOOK_PROCESS_ELEMENT_POST",
-    "PIPELINE_HOOK_PROCESS_FRAME", "PROTOCOL_PIPELINE"
+    "PIPELINE_HOOK_PROCESS_ELEMENT",
+    "PIPELINE_HOOK_PROCESS_ELEMENT_POST",
+    "PIPELINE_HOOK_PROCESS_FRAME",
+    "PROTOCOL_PIPELINE",
 ]
 
 _VERSION = 0
 
 ACTOR_TYPE_PIPELINE = "pipeline"
 ACTOR_TYPE_ELEMENT = "pipeline_element"
-PROTOCOL_PIPELINE =  f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE_PIPELINE}:{_VERSION}"
-PROTOCOL_ELEMENT =  f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE_ELEMENT}:{_VERSION}"
+PROTOCOL_PIPELINE = f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE_PIPELINE}:{_VERSION}"
+PROTOCOL_ELEMENT = f"{SERVICE_PROTOCOL_AIKO}/{ACTOR_TYPE_ELEMENT}:{_VERSION}"
 
 PIPELINE_HOOK_PROCESS_ELEMENT = "pipeline.process_element:"
-_PIPELINE_HOOK_PROCESS_ELEMENT = PIPELINE_HOOK_PROCESS_ELEMENT+"0"
+_PIPELINE_HOOK_PROCESS_ELEMENT = PIPELINE_HOOK_PROCESS_ELEMENT + "0"
 PIPELINE_HOOK_PROCESS_ELEMENT_POST = "pipeline.process_element_post:"
-_PIPELINE_HOOK_PROCESS_ELEMENT_POST = PIPELINE_HOOK_PROCESS_ELEMENT_POST+"0"
+_PIPELINE_HOOK_PROCESS_ELEMENT_POST = PIPELINE_HOOK_PROCESS_ELEMENT_POST + "0"
 PIPELINE_HOOK_PROCESS_FRAME = "pipeline.process_frame:"
-_PIPELINE_HOOK_PROCESS_FRAME = PIPELINE_HOOK_PROCESS_FRAME+"0"
+_PIPELINE_HOOK_PROCESS_FRAME = PIPELINE_HOOK_PROCESS_FRAME + "0"
 
 _GRACE_TIME = 60  # seconds
 _LOGGER = aiko.logger(__name__)
 _METRICS_MEMORY_ENABLE = False
-_STREAM_STATE_WORKING = [
-    StreamState.DROP_FRAME, StreamState.NO_FRAME, StreamState.RUN
-]
+_STREAM_STATE_WORKING = [StreamState.DROP_FRAME, StreamState.NO_FRAME, StreamState.RUN]
 
 _WINDOWS = False  # Stream windowing protocol for distributed function calls
 
 # --------------------------------------------------------------------------- #
 
+
 class DeployType(Enum):
     LOCAL = "local"
     REMOTE = "remote"
 
+
 @dataclass
 class PipelineDefinition:
-#   comment: str  # Specified in Avro schema and discarded by parser
+    #   comment: str  # Specified in Avro schema and discarded by parser
     version: int
     name: str
     runtime: str
@@ -237,19 +240,22 @@ class PipelineDefinition:
     parameters: Dict  # Optional field, default: {}
     elements: List
 
+
 @dataclass
 class PipelineElementDefinition:
-#   comment: str  # Specified in Avro schema and discarded by parser
-    name: str     # unique name
+    #   comment: str  # Specified in Avro schema and discarded by parser
+    name: str  # unique name
     input: Dict[str, str]
     output: Dict[str, str]
     parameters: Dict  # Optional field, default: {}
     deploy: Dict
 
+
 @dataclass
 class PipelineElementDeployLocal:
     class_name: str  # optional field, default: name
     module: str
+
 
 @dataclass
 class RemoteServiceFilter:
@@ -260,12 +266,15 @@ class RemoteServiceFilter:
     transport: str
     tags: str
 
+
 @dataclass
 class PipelineElementDeployRemote:
     module: str  # TODO: Is this really needed ?  Probably not !
     service_filter: RemoteServiceFilter
 
+
 # --------------------------------------------------------------------------- #
+
 
 class PipelineGraph(Graph):
     def __init__(self, head_nodes=None):
@@ -285,7 +294,7 @@ class PipelineGraph(Graph):
 
         if element.__class__.__name__ == "ServiceRemoteProxy":
             lifecycle = "ready"  # element.get_lifecycle() ?
-            local = False        # element.is_local() and pipeline.is_local() ?
+            local = False  # element.is_local() and pipeline.is_local() ?
             name = node.name
         else:
             lifecycle = element.share["lifecycle"]  # element.get_lifecycle() ?
@@ -298,22 +307,22 @@ class PipelineGraph(Graph):
 
         return element, name, local, lifecycle
 
-# TODO: Work-in-progress
-# - Pass 1: Validate_inputs_by_name_and_type()
-#   - Each input NAME and TYPE provided by exactly one parent predecessor
-#   - Each input NAME and TYPE provided by exactly one predecessor (recursive)
-#
-# - Pass 2: Validate_inputs_by_position_and_type()
-#   - Each input TYPE provided exactly in order by parent predecessor
-#   - Each input TYPE provided by exactly one predecessor (recursive) ?
-#
-# - Pass 3: Perform mapping first, then ...
-#   - Check mapping output --> input: NAME and TYPE must match
-#     "graph": ["(A (B D (d0: d1)) (C D))"],
-#
-# - Provide mapping clues
-# - Flexible or Strict (exact match predecessor output --> successor input)
-# - Reflect on PipelineElement function signatures to create definition.elements
+    # TODO: Work-in-progress
+    # - Pass 1: Validate_inputs_by_name_and_type()
+    #   - Each input NAME and TYPE provided by exactly one parent predecessor
+    #   - Each input NAME and TYPE provided by exactly one predecessor (recursive)
+    #
+    # - Pass 2: Validate_inputs_by_position_and_type()
+    #   - Each input TYPE provided exactly in order by parent predecessor
+    #   - Each input TYPE provided by exactly one predecessor (recursive) ?
+    #
+    # - Pass 3: Perform mapping first, then ...
+    #   - Check mapping output --> input: NAME and TYPE must match
+    #     "graph": ["(A (B D (d0: d1)) (C D))"],
+    #
+    # - Provide mapping clues
+    # - Flexible or Strict (exact match predecessor output --> successor input)
+    # - Reflect on PipelineElement function signatures to create definition.elements
 
     def validate_inputs(self, inputs, predecessors, checked=None, strict=False):
         checked = checked if checked else []  # each predecessor checked once
@@ -326,8 +335,7 @@ class PipelineGraph(Graph):
                         if predecessor_output["name"] == input["name"]:
                             input["found"] += 1
                 if not strict:
-                    inputs, checked = self.validate_inputs(
-                                      inputs, predecessor.predecessors, checked)
+                    inputs, checked = self.validate_inputs(inputs, predecessor.predecessors, checked)
         return inputs, checked
 
     def validate_mapping(self, map_in_nodes, element_name, input):
@@ -346,8 +354,7 @@ class PipelineGraph(Graph):
         except KeyError as key_error:
             node_unknown = key_error
         if node_unknown:
-            raise SystemExit(
-                f"PipelineDefinition PipelineElement unknown: {node_unknown}")
+            raise SystemExit(f"PipelineDefinition PipelineElement unknown: {node_unknown}")
 
         for node in nodes:
             element, element_name, _, _ = PipelineGraph.get_element(node)
@@ -358,11 +365,10 @@ class PipelineGraph(Graph):
                 predecessors = node.predecessors
                 if len(predecessors) == 0:  # Don't worry about graph head nodes
                     continue
-                inputs, _ = self.validate_inputs(
-                                element_inputs, predecessors, strict)
+                inputs, _ = self.validate_inputs(element_inputs, predecessors, strict)
                 for input in inputs:
                     try_map_in_out = False
-                    diagnostic = f"PipelineElement {element_name}: input \"{input['name']}\" not produced by any "
+                    diagnostic = f'PipelineElement {element_name}: input "{input["name"]}" not produced by any '
                     if strict and input["found"] != 1:
                         diagnostic += "immediate predecessor PipelineElement"
                         try_map_in_out = True
@@ -373,33 +379,31 @@ class PipelineGraph(Graph):
 
                     if try_map_in_out:
                         map_in_nodes = pipeline_definition.map_in_nodes
-                        if not self.validate_mapping(
-                            map_in_nodes, element_name, input):
+                        if not self.validate_mapping(map_in_nodes, element_name, input):
                             pass
                         #   self.logger.debug(f"{diagnostic}")  # TODO: Verify
             for successor_name in node.successors:
                 successor = self.get_node(successor_name)
                 successor.predecessors[element_name] = node
 
+
 # --------------------------------------------------------------------------- #
 # PipelineElement: service_level_agreement: low_latency, etc
 
+
 class PipelineElement(Actor):
-    Interface.default("PipelineElement",
-        "aiko_services.main.pipeline.PipelineElementImpl")
+    Interface.default("PipelineElement", "aiko_services.main.pipeline.PipelineElementImpl")
 
     @abstractmethod
     def create_frame(self, stream, frame_data, frame_id=None, graph_path=None):
         pass
 
     @abstractmethod
-    def create_frames(
-        self, stream, frame_generator, frame_id=FIRST_FRAME_ID, rate=None):
+    def create_frames(self, stream, frame_generator, frame_id=FIRST_FRAME_ID, rate=None):
         pass
 
     @abstractmethod
-    def get_parameter(self, name,
-        default=None, required=False, use_pipeline=True):
+    def get_parameter(self, name, default=None, required=False, use_pipeline=True):
         pass
 
     @abstractmethod
@@ -418,7 +422,7 @@ class PipelineElement(Actor):
     def my_id(self, all=False):
         pass
 
-# PipelineElement developer must provide a process_frame() implementation
+    # PipelineElement developer must provide a process_frame() implementation
 
     @abstractmethod
     def process_frame(self, stream, **kwargs) -> Tuple[StreamEvent, dict]:
@@ -435,32 +439,31 @@ class PipelineElement(Actor):
     def stop_stream(self, stream, stream_id):
         pass
 
+
 class PipelineElementImpl(PipelineElement):
     def __init__(self, context):
         self.definition = context.get_definition()
         self.pipeline = context.get_pipeline()
-        self.is_pipeline = (self.pipeline == None)
+        self.is_pipeline = self.pipeline is None
         if context.protocol == "*":
-            context.set_protocol(
-                PROTOCOL_PIPELINE if self.is_pipeline else PROTOCOL_ELEMENT)
+            context.set_protocol(PROTOCOL_PIPELINE if self.is_pipeline else PROTOCOL_ELEMENT)
         context.call_init(self, "Actor", context)
 
-    #  "log_level" parameter overrides "AIKO_LOG_LEVEL" environment variable
-        log_level, found = self.get_parameter(
-            "log_level", self_share_priority=False)
+        #  "log_level" parameter overrides "AIKO_LOG_LEVEL" environment variable
+        log_level, found = self.get_parameter("log_level", self_share_priority=False)
         if found:
             self.logger.setLevel(log_level_real(log_level))
 
         self.share["source_file"] = f"v{_VERSION}⇒ {__file__}"
         self.share.update(self.definition.parameters)
+
     # TODO: Fix Aiko Dashboard / EC_Producer incorrectly updates this approach
     #   self.share["parameters"] = self.definition.parameters  # TODO
 
     def create_frame(self, stream, frame_data, frame_id=None, graph_path=None):
-        if stream.stream_id not in self.pipeline.DEBUG:     # DEBUG: 2024-12-02
+        if stream.stream_id not in self.pipeline.DEBUG:  # DEBUG: 2024-12-02
             self.pipeline.DEBUG[stream.stream_id] = {}
-        self.pipeline.DEBUG[stream.stream_id]["create_frame"] = {
-            "time": local_iso_now(), "latest_frame_id": frame_id}
+        self.pipeline.DEBUG[stream.stream_id]["create_frame"] = {"time": local_iso_now(), "latest_frame_id": frame_id}
 
         frame_id = frame_id if frame_id else stream.frame_id
         graph_path = graph_path if graph_path else stream.graph_path
@@ -471,25 +474,23 @@ class PipelineElementImpl(PipelineElement):
             parameters=stream.parameters,
             queue_response=stream.queue_response,
             state=stream.state,
-            topic_response=stream.topic_response)
+            topic_response=stream.topic_response,
+        )
         self.pipeline.create_frame(stream_copy, frame_data)
 
-# Optional "frame_generator" starts during "create_stream() --> start_stream()"
+    # Optional "frame_generator" starts during "create_stream() --> start_stream()"
 
-    def create_frames(
-        self, stream, frame_generator, frame_id=FIRST_FRAME_ID, rate=None):
+    def create_frames(self, stream, frame_generator, frame_id=FIRST_FRAME_ID, rate=None):
 
         thread_args = (stream, frame_generator, int(frame_id), rate)
-        Thread(target=self._create_frames_generator,
-            args=thread_args, daemon=True).start()
+        Thread(target=self._create_frames_generator, args=thread_args, daemon=True).start()
 
-# TODO: For "rate" measure time since last frame to be more accurate
-# FIX:  For "rate" check "rate=0" (fills mailbox) versus "rate=None" ?
+    # TODO: For "rate" measure time since last frame to be more accurate
+    # FIX:  For "rate" check "rate=0" (fills mailbox) versus "rate=None" ?
 
-    def _create_frames_generator(self, stream, frame_generator, frame_id, rate):
+    def _create_frames_generator(self, stream, frame_generator, frame_id, rate):  # noqa: C901
         try:
-            self.pipeline._enable_thread_local(
-                "_create_frames_generator()", stream.stream_id, frame_id)
+            self.pipeline._enable_thread_local("_create_frames_generator()", stream.stream_id, frame_id)
             stream, frame_id = self.get_stream()
 
             mailbox_name = f"{self.pipeline.name}/1/in"
@@ -498,29 +499,26 @@ class PipelineElementImpl(PipelineElement):
             start_time = time.monotonic()
 
             while stream.state == StreamState.RUN:
-            # TODO: 2024-12-11: Throttle "frame_generator" when "rate" is None
-            # TODO: Create "event.py:get_mailbox_queue()", "size" and "throttle"
+                # TODO: 2024-12-11: Throttle "frame_generator" when "rate" is None
+                # TODO: Create "event.py:get_mailbox_queue()", "size" and "throttle"
                 if not rate or rate == 0:
                     if mailbox_queue:
                         if mailbox_queue.qsize() >= 32:
                             time.sleep(0.02)  # 50 Hz check
                             continue
-            # TODO: Find cases when Pipeline "in" mailbox doesn't exist yet
+                    # TODO: Find cases when Pipeline "in" mailbox doesn't exist yet
                     elif mailbox_name in event.mailboxes:
                         mailbox_queue = event.mailboxes[mailbox_name].queue
 
                 stream.lock.acquire("_create_frames_generator()")
                 try:
                     stream_event, frame_data = frame_generator(stream, frame_id)
-                except Exception as exception:
-                    self.logger.error(
-                        "Exception in pipeline_element._create_frames() --> "  \
-                        "frame_generator()")
+                except Exception:
+                    self.logger.error("Exception in pipeline_element._create_frames() --> frame_generator()")
                     stream_event = StreamEvent.ERROR
                     frame_data = {"diagnostic": traceback.format_exc()}
 
-                stream.set_state(self.pipeline._process_stream_event(
-                    self.name, stream, stream_event, frame_data))
+                stream.set_state(self.pipeline._process_stream_event(self.name, stream, stream_event, frame_data))
                 if stream.state == StreamState.ERROR:
                     break
 
@@ -530,14 +528,11 @@ class PipelineElementImpl(PipelineElement):
                         frame_data = [frame_data]
                     if isinstance(frame_data, list):
                         for a_frame_data in frame_data:
-                            self.create_frame(
-                                stream, a_frame_data, frame_id, graph_path)
+                            self.create_frame(stream, a_frame_data, frame_id, graph_path)
                             frame_id += 1
                             self.pipeline.thread_local.frame_id = frame_id
                     else:
-                        self.logger.warning(
-                            "Frame generator must return either "
-                            "{frame_data} or [{frame_data}]")
+                        self.logger.warning("Frame generator must return either {frame_data} or [{frame_data}]")
 
                 if stream.state in _STREAM_STATE_WORKING:
                     stream.set_state(StreamState.RUN)
@@ -545,7 +540,7 @@ class PipelineElementImpl(PipelineElement):
                     stream.lock.release()
 
                 if rate and stream.state == StreamState.RUN:
-                # TODO: When "rate" parameter updates, then fix "period_time"
+                    # TODO: When "rate" parameter updates, then fix "period_time"
                     period_counter += 1
                     period_time = period_counter * (1.0 / rate)
                     duration = period_time + start_time - time.monotonic()
@@ -553,9 +548,8 @@ class PipelineElementImpl(PipelineElement):
                         time.sleep(duration)
                 elif stream_event == StreamEvent.NO_FRAME:
                     time.sleep(0.02)  # Avoid frame_generator() busy CPU loop
-        except Exception as exception:
-            self.logger.error("PipelineImpl._create_frames_generator(): "  \
-                             f"{traceback.format_exc()}")
+        except Exception:
+            self.logger.error(f"PipelineImpl._create_frames_generator(): {traceback.format_exc()}")
         finally:
             self.pipeline._disable_thread_local("_create_frames_generator()")
 
@@ -563,9 +557,7 @@ class PipelineElementImpl(PipelineElement):
     #       in self.share[], just like PipelineDefinition parameters.
     #       Note: Consider the performance implications when doing this !
 
-    def get_parameter(self, name,
-        default=None, required=False, use_pipeline=True,
-        self_share_priority=True):
+    def get_parameter(self, name, default=None, required=False, use_pipeline=True, self_share_priority=True):
 
         value = None
         found = False
@@ -583,7 +575,7 @@ class PipelineElementImpl(PipelineElement):
                 value = self.definition.parameters[name]
             found = True
 
-    # TODO: Should also allow Pipeline parameters to be updated
+        # TODO: Should also allow Pipeline parameters to be updated
 
         if not found and use_pipeline and not self.is_pipeline:
             if name in stream_parameters:
@@ -617,12 +609,14 @@ class PipelineElementImpl(PipelineElement):
         return parameters
 
     def get_variables(self, stream):
-        return self.pipeline.definition.parameters |  \
-               self.pipeline.share                 |  \
-               self.definition.parameters          |  \
-               self.share                          |  \
-               self._get_stream_parameters()       |  \
-               stream.frames[stream.frame_id].swag
+        return (
+            self.pipeline.definition.parameters
+            | self.pipeline.share
+            | self.definition.parameters
+            | self.share
+            | self._get_stream_parameters()
+            | stream.frames[stream.frame_id].swag
+        )
 
     def my_id(self, all=False):
         name = self.name if all else ""
@@ -635,21 +629,30 @@ class PipelineElementImpl(PipelineElement):
     def stop_stream(self, stream, stream_id):
         return StreamEvent.OKAY, None
 
+
 # --------------------------------------------------------------------------- #
+
 
 class PipelineElementLoop(PipelineElement):
-    Interface.default("PipelineElementLoop",
-        "aiko_services.main.pipeline.PipelineElementImpl")
+    Interface.default("PipelineElementLoop", "aiko_services.main.pipeline.PipelineElementImpl")
+
 
 # --------------------------------------------------------------------------- #
+
 
 class Pipeline(PipelineElement):
     Interface.default("Pipeline", "aiko_services.main.pipeline.PipelineImpl")
 
     @abstractmethod
-    def create_stream(self, stream_id, graph_path=None,
-        parameters=None, grace_time=_GRACE_TIME,
-        queue_response=None, topic_response=None):
+    def create_stream(
+        self,
+        stream_id,
+        graph_path=None,
+        parameters=None,
+        grace_time=_GRACE_TIME,
+        queue_response=None,
+        topic_response=None,
+    ):
         pass
 
     @abstractmethod
@@ -661,8 +664,7 @@ class Pipeline(PipelineElement):
         pass
 
     @abstractmethod
-    def process_frame_response(
-        self, stream, frame_data) -> Tuple[StreamEvent, dict]:
+    def process_frame_response(self, stream, frame_data) -> Tuple[StreamEvent, dict]:
         pass
 
     @abstractmethod
@@ -673,19 +675,20 @@ class Pipeline(PipelineElement):
     def set_parameters(self, stream_id, parameters):
         pass
 
+
 class PipelineImpl(Pipeline):
     DEPLOY_TYPE_LOOKUP = {
         DeployType.LOCAL.value: PipelineElementDeployLocal,
-        DeployType.REMOTE.value: PipelineElementDeployRemote
+        DeployType.REMOTE.value: PipelineElementDeployRemote,
     }
     DEPLOY_TYPE_LOCAL_NAME = PipelineElementDeployLocal.__name__
     DEPLOY_TYPE_REMOTE_NAME = PipelineElementDeployRemote.__name__
 
     def __init__(self, context):
-        self.DEBUG = {}                                     # DEBUG: 2024-12-02
+        self.DEBUG = {}  # DEBUG: 2024-12-02
 
         self.pipeline_graph = None
-        self.actor = context.get_implementation("Actor")    # _WINDOWS
+        self.actor = context.get_implementation("Actor")  # _WINDOWS
         context.call_init(self, "PipelineElement", context)
         self.logger.info(f"MQTT topic: {self.topic_in}")
 
@@ -697,10 +700,9 @@ class PipelineImpl(Pipeline):
         self.stream_leases = {}
         self.thread_local = threading.local()  # See _enable_thread_local()
 
-    # TODO: Duplicated in PipelineElementImpl.__init__() remove ?
-    #  "log_level" parameter overrides "AIKO_LOG_LEVEL" environment variable
-        log_level, found = self.get_parameter(
-            "log_level", self_share_priority=False)
+        # TODO: Duplicated in PipelineElementImpl.__init__() remove ?
+        #  "log_level" parameter overrides "AIKO_LOG_LEVEL" environment variable
+        log_level, found = self.get_parameter("log_level", self_share_priority=False)
         if found:
             self.logger.setLevel(log_level_real(log_level))
 
@@ -719,9 +721,9 @@ class PipelineImpl(Pipeline):
 
         self._update_lifecycle_state()
 
-    # TODO: Better visualization of the Pipeline / PipelineElements details
+        # TODO: Better visualization of the Pipeline / PipelineElements details
         if False:
-            self.logger.info(f"Pipeline graph path ...")
+            self.logger.info("Pipeline graph path ...")
             graph_path = self.pipeline_graph.get_path(self.share["graph_path"])
             for node in graph_path:
                 self.logger.info(f"    PipelineElement: {node.name}")
@@ -730,15 +732,14 @@ class PipelineImpl(Pipeline):
 
     def ec_producer_change_handler(self, command, item_name, item_value):
         if item_name == "log_level":
-            if log_level_all(item_value):               # update all elements ?
+            if log_level_all(item_value):  # update all elements ?
                 log_level = log_level_real(item_value)  # clean-up log_level :)
                 if self.pipeline_graph:
                     for node in self.pipeline_graph:
                         element, _, _, _ = PipelineGraph.get_element(node)
                         element.ec_producer.update(item_name, log_level)
 
-        self.actor.ec_producer_change_handler(
-            self, command, item_name, item_value)
+        self.actor.ec_producer_change_handler(self, command, item_name, item_value)
 
         if item_name == "sliding_windows":
             try:
@@ -775,16 +776,16 @@ class PipelineImpl(Pipeline):
             definition.map_out_nodes[predecessor_name] = {}
         definition.map_out_nodes[predecessor_name][node_name] = properties
 
-# Pipeline current "stream" and "frame_id" are thread-local variables
-# Valid for create_stream(), process_frame() and destroy_stream() on main thread
-# Valid for PipelineElement._create_frames_generator() thread
-#
-# Always use ...
-#     try:
-#         self._enable_thread_local("function_name()", stream_id, frame_id)
-#         stream, frame_id = self.get_stream()
-#     finally:
-#         self._disable_thread_local("function_name()")
+    # Pipeline current "stream" and "frame_id" are thread-local variables
+    # Valid for create_stream(), process_frame() and destroy_stream() on main thread
+    # Valid for PipelineElement._create_frames_generator() thread
+    #
+    # Always use ...
+    #     try:
+    #         self._enable_thread_local("function_name()", stream_id, frame_id)
+    #         stream, frame_id = self.get_stream()
+    #     finally:
+    #         self._disable_thread_local("function_name()")
 
     def _enable_thread_local(self, function_name, stream_id, frame_id=None):
         stream = getattr(self.thread_local, "stream", None)
@@ -794,43 +795,68 @@ class PipelineImpl(Pipeline):
             self.thread_local.frame_id = frame_id
         else:
             self.thread_local.frame_id = self.thread_local.stream.frame_id
+
     #   self.logger.warning(f"Enable:  {function_name}: {self.my_id()}")  # useful
 
     def _disable_thread_local(self, function_name):
         stream = self.thread_local.stream
         assert stream, "self.thread_local.stream must be assigned"
-    #   self.logger.warning(f"Disable: {function_name}: {self.my_id()}")  # useful
+        #   self.logger.warning(f"Disable: {function_name}: {self.my_id()}")  # useful
         self.thread_local.stream = None
         self.thread_local.frame_id = None
 
     def create_frame(self, stream, frame_data, frame_id=None, graph_path=None):
         if isinstance(stream, Stream):
             stream = stream.as_dict()
-        self._post_message(
-            ActorTopic.IN, "process_frame", [stream, frame_data])
+        self._post_message(ActorTopic.IN, "process_frame", [stream, frame_data])
 
     @classmethod
-    def create_pipeline(cls, definition_pathname, pipeline_definition,
-        name, graph_path, stream_id, parameters, frame_id, frame_data,
-        grace_time, queue_response=None,
-        log_level=None, stream_reset=False, hooks="none", windows=False):
+    def create_pipeline(
+        cls,
+        definition_pathname,
+        pipeline_definition,
+        name,
+        graph_path,
+        stream_id,
+        parameters,
+        frame_id,
+        frame_data,
+        grace_time,
+        queue_response=None,
+        log_level=None,
+        stream_reset=False,
+        hooks="none",
+        windows=False,
+    ):
 
         global _WINDOWS
         _WINDOWS = windows
 
         name = name if name else pipeline_definition.name
 
-        init_args = pipeline_args(name,
+        init_args = pipeline_args(
+            name,
             protocol=PROTOCOL_PIPELINE,
             definition=pipeline_definition,
             definition_pathname=definition_pathname,
-            graph_path=graph_path
+            graph_path=graph_path,
         )
         pipeline = compose_instance(PipelineImpl, init_args)
 
-        PipelineImpl.update_pipeline(pipeline, graph_path, stream_id,
-            parameters, frame_id, frame_data, grace_time,
-            queue_response, None, log_level, stream_reset, hooks)
+        PipelineImpl.update_pipeline(
+            pipeline,
+            graph_path,
+            stream_id,
+            parameters,
+            frame_id,
+            frame_data,
+            grace_time,
+            queue_response,
+            None,
+            log_level,
+            stream_reset,
+            hooks,
+        )
 
         return pipeline
 
@@ -838,42 +864,35 @@ class PipelineImpl(Pipeline):
         header = f"Error: Creating Pipeline: {definition.name}"
 
         if len(definition.elements) == 0:
-            self._error_pipeline(header,
-                "PipelineDefinition: Doesn't define any PipelineElements")
+            self._error_pipeline(header, "PipelineDefinition: Doesn't define any PipelineElements")
 
         definition.map_in_nodes = {}
         definition.map_out_nodes = {}
-        node_heads, node_successors = Graph.traverse(
-            definition.graph, self._add_node_properties)
+        node_heads, node_successors = Graph.traverse(definition.graph, self._add_node_properties)
         pipeline_graph = PipelineGraph(node_heads)
-    #   self.parameters = definition.parameters  # TODO: Use it or lose it !
+        #   self.parameters = definition.parameters  # TODO: Use it or lose it !
 
         for pipeline_element_definition in definition.elements:
             element_instance = None
             element_name = pipeline_element_definition.name
             if element_name not in node_successors:
-                self.logger.warning(f'Skipping PipelineElement {element_name}: '
-                                    f'Not used within the "graph" definition')
+                self.logger.warning(f'Skipping PipelineElement {element_name}: Not used within the "graph" definition')
                 continue
             deploy_definition = pipeline_element_definition.deploy
             deploy_type_name = type(deploy_definition).__name__
 
             if deploy_type_name == PipelineImpl.DEPLOY_TYPE_LOCAL_NAME:
                 class_name = pipeline_element_definition.deploy.class_name
-                element_class = self._load_element_class(
-                    deploy_definition.module, class_name, header)
+                element_class = self._load_element_class(deploy_definition.module, class_name, header)
 
             # TODO: Is element_name is correct for remote case
             if deploy_type_name == PipelineImpl.DEPLOY_TYPE_REMOTE_NAME:
                 element_class = PipelineRemote
 
             if not element_class:
-                self._error_pipeline(header,
-                    f"PipelineDefinition: PipelineElement type unknown: "
-                    f"{deploy_type_name}")
+                self._error_pipeline(header, f"PipelineDefinition: PipelineElement type unknown: {deploy_type_name}")
 
-            init_args = pipeline_element_args(element_name,
-                definition=pipeline_element_definition, pipeline=self)
+            init_args = pipeline_element_args(element_name, definition=pipeline_element_definition, pipeline=self)
             element_instance = compose_instance(element_class, init_args)
             element_instance.parameters = pipeline_element_definition.parameters
 
@@ -881,26 +900,24 @@ class PipelineImpl(Pipeline):
                 service_name = deploy_definition.service_filter["name"]
                 if service_name not in self.remote_pipelines:
                     topic_path = None  # uniquely identifies remote Pipeline
-                    self.remote_pipelines[service_name] = (
-                        element_name, element_instance, topic_path)
+                    self.remote_pipelines[service_name] = (element_name, element_instance, topic_path)
                 else:
-                    self._error_pipeline(header,
+                    self._error_pipeline(
+                        header,
                         f"PipelineDefinition: PipelineElement {element_name}: "
-                        f"re-uses remote service_filter name: {service_name}")
+                        f"re-uses remote service_filter name: {service_name}",
+                    )
 
-                service_filter = ServiceFilter.with_topic_path(
-                    **deploy_definition.service_filter)
+                service_filter = ServiceFilter.with_topic_path(**deploy_definition.service_filter)
 
-                do_discovery(PipelineElement, service_filter,
-                    lambda service_details, service:
-                        self._change_remote_element_handler(
-                            True, service_details),
-                    lambda service_details:
-                        self._change_remote_element_handler(
-                            False, service_details))
+                do_discovery(
+                    PipelineElement,
+                    service_filter,
+                    lambda service_details, service: self._change_remote_element_handler(True, service_details),
+                    lambda service_details: self._change_remote_element_handler(False, service_details),
+                )
 
-            element = Node(
-                element_name, element_instance, node_successors[element_name])
+            element = Node(element_name, element_instance, node_successors[element_name])
             pipeline_graph.add_element(element)
 
         pipeline_graph.validate(definition, self.share["graph_path"])
@@ -909,8 +926,7 @@ class PipelineImpl(Pipeline):
     def _change_remote_element_handler(self, discovered, service_details):
         topic_path = f"{service_details[0]}/in"
         service_name = service_details[1]
-        element_name, element_instance, element_topic_path =  \
-            self.remote_pipelines[service_name]
+        element_name, element_instance, element_topic_path = self.remote_pipelines[service_name]
         node = self.pipeline_graph.get_node(element_name)
         element_definition = node.element.definition
         topic_path_match = False
@@ -918,11 +934,10 @@ class PipelineImpl(Pipeline):
         if discovered:  # use discovered remote proxy
             topic_path_match = True
             element_instance.set_remote_absent(False)
-            new_element_instance = get_service_proxy(
-                topic_path, PipelineRemote)
+            new_element_instance = get_service_proxy(topic_path, PipelineRemote)
             new_element_instance.definition = element_definition
 
-        else:           # use original PipelineRemote instance
+        else:  # use original PipelineRemote instance
             if topic_path == element_topic_path:
                 topic_path_match = True
                 topic_path = None
@@ -930,34 +945,37 @@ class PipelineImpl(Pipeline):
                 new_element_instance = element_instance
 
         if topic_path_match:
-            self.logger.debug(f"PipelineElement remote {element_name}: "
-                f"{'add' if discovered else 'remove'}: {service_details[0:2]}")
-            self.remote_pipelines[service_name] = (
-                element_name, element_instance, topic_path)
+            self.logger.debug(
+                f"PipelineElement remote {element_name}: {'add' if discovered else 'remove'}: {service_details[0:2]}"
+            )
+            self.remote_pipelines[service_name] = (element_name, element_instance, topic_path)
             node._element = new_element_instance
             self._update_lifecycle_state()
 
-# TODO: Consider refactoring Stream into "stream.py" ?
+    # TODO: Consider refactoring Stream into "stream.py" ?
 
-    def create_stream(self, stream_id, graph_path=None,
-        parameters=None, grace_time=_GRACE_TIME,
-        queue_response=None, topic_response=None):
+    def create_stream(
+        self,
+        stream_id,
+        graph_path=None,
+        parameters=None,
+        grace_time=_GRACE_TIME,
+        queue_response=None,
+        topic_response=None,
+    ):
 
         if queue_response and topic_response:
-            self.logger.error(
-                "Create stream: use either queue_response or topic_response")
+            self.logger.error("Create stream: use either queue_response or topic_response")
             return False
 
-    # TODO: Proper solution for overall handling of remote Pipeline proxy
-    # TODO: Implement limit on delayed post message
+        # TODO: Proper solution for overall handling of remote Pipeline proxy
+        # TODO: Implement limit on delayed post message
         if self.share["lifecycle"] != "ready":
-            arguments = [stream_id, graph_path,
-                parameters, grace_time, queue_response, topic_response]
-            self._post_message(
-                ActorTopic.IN, "create_stream", arguments, delay=3.0)
+            arguments = [stream_id, graph_path, parameters, grace_time, queue_response, topic_response]
+            self._post_message(ActorTopic.IN, "create_stream", arguments, delay=3.0)
             self.logger.warning(
-                f"Create stream: {stream_id}: invoked when remote "
-                 "Pipeline hasn't been discovered ... will retry")
+                f"Create stream: {stream_id}: invoked when remote Pipeline hasn't been discovered ... will retry"
+            )
             return False
 
         stream_id = str(stream_id)
@@ -968,25 +986,23 @@ class PipelineImpl(Pipeline):
         graph_path = graph_path if graph_path else self.share["graph_path"]
         if graph_path:
             if graph_path not in self.pipeline_graph._head_nodes:
-                self.logger.error(
-                    f"Create stream: Unknown Pipeline Graph Path: {graph_path}")
+                self.logger.error(f"Create stream: Unknown Pipeline Graph Path: {graph_path}")
                 return False
 
-        if stream_id not in self.DEBUG:                     # DEBUG: 2024-12-02
+        if stream_id not in self.DEBUG:  # DEBUG: 2024-12-02
             self.DEBUG[stream_id] = {}
-        self.DEBUG[stream_id]["create_stream"] = {
-            "time": local_iso_now(), "stream_id": stream_id}
+        self.DEBUG[stream_id]["create_stream"] = {"time": local_iso_now(), "stream_id": stream_id}
 
         self.logger.debug(f"Create stream: <{stream_id}>")
         grace_time = parse_number(grace_time, _GRACE_TIME)
-        stream_lease = Lease(grace_time, stream_id,
-            lease_expired_handler=self.destroy_stream)
+        stream_lease = Lease(grace_time, stream_id, lease_expired_handler=self.destroy_stream)
         stream_lease.stream = Stream(
             stream_id=stream_id,
             graph_path=graph_path,
             parameters=parameters if parameters else {},
             queue_response=queue_response,
-            topic_response=topic_response)
+            topic_response=topic_response,
+        )
         self.stream_leases[stream_id] = stream_lease
 
         try:
@@ -996,43 +1012,38 @@ class PipelineImpl(Pipeline):
 
             graph_path = self.pipeline_graph.get_path(graph_path)
             for node in graph_path:
-                element, element_name, local, _ =  \
-                    PipelineGraph.get_element(node)
+                element, element_name, local, _ = PipelineGraph.get_element(node)
                 if local:  ## Local element ##
                     try:
-                        stream_event, diagnostic = element.start_stream(
-                            stream, stream_id)
-                    except Exception as exception:
-                        self.logger.error("Exception in "  \
-                          "pipeline.create_stream() --> start_stream()")
+                        stream_event, diagnostic = element.start_stream(stream, stream_id)
+                    except Exception:
+                        self.logger.error("Exception in pipeline.create_stream() --> start_stream()")
                         stream_event = StreamEvent.ERROR
                         diagnostic = {"diagnostic": traceback.format_exc()}
 
-                    stream.set_state(self._process_stream_event(
-                        element_name, stream, stream_event, diagnostic))
+                    stream.set_state(self._process_stream_event(element_name, stream, stream_event, diagnostic))
                     if stream.state == StreamState.ERROR:
                         break
                 else:  ## Remote element ##
                     # TODO: Consider using "topic_response=self.topic_control"
                     if _WINDOWS:
                         element.create_stream(
-                            stream_id, Graph.path_remote(stream.graph_path),
-                            parameters, grace_time, None, self.topic_in)
+                            stream_id, Graph.path_remote(stream.graph_path), parameters, grace_time, None, self.topic_in
+                        )
         finally:
             if stream.lock._in_use:
                 stream.lock.release()
             self._disable_thread_local("create_stream()")
         return True
 
-    def destroy_stream(self, stream_id, graceful=False,
-        use_thread_local=True, acquire_lock=True):
+    def destroy_stream(self, stream_id, graceful=False, use_thread_local=True, acquire_lock=True):  # noqa: C901
 
         stream_id = str(stream_id)
 
-    # TODO: Proper solution for handling of remote Pipeline proxy
-    # TODO: Implement limit on delayed post message
+        # TODO: Proper solution for handling of remote Pipeline proxy
+        # TODO: Implement limit on delayed post message
 
-    ## Remote elements ##
+        ## Remote elements ##
         if self.share["lifecycle"] == "ready":
             graph_path = self.pipeline_graph.get_path(self.share["graph_path"])
             for node in graph_path:
@@ -1043,14 +1054,13 @@ class PipelineImpl(Pipeline):
         else:
             if _WINDOWS:
                 arguments = [stream_id, graceful, use_thread_local]
-                self._post_message(
-                    ActorTopic.IN, "destroy_stream", arguments, delay=3.0)
+                self._post_message(ActorTopic.IN, "destroy_stream", arguments, delay=3.0)
                 self.logger.warning(
-                    f"Destroy stream: {stream_id}: invoked when remote "
-                     "Pipeline hasn't been discovered ... will retry")
+                    f"Destroy stream: {stream_id}: invoked when remote Pipeline hasn't been discovered ... will retry"
+                )
                 return False
 
-    ## Local elements ##
+        ## Local elements ##
         if stream_id not in self.stream_leases:
             return False
 
@@ -1064,34 +1074,32 @@ class PipelineImpl(Pipeline):
 
             if graceful and len(stream.frames):
                 arguments = [stream_id, graceful, use_thread_local]
-                self._post_message(
-                    ActorTopic.IN, "destroy_stream", arguments, delay=3.0)
+                self._post_message(ActorTopic.IN, "destroy_stream", arguments, delay=3.0)
                 return False
 
             self.logger.debug(f"Destroy stream: <{stream_id}>")
 
             exit_id, _ = self.get_parameter("_destroy_stream_exit_", None)
 
-            if stream_id in self.DEBUG:                     # DEBUG: 2024-12-02
+            if stream_id in self.DEBUG:  # DEBUG: 2024-12-02
                 del self.DEBUG[stream_id]
 
             graph_path = self.pipeline_graph.get_path(self.share["graph_path"])
             for node in graph_path:
-                element, element_name, local, _ =  \
-                    PipelineGraph.get_element(node)
+                element, element_name, local, _ = PipelineGraph.get_element(node)
                 if local:  ## Local element ##
                     try:
-                        stream_event, diagnostic = element.stop_stream(
-                            stream, stream_id)
-                    except Exception as exception:
-                        self.logger.error("Exception in "  \
-                          "pipeline.destroy_stream() --> stop_stream()")
+                        stream_event, diagnostic = element.stop_stream(stream, stream_id)
+                    except Exception:
+                        self.logger.error("Exception in pipeline.destroy_stream() --> stop_stream()")
                         stream_event = StreamEvent.ERROR
                         diagnostic = {"diagnostic": traceback.format_exc()}
 
-                    stream.set_state(self._process_stream_event(
-                        element_name, stream, stream_event, diagnostic,
-                        in_destroy_stream=True))
+                    stream.set_state(
+                        self._process_stream_event(
+                            element_name, stream, stream_event, diagnostic, in_destroy_stream=True
+                        )
+                    )
                     if stream.state == StreamState.ERROR:
                         break
         finally:
@@ -1100,12 +1108,11 @@ class PipelineImpl(Pipeline):
             if use_thread_local:
                 self._disable_thread_local("destroy_stream()")
 
-        stream_lease = self.stream_leases[stream_id]
+        self.stream_leases[stream_id]
         del self.stream_leases[stream_id]
 
         if exit_id and exit_id == stream_id:  # "exit_id" acquired earlier
-            diagnostic =  \
-                f"Pipeline terminated when Stream <{exit_id}> destroyed"
+            diagnostic = f"Pipeline terminated when Stream <{exit_id}> destroyed"
             self.logger.info(diagnostic)
             raise SystemExit()
         return True
@@ -1119,13 +1126,12 @@ class PipelineImpl(Pipeline):
         _LOGGER.error(complete_diagnostic)
         raise SystemExit(error_code)
 
-    def get_stream(self):   # See _enable_thread_local()
+    def get_stream(self):  # See _enable_thread_local()
         stream = self.thread_local.stream
         assert stream, "self.thread_local.stream must be assigned"
         return stream, self.thread_local.frame_id
 
-    def _load_element_class(self,
-        module_descriptor, element_name, header):
+    def _load_element_class(self, module_descriptor, element_name, header):
 
         diagnostic = None
         stack_traceback = ""
@@ -1138,14 +1144,16 @@ class PipelineImpl(Pipeline):
             diagnostic = "loaded"
             stack_traceback = "\n" + str(traceback.format_exc())
         if diagnostic:
-            self._error_pipeline(header,
+            self._error_pipeline(
+                header,
                 f"PipelineDefinition: PipelineElement {element_name}: "
                 f"Module {module_descriptor} could not be {diagnostic}"
-                f"{stack_traceback}")
+                f"{stack_traceback}",
+            )
         return element_class
 
     @classmethod
-    def parse_pipeline_definition(cls, pipeline_definition_pathname):
+    def parse_pipeline_definition(cls, pipeline_definition_pathname):  # noqa: C901
         CLASS_NAME_FIELD = "class_name"
         COMMENT_FIELD = "#"
         PARAMETERS_FIELD = "parameters"
@@ -1168,14 +1176,12 @@ class PipelineImpl(Pipeline):
             PipelineImpl._exit(header, type_error)
 
         if pipeline_definition.version != PipelineDefinitionSchema.version:
-            PipelineImpl._exit(header,
-                f"PipelineDefinition: Version must be 0, "
-                f"but is {pipeline_definition.version}")
+            PipelineImpl._exit(header, f"PipelineDefinition: Version must be 0, but is {pipeline_definition.version}")
 
         if pipeline_definition.runtime != "python":
-            PipelineImpl._exit(header,
-                f'PipelineDefinition: Runtime must be "python", '
-                f'but is "{pipeline_definition.runtime}"')
+            PipelineImpl._exit(
+                header, f'PipelineDefinition: Runtime must be "python", but is "{pipeline_definition.runtime}"'
+            )
 
         element_definitions = []
         for element_fields in pipeline_definition.elements:
@@ -1187,71 +1193,65 @@ class PipelineImpl(Pipeline):
             try:
                 element_definition = PipelineElementDefinition(**element_fields)
             except TypeError as type_error:
-                PipelineImpl._exit(header,
-                    f"PipelineDefinition: PipelineElement {type_error}")
+                PipelineImpl._exit(header, f"PipelineDefinition: PipelineElement {type_error}")
 
             if len(element_definition.deploy.keys()) != 1:
-                PipelineImpl._exit(header,
-                    f"PipelineDefinition: PipelineElement "
-                    f"{element_definition.name} must be either local or remote")
+                PipelineImpl._exit(
+                    header,
+                    f"PipelineDefinition: PipelineElement {element_definition.name} must be either local or remote",
+                )
             deploy_type = list(element_definition.deploy.keys())[0]
 
             if deploy_type in PipelineImpl.DEPLOY_TYPE_LOOKUP:
-                pipeline_element_deploy_type =  \
-                    PipelineImpl.DEPLOY_TYPE_LOOKUP[deploy_type]
+                pipeline_element_deploy_type = PipelineImpl.DEPLOY_TYPE_LOOKUP[deploy_type]
             else:
-                PipelineImpl._exit(header,
+                PipelineImpl._exit(
+                    header,
                     f"PipelineDefinition: PipelineElement "
                     f"{element_definition.name}: "
-                    f"Unknown Pipeline deploy type: {deploy_type}")
+                    f"Unknown Pipeline deploy type: {deploy_type}",
+                )
 
             element_deploy_fields = element_definition.deploy[deploy_type]
 
             if deploy_type == DeployType.LOCAL.value:
                 if CLASS_NAME_FIELD not in element_deploy_fields:  # optional
-                    element_deploy_fields[CLASS_NAME_FIELD] =  \
-                        element_definition.name
+                    element_deploy_fields[CLASS_NAME_FIELD] = element_definition.name
 
-            element_definition.deploy =  \
-                pipeline_element_deploy_type(**element_deploy_fields)
+            element_definition.deploy = pipeline_element_deploy_type(**element_deploy_fields)
 
             element_definitions.append(element_definition)
 
         pipeline_definition.elements = element_definitions
 
-        _LOGGER.info(
-            f"PipelineDefinition parsed: {pipeline_definition_pathname}")
-        return(pipeline_definition)
+        _LOGGER.info(f"PipelineDefinition parsed: {pipeline_definition_pathname}")
+        return pipeline_definition
 
-    def process_frame(
-        self, stream_dict, frame_data) -> Tuple[StreamEvent, dict]:
+    def process_frame(self, stream_dict, frame_data) -> Tuple[StreamEvent, dict]:
 
         if self.share["lifecycle"] != "ready":
             arguments = [stream_dict, frame_data]
-            self._post_message(
-                ActorTopic.IN, "process_frame", arguments, delay=3.0)
+            self._post_message(ActorTopic.IN, "process_frame", arguments, delay=3.0)
             stream_id = stream_dict.get("stream_id", "*")
             self.logger.warning(
-                f"Process frame: {stream_id}: invoked when remote "
-                 "Pipeline hasn't been discovered ... will retry")
+                f"Process frame: {stream_id}: invoked when remote Pipeline hasn't been discovered ... will retry"
+            )
             return False
 
         return self._process_frame_common(stream_dict, frame_data, True)
 
-    def process_frame_response(
-        self, stream_dict, frame_data) -> Tuple[StreamEvent, dict]:
+    def process_frame_response(self, stream_dict, frame_data) -> Tuple[StreamEvent, dict]:
 
         return self._process_frame_common(stream_dict, frame_data, False)
 
-    def _process_frame_common(self, stream_dict, frame_data_in, new_frame)  \
-        -> Tuple[StreamEvent, dict]:
+    def _process_frame_common(self, stream_dict, frame_data_in, new_frame) -> Tuple[StreamEvent, dict]:  # noqa: C901
 
         frame_complete = True
-        graph, stream =  \
-            self._process_initialize(stream_dict, frame_data_in, new_frame)
-        self.run_hook(_PIPELINE_HOOK_PROCESS_FRAME, lambda: {
-            "graph": graph, "stream": stream,
-            "frame_data_in": frame_data_in, "new_frame": new_frame})
+        graph, stream = self._process_initialize(stream_dict, frame_data_in, new_frame)
+        self.run_hook(
+            _PIPELINE_HOOK_PROCESS_FRAME,
+            lambda: {"graph": graph, "stream": stream, "frame_data_in": frame_data_in, "new_frame": new_frame},
+        )
         if graph is None:
             return False
 
@@ -1259,25 +1259,28 @@ class PipelineImpl(Pipeline):
             self._enable_thread_local("process_frame()", stream.stream_id)
             stream, _ = self.get_stream()
             stream.lock.acquire("process_frame()")
-            try:                                            # DEBUG: 2024-12-02
+            try:  # DEBUG: 2024-12-02
                 frame = stream.frames[stream.frame_id]
-            except KeyError:                                # DEBUG: 2024-12-02
+            except KeyError:  # DEBUG: 2024-12-02
                 self.logger.error(
                     f"Stream <{stream.stream_id}>: "
                     f"Frame id: <{stream.frame_id}> not found\n"
-                     "### Is a background thread in a PipelineElement "
-                     'changing "stream.frame_id" ?\n'
-                    f"### Purging Stream <{stream.stream_id}> in-flight frames")
+                    "### Is a background thread in a PipelineElement "
+                    'changing "stream.frame_id" ?\n'
+                    f"### Purging Stream <{stream.stream_id}> in-flight frames"
+                )
                 details = self.DEBUG[stream.stream_id]["create_stream"]
-                self.logger.warning(f'##     {details["time"]}: create_stream(): stream_id: {details["stream_id"]}')
+                self.logger.warning(f"##     {details['time']}: create_stream(): stream_id: {details['stream_id']}")
 
                 details = self.DEBUG[stream.stream_id]["frames_lru"]
-                self.logger.warning(f'##     Recent process frame_id(s): {details.get_list()}')
+                self.logger.warning(f"##     Recent process frame_id(s): {details.get_list()}")
 
                 self.logger.warning(f"##     Cached frame_id(s): {list(stream.frames.keys())}")
 
                 details = self.DEBUG[stream.stream_id]["create_frame"]
-                self.logger.warning(f'##     {details["time"]}: create_frame(): Last generated frame_id: {details["latest_frame_id"]}')
+                self.logger.warning(
+                    f"##     {details['time']}: create_frame(): Last generated frame_id: {details['latest_frame_id']}"
+                )
 
                 stream.frames.clear()  # radically prevent memory leaks
                 return False
@@ -1294,83 +1297,82 @@ class PipelineImpl(Pipeline):
                 if stream.state in [StreamState.DROP_FRAME, StreamState.ERROR]:
                     break
                 # TODO: Is element_name is correct for all error diagnostics
-                element, element_name, local, _ =  \
-                    PipelineGraph.get_element(node)
-                header = f'Error: Invoking Pipeline "{definition_pathname}": ' \
-                         f'PipelineElement "{element_name}": process_frame()'
+                element, element_name, local, _ = PipelineGraph.get_element(node)
+                header = (
+                    f'Error: Invoking Pipeline "{definition_pathname}": '
+                    f'PipelineElement "{element_name}": process_frame()'
+                )
 
-                inputs = self._process_map_in(
-                    header, element, element_name, frame.swag)
+                inputs = self._process_map_in(header, element, element_name, frame.swag)
 
                 stream_event = StreamEvent.OKAY
                 try:
                     if local:  ## Local element ##
                         self._process_metrics_start(metrics)
-                        self.run_hook(_PIPELINE_HOOK_PROCESS_ELEMENT, lambda: {
-                            "element_name": element_name,
-                            "element": element,
-                            "stream": stream,
-                            "inputs": inputs})
+                        self.run_hook(
+                            _PIPELINE_HOOK_PROCESS_ELEMENT,
+                            lambda: {
+                                "element_name": element_name,  # noqa: B023
+                                "element": element,  # noqa: B023
+                                "stream": stream,
+                                "inputs": inputs,  # noqa: B023
+                            },
+                        )
                         try:
-                            stream_event, frame_data_out =  \
-                                element.process_frame(stream, **inputs)
+                            stream_event, frame_data_out = element.process_frame(stream, **inputs)
 
                             if isinstance(element, PipelineElementLoop):
                                 if stream_event is not StreamEvent.LOOP_END:
                                     stream.variables["loop_node"] = node
-                                    stream.variables["loop_graph"] =  \
-                                        graph_node_list.copy()
+                                    stream.variables["loop_graph"] = graph_node_list.copy()
                                 else:
                                     loop_boundary = stream.variables.get("loop_boundary", None)
                                     if loop_boundary:
                                         loop_end_name = loop_boundary.split(":")[0]
                                         graph_node_list = list(
-                                            self.pipeline_graph.iterate_after(loop_end_name, stream.graph_path))
-                        except Exception as exception:
-                            self.logger.error(
-                                "Exception in pipeline.process_frame() --> "  \
-                                "frame_generator()")
+                                            self.pipeline_graph.iterate_after(loop_end_name, stream.graph_path)
+                                        )
+                        except Exception:
+                            self.logger.error("Exception in pipeline.process_frame() --> frame_generator()")
                             stream_event = StreamEvent.ERROR
-                            frame_data_out = {
-                                "diagnostic": traceback.format_exc()}
+                            frame_data_out = {"diagnostic": traceback.format_exc()}
 
-                        self.run_hook(_PIPELINE_HOOK_PROCESS_ELEMENT_POST,
+                        self.run_hook(
+                            _PIPELINE_HOOK_PROCESS_ELEMENT_POST,
                             lambda: {
-                                "element_name": element_name,
-                                "element": element,
-                                "stream": stream, "stream_event": stream_event,
-                                "frame_data_out": frame_data_out})
-                        stream.set_state(self._process_stream_event(
-                            element_name, stream, stream_event,
-                            frame_data_out))
+                                "element_name": element_name,  # noqa: B023
+                                "element": element,  # noqa: B023
+                                "stream": stream,
+                                "stream_event": stream_event,  # noqa: B023
+                                "frame_data_out": frame_data_out,  # noqa: B023
+                            },
+                        )
+                        stream.set_state(self._process_stream_event(element_name, stream, stream_event, frame_data_out))
                         if stream.state == StreamState.ERROR:
                             break
-                    #   TODO: Test "stream.state" before continuing
+                        #   TODO: Test "stream.state" before continuing
                         self._process_map_out(element_name, frame_data_out)
                         self._process_metrics_capture(  # TODO: Move up ?
-                            metrics, element.name)
+                            metrics, element.name
+                        )
                         frame.swag.update(frame_data_out)
                     else:  ## Remote element ##
                         if self.share["lifecycle"] != "ready":
                             diagnostic = {
-                                "diagnostic": "process_frame() invoked when "
-                                     "remote Pipeline hasn't been discovered"
+                                "diagnostic": "process_frame() invoked when remote Pipeline hasn't been discovered"
                             }
-                            stream.set_state(self._process_stream_event(
-                                element_name, stream, StreamEvent.ERROR,
-                                diagnostic))
+                            stream.set_state(
+                                self._process_stream_event(element_name, stream, StreamEvent.ERROR, diagnostic)
+                            )
                         else:
                             frame_complete = False
                             frame_data_out = {}
                             frame.paused_pe_name = node.name
-                            remote_stream = {
-                                "stream_id": stream.stream_id,
-                                "frame_id": stream.frame_id
-                            }
+                            remote_stream = {"stream_id": stream.stream_id, "frame_id": stream.frame_id}
                             element.process_frame(remote_stream, **inputs)
                             # process_frame_response() --> continue graph
                         break
-                except Exception as exception:
+                except Exception:
                     self._error_pipeline(header, traceback.format_exc())
 
                 loop_node = stream.variables.get("loop_node", None)
@@ -1384,10 +1386,7 @@ class PipelineImpl(Pipeline):
                             graph_node_list = loop_graph
 
             if frame_complete:
-                stream_info = {
-                    "stream_id": stream.stream_id,
-                    "frame_id": stream.frame_id,
-                    "state": stream.state}
+                stream_info = {"stream_id": stream.stream_id, "frame_id": stream.frame_id, "state": stream.state}
                 if stream.queue_response:
                     stream.queue_response.put((stream_info, frame_data_out))
                 elif stream.topic_response:
@@ -1395,16 +1394,14 @@ class PipelineImpl(Pipeline):
                     actor.process_frame_response(stream_info, frame_data_out)
                 else:
                     try:
-                        payload = generate(
-                            "process_frame", (stream_info, frame_data_out))
+                        payload = generate("process_frame", (stream_info, frame_data_out))
                         aiko.message.publish(self.topic_out, payload)
-                    except Exception as exception:
-                        diagnostic = "Couldn't generate() \"frame_data\" output"
-                        self._error_pipeline(
-                            header, f"{diagnostic}\n{traceback.format_exc()}")
+                    except Exception:
+                        diagnostic = 'Couldn\'t generate() "frame_data" output'
+                        self._error_pipeline(header, f"{diagnostic}\n{traceback.format_exc()}")
 
         finally:
-        # If not _WINDOWS, then always remove the cached Stream Frame
+            # If not _WINDOWS, then always remove the cached Stream Frame
             if not _WINDOWS and stream.frame_id in stream.frames:
                 del stream.frames[stream.frame_id]
             if frame_complete and stream.frame_id in stream.frames:
@@ -1414,7 +1411,7 @@ class PipelineImpl(Pipeline):
             self._disable_thread_local("process_frame()")
         return True
 
-    def _process_initialize(self, stream_dict, frame_data_in, new_frame):
+    def _process_initialize(self, stream_dict, frame_data_in, new_frame):  # noqa: C901
         frame = None
         graph = None
         stream = Stream()
@@ -1429,17 +1426,19 @@ class PipelineImpl(Pipeline):
             self.logger.warning(f"{header} frame data must be a dictionary")
             return None, None
 
-    # If not _WINDOWS, then always automatically create a new Stream
+        # If not _WINDOWS, then always automatically create a new Stream
         stream_id = stream.stream_id
         new_stream_id = DEFAULT_STREAM_ID if _WINDOWS else stream_id
         if stream_id == new_stream_id:
             if new_stream_id not in self.stream_leases:
                 status = self.create_stream(
-                    new_stream_id, graph_path=stream.graph_path,
+                    new_stream_id,
+                    graph_path=stream.graph_path,
                     parameters=stream.parameters,
                     queue_response=stream.queue_response,
-                    topic_response=stream.topic_response)
-                if status == False:
+                    topic_response=stream.topic_response,
+                )
+                if not status:
                     return None, None
 
         frame_id = stream.frame_id
@@ -1449,22 +1448,19 @@ class PipelineImpl(Pipeline):
         else:
             stream_lease = self.stream_leases[stream_id]
             stream_lease.extend()
-            stream_lease.stream.update(
-                {"frame_id": frame_id, "state": stream.state})
+            stream_lease.stream.update({"frame_id": frame_id, "state": stream.state})
             stream = stream_lease.stream
 
-    # If not _WINDOWS, then always automatically create a new Frame
+            # If not _WINDOWS, then always automatically create a new Frame
             if new_frame:
                 if _WINDOWS and frame_id in stream.frames:
                     self.logger.warning(f"{header} new frame id already exists")
                 else:
-                    if stream_id not in self.DEBUG:         # DEBUG: 2024-12-02
+                    if stream_id not in self.DEBUG:  # DEBUG: 2024-12-02
                         self.DEBUG[stream_id] = {}
                     if "frames_lru" not in self.DEBUG[stream_id]:
                         self.DEBUG[stream_id]["frames_lru"] = LRUCache(size=8)
-                    self.DEBUG[stream_id]["frames_lru"].put(frame_id,
-                        {"time": local_iso_now(), "frame_id": frame_id}
-                    )
+                    self.DEBUG[stream_id]["frames_lru"].put(frame_id, {"time": local_iso_now(), "frame_id": frame_id})
 
                     stream.frames[frame_id] = Frame()
                     frame = stream.frames[frame_id]
@@ -1472,13 +1468,12 @@ class PipelineImpl(Pipeline):
                     if "graph_path" in stream_dict:  # create_frame() overrides
                         graph_path = stream_dict["graph_path"]
                     graph = self.pipeline_graph.get_path(graph_path)
-    # If not _WINDOWS, then don't support "process_frame_response()"
+            # If not _WINDOWS, then don't support "process_frame_response()"
             elif not _WINDOWS:
                 return None, None
             elif frame_id in stream.frames:
                 frame = stream.frames[frame_id]
-                graph = self.pipeline_graph.iterate_after(
-                    frame.paused_pe_name, stream.graph_path)
+                graph = self.pipeline_graph.iterate_after(frame.paused_pe_name, stream.graph_path)
             else:
                 self.logger.warning(f"{header} paused frame id doesn't exist")
 
@@ -1486,9 +1481,9 @@ class PipelineImpl(Pipeline):
             frame.swag.update(frame_data_in)  # SWAG: Stuff We All Get 😅
         return graph, stream
 
-# TODO: Refactor metrics into "utilities/metrics.py:class Metrics" ?
+    # TODO: Refactor metrics into "utilities/metrics.py:class Metrics" ?
 
-# For each frame
+    # For each frame
     def _process_metrics_initialize(self, frame):
         metrics = frame.metrics
         if metrics == {}:
@@ -1500,7 +1495,7 @@ class PipelineImpl(Pipeline):
                 metrics["pipeline_start_memory"] = memory_rss
         return metrics
 
-# For each PipelineElement
+    # For each PipelineElement
     def _process_metrics_start(self, metrics):
         metrics["start"] = {}  # PipelineElement start metrics
         metrics["start"]["time"] = time.monotonic()
@@ -1508,7 +1503,7 @@ class PipelineImpl(Pipeline):
             memory_rss = psutil.Process().memory_info().rss
             metrics["start"]["memory"] = memory_rss
 
-# For each PipelineElement
+    # For each PipelineElement
     def _process_metrics_capture(self, metrics, element_name):
         time_element = time.monotonic() - metrics["start"]["time"]
         metrics["elements"][f"{element_name}_time"] = time_element
@@ -1516,7 +1511,7 @@ class PipelineImpl(Pipeline):
         metrics["pipeline_time"] = pipeline_time  # Total so far !
         if _METRICS_MEMORY_ENABLE:
             memory_rss = psutil.Process().memory_info().rss
-            memory_element =  memory_rss - metrics["start"]["memory"]
+            memory_element = memory_rss - metrics["start"]["memory"]
             metrics["elements"][f"{element_name}_memory"] = memory_element
             pipeline_memory = memory_rss - metrics["pipeline_start_memory"]
             metrics["pipeline_memory"] = pipeline_memory  # Total so far !
@@ -1525,7 +1520,7 @@ class PipelineImpl(Pipeline):
         map_in_names = {}
         if element_name in self.definition.map_in_nodes:
             map_in_elements = self.definition.map_in_nodes[element_name]
-            for in_element, in_map in map_in_elements.items():
+            for in_map in map_in_elements.values():
                 from_name, to_name = next(iter(in_map.items()))
                 map_in_names[to_name] = f"{element_name}.{to_name}"
 
@@ -1538,9 +1533,8 @@ class PipelineImpl(Pipeline):
                     inputs[input_name] = swag[map_in_names[input_name]]
                 else:
                     inputs[input_name] = swag[input_name]
-            except KeyError as key_error:
-                self._error_pipeline(header,
-                    f'Function parameter "{input_name}" not found')
+            except KeyError:
+                self._error_pipeline(header, f'Function parameter "{input_name}" not found')
         return inputs
 
     def _process_map_out(self, element_name, frame_data_out):
@@ -1551,24 +1545,22 @@ class PipelineImpl(Pipeline):
                 to_name = f"{out_element}.{to_name}"
                 frame_data_out[to_name] = frame_data_out.pop(from_name)
 
-# FIX: _create_frame_generator(): StreamEvent.ERROR -->
-#          self.destroy_stream(get_stream_id(), graceful=False)  # immediately !
+    # FIX: _create_frame_generator(): StreamEvent.ERROR -->
+    #          self.destroy_stream(get_stream_id(), graceful=False)  # immediately !
 
-# TODO: Check local cases "stream_state.RUN | STOP | ERROR" ...
-# TODO: - _create_frame_generator()
-# TODO: - create_stream()
-# TODO: - _process_frame_common()
-# TODO: - destroy_stream()
+    # TODO: Check local cases "stream_state.RUN | STOP | ERROR" ...
+    # TODO: - _create_frame_generator()
+    # TODO: - create_stream()
+    # TODO: - _process_frame_common()
+    # TODO: - destroy_stream()
 
-# TODO: Check remote cases "stream_state.RUN | STOP | ERROR" ...
-# TODO: - _create_frame_generator()
-# TODO: - create_stream()
-# TODO: - _process_frame_common()
-# TODO: - destroy_stream()
+    # TODO: Check remote cases "stream_state.RUN | STOP | ERROR" ...
+    # TODO: - _create_frame_generator()
+    # TODO: - create_stream()
+    # TODO: - _process_frame_common()
+    # TODO: - destroy_stream()
 
-    def _process_stream_event(self,
-        element_name, stream, stream_event, diagnostic,
-        in_destroy_stream=False):
+    def _process_stream_event(self, element_name, stream, stream_event, diagnostic, in_destroy_stream=False):
 
         def get_diagnostic(diagnostic):
             event_name = StreamEventName[stream_event]
@@ -1576,8 +1568,7 @@ class PipelineImpl(Pipeline):
                 diagnostic = diagnostic["diagnostic"]
             else:
                 diagnostic = "No diagnostic provided"
-            return f"{element_name.upper()}: {event_name} "  \
-                   f"stream {self.my_id()} {diagnostic}"
+            return f"{element_name.upper()}: {event_name} stream {self.my_id()} {diagnostic}"
 
         def get_stream_id():
             stream, _ = self.get_stream()
@@ -1595,24 +1586,24 @@ class PipelineImpl(Pipeline):
             stream_state = StreamState.STOP
             self.logger.debug(get_diagnostic(diagnostic))
             if not in_destroy_stream:  # avoid destroy_stream() recursion
-                self._post_message(    # gracefully after frames processed
-                    ActorTopic.IN, "destroy_stream", [get_stream_id(), True])
+                self._post_message(  # gracefully after frames processed
+                    ActorTopic.IN, "destroy_stream", [get_stream_id(), True]
+                )
 
         elif stream_event == StreamEvent.ERROR:
             stream_state = StreamState.ERROR
             self.logger.error(get_diagnostic(diagnostic))
             if not in_destroy_stream:  # avoid destroy_stream() recursion
-                self.destroy_stream(get_stream_id(), use_thread_local=False,
-                    acquire_lock=not stream.lock._in_use)
+                self.destroy_stream(get_stream_id(), use_thread_local=False, acquire_lock=not stream.lock._in_use)
 
         return stream_state
 
     def set_parameter(self, stream_id, name, value):
         if stream_id is None:
             names = name.split(".")  # PipelineElementName.ParameterName
-            if len(names) == 1:      # Pipeline parameter
+            if len(names) == 1:  # Pipeline parameter
                 self.share[names[0]] = value
-            else:                    # PipelineElement parameter
+            else:  # PipelineElement parameter
                 try:
                     node = self.pipeline_graph.get_node(names[0])
                     node.element.share[names[1]] = value
@@ -1627,30 +1618,39 @@ class PipelineImpl(Pipeline):
         for parameter in parameters:
             self.set_parameter(stream_id, parameter[0], parameter[1])
 
-# When update_pipeline(pipeline, ...) is invoked on a remote Pipeline,
-# then all "pipeline.method()" calls must not except a return value
+    # When update_pipeline(pipeline, ...) is invoked on a remote Pipeline,
+    # then all "pipeline.method()" calls must not except a return value
 
     @classmethod
-    def update_pipeline(cls, pipeline, graph_path, stream_id,
-        parameters, frame_id, frame_data, grace_time,
-        queue_response=None, topic_response=None,
-        log_level=None, stream_reset=False, hooks="none"):
+    def update_pipeline(  # noqa: C901
+        cls,
+        pipeline,
+        graph_path,
+        stream_id,
+        parameters,
+        frame_id,
+        frame_data,
+        grace_time,
+        queue_response=None,
+        topic_response=None,
+        log_level=None,
+        stream_reset=False,
+        hooks="none",
+    ):
 
-    # TODO: Support update of remote "pipeline", issue with named arguments ?
-    # TODO: Support "pipeline.remove_hook_handler()", i.e hooks="none"
+        # TODO: Support update of remote "pipeline", issue with named arguments ?
+        # TODO: Support "pipeline.remove_hook_handler()", i.e hooks="none"
         hooks = hooks.split(",")
         if any(hook in ["all", "am"] for hook in hooks):
-            pipeline.add_hook_handler(ACTOR_HOOK_MESSAGE_CALL+"0",
-                DEFAULT_HOOK, {"show": ["topic", "message"]})
+            pipeline.add_hook_handler(ACTOR_HOOK_MESSAGE_CALL + "0", DEFAULT_HOOK, {"show": ["topic", "message"]})
         if any(hook in ["all", "pe"] for hook in hooks):
-            pipeline.add_hook_handler(_PIPELINE_HOOK_PROCESS_ELEMENT,
-                DEFAULT_HOOK, {"show": ["element_name"]})
+            pipeline.add_hook_handler(_PIPELINE_HOOK_PROCESS_ELEMENT, DEFAULT_HOOK, {"show": ["element_name"]})
         if any(hook in ["all", "pep"] for hook in hooks):
-            pipeline.add_hook_handler(_PIPELINE_HOOK_PROCESS_ELEMENT_POST,
-                DEFAULT_HOOK, {"show": ["element_name"]})
+            pipeline.add_hook_handler(_PIPELINE_HOOK_PROCESS_ELEMENT_POST, DEFAULT_HOOK, {"show": ["element_name"]})
         if any(hook in ["all", "pf"] for hook in hooks):
-            pipeline.add_hook_handler(_PIPELINE_HOOK_PROCESS_FRAME,
-                DEFAULT_HOOK, {"show": ["stream.stream_id", "frame_data_in"]})
+            pipeline.add_hook_handler(
+                _PIPELINE_HOOK_PROCESS_FRAME, DEFAULT_HOOK, {"show": ["stream.stream_id", "frame_data_in"]}
+            )
 
         if log_level:
             pipeline.set_log_level(log_level)
@@ -1667,8 +1667,7 @@ class PipelineImpl(Pipeline):
             if stream_reset:
                 pipeline.destroy_stream(stream_id)
 
-            pipeline.create_stream(stream_id, graph_path,
-                dict(parameters), grace_time, queue_response, topic_response)
+            pipeline.create_stream(stream_id, graph_path, dict(parameters), grace_time, queue_response, topic_response)
         else:
             pipeline.set_parameters(None, parameters)
 
@@ -1681,17 +1680,23 @@ class PipelineImpl(Pipeline):
                     stream_dict["topic_response"] = topic_response
                 pipeline.create_frame(stream_dict, arguments[0])
             else:
-                raise SystemExit(
-                    f"Error: Frame data must be provided")
+                raise SystemExit("Error: Frame data must be provided")
+
 
 class PipelineRemote(PipelineElement):
     def __init__(self, context):
         context.call_init(self, "PipelineElement", context)
         self.set_remote_absent(True)
 
-    def create_stream(self, stream_id, graph_path=None,
-        parameters=None, grace_time=_GRACE_TIME,
-        queue_response=None, topic_response=None):
+    def create_stream(
+        self,
+        stream_id,
+        graph_path=None,
+        parameters=None,
+        grace_time=_GRACE_TIME,
+        queue_response=None,
+        topic_response=None,
+    ):
 
         if self.absent:
             self.log_error("create_stream")
@@ -1707,9 +1712,11 @@ class PipelineRemote(PipelineElement):
         return False
 
     def log_error(self, function_name):
-        self.logger.error(f"PipelineElement.{function_name}(): "
-                          f"{self.definition.name}: invoked when "
-                           "remote Pipeline hasn't been discovered")
+        self.logger.error(
+            f"PipelineElement.{function_name}(): "
+            f"{self.definition.name}: invoked when "
+            "remote Pipeline hasn't been discovered"
+        )
 
     def process_frame(self, stream, **kwargs) -> Tuple[StreamEvent, dict]:
         if self.absent:
@@ -1719,6 +1726,7 @@ class PipelineRemote(PipelineElement):
     def set_remote_absent(self, absent):
         self.absent = absent
         self.share["lifecycle"] = "absent" if self.absent else "ready"
+
 
 # --------------------------------------------------------------------------- #
 # Deliberately define schema in-line, rather than in a separate file
@@ -1836,6 +1844,7 @@ PIPELINE_DEFINITION_SCHEMA = """
 }
 """
 
+
 class PipelineDefinitionSchema:
     avro_schema = None
     version = 0
@@ -1843,21 +1852,19 @@ class PipelineDefinitionSchema:
     def validate(pipeline_definition_dict):
         if not PipelineDefinitionSchema.avro_schema:
             try:
-                PipelineDefinitionSchema.avro_schema = avro.schema.parse(
-                    PIPELINE_DEFINITION_SCHEMA)
+                PipelineDefinitionSchema.avro_schema = avro.schema.parse(PIPELINE_DEFINITION_SCHEMA)
             except avro.errors.SchemaParseException as schema_parse_exception:
                 PipelineImpl._exit(
-                    "Error: Parsing aiko_services/pipeline.py: "
-                    "PipelineDefinitionSchema",
-                    schema_parse_exception)
+                    "Error: Parsing aiko_services/pipeline.py: PipelineDefinitionSchema", schema_parse_exception
+                )
 
-        return PipelineDefinitionSchema.avro_schema.validate(
-                    pipeline_definition_dict)
+        return PipelineDefinitionSchema.avro_schema.validate(pipeline_definition_dict)
+
 
 # --------------------------------------------------------------------------- #
 
-@click.group()
 
+@click.group()
 def main():
     """Create, list, update and destroy Pipelines
 
@@ -1866,11 +1873,12 @@ def main():
     """
     pass
 
+
 def do_show_response(topic_response=None):  # default is to use a queue_response
     queue_response = None
 
     def show_response(stream_dict, frame_data):
-        id = f'<{stream_dict["stream_id"]}:{stream_dict["frame_id"]}>'
+        id = f"<{stream_dict['stream_id']}:{stream_dict['frame_id']}>"
         _LOGGER.info(f"Output: {id} {frame_data}")
 
     def queue_response_handler(queue_response):
@@ -1888,59 +1896,82 @@ def do_show_response(topic_response=None):  # default is to use a queue_response
         aiko.process.add_message_handler(topic_response_handler, topic_response)
     else:
         queue_response = queue.Queue()
-        Thread(target=queue_response_handler,
-                 args=(queue_response,), daemon=True).start()
+        Thread(target=queue_response_handler, args=(queue_response,), daemon=True).start()
 
     return queue_response
 
+
 @main.command(help="Create Pipeline defined by PipelineDefinition pathname")
 @click.argument("definition_pathname", nargs=1, type=str)
-@click.option("--name", "-n", type=str,
-    default=None, required=False,
-    help="Pipeline name")
-@click.option("--graph_path", "-gp", type=str,
-    default=None, required=False,
-    help="Pipeline Graph Path, use Head_PipelineElement_name")
-@click.option("--parameters", "-p", type=click.Tuple((str, str)),
-    default=None, multiple=True, required=False,
-    help="Define parameters")
-@click.option("--stream_reset", "-r", is_flag=True,
-    help="Reset the remote Stream by invoking destroy_stream() first")
-@click.option("--stream_id", "-s", type=str,
-    default=None, required=False,
-    help='Create Stream with identifier with optional process_id "name_{}"')
-@click.option("--stream_parameters", "-sp", type=click.Tuple((str, str)),
-    default=None, multiple=True, required=False,
-    help="Define Stream parameters")
-@click.option("--grace_time", "-gt", type=int,
-    default=_GRACE_TIME, required=False,
-    help="Stream receive frame time-out duration")
-@click.option("--show_response", "-sr", is_flag=True,
-    help="Show pipeline output response (output)")
-@click.option("--frame_id", "-fi", type=int,
-    default=0, required=False,
-    help="Process Frame with identifier")
-@click.option("--frame_data", "-fd", type=str,
-    default=None, required=False,
-    help="Process Frame with data")
-@click.option("--log_level", "-ll", type=str,
-    default=None, required=False,
-    help='error, warning, info, debug plus "_all"')
-@click.option("--log_mqtt", "-lm", type=str,
-    default="all", required=False,
-    help="all, false (console), true (mqtt)")
-@click.option("--hooks", "-h", type=str,
-    default="none", required=False,
-    help="Some combination of am,pe,pep,pf,all,none")
-@click.option("--windows", "-w", is_flag=True,
-    help="Enable experimental distributed Streams sliding window protocol")
-@click.option("--exit_message", is_flag=True,
-    help="Display exit warning message")
-
-def create(definition_pathname, graph_path, name, parameters, stream_id,
+@click.option("--name", "-n", type=str, default=None, required=False, help="Pipeline name")
+@click.option(
+    "--graph_path",
+    "-gp",
+    type=str,
+    default=None,
+    required=False,
+    help="Pipeline Graph Path, use Head_PipelineElement_name",
+)
+@click.option(
+    "--parameters",
+    "-p",
+    type=click.Tuple((str, str)),
+    default=None,
+    multiple=True,
+    required=False,
+    help="Define parameters",
+)
+@click.option("--stream_reset", "-r", is_flag=True, help="Reset the remote Stream by invoking destroy_stream() first")
+@click.option(
+    "--stream_id",
+    "-s",
+    type=str,
+    default=None,
+    required=False,
+    help='Create Stream with identifier with optional process_id "name_{}"',
+)
+@click.option(
+    "--stream_parameters",
+    "-sp",
+    type=click.Tuple((str, str)),
+    default=None,
+    multiple=True,
+    required=False,
+    help="Define Stream parameters",
+)
+@click.option(
+    "--grace_time", "-gt", type=int, default=_GRACE_TIME, required=False, help="Stream receive frame time-out duration"
+)
+@click.option("--show_response", "-sr", is_flag=True, help="Show pipeline output response (output)")
+@click.option("--frame_id", "-fi", type=int, default=0, required=False, help="Process Frame with identifier")
+@click.option("--frame_data", "-fd", type=str, default=None, required=False, help="Process Frame with data")
+@click.option(
+    "--log_level", "-ll", type=str, default=None, required=False, help='error, warning, info, debug plus "_all"'
+)
+@click.option("--log_mqtt", "-lm", type=str, default="all", required=False, help="all, false (console), true (mqtt)")
+@click.option(
+    "--hooks", "-h", type=str, default="none", required=False, help="Some combination of am,pe,pep,pf,all,none"
+)
+@click.option("--windows", "-w", is_flag=True, help="Enable experimental distributed Streams sliding window protocol")
+@click.option("--exit_message", is_flag=True, help="Display exit warning message")
+def create(
+    definition_pathname,
+    graph_path,
+    name,
+    parameters,
+    stream_id,
     stream_parameters,  # DEPRECATED
-    frame_id, frame_data, grace_time, show_response,
-    log_level, log_mqtt, stream_reset, hooks, windows, exit_message):
+    frame_id,
+    frame_data,
+    grace_time,
+    show_response,
+    log_level,
+    log_mqtt,
+    stream_reset,
+    hooks,
+    windows,
+    exit_message,
+):
 
     if stream_id:
         stream_id = stream_id.replace("{}", get_pid())  # sort-of unique id
@@ -1952,48 +1983,54 @@ def create(definition_pathname, graph_path, name, parameters, stream_id,
     os.environ["AIKO_LOG_MQTT"] = log_mqtt
 
     if not os.path.exists(definition_pathname):
-        raise SystemExit(
-            f"Error: PipelineDefinition not found: {definition_pathname}")
+        raise SystemExit(f"Error: PipelineDefinition not found: {definition_pathname}")
 
-    pipeline_definition = PipelineImpl.parse_pipeline_definition(
-        definition_pathname)
+    pipeline_definition = PipelineImpl.parse_pipeline_definition(definition_pathname)
 
     queue_pipeline_response = do_show_response() if show_response else None
 
     pipeline = PipelineImpl.create_pipeline(
-        definition_pathname, pipeline_definition,
-        name, graph_path, stream_id, parameters, frame_id, frame_data,
-        grace_time, queue_response=queue_pipeline_response,
-        log_level=log_level, stream_reset=stream_reset, hooks=hooks,
-        windows=windows)
+        definition_pathname,
+        pipeline_definition,
+        name,
+        graph_path,
+        stream_id,
+        parameters,
+        frame_id,
+        frame_data,
+        grace_time,
+        queue_response=queue_pipeline_response,
+        log_level=log_level,
+        stream_reset=stream_reset,
+        hooks=hooks,
+        windows=windows,
+    )
 
     pipeline.run(mqtt_connection_required=False)
     if exit_message:
         _LOGGER.warning("Pipeline process exit")
 
+
 @main.command(help="Destroy running Pipeline")
 @click.argument("name", nargs=1, type=str, required=True)
-
 def destroy(name):
-    do_command(Pipeline, ServiceFilter("*", name, "*", "*", "*", "*"),
-        lambda pipeline: pipeline.stop(), terminate=True)
+    do_command(Pipeline, ServiceFilter("*", name, "*", "*", "*", "*"), lambda pipeline: pipeline.stop(), terminate=True)
     aiko.process.run()
     _LOGGER.info(f'Destroyed Pipeline "{name}"')
 
-@main.command(name="list", help="List running Pipelines")
-@click.option("--watch", "-w", is_flag=True,
-    help="Show on-going Pipeline create and destroy actions")
 
+@main.command(name="list", help="List running Pipelines")
+@click.option("--watch", "-w", is_flag=True, help="Show on-going Pipeline create and destroy actions")
 def list_command(watch):  # Don't overwrite the Python "list" class
     service_filter = ServiceFilter("*", "*", PROTOCOL_PIPELINE, "*", "*", "*")
 
     def show_service(command, service_details):
         topic_path = service_details[0]
         name = service_details[1]
-    #   protocol = service_details[2][service_details[2].rfind("/") + 1:]
-    #   transport = service_details[3]
+        #   protocol = service_details[2][service_details[2].rfind("/") + 1:]
+        #   transport = service_details[3]
         owner = service_details[4]
-    #   tags = service_details[5]
+        #   tags = service_details[5]
         now = datetime.datetime.now().strftime("%H:%M:%S")
         print(f"{now} {command:6s} {topic_path} {name} {owner}")
 
@@ -2011,61 +2048,96 @@ def list_command(watch):  # Don't overwrite the Python "list" class
     services_cache = services_cache_create_singleton(aiko.process, True, 0)
     services_cache.add_handler(service_discovery_handler, service_filter)
 
+
 @main.command(help="Update Pipeline: Manage Streams and create Frames")
 @click.argument("name", nargs=1, type=str, required=True)
-@click.option("--graph_path", "-gp", type=str,
-    default=None, required=False,
-    help="Pipeline Graph Path, use Head_PipelineElement_name")
-@click.option("--parameters", "-p", type=click.Tuple((str, str)),
-    default=None, multiple=True, required=False,
-    help="Update parameters")
-@click.option("--protocol", "-pr", type=str,
-    default=PROTOCOL_PIPELINE, required=False,
-    help="Discovery protocol, default: pipeline:0")
-@click.option("--stream_reset", "-r", is_flag=True,
-    help="Reset the remote Stream by invoking destroy_stream() first")
-@click.option("--stream_id", "-s", type=str,
-    default=None, required=False,
-    help="Update Stream with identifier")
-@click.option("--grace_time", "-gt", type=int,
-    default=_GRACE_TIME, required=False,
-    help="Stream receive frame time-out duration")
-@click.option("--show_response", "-sr", is_flag=True,
-    help="Show pipeline output response (output)")
-@click.option("--frame_id", "-fi", type=int,
-    default=0, required=False,
-    help="Process Frame with identifier")
-@click.option("--frame_data", "-fd", type=str,
-    default=None, required=False,
-    help="Process Frame with data")
-@click.option("--log_level", "-ll", type=str,
-    default=None, required=False,
-    help='error, warning, info, debug plus "_all"')
+@click.option(
+    "--graph_path",
+    "-gp",
+    type=str,
+    default=None,
+    required=False,
+    help="Pipeline Graph Path, use Head_PipelineElement_name",
+)
+@click.option(
+    "--parameters",
+    "-p",
+    type=click.Tuple((str, str)),
+    default=None,
+    multiple=True,
+    required=False,
+    help="Update parameters",
+)
+@click.option(
+    "--protocol",
+    "-pr",
+    type=str,
+    default=PROTOCOL_PIPELINE,
+    required=False,
+    help="Discovery protocol, default: pipeline:0",
+)
+@click.option("--stream_reset", "-r", is_flag=True, help="Reset the remote Stream by invoking destroy_stream() first")
+@click.option("--stream_id", "-s", type=str, default=None, required=False, help="Update Stream with identifier")
+@click.option(
+    "--grace_time", "-gt", type=int, default=_GRACE_TIME, required=False, help="Stream receive frame time-out duration"
+)
+@click.option("--show_response", "-sr", is_flag=True, help="Show pipeline output response (output)")
+@click.option("--frame_id", "-fi", type=int, default=0, required=False, help="Process Frame with identifier")
+@click.option("--frame_data", "-fd", type=str, default=None, required=False, help="Process Frame with data")
+@click.option(
+    "--log_level", "-ll", type=str, default=None, required=False, help='error, warning, info, debug plus "_all"'
+)
 # TODO: Add "hooks"
 # @click.option("--hooks", "-h", type=str,
 #   default="none", required=False,
 #   help="Some combination of am,pe,pep,pf,all,none")
 
-def update(name, graph_path, parameters, protocol, stream_id,  # TODO: Add hooks
-    frame_id, frame_data, grace_time, show_response, log_level, stream_reset):
+def update(
+    name,
+    graph_path,
+    parameters,
+    protocol,
+    stream_id,  # TODO: Add hooks
+    frame_id,
+    frame_data,
+    grace_time,
+    show_response,
+    log_level,
+    stream_reset,
+):
 
     if "/" not in protocol:
         protocol = f"{SERVICE_PROTOCOL_AIKO}/{protocol}"
 
     topic_response = None
-    if show_response:        # TODO: Replace "do_command()" with "do_request()"
+    if show_response:  # TODO: Replace "do_command()" with "do_request()"
         topic_response = aiko.topic_in
         do_show_response(topic_response)  # support remote Pipeline response
 
     def update_command(pipeline):
-        PipelineImpl.update_pipeline(pipeline, graph_path, stream_id,
-            parameters, frame_id, frame_data, grace_time,
-            None, topic_response, log_level, stream_reset, "none")
+        PipelineImpl.update_pipeline(
+            pipeline,
+            graph_path,
+            stream_id,
+            parameters,
+            frame_id,
+            frame_data,
+            grace_time,
+            None,
+            topic_response,
+            log_level,
+            stream_reset,
+            "none",
+        )
 
-    do_command(Pipeline,
+    do_command(
+        Pipeline,
         ServiceFilter("*", name, protocol, "*", "*", "*"),
-        lambda pipeline: update_command(pipeline), terminate=not show_response)
+        lambda pipeline: update_command(pipeline),
+        terminate=not show_response,
+    )
     aiko.process.run()
+
 
 if __name__ == "__main__":
     main()

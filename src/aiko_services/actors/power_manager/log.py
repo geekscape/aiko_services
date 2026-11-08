@@ -21,14 +21,15 @@
 # * Write through the Storage Interface, once it has a SQLite3
 #   Implementation (ADR-028, the plan's phase 7)
 
-from datetime import datetime, timezone
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 __all__ = ["PowerLog"]
 
 _SUFFIX = ".jsonl"
+
 
 class PowerLog:
     """Appends one line for each reading, in a file for each UTC day.
@@ -80,16 +81,15 @@ class PowerLog:
         if self.keep_days is None:
             return []
         try:
-            names = sorted(
-                path.name for path in self.directory.glob(f"*{_SUFFIX}"))
+            names = sorted(path.name for path in self.directory.glob(f"*{_SUFFIX}"))
         except OSError:
             return []
         removed = []
-        for name in names[:max(0, len(names) - self.keep_days)]:
+        for name in names[: max(0, len(names) - self.keep_days)]:
             try:
                 (self.directory / name).unlink()
                 removed.append(name)
-            except OSError as error:                     # Leave it, and say
+            except OSError as error:  # Leave it, and say
                 self.last_error = str(error)
         return removed
 
@@ -111,5 +111,6 @@ class PowerLog:
         os.makedirs(path.parent, exist_ok=True)
         self._file = open(path, "a", encoding="utf-8")
         self._path = path
+
 
 # --------------------------------------------------------------------------- #

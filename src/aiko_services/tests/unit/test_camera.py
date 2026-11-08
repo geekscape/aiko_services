@@ -23,15 +23,24 @@ import pytest
 
 from aiko_services.elements.cameras import camera
 from aiko_services.elements.cameras.camera import (
-    CountdownSettle, RateMeter, SettleMonitor, auto_expose, parse_bool,
-    parse_frame_rate, parse_resolution, parse_settle, plan_resolution,
-    resize_image, share_token
+    CountdownSettle,
+    RateMeter,
+    SettleMonitor,
+    auto_expose,
+    parse_bool,
+    parse_frame_rate,
+    parse_resolution,
+    parse_settle,
+    plan_resolution,
+    resize_image,
+    share_token,
 )
 from aiko_services.tests.unit.fake_camera import FakeCamera, do_fake_initialize
 
 CAMERAS_DIRECTORY = os.path.dirname(camera.__file__)
 
 # --------------------------------------------------------------------------- #
+
 
 def test_parse_resolution():
     assert parse_resolution("1920x1080") == (1920, 1080)
@@ -45,6 +54,7 @@ def test_parse_resolution():
         with pytest.raises(ValueError, match="resolution"):
             parse_resolution(bad)
 
+
 def test_parse_frame_rate():
     for value in (25, 25.0, "25", "25.0", "25/1", "50/2", " 25 / 1 "):
         assert parse_frame_rate(value) == 25.0
@@ -54,6 +64,7 @@ def test_parse_frame_rate():
             parse_frame_rate(bad)
     with pytest.raises(ValueError, match="rate"):
         parse_frame_rate("x", "rate")
+
 
 def test_parse_settle():
     assert parse_settle("30", 25.0) == 30
@@ -66,6 +77,7 @@ def test_parse_settle():
         with pytest.raises(ValueError, match="settle"):
             parse_settle(bad, 25.0)
 
+
 def test_parse_bool():
     for value in (True, "true", "True", "1", "yes", "on"):
         assert parse_bool(value, "x") is True
@@ -74,44 +86,46 @@ def test_parse_bool():
     with pytest.raises(ValueError, match="aux_stream"):
         parse_bool("maybe", "aux_stream")
 
+
 def test_plan_resolution():
     native = (4000, 3000)
     assert plan_resolution(native, None) == ((0, 0, 4000, 3000), 1, None)
     aoi, decimation, host = plan_resolution(native, (1920, 1080), "crop")
-    assert aoi == (0, 375, 4000, 2250)            # 16:9 crop, centred
+    assert aoi == (0, 375, 4000, 2250)  # 16:9 crop, centred
     assert decimation == 1 and host == (1920, 1080)  # exact: 48 %, too small
-    aoi, decimation, host = plan_resolution(      # the IDS camera's case
-        native, (1920, 1080), "crop", decimations=(1, 2, 3, 4, 8))
-    assert aoi == (80, 420, 3840, 2160)           # exactly 2 x the target
-    assert decimation == 2 and host is None       # 96 % of the width
+    aoi, decimation, host = plan_resolution(  # the IDS camera's case
+        native, (1920, 1080), "crop", decimations=(1, 2, 3, 4, 8)
+    )
+    assert aoi == (80, 420, 3840, 2160)  # exactly 2 x the target
+    assert decimation == 2 and host is None  # 96 % of the width
     aoi, decimation, host = plan_resolution(native, (3840, 2160), "crop")
     assert aoi == (80, 420, 3840, 2160) and host is None
-    aoi, decimation, host = plan_resolution(
-        native, (2000, 1500), "crop", decimations=(1, 2, 4))
+    aoi, decimation, host = plan_resolution(native, (2000, 1500), "crop", decimations=(1, 2, 4))
     assert aoi == (0, 0, 4000, 3000) and decimation == 2 and host is None
-    aoi, decimation, host = plan_resolution(
-        native, (1920, 1080), "letterbox", decimations=(1, 2))
+    aoi, decimation, host = plan_resolution(native, (1920, 1080), "letterbox", decimations=(1, 2))
     assert aoi == (0, 0, 4000, 3000) and decimation == 2
-    assert host == (1920, 1080)                   # 2000x1500 -> letterbox
+    assert host == (1920, 1080)  # 2000x1500 -> letterbox
+
 
 def test_resize_image_modes():
     pytest.importorskip("cv2", reason="resize_image() needs cv2")
     image = np.zeros((300, 400, 3), dtype=np.uint8)
-    image[:, :, 1] = 200                           # green
+    image[:, :, 1] = 200  # green
     for mode in ("crop", "letterbox", "stretch"):
         out = resize_image(image, (160, 90), mode)
         assert out.shape == (90, 160, 3), mode
     letterboxed = resize_image(image, (160, 90), "letterbox")
-    assert letterboxed[45, 80, 1] == 200           # centre keeps the picture
-    assert letterboxed[45, 2, 1] == 0              # sides padded black
+    assert letterboxed[45, 80, 1] == 200  # centre keeps the picture
+    assert letterboxed[45, 2, 1] == 0  # sides padded black
     assert resize_image(image, (400, 300), "crop") is image  # no-op
+
 
 def test_settle_monitor():
     monitor = SettleMonitor(10)
     for lens in (0, 0, 40, 80, 118, 119, 120):
         done = monitor.feed({"lens_position": lens, "iso_sensitivity": 800})
     assert done and monitor.done and not monitor.timed_out
-    assert monitor.frames == 7                     # converged on the 7th
+    assert monitor.frames == 7  # converged on the 7th
     timed = SettleMonitor(3)
     for _ in range(3):
         timed.feed({"lens_position": None, "iso_sensitivity": 0})
@@ -120,15 +134,15 @@ def test_settle_monitor():
     countdown = CountdownSettle(2)
     assert not countdown.feed({}) and countdown.feed({}) and countdown.done
 
+
 def test_auto_expose_steps():
     do_fake_initialize()
 
     class DarkCamera(FakeCamera):
         def capture(self, timeout_s=None):
             image, metadata = super().capture()
-            image[:] = 40 if not self.exposures else 220   # dark, then good
-            metadata["exposure_us"] = self.exposures[-1]  \
-                if self.exposures else 15000.0
+            image[:] = 40 if not self.exposures else 220  # dark, then good
+            metadata["exposure_us"] = self.exposures[-1] if self.exposures else 15000.0
             return image, metadata
 
     dark = DarkCamera(resolution=(8, 8), frame_rate=None)
@@ -137,6 +151,7 @@ def test_auto_expose_steps():
     assert [done for done, _, _ in steps] == [False, True]
     assert dark.exposures == [15000.0 * min(225 / 40, 8.0)]
     assert dark.gains == [1.0]
+
 
 def test_rate_meter_and_token():
     meter = RateMeter(window_s=10.0)
@@ -148,36 +163,49 @@ def test_rate_meter_and_token():
     assert share_token("") == "-"
     assert len(share_token("x" * 100)) == 32
 
+
 # Package guards ------------------------------------------------------------ #
+
 
 def test_package_imports_without_sdks_or_cv2():
     """The cameras package must import with depthai, ids_peak, gi and cv2
     all absent (CI installs none of them)"""
 
-    code = ("import sys\n"
-            "for m in ('depthai', 'ids_peak', 'ids_peak_ipl', 'gi', 'cv2'):\n"
-            "    sys.modules[m] = None\n"
-            "import aiko_services.elements.cameras as c\n"
-            "print(c.OakDCamera.available(), c.VideoReadDepthAI.__name__)\n")
-    result = subprocess.run([sys.executable, "-c", code],
-        capture_output=True, text=True, timeout=120)
+    code = (
+        "import sys\n"
+        "for m in ('depthai', 'ids_peak', 'ids_peak_ipl', 'gi', 'cv2'):\n"
+        "    sys.modules[m] = None\n"
+        "import aiko_services.elements.cameras as c\n"
+        "print(c.OakDCamera.available(), c.VideoReadDepthAI.__name__)\n"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "False VideoReadDepthAI"
+
 
 def test_no_site_literals():
     """Nothing from the spike's site: no private addresses, host names or
     device serials in the package sources"""
 
     # assembled, so this file does not trip the same grep over a diff
-    forbidden = re.compile("|".join([
-        r"\.".join(["192", "168", ""]), r"\.".join(["10", "204", ""]),
-        r"\.".join(["10", "42", ""]), r"\.".join(["meta", "local"]),
-        "1944" + "30104108C02F00", "4110" + "087727"]))
+    forbidden = re.compile(
+        "|".join(
+            [
+                r"\.".join(["192", "168", ""]),
+                r"\.".join(["10", "204", ""]),
+                r"\.".join(["10", "42", ""]),
+                r"\.".join(["meta", "local"]),
+                "1944" + "30104108C02F00",
+                "4110" + "087727",
+            ]
+        )
+    )
     for name in sorted(os.listdir(CAMERAS_DIRECTORY)):
         if name.endswith(".py"):
             path = os.path.join(CAMERAS_DIRECTORY, name)
             with open(path) as file:
                 assert not forbidden.search(file.read()), name
+
 
 class FakeClock:
     """time.monotonic() that advances only through time.sleep()"""
@@ -193,6 +221,7 @@ class FakeClock:
         self.now += seconds
         self.slept += seconds
 
+
 class FakeInfo:
     def __init__(self, name, device_id, state):
         self.name = name
@@ -201,6 +230,7 @@ class FakeInfo:
 
     def getDeviceId(self):
         return self.device_id
+
 
 class FakeDai:
     """depthai with a scripted discovery: DISCOVERED is popped per poll,
@@ -219,8 +249,7 @@ class FakeDai:
         def __init__(self, info):
             FakeDai.connects.append(info)
             if len(FakeDai.connects) <= FakeDai.FAIL_CONNECTS:
-                raise RuntimeError("Failed to find device after booting, "
-                                   "error message: X_LINK_DEVICE_NOT_FOUND")
+                raise RuntimeError("Failed to find device after booting, error message: X_LINK_DEVICE_NOT_FOUND")
             self.name = info.name
 
         @staticmethod
@@ -230,9 +259,11 @@ class FakeDai:
                 return FakeDai.DISCOVERED.pop(0)
             return FakeDai.DISCOVERED[0] if FakeDai.DISCOVERED else []
 
+
 @pytest.fixture
 def fake_dai(monkeypatch):
     from aiko_services.elements.cameras import camera_oak_d
+
     FakeDai.DISCOVERED = []
     FakeDai.FAIL_CONNECTS = 0
     FakeDai.polls = 0
@@ -242,15 +273,18 @@ def fake_dai(monkeypatch):
     monkeypatch.setattr(camera_oak_d, "time", clock)
     return camera_oak_d, clock
 
+
 READY = "X_LINK_BOOTLOADER"
-BUSY = "X_LINK_BOOTED"           # another process holds it, or a teardown
+BUSY = "X_LINK_BOOTED"  # another process holds it, or a teardown
+
 
 def test_oak_aux_stream_default_is_native_only():
-    from aiko_services.elements.cameras.camera_oak_d import (
-        NATIVE_RESOLUTION, aux_stream_default)
+    from aiko_services.elements.cameras.camera_oak_d import NATIVE_RESOLUTION, aux_stream_default
+
     assert aux_stream_default(None) and aux_stream_default(NATIVE_RESOLUTION)
     assert not aux_stream_default((1920, 1080))
     assert not aux_stream_default((640, 480))
+
 
 def test_oak_open_waits_for_discovery_after_a_reboot(fake_dai):
     """Absent for 10 s, then listed as ready: one connection, to the
@@ -262,8 +296,9 @@ def test_oak_open_waits_for_discovery_after_a_reboot(fake_dai):
     oak = camera_oak_d.OakDCamera(address="192.0.2.7")
     device = oak._boot_device()
     assert device.name == "192.0.2.7"
-    assert FakeDai.connects == [ready]                 # the discovered one
+    assert FakeDai.connects == [ready]  # the discovered one
     assert FakeDai.polls == 11 and clock.slept == 10.0
+
 
 def test_oak_open_ignores_busy_and_other_devices(fake_dai):
     """A device held by another process, or a different address, is not
@@ -273,11 +308,12 @@ def test_oak_open_ignores_busy_and_other_devices(fake_dai):
     busy = FakeInfo("192.0.2.7", "id-7", BUSY)
     other = FakeInfo("192.0.2.8", "id-8", READY)
     FakeDai.DISCOVERED = [[busy, other]] * 3 + [[FakeInfo("x", "id-7", READY)]]
-    oak = camera_oak_d.OakDCamera(address="id-7")       # device id form
+    oak = camera_oak_d.OakDCamera(address="id-7")  # device id form
     assert oak._boot_device().name == "x"
     assert clock.slept == 3.0
     FakeDai.DISCOVERED = [[busy, other]]
     assert camera_oak_d.OakDCamera()._boot_device().name == "192.0.2.8"
+
 
 def test_oak_open_connects_directly_to_an_undiscoverable_address(fake_dai):
     """Never listed: after DISCOVERY_GRACE_S the address is connected
@@ -291,36 +327,37 @@ def test_oak_open_connects_directly_to_an_undiscoverable_address(fake_dai):
     assert clock.slept == camera_oak_d.DISCOVERY_GRACE_S + 2.0
     with pytest.raises(RuntimeError, match=r"\(any\) not ready within"):
         camera_oak_d.OakDCamera()._boot_device()
-    assert len(FakeDai.connects) == 3                   # never attempted
+    assert len(FakeDai.connects) == 3  # never attempted
+
 
 def test_scheme_registered_once():
     import aiko_services as aiko
-    module = importlib.import_module(
-        "aiko_services.elements.cameras.scheme_depthai")
+
+    module = importlib.import_module("aiko_services.elements.cameras.scheme_depthai")
     assert aiko.DataScheme.LOOKUP["depthai"] is module.DataSchemeDepthAI
+
 
 def _checkerboard(size=240, square=8):
     tile = (np.indices((size, size)).sum(axis=0) // square) % 2
     gray = (tile * 255).astype(np.uint8)
     return np.dstack([gray, gray, gray])
 
+
 def _box_blur(image, radius=3):
     blurred = image.astype(np.float32)
     for axis in (0, 1):
-        blurred = sum(np.roll(blurred, shift, axis=axis)
-                      for shift in range(-radius, radius + 1))  \
-            / (2 * radius + 1)
+        blurred = sum(np.roll(blurred, shift, axis=axis) for shift in range(-radius, radius + 1)) / (2 * radius + 1)
     return blurred.astype(np.uint8)
+
 
 def test_focus_sharpness_peaks_when_sharp():
     sharp = _checkerboard()
-    assert camera.focus_sharpness(sharp) > 10 * camera.focus_sharpness(
-        _box_blur(sharp))
+    assert camera.focus_sharpness(sharp) > 10 * camera.focus_sharpness(_box_blur(sharp))
     assert camera.focus_sharpness(np.zeros((90, 120, 3), np.uint8)) == 0.0
     gray = sharp[..., 0]
-    assert camera.focus_sharpness(gray) == pytest.approx(
-        camera.focus_sharpness(sharp), rel=1e-3)
+    assert camera.focus_sharpness(gray) == pytest.approx(camera.focus_sharpness(sharp), rel=1e-3)
     assert camera.focus_sharpness(np.zeros((6, 6, 3), np.uint8)) == 0.0
+
 
 def test_focus_sharpness_matches_the_spike_metric():
     """The OpenCV form the camera spike used: Laplacian variance of the
@@ -330,23 +367,28 @@ def test_focus_sharpness_matches_the_spike_metric():
     rng = np.random.default_rng(3)
     image = rng.integers(0, 256, (300, 450, 3), dtype=np.uint8)
     height, width = image.shape[:2]
-    center = image[height // 3:2 * height // 3, width // 3:2 * width // 3]
+    center = image[height // 3 : 2 * height // 3, width // 3 : 2 * width // 3]
     gray = cv2.cvtColor(center, cv2.COLOR_RGB2GRAY).astype(np.float32)
     expected = cv2.Laplacian(gray, cv2.CV_32F)[1:-1, 1:-1].var()
     assert camera.focus_sharpness(image) == pytest.approx(expected, rel=0.02)
 
+
 def test_camera_auto_settle():
     settle = camera.CameraAutoSettle(5)
     assert not settle.feed({"auto_status": "AecActive"})
-    assert not settle.feed({"auto_status": "Done",
-                            "white_balance": "Active"})
-    assert settle.feed({"auto_status": "AecStuckHigh",   # as far as it goes
-                        "white_balance": "Done"})
+    assert not settle.feed({"auto_status": "Done", "white_balance": "Active"})
+    assert settle.feed(
+        {
+            "auto_status": "AecStuckHigh",  # as far as it goes
+            "white_balance": "Done",
+        }
+    )
     assert not settle.timed_out and settle.frames == 3
     settle = camera.CameraAutoSettle(2)
     assert not settle.feed({})
     assert settle.feed({}) and settle.timed_out
     assert camera.CameraAutoSettle(0).done
+
 
 def test_auto_expose_skips_queued_frames():
     """A free-running camera's queued frames predate each change: two are
@@ -355,9 +397,8 @@ def test_auto_expose_skips_queued_frames():
     do_fake_initialize()
     fake = FakeCamera(resolution=(64, 48))
     fake.open()
-    steps = list(camera.auto_expose(fake, max_iterations=3,
-                                    discard_frames=2))
-    assert len(fake.exposures) == 3               # three adjustments ...
-    assert fake.captured == 3 * (1 + 2)           # ... each metered once
-    assert len(steps) == 3 * (1 + 2) + 1          # and the final give-up
+    steps = list(camera.auto_expose(fake, max_iterations=3, discard_frames=2))
+    assert len(fake.exposures) == 3  # three adjustments ...
+    assert fake.captured == 3 * (1 + 2)  # ... each metered once
+    assert len(steps) == 3 * (1 + 2) + 1  # and the final give-up
     assert steps[-1][0] is True

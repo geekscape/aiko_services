@@ -74,71 +74,96 @@
 #   Display Actor can drive a color panel such as the WhisPlay's
 #   (actors/whisplay); then convergence with aiko_engine_mp, which comes last
 
-from abc import abstractmethod
 import collections
-from typing import NamedTuple
 import random
 import re
 import threading
 import time
 import traceback
-
+from abc import abstractmethod
+from contextlib import suppress
+from typing import NamedTuple
 
 from PIL import ImageColor
 
 import aiko_services as aiko
+from aiko_services.actors.display import drawings, faces, games  # noqa: F401 (they register applets)
+from aiko_services.actors.display import keys as keymap  # the emulator window's keys
+from aiko_services.actors.display import status as status_screens  # noqa: F401 (registers status)
+from aiko_services.actors.display.applets import (
+    APPLETS,
+    AppletDone,
+    Host,
+    fits,
+    parse_applet_args,
+)
+from aiko_services.actors.display.graphics import (
+    HEIGHT,
+    WIDTH,
+    FrameBuffer,
+    blank,
+    parse_font_size,
+    title_strip,
+)
+from aiko_services.actors.display.outputs import (
+    DisplayNotFound,
+    NullOutputImpl,
+    output_args,
+)
 from aiko_services.main.connection import ConnectionState
 from aiko_services.main.lease import Lease
 from aiko_services.main.utilities import get_hostname
 
-from aiko_services.actors.display.applets import (
-    APPLETS, AppletDone, Host, fits, parse_applet_args,
-)
-from aiko_services.actors.display import drawings, faces, games  # noqa: F401 (they register applets)
-from aiko_services.actors.display import status as status_screens  # noqa: F401 (registers status)
-from aiko_services.actors.display.outputs import (
-    DisplayNotFound, NullOutputImpl, output_args,
-)
-from aiko_services.actors.display.graphics import (
-    HEIGHT, WIDTH, FrameBuffer, blank, parse_font_size, title_strip,
-)
-from aiko_services.actors.display import keys as keymap  # the emulator window's keys
-
 __all__ = [
-    "ASPECT_TAGS", "Canvas", "Display", "Interaction", "DisplayImpl", "PROTOCOL",
-    "PROTOCOL_TYPE", "SETTINGS", "SETTINGS_SPEC", "Screen", "Setting",
-    "FUNCTIONS", "service_filter", "service_tags",
+    "ASPECT_TAGS",
+    "Canvas",
+    "Display",
+    "Interaction",
+    "DisplayImpl",
+    "PROTOCOL",
+    "PROTOCOL_TYPE",
+    "SETTINGS",
+    "SETTINGS_SPEC",
+    "Screen",
+    "Setting",
+    "FUNCTIONS",
+    "service_filter",
+    "service_tags",
 ]
 
 _VERSION = 0
 PROTOCOL_TYPE = "display"
 PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/{PROTOCOL_TYPE}:{_VERSION}"
 
-LOG_LINES = 8                 # the log ring: oldest line dropped
-PIXEL_PAIRS_MAXIMUM = 256     # per (pixels ...) command
-TEXT_LENGTH_MAXIMUM = 128     # characters per (text ...) or (log ...)
+LOG_LINES = 8  # the log ring: oldest line dropped
+PIXEL_PAIRS_MAXIMUM = 256  # per (pixels ...) command
+TEXT_LENGTH_MAXIMUM = 128  # characters per (text ...) or (log ...)
 TITLE_LENGTH_MAXIMUM = 32
 KEYS_HELD_MAXIMUM = 5
 KEY_NAMES = ("up", "down", "left", "right")  # plus any single character
 KEY_STATES = ("tap", "down", "up")
-KEY_HOLD = 0.15               # seconds a tapped key stays held (MQTT latency)
-KEY_DOWN_MAXIMUM = 2.0       # seconds a "down" holds a key, unless repeated:
-                             # a lost "up" can't hold a key for ever (P9)
-MIRROR_LEASES_MAXIMUM = 4     # holders of the frame feed
+KEY_HOLD = 0.15  # seconds a tapped key stays held (MQTT latency)
+KEY_DOWN_MAXIMUM = 2.0  # seconds a "down" holds a key, unless repeated:
+# a lost "up" can't hold a key for ever (P9)
+MIRROR_LEASES_MAXIMUM = 4  # holders of the frame feed
 MIRROR_TOPIC_LENGTH_MAXIMUM = 128
 MIRROR_SECONDS_MAXIMUM = 300
 SPEED_MINIMUM, SPEED_MAXIMUM = 0.1, 10.0
-BLANK_AFTER_MAXIMUM = 86400   # seconds
+BLANK_AFTER_MAXIMUM = 86400  # seconds
 
-TICK_PERIOD = 1 / 30          # the frame timer; applets run at fps × speed
+TICK_PERIOD = 1 / 30  # the frame timer; applets run at fps × speed
 HEARTBEAT_PERIOD = 1.0
 METRICS_PERIOD = 2.0
-REOPEN_PERIOD = 10.0          # retry a failed display this often
+REOPEN_PERIOD = 10.0  # retry a failed display this often
 DEFAULT_APPLET = "status"
+FLAG_ON = "on"
+FLAG_OFF = "off"
+COLOR_DEFAULT = "default"
 
 # Settings: shared state that anyone may write with "(update KEY VALUE)" on
 # the control topic; the change handler applies them through one setter each
 DEFAULT_COLORS = ("white", "black")  # of an emulated display: lit, unlit
+
 
 class Setting(NamedTuple):
     """One declared setting: what the share key accepts.  The kinds: int
@@ -149,39 +174,52 @@ class Setting(NamedTuple):
     default: str
     low: float
     high: float
-    values: str        # the grammar, for help
+    values: str  # the grammar, for help
     description: str
+
 
 # The settings, declared once: the "settings" share key, the setters, the
 # help and the tests derive from this table (the shape of Pipeline
 # Parameters: declared names with defaults, overridden live through share)
 SETTINGS_SPEC = (
-    Setting("applet", "applet", DEFAULT_APPLET, None, None,
-            "NAME[,ARG,...] | none", "run an applet, or show the canvas"),
+    Setting(
+        "applet", "applet", DEFAULT_APPLET, None, None, "NAME[,ARG,...] | none", "run an applet, or show the canvas"
+    ),
     Setting("contrast", "int", "255", 0, 255, "0..255", "brightness"),
     Setting("invert", "flag", "off", None, None, "on | off", "inverse video"),
     Setting("power", "flag", "on", None, None, "on | off", "display sleep (blank)"),
-    Setting("all_on", "flag", "off", None, None, "on | off",
-            "every pixel lit: a hardware test"),
-    Setting("title", "title", "", None, None, "TEXT | on | off",
-            "the title row; off: the whole panel"),
-    Setting("font", "font", "5x7", None, None, "5x7 | 6..64",
-            "the font: 5x7 bitmap, or TrueType size"),
-    Setting("speed", "float", "1", SPEED_MINIMUM, SPEED_MAXIMUM, "0.1..10",
-            "multiplies every applet's frame rate"),
-    Setting("blank_after", "int", "0", 0, BLANK_AFTER_MAXIMUM, "SECONDS (0: never)",
-            "sleep the display after inactivity; any command wakes it"),
-    Setting("mirror_rate", "int", "5", 1, 10, "1..10",
-            "frames a second to each mirror holder, at most"),
-    Setting("foreground", "color", DEFAULT_COLORS[0], None, None, "COLOR | default",
-            "lit pixels of an emulated display"),
-    Setting("background", "color", DEFAULT_COLORS[1], None, None, "COLOR | default",
-            "unlit pixels; default: as started (-c)"),
+    Setting("all_on", "flag", "off", None, None, "on | off", "every pixel lit: a hardware test"),
+    Setting("title", "title", "", None, None, "TEXT | on | off", "the title row; off: the whole panel"),
+    Setting("font", "font", "5x7", None, None, "5x7 | 6..64", "the font: 5x7 bitmap, or TrueType size"),
+    Setting("speed", "float", "1", SPEED_MINIMUM, SPEED_MAXIMUM, "0.1..10", "multiplies every applet's frame rate"),
+    Setting(
+        "blank_after",
+        "int",
+        "0",
+        0,
+        BLANK_AFTER_MAXIMUM,
+        "SECONDS (0: never)",
+        "sleep the display after inactivity; any command wakes it",
+    ),
+    Setting("mirror_rate", "int", "5", 1, 10, "1..10", "frames a second to each mirror holder, at most"),
+    Setting(
+        "foreground", "color", DEFAULT_COLORS[0], None, None, "COLOR | default", "lit pixels of an emulated display"
+    ),
+    Setting(
+        "background",
+        "color",
+        DEFAULT_COLORS[1],
+        None,
+        None,
+        "COLOR | default",
+        "unlit pixels; default: as started (-c)",
+    ),
 )
 SETTINGS = tuple(setting.name for setting in SETTINGS_SPEC)
 SETTINGS_BY_NAME = {setting.name: setting for setting in SETTINGS_SPEC}
 
 # --------------------------------------------------------------------------- #
+
 
 def _token(text, limit=32):
     """Reduce free text to one share-safe token: no whitespace or
@@ -193,8 +231,10 @@ def _token(text, limit=32):
         token = "_" + token
     return token or "-"
 
+
 def _utc_now():
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
 
 class _Deny(Exception):
     """A wire argument failed validation: reason is a share-safe token"""
@@ -203,14 +243,16 @@ class _Deny(Exception):
         super().__init__(reason)
         self.reason = reason
 
+
 def _int(value, name, low, high):
     try:
         number = int(str(value).strip())
-    except ValueError:
-        raise _Deny(f"{name}_not_int")
+    except ValueError as error:
+        raise _Deny(f"{name}_not_int") from error
     if not low <= number <= high:
         raise _Deny(f"{name}_range")
     return number
+
 
 def _flag(value, name):
     text = str(value).strip().lower()
@@ -219,6 +261,7 @@ def _flag(value, name):
     if text in ("off", "false", "0", "no"):
         return False
     raise _Deny(f"{name}_not_on_off")
+
 
 def _words(words):
     if not words:
@@ -230,7 +273,9 @@ def _words(words):
         raise _Deny("too_long")
     return line
 
+
 # --------------------------------------------------------------------------- #
+
 
 class Canvas(aiko.Interface):
     """
@@ -285,6 +330,7 @@ class Canvas(aiko.Interface):
         font.  Wire form: "(text X Y WORDS ...)".
         Projection: command"""
 
+
 class Screen(aiko.Interface):
     """
     Controlling the screen: its settings are shared state, written with
@@ -310,6 +356,7 @@ class Screen(aiko.Interface):
         mirror_seconds_not_int, mirror_seconds_range, mirror_full.
         Projection: command"""
 
+
 class Interaction(aiko.Interface):
     """
     Controlling what runs on the display: applets are sources of frames
@@ -320,8 +367,7 @@ class Interaction(aiko.Interface):
     """
 
     PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/interaction:{_VERSION}"
-    aiko.Interface.default(
-        "Interaction", "aiko_services.actors.display.display.DisplayImpl")
+    aiko.Interface.default("Interaction", "aiko_services.actors.display.display.DisplayImpl")
 
     @abstractmethod
     def applet(self, name, *args):
@@ -341,6 +387,7 @@ class Interaction(aiko.Interface):
         its setting, on "tap" or "down"; any other key goes to the running
         applet.  Wire form: "(key NAME [STATE])".  Projection: command"""
 
+
 class Display(aiko.Actor, Canvas, Screen, Interaction):
     """
     A display: the composite of the Canvas, Screen and Interaction aspects,
@@ -353,17 +400,21 @@ class Display(aiko.Actor, Canvas, Screen, Interaction):
     PROTOCOL = PROTOCOL
     aiko.Interface.default("Display", "aiko_services.actors.display.display.DisplayImpl")
 
+
 ASPECTS = (Canvas, Screen, Interaction)
 
+
 def _aspect_tag(aspect):
-    """"canvas=0" from the aspect's contract id ".../canvas:0" """
+    """ "canvas=0" from the aspect's contract id ".../canvas:0" """
 
     name, _, version = aspect.PROTOCOL.rpartition("/")[2].partition(":")
     return f"{name}={version}"
 
+
 # The aspects, advertised as Service tags until the Registrar matches
 # several protocols per Service
 ASPECT_TAGS = tuple(_aspect_tag(aspect) for aspect in ASPECTS)
+
 
 def service_tags(device):
     """The tags the Actor registers with: shared state, the device kind
@@ -371,11 +422,13 @@ def service_tags(device):
 
     return ["ec=true", f"device={device}", *ASPECT_TAGS]
 
+
 def service_filter(name):
     """The discovery filter for the Display Actor named NAME (default: this
     host's name): protocol display:0, any namespace, owner, transport, tags"""
 
     return aiko.ServiceFilter("*", name or get_hostname(), PROTOCOL, "*", "*", "*")
+
 
 # The functions accepted on the "in" topic: the abstract methods of the
 # aspects (never the framework's Actor and Service methods), plus the
@@ -384,6 +437,7 @@ def service_filter(name):
 FUNCTIONS = aiko.interface_functions(*ASPECTS)
 
 # --------------------------------------------------------------------------- #
+
 
 class _Host(Host):
     """What applets see of the Actor"""
@@ -440,15 +494,14 @@ class _Host(Host):
         if name in ("contrast", "invert", "power", "all_on", "font", "speed"):
             self._actor._setters[name](str(value))
 
+
 class DisplayImpl(Display):
     def __init__(self, context):
-        context.call_init(
-            self, "FunctionGate", context, functions=FUNCTIONS)
+        context.call_init(self, "FunctionGate", context, functions=FUNCTIONS)
         context.call_init(self, "Actor", context)
         parameters = context.get_parameters() or {}
 
-        self._output = parameters.get("output")  \
-            or aiko.compose_instance(NullOutputImpl, output_args())
+        self._output = parameters.get("output") or aiko.compose_instance(NullOutputImpl, output_args())
         self._output.add_handler(self._output_event)
         self._output_ok = False
         self._reopening = False
@@ -457,31 +510,30 @@ class DisplayImpl(Display):
         width, height = parameters.get("size") or (WIDTH, HEIGHT)
         self._canvas = FrameBuffer(self._font, int(width), int(height))
         colors = [str(color) for color in (parameters.get("colors") or ()) if color]
-        self._start_colors = {           # what "default" means for a color
+        self._start_colors = {  # what "default" means for a color
             "foreground": colors[0] if colors else DEFAULT_COLORS[0],
             "background": colors[1] if len(colors) > 1 else DEFAULT_COLORS[1],
         }
-        self._output.set_colors(*(ImageColor.getrgb(self._start_colors[key])[:3]
-                                   for key in ("foreground", "background")))
+        self._output.set_colors(
+            *(ImageColor.getrgb(self._start_colors[key])[:3] for key in ("foreground", "background"))
+        )
         self._log = collections.deque(maxlen=LOG_LINES)
         self._log_total = 0
-        self._log_pending = False   # the "L" annunciator
-        self._rng = random.Random()
-        self._metrics = {"commands": 0, "denied": 0, "frames": 0,
-                         "frame_ms": 0, "errors": 0, "mirrored": 0}
+        self._log_pending = False  # the "L" annunciator
+        self._rng = random.Random()  # noqa: S311
+        self._metrics = {"commands": 0, "denied": 0, "frames": 0, "frame_ms": 0, "errors": 0, "mirrored": 0}
         self._speed = 1.0
         self._blank_after = 0
         self._blanked = False
         self._applet = None
-        self._default_applet = str(
-            parameters.get("applet") or DEFAULT_APPLET)
-        self._held = {}             # key name: held until (monotonic)
-        self._mirrors = {}          # topic: Lease, the frame feed's holders
+        self._default_applet = str(parameters.get("applet") or DEFAULT_APPLET)
+        self._held = {}  # key name: held until (monotonic)
+        self._mirrors = {}  # topic: Lease, the frame feed's holders
         self._mirror_rate = 5
         self._mirror_due = 0.0
-        self._mirror_pending = None # the newest frame not yet mirrored
+        self._mirror_pending = None  # the newest frame not yet mirrored
         self._host = _Host(self)
-        self._last_frame = None     # bytes of the frame on the display
+        self._last_frame = None  # bytes of the frame on the display
         self._started = time.monotonic()
         self._last_change = self._started
         self._frame_due = 0.0
@@ -495,40 +547,50 @@ class DisplayImpl(Display):
         self._title_saved = self._title_text or self.name  # what "title on" restores
         self._canvas.title_rows = self._font.cell_height if self._title_text else 0
 
-        self._setters = {setting.name: (lambda value, setting=setting:
-                                        self._apply_setting(setting, value))
-                         for setting in SETTINGS_SPEC}
-        self.share.update({
-            "source_file": f"v{_VERSION}⇒ {__file__}",
-            "backend": self._output.name,
-            "device": "-",
-            "panels": "-",
-            "mirrors": "0",
-            "size": f"{self._canvas.width}x{self._canvas.height}",
-            "origin": "bottom",
-            "depth": "1",
-            "settings": ",".join(SETTINGS),
-            "keys": keymap.legend(),
-            "connection": _token(aiko.process.connection.get_state()),
-            "applets": self._applets_that_fit(),
-            "applet": "none",
-            "applet_detail": "-",
-            "fps": "0",
-            **{setting.name: setting.default for setting in SETTINGS_SPEC
-               if setting.kind in ("int", "flag", "float")},
-            "font": self._font.token(),
-            "title": _token(title) if self._title_text else "off",
-            "foreground": self._start_colors["foreground"],
-            "background": self._start_colors["background"],
-            "heartbeat": "0",
-            "last_error": "-",
-            "log_count": "0",
-            "log_pending": "off",
-            "metrics": {key: "0" for key in self._metrics},
-        })
+        self._setters = {
+            setting.name: (lambda value, setting=setting: self._apply_setting(setting, value))
+            for setting in SETTINGS_SPEC
+        }
+        self.share.update(
+            {
+                "source_file": f"v{_VERSION}⇒ {__file__}",
+                "backend": self._output.name,
+                "device": "-",
+                "panels": "-",
+                "mirrors": "0",
+                "size": f"{self._canvas.width}x{self._canvas.height}",
+                "origin": "bottom",
+                "depth": "1",
+                "settings": ",".join(SETTINGS),
+                "keys": keymap.legend(),
+                "connection": _token(aiko.process.connection.get_state()),
+                "applets": self._applets_that_fit(),
+                "applet": "none",
+                "applet_detail": "-",
+                "fps": "0",
+                **{
+                    setting.name: setting.default
+                    for setting in SETTINGS_SPEC
+                    if setting.kind in ("int", "flag", "float")
+                },
+                "font": self._font.token(),
+                "title": _token(title) if self._title_text else "off",
+                "foreground": self._start_colors["foreground"],
+                "background": self._start_colors["background"],
+                "heartbeat": "0",
+                "last_error": "-",
+                "log_count": "0",
+                "log_pending": "off",
+                "metrics": {key: "0" for key in self._metrics},
+            }
+        )
         self._applied = {key: self.share[key] for key in SETTINGS}
-        self._local_keys = {"turns": {}, "current": None,   # the window's keys
-                            "settings": self.share, "base_font": self.share["font"]}
+        self._local_keys = {
+            "turns": {},
+            "current": None,  # the window's keys
+            "settings": self.share,
+            "base_font": self.share["font"],
+        }
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
         self._open_output()
@@ -539,8 +601,7 @@ class DisplayImpl(Display):
         self._present(self._canvas.image)
         if self._default_applet != "none":
             self.applet(*self._default_applet.split(","))
-        self.logger.info(f"{self.name}: output {self.share['backend']} "
-                         f"{self.share['device']}, topic {self.topic_in}")
+        self.logger.info(f"{self.name}: output {self.share['backend']} {self.share['device']}, topic {self.topic_in}")
 
     # Dispatch: the FunctionGate aspect decides, and the Actor's handler
     # reports a denial through _deny() ------------------------------------- #
@@ -585,11 +646,9 @@ class DisplayImpl(Display):
 
     def pixels(self, *coordinates):
         try:
-            if not coordinates or len(coordinates) % 2  \
-                    or len(coordinates) > 2 * PIXEL_PAIRS_MAXIMUM:
+            if not coordinates or len(coordinates) % 2 or len(coordinates) > 2 * PIXEL_PAIRS_MAXIMUM:
                 raise _Deny("count")
-            numbers = [_int(value, "xy", 0, max(WIDTH, HEIGHT) - 1)
-                       for value in coordinates]
+            numbers = [_int(value, "xy", 0, max(WIDTH, HEIGHT) - 1) for value in coordinates]
             pairs = list(zip(numbers[0::2], numbers[1::2]))
             if any(x >= WIDTH or y >= HEIGHT for x, y in pairs):
                 raise _Deny("range")
@@ -637,8 +696,7 @@ class DisplayImpl(Display):
         if not self._fits(applet_class):
             return self._deny_setting("applet", "applet_too_small", name)
         try:
-            words, options = parse_applet_args(
-                args, applet_class.OPTIONS)
+            words, options = parse_applet_args(args, applet_class.OPTIONS)
             instance = applet_class(self._host, words, options)
         except ValueError as error:
             return self._deny_setting("applet", "applet_args", str(error))
@@ -652,8 +710,7 @@ class DisplayImpl(Display):
         self._applet = instance
         self._frame_due = time.monotonic()
         self._settle("applet", name)
-        self.ec_producer.update("applet_detail",
-            _token(instance.description) if instance.description else "-")
+        self.ec_producer.update("applet_detail", _token(instance.description) if instance.description else "-")
 
     def key(self, name, state="tap"):
         name, state = str(name), str(state)
@@ -663,15 +720,14 @@ class DisplayImpl(Display):
             return self._deny("key", "state", state[:20])
         self._metrics["commands"] += 1
         self._wake()
-        if name in keymap.MAPPED_KEYS:       # the display's own key map
+        if name in keymap.MAPPED_KEYS:  # the display's own key map
             if state != "up":
                 self._run_key_map(name)
             return
         if state == "up":
             self._held.pop(name, None)
         else:
-            self._held[name] = time.monotonic() +  \
-                (KEY_DOWN_MAXIMUM if state == "down" else KEY_HOLD)
+            self._held[name] = time.monotonic() + (KEY_DOWN_MAXIMUM if state == "down" else KEY_HOLD)
             while len(self._held) > KEYS_HELD_MAXIMUM:
                 del self._held[next(iter(self._held))]
         if self._applet is not None:
@@ -681,8 +737,7 @@ class DisplayImpl(Display):
 
     def mirror(self, topic, seconds):
         topic = str(topic)
-        if not 0 < len(topic) <= MIRROR_TOPIC_LENGTH_MAXIMUM  \
-                or any(character in topic for character in "+# \t"):
+        if not 0 < len(topic) <= MIRROR_TOPIC_LENGTH_MAXIMUM or any(character in topic for character in "+# \t"):
             return self._deny("mirror", "topic", topic[:40])
         try:
             seconds = _int(seconds, "seconds", 0, MIRROR_SECONDS_MAXIMUM)
@@ -691,21 +746,22 @@ class DisplayImpl(Display):
         self._metrics["commands"] += 1
         self._wake()
         lease = self._mirrors.get(topic)
-        if seconds == 0:                             # destroy
+        if seconds == 0:  # destroy
             if lease is not None:
                 lease.terminate()
                 del self._mirrors[topic]
                 self._publish_mirrors()
             return
-        if lease is not None:                        # extend
+        if lease is not None:  # extend
             lease.extend(seconds)
             return
         if len(self._mirrors) >= MIRROR_LEASES_MAXIMUM:
             return self._deny("mirror", "full", topic[:40])
-        self._mirrors[topic] = Lease(                # create
-            seconds, topic, lease_expired_handler=self._mirror_expired)
+        self._mirrors[topic] = Lease(  # create
+            seconds, topic, lease_expired_handler=self._mirror_expired
+        )
         self._publish_mirrors()
-        self._mirror_pending = self._last_frame      # the holder sees the panel now
+        self._mirror_pending = self._last_frame  # the holder sees the panel now
         self._mirror_due = 0.0
 
     def _mirror_expired(self, topic):
@@ -729,7 +785,7 @@ class DisplayImpl(Display):
         self._mirror_pending = None
         self._mirror_due = now + 1.0 / self._mirror_rate
         if not aiko.process.connection.is_connected(ConnectionState.TRANSPORT):
-            return                                   # publish() would block
+            return  # publish() would block
         for topic in list(self._mirrors):
             aiko.process.message.publish(topic, data)
         self._metrics["mirrored"] += 1
@@ -741,7 +797,7 @@ class DisplayImpl(Display):
             return
         value = str(item_value)
         if value == self._applied.get(item_name):
-            return                         # our own update echoed back
+            return  # our own update echoed back
         self._setters[item_name](value)
 
     def _settle(self, key, token):
@@ -760,7 +816,7 @@ class DisplayImpl(Display):
     def _set_applet(self, value):
         self.applet(*str(value).split(","))
 
-    def _apply_setting(self, setting, value):
+    def _apply_setting(self, setting, value):  # noqa: C901
         """Apply a declared setting (SETTINGS_SPEC) by its kind; a bad value
         is denied and the value in force published again"""
 
@@ -785,7 +841,7 @@ class DisplayImpl(Display):
             if name == "speed":
                 self._speed = number
             return self._settle(name, f"{number:g}")
-        try:                                             # kind == "int"
+        try:  # kind == "int"
             number = _int(value, name, setting.low, setting.high)
         except _Deny as deny:
             return self._deny_setting(name, deny.reason)
@@ -821,7 +877,7 @@ class DisplayImpl(Display):
         token = _token(text)
         if token in ("off", "-"):
             self._title_text = ""
-        elif token == "on":
+        elif token == FLAG_ON:
             self._title_text = self._title_saved
         else:
             self._title_text = token.replace("_", " ")
@@ -854,7 +910,7 @@ class DisplayImpl(Display):
         yellow, or #rrggbb; "default" is the color the Actor started with"""
 
         token = str(value).strip()
-        if token == "default":
+        if token == COLOR_DEFAULT:
             token = self._start_colors[key]
         try:
             if not re.fullmatch(r"[#A-Za-z0-9]+", token):
@@ -871,15 +927,13 @@ class DisplayImpl(Display):
         return fits(applet_class, self._canvas.width, self._canvas.height)
 
     def _applets_that_fit(self):
-        return ",".join(sorted(name for name, applet_class in APPLETS.items()
-                               if self._fits(applet_class))) or "none"
+        return ",".join(sorted(name for name, applet_class in APPLETS.items() if self._fits(applet_class))) or "none"
 
     def _centered(self, image):
         """A smaller frame (a game's fixed field) centered on the canvas"""
 
         frame = blank(width=self._canvas.width, height=self._canvas.height)
-        frame.paste(image, ((frame.width - image.width) // 2,
-                            (frame.height - image.height) // 2))
+        frame.paste(image, ((frame.width - image.width) // 2, (frame.height - image.height) // 2))
         return frame
 
     # The output ---------------------------------------------------------- #
@@ -933,10 +987,8 @@ class DisplayImpl(Display):
         self.logger.error(f"{self.name}: output {self._output.name} failed: {reason}")
         self._note_error("display_failed")
         self._set_device("absent")
-        try:
+        with suppress(Exception):
             self._output.close(blank_first=False)
-        except Exception:
-            pass
         self._start_reopening()
 
     def _control_output(self, name, *args, **kwargs):
@@ -949,19 +1001,19 @@ class DisplayImpl(Display):
 
     def _title_strip(self):
         connection = self.share.get("connection", "NONE")
-        annunciators = ("L" if self._log_pending else " ")  \
-            + ("M" if connection in ("TRANSPORT", "REGISTRAR") else " ")  \
+        annunciators = (
+            ("L" if self._log_pending else " ")
+            + ("M" if connection in ("TRANSPORT", "REGISTRAR") else " ")
             + ("R" if connection == "REGISTRAR" else " ")
-        return title_strip(self._font, self._title_text, annunciators,
-            time.strftime("%H:%M:%S"))
+        )
+        return title_strip(self._font, self._title_text, annunciators, time.strftime("%H:%M:%S"))
 
     def _present(self, image):
         """Show a frame, with the title row when it applies, if it changed"""
 
         if image.size != (self._canvas.width, self._canvas.height):
             image = self._centered(image)
-        if self._title_text and (self._applet is None
-                or self._applet.wants_title):
+        if self._title_text and (self._applet is None or self._applet.wants_title):
             image = image.copy()
             image.paste(self._title_strip(), (0, 0))
         data = image.tobytes()
@@ -1023,8 +1075,7 @@ class DisplayImpl(Display):
         finished = self.share.get("applet")
         self._stop_applet()
         default, *arguments = self._default_applet.split(",")
-        if default != "none" and default != finished and default in APPLETS  \
-                and self._fits(APPLETS[default]):
+        if default != "none" and default != finished and default in APPLETS and self._fits(APPLETS[default]):
             self.applet(default, *arguments)
         else:
             self.applet("none")
@@ -1056,7 +1107,7 @@ class DisplayImpl(Display):
     def _step(self):
         self.last_event_thread = threading.get_ident()
         now = time.monotonic()
-        self._control_output("pump")          # the window's events, if any
+        self._control_output("pump")  # the window's events, if any
         applet = self._applet
         if applet is not None and now >= self._frame_due:
             period = 1.0 / (max(applet.fps, 0.001) * self._speed)
@@ -1069,14 +1120,17 @@ class DisplayImpl(Display):
             if frame is not None:
                 self._present(frame)
         if self._mirror_pending is not None and now >= self._mirror_due:
-            self._mirror_frame(self._mirror_pending)     # the end of a burst
+            self._mirror_frame(self._mirror_pending)  # the end of a burst
         if self._title_text and now >= self._title_due:
             self._title_due = now + 1.0
             if self._applet is None:
                 self._present(self._canvas.image)
-        if self._blank_after and not self._blanked  \
-                and self._applied.get("power") == "on"  \
-                and now - self._last_change >= self._blank_after:
+        if (
+            self._blank_after
+            and not self._blanked
+            and self._applied.get("power") == "on"
+            and now - self._last_change >= self._blank_after
+        ):
             self._blanked = True
             self._control_output("power", False)
 
@@ -1096,8 +1150,7 @@ class DisplayImpl(Display):
         every client sends the same "(key K)": its preset, or its setting"""
 
         state = self._local_keys
-        commands = keymap.reset_commands(state) if key == "R"  \
-            else keymap.key_command(key, state)
+        commands = keymap.reset_commands(state) if key == "R" else keymap.key_command(key, state)
         for command in commands:
             if command[0] == "update":
                 self._setters[command[1]](command[2])
@@ -1109,8 +1162,9 @@ class DisplayImpl(Display):
                 self.clear()
 
     def _heartbeat(self):
-        self._guarded("heartbeat", lambda: self.ec_producer.update(
-            "heartbeat", str(int(time.monotonic() - self._started))))
+        self._guarded(
+            "heartbeat", lambda: self.ec_producer.update("heartbeat", str(int(time.monotonic() - self._started)))
+        )
 
     def _metrics_flush(self):
         self._guarded("metrics", self._flush_metrics)
@@ -1118,8 +1172,7 @@ class DisplayImpl(Display):
     def _flush_metrics(self):
         now = time.monotonic()
         frames = self._metrics["frames"]
-        fps = round((frames - self._frames_at_flush)
-                    / max(now - self._flushed_at, 1e-6))
+        fps = round((frames - self._frames_at_flush) / max(now - self._flushed_at, 1e-6))
         self._frames_at_flush, self._flushed_at = frames, now
         if str(fps) != self.share.get("fps"):
             self.ec_producer.update("fps", str(fps))
@@ -1131,8 +1184,7 @@ class DisplayImpl(Display):
     # Callbacks from other threads: post, never touch state --------------- #
 
     def _connection_handler(self, connection, connection_state):
-        self._post_message(
-            aiko.ActorTopic.IN, "_connection_changed", [str(connection_state)])
+        self._post_message(aiko.ActorTopic.IN, "_connection_changed", [str(connection_state)])
 
     def _connection_changed(self, connection_state):
         self.ec_producer.update("connection", _token(connection_state))
@@ -1161,10 +1213,8 @@ class DisplayImpl(Display):
             lease.terminate()
         self._mirrors.clear()
         for timer in (self._tick, self._heartbeat, self._metrics_flush, self._reopen):
-            try:
+            with suppress(Exception):
                 aiko.event.remove_timer_handler(timer)
-            except Exception:
-                pass
         aiko.process.connection.remove_handler(self._connection_handler)
         try:
             self._output.close(blank_first=True)

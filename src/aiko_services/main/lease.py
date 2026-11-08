@@ -41,14 +41,11 @@ _LEASE_EXTEND_TIME_FACTOR = 0.8
 _AIKO_LOG_LEVEL_LEASE = os.environ.get("AIKO_LOG_LEVEL_LEASE", "INFO")
 _LOGGER = aiko.logger(__name__, log_level=_AIKO_LOG_LEVEL_LEASE)
 
+
 class Lease:
     def __init__(
-        self,
-        lease_time,
-        lease_uuid,
-        lease_expired_handler=None,
-        lease_extend_handler=None,
-        automatic_extend=False):
+        self, lease_time, lease_uuid, lease_expired_handler=None, lease_extend_handler=None, automatic_extend=False
+    ):
 
         self.lease_time = lease_time
         self.lease_uuid = lease_uuid
@@ -71,8 +68,7 @@ class Lease:
         if self.lease_extend_handler:
             self.lease_extend_handler(self.lease_time, self.lease_uuid)
         if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
-            _LOGGER.debug(
-                f"Lease extended: {self.lease_uuid}, time={self.lease_time}")
+            _LOGGER.debug(f"Lease extended: {self.lease_uuid}, time={self.lease_time}")
 
     def _lease_expired_timer(self):
         event.remove_timer_handler(self._lease_expired_timer)

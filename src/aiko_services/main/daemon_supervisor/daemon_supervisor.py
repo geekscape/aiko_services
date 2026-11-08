@@ -33,19 +33,23 @@
 # * Consider a DaemonSupervisor Actor, so that a host reports which Services it
 #   starts, and why a Service didn't start
 
-from abc import abstractmethod
-from dataclasses import dataclass, field, replace
-from pathlib import Path
 import platform as platform_module
 import shutil
 import subprocess
+from abc import abstractmethod
+from dataclasses import dataclass, field, replace
 
 import aiko_services as aiko
 
 __all__ = [
-    "GRACE_TIME", "STOP_TIMEOUT_MARGIN", "DaemonDefinition", "DaemonSupervisor",
-    "DaemonSupervisorNotSupported", "UnsupportedDaemonSupervisorImpl", "choose_daemon_supervisor",
-    "daemon_supervisor_args"
+    "GRACE_TIME",
+    "STOP_TIMEOUT_MARGIN",
+    "DaemonDefinition",
+    "DaemonSupervisor",
+    "DaemonSupervisorNotSupported",
+    "UnsupportedDaemonSupervisorImpl",
+    "choose_daemon_supervisor",
+    "daemon_supervisor_args",
 ]
 
 # The ProcessManager "exit" grace time, before SIGTERM becomes SIGKILL.
@@ -60,10 +64,13 @@ GRACE_TIME = 5
 
 STOP_TIMEOUT_MARGIN = 25
 
+
 class DaemonSupervisorNotSupported(OSError):
     """This platform has no DaemonSupervisor Impl"""
 
+
 # The DaemonDefinition ----------------------------------------------------------- #
+
 
 @dataclass(frozen=True)
 class DaemonDefinition:
@@ -103,19 +110,18 @@ class DaemonDefinition:
         if not self.name:
             raise ValueError("DaemonDefinition: name is necessary")
         if self.restart not in ["always", "on-failure", "no"]:
-            raise ValueError(
-                f'DaemonDefinition: restart must be "always", "on-failure" or '
-                f'"no", not "{self.restart}"')
+            raise ValueError(f'DaemonDefinition: restart must be "always", "on-failure" or "no", not "{self.restart}"')
         if self.stop_timeout_seconds <= GRACE_TIME:
             raise ValueError(
                 f"DaemonDefinition: stop_timeout_seconds ({self.stop_timeout_seconds}"
                 f") must be more than the ProcessManager grace time "
-                f"({GRACE_TIME}), or its processes are killed before they stop")
+                f"({GRACE_TIME}), or its processes are killed before they stop"
+            )
 
     @classmethod
-    def for_process_manager(cls, name, definition_pathname,
-        executable="aiko_process", grace_time=GRACE_TIME, **parameters):
-
+    def for_process_manager(
+        cls, name, definition_pathname, executable="aiko_process", grace_time=GRACE_TIME, **parameters
+    ):
         """A DaemonDefinition that starts the ProcessManager for one host.
 
         The ProcessManager "--watchdog" option is recorded, but nothing
@@ -126,15 +132,15 @@ class DaemonDefinition:
         a pipe, which is what a service gets.  Without it, the log stays
         in the buffer and the service looks silent"""
 
-        environment = {
-            "PYTHONUNBUFFERED": "1", **parameters.pop("environment", {})}
+        environment = {"PYTHONUNBUFFERED": "1", **parameters.pop("environment", {})}
         return cls(
             name=name,
             executable=executable,
             arguments=("run", "--name", name, definition_pathname),
             stop_timeout_seconds=grace_time + STOP_TIMEOUT_MARGIN,
             environment=environment,
-            **parameters)
+            **parameters,
+        )
 
     def command_line(self):
         """The executable and its arguments, as a list"""
@@ -146,7 +152,9 @@ class DaemonDefinition:
 
         return replace(self, environment={**self.environment, **variables})
 
+
 # The Interface ------------------------------------------------------------ #
+
 
 class DaemonSupervisor(aiko.Interface):
     """Starts Aiko Services when the operating system starts.
@@ -160,7 +168,8 @@ class DaemonSupervisor(aiko.Interface):
     """
 
     aiko.Interface.default(
-        "DaemonSupervisor", "aiko_services.main.daemon_supervisor.daemon_supervisor.UnsupportedDaemonSupervisorImpl")
+        "DaemonSupervisor", "aiko_services.main.daemon_supervisor.daemon_supervisor.UnsupportedDaemonSupervisorImpl"
+    )
 
     @abstractmethod
     def render(self, spec):
@@ -190,6 +199,7 @@ class DaemonSupervisor(aiko.Interface):
     def status(self, spec):
         """What the platform says about the service"""
 
+
 class UnsupportedDaemonSupervisorImpl(DaemonSupervisor):
     """The default Impl: every function reports the platform, instead of
     doing something that can't work.  Windows gets this, until it has an
@@ -202,8 +212,8 @@ class UnsupportedDaemonSupervisorImpl(DaemonSupervisor):
 
     def _not_supported(self):
         raise DaemonSupervisorNotSupported(
-            f'No DaemonSupervisor for platform "{platform_module.system()}": '
-            f"use systemd (Linux) or launchd (macOS)")
+            f'No DaemonSupervisor for platform "{platform_module.system()}": use systemd (Linux) or launchd (macOS)'
+        )
 
     def render(self, spec):
         self._not_supported()
@@ -226,7 +236,9 @@ class UnsupportedDaemonSupervisorImpl(DaemonSupervisor):
     def status(self, spec):
         self._not_supported()
 
+
 # Shared by the Impls that run a platform command -------------------------- #
+
 
 def run_command(command_line):
     """Run a platform command, return (returncode, output).  The output
@@ -234,16 +246,18 @@ def run_command(command_line):
 
     if not shutil.which(command_line[0]):
         raise DaemonSupervisorNotSupported(f'Command not found: "{command_line[0]}"')
-    result = subprocess.run(
-        command_line, capture_output=True, text=True, check=False)
+    result = subprocess.run(command_line, capture_output=True, text=True, check=False)
     return result.returncode, (result.stdout + result.stderr).strip()
 
+
 # Composition -------------------------------------------------------------- #
+
 
 def daemon_supervisor_args(**parameters):
     """init_args for composing a DaemonSupervisor Impl (like output_args)"""
 
     return {"context": aiko.Context(), **parameters}
+
 
 def choose_daemon_supervisor(platform="auto", **parameters):
     """The composed DaemonSupervisor for a platform.  "auto" is this host's
@@ -255,16 +269,15 @@ def choose_daemon_supervisor(platform="auto", **parameters):
 
     if platform == "auto":
         system = platform_module.system()
-        platform = {"Linux": "systemd", "Darwin": "launchd"}.get(
-            system, "unsupported")
+        platform = {"Linux": "systemd", "Darwin": "launchd"}.get(system, "unsupported")
     impls = {
         "systemd": SystemdDaemonSupervisorImpl,
         "launchd": LaunchdDaemonSupervisorImpl,
-        "unsupported": UnsupportedDaemonSupervisorImpl
+        "unsupported": UnsupportedDaemonSupervisorImpl,
     }
     if platform not in impls:
-        raise ValueError(
-            f'Unknown platform "{platform}": one of {sorted(impls)}')
+        raise ValueError(f'Unknown platform "{platform}": one of {sorted(impls)}')
     return aiko.compose_instance(impls[platform], daemon_supervisor_args(**parameters))
+
 
 # --------------------------------------------------------------------------- #

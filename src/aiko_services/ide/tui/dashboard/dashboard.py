@@ -149,35 +149,34 @@
 #   - ProcessManager: LISP REPL using API
 #   - HyperSpace: Tree view and LISP REPL using API
 
-import click
 from subprocess import Popen
-import pyperclip  # Clipboard support
 
+import click
+import pyperclip  # Clipboard support
 from asciimatics.event import KeyboardEvent
 from asciimatics.exceptions import NextScene, ResizeScreenError
 from asciimatics.parsers import AnsiTerminalParser
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
 from asciimatics.widgets import Frame as asciimatics_Frame  # avoid confusion !
-from asciimatics.widgets import (
-    Layout, MultiColumnListBox, PopUpDialog, PopupMenu, TextBox, Widget
-)
+from asciimatics.widgets import Layout, MultiColumnListBox, PopUpDialog, PopupMenu, TextBox, Widget
 
 import aiko_services as aiko  # designed to be external to the main framework
-from aiko_services.main.utilities import load_module
-
 from aiko_services.ide.tui.dashboard.frames import (
-    FrameCommon, LogUI, NICE_COLORS, ServiceFrame, display_value,
+    NICE_COLORS,
+    FrameCommon,
+    LogUI,
+    ServiceFrame,
+    display_value,
     set_display_utc,
 )
+from aiko_services.main.utilities import load_module
 
-__all__ = [
-    "DashboardFrame", "LogFrame", "LogLevelPopupMenu", "main",
-    "update_plugins"
-]
+__all__ = ["DashboardFrame", "LogFrame", "LogLevelPopupMenu", "main", "update_plugins"]
 
 _HISTORY_LIMIT = 32
 _PLUGINS = {}  # updated by update_plugins()
+
 
 class DashboardFrame(FrameCommon, asciimatics_Frame):
     dashboard_singleton = None  # Instance reference for ServiceFrames plugins
@@ -193,8 +192,7 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             DashboardFrame.dashboard_singleton = self
 
         super(DashboardFrame, self).__init__(
-            screen, screen.height, screen.width, has_border=False,
-            name="dashboard_frame"
+            screen, screen.height, screen.width, has_border=False, name="dashboard_frame"
         )
 
         self.ec_consumer = None
@@ -205,9 +203,8 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
         self.selected_services = {}  # TODO: Make this a set() ?
         self.subscribed_service = None
 
-        self.services_cache = aiko.services_cache_create_singleton(
-            aiko.process, True, history_limit=_HISTORY_LIMIT)
-    #   filter = aiko.ServiceFilter("*", "*", "*", "*", "*", "*")
+        self.services_cache = aiko.services_cache_create_singleton(aiko.process, True, history_limit=_HISTORY_LIMIT)
+        #   filter = aiko.ServiceFilter("*", "*", "*", "*", "*", "*")
 
         self._services_widget = MultiColumnListBox(
             screen.height // 3,
@@ -216,20 +213,20 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             titles=["Active: Topic", "Name", "Owner", "Protocol", "Transport"],
             on_change=self._on_change_services,
             on_select=self._on_select_service,
-            parser=AnsiTerminalParser()
+            parser=AnsiTerminalParser(),
         )
         self._service_widget = MultiColumnListBox(
             screen.height // 2,
             ["<24", "<0"],
             options=[],
             titles=["Shared variable: Name", "Value"],
-            on_select=self._on_select_variable
+            on_select=self._on_select_variable,
         )
         self._history_widget = MultiColumnListBox(  # Transport: <10 columns
             Widget.FILL_FRAME,
             ["<28", "<14", "<8", "<20", ">0"],
             options=[],
-            titles=["History: Topic", "Name", "Owner", "Protocol", "Transport"]
+            titles=["History: Topic", "Name", "Owner", "Protocol", "Transport"],
         )
         self._add_title_bar()
         layout_0 = Layout([1], fill_frame=True)
@@ -250,8 +247,8 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
         if aiko.ServiceTags.match_tags(self.service_tags, ["ec=true"]):
             topic_control = f"{topic_path}/control"
             self.ec_consumer = aiko.compose_instance(
-                aiko.ECConsumerImpl, aiko.ec_consumer_args(
-                    aiko.process, 0, self.service_cache, topic_control))
+                aiko.ECConsumerImpl, aiko.ec_consumer_args(aiko.process, 0, self.service_cache, topic_control)
+            )
 
     def _ec_consumer_reset(self):
         if self.ec_consumer:
@@ -269,15 +266,13 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
         if topic_path.service_id != "1":
             if "sid>1" in self.filter_out:
                 show = False
-            if "pipeline_element" in self.filter_out and  \
-                parent[1] and parent[1] == "pipeline":
+            if "pipeline_element" in self.filter_out and parent[1] and parent[1] == "pipeline":
                 show = False
         return parent, show
 
     def _get_service_topic_path_next(self):
         service_topic_path_next = None
-        topic_paths = [
-            topic_path for _, topic_path in self._services_widget.options]
+        topic_paths = [topic_path for _, topic_path in self._services_widget.options]
         if self.selected_topic_path in topic_paths:
             row_next = topic_paths.index(self.selected_topic_path) + 1
             if row_next < len(topic_paths):
@@ -319,8 +314,7 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
 
         def _on_close(button_index):
             if button_index == 1:
-                self._update_ecproducer_variable(
-                    self.selected_service[0], variable_name, text_box.value[0])
+                self._update_ecproducer_variable(self.selected_service[0], variable_name, text_box.value[0])
 
         row = self._service_widget.value
         variable = self._service_widget.options[row]
@@ -329,11 +323,9 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             if variable_name != "Tag:" and not variable_name.endswith(" ..."):
                 variable_value = variable[0][1]
                 text_box.value[0] = variable_value
-                title = f"Update {variable_name}" + " "*32
-            # TODO: Replace with "maps.py:EnterLocation(asciimatics_Frame)"
-                popup_dialog = PopUpDialog(
-                    self._screen, title, ["Cancel", "OK"],
-                    on_close=_on_close, theme="nice")
+                title = f"Update {variable_name}" + " " * 32
+                # TODO: Replace with "maps.py:EnterLocation(asciimatics_Frame)"
+                popup_dialog = PopUpDialog(self._screen, title, ["Cancel", "OK"], on_close=_on_close, theme="nice")
                 layout = Layout([1])
                 popup_dialog.add_layout(layout)
                 layout.add_widget(text_box)
@@ -346,17 +338,12 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
                 try:
                     pyperclip.copy(self.selected_service[0])
                 except pyperclip.PyperclipException:
-                    text = 'Clipboard copy/paste failed\n'          \
-                           'Python package "pyperclip" requires\n'  \
-                           'Linux package  "xclip"'
-                    self.scene.add_effect(
-                        PopUpDialog(self._screen, text, ["OK"], theme="nice"))
+                    text = 'Clipboard copy/paste failed\nPython package "pyperclip" requires\nLinux package  "xclip"'
+                    self.scene.add_effect(PopUpDialog(self._screen, text, ["OK"], theme="nice"))
             if event.key_code == ord("f"):
-                self.scene.add_effect(FilterPopupMenu(self._screen,
-                    self._services_widget))
+                self.scene.add_effect(FilterPopupMenu(self._screen, self._services_widget))
             if event.key_code == ord("l") and self.selected_service:
-                self.scene.add_effect(LogLevelPopupMenu(self._screen,
-                    self._services_widget, self.selected_service[0]))
+                self.scene.add_effect(LogLevelPopupMenu(self._screen, self._services_widget, self.selected_service[0]))
             if event.key_code == ord("s") and self.selected_service:
                 self._service_selection_toggle(self.selected_service)
             if event.key_code == ord("C"):
@@ -380,8 +367,7 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             raise NextScene(scene_name[0])
         else:
             text = f" Service: {service_name} \n Does not have a custom page "
-            self.scene.add_effect(
-                PopUpDialog(self._screen, text, ["OK"], theme="nice"))
+            self.scene.add_effect(PopUpDialog(self._screen, text, ["OK"], theme="nice"))
 
     def select_service(self, topic_path):
         """Select a Service, as if a person had chosen it on this page.
@@ -427,20 +413,17 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
         services_formatted = []
         for service in services:
             topic_path = aiko.ServiceTopicPath.parse(service[0])
-            topic_color = self._service_selection_color(
-                self.YELLOW, str(topic_path), topic_path.terse)
+            topic_color = self._service_selection_color(self.YELLOW, str(topic_path), topic_path.terse)
             protocol = self._short_name(service[2])
             parent, show = self._filter(parent, service, topic_path, protocol)
             if show:
-                service_info = (
-                    topic_color, service[1], service[4], protocol, service[3])
+                service_info = (topic_color, service[1], service[4], protocol, service[3])
                 services_formatted.append((str(topic_path), service_info))
         # Each option carries the full topic path as its internal value,
         # which is what identifies the selected Service.  The first column
         # holds the terse form, for display, which the cache does not accept
         self._services_widget.options = [
-            (service_info, service_topic_path)
-            for service_topic_path, service_info in services_formatted
+            (service_info, service_topic_path) for service_topic_path, service_info in services_formatted
         ]
 
         variables = []
@@ -450,25 +433,18 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
                 if isinstance(variable_value, dict):
                     variables.append((f"{variable_name} ...", ""))
                     for name, value in variable_value.items():
-                        variables.append(
-                            (f"  {name}", f"{display_value(value)}"))
+                        variables.append((f"  {name}", f"{display_value(value)}"))
                 else:
-                #   variables.append((variable_name, variable_value))
-                    self._update_field(
-                        variables, variable_name,
-                        variable_value, self._value_width)
+                    #   variables.append((variable_name, variable_value))
+                    self._update_field(variables, variable_name, variable_value, self._value_width)
             variables.append(("", ""))
 
         if self.service_tags:
             for service_tag in self.service_tags:
-            #   variables.append(("Tag:", service_tag))
-                self._update_field(
-                    variables, "Tag:", service_tag, self._value_width)
+                #   variables.append(("Tag:", service_tag))
+                self._update_field(variables, "Tag:", service_tag, self._value_width)
 
-        self._service_widget.options = [
-            (variable, row_index)
-            for row_index, variable in enumerate(variables)
-        ]
+        self._service_widget.options = [(variable, row_index) for row_index, variable in enumerate(variables)]
 
         parent = (None, None)
         service_history = list(self.services_cache.get_history())
@@ -479,16 +455,16 @@ class DashboardFrame(FrameCommon, asciimatics_Frame):
             protocol = self._short_name(service[2])
             parent, show = self._filter(parent, service, topic_path, protocol)
             if show:
-                services_formatted.append(
-                    (topic_terse, service[1], service[4], protocol, service[3]))
+                services_formatted.append((topic_terse, service[1], service[4], protocol, service[3]))
         self._history_widget.options = [
-            (service_info, row_index)
-            for row_index, service_info in enumerate(services_formatted)
+            (service_info, row_index) for row_index, service_info in enumerate(services_formatted)
         ]
 
         super(DashboardFrame, self)._update(frame_no)
 
+
 # ServiceFrame subclass __init__() must include "self.fix()"
+
 
 class LogFrame(ServiceFrame):
     def __init__(self, screen, dashboard):
@@ -510,6 +486,7 @@ class LogFrame(ServiceFrame):
         super(LogFrame, self)._update(frame_no)
         self.log_ui._update(frame_no)
 
+
 class FilterPopupMenu(PopupMenu):
     def __init__(self, screen, parent_widget):
         self._dashboard = DashboardFrame.get_singleton()
@@ -517,11 +494,12 @@ class FilterPopupMenu(PopupMenu):
         self._parent_widget = parent_widget
 
         menu_items = [
-            ("   Cancel",          self._parent_widget.focus),
-            ("1: Service id > 1",  self._button_handler),
-            ("c: Category",        self._button_handler),
+            ("   Cancel", self._parent_widget.focus),
+            ("1: Service id > 1", self._button_handler),
+            ("c: Category", self._button_handler),
             ("e: PipelineElement", self._button_handler),
-            ("R: Reset",           self._button_handler)]
+            ("R: Reset", self._button_handler),
+        ]
         x = screen.width // 2 - 4
         y = screen.height // 3
 
@@ -529,19 +507,16 @@ class FilterPopupMenu(PopupMenu):
         self.palette = NICE_COLORS
 
     def _button_handler(self):
-        log_level = self.focussed_widget.text.upper()
+        self.focussed_widget.text.upper()
+
     #   self._set_log_level(log_level)
 
     def _set_log_level(self, log_level):
-    #   self._dashboard._update_ecproducer_variable(
-    #       self._service_selected, "log_level", log_level)
+        #   self._dashboard._update_ecproducer_variable(
+        #       self._service_selected, "log_level", log_level)
         self._parent_widget.focus()
 
-    filter_key_map = {
-        ord("1"): "sid>1",
-        ord("c"): "category",
-        ord("e"): "pipeline_element"
-    }
+    filter_key_map = {ord("1"): "sid>1", ord("c"): "category", ord("e"): "pipeline_element"}
 
     def process_event(self, event):
         if isinstance(event, KeyboardEvent):
@@ -557,6 +532,7 @@ class FilterPopupMenu(PopupMenu):
                 self._destroy()
         return super(FilterPopupMenu, self).process_event(event)
 
+
 class LogLevelPopupMenu(PopupMenu):
     def __init__(self, screen, parent_widget, service_selected):
         self._dashboard = DashboardFrame.get_singleton()
@@ -565,15 +541,16 @@ class LogLevelPopupMenu(PopupMenu):
         self._service_selected = service_selected
 
         menu_items = [
-            ("   Cancel",      self._parent_widget.focus),
-            ("d: Debug",       self._button_handler),
-            ("e: Error",       self._button_handler),
-            ("i: Info",        self._button_handler),
-            ("w: Warning",     self._button_handler),
+            ("   Cancel", self._parent_widget.focus),
+            ("d: Debug", self._button_handler),
+            ("e: Error", self._button_handler),
+            ("i: Info", self._button_handler),
+            ("w: Warning", self._button_handler),
             ("D: Debug   all", self._button_handler),
             ("E: Error   all", self._button_handler),
             ("I: Info    all", self._button_handler),
-            ("W: Warning all", self._button_handler)]
+            ("W: Warning all", self._button_handler),
+        ]
         x = screen.width // 2 - 4
         y = screen.height // 3
 
@@ -585,8 +562,7 @@ class LogLevelPopupMenu(PopupMenu):
         self._set_log_level(log_level)
 
     def _set_log_level(self, log_level):
-        self._dashboard._update_ecproducer_variable(
-            self._service_selected, "log_level", log_level)
+        self._dashboard._update_ecproducer_variable(self._service_selected, "log_level", log_level)
         self._parent_widget.focus()
 
     log_level_key_map = {
@@ -597,7 +573,7 @@ class LogLevelPopupMenu(PopupMenu):
         ord("D"): "DEBUG_ALL",
         ord("E"): "ERROR_ALL",
         ord("I"): "INFO_ALL",
-        ord("W"): "WARNING_ALL"
+        ord("W"): "WARNING_ALL",
     }
 
     def process_event(self, event):
@@ -609,6 +585,7 @@ class LogLevelPopupMenu(PopupMenu):
                     self._destroy()
         return super(LogLevelPopupMenu, self).process_event(event)
 
+
 def run_dashboard(screen, start_scene):
     scenes = []
     dashboard = None
@@ -618,6 +595,7 @@ def run_dashboard(screen, start_scene):
             dashboard = DashboardFrame.get_singleton()
         scenes.append(scene)
     screen.play(scenes, stop_on_resize=True, start_scene=start_scene)
+
 
 def update_plugins(plugins):
     """Add a plug-in module's pages to the registry.
@@ -631,18 +609,21 @@ def update_plugins(plugins):
         _PLUGINS["Log"] = LogFrame
     _PLUGINS.update(plugins)
 
+
 @click.command()
-@click.option("--history_limit", "-hl", type=click.INT, default=32,
-    help="History length requested from Registrar")
-@click.option("--plugin", "-p", multiple=True, required=False,
+@click.option("--history_limit", "-hl", type=click.INT, default=32, help="History length requested from Registrar")
+@click.option(
+    "--plugin",
+    "-p",
+    multiple=True,
+    required=False,
     default=["aiko_services.ide.tui.dashboard.plugins"],
     help="Module that registers pages, repeatable.  A module name, "
-         'e.g "my_application.dashboard_plugin", or a pathname ending '
-         'in ".py".  Prefer the module name.  Giving any of these '
-         "replaces the default, so name the built-in registry too")
-@click.option("--utc", is_flag=True, default=False,
-    help="Show date/times as stored, in UTC, instead of in local time")
-
+    'e.g "my_application.dashboard_plugin", or a pathname ending '
+    'in ".py".  Prefer the module name.  Giving any of these '
+    "replaces the default, so name the built-in registry too",
+)
+@click.option("--utc", is_flag=True, default=False, help="Show date/times as stored, in UTC, instead of in local time")
 def main(plugin, history_limit, utc):
     """Aiko Services Dashboard
 
@@ -677,12 +658,11 @@ def main(plugin, history_limit, utc):
     scene = None
     while True:
         try:
-            Screen.wrapper(
-                run_dashboard, catch_interrupt=True, arguments=[scene]
-            )
+            Screen.wrapper(run_dashboard, catch_interrupt=True, arguments=[scene])
             break
         except ResizeScreenError as exception:
             scene = exception.scene
+
 
 if __name__ == "__main__":
     main()

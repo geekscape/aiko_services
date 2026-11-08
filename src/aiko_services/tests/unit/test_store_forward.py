@@ -17,17 +17,21 @@ import uuid
 import pytest
 
 import aiko_services as aiko
-from aiko_services.main.utilities import generate, parse
-
 from aiko_services.main.store_forward import store_forward_message
-from aiko_services.main.store_forward.store_forward_message import (
-    PARTIAL_DIRECTORY, FetchJob, SendJob
+from aiko_services.main.store_forward.store_forward import (
+    ALLOWED_COMMANDS,
+    DEFAULT_SERVER_PORT,
+    PROTOCOL,
+    SENT_DIRECTORY,
+    STATE_LIMIT,
+    SegmentStoreForwardImpl,
+    server_endpoint,
 )
 from aiko_services.main.store_forward.store_forward import (
-    ALLOWED_COMMANDS, DEFAULT_SERVER_PORT, PROTOCOL, SENT_DIRECTORY,
-    STATE_LIMIT, SegmentStoreForwardImpl, main as store_forward_main,
-    server_endpoint
+    main as store_forward_main,
 )
+from aiko_services.main.store_forward.store_forward_message import PARTIAL_DIRECTORY, FetchJob, SendJob
+from aiko_services.main.utilities import generate, parse
 
 GOOD_ID = "0123abcd"
 UTC_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
@@ -35,6 +39,7 @@ OTHER_ID = "89abcdef"
 SHA = "a" * 64
 
 # --------------------------------------------------------------------------- #
+
 
 class FakeMessage(store_forward_message.StoreForwardMessage):
     """Records what the Actor asks of the Message layer"""
@@ -73,27 +78,29 @@ class FakeMessage(store_forward_message.StoreForwardMessage):
     def cancel(self, segment_id):
         self.cancelled.append(segment_id)
 
+
 _actor_count = [0]
 
-def make_actor(tmp_path, role="edge", accept=True, outbox_period=0,
-    partial_directory=None, sent_max_age=None):
+
+def make_actor(tmp_path, role="edge", accept=True, outbox_period=0, partial_directory=None, sent_max_age=None):
 
     inbox = tmp_path / "in"
     outbox = tmp_path / "out"
     inbox.mkdir(parents=True)
     outbox.mkdir(parents=True)
     message = FakeMessage(role, accept)
-    parameters = {"message": message, "inbox": str(inbox),
-                  "outbox": str(outbox), "outbox_period": outbox_period}
+    parameters = {"message": message, "inbox": str(inbox), "outbox": str(outbox), "outbox_period": outbox_period}
     if sent_max_age is not None:
         parameters["sent_max_age"] = sent_max_age
     if partial_directory:
         parameters["partial_directory"] = str(partial_directory)
     _actor_count[0] += 1
-    init_args = aiko.actor_args(f"st_test_{_actor_count[0]}",
-        parameters=parameters, protocol=PROTOCOL, tags=[f"role={role}"])
+    init_args = aiko.actor_args(
+        f"st_test_{_actor_count[0]}", parameters=parameters, protocol=PROTOCOL, tags=[f"role={role}"]
+    )
     actor = aiko.compose_instance(SegmentStoreForwardImpl, init_args)
     return actor, message, inbox, outbox
+
 
 def write_segment(directory, name, size=100):
     data = (b"segment-" * (size // 8 + 1))[:size]
@@ -102,7 +109,9 @@ def write_segment(directory, name, size=100):
         file.write(data)
     return path, hashlib.sha256(data).hexdigest()
 
+
 # --------------------------------------------------------------------------- #
+
 
 def test_initial_share(tmp_path):
     actor, message, inbox, outbox = make_actor(tmp_path, role="server")
@@ -112,9 +121,9 @@ def test_initial_share(tmp_path):
     assert actor.share["link"] == "unknown"
     assert message.on_command and message.on_event
     assert os.path.isdir(os.path.join(str(outbox), SENT_DIRECTORY))
-    assert actor.share["partial_directory"]  \
-        == os.path.join(actor.share["inbox"], PARTIAL_DIRECTORY)  # default
+    assert actor.share["partial_directory"] == os.path.join(actor.share["inbox"], PARTIAL_DIRECTORY)  # default
     assert os.path.isdir(actor.share["partial_directory"])
+
 
 def test_send_segment_boundary(tmp_path):
     actor, message, inbox, outbox = make_actor(tmp_path)
@@ -127,14 +136,14 @@ def test_send_segment_boundary(tmp_path):
     outside, _ = write_segment(str(tmp_path), "secret.txt")
     os.symlink(outside, os.path.join(str(outbox), "link.txt"))
     actor.send_segment(GOOD_ID, "link.txt")
-    assert store_forwards[GOOD_ID] == "rejected_path"        # escapes the outbox
+    assert store_forwards[GOOD_ID] == "rejected_path"  # escapes the outbox
     actor.forget(GOOD_ID)
 
     actor.send_segment(GOOD_ID, "missing.txt")
     assert store_forwards[GOOD_ID] == "rejected_missing"
     actor.forget(GOOD_ID)
 
-    actor.send_segment("a.b", "notes.txt")               # bad id: no state
+    actor.send_segment("a.b", "notes.txt")  # bad id: no state
     assert "a.b" not in store_forwards
     assert actor.share["metrics"]["rejected_commands"] == "1"
 
@@ -144,11 +153,11 @@ def test_send_segment_boundary(tmp_path):
     assert len(message.jobs) == 1
     job = message.jobs[0]
     assert isinstance(job, SendJob)
-    assert (job.segment_id, job.name, job.path, job.size) ==  \
-        (GOOD_ID, "notes.txt", os.path.realpath(path), 100)
+    assert (job.segment_id, job.name, job.path, job.size) == (GOOD_ID, "notes.txt", os.path.realpath(path), 100)
 
-    actor.send_segment(GOOD_ID, "notes.txt")             # idempotent
+    actor.send_segment(GOOD_ID, "notes.txt")  # idempotent
     assert len(message.jobs) == 1
+
 
 def test_fetch_segment_boundary(tmp_path):
     actor, message, _, _ = make_actor(tmp_path, role="server")
@@ -170,11 +179,13 @@ def test_fetch_segment_boundary(tmp_path):
     assert isinstance(job, FetchJob)
     assert (job.name, job.size, job.sha256) == ("a.txt", 10, SHA)
 
+
 def test_queue_full_is_rejected_busy(tmp_path):
     actor, message, _, outbox = make_actor(tmp_path, accept=False)
     write_segment(str(outbox), "notes.txt")
     actor.send_segment(GOOD_ID, "notes.txt")
     assert actor.share["store_forwards"][GOOD_ID] == "rejected_busy"
+
 
 def test_state_tables_are_bounded(tmp_path):
     actor, _, _, _ = make_actor(tmp_path)
@@ -182,8 +193,9 @@ def test_state_tables_are_bounded(tmp_path):
         actor.send_segment(f"{index:08x}", "missing.txt")
     store_forwards = actor.share["store_forwards"]
     assert len(store_forwards) == STATE_LIMIT
-    assert "00000000" not in store_forwards                    # oldest evicted
+    assert "00000000" not in store_forwards  # oldest evicted
     assert f"{STATE_LIMIT + 4:08x}" in store_forwards
+
 
 def test_store_forward_events_acknowledge_forget(tmp_path):
     actor, message, inbox, outbox = make_actor(tmp_path)
@@ -199,15 +211,15 @@ def test_store_forward_events_acknowledge_forget(tmp_path):
     actor._store_forward_event(GOOD_ID, "done", sha256)
     assert actor.share["store_forwards"][GOOD_ID] == "done"
     assert actor.share["metrics"]["sent_bytes"] == "100"
-    assert not os.path.exists(path)                       # moved to .sent
+    assert not os.path.exists(path)  # moved to .sent
     assert os.path.exists(os.path.join(str(outbox), SENT_DIRECTORY, "notes.txt"))
 
-    actor.acknowledge(GOOD_ID, "b" * 64, "ok")            # wrong sha: ignored
+    actor.acknowledge(GOOD_ID, "b" * 64, "ok")  # wrong sha: ignored
     assert actor.share["store_forwards"][GOOD_ID] == "done"
     actor.acknowledge(GOOD_ID, sha256, "ok")
     assert actor.share["store_forwards"][GOOD_ID] == "acked"
-    assert message.cancelled == [GOOD_ID]                 # offer released
-    actor.acknowledge(GOOD_ID, sha256, "ok")              # idempotent
+    assert message.cancelled == [GOOD_ID]  # offer released
+    actor.acknowledge(GOOD_ID, sha256, "ok")  # idempotent
     assert actor.share["store_forwards"][GOOD_ID] == "acked"
 
     actor._store_forward_event(OTHER_ID, "failed_http", "503")
@@ -218,10 +230,11 @@ def test_store_forward_events_acknowledge_forget(tmp_path):
     assert GOOD_ID not in actor.share["store_forwards"]
     assert GOOD_ID not in actor.share["progress"]
 
+
 def test_received_events_send_acknowledge(tmp_path):
     actor, message, _, _ = make_actor(tmp_path, role="server")
     actor._store_forward_event(GOOD_ID, "name", "up.txt")
-    actor._store_forward_event(GOOD_ID, "name", "../evil")       # ignored
+    actor._store_forward_event(GOOD_ID, "name", "../evil")  # ignored
     assert actor._names[GOOD_ID] == "up.txt"
     actor._store_forward_event(GOOD_ID, "receiving", "0/300")
     assert actor.share["received"][GOOD_ID] == "receiving"
@@ -241,20 +254,20 @@ def test_received_events_send_acknowledge(tmp_path):
     assert actor.share["metrics"]["failures"] == "2"
     assert actor.share["last_error"].startswith(f"failed_store/{OTHER_ID}@")
 
+
 def test_link_events_and_bad_events(tmp_path):
     actor, _, _, _ = make_actor(tmp_path)
     actor._store_forward_event("-", "link_up", "")
     assert re.match(r"^up@\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$", actor.share["link"])
     assert actor.share["link_cause"] == "server_reachable"
     assert UTC_RE.match(actor.share["link_changed_utc"])
-    actor._store_forward_event("-", "link_down",
-        "ConnectionError GET http://h:1/out: [Errno 61] refused")
+    actor._store_forward_event("-", "link_down", "ConnectionError GET http://h:1/out: [Errno 61] refused")
     assert actor.share["link"].startswith("down@20")
-    assert actor.share["link_cause"] == "ConnectionError"   # first token
+    assert actor.share["link_cause"] == "ConnectionError"  # first token
     assert actor.share["metrics"]["link_downs"] == "1"
     actor._store_forward_event("-", "peer_poll", "2026-09-13T01:02:03Z")
     assert actor.share["peer"]["last_poll"] == "2026-09-13T01:02:03Z"
-    assert actor.share["link"].startswith("up@")            # poll -> up
+    assert actor.share["link"].startswith("up@")  # poll -> up
     assert actor.share["link_cause"] == "edge_polling"
     actor._store_forward_event("-", "rejected_command", "403")
     assert actor.share["metrics"]["rejected_commands"] == "1"
@@ -266,6 +279,7 @@ def test_link_events_and_bad_events(tmp_path):
     assert actor.share["metrics"]["rejected_commands"] == "3"
     assert GOOD_ID not in actor.share["store_forwards"]
 
+
 def test_server_link_from_edge_polls_and_timeout(tmp_path):
     """The server host's link follows edge host activity: up on a poll,
     down when no poll arrives for link_timeout seconds"""
@@ -273,20 +287,21 @@ def test_server_link_from_edge_polls_and_timeout(tmp_path):
     actor, _, _, _ = make_actor(tmp_path, role="server")
     actor.link_timeout = 5.0
     assert actor.share["link"] == "unknown"
-    actor._link_check()                                   # nothing yet
+    actor._link_check()  # nothing yet
     assert actor.share["link"] == "unknown"
 
     actor._store_forward_event("-", "peer_poll", "1725400000")
     assert actor.share["link"].startswith("up@")
-    actor._link_check()                                   # fresh poll: stays
+    actor._link_check()  # fresh poll: stays
     assert actor.share["link"].startswith("up@")
 
     actor._last_poll = time.monotonic() - 100
     actor._link_check()
     assert actor.share["link"].startswith("down@")
     assert actor.share["link_cause"] == "no_poll_100s"
-    actor._store_forward_event("-", "peer_poll", "1725400100") # poll again: up
+    actor._store_forward_event("-", "peer_poll", "1725400100")  # poll again: up
     assert actor.share["link"].startswith("up@")
+
 
 def test_state_tables_keep_last_three(tmp_path):
     actor, _, _, _ = make_actor(tmp_path)
@@ -294,19 +309,20 @@ def test_state_tables_keep_last_three(tmp_path):
     for index in range(5):
         actor._store_forward_event(f"{index:08x}", "progress", f"{index}/9")
     assert list(actor.share["progress"]) == ["00000002", "00000003", "00000004"]
-    actor._store_forward_event("00000002", "progress", "9/9")   # existing: no evict
+    actor._store_forward_event("00000002", "progress", "9/9")  # existing: no evict
     assert list(actor.share["progress"]) == ["00000002", "00000003", "00000004"]
+
 
 def test_last_error_token(tmp_path):
     actor, _, _, outbox = make_actor(tmp_path)
     assert actor.share["last_error"] == "-"
     actor.send_segment(GOOD_ID, "missing.txt")
-    assert re.match(r"^rejected_missing/0123abcd@\d{4}-.*Z$",
-        actor.share["last_error"])
+    assert re.match(r"^rejected_missing/0123abcd@\d{4}-.*Z$", actor.share["last_error"])
     actor._store_forward_event(OTHER_ID, "received_failed_sha256", SHA)
     assert actor.share["last_error"].startswith("failed_sha256/89abcdef@")
     actor._store_forward_event("bad id", "done", "x")
     assert actor.share["last_error"].startswith("rejected_command/-@")
+
 
 def test_queue_and_sampled(tmp_path):
     actor, message, _, outbox = make_actor(tmp_path)
@@ -315,18 +331,19 @@ def test_queue_and_sampled(tmp_path):
         write_segment(str(outbox), name, size)
     old = os.path.join(str(outbox), "a.txt")
     os.utime(old, (time.time() - 90, time.time() - 90))
-    write_segment(str(outbox), ".hidden", 999)              # ignored
-    actor._outbox_scan()                                    # first sighting
+    write_segment(str(outbox), ".hidden", 999)  # ignored
+    actor._outbox_scan()  # first sighting
     assert actor.share["queue"]["depth"] == "3"
     assert actor.share["queue"]["bytes"] == "600"
     assert 89 <= int(actor.share["queue"]["oldest_s"]) <= 92
     assert UTC_RE.match(actor.share["sampled_utc"])
-    actor._outbox_scan()                                    # stable: queued
+    actor._outbox_scan()  # stable: queued
     assert len(message.jobs) == 3
-    assert actor.share["queue"]["depth"] == "3"             # still in outbox
+    assert actor.share["queue"]["depth"] == "3"  # still in outbox
     actor._store_forward_event(message.jobs[0].segment_id, "done", SHA)
-    actor._outbox_scan()                                    # moved to .sent
+    actor._outbox_scan()  # moved to .sent
     assert actor.share["queue"]["depth"] == "2"
+
 
 def test_network_ladder_raise_only(tmp_path):
     """Link up raises the process Connection from NONE to NETWORK and link
@@ -350,13 +367,15 @@ def test_network_ladder_raise_only(tmp_path):
         assert connection.get_state() == aiko.ConnectionState.TRANSPORT
         actor._store_forward_event("-", "link_down", "ReadTimeout x")
         assert connection.get_state() == aiko.ConnectionState.TRANSPORT
-        assert actor.share["link"].startswith("down@")     # share still moves
+        assert actor.share["link"].startswith("down@")  # share still moves
     finally:
         connection.connection_state = initial_state
 
+
 def _queue_via_scan(actor):
-    actor._outbox_scan()                                    # first sighting
-    actor._outbox_scan()                                    # stable: send
+    actor._outbox_scan()  # first sighting
+    actor._outbox_scan()  # stable: send
+
 
 def test_retry_after_failed_send(tmp_path):
     """A failed send is not stuck: after a back-off the watcher re-sends
@@ -369,23 +388,24 @@ def test_retry_after_failed_send(tmp_path):
     actor._store_forward_event(first_id, "failed_timeout", "")
     assert "seg.txt" not in actor._sent_names
     assert actor._retry_after["seg.txt"] > time.monotonic()
-    _queue_via_scan(actor)                                  # backing off
+    _queue_via_scan(actor)  # backing off
     assert len(message.jobs) == 1
 
-    actor._retry_after["seg.txt"] = 0                       # back-off over
+    actor._retry_after["seg.txt"] = 0  # back-off over
     _queue_via_scan(actor)
     assert len(message.jobs) == 2
     assert message.jobs[1].segment_id != first_id
     assert actor.share["metrics"]["retries"] == "1"
-    assert actor._retry_backoff["seg.txt"] == 60.0          # doubles next time
+    assert actor._retry_backoff["seg.txt"] == 60.0  # doubles next time
     actor._store_forward_event(message.jobs[1].segment_id, "failed_http", "503")
     assert actor._retry_backoff["seg.txt"] == 120.0
 
     actor._retry_after["seg.txt"] = 0
     _queue_via_scan(actor)
     actor._store_forward_event(message.jobs[2].segment_id, "done", SHA)
-    assert "seg.txt" not in actor._retry_backoff            # delivered: reset
+    assert "seg.txt" not in actor._retry_backoff  # delivered: reset
     assert os.path.exists(os.path.join(str(outbox), SENT_DIRECTORY, "seg.txt"))
+
 
 def test_rejected_busy_retries(tmp_path):
     actor, message, _, outbox = make_actor(tmp_path, accept=False)
@@ -399,11 +419,13 @@ def test_rejected_busy_retries(tmp_path):
     assert message.jobs[-1].name == "seg.txt"
     assert actor.share["metrics"]["retries"] == "1"
 
+
 def test_offer_not_acked_is_reoffered(tmp_path):
     """Server role: an offer the edge never acknowledged is withdrawn
     after RETRY_AFTER_S and re-offered with a fresh id"""
 
     from aiko_services.main.store_forward.store_forward import RETRY_AFTER_S
+
     actor, message, _, outbox = make_actor(tmp_path, role="server")
     write_segment(str(outbox), "seg.txt")
     _queue_via_scan(actor)
@@ -411,12 +433,13 @@ def test_offer_not_acked_is_reoffered(tmp_path):
     actor._store_forward_event(first_id, "offered", SHA)
     actor._offered_at[first_id] -= RETRY_AFTER_S + 1
     actor._outbox_scan()
-    assert message.cancelled == [first_id]                  # withdrawn
+    assert message.cancelled == [first_id]  # withdrawn
     assert "seg.txt" in actor._retry_after
     actor._retry_after["seg.txt"] = 0
     _queue_via_scan(actor)
     assert len(message.jobs) == 2 and message.jobs[1].segment_id != first_id
     assert actor.share["metrics"]["retries"] == "1"
+
 
 def _seed_parts(partial):
     """Two id pairs, 100 s and 5 s old, and an old file that is not a part"""
@@ -430,41 +453,56 @@ def _seed_parts(partial):
     notes.write_text("keep")
     os.utime(notes, (time.time() - 100, time.time() - 100))
 
+
 def test_stale_partial_sweep(tmp_path):
     actor, _, inbox, _ = make_actor(tmp_path)
-    partial = inbox / PARTIAL_DIRECTORY           # created by the Actor
+    partial = inbox / PARTIAL_DIRECTORY  # created by the Actor
     _seed_parts(partial)
     actor.partial_max_age = 10
     actor._sweep_partial(time.monotonic(), force=True)
-    assert sorted(p.name for p in partial.iterdir()) ==  \
-        ["bbbb2222.meta", "bbbb2222.part", "notes.txt"]  # parts only
+    assert sorted(p.name for p in partial.iterdir()) == ["bbbb2222.meta", "bbbb2222.part", "notes.txt"]  # parts only
+
 
 def test_stale_partial_sweep_separate_directory(tmp_path):
     partial = tmp_path / "state" / "parts"
     actor, _, inbox, _ = make_actor(tmp_path, partial_directory=partial)
     assert actor.share["partial_directory"] == os.path.realpath(partial)
     assert partial.is_dir()
-    assert os.listdir(inbox) == []                # nothing hidden in it
+    assert os.listdir(inbox) == []  # nothing hidden in it
     _seed_parts(partial)
     actor.partial_max_age = 10
     actor._sweep_partial(time.monotonic(), force=True)
-    assert sorted(p.name for p in partial.iterdir()) ==  \
-        ["bbbb2222.meta", "bbbb2222.part", "notes.txt"]
+    assert sorted(p.name for p in partial.iterdir()) == ["bbbb2222.meta", "bbbb2222.part", "notes.txt"]
     assert os.listdir(inbox) == []
+
 
 def test_partial_directory_option_and_guard(tmp_path):
     from click.testing import CliRunner
+
     inbox, outbox = tmp_path / "in", tmp_path / "out"
-    inbox.mkdir(); outbox.mkdir()
+    inbox.mkdir()
+    outbox.mkdir()
     runner = CliRunner()
     for command in ("server", "edge"):
         result = runner.invoke(store_forward_main, [command, "--help"])
         assert "--partial_directory" in result.output, command
-    result = runner.invoke(store_forward_main,
-        ["edge", "--inbox", str(inbox), "--outbox", str(outbox),
-         "--server_host", "h", "--partial_directory", str(outbox)])
-    assert result.exit_code == 2                  # refused before starting
+    result = runner.invoke(
+        store_forward_main,
+        [
+            "edge",
+            "--inbox",
+            str(inbox),
+            "--outbox",
+            str(outbox),
+            "--server_host",
+            "h",
+            "--partial_directory",
+            str(outbox),
+        ],
+    )
+    assert result.exit_code == 2  # refused before starting
     assert "--partial_directory" in result.output
+
 
 def test_cancel_sets_job_event(tmp_path):
     actor, message, _, outbox = make_actor(tmp_path)
@@ -475,33 +513,35 @@ def test_cancel_sets_job_event(tmp_path):
     assert message.jobs[0].cancel.is_set()
     assert message.cancelled == [GOOD_ID]
 
+
 def test_http_command_guard(tmp_path):
     actor, _, _, _ = make_actor(tmp_path)
     assert actor._http_command("bogus") == "rejected_command"
-    assert actor._http_command("(_store_forward_event 0123abcd done x)")  \
-        == "rejected_command"
+    assert actor._http_command("(_store_forward_event 0123abcd done x)") == "rejected_command"
     assert actor._http_command("(run)") == "rejected_command"
     assert actor._http_command("(cancel 12:34)") == "rejected_parse"
     assert actor._http_command("(cancel 0123abcd)") == "accepted"
+
 
 def test_outbox_scan_sends_once_when_stable(tmp_path):
     actor, message, _, outbox = make_actor(tmp_path)
     write_segment(str(outbox), ".hidden", 10)
     path, _ = write_segment(str(outbox), "notes.txt", 100)
 
-    actor._outbox_scan()                                  # first sighting
+    actor._outbox_scan()  # first sighting
     assert message.jobs == []
-    with open(path, "ab") as file:                        # still growing
+    with open(path, "ab") as file:  # still growing
         file.write(b"more")
     actor._outbox_scan()
     assert message.jobs == []
-    actor._outbox_scan()                                  # stable: send
+    actor._outbox_scan()  # stable: send
     assert len(message.jobs) == 1
     assert message.jobs[0].name == "notes.txt"
     assert len(message.jobs[0].segment_id) == 12
-    actor._outbox_scan()                                  # not again
+    actor._outbox_scan()  # not again
     assert len(message.jobs) == 1
     assert actor.share["store_forwards"][message.jobs[0].segment_id] == "queued"
+
 
 def test_mailbox_handoff_runs_on_event_loop_thread(tmp_path):
     """Message-thread callbacks post to the mailbox; the Actor's state
@@ -534,6 +574,7 @@ def test_mailbox_handoff_runs_on_event_loop_thread(tmp_path):
     aiko.process.run(mqtt_connection_required=False)
     assert results.get("ok")
 
+
 # --------------------------------------------------------------------------- #
 
 # --------------------------------------------------------------------------- #
@@ -541,16 +582,43 @@ def test_mailbox_handoff_runs_on_event_loop_thread(tmp_path):
 # and the parser reads a leading "<digits>:" as a canonical symbol
 
 STATE_TOKENS = [
-    "queued", "hashing", "offered", "connecting", "sending", "fetching",
-    "verifying", "done", "acked", "cancelled", "failed_timeout",
-    "failed_sha256", "failed_http_404", "rejected_path", "rejected_missing",
-    "rejected_size", "rejected_role", "rejected_busy",
-    "receiving", "ok", "up", "down", "unknown", "2048/5000", "1725400000",
-    "http://server.local:8080", "/Users/someone/store_forward/in",
-    "up@2026-09-13T01:02:03Z", "2026-09-13T01:02:03Z",
-    "failed_timeout/0123abcd@2026-09-13T01:02:03Z", "rejected_command/-@2026-09-13T01:02:03Z",
-    "no_poll_4s", "ConnectionError", "edge_polling", "startup"
+    "queued",
+    "hashing",
+    "offered",
+    "connecting",
+    "sending",
+    "fetching",
+    "verifying",
+    "done",
+    "acked",
+    "cancelled",
+    "failed_timeout",
+    "failed_sha256",
+    "failed_http_404",
+    "rejected_path",
+    "rejected_missing",
+    "rejected_size",
+    "rejected_role",
+    "rejected_busy",
+    "receiving",
+    "ok",
+    "up",
+    "down",
+    "unknown",
+    "2048/5000",
+    "1725400000",
+    "http://server.local:8080",
+    "/Users/someone/store_forward/in",
+    "up@2026-09-13T01:02:03Z",
+    "2026-09-13T01:02:03Z",
+    "failed_timeout/0123abcd@2026-09-13T01:02:03Z",
+    "rejected_command/-@2026-09-13T01:02:03Z",
+    "no_poll_4s",
+    "ConnectionError",
+    "edge_polling",
+    "startup",
 ]
+
 
 def test_state_tokens_round_trip():
     for value in STATE_TOKENS:
@@ -558,74 +626,76 @@ def test_state_tokens_round_trip():
         assert command == "update"
         assert arguments == ["store_forwards.0123abcd", value], value
 
+
 def test_hex_segment_ids_are_plain_tokens():
     for _ in range(50):
         segment_id = uuid.uuid4().hex[:12]
         command, arguments = parse(f"(cancel {segment_id})")
         assert (command, arguments) == ("cancel", [segment_id])
 
+
 def test_canonical_symbol_hazard_documented():
     """A value such as 12:34 is not a plain token: the parser reads it as a
     canonical symbol length prefix.  Never publish such values"""
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         parse("(update store_forwards.0123abcd 12:34)")
 
+
 def test_role_tag_survives_generate():
-    payload = generate("add",
-        ["aiko/host/1/1", "store_forward_host", "p:0", "mqtt", "owner",
-         ["role=edge", "ec=true"]])
+    payload = generate("add", ["aiko/host/1/1", "store_forward_host", "p:0", "mqtt", "owner", ["role=edge", "ec=true"]])
     command, arguments = parse(payload)
     assert command == "add"
     assert arguments[5] == ["role=edge", "ec=true"]
 
+
 def test_allowed_commands_seeded_from_interface():
-    assert ALLOWED_COMMANDS == frozenset(
-        {"send_segment", "fetch_segment", "acknowledge", "cancel", "forget"})
+    assert ALLOWED_COMMANDS == frozenset({"send_segment", "fetch_segment", "acknowledge", "cancel", "forget"})
     assert "_store_forward_event" not in ALLOWED_COMMANDS
+
 
 # CLI: the server endpoint from --server_host / --server_port / --server_url
 
+
 def test_server_endpoint_from_host_and_port():
-    assert server_endpoint(server_host="10.0.0.5")  \
-        == f"http://10.0.0.5:{DEFAULT_SERVER_PORT}"
-    assert server_endpoint(server_host="site.local", server_port=8081)  \
-        == "http://site.local:8081"
-    assert server_endpoint(server_host=" 10.0.0.5 ", server_port="8082")  \
-        == "http://10.0.0.5:8082"                       # a string port
-    assert server_endpoint(server_host="fd00::7", server_port=8080)  \
-        == "http://[fd00::7]:8080"                       # bare IPv6 address
+    assert server_endpoint(server_host="10.0.0.5") == f"http://10.0.0.5:{DEFAULT_SERVER_PORT}"
+    assert server_endpoint(server_host="site.local", server_port=8081) == "http://site.local:8081"
+    assert server_endpoint(server_host=" 10.0.0.5 ", server_port="8082") == "http://10.0.0.5:8082"  # a string port
+    assert server_endpoint(server_host="fd00::7", server_port=8080) == "http://[fd00::7]:8080"  # bare IPv6 address
+
 
 def test_server_endpoint_from_url():
-    assert server_endpoint("http://site.local:8080/")  \
-        == "http://site.local:8080"                      # trailing slash
-    assert server_endpoint("10.0.0.5")  \
-        == f"http://10.0.0.5:{DEFAULT_SERVER_PORT}"      # no scheme, no port
+    assert server_endpoint("http://site.local:8080/") == "http://site.local:8080"  # trailing slash
+    assert server_endpoint("10.0.0.5") == f"http://10.0.0.5:{DEFAULT_SERVER_PORT}"  # no scheme, no port
     assert server_endpoint("10.0.0.5:9000") == "http://10.0.0.5:9000"
-    assert server_endpoint("https://site.local")  \
-        == f"https://site.local:{DEFAULT_SERVER_PORT}"   # scheme kept
+    assert server_endpoint("https://site.local") == f"https://site.local:{DEFAULT_SERVER_PORT}"  # scheme kept
     assert server_endpoint("http://a:8080", "b", 9000) == "http://a:8080"
+
 
 def test_server_endpoint_boundary():
     import click
+
     with pytest.raises(click.UsageError):
-        server_endpoint()                                # neither given
+        server_endpoint()  # neither given
     with pytest.raises(click.UsageError):
-        server_endpoint(" ", " ")                        # blank both
+        server_endpoint(" ", " ")  # blank both
     with pytest.raises(click.BadParameter):
-        server_endpoint("http://")                       # no host
+        server_endpoint("http://")  # no host
+
 
 def test_edge_command_needs_a_server(tmp_path):
     """Neither --server_host nor --server_url: usage error before any
     Actor, thread or HTTP client is created"""
 
     from click.testing import CliRunner
+
     inbox, outbox = tmp_path / "in", tmp_path / "out"
-    inbox.mkdir(); outbox.mkdir()
-    result = CliRunner().invoke(store_forward_main,
-        ["edge", "--inbox", str(inbox), "--outbox", str(outbox)])
+    inbox.mkdir()
+    outbox.mkdir()
+    result = CliRunner().invoke(store_forward_main, ["edge", "--inbox", str(inbox), "--outbox", str(outbox)])
     assert result.exit_code == 2
     assert "--server_host" in result.output
+
 
 # The .sent sweep ---------------------------------------------------------- #
 #
@@ -635,6 +705,7 @@ def test_edge_command_needs_a_server(tmp_path):
 #
 # Zero keeps every one, which is what this did before the parameter, so an
 # upgrade deletes nothing nobody asked it to delete.
+
 
 def _seed_sent(directory, old_names=(), new_names=()):
     """Files in .sent/, the old ones aged well past any cutoff"""
@@ -647,13 +718,15 @@ def _seed_sent(directory, old_names=(), new_names=()):
     for name in new_names:
         (directory / name).write_bytes(b"y" * 100)
 
+
 def test_the_sent_sweep_removes_what_is_old_and_keeps_what_is_not(tmp_path):
     actor, _, _, outbox = make_actor(tmp_path)
-    sent = outbox / SENT_DIRECTORY                 # created by the Actor
+    sent = outbox / SENT_DIRECTORY  # created by the Actor
     _seed_sent(sent, old_names=("a.mp4", "b.mp4"), new_names=("c.mp4",))
     actor.sent_max_age = 10
     actor._sweep_sent(time.monotonic(), force=True)
     assert sorted(p.name for p in sent.iterdir()) == ["c.mp4"]
+
 
 def test_zero_keeps_every_delivered_segment(tmp_path):
     """The default, and what this did before the parameter existed"""
@@ -665,6 +738,7 @@ def test_zero_keeps_every_delivered_segment(tmp_path):
     actor._sweep_sent(time.monotonic(), force=True)
     assert sorted(p.name for p in sent.iterdir()) == ["a.mp4", "b.mp4"]
 
+
 def test_a_negative_age_also_keeps_everything(tmp_path):
     """A mistyped setting must not delete every receipt there is"""
 
@@ -675,6 +749,7 @@ def test_a_negative_age_also_keeps_everything(tmp_path):
     actor._sweep_sent(time.monotonic(), force=True)
     assert [p.name for p in sent.iterdir()] == ["a.mp4"]
 
+
 def test_the_sweep_counts_what_it_removed(tmp_path):
     actor, _, _, outbox = make_actor(tmp_path)
     sent = outbox / SENT_DIRECTORY
@@ -682,6 +757,7 @@ def test_the_sweep_counts_what_it_removed(tmp_path):
     actor.sent_max_age = 10
     actor._sweep_sent(time.monotonic(), force=True)
     assert actor.share["metrics"]["sent_swept"] == "3"
+
 
 def test_the_sweep_leaves_a_directory_inside_sent_alone(tmp_path):
     """Only files.  A sweep that deletes is worth the check"""
@@ -695,6 +771,7 @@ def test_the_sweep_leaves_a_directory_inside_sent_alone(tmp_path):
     actor.sent_max_age = 10
     actor._sweep_sent(time.monotonic(), force=True)
     assert [p.name for p in sent.iterdir()] == ["keep"]
+
 
 def test_the_sweep_touches_nothing_in_the_outbox_itself(tmp_path):
     """The outbox holds what has not been delivered.  A sweep there would
@@ -710,6 +787,7 @@ def test_the_sweep_touches_nothing_in_the_outbox_itself(tmp_path):
     assert waiting.is_file()
     assert list((outbox / SENT_DIRECTORY).iterdir()) == []
 
+
 def test_the_sweep_is_throttled_between_runs(tmp_path):
     """It walks a directory that holds tens of thousands of files, so it
     does not run on every outbox scan"""
@@ -718,10 +796,11 @@ def test_the_sweep_is_throttled_between_runs(tmp_path):
     sent = outbox / SENT_DIRECTORY
     _seed_sent(sent, old_names=("a.mp4",))
     actor.sent_max_age = 10
-    actor._sweep_sent(time.monotonic(), force=True)     # takes a.mp4
+    actor._sweep_sent(time.monotonic(), force=True)  # takes a.mp4
     _seed_sent(sent, old_names=("b.mp4",))
-    actor._sweep_sent(time.monotonic())                 # too soon
+    actor._sweep_sent(time.monotonic())  # too soon
     assert [p.name for p in sent.iterdir()] == ["b.mp4"]
+
 
 def test_a_missing_sent_directory_is_not_an_error(tmp_path):
     actor, _, _, outbox = make_actor(tmp_path)
@@ -729,7 +808,8 @@ def test_a_missing_sent_directory_is_not_an_error(tmp_path):
 
     shutil.rmtree(outbox / SENT_DIRECTORY)
     actor.sent_max_age = 10
-    actor._sweep_sent(time.monotonic(), force=True)     # no raise
+    actor._sweep_sent(time.monotonic(), force=True)  # no raise
+
 
 def test_the_option_reaches_the_actor(tmp_path):
     actor, _, _, _ = make_actor(tmp_path, sent_max_age=3600)

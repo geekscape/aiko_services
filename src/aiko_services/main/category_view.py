@@ -49,10 +49,24 @@ from collections import namedtuple
 from aiko_services.main import CATEGORY_PROTOCOL
 
 __all__ = [
-    "ABSENT", "CATEGORY", "DEPENDENCY", "KEEP", "PATH_DELIMITER", "WILDCARD",
-    "CategoryNode", "CategoryTree", "Entry", "entries_of_cache", "entry_of",
-    "entry_path_join", "entry_path_parent", "field_text",
-    "parse_entry_records", "protocol_terse", "protocol_type", "root_entry",
+    "ABSENT",
+    "CATEGORY",
+    "DEPENDENCY",
+    "KEEP",
+    "PATH_DELIMITER",
+    "WILDCARD",
+    "CategoryNode",
+    "CategoryTree",
+    "Entry",
+    "entries_of_cache",
+    "entry_of",
+    "entry_path_join",
+    "entry_path_parent",
+    "field_text",
+    "parse_entry_records",
+    "protocol_terse",
+    "protocol_type",
+    "root_entry",
 ]
 
 # --------------------------------------------------------------------------- #
@@ -61,37 +75,41 @@ PATH_DELIMITER = "/"
 CATEGORY = "category"
 DEPENDENCY = "dependency"
 
-ABSENT = "-"            # a field that the Actor sent as the codec's None
+ABSENT = "-"  # a field that the Actor sent as the codec's None
 WILDCARD = "*"
-KEEP = "0:"             # what an update sends for a field to leave alone
+KEEP = "0:"  # what an update sends for a field to leave alone
 
 # Every field of one Entry, as a person reads it.  "target" is what the
 # Entry refers to: the name in its ServiceFilter, or its own name
-Entry = namedtuple("Entry",
-    "name kind target protocol transport owner tags lcm_url storage_url")
+Entry = namedtuple("Entry", "name kind target protocol transport owner tags lcm_url storage_url")
+
 
 def entry_path_join(path, name):
     """One Entry path from a Category path and an Entry name"""
 
     return f"{path}{PATH_DELIMITER}{name}" if path else name
 
+
 def entry_path_parent(path):
     """The Category that holds the Entry at path, "" being the root"""
 
     return path.rpartition(PATH_DELIMITER)[0]
 
+
 def protocol_type(protocol):
-    """"category" from ".../protocol/category:0", and "" from nothing"""
+    """ "category" from ".../protocol/category:0", and "" from nothing"""
 
     if not protocol or protocol in (WILDCARD, ABSENT):
         return ""
     return protocol.rpartition(PATH_DELIMITER)[2].split(":")[0]
 
+
 def protocol_terse(protocol):
-    """"category:0" from ".../protocol/category:0", which is how the
+    """ "category:0" from ".../protocol/category:0", which is how the
     command line and the Dashboard's own Service list show a protocol"""
 
     return protocol.rpartition(PATH_DELIMITER)[2] if protocol else protocol
+
 
 def field_text(value):
     """A field as a person reads it.  The shared state carries the codec's
@@ -103,6 +121,7 @@ def field_text(value):
         return " ".join(str(item) for item in value) or ABSENT
     value = str(value)
     return ABSENT if value in ("None", KEEP, "") else value
+
 
 def entry_of(name, fields):
     """One Entry from the fields that a Category holds for it ...
@@ -122,25 +141,32 @@ def entry_of(name, fields):
         return fields[index] if index < len(fields) else None
 
     tags = filter_field(5)
-    tags = [str(tag) for tag in tags]  \
-        if isinstance(tags, (list, tuple)) else []
+    tags = [str(tag) for tag in tags] if isinstance(tags, (list, tuple)) else []
     protocol = field_text(filter_field(2))
     filter_name = field_text(filter_field(1))
     target = name if filter_name in (ABSENT, WILDCARD) else filter_name
 
-    return Entry(name,
+    return Entry(
+        name,
         CATEGORY if protocol_type(protocol) == CATEGORY else DEPENDENCY,
-        target, protocol, field_text(filter_field(3)),
-        field_text(filter_field(4)), tags,
-        field_text(field(1)), field_text(field(2)))
+        target,
+        protocol,
+        field_text(filter_field(3)),
+        field_text(filter_field(4)),
+        tags,
+        field_text(field(1)),
+        field_text(field(2)),
+    )
+
 
 def root_entry(name):
     """The Entry of the Category that a client is at"""
 
-    return Entry(name, CATEGORY, name,
-        CATEGORY_PROTOCOL, ABSENT, ABSENT, [], ABSENT, ABSENT)
+    return Entry(name, CATEGORY, name, CATEGORY_PROTOCOL, ABSENT, ABSENT, [], ABSENT, ABSENT)
+
 
 # --------------------------------------------------------------------------- #
+
 
 class CategoryNode:
     """One Entry, and what the viewer knows about it"""
@@ -148,10 +174,10 @@ class CategoryNode:
     def __init__(self, path, entry):
         self.path = path
         self.entry = entry
-        self.children = []        # Entry names, in the order they are shown
+        self.children = []  # Entry names, in the order they are shown
         self.expanded = False
-        self.loaded = False       # its children have arrived
-        self.cycle = None         # the path of the ancestor that it repeats
+        self.loaded = False  # its children have arrived
+        self.cycle = None  # the path of the ancestor that it repeats
 
     @property
     def name(self):
@@ -160,6 +186,7 @@ class CategoryNode:
     @property
     def kind(self):
         return self.entry.kind
+
 
 class CategoryTree:
     """Every node discovered so far, by Entry path.  The root is "" """
@@ -202,8 +229,7 @@ class CategoryTree:
         if parent is None or parent.cycle is not None:
             return False
 
-        targets = {node.entry.target: node.path
-            for node in self.ancestors(path)}
+        targets = {node.entry.target: node.path for node in self.ancestors(path)}
         targets.setdefault(parent.entry.target, parent.path)
 
         names = []
@@ -233,8 +259,7 @@ class CategoryTree:
         """Drop a node and everything below it"""
 
         prefix = path + PATH_DELIMITER
-        for key in [key for key in self.nodes
-                if key == path or key.startswith(prefix)]:
+        for key in [key for key in self.nodes if key == path or key.startswith(prefix)]:
             del self.nodes[key]
 
     def children(self, path):
@@ -247,7 +272,7 @@ class CategoryTree:
         children = []
         for name in node.children:
             child = self.nodes.get(entry_path_join(path, name))
-            if child is not None:        # merged away while being drawn
+            if child is not None:  # merged away while being drawn
                 children.append(child)
         return children
 
@@ -270,15 +295,14 @@ class CategoryTree:
             children.sort(key=sort_key, reverse=reverse)
         for child in children:
             below = []
-            if child.expanded and child.kind == CATEGORY  \
-                and child.cycle is None:
-                below = self.rows(
-                    child.path, level + 1, keep, sort_key, reverse)
+            if child.expanded and child.kind == CATEGORY and child.cycle is None:
+                below = self.rows(child.path, level + 1, keep, sort_key, reverse)
             if keep is not None and not below and not keep(child):
                 continue
             rows.append((child, level))
             rows += below
         return rows
+
 
 def entries_of_cache(cache):
     """The Entries of one Category, from its shared state, by name,
@@ -288,6 +312,7 @@ def entries_of_cache(cache):
     if not isinstance(entries, dict):
         return []
     return [entry_of(name, entries[name]) for name in sorted(entries)]
+
 
 def parse_entry_records(records):
     """(entries, diagnostics) from the arguments of each "(response
@@ -308,8 +333,7 @@ def parse_entry_records(records):
         if not isinstance(record, (list, tuple)) or not record:
             continue
         if record[0] == "text":
-            diagnostics.append(
-                str(record[1]) if len(record) > 1 else "no reason given")
+            diagnostics.append(str(record[1]) if len(record) > 1 else "no reason given")
             continue
         try:
             level = int(record[0])
@@ -318,5 +342,6 @@ def parse_entry_records(records):
         if level == 0 and len(record) > 2:
             entries.append(entry_of(str(record[1]), record[2]))
     return entries, diagnostics
+
 
 # --------------------------------------------------------------------------- #

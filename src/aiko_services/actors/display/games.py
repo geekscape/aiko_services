@@ -25,20 +25,38 @@ import math
 from PIL import Image, ImageDraw
 
 from aiko_services.actors.display.applets import (
-    APPLETS, Applet, AppletDone,
+    APPLETS,
+    Applet,
+    AppletDone,
 )
 from aiko_services.actors.display.drawings import (
-    FIELD, FIELD_HEIGHT, FIELD_WIDTH, GROUND, SUBJECTS, field, oval,
+    FIELD,
+    FIELD_HEIGHT,
+    FIELD_WIDTH,
+    GROUND,
+    SUBJECTS,
+    field,
+    oval,
 )
 from aiko_services.actors.display.graphics import INK, sprite, stamp
 
 __all__ = [
-    "GAMES", "AsteroidsApplet", "ForkliftApplet", "ForkliftGame",
-    "ForkliftGameApplet", "GamesApplet", "InvadersApplet",
-    "PongApplet", "asteroids", "forklift_work", "invaders", "pong",
+    "GAMES",
+    "AsteroidsApplet",
+    "ForkliftApplet",
+    "ForkliftGame",
+    "ForkliftGameApplet",
+    "GamesApplet",
+    "InvadersApplet",
+    "PongApplet",
+    "asteroids",
+    "forklift_work",
+    "invaders",
+    "pong",
 ]
 
 # --------------------------------------------------------------------------- #
+
 
 def pong(rng, host):
     """Two computer players, each of which misjudges the ball now and then"""
@@ -55,11 +73,9 @@ def pong(rng, host):
         for side in (0, 1):
             coming = (velocity[0] < 0) == (side == 0)
             # Where the ball will reach this paddle, allowing for bounces
-            bounce = (ball[1] + velocity[1] * (faces[side] - ball[0]) / velocity[0])  \
-                % (2 * (FIELD_HEIGHT - 2))
+            bounce = (ball[1] + velocity[1] * (faces[side] - ball[0]) / velocity[0]) % (2 * (FIELD_HEIGHT - 2))
             arrival = min(bounce, 2 * (FIELD_HEIGHT - 2) - bounce)
-            target = arrival + 1 + aims[side] - paddle_height / 2 if coming  \
-                else (FIELD_HEIGHT - paddle_height) / 2
+            target = arrival + 1 + aims[side] - paddle_height / 2 if coming else (FIELD_HEIGHT - paddle_height) / 2
             paddles[side] += max(-3.6, min(3.6, target - paddles[side]))
             paddles[side] = max(0.0, min(FIELD_HEIGHT - paddle_height, paddles[side]))
         previous_x = ball[0]
@@ -70,12 +86,16 @@ def pong(rng, host):
             ball[1] = max(0.0, min(FIELD_HEIGHT - 2, ball[1]))
         for side, face in enumerate(faces):
             crossed = (previous_x - face) * (ball[0] - face) <= 0
-            if (velocity[0] < 0) == (side == 0) and crossed  \
-                    and paddles[side] - 2 <= ball[1] <= paddles[side] + paddle_height:
+            if (
+                (velocity[0] < 0) == (side == 0)
+                and crossed
+                and paddles[side] - 2 <= ball[1] <= paddles[side] + paddle_height
+            ):
                 ball[0] = face
                 velocity[0] = -max(-9.0, min(9.0, velocity[0] * 1.05))
-                velocity[1] = max(-6.0, min(6.0, velocity[1]
-                    + 3 * (ball[1] + 1 - paddles[side] - paddle_height / 2) / 4))
+                velocity[1] = max(
+                    -6.0, min(6.0, velocity[1] + 3 * (ball[1] + 1 - paddles[side] - paddle_height / 2) / 4)
+                )
                 aims[1 - side] = rng.uniform(-8, 8)
         if not -2 <= ball[0] <= FIELD_WIDTH:
             scores[ball[0] < 0] += 1
@@ -85,16 +105,14 @@ def pong(rng, host):
         for y in range(0, FIELD_HEIGHT, 4):
             draw.line((FIELD_WIDTH // 2 - 1, y, FIELD_WIDTH // 2 - 1, y + 1), fill=INK)
         for side, x in enumerate(xs):
-            draw.rectangle((x, round(paddles[side]), x + 1,
-                round(paddles[side]) + paddle_height - 1), fill=INK)
+            draw.rectangle((x, round(paddles[side]), x + 1, round(paddles[side]) + paddle_height - 1), fill=INK)
             label = host.font.render_line(str(scores[side]))
-            stamp(image, label,
-                FIELD_WIDTH // 2 - 8 - label.width if side == 0 else FIELD_WIDTH // 2 + 6, 1)
-        draw.rectangle((round(ball[0]), round(ball[1]),
-            round(ball[0]) + 1, round(ball[1]) + 1), fill=INK)
+            stamp(image, label, FIELD_WIDTH // 2 - 8 - label.width if side == 0 else FIELD_WIDTH // 2 + 6, 1)
+        draw.rectangle((round(ball[0]), round(ball[1]), round(ball[0]) + 1, round(ball[1]) + 1), fill=INK)
         yield image
 
-def asteroids(rng, host):
+
+def asteroids(rng, host):  # noqa: C901
     """A ship turns, aims and fires at the nearest rock; big rocks split"""
 
     cx, cy = FIELD_WIDTH / 2, FIELD_HEIGHT / 2
@@ -104,22 +122,26 @@ def asteroids(rng, host):
 
     def rock(x, y, size):
         heading, speed = rng.uniform(0, 2 * math.pi), rng.uniform(0.25, 0.8)
-        return {"x": x, "y": y, "vx": speed * math.cos(heading),
-                "vy": speed * math.sin(heading), "r": size, "turn": 0.0,
-                "spin": rng.uniform(-0.05, 0.05),
-                "shape": [rng.uniform(0.7, 1.15) for _ in range(9)]}
+        return {
+            "x": x,
+            "y": y,
+            "vx": speed * math.cos(heading),
+            "vy": speed * math.sin(heading),
+            "r": size,
+            "turn": 0.0,
+            "spin": rng.uniform(-0.05, 0.05),
+            "shape": [rng.uniform(0.7, 1.15) for _ in range(9)],
+        }
 
     def explode(x, y, count):
         for _ in range(count):
             heading, speed = rng.uniform(0, 2 * math.pi), rng.uniform(0.3, 1.5)
-            sparks.append([x, y, speed * math.cos(heading),
-                speed * math.sin(heading), rng.randint(8, 20)])
+            sparks.append([x, y, speed * math.cos(heading), speed * math.sin(heading), rng.randint(8, 20)])
 
     rocks = []
     while True:
         if not rocks:
-            rocks = [rock(rng.choice((0, FIELD_WIDTH - 1)), rng.uniform(0, FIELD_HEIGHT), 9)
-                     for _ in range(4)]
+            rocks = [rock(rng.choice((0, FIELD_WIDTH - 1)), rng.uniform(0, FIELD_HEIGHT), 9) for _ in range(4)]
         for r in rocks:
             r["x"] = (r["x"] + r["vx"]) % FIELD_WIDTH
             r["y"] = (r["y"] + r["vy"]) % FIELD_HEIGHT
@@ -129,33 +151,32 @@ def asteroids(rng, host):
         else:
             target = min(rocks, key=lambda r: math.dist((cx, cy), (r["x"], r["y"])))
             lead = math.dist((cx, cy), (target["x"], target["y"])) / 3
-            aim = math.atan2(target["y"] + target["vy"] * lead - cy,
-                             target["x"] + target["vx"] * lead - cx)
+            aim = math.atan2(target["y"] + target["vy"] * lead - cy, target["x"] + target["vx"] * lead - cx)
             turn = (aim - angle + math.pi) % (2 * math.pi) - math.pi
             angle += max(-0.12, min(0.12, turn))
             cooldown = max(0, cooldown - 1)
             if abs(turn) < 0.1 and not cooldown:
-                bullets.append([cx + 6 * math.cos(angle), cy + 6 * math.sin(angle),
-                    3 * math.cos(angle), 3 * math.sin(angle), 30])
+                bullets.append(
+                    [cx + 6 * math.cos(angle), cy + 6 * math.sin(angle), 3 * math.cos(angle), 3 * math.sin(angle), 30]
+                )
                 cooldown = 7
         for bullet in bullets:
             bullet[0] = (bullet[0] + bullet[2]) % FIELD_WIDTH
             bullet[1] = (bullet[1] + bullet[3]) % FIELD_HEIGHT
             bullet[4] -= 1
         for bullet in list(bullets):
-            hit = next((r for r in rocks
-                if math.dist(bullet[:2], (r["x"], r["y"])) < r["r"] + 1), None)
+            hit = next((r for r in rocks if math.dist(bullet[:2], (r["x"], r["y"])) < r["r"] + 1), None)
             if hit:
                 bullets.remove(bullet)
                 rocks.remove(hit)
                 score += points_for[hit["r"]]
                 explode(hit["x"], hit["y"], hit["r"])
                 if hit["r"] > 3:
-                    rocks += [rock(hit["x"], hit["y"], 5 if hit["r"] == 9 else 3)
-                              for _ in range(2)]
+                    rocks += [rock(hit["x"], hit["y"], 5 if hit["r"] == 9 else 3) for _ in range(2)]
         bullets = [bullet for bullet in bullets if bullet[4] > 0]
-        crash = None if respawn else next((r for r in rocks
-            if math.dist((cx, cy), (r["x"], r["y"])) < r["r"] + 3), None)
+        crash = (
+            None if respawn else next((r for r in rocks if math.dist((cx, cy), (r["x"], r["y"])) < r["r"] + 3), None)
+        )
         if crash:
             rocks.remove(crash)
             explode(cx, cy, 20)
@@ -170,14 +191,26 @@ def asteroids(rng, host):
         image = field()
         draw = ImageDraw.Draw(image)
         for r in rocks:
-            draw.polygon([(r["x"] + r["r"] * m * math.cos(r["turn"] + 2 * math.pi * k / 9),
-                           r["y"] + r["r"] * m * math.sin(r["turn"] + 2 * math.pi * k / 9))
-                          for k, m in enumerate(r["shape"])], outline=INK)
+            draw.polygon(
+                [
+                    (
+                        r["x"] + r["r"] * m * math.cos(r["turn"] + 2 * math.pi * k / 9),
+                        r["y"] + r["r"] * m * math.sin(r["turn"] + 2 * math.pi * k / 9),
+                    )
+                    for k, m in enumerate(r["shape"])
+                ],
+                outline=INK,
+            )
         if not respawn:
-            draw.polygon([(cx + 5 * math.cos(angle + a), cy + 5 * math.sin(angle + a))
-                          if a == 0 else
-                          (cx + 4 * math.cos(angle + a), cy + 4 * math.sin(angle + a))
-                          for a in (0, 2.5, math.pi, -2.5)], outline=INK)
+            draw.polygon(
+                [
+                    (cx + 5 * math.cos(angle + a), cy + 5 * math.sin(angle + a))
+                    if a == 0
+                    else (cx + 4 * math.cos(angle + a), cy + 4 * math.sin(angle + a))
+                    for a in (0, 2.5, math.pi, -2.5)
+                ],
+                outline=INK,
+            )
         for x, y, *_ in bullets + sparks:
             draw.point((x, y), fill=INK)
         stamp(image, host.font.render_line(str(score)), 1, 1)
@@ -186,21 +219,37 @@ def asteroids(rng, host):
             draw.polygon([(x, 1), (x - 2, 6), (x + 2, 6)], outline=INK)
         yield image
 
+
 INVADERS = [  # (points, two animation frames), top row first
-    (30, [sprite(["...##...", "..####..", ".##..##.", "########", "..#..#..", ".#.##.#."]),
-          sprite(["...##...", "..####..", ".##..##.", "########", ".#.##.#.", "#......#"])]),
-    (20, [sprite(["..#..#..", "#.####.#", "##.##.##", "########", ".#....#.", "#......#"]),
-          sprite(["..#..#..", "..####..", ".#.##.#.", "########", "#.#..#.#", ".#....#."])]),
-    (10, [sprite(["..####..", ".######.", "##.##.##", "########", ".##..##.", "##....##"]),
-          sprite(["..####..", ".######.", "##.##.##", "########", "..#..#..", ".#.##.#."])]),
+    (
+        30,
+        [
+            sprite(["...##...", "..####..", ".##..##.", "########", "..#..#..", ".#.##.#."]),
+            sprite(["...##...", "..####..", ".##..##.", "########", ".#.##.#.", "#......#"]),
+        ],
+    ),
+    (
+        20,
+        [
+            sprite(["..#..#..", "#.####.#", "##.##.##", "########", ".#....#.", "#......#"]),
+            sprite(["..#..#..", "..####..", ".#.##.#.", "########", "#.#..#.#", ".#....#."]),
+        ],
+    ),
+    (
+        10,
+        [
+            sprite(["..####..", ".######.", "##.##.##", "########", ".##..##.", "##....##"]),
+            sprite(["..####..", ".######.", "##.##.##", "########", "..#..#..", ".#.##.#."]),
+        ],
+    ),
 ]
 CANNON = sprite(["...#...", "..###..", "#######", "#######"])
 SAUCER = sprite(["..####..", ".######.", "#.#.#.#.", ".##..##."])
 BLAST = sprite(["#..#..#.", ".#.#.#..", "#......#", "..#.#.#.", ".#..#..#"])
-BUNKER = sprite(["..########..", ".##########.", "############", "############",
-                 "####....####", "###......###"])
+BUNKER = sprite(["..########..", ".##########.", "############", "############", "####....####", "###......###"])
 
-def invaders(rng, host):
+
+def invaders(rng, host):  # noqa: C901
     """Marching invaders, a cannon that picks them off, bombs, crumbling
     bunkers and a passing saucer"""
 
@@ -217,7 +266,7 @@ def invaders(rng, host):
         bombs, blasts = [], []
 
         def position(row, column):
-            return grid_x + 12 * column, grid_y + 9 * row
+            return grid_x + 12 * column, grid_y + 9 * row  # noqa: B023
 
         while alive and max(position(*invader)[1] for invader in alive) + 6 < bunker_y:
             tick += 1
@@ -242,9 +291,14 @@ def invaders(rng, host):
                 for _ in range(3):
                     shot[1] -= 1
                     x, y = round(shot[0]), round(shot[1])
-                    hit = next((invader for invader in alive
-                        if 0 <= x - position(*invader)[0] < 8
-                        and 0 <= y - position(*invader)[1] < 6), None)
+                    hit = next(
+                        (
+                            invader
+                            for invader in alive
+                            if 0 <= x - position(*invader)[0] < 8 and 0 <= y - position(*invader)[1] < 6
+                        ),
+                        None,
+                    )
                     if y < score_height:
                         shot = None
                     elif hit:
@@ -304,6 +358,7 @@ def invaders(rng, host):
             stamp(image, host.font.render_line(f"SCORE {score}"), 0, 0)
             yield image
 
+
 GAMES = {"pong": pong, "asteroids": asteroids, "invaders": invaders}
 
 # --------------------------------------------------------------------------- #
@@ -314,12 +369,16 @@ GAMES = {"pong": pong, "asteroids": asteroids, "invaders": invaders}
 
 LIFT_SCALE = 0.8
 
+
 def shape_points(kind, data):
     return oval(*data) if kind in ("oval", "ring", "dot") else data
 
-LIFT_BODY = [(kind, data) for kind, data in SUBJECTS["forklift"][1]  # no mast, forks, crate
-             if max(x for x, _ in shape_points(kind, data)) <= 46
-             and min(x for x, _ in shape_points(kind, data)) != 41]
+
+LIFT_BODY = [
+    (kind, data)
+    for kind, data in SUBJECTS["forklift"][1]  # no mast, forks, crate
+    if max(x for x, _ in shape_points(kind, data)) <= 46 and min(x for x, _ in shape_points(kind, data)) != 41
+]
 LIFT_MAST = (41 * LIFT_SCALE, 46 * LIFT_SCALE)  # the mast's columns, from the left
 LIFT_MAST_TOP = round(GROUND - 1 - (57 - 6) * LIFT_SCALE) + 4  # 4 rows shorter: inner mast shows
 LIFT_CARRIAGE = 48 * LIFT_SCALE  # the carriage (the forks' upright), from the left
@@ -334,14 +393,22 @@ PALLET_SLOTS = 1  # a pallet rests on the forks with its bottom this many rows b
 GROUND_SPOTS = (32, RACK_X - PALLET_WIDTH - 4)  # where a pallet can stand on the ground
 LIFT_X_MAX = RACK_X - 1 - LIFT_MAST[1]  # the forklift's furthest x: mast short of the rack
 
+
 def pallet_lines(left, bottom):
     """The lines a pallet and its crate are made of (the pieces it breaks into)"""
 
     right, top = left + PALLET_WIDTH - 1, bottom - PALLET_HEIGHT + 1
-    return [((left + 1, top), (right - 1, top)), ((left + 1, bottom - 3), (right - 1, bottom - 3)),
-            ((left + 1, top), (left + 1, bottom - 3)), ((right - 1, top), (right - 1, bottom - 3)),
-            ((left + 1, top), (right - 1, bottom - 3)), ((right - 1, top), (left + 1, bottom - 3)),
-            ((left, bottom - 2), (right, bottom - 2)), ((left, bottom), (right, bottom))]
+    return [
+        ((left + 1, top), (right - 1, top)),
+        ((left + 1, bottom - 3), (right - 1, bottom - 3)),
+        ((left + 1, top), (left + 1, bottom - 3)),
+        ((right - 1, top), (right - 1, bottom - 3)),
+        ((left + 1, top), (right - 1, bottom - 3)),
+        ((right - 1, top), (left + 1, bottom - 3)),
+        ((left, bottom - 2), (right, bottom - 2)),
+        ((left, bottom), (right, bottom)),
+    ]
+
 
 def draw_pallet(draw, left, bottom):
     """A pallet with a crate on it, like the one in the forklift drawing"""
@@ -358,14 +425,14 @@ def draw_pallet(draw, left, bottom):
     for x in (left, (left + right) // 2 - 1, right - 1):
         draw.rectangle((x, bottom - 1, x + 1, bottom - 1), fill=INK)
 
+
 def draw_forklift(draw, x, forks):
     """The forklift with its left at column x and its forks at row forks"""
 
     def screen(points):
         return [(x + px * LIFT_SCALE, GROUND - 1 - (57 - py) * LIFT_SCALE) for px, py in points]
 
-    draw.rectangle((x + LIFT_MAST[0], LIFT_MAST_TOP, x + LIFT_MAST[1], GROUND - 1),
-        fill=0, outline=INK)
+    draw.rectangle((x + LIFT_MAST[0], LIFT_MAST_TOP, x + LIFT_MAST[1], GROUND - 1), fill=0, outline=INK)
     for kind, data in LIFT_BODY:
         points = screen(shape_points(kind, data))
         if kind == "line":
@@ -374,10 +441,12 @@ def draw_forklift(draw, x, forks):
             draw.polygon(points, fill=INK if kind in ("dot", "blob") else 0, outline=INK)
     carriage, top = x + LIFT_CARRIAGE, forks - CARRIAGE_HEIGHT
     if top - INNER_MAST_ABOVE < LIFT_MAST_TOP:  # the inner mast slides up
-        draw.rectangle((x + 42 * LIFT_SCALE, top - INNER_MAST_ABOVE,
-            x + 45 * LIFT_SCALE, LIFT_MAST_TOP), fill=0, outline=INK)
+        draw.rectangle(
+            (x + 42 * LIFT_SCALE, top - INNER_MAST_ABOVE, x + 45 * LIFT_SCALE, LIFT_MAST_TOP), fill=0, outline=INK
+        )
     draw.line((carriage, top, carriage, forks), fill=INK)
     draw.line((carriage, forks, carriage + FORK_LENGTH, forks), fill=INK)
+
 
 def draw_warehouse(x, forks, pallet, pieces=()):
     """The ground, racking bay, forklift and pallet (if any), and the pieces
@@ -397,6 +466,7 @@ def draw_warehouse(x, forks, pallet, pieces=()):
         draw.line((x0, y0, x1, y1), fill=INK)
     return image
 
+
 def forklift_work(rng, host):
     """Frames of the forklift moving the pallet between the ground and random
     rack levels by itself, for ever"""
@@ -405,8 +475,7 @@ def forklift_work(rng, host):
     at_rack = RACK_X + 1 - LIFT_CARRIAGE  # x with its pallet in the rack
     before_rack = RACK_X - PALLET_WIDTH - 2 - LIFT_CARRIAGE  # x with the pallet clear
     mirrored = rng.random() < 0.5  # the rack on the left instead
-    state = {"x": 0.0, "forks": float(FORKS_CARRY), "carried": False,
-             "pallet": None, "level": None, "moves": 0}
+    state = {"x": 0.0, "forks": float(FORKS_CARRY), "carried": False, "pallet": None, "level": None, "moves": 0}
     if rng.random() < 0.5:
         state["level"] = rng.choice(list(LEVELS))
         state["pallet"] = [RACK_X + 2, LEVELS[state["level"]]]
@@ -418,8 +487,7 @@ def forklift_work(rng, host):
 
     def frame():
         if state["carried"]:
-            state["pallet"] = [round(state["x"] + LIFT_CARRIAGE) + 1,
-                               round(state["forks"]) + PALLET_SLOTS]
+            state["pallet"] = [round(state["x"] + LIFT_CARRIAGE) + 1, round(state["forks"]) + PALLET_SLOTS]
         image = draw_warehouse(state["x"], state["forks"], state["pallet"])
         if mirrored:
             image = image.transpose(Image.FLIP_LEFT_RIGHT)
@@ -430,8 +498,7 @@ def forklift_work(rng, host):
     def go(key, target, speed):
         while state[key] != target:
             step = target - state[key]
-            state[key] = target if abs(step) <= speed  \
-                else state[key] + math.copysign(speed, step)
+            state[key] = target if abs(step) <= speed else state[key] + math.copysign(speed, step)
             yield frame()
 
     def pause(frames):
@@ -479,10 +546,12 @@ def forklift_work(rng, host):
         state["moves"] += 1
         yield from pause(15)
 
+
 def overlap(start, end, other_start, other_end):
     """How far two ranges (ends included) overlap: 0 or more when they touch"""
 
     return min(end, other_end) - max(start, other_start)
+
 
 class ForkliftGame:
     """The forklift game: drive and lift with the arrow keys to put the
@@ -522,8 +591,7 @@ class ForkliftGame:
         carriage = (self.x if x is None else x) + LIFT_CARRIAGE
         forks = self.forks if forks is None else forks
         left, right, _, bottom = self.pallet_box()
-        return overlap(carriage, carriage + FORK_LENGTH, left, right) >= 4  \
-            and bottom - PALLET_SLOTS <= forks <= bottom
+        return overlap(carriage, carriage + FORK_LENGTH, left, right) >= 4 and bottom - PALLET_SLOTS <= forks <= bottom
 
     def on_forks(self):
         return self.pieces == [] and self.falling is None and self.forks_in_slots()
@@ -534,8 +602,14 @@ class ForkliftGame:
         left, right, _, bottom = self.pallet_box(left, bottom)
         if bottom >= GROUND - 1:
             return "ground"
-        return next((level for level, row in BEAMS.items() if bottom + 1 == row
-                     and overlap(left, right, RACK_X, RACK_X + RACK_WIDTH) >= 0), None)
+        return next(
+            (
+                level
+                for level, row in BEAMS.items()
+                if bottom + 1 == row and overlap(left, right, RACK_X, RACK_X + RACK_WIDTH) >= 0
+            ),
+            None,
+        )
 
     def balanced(self):
         middle = self.pallet[0] + PALLET_WIDTH / 2
@@ -549,15 +623,15 @@ class ForkliftGame:
         support = self.support()
         in_bay = RACK_X <= self.pallet[0] + PALLET_WIDTH / 2 <= RACK_X + RACK_WIDTH
         if support == "ground":
-            return "bay 0" if in_bay else "ground"  \
-                if self.pallet[0] + PALLET_WIDTH <= RACK_X else None
+            return "bay 0" if in_bay else "ground" if self.pallet[0] + PALLET_WIDTH <= RACK_X else None
         return f"bay {support}" if support else None
 
     @staticmethod
     def hits_rack(left, right, top, bottom):
-        return any(overlap(left, right, RACK_X, RACK_X + RACK_WIDTH) >= 0
-                   and overlap(top, bottom, row, row + 1) >= 0
-                   for row in (RACK_TOP, *BEAMS.values()))
+        return any(
+            overlap(left, right, RACK_X, RACK_X + RACK_WIDTH) >= 0 and overlap(top, bottom, row, row + 1) >= 0
+            for row in (RACK_TOP, *BEAMS.values())
+        )
 
     # Moving
 
@@ -572,8 +646,9 @@ class ForkliftGame:
             elif forks < self.forks:  # the forks lift it off the beam or ground
                 new_bottom = min(bottom, forks + PALLET_SLOTS)
         carriage = x + LIFT_CARRIAGE
-        if self.hits_rack(carriage, carriage + FORK_LENGTH, forks, forks) or  \
-                self.hits_rack(carriage, carriage, forks - CARRIAGE_HEIGHT, forks):
+        if self.hits_rack(carriage, carriage + FORK_LENGTH, forks, forks) or self.hits_rack(
+            carriage, carriage, forks - CARRIAGE_HEIGHT, forks
+        ):
             return False
         if not self.pieces:
             box = self.pallet_box(new_left, new_bottom)
@@ -582,15 +657,21 @@ class ForkliftGame:
                     return False
             else:  # the forks, carriage and mast against the pallet standing still
                 p_left, p_right, p_top, p_bottom = box
-                if overlap(carriage, carriage + FORK_LENGTH, p_left, p_right) >= 0  \
-                        and p_top <= forks <= p_bottom  \
-                        and not p_bottom - PALLET_SLOTS <= forks <= p_bottom:
+                if (
+                    overlap(carriage, carriage + FORK_LENGTH, p_left, p_right) >= 0
+                    and p_top <= forks <= p_bottom
+                    and not p_bottom - PALLET_SLOTS <= forks <= p_bottom
+                ):
                     return False
-                if overlap(carriage, carriage, p_left, p_right) >= 0 and  \
-                        overlap(forks - CARRIAGE_HEIGHT, forks, p_top, p_bottom) >= 0:
+                if (
+                    overlap(carriage, carriage, p_left, p_right) >= 0
+                    and overlap(forks - CARRIAGE_HEIGHT, forks, p_top, p_bottom) >= 0
+                ):
                     return False
-                if overlap(x + LIFT_MAST[0], x + LIFT_MAST[1], p_left, p_right) >= 0 and  \
-                        overlap(LIFT_MAST_TOP, GROUND - 1, p_top, p_bottom) >= 0:
+                if (
+                    overlap(x + LIFT_MAST[0], x + LIFT_MAST[1], p_left, p_right) >= 0
+                    and overlap(LIFT_MAST_TOP, GROUND - 1, p_top, p_bottom) >= 0
+                ):
                     return False
         self.x, self.forks, self.pallet = x, forks, [new_left, new_bottom]
         return True
@@ -630,8 +711,10 @@ class ForkliftGame:
 
     def break_pallet(self):
         self.broken += 1
-        self.pieces = [[x0, y0, x1, y1, self.rng.uniform(-1.5, 1.5), self.rng.uniform(-2.5, -0.5)]
-                       for (x0, y0), (x1, y1) in pallet_lines(*self.pallet)]
+        self.pieces = [
+            [x0, y0, x1, y1, self.rng.uniform(-1.5, 1.5), self.rng.uniform(-2.5, -0.5)]
+            for (x0, y0), (x1, y1) in pallet_lines(*self.pallet)
+        ]
         self.new_pallet_at = self.frame_no + round(2.5 * self.fps)
         self.show_message("Broken!")
         self.host.status(f"broken_{self.broken}")
@@ -652,15 +735,17 @@ class ForkliftGame:
                 piece[4], piece[5] = piece[4] * 0.5, -piece[5] * 0.3 if piece[5] > 1 else 0
         if self.frame_no >= self.new_pallet_at:
             carriage = self.x + LIFT_CARRIAGE
-            spots = [left for left in range(*GROUND_SPOTS)
-                     if left > carriage + FORK_LENGTH + 3 or left + PALLET_WIDTH < self.x]
+            spots = [
+                left
+                for left in range(*GROUND_SPOTS)
+                if left > carriage + FORK_LENGTH + 3 or left + PALLET_WIDTH < self.x
+            ]
             self.pieces = []
             self.pallet = [float(self.rng.choice(spots or [GROUND_SPOTS[1]])), GROUND - 1]
             self.new_target()
 
     def new_target(self):
-        self.target = self.rng.choice([target for target in self.TARGETS
-                                       if target != self.location()])
+        self.target = self.rng.choice([target for target in self.TARGETS if target != self.location()])
         self.started = self.frame_no
         self.host.status("to_" + self.target.replace(" ", "_"))
 
@@ -668,16 +753,16 @@ class ForkliftGame:
         self.message, self.message_until = message, self.frame_no + 2 * self.fps
 
     def frame(self):
-        image = draw_warehouse(self.x, self.forks, None if self.pieces else self.pallet,
-                               self.pieces)
+        image = draw_warehouse(self.x, self.forks, None if self.pieces else self.pallet, self.pieces)
         seconds = (self.frame_no - self.started) / self.fps
-        line = self.message if self.frame_no < self.message_until  \
-            else f"To {self.target}  {seconds:.1f}s"
+        line = self.message if self.frame_no < self.message_until else f"To {self.target}  {seconds:.1f}s"
         stamp(image, self.host.font.render_line(line), 1, 0)
         return image
 
+
 # --------------------------------------------------------------------------- #
 # Applets
+
 
 class GeneratorApplet(Applet):
     """An applet whose frames come from a generator function
@@ -691,15 +776,15 @@ class GeneratorApplet(Applet):
 
     def __init__(self, host, words=(), options=None):
         super().__init__(host, words, options)
-        self.rng = host.rng if "seed" not in self.options  \
-            else __import__("random").Random(self.options["seed"])
+        self.rng = host.rng if "seed" not in self.options else __import__("random").Random(self.options["seed"])
         self._frames = type(self).generator(self.rng, host)
 
     def step(self):
         try:
             return next(self._frames)
         except StopIteration:
-            raise AppletDone
+            raise AppletDone from None
+
 
 class PongApplet(GeneratorApplet):
     name = "pong"
@@ -707,17 +792,20 @@ class PongApplet(GeneratorApplet):
     summary = "Self-playing pong"
     generator = staticmethod(pong)
 
+
 class AsteroidsApplet(GeneratorApplet):
     name = "asteroids"
     description = "asteroids"
     summary = "Self-playing asteroids"
     generator = staticmethod(asteroids)
 
+
 class InvadersApplet(GeneratorApplet):
     name = "invaders"
     description = "invaders"
     summary = "Self-playing space invaders"
     generator = staticmethod(invaders)
+
 
 class GamesApplet(Applet):
     """The three games in turn, "duration" seconds each"""
@@ -730,8 +818,7 @@ class GamesApplet(Applet):
 
     def __init__(self, host, words=(), options=None):
         super().__init__(host, words, options)
-        self.rng = host.rng if "seed" not in self.options  \
-            else __import__("random").Random(self.options["seed"])
+        self.rng = host.rng if "seed" not in self.options else __import__("random").Random(self.options["seed"])
         self.duration = max(1.0, self.options.get("duration", 20.0))
         self._names = list(GAMES)
         self._turn = -1
@@ -750,6 +837,7 @@ class GamesApplet(Applet):
             self._next_game()
         self._left -= 1
         return next(self._frames)
+
 
 class ForkliftApplet(GeneratorApplet):
     """The forklift at work by itself; "duration" seconds, 0 for ever"""
@@ -772,6 +860,7 @@ class ForkliftApplet(GeneratorApplet):
             self._left -= 1
         return super().step()
 
+
 class ForkliftGameApplet(Applet):
     """The forklift game, driven by (key left|right|up|down)"""
 
@@ -784,14 +873,13 @@ class ForkliftGameApplet(Applet):
 
     def __init__(self, host, words=(), options=None):
         super().__init__(host, words, options)
-        rng = host.rng if "seed" not in self.options  \
-            else __import__("random").Random(self.options["seed"])
+        rng = host.rng if "seed" not in self.options else __import__("random").Random(self.options["seed"])
         self.game = ForkliftGame(rng, host, self.fps)
 
     def step(self):
         self.game.step(self.host.keys_held())
         return self.game.frame()
 
-for applet in (PongApplet, AsteroidsApplet, InvadersApplet,
-                    GamesApplet, ForkliftApplet, ForkliftGameApplet):
+
+for applet in (PongApplet, AsteroidsApplet, InvadersApplet, GamesApplet, ForkliftApplet, ForkliftGameApplet):
     APPLETS[applet.name] = applet

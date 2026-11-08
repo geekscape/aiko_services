@@ -30,6 +30,7 @@ _LOGGER = get_logger(__name__, log_level=_AIKO_LOG_LEVEL_LOCK)
 
 __all__ = ["Lock"]
 
+
 class Lock:
     def __init__(self, name, logger=None):
         self._name = name
@@ -39,8 +40,7 @@ class Lock:
 
     def acquire(self, location):
         if self._in_use and _LOGGER.isEnabledFor(DEBUG):
-            _LOGGER.debug(
-                f'"{self._name}" at "{location}" in use by "{self._in_use}"')
+            _LOGGER.debug(f'"{self._name}" at "{location}" in use by "{self._in_use}"')
 
         self._lock.acquire()
         self._in_use = location

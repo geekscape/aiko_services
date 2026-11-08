@@ -33,6 +33,7 @@ PIPELINE_DEFINITION = """{
 }
 """
 
+
 class StreamError(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("stream_error:0")
@@ -43,6 +44,7 @@ class StreamError(aiko.PipelineElement):
         aiko.process.terminate()  # TODO: Improve Aiko Services Process exit
         diagnostic = "Testing StreamEvent.ERROR"
         return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+
 
 def test_stream_error():
     do_create_pipeline(PIPELINE_DEFINITION)

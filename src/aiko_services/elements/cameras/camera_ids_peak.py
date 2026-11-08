@@ -33,45 +33,49 @@
 
 import glob
 import os
+from contextlib import suppress
 
 import numpy as np
 
 from aiko_services.elements.cameras import camera
 
-__all__ = ["IDS_PEAK_DIAGNOSTIC", "IDS_PEAK_IMPORTED", "IdsPeakCamera",
-           "ensure_gentl_path"]
+__all__ = ["IDS_PEAK_DIAGNOSTIC", "IDS_PEAK_IMPORTED", "IdsPeakCamera", "ensure_gentl_path"]
 
 IDS_PEAK_IMPORTED = False
 IDS_PEAK_DIAGNOSTIC = ""
 try:
     from ids_peak import ids_peak, ids_peak_ipl_extension
     from ids_peak_ipl import ids_peak_ipl
+
     IDS_PEAK_IMPORTED = True
 except ImportError:
     ids_peak = ids_peak_ipl_extension = ids_peak_ipl = None
-    IDS_PEAK_DIAGNOSTIC = "camera_ids_peak.py: the IDS peak bindings are "  \
-        'not installed (Linux and Windows only): pip install '  \
-        '"aiko_services[ids_peak]", plus the native IDS peak SDK, which '  \
+    IDS_PEAK_DIAGNOSTIC = (
+        "camera_ids_peak.py: the IDS peak bindings are "
+        "not installed (Linux and Windows only): pip install "
+        '"aiko_services[ids_peak]", plus the native IDS peak SDK, which '
         "provides the GenTL producer (.cti)"
+    )
 
 CTI_SEARCH_PATTERNS = [
-    "/usr/lib/*/ids-peak/cti",            # ids-peak Debian / Ubuntu packages
+    "/usr/lib/*/ids-peak/cti",  # ids-peak Debian / Ubuntu packages
     "/usr/lib/ids-peak/cti",
     "/usr/lib/ids/cti",
     "/usr/lib/*/ids/cti",
     "/usr/local/lib/ids/cti",
     "/opt/ids-peak*/lib/*/ids-peak/cti",  # tarball install under /opt
 ]
-FRAME_RATE_NODES = (                      # probed in order
+FRAME_RATE_NODES = (  # probed in order
     ("AcquisitionFrameRateEnable", "AcquisitionFrameRate"),
-    ("AcquisitionFrameRateTargetEnable", "AcquisitionFrameRateTarget"))
+    ("AcquisitionFrameRateTargetEnable", "AcquisitionFrameRateTarget"),
+)
 DECIMATION_NODES = ("DecimationHorizontal", "DecimationVertical")
 BINNING_NODES = ("BinningHorizontal", "BinningVertical")
 DECIMATION_CANDIDATES = (1, 2, 3, 4, 8)
-TARGET_PIXEL_FORMAT = "BayerRG8"          # raw Bayer: debayer on the host
-WHITE_BALANCE_ENTRIES = {"continuous": "Continuous", "once": "Once",
-                         "off": "Off"}
-AUTO_TARGET_RANGE = (3, 253)              # BrightnessAutoTarget, 8-bit
+TARGET_PIXEL_FORMAT = "BayerRG8"  # raw Bayer: debayer on the host
+WHITE_BALANCE_ENTRIES = {"continuous": "Continuous", "once": "Once", "off": "Off"}
+AUTO_TARGET_RANGE = (3, 253)  # BrightnessAutoTarget, 8-bit
+
 
 def ensure_gentl_path():
     """GENICAM_GENTL64_PATH, set from the standard install locations when
@@ -85,14 +89,23 @@ def ensure_gentl_path():
                 break
     return os.environ.get("GENICAM_GENTL64_PATH")
 
+
 # --------------------------------------------------------------------------- #
 
-class IdsPeakCamera(camera.Camera):
-    def __init__(self, address=None, resolution=None, frame_rate=None,
-        resize_mode="crop", trigger="off", aux_stream=None, logger=None):
 
-        super().__init__(address, resolution, frame_rate, resize_mode,
-                         trigger, aux_stream, logger)
+class IdsPeakCamera(camera.Camera):
+    def __init__(
+        self,
+        address=None,
+        resolution=None,
+        frame_rate=None,
+        resize_mode="crop",
+        trigger="off",
+        aux_stream=None,
+        logger=None,
+    ):
+
+        super().__init__(address, resolution, frame_rate, resize_mode, trigger, aux_stream, logger)
         self.device = None
         self.nodemap = None
         self.stream = None
@@ -140,10 +153,8 @@ class IdsPeakCamera(camera.Camera):
     def _set_integer(self, name, value):
         node = self._node(name)
         increment = 1
-        try:
+        with suppress(Exception):
             increment = max(1, int(node.Increment()))
-        except Exception:
-            pass
         value = int(value) - int(value) % increment
         value = int(min(max(value, node.Minimum()), node.Maximum()))
         node.SetValue(value)
@@ -165,43 +176,53 @@ class IdsPeakCamera(camera.Camera):
                 "GENICAM_GENTL64_PATH is not set and no GenTL producer "
                 "(.cti) was found in the standard locations: is the native "
                 "IDS peak SDK installed?  Locate it with "
-                "\"find /usr /opt -name '*.cti'\" and export the directory")
+                "\"find /usr /opt -name '*.cti'\" and export the directory"
+            )
 
         ids_peak.Library.Initialize()
         self._library_initialized = True
         device_manager = ids_peak.DeviceManager.Instance()
-        device_manager.Update()               # GVCP broadcast discovery
-        descriptors = [descriptor for descriptor in device_manager.Devices()
-            if descriptor.IsOpenable(ids_peak.DeviceAccessType_Control)]
+        device_manager.Update()  # GVCP broadcast discovery
+        descriptors = [
+            descriptor
+            for descriptor in device_manager.Devices()
+            if descriptor.IsOpenable(ids_peak.DeviceAccessType_Control)
+        ]
         if self.address:
-            descriptors = [descriptor for descriptor in descriptors
-                if any(self.address in text for text in (
-                    self._try(descriptor.DisplayName, ""),
-                    self._try(descriptor.Key, ""),
-                    self._try(descriptor.SerialNumber, "")))]
+            descriptors = [
+                descriptor
+                for descriptor in descriptors
+                if any(
+                    self.address in text
+                    for text in (
+                        self._try(descriptor.DisplayName, ""),
+                        self._try(descriptor.Key, ""),
+                        self._try(descriptor.SerialNumber, ""),
+                    )
+                )
+            ]
         if not descriptors:
             matching = f" matching {self.address!r}" if self.address else ""
             raise RuntimeError(
                 f"No openable GigE camera found{matching}: check the "
                 "camera's IP configuration (IDS IP Config) and "
-                "GENICAM_GENTL64_PATH")
+                "GENICAM_GENTL64_PATH"
+            )
 
-        self.device = descriptors[0].OpenDevice(
-            ids_peak.DeviceAccessType_Control)
+        self.device = descriptors[0].OpenDevice(ids_peak.DeviceAccessType_Control)
         self.nodemap = self.device.RemoteDevice().NodeMaps()[0]
         self._node("UserSetSelector").SetCurrentEntry("Default")
-        self._execute("UserSetLoad")          # known-good starting point
+        self._execute("UserSetLoad")  # known-good starting point
 
-        native = (self._try(lambda: int(self._node("WidthMax").Value()),
-                            camera.NATIVE_RESOLUTION[0]),
-                  self._try(lambda: int(self._node("HeightMax").Value()),
-                            camera.NATIVE_RESOLUTION[1]))
+        native = (
+            self._try(lambda: int(self._node("WidthMax").Value()), camera.NATIVE_RESOLUTION[0]),
+            self._try(lambda: int(self._node("HeightMax").Value()), camera.NATIVE_RESOLUTION[1]),
+        )
         aoi, decimation, self._host_size = camera.plan_resolution(
-            native, self._resolution, self.resize_mode,
-            self._decimation_candidates())
+            native, self._resolution, self.resize_mode, self._decimation_candidates()
+        )
         self._apply_geometry(aoi, decimation)
-        self._try(lambda: self._node("PixelFormat").SetCurrentEntry(
-            TARGET_PIXEL_FORMAT))             # else keep the user set's
+        self._try(lambda: self._node("PixelFormat").SetCurrentEntry(TARGET_PIXEL_FORMAT))  # else keep the user set's
 
         if self.trigger == "software":
             try:
@@ -223,8 +244,7 @@ class IdsPeakCamera(camera.Camera):
         for _ in range(self._buffer_count):
             buffer = self.stream.AllocAndAnnounceBuffer(payload_size)
             self.stream.QueueBuffer(buffer)
-        self._pixel_format = self._try(lambda: self._node("PixelFormat")
-            .CurrentEntry().SymbolicValue(), "-")
+        self._pixel_format = self._try(lambda: self._node("PixelFormat").CurrentEntry().SymbolicValue(), "-")
         self.converter = ids_peak_ipl.ImageConverter()  # reuse: no reallocs
         self._node("TLParamsLocked").SetValue(1)
         self.stream.StartAcquisition()
@@ -232,8 +252,7 @@ class IdsPeakCamera(camera.Camera):
 
         width = self._try(lambda: int(self._node("Width").Value()))
         height = self._try(lambda: int(self._node("Height").Value()))
-        self._resolution = self._host_size or (
-            (width, height) if width and height else self._resolution)
+        self._resolution = self._host_size or ((width, height) if width and height else self._resolution)
 
     def _decimation_candidates(self):
         for names in (DECIMATION_NODES, BINNING_NODES):
@@ -242,6 +261,7 @@ class IdsPeakCamera(camera.Camera):
                 low, high = int(node.Minimum()), int(node.Maximum())
                 return [c for c in DECIMATION_CANDIDATES if low <= c <= high]
             except Exception:
+                self._log("debug", f"failed to get decimation candidates from {names[0]}")
                 continue
         return [1]
 
@@ -258,10 +278,10 @@ class IdsPeakCamera(camera.Camera):
                     applied = True
                     break
                 except Exception:
+                    self._log("debug", f"failed to apply decimation {decimation} with {names}")
                     continue
             if not applied:
-                self._log("warning", f"decimation {decimation} not "
-                          "accepted, resizing on the host instead")
+                self._log("warning", f"decimation {decimation} not accepted, resizing on the host instead")
                 if self._resolution:
                     self._host_size = tuple(self._resolution)
                 decimation = 1
@@ -274,16 +294,15 @@ class IdsPeakCamera(camera.Camera):
     def _apply_frame_rate(self, frame_rate):
         for enable_name, rate_name in FRAME_RATE_NODES:
             try:
-                self._try(lambda: self._node(enable_name).SetValue(True))
+                self._try(lambda: self._node(enable_name).SetValue(True))  # noqa: B023
                 actual = self._set_float(rate_name, frame_rate)
                 if abs(actual - frame_rate) > 0.01:
-                    self._log("warning", f"frame_rate {frame_rate} clamped "
-                              f"to {actual:.2f} by the camera")
+                    self._log("warning", f"frame_rate {frame_rate} clamped to {actual:.2f} by the camera")
                 return actual
             except Exception:
+                self._log("debug", f"failed to apply frame rate {frame_rate} with {enable_name}/{rate_name}")
                 continue
-        self._log("warning", "the camera has no frame rate node: running "
-                  "at its own rate")
+        self._log("warning", "the camera has no frame rate node: running at its own rate")
         return None
 
     def set_exposure(self, exposure_us):
@@ -292,25 +311,21 @@ class IdsPeakCamera(camera.Camera):
 
     def set_gain(self, gain):
         with self.lock:
-            self._try(lambda: self._node("GainSelector").SetCurrentEntry(
-                "AnalogAll"))                 # single-gain models: no node
+            self._try(lambda: self._node("GainSelector").SetCurrentEntry("AnalogAll"))  # single-gain models: no node
             return self._set_float("Gain", gain)
 
     # The camera's own auto features -------------------------------------- #
 
     def _has_entry(self, name, entry):
         try:
-            return any(item.SymbolicValue() == entry
-                       for item in self._node(name).Entries())
+            return any(item.SymbolicValue() == entry for item in self._node(name).Entries())
         except Exception:
             return False
 
     def camera_auto_available(self):
-        return bool(self.nodemap) and self._has_entry(
-            "ExposureAuto", "Continuous")
+        return bool(self.nodemap) and self._has_entry("ExposureAuto", "Continuous")
 
-    def set_camera_auto(self, enable, max_exposure_us=None,
-                        brightness_target=None):
+    def set_camera_auto(self, enable, max_exposure_us=None, brightness_target=None):
         """ExposureAuto and GainAuto Continuous (or Off).  The ceiling is
         BrightnessAutoExposureTimeMax, and BrightnessAutoFramerateLimitMode
         Fixed keeps frame_rate: the auto exposure never slows the camera"""
@@ -319,24 +334,18 @@ class IdsPeakCamera(camera.Camera):
         with self.lock:
             if enable:
                 if max_exposure_us is not None:
-                    self._try(lambda: self._node(
-                        "BrightnessAutoExposureTimeLimitMode")
-                        .SetCurrentEntry("On"))
+                    self._try(lambda: self._node("BrightnessAutoExposureTimeLimitMode").SetCurrentEntry("On"))
                     applied["max_exposure_us"] = self._try(
-                        lambda: self._set_float(
-                            "BrightnessAutoExposureTimeMax",
-                            max_exposure_us))
-                self._try(lambda: self._node(
-                    "BrightnessAutoFramerateLimitMode")
-                    .SetCurrentEntry("Fixed"))
+                        lambda: self._set_float("BrightnessAutoExposureTimeMax", max_exposure_us)
+                    )
+                self._try(lambda: self._node("BrightnessAutoFramerateLimitMode").SetCurrentEntry("Fixed"))
                 if brightness_target is not None:
                     applied["brightness_target"] = self._try(
-                        lambda: self._set_integer(
-                            "BrightnessAutoTarget", brightness_target))
+                        lambda: self._set_integer("BrightnessAutoTarget", brightness_target)
+                    )
             entry = "Continuous" if enable else "Off"
             self._node("ExposureAuto").SetCurrentEntry(entry)
-            self._try(lambda: self._node("GainSelector").SetCurrentEntry(
-                "AnalogAll"))
+            self._try(lambda: self._node("GainSelector").SetCurrentEntry("AnalogAll"))
             self._try(lambda: self._node("GainAuto").SetCurrentEntry(entry))
             self._camera_auto = enable
         return applied
@@ -354,13 +363,10 @@ class IdsPeakCamera(camera.Camera):
         with self.lock:
             if not self.nodemap:
                 return readouts
-            for name, key in (("DeviceTemperature", "temperature_c"),
-                              ("DeviceLinkPacketsDropped",
-                               "packets_dropped")):
-                value = self._try(lambda: self._node(name).Value())
+            for name, key in (("DeviceTemperature", "temperature_c"), ("DeviceLinkPacketsDropped", "packets_dropped")):
+                value = self._try(lambda: self._node(name).Value())  # noqa: B023
                 if value is not None:
-                    readouts[key] = round(float(value), 1)  \
-                        if key == "temperature_c" else int(value)
+                    readouts[key] = round(float(value), 1) if key == "temperature_c" else int(value)
         return readouts
 
     def queued_frames(self):
@@ -377,42 +383,35 @@ class IdsPeakCamera(camera.Camera):
             if self.trigger == "software":
                 self._execute("TriggerSoftware")
             try:
-                buffer = self.stream.WaitForFinishedBuffer(
-                    int(timeout_s * 1000))
+                buffer = self.stream.WaitForFinishedBuffer(int(timeout_s * 1000))
             except Exception as exception:
                 if "Timeout" in type(exception).__name__:
-                    raise camera.CaptureTimeout(
-                        f"GigE camera: no frame within {timeout_s} s")
+                    raise camera.CaptureTimeout(f"GigE camera: no frame within {timeout_s} s") from exception
                 raise
             try:
                 if buffer.IsIncomplete():
                     raise RuntimeError(
-                        "Incomplete buffer (GigE packet loss): set the NIC "
-                        "MTU to 9000 and raise net.core.rmem_max")
+                        "Incomplete buffer (GigE packet loss): set the NIC MTU to 9000 and raise net.core.rmem_max"
+                    )
                 image_raw = ids_peak_ipl_extension.BufferToImage(buffer)
                 image_rgb = self.converter.Convert(  # debayer, copies
-                    image_raw, ids_peak_ipl.PixelFormatName_RGB8)
+                    image_raw, ids_peak_ipl.PixelFormatName_RGB8
+                )
                 image = image_rgb.get_numpy_3D().copy()
             finally:
                 self.stream.QueueBuffer(buffer)
             metadata = {"pixel_format": self._pixel_format}
-            for name, key in (("ExposureTime", "exposure_us"),
-                              ("Gain", "gain")):
-                value = self._try(lambda: float(self._node(name).Value()))
+            for name, key in (("ExposureTime", "exposure_us"), ("Gain", "gain")):
+                value = self._try(lambda: float(self._node(name).Value()))  # noqa: B023
                 if value is not None:
                     metadata[key] = value
-            if self._camera_auto:          # about 0.4 ms per node read
-                for name, key in (("BrightnessAutoStatus", "auto_status"),
-                                  ("BalanceWhiteAutoStatus",
-                                   "white_balance")):
-                    value = self._try(lambda: self._node(name)
-                                      .CurrentEntry().SymbolicValue())
+            if self._camera_auto:  # about 0.4 ms per node read
+                for name, key in (("BrightnessAutoStatus", "auto_status"), ("BalanceWhiteAutoStatus", "white_balance")):
+                    value = self._try(lambda: self._node(name).CurrentEntry().SymbolicValue())  # noqa: B023
                     if value is not None:
                         metadata[key] = value
         if self._host_size:
-            image = camera.resize_image(
-                np.ascontiguousarray(image), self._host_size,
-                self.resize_mode)
+            image = camera.resize_image(np.ascontiguousarray(image), self._host_size, self.resize_mode)
         return image, metadata
 
     def device_id(self):
@@ -424,13 +423,10 @@ class IdsPeakCamera(camera.Camera):
                 if self.nodemap:
                     self._try(lambda: self._execute("AcquisitionStop"))
                 if self.stream:
-                    self._try(lambda: self.stream.StopAcquisition(
-                        ids_peak.AcquisitionStopMode_Default))
-                    self._try(lambda: self.stream.Flush(
-                        ids_peak.DataStreamFlushMode_DiscardAll))
-                    for buffer in self._try(
-                            self.stream.AnnouncedBuffers, []) or []:
-                        self._try(lambda: self.stream.RevokeBuffer(buffer))
+                    self._try(lambda: self.stream.StopAcquisition(ids_peak.AcquisitionStopMode_Default))
+                    self._try(lambda: self.stream.Flush(ids_peak.DataStreamFlushMode_DiscardAll))
+                    for buffer in self._try(self.stream.AnnouncedBuffers, []) or []:
+                        self._try(lambda: self.stream.RevokeBuffer(buffer))  # noqa: B023
                     self.stream = None
                 if self.nodemap:
                     self._try(lambda: self._node("TLParamsLocked").SetValue(0))
@@ -440,5 +436,6 @@ class IdsPeakCamera(camera.Camera):
                 if self._library_initialized:
                     self._try(ids_peak.Library.Close)
                     self._library_initialized = False
+
 
 # --------------------------------------------------------------------------- #

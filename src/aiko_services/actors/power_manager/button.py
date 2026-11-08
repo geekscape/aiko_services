@@ -36,17 +36,24 @@
 #   classify() returns the kind already
 
 import time
+from contextlib import suppress
 
 __all__ = [
-    "BUTTON_ACTIVE_LOW", "BUTTON_GPIO", "DOCK_ACTIVE_LOW", "DOCK_BOUNCE_S",
+    "BUTTON_ACTIVE_LOW",
+    "BUTTON_GPIO",
+    "DOCK_ACTIVE_LOW",
+    "DOCK_BOUNCE_S",
     "DOCK_GPIO",
-    "FakePowerInputs", "GpioPowerInputs", "HOLD_TIME_S", "choose_power_inputs",
+    "FakePowerInputs",
+    "GpioPowerInputs",
+    "HOLD_TIME_S",
+    "choose_power_inputs",
     "classify",
 ]
 
-BUTTON_GPIO = 6                    # BCM, low while held
-DOCK_GPIO = 7                      # BCM, low while docked
-DOCK_BOUNCE_S = 0.05               # Settling, at the edge itself
+BUTTON_GPIO = 6  # BCM, low while held
+DOCK_GPIO = 7  # BCM, low while docked
+DOCK_BOUNCE_S = 0.05  # Settling, at the edge itself
 HOLD_TIME_S = 3.0
 
 # The board pulls both lines up, and each one goes low to mean something.
@@ -55,13 +62,15 @@ HOLD_TIME_S = 3.0
 BUTTON_ACTIVE_LOW = True
 DOCK_ACTIVE_LOW = True
 
+
 def classify(seconds, hold_time_s=HOLD_TIME_S):
-    """"long" when the press lasted at least hold_time_s, else "short".
+    """ "long" when the press lasted at least hold_time_s, else "short".
 
     A pure function of one duration, so the rule that stops a host is
     tested without a button"""
 
     return "long" if seconds >= hold_time_s else "short"
+
 
 class FakePowerInputs:
     """No lines: the test double, and what a platform without them gets.
@@ -93,8 +102,7 @@ class FakePowerInputs:
 
         if kind is None:
             seconds = self.hold_time_s if seconds is None else float(seconds)
-            kind = "held" if classify(seconds, self.hold_time_s) == "long"  \
-                else "short"
+            kind = "held" if classify(seconds, self.hold_time_s) == "long" else "short"
         self._report("button", kind)
         return kind
 
@@ -112,6 +120,7 @@ class FakePowerInputs:
         for handler in self._handlers:
             handler(event, value)
 
+
 class GpioPowerInputs:
     """The button and the dock line through gpiozero.
 
@@ -120,8 +129,7 @@ class GpioPowerInputs:
 
     device = "gpio"
 
-    def __init__(self, button_gpio=BUTTON_GPIO, dock_gpio=DOCK_GPIO,
-        hold_time_s=HOLD_TIME_S, bounce_time=0.05, **_):
+    def __init__(self, button_gpio=BUTTON_GPIO, dock_gpio=DOCK_GPIO, hold_time_s=HOLD_TIME_S, bounce_time=0.05, **_):
 
         self.button_gpio = int(button_gpio)
         self.dock_gpio = int(dock_gpio)
@@ -133,13 +141,13 @@ class GpioPowerInputs:
         self._pressed_at = None
 
     def open(self):
-        from gpiozero import Button, DigitalInputDevice   # Only needed here
+        from gpiozero import Button, DigitalInputDevice  # Only needed here
 
         # Active low: the board pulls both lines up.  With pull_up=False
         # every event arrives inverted and a press is never seen
-        self._button = Button(self.button_gpio,
-            pull_up=BUTTON_ACTIVE_LOW, bounce_time=self.bounce_time,
-            hold_time=self.hold_time_s)
+        self._button = Button(
+            self.button_gpio, pull_up=BUTTON_ACTIVE_LOW, bounce_time=self.bounce_time, hold_time=self.hold_time_s
+        )
         self._button.when_pressed = self._on_pressed
         self._button.when_released = self._on_released
         # Fires while the button is still down, so the operator hears that
@@ -150,9 +158,7 @@ class GpioPowerInputs:
         # policy to decide, so a line that chatters would ask many times
         # in a moment.  The dwell handles slow glitching; this handles the
         # edge itself
-        self._dock = DigitalInputDevice(
-            self.dock_gpio, pull_up=DOCK_ACTIVE_LOW,
-            bounce_time=DOCK_BOUNCE_S)
+        self._dock = DigitalInputDevice(self.dock_gpio, pull_up=DOCK_ACTIVE_LOW, bounce_time=DOCK_BOUNCE_S)
         self._dock.when_activated = self._on_dock
         self._dock.when_deactivated = self._on_dock
 
@@ -165,20 +171,17 @@ class GpioPowerInputs:
 
         if self._dock is None:
             return None
-        return bool(self._dock.value) if DOCK_ACTIVE_LOW  \
-            else not self._dock.value
+        return bool(self._dock.value) if DOCK_ACTIVE_LOW else not self._dock.value
 
     def close(self):
         for device in (self._button, self._dock):
-            try:
+            with suppress(Exception):
                 if device is not None:
                     device.close()
-            except Exception:                            # noqa: BLE001
-                pass
         self._button = self._dock = None
         self._handlers = []
 
-# Every callback below runs on the gpiozero thread, and only reports ------- #
+    # Every callback below runs on the gpiozero thread, and only reports ------- #
 
     def _on_pressed(self):
         self._pressed_at = time.monotonic()
@@ -189,7 +192,7 @@ class GpioPowerInputs:
 
     def _on_released(self):
         if self._pressed_at is None:
-            return                     # A release with no press: ignore it
+            return  # A release with no press: ignore it
         seconds = time.monotonic() - self._pressed_at
         self._pressed_at = None
         self._report("button", f"up {seconds:.2f}")
@@ -200,6 +203,7 @@ class GpioPowerInputs:
     def _report(self, event, value):
         for handler in self._handlers:
             handler(event, value)
+
 
 def choose_power_inputs(inputs="auto", **parameters):
     """The input lines for "inputs": "gpio", "none", or "auto", which is the
@@ -212,8 +216,8 @@ def choose_power_inputs(inputs="auto", **parameters):
         inputs = "gpio" if importlib.util.find_spec("gpiozero") else "none"
     choices = {"gpio": GpioPowerInputs, "none": FakePowerInputs}
     if inputs not in choices:
-        raise ValueError(
-            f'unknown inputs "{inputs}": one of {sorted(choices)}')
+        raise ValueError(f'unknown inputs "{inputs}": one of {sorted(choices)}')
     return choices[inputs](**parameters)
+
 
 # --------------------------------------------------------------------------- #

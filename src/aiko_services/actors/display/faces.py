@@ -23,15 +23,19 @@
 # Presentation and CLI shells) — see e_10 §2.16: plain
 # presentation classes owned by the Actor.
 
-from datetime import datetime
 import math
 import random
+from datetime import datetime
 
 from PIL import Image, ImageChops, ImageDraw
 
 from aiko_services.actors.display.applets import APPLETS, Applet, on_off
 from aiko_services.actors.display.graphics import (
-    FONT_SIZE_MAXIMUM, FONT_SIZE_MINIMUM, INK, Font, stamp,
+    FONT_SIZE_MAXIMUM,
+    FONT_SIZE_MINIMUM,
+    INK,
+    Font,
+    stamp,
 )
 
 __all__ = ["EMOTIONS", "ClockApplet", "EyesApplet"]
@@ -39,12 +43,14 @@ __all__ = ["EMOTIONS", "ClockApplet", "EyesApplet"]
 # --------------------------------------------------------------------------- #
 
 FACES = ("analog", "digital")
-DIGITAL_GAP = 3      # rows of whitespace at least between the digital rows
+DIGITAL_GAP = 3  # rows of whitespace at least between the digital rows
+
 
 def _face(text):
     if text not in FACES:
         raise ValueError(text)
     return text
+
 
 class ClockApplet(Applet):
     """An analog clock face: hour, minute and second hands, the day of the
@@ -67,12 +73,11 @@ class ClockApplet(Applet):
         self.seconds = self.options.get("seconds", True)
         self.description = self.face_name
         self._shown = None
-        self._digital_font = None    # (key, Font): chosen once per day
+        self._digital_font = None  # (key, Font): chosen once per day
 
     def step(self):
         now = datetime.now().replace(microsecond=0)
-        shown = (now if self.seconds else now.replace(second=0), self.host.font,
-                 self.host.title_rows())
+        shown = (now if self.seconds else now.replace(second=0), self.host.font, self.host.title_rows())
         if shown == self._shown:
             return None
         self._shown = shown
@@ -90,15 +95,14 @@ class ClockApplet(Applet):
         frame = self.frame()
         top = self.host.title_rows() if self.wants_title else 0
         height, width = self.host.height - top, self.host.width
-        texts = [now.strftime("%A"), now.strftime("%Y-%m-%d"),
-                 now.strftime("%H:%M:%S" if self.seconds else "%H:%M")]
+        texts = [now.strftime("%A"), now.strftime("%Y-%m-%d"), now.strftime("%H:%M:%S" if self.seconds else "%H:%M")]
         key = (texts[0], self.seconds, height)
         if self._digital_font is None or self._digital_font[0] != key:
             self._digital_font = (key, self._fit_font(texts, width, height))
         font = self._digital_font[1]
         images = [font.render_line(text) for text in texts]
         free = height - sum(image.height for image in images)
-        gap, extra = divmod(free, len(images) + 1)   # even gaps, top and bottom too
+        gap, extra = divmod(free, len(images) + 1)  # even gaps, top and bottom too
         y = top + gap + extra // 2
         for image in images:
             stamp(frame, image, (width - image.width) // 2, y)
@@ -113,8 +117,7 @@ class ClockApplet(Applet):
         for size in range(FONT_SIZE_MAXIMUM, FONT_SIZE_MINIMUM, -1):
             font = Font(size)
             needed = len(texts) * font.line_height + (len(texts) + 1) * DIGITAL_GAP
-            if needed <= height and all(
-                    font.render_line(text).width <= width - 2 for text in texts):
+            if needed <= height and all(font.render_line(text).width <= width - 2 for text in texts):
                 return font
         return Font(FONT_SIZE_MINIMUM)
 
@@ -130,20 +133,29 @@ class ClockApplet(Applet):
         for hour in range(12):
             angle = math.radians(hour * 30)
             inner = r - (4 if hour % 3 == 0 else 2)
-            draw.line((cx + inner * math.sin(angle), cy - inner * math.cos(angle),
-                       cx + (r - 1) * math.sin(angle), cy - (r - 1) * math.cos(angle)),
-                      fill=INK)
+            draw.line(
+                (
+                    cx + inner * math.sin(angle),
+                    cy - inner * math.cos(angle),
+                    cx + (r - 1) * math.sin(angle),
+                    cy - (r - 1) * math.cos(angle),
+                ),
+                fill=INK,
+            )
         day = font.render_line(f"{now.day:2d}")
         window_x, window_y = cx + round(r * 0.55), cy
-        box = (window_x - day.width // 2 - 4, window_y - day.height // 2 - 3,
-               window_x + day.width // 2 + 4, window_y + day.height // 2 + 3)
-        draw.rectangle(box, fill=0, outline=INK)   # the date window, with room
+        box = (
+            window_x - day.width // 2 - 4,
+            window_y - day.height // 2 - 3,
+            window_x + day.width // 2 + 4,
+            window_y + day.height // 2 + 3,
+        )
+        draw.rectangle(box, fill=0, outline=INK)  # the date window, with room
         stamp(frame, day, box[0] + 5, box[1] + 4)
 
         def hand(degrees, length, width):
             angle = math.radians(degrees)
-            draw.line((cx, cy, cx + length * math.sin(angle), cy - length * math.cos(angle)),
-                      fill=INK, width=width)
+            draw.line((cx, cy, cx + length * math.sin(angle), cy - length * math.cos(angle)), fill=INK, width=width)
 
         minutes = now.minute + now.second / 60
         hours = now.hour % 12 + minutes / 60
@@ -159,37 +171,37 @@ class ClockApplet(Applet):
         stamp(frame, month, right - month.width // 2, cy - month.height // 2)
         return frame
 
+
 # --------------------------------------------------------------------------- #
 
 # Emotions: how open each eye is (left, right), how high each brow is, the
 # angle of each brow (the inner end: + down, - up), the pupil size and the
 # smile (smile lines at the outer corners, the lower lids raised)
 EMOTIONS = {
-    "neutral":    {"open": (1.0, 1.0), "brow_height": (0.0, 0.0), "brow_angle": (0.0, 0.0),
-                   "pupil": 1.0, "smile": 0.0},
-    "happy":      {"open": (0.75, 0.75), "brow_height": (0.4, 0.4), "brow_angle": (0.0, 0.0),
-                   "pupil": 1.0, "smile": 1.0},
-    "sad":        {"open": (0.7, 0.7), "brow_height": (0.2, 0.2), "brow_angle": (-1.0, -1.0),
-                   "pupil": 1.0, "smile": 0.0},
-    "angry":      {"open": (0.6, 0.6), "brow_height": (-0.6, -0.6), "brow_angle": (1.0, 1.0),
-                   "pupil": 0.9, "smile": 0.0},
-    "surprised":  {"open": (1.0, 1.0), "brow_height": (1.0, 1.0), "brow_angle": (0.0, 0.0),
-                   "pupil": 0.6, "smile": 0.0},
-    "sleepy":     {"open": (0.35, 0.35), "brow_height": (-0.2, -0.2), "brow_angle": (0.0, 0.0),
-                   "pupil": 1.1, "smile": 0.0},
-    "suspicious": {"open": (0.55, 1.0), "brow_height": (-0.3, 0.2), "brow_angle": (0.6, 0.0),
-                   "pupil": 0.9, "smile": 0.0},
-    "curious":    {"open": (1.0, 1.0), "brow_height": (0.9, 0.0), "brow_angle": (-0.4, 0.0),
-                   "pupil": 0.8, "smile": 0.3},
-    "loving":     {"open": (0.65, 0.65), "brow_height": (0.5, 0.5), "brow_angle": (-0.5, -0.5),
-                   "pupil": 1.3, "smile": 0.8},
+    "neutral": {"open": (1.0, 1.0), "brow_height": (0.0, 0.0), "brow_angle": (0.0, 0.0), "pupil": 1.0, "smile": 0.0},
+    "happy": {"open": (0.75, 0.75), "brow_height": (0.4, 0.4), "brow_angle": (0.0, 0.0), "pupil": 1.0, "smile": 1.0},
+    "sad": {"open": (0.7, 0.7), "brow_height": (0.2, 0.2), "brow_angle": (-1.0, -1.0), "pupil": 1.0, "smile": 0.0},
+    "angry": {"open": (0.6, 0.6), "brow_height": (-0.6, -0.6), "brow_angle": (1.0, 1.0), "pupil": 0.9, "smile": 0.0},
+    "surprised": {"open": (1.0, 1.0), "brow_height": (1.0, 1.0), "brow_angle": (0.0, 0.0), "pupil": 0.6, "smile": 0.0},
+    "sleepy": {"open": (0.35, 0.35), "brow_height": (-0.2, -0.2), "brow_angle": (0.0, 0.0), "pupil": 1.1, "smile": 0.0},
+    "suspicious": {
+        "open": (0.55, 1.0),
+        "brow_height": (-0.3, 0.2),
+        "brow_angle": (0.6, 0.0),
+        "pupil": 0.9,
+        "smile": 0.0,
+    },
+    "curious": {"open": (1.0, 1.0), "brow_height": (0.9, 0.0), "brow_angle": (-0.4, 0.0), "pupil": 0.8, "smile": 0.3},
+    "loving": {"open": (0.65, 0.65), "brow_height": (0.5, 0.5), "brow_angle": (-0.5, -0.5), "pupil": 1.3, "smile": 0.8},
 }
 BLINK = (0.6, 0.2, 0.0, 0.0, 0.2, 0.6)  # how open the eyes are through a blink
+
 
 def _emotion(text):
     if text not in EMOTIONS:
         raise ValueError(text)
     return text
+
 
 class EyesApplet(Applet):
     """A pair of eyes: iris, pupil with a highlight, upper and lower lids,
@@ -207,14 +219,14 @@ class EyesApplet(Applet):
 
     def __init__(self, host, words=(), options=None):
         super().__init__(host, words, options)
-        self.rng = host.rng if "seed" not in self.options  \
-            else random.Random(self.options["seed"])
+        self.rng = host.rng if "seed" not in self.options else random.Random(self.options["seed"])  # noqa: S311
         self.blinking = self.options.get("blink", True)
         self.emotion = self.options.get("emotion", "neutral")
         self.description = self.emotion
         self.fixed = "emotion" in self.options
-        self.current = {key: (list(value) if isinstance(value, tuple) else value)
-                        for key, value in EMOTIONS["neutral"].items()}
+        self.current = {
+            key: (list(value) if isinstance(value, tuple) else value) for key, value in EMOTIONS["neutral"].items()
+        }
         self.target = EMOTIONS[self.emotion]
         self.gaze, self.gaze_target = [0.0, 0.0], [0.0, 0.0]
         self.frame_no = 0
@@ -284,7 +296,7 @@ class EyesApplet(Applet):
 
     def _eye(self, frame, draw, cx, cy, side, openness):
         RX, RY = self.EYE_RX, self.EYE_RY
-        nose = 1 if side == 0 else -1              # towards the other eye
+        nose = 1 if side == 0 else -1  # towards the other eye
         smile = self.current["smile"]
         tilt = self.current["brow_angle"][side] * 2.5
         open_top = max(0.0, min(1.0, openness))
@@ -308,13 +320,15 @@ class EyesApplet(Applet):
         height = self.current["brow_height"][side]
         angle = self.current["brow_angle"][side]
         brow_y = cy - RY - 5 - height * 5
-        draw.line((cx - nose * (RX - 2), brow_y - angle * 3,
-                   cx + nose * (RX - 4), brow_y + angle * 3), fill=INK, width=2)
+        draw.line(
+            (cx - nose * (RX - 2), brow_y - angle * 3, cx + nose * (RX - 4), brow_y + angle * 3), fill=INK, width=2
+        )
         # Smile lines at the outer corner
         if smile > 0.3:
             x = cx - nose * (RX + 3)
             draw.line((x, cy + RY - 6, x - nose * 3, cy + RY - 1), fill=INK)
             draw.line((x - nose * 3, cy + RY - 1, x - nose * 2, cy + RY + 3), fill=INK)
+
 
 for applet in (ClockApplet, EyesApplet):
     APPLETS[applet.name] = applet

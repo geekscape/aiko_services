@@ -52,14 +52,16 @@ from asciimatics.screen import Screen as AsciimaticsScreen
 from asciimatics.widgets import Label, Layout, MultiColumnListBox, Widget
 
 import aiko_services as aiko
+from aiko_services.actors.power_manager.power_manager import (
+    THRESHOLDS,
+    PowerManager,
+)
 from aiko_services.ide.tui.dashboard import (
-    LogUI, ServiceFrame, display_value,
+    LogUI,
+    ServiceFrame,
+    display_value,
 )
 from aiko_services.main.connection import ConnectionState
-
-from aiko_services.actors.power_manager.power_manager import (
-    PowerManager, THRESHOLDS,
-)
 
 __all__ = ["ChartWidget", "PowerManagerFrame", "PowerManagerPage", "plugins"]
 
@@ -84,9 +86,9 @@ KEYS = {
     "w": ("source",),
     # The chart.  Arrows pan, because LogUI already pans with them
     "+": ("zoom", 0.5),
-    "=": ("zoom", 0.5),            # The same key, without the shift
+    "=": ("zoom", 0.5),  # The same key, without the shift
     "-": ("zoom", 2.0),
-    "0": ("zoom", None),           # Back to the whole window, live
+    "0": ("zoom", None),  # Back to the whole window, live
 }
 KEYS.update({f"{index + 1}": ("series", index) for index in range(8)})
 
@@ -94,24 +96,35 @@ KEYS.update({f"{index + 1}": ("series", index) for index in range(8)})
 # panel it is drawn on.  The number that toggles a series is its position
 # here plus one, so "1" is always the supply's voltage
 SERIES = (
-    ("supply V", 1, 0), ("battery V", 4, 0),
-    ("supply A", 2, 1), ("battery A", 5, 1),
-    ("supply W", 3, 2), ("battery W", 6, 2),
-    ("battery °C", 7, 3), ("processor °C", 8, 3),
+    ("supply V", 1, 0),
+    ("battery V", 4, 0),
+    ("supply A", 2, 1),
+    ("battery A", 5, 1),
+    ("supply W", 3, 2),
+    ("battery W", 6, 2),
+    ("battery °C", 7, 3),
+    ("processor °C", 8, 3),
 )
 PANELS = (("Volts", 2), ("Amps", 2), ("Watts", 1), ("Celsius", 1))
 
 # The sample this page keeps, which is the chart's whole source.  Three
 # days at the production period costs nothing and outlives any session
 WINDOW_SAMPLES = 4320
-SPAN_DEFAULT_S = 1800.0            # Half an hour, which a mock fills fast
+SPAN_DEFAULT_S = 1800.0  # Half an hour, which a mock fills fast
 SPAN_LOWEST_S = 60.0
 SPAN_HIGHEST_S = 7 * 24 * 3600.0
 
 TELEMETRY_FIELDS = (
-    "sampled_utc", "supply.volts", "supply.amps", "battery.volts",
-    "battery.amps", "battery.pack_celsius", "cpu.celsius", "docked",
-    "mode", "policy_reason",
+    "sampled_utc",
+    "supply.volts",
+    "supply.amps",
+    "battery.volts",
+    "battery.amps",
+    "battery.pack_celsius",
+    "cpu.celsius",
+    "docked",
+    "mode",
+    "policy_reason",
 )
 
 # The thresholds, grouped as they are governed.  A person editing the
@@ -124,19 +137,23 @@ TELEMETRY_FIELDS = (
 # a constant in the code, and three of them still are.  This page can only
 # edit what the Actor can be asked to change
 GROUPS = (
-    ("voltages", ("battery_volts_floor", "battery_volts_low",
-        "quiesce_volts", "battery_volts_charged")),
-    ("graces and deadlines", ("powered_down_grace_s",
-        "powered_down_application_grace_s", "powered_up_grace_s",
-        "undocked_maximum_s", "battery_dwell_s")),
+    ("voltages", ("battery_volts_floor", "battery_volts_low", "quiesce_volts", "battery_volts_charged")),
+    (
+        "graces and deadlines",
+        (
+            "powered_down_grace_s",
+            "powered_down_application_grace_s",
+            "powered_up_grace_s",
+            "undocked_maximum_s",
+            "battery_dwell_s",
+        ),
+    ),
     # Both of these decide whether the host believes it is docked, so
     # they are read together and edited together
     ("docking", ("dock_dwell_s", "docked_volts_minimum")),
-    ("supply", ("supply_amps_maximum", "supply_amps_fraction",
-        "supply_headroom_volts", "supply_warning_dwell_s")),
+    ("supply", ("supply_amps_maximum", "supply_amps_fraction", "supply_headroom_volts", "supply_warning_dwell_s")),
     ("up-time", ("powered_up_maximum_s", "powered_up_requests_maximum")),
-    ("working", ("working_dwell_s", "working_loss_s",
-        "working_reporters_maximum")),
+    ("working", ("working_dwell_s", "working_loss_s", "working_reporters_maximum")),
     ("temperature", ("battery_pack_celsius_maximum",)),
 )
 
@@ -152,12 +169,9 @@ INFORMATION_TEXT = (
     ("", ""),
     ("policy_reason", "Why the decision is what it is"),
     ("  button_held", "A person held the soft power button"),
-    ("  battery_floor", "The battery pack is at the voltage it must "
-        "not go below"),
-    ("  battery_low", "The battery pack is low, so an orderly shutdown "
-        "starts"),
-    ("  battery_pack_temperature", "The battery pack is too warm.  The "
-        "battery pack, never the processor"),
+    ("  battery_floor", "The battery pack is at the voltage it must not go below"),
+    ("  battery_low", "The battery pack is low, so an orderly shutdown starts"),
+    ("  battery_pack_temperature", "The battery pack is too warm.  The battery pack, never the processor"),
     ("  no_hold_property", "This host cannot hold its own power"),
     ("  docked", "The supply is present, so there is nothing to decide"),
     ("  undocked_timeout", "The backstop on an undocked hold expired"),
@@ -165,8 +179,7 @@ INFORMATION_TEXT = (
     ("  powered_up_held", "A client holds a powered-up Lease"),
     ("  powered_up_idle", "No client holds one"),
     ("  powered_up_grace", "The wait after the last Lease was released"),
-    ("  hook_missing", "The shutdown hook is not installed, so a "
-        "shutdown would not release the hold"),
+    ("  hook_missing", "The shutdown hook is not installed, so a shutdown would not release the hold"),
     ("  application_grace", "The wait before a writer is told to stop"),
     ("", ""),
     ("mode", "What an application is being asked to do"),
@@ -185,29 +198,25 @@ INFORMATION_TEXT = (
     ("", ""),
     ("supply_warning", "The supply is too small for the load it carries"),
     ("  supply_current", "The supply is drawing near its rated current"),
-    ("  supply_headroom", "The supply sits too close to the battery "
-        "pack to charge it, and the battery pack is not charged"),
+    (
+        "  supply_headroom",
+        "The supply sits too close to the battery pack to charge it, and the battery pack is not charged",
+    ),
     ("", ""),
-    ("writing_ok", "Whether an application should write to the file "
-        "systems"),
-    ("working.lost", "Every reporter has been silent for "
-        "working_loss_s"),
-    ("enforce", "Whether a measured threshold may stop this host.  "
-        "Advisory means it may not"),
-    ("safe", "The posture.  Safe denies every function that stops a "
-        "host, including set_threshold"),
+    ("writing_ok", "Whether an application should write to the file systems"),
+    ("working.lost", "Every reporter has been silent for working_loss_s"),
+    ("enforce", "Whether a measured threshold may stop this host.  Advisory means it may not"),
+    ("safe", "The posture.  Safe denies every function that stops a host, including set_threshold"),
     ("hold_state", "Whether the power hold is on"),
     ("hook", "Whether the shutdown hook is installed"),
     ("", ""),
-    ("A threshold", "is not persisted.  The command line wins at the "
-        "next restart"),
-    ("The log file", "rolls on the UTC day, so today's file keeps "
-        "yesterday's name until UTC midnight"),
-    ("The log section", "shows this process's records, so Services "
-        "sharing a process share the stream"),
+    ("A threshold", "is not persisted.  The command line wins at the next restart"),
+    ("The log file", "rolls on the UTC day, so today's file keeps yesterday's name until UTC midnight"),
+    ("The log section", "shows this process's records, so Services sharing a process share the stream"),
 )
 
 # --------------------------------------------------------------------------- #
+
 
 def _number(value):
     try:
@@ -215,21 +224,23 @@ def _number(value):
     except (TypeError, ValueError):
         return None
 
+
 def _epoch(utc_iso):
     """Seconds since the epoch, from the shared state's own form"""
 
     if not isinstance(utc_iso, str) or len(utc_iso) < 19:
         return None
     try:
-        return datetime.fromisoformat(
-            utc_iso.replace("Z", "+00:00")).timestamp()
+        return datetime.fromisoformat(utc_iso.replace("Z", "+00:00")).timestamp()
     except ValueError:
         return None
+
 
 def _clock(epoch):
     """The local clock a person reads on an axis"""
 
     return datetime.fromtimestamp(epoch).strftime("%H:%M")
+
 
 def _age(seconds):
     """A duration a person reads, from seconds"""
@@ -244,7 +255,9 @@ def _age(seconds):
         return f"{value // 60} m {value % 60:02d} s"
     return f"{value // 3600} h {(value % 3600) // 60:02d} m"
 
+
 _PAGE = None
+
 
 def page_singleton():
     """One page for both frames.
@@ -259,6 +272,7 @@ def page_singleton():
         _PAGE = PowerManagerPage()
     return _PAGE
 
+
 class PowerManagerPage:
     """The decisions, with no terminal and no network.
 
@@ -271,14 +285,14 @@ class PowerManagerPage:
         self.samples = deque(maxlen=WINDOW_SAMPLES)
         self.enabled = set(range(len(SERIES)))
         self.span = SPAN_DEFAULT_S
-        self.end = None            # None follows the newest sample
-        self._last = None          # The monotonic clock of the last sample
+        self.end = None  # None follows the newest sample
+        self._last = None  # The monotonic clock of the last sample
 
     def action(self, key_code):
         """What a key does, or None where this page does not claim it"""
 
         if key_code < 0 or key_code > 0x10FFFF:
-            return None            # A function key, which is not a character
+            return None  # A function key, which is not a character
         return KEYS.get(chr(key_code))
 
     def cycle_view(self, step):
@@ -298,8 +312,7 @@ class PowerManagerPage:
         if factor is None:
             self.span, self.end = SPAN_DEFAULT_S, None
             return self.span
-        self.span = max(SPAN_LOWEST_S,
-            min(SPAN_HIGHEST_S, self.span * factor))
+        self.span = max(SPAN_LOWEST_S, min(SPAN_HIGHEST_S, self.span * factor))
         return self.span
 
     def pan(self, fraction):
@@ -333,15 +346,19 @@ class PowerManagerPage:
         if when is None:
             return False
         self._last = monotonic
-        self.samples.append((when,
-            _number(self._get(cache, "supply", "volts")),
-            _number(self._get(cache, "supply", "amps")),
-            _number(self._get(cache, "supply", "watts")),
-            _number(self._get(cache, "battery", "volts")),
-            _number(self._get(cache, "battery", "amps")),
-            _number(self._get(cache, "battery", "watts")),
-            _number(self._get(cache, "battery", "pack_celsius")),
-            _number(self._get(cache, "cpu", "celsius"))))
+        self.samples.append(
+            (
+                when,
+                _number(self._get(cache, "supply", "volts")),
+                _number(self._get(cache, "supply", "amps")),
+                _number(self._get(cache, "supply", "watts")),
+                _number(self._get(cache, "battery", "volts")),
+                _number(self._get(cache, "battery", "amps")),
+                _number(self._get(cache, "battery", "watts")),
+                _number(self._get(cache, "battery", "pack_celsius")),
+                _number(self._get(cache, "cpu", "celsius")),
+            )
+        )
         return True
 
     def window(self):
@@ -378,10 +395,8 @@ class PowerManagerPage:
                 value = sample[position]
                 if value is None:
                     continue
-                low, high, total, count = out[column].get(
-                    index, (value, value, 0.0, 0))
-                out[column][index] = (min(low, value), max(high, value),
-                    total + value, count + 1)
+                low, high, total, count = out[column].get(index, (value, value, 0.0, 0))
+                out[column][index] = (min(low, value), max(high, value), total + value, count + 1)
         return out
 
     @staticmethod
@@ -389,9 +404,9 @@ class PowerManagerPage:
         """The lowest and the highest of the series on one panel, with a
         margin, so that a line is never drawn on the frame"""
 
-        values = [value for bucket in buckets for index, entry
-            in bucket.items() if index in indices
-            for value in entry[:2]]
+        values = [
+            value for bucket in buckets for index, entry in bucket.items() if index in indices for value in entry[:2]
+        ]
         if not values:
             return None
         low, high = min(values), max(values)
@@ -399,8 +414,7 @@ class PowerManagerPage:
         return low - margin, high + margin
 
     def cycle_source(self):
-        self.source = SOURCES[
-            (SOURCES.index(self.source) + 1) % len(SOURCES)]
+        self.source = SOURCES[(SOURCES.index(self.source) + 1) % len(SOURCES)]
         return self.source
 
     @staticmethod
@@ -434,7 +448,7 @@ class PowerManagerPage:
             keys = f"{keys}   (--safe denies Enter: edit)"
         return f"{self.view}   {where}   {keys}"
 
-# The rows ------------------------------------------------------------- #
+    # The rows ------------------------------------------------------------- #
 
     @staticmethod
     def _get(cache, *path, default="-"):
@@ -457,41 +471,52 @@ class PowerManagerPage:
         floor = get(cache, "thresholds", "battery_volts_floor")
         warning = get(cache, "supply_warning")
         rows = [
-            ("supply", f"{get(cache, 'supply', 'volts')} V   "
+            (
+                "supply",
+                f"{get(cache, 'supply', 'volts')} V   "
                 f"{get(cache, 'supply', 'amps')} A   "
-                f"{get(cache, 'supply', 'watts')} W"),
-            ("battery pack", f"{get(cache, 'battery', 'volts')} V   "
+                f"{get(cache, 'supply', 'watts')} W",
+            ),
+            (
+                "battery pack",
+                f"{get(cache, 'battery', 'volts')} V   "
                 f"{get(cache, 'battery', 'amps')} A   "
                 f"{get(cache, 'battery', 'watts')} W   "
-                f"{get(cache, 'battery', 'pack_celsius')} °C"),
+                f"{get(cache, 'battery', 'pack_celsius')} °C",
+            ),
             ("  above the floor", f"{margin} V   (floor {floor} V)"),
-            ("processor", f"{get(cache, 'cpu', 'celsius')} °C   "
+            (
+                "processor",
+                f"{get(cache, 'cpu', 'celsius')} °C   "
                 f"cpu {get(cache, 'cpu', 'percent')} %   "
                 f"load {get(cache, 'load', '1m')}   "
-                f"memory {get(cache, 'memory', 'percent')} %"),
+                f"memory {get(cache, 'memory', 'percent')} %",
+            ),
             ("docked", f"{get(cache, 'docked')}"),
-            ("policy", f"{get(cache, 'policy')}   because "
-                f"{get(cache, 'policy_reason')}"),
-            ("  would / acting", f"{get(cache, 'policy_would')} / "
-                f"{get(cache, 'policy_acting')}"),
-            ("mode", f"{get(cache, 'mode')}   because "
-                f"{get(cache, 'mode_reason')}   "
-                f"writing_ok {get(cache, 'writing_ok')}"),
+            ("policy", f"{get(cache, 'policy')}   because {get(cache, 'policy_reason')}"),
+            ("  would / acting", f"{get(cache, 'policy_would')} / {get(cache, 'policy_acting')}"),
+            (
+                "mode",
+                f"{get(cache, 'mode')}   because {get(cache, 'mode_reason')}   writing_ok {get(cache, 'writing_ok')}",
+            ),
             ("supply warning", "none" if warning == "-" else warning),
-            ("undocked since", display_value(
-                get(cache, "undocked_since_utc"))),
-            ("up-time held", f"{get(cache, 'powered_up', 'held')}   "
-                f"{get(cache, 'powered_up', 'reasons')}"),
-            ("working", f"{get(cache, 'working', 'last')}   "
+            ("undocked since", display_value(get(cache, "undocked_since_utc"))),
+            ("up-time held", f"{get(cache, 'powered_up', 'held')}   {get(cache, 'powered_up', 'reasons')}"),
+            (
+                "working",
+                f"{get(cache, 'working', 'last')}   "
                 f"{_age(get(cache, 'working', 'age_s'))} ago   "
-                f"lost {get(cache, 'working', 'lost')}"),
-            ("hold / hook", f"{get(cache, 'hold_state')} / "
-                f"{get(cache, 'hook')}"),
+                f"lost {get(cache, 'working', 'lost')}",
+            ),
+            ("hold / hook", f"{get(cache, 'hold_state')} / {get(cache, 'hook')}"),
             ("sampled", display_value(get(cache, "sampled_utc"))),
-            ("metrics", f"samples {get(cache, 'metrics', 'samples')}   "
+            (
+                "metrics",
+                f"samples {get(cache, 'metrics', 'samples')}   "
                 f"denied {get(cache, 'metrics', 'denied')}   "
                 f"shutdowns {get(cache, 'metrics', 'shutdowns')}   "
-                f"warnings {get(cache, 'metrics', 'supply_warnings')}"),
+                f"warnings {get(cache, 'metrics', 'supply_warnings')}",
+            ),
             ("last error", f"{get(cache, 'last_error')}"),
         ]
         return rows
@@ -503,7 +528,8 @@ class PowerManagerPage:
             return [("waiting", "for this Service's shared state")]
         editable = self.editable(cache)
         mark = "  (Enter)" if editable else "  (--safe)"
-        rows = [("Service", ""),
+        rows = [
+            ("Service", ""),
             ("  device", f"{self._get(cache, 'device')}"),
             ("  posture", "unsafe" if editable else "safe"),
             ("  log directory", f"{self._get(cache, 'log')}"),
@@ -513,9 +539,8 @@ class PowerManagerPage:
             rows.append((f"{heading}{mark}", ""))
             for name in names:
                 if name not in THRESHOLDS:
-                    continue       # An Actor older than this threshold
-                rows.append((f"  {name}",
-                    f"{self._get(cache, 'thresholds', name)}"))
+                    continue  # An Actor older than this threshold
+                rows.append((f"  {name}", f"{self._get(cache, 'thresholds', name)}"))
         for heading, group in (
             ("readings", ("supply", "battery", "cpu", "memory", "load")),
             ("up-time", ("powered_up",)),
@@ -550,12 +575,12 @@ class PowerManagerPage:
         A heading selects its own group, and so does any row under it,
         so an operator never has to find the heading first"""
 
-        name = row_name.strip().removesuffix("(Enter)").removesuffix(
-            "(--safe)").strip()
+        name = row_name.strip().removesuffix("(Enter)").removesuffix("(--safe)").strip()
         for heading, names in GROUPS:
             if name == heading or name in names:
                 return heading, names
         return None
+
 
 # --------------------------------------------------------------------------- #
 
@@ -564,17 +589,22 @@ class PowerManagerPage:
 # it, so the chart reads on a monochrome terminal and to a color-blind
 # reader.  Supply and battery pack keep one hue each across every panel
 COLOURS = {
-    0: AsciimaticsScreen.COLOUR_CYAN, 1: AsciimaticsScreen.COLOUR_YELLOW,
-    2: AsciimaticsScreen.COLOUR_CYAN, 3: AsciimaticsScreen.COLOUR_YELLOW,
-    4: AsciimaticsScreen.COLOUR_CYAN, 5: AsciimaticsScreen.COLOUR_YELLOW,
-    6: AsciimaticsScreen.COLOUR_YELLOW, 7: AsciimaticsScreen.COLOUR_GREEN,
+    0: AsciimaticsScreen.COLOUR_CYAN,
+    1: AsciimaticsScreen.COLOUR_YELLOW,
+    2: AsciimaticsScreen.COLOUR_CYAN,
+    3: AsciimaticsScreen.COLOUR_YELLOW,
+    4: AsciimaticsScreen.COLOUR_CYAN,
+    5: AsciimaticsScreen.COLOUR_YELLOW,
+    6: AsciimaticsScreen.COLOUR_YELLOW,
+    7: AsciimaticsScreen.COLOUR_GREEN,
 }
 
-AXIS_WIDTH = 7             # "11.43 " and the frame
+AXIS_WIDTH = 7  # "11.43 " and the frame
 # The Frame draws its own scroll bar in the last column, so the plot
 # stops one short of the widget.  Measured: without this the newest
 # samples and the last time label are drawn under it
 SCROLL_BAR = 1
+
 
 class ChartWidget(Widget):
     """The chart, painted on the Frame's own canvas.
@@ -592,24 +622,20 @@ class ChartWidget(Widget):
     def update(self, frame_no):
         canvas = self._frame.canvas
         for row in range(self._h):
-            canvas.print_at(" " * (self._w - SCROLL_BAR),
-                self._x, self._y + row)
-        panels = [index for index in range(len(PANELS))
-            if any(SERIES[series][2] == index
-                for series in self.page.enabled)]
+            canvas.print_at(" " * (self._w - SCROLL_BAR), self._x, self._y + row)
+        panels = [
+            index for index in range(len(PANELS)) if any(SERIES[series][2] == index for series in self.page.enabled)
+        ]
         if not panels:
-            canvas.print_at("every series is switched off: 1 to 8 turn "
-                "one back on", self._x, self._y)
+            canvas.print_at("every series is switched off: 1 to 8 turn one back on", self._x, self._y)
             return
         buckets = self.page.buckets(max(2, self._plot_width()))
         if not buckets:
-            canvas.print_at("waiting for a reading from this Service",
-                self._x, self._y)
+            canvas.print_at("waiting for a reading from this Service", self._x, self._y)
             return
         height = max(3, (self._h - 1) // len(panels))
         for position, panel in enumerate(panels):
-            self._panel(canvas, panel, buckets,
-                self._y + position * height, height)
+            self._panel(canvas, panel, buckets, self._y + position * height, height)
         self._axis(canvas, self._y + self._h - 1)
 
     def _plot_width(self):
@@ -617,16 +643,14 @@ class ChartWidget(Widget):
 
     def _panel(self, canvas, panel, buckets, top, height):
         title, _ = PANELS[panel]
-        indices = [index for index in sorted(self.page.enabled)
-            if SERIES[index][2] == panel]
+        indices = [index for index in sorted(self.page.enabled) if SERIES[index][2] == panel]
         extent = self.page.extent(buckets, set(indices))
         header = f"{title}"
         for index in indices:
             latest = self._latest(buckets, index)
             shown = "-" if latest is None else f"{latest:.2f}"
             header += f"   {index + 1} {SERIES[index][0]} {shown}"
-        canvas.print_at(header[:self._w - SCROLL_BAR], self._x, top,
-            colour=AsciimaticsScreen.COLOUR_WHITE)
+        canvas.print_at(header[: self._w - SCROLL_BAR], self._x, top, colour=AsciimaticsScreen.COLOUR_WHITE)
         if extent is None:
             return
         low, high = extent
@@ -635,8 +659,7 @@ class ChartWidget(Widget):
             return
         base = top + 1
         for value, row in ((high, base), (low, base + plot - 1)):
-            canvas.print_at(f"{value:6.2f}", self._x, row,
-                colour=AsciimaticsScreen.COLOUR_WHITE)
+            canvas.print_at(f"{value:6.2f}", self._x, row, colour=AsciimaticsScreen.COLOUR_WHITE)
 
         def y_of(value):
             return base + (high - value) / (high - low) * (plot - 1)
@@ -650,7 +673,7 @@ class ChartWidget(Widget):
         for column, bucket in enumerate(buckets):
             entry = bucket.get(index)
             if entry is None:
-                previous = None       # A gap is a gap, and not a line
+                previous = None  # A gap is a gap, and not a line
                 continue
             lowest, highest, total, count = entry
             x = self._x + AXIS_WIDTH + column
@@ -687,10 +710,8 @@ class ChartWidget(Widget):
                 if at + offset < width:
                     text[at + offset] = character
         live = "live" if self.page.end is None else "panned"
-        canvas.print_at("".join(text)[:width],
-            self._x + AXIS_WIDTH, row, colour=AsciimaticsScreen.COLOUR_WHITE)
-        canvas.print_at(f"{live:>6s}"[:AXIS_WIDTH], self._x, row,
-            colour=AsciimaticsScreen.COLOUR_WHITE)
+        canvas.print_at("".join(text)[:width], self._x + AXIS_WIDTH, row, colour=AsciimaticsScreen.COLOUR_WHITE)
+        canvas.print_at(f"{live:>6s}"[:AXIS_WIDTH], self._x, row, colour=AsciimaticsScreen.COLOUR_WHITE)
 
     def reset(self):
         pass
@@ -705,7 +726,9 @@ class ChartWidget(Widget):
     def value(self):
         return None
 
+
 # --------------------------------------------------------------------------- #
+
 
 class PowerManagerFrame(ServiceFrame):
     """The page: the view, the log section below it, and the keys"""
@@ -723,9 +746,9 @@ class PowerManagerFrame(ServiceFrame):
         view_height = max(6, (screen.height - 5) * 3 // 4)
         layout = Layout([1])
         self.add_layout(layout)
-        self.view_widget = MultiColumnListBox(view_height, ["<22", "<0"],
-            options=[], titles=["Name", "Value"],
-            on_select=self._on_select_row)
+        self.view_widget = MultiColumnListBox(
+            view_height, ["<22", "<0"], options=[], titles=["Name", "Value"], on_select=self._on_select_row
+        )
         layout.add_widget(self.view_widget)
         layout = Layout([1])
         self.add_layout(layout)
@@ -744,15 +767,14 @@ class PowerManagerFrame(ServiceFrame):
     def _connected():
         return aiko.process.connection.is_connected(ConnectionState.TRANSPORT)
 
-# The Service ---------------------------------------------------------- #
+    # The Service ---------------------------------------------------------- #
 
     def _service_frame_start(self, service, service_ec_consumer):
         topic_path = service[0]
         if topic_path == self.topic_path:
-            return                                       # idempotent
+            return  # idempotent
         self.topic_path = topic_path
-        self.proxy = aiko.get_service_proxy(
-            f"{topic_path}/in", PowerManager)
+        self.proxy = aiko.get_service_proxy(f"{topic_path}/in", PowerManager)
         self.log_ui._service_frame_start(service, service_ec_consumer)
 
     def _service_frame_stop(self, service):
@@ -762,7 +784,7 @@ class PowerManagerFrame(ServiceFrame):
         self.topic_path = None
         self.proxy = None
 
-# The keys ------------------------------------------------------------- #
+    # The keys ------------------------------------------------------------- #
 
     def process_event(self, event):
         from asciimatics.event import KeyboardEvent
@@ -776,9 +798,8 @@ class PowerManagerFrame(ServiceFrame):
         return super().process_event(event)
 
     def _act(self, action):
-        from asciimatics.widgets import PopUpDialog
-
         from asciimatics.exceptions import NextScene
+        from asciimatics.widgets import PopUpDialog
 
         name = action[0]
         if name == "view":
@@ -789,10 +810,9 @@ class PowerManagerFrame(ServiceFrame):
         elif name == "source":
             self.page.cycle_source()
         elif name in ("zoom", "series"):
-            return                 # The chart's keys, on the chart's page
+            return  # The chart's keys, on the chart's page
         elif name == "help":
-            self.scene.add_effect(PopUpDialog(
-                self._screen, self._help(), ["OK"], theme="nice"))
+            self.scene.add_effect(PopUpDialog(self._screen, self._help(), ["OK"], theme="nice"))
 
     @staticmethod
     def _help():
@@ -808,7 +828,8 @@ class PowerManagerFrame(ServiceFrame):
             " x      Exit\n"
             "\n"
             " A threshold is denied in the safe posture, and it is not\n"
-            " persisted: the command line wins at the next restart")
+            " persisted: the command line wins at the next restart"
+        )
 
     def _on_select_row(self):
         """Enter on a row: edit the group of thresholds it belongs to"""
@@ -826,12 +847,17 @@ class PowerManagerFrame(ServiceFrame):
         if group is None:
             return
         if not self.page.editable(cache):
-            self.scene.add_effect(PopUpDialog(self._screen,
-                " This power manager runs --safe, so it denies\n"
-                " (set_threshold ...), which can stop a host.\n\n"
-                " To change a threshold, restart it with:\n\n"
-                "     aiko_power_manager run --unsafe\n",
-                ["OK"], theme="nice"))
+            self.scene.add_effect(
+                PopUpDialog(
+                    self._screen,
+                    " This power manager runs --safe, so it denies\n"
+                    " (set_threshold ...), which can stop a host.\n\n"
+                    " To change a threshold, restart it with:\n\n"
+                    "     aiko_power_manager run --unsafe\n",
+                    ["OK"],
+                    theme="nice",
+                )
+            )
             return
         self._edit_group(group, cache)
 
@@ -841,7 +867,8 @@ class PowerManagerFrame(ServiceFrame):
         to leave it inconsistent at every step"""
 
         from aiko_services.ide.tui.dashboard import (
-            FormFrame, text_field,
+            FormFrame,
+            text_field,
         )
 
         heading, names = group
@@ -860,23 +887,30 @@ class PowerManagerFrame(ServiceFrame):
                 if f"{value}".strip() != f"{was}".strip():
                     self.proxy.set_threshold(name, f"{value}".strip())
 
-        self.scene.add_effect(FormFrame(self._screen,
-            f"Thresholds: {heading}", fields, "Accept", accept,
-            note='"-" turns a threshold off, where it may be.  '
-                 "A change is not persisted: the command line wins at "
-                 "the next restart"))
+        self.scene.add_effect(
+            FormFrame(
+                self._screen,
+                f"Thresholds: {heading}",
+                fields,
+                "Accept",
+                accept,
+                note='"-" turns a threshold off, where it may be.  '
+                "A change is not persisted: the command line wins at "
+                "the next restart",
+            )
+        )
 
-# The draw ------------------------------------------------------------- #
+    # The draw ------------------------------------------------------------- #
 
     def _update(self, frame_no):
-        super()._update(frame_no)          # It may start the Service
+        super()._update(frame_no)  # It may start the Service
         cache = self._cache()
-        self.page.observe(cache)   # The chart's window fills from here too
+        self.page.observe(cache)  # The chart's window fills from here too
         rows = self.page.rows(cache)
-        self.view_widget.options = [
-            (list(row), index) for index, row in enumerate(rows)]
+        self.view_widget.options = [(list(row), index) for index, row in enumerate(rows)]
         self.legend.text = self.page.legend(cache)
         self.log_ui._update(frame_no)
+
 
 class PowerManagerChartFrame(ServiceFrame):
     """The chart, on a page of its own.
@@ -943,13 +977,12 @@ class PowerManagerChartFrame(ServiceFrame):
         return super().process_event(event)
 
     def _update(self, frame_no):
-        super()._update(frame_no)          # It may start the Service
+        super()._update(frame_no)  # It may start the Service
         self.page.observe(self._cache())
         span = _age(self.page.span)
         # It fits 80 columns, which is the narrowest terminal tested
-        self.legend.text = (
-            f"chart {span}   <- -> pan   + - 0 zoom   1-8 series   "
-            f"v view   H help")
+        self.legend.text = f"chart {span}   <- -> pan   + - 0 zoom   1-8 series   v view   H help"
+
 
 PAGE_SCENE = "power_manager"
 CHART_SCENE = "power_manager_chart"

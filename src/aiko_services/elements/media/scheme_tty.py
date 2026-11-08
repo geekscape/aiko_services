@@ -23,17 +23,16 @@ __all__ = ["DataSchemeTTY"]
 # - "data_targets" list should only contain a single entry
 #   - "(tty://)"
 
+
 class DataSchemeTTY(aiko.DataScheme):
-    def create_sources(self,
-        stream, data_sources, frame_generator, use_create_frame):
+    def create_sources(self, stream, data_sources, frame_generator, use_create_frame):
 
         self.queue = queue.Queue()
         self.terminate = False
         Thread(target=self._run, daemon=True).start()
 
         rate, _ = self.pipeline_element.get_parameter("rate", default=20.0)
-        self.pipeline_element.create_frames(
-            stream, self.frame_generator, rate=float(rate))
+        self.pipeline_element.create_frames(stream, self.frame_generator, rate=float(rate))
         return aiko.StreamEvent.OKAY, {}
 
     def create_targets(self, stream, data_targets):
@@ -54,14 +53,14 @@ class DataSchemeTTY(aiko.DataScheme):
             return aiko.StreamEvent.NO_FRAME, {}
 
     def _run(self):
-        tty_prompt, _ = self.pipeline_element.get_parameter(
-                            "tty_prompt", default="> ")
+        tty_prompt, _ = self.pipeline_element.get_parameter("tty_prompt", default="> ")
         print(f"000:{tty_prompt}", end="")
         while not self.terminate:
             try:
                 self.queue.put(input())
             except EOFError:
                 self.queue.put(None)
+
 
 aiko.DataScheme.add_data_scheme("tty", DataSchemeTTY)
 

@@ -19,14 +19,13 @@ import time
 from typing import Tuple
 
 import aiko_services as aiko
-from aiko_services.elements.utilities import (
-    all_outputs, evaluate_condition, evaluate_define
-)
+from aiko_services.elements.utilities import all_outputs, evaluate_condition, evaluate_define
 from aiko_services.main.utilities import parse
 
 __all__ = ["CaptureLimit", "Loop"]
 
 # --------------------------------------------------------------------------- #
+
 
 class Loop(aiko.PipelineElementLoop):
     def __init__(self, context):
@@ -60,10 +59,11 @@ class Loop(aiko.PipelineElementLoop):
                 evaluate_define(expression, swag)
             event = aiko.StreamEvent.OKAY
         else:
-            self.logger.debug(f"End")
+            self.logger.debug("End")
             event = aiko.StreamEvent.LOOP_END
 
         return event, {}
+
 
 # --------------------------------------------------------------------------- #
 # CaptureLimit: pass-through gate that stops the Stream when a bound is
@@ -109,6 +109,7 @@ class Loop(aiko.PipelineElementLoop):
 _DEFAULT_DURATION = 10.0  # seconds, when no bound is given
 _SECONDS_PER_UNIT = {"": 1.0, "s": 1.0, "m": 60.0, "h": 3600.0}
 
+
 def _parse_seconds(value):
     """10, "10", "10s", "10m", "0.5h" --> seconds (float).  Raises ValueError"""
 
@@ -116,9 +117,9 @@ def _parse_seconds(value):
         return float(value)
     match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*([smh]?)\s*", str(value))
     if not match:
-        raise ValueError(
-            f'time "{value}" must be seconds or a number with suffix s, m or h')
+        raise ValueError(f'time "{value}" must be seconds or a number with suffix s, m or h')
     return float(match.group(1)) * _SECONDS_PER_UNIT[match.group(2)]
+
 
 class CaptureLimit(aiko.PipelineElement):
     def __init__(self, context):
@@ -130,8 +131,7 @@ class CaptureLimit(aiko.PipelineElement):
         duration, found_duration = self.get_parameter("duration", None)
         run_time, found_run_time = self.get_parameter("run_time", None)
         condition, found_condition = self.get_parameter("condition", None)
-        if not (found_count or found_duration or found_run_time
-                or found_condition):
+        if not (found_count or found_duration or found_run_time or found_condition):
             duration, found_duration = _DEFAULT_DURATION, True
 
         variables = stream.variables
@@ -155,20 +155,17 @@ class CaptureLimit(aiko.PipelineElement):
             if found_count and count >= int(frame_count):
                 reason = f"frame limit {int(frame_count)} reached"
             elif found_duration and elapsed >= _parse_seconds(duration):
-                reason = f"time limit {_parse_seconds(duration):g} s "  \
-                         f"reached after {count} frames"
+                reason = f"time limit {_parse_seconds(duration):g} s reached after {count} frames"
             elif found_run_time and run_time_now >= _parse_seconds(run_time):
-                reason = f"run time limit {_parse_seconds(run_time):g} s "  \
-                         f"reached after {count} frames"
+                reason = f"run time limit {_parse_seconds(run_time):g} s reached after {count} frames"
             elif found_condition:
                 arguments = dict(stream.frames[stream.frame_id].swag)
-                arguments.update({"frame_id": stream.frame_id,
-                    "count": count, "elapsed": elapsed,
-                    "run_time": run_time_now})
+                arguments.update(
+                    {"frame_id": stream.frame_id, "count": count, "elapsed": elapsed, "run_time": run_time_now}
+                )
                 expressions = parse(condition, car_cdr=False)
                 if not evaluate_condition(expressions, arguments):
-                    reason = f"condition {condition} false after "  \
-                             f"{count} frames"
+                    reason = f"condition {condition} false after {count} frames"
         except (TypeError, ValueError) as error:
             diagnostic = f"CaptureLimit parameter error: {error}"
             return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
@@ -184,5 +181,6 @@ class CaptureLimit(aiko.PipelineElement):
             outputs["diagnostic"] = diagnostic
             return aiko.StreamEvent.STOP, outputs
         return aiko.StreamEvent.DROP_FRAME, {"diagnostic": diagnostic}
+
 
 # --------------------------------------------------------------------------- #

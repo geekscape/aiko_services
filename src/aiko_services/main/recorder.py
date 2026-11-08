@@ -47,16 +47,21 @@
 #   attached consumer, so this waits on a decision about coalescing
 # - Why doesn't the Python MQTT client subscribe("+/+/+/+/log") work ?
 
-import click
 from abc import abstractmethod
 from collections import deque
+
+import click
 
 from aiko_services.main import *
 from aiko_services.main.utilities import *
 
 __all__ = [
-    "LRU_CACHE_SIZE", "PROTOCOL", "RING_BUFFER_SIZE", "Recorder",
-    "RecorderImpl", "SERVICE_TYPE",
+    "LRU_CACHE_SIZE",
+    "PROTOCOL",
+    "RING_BUFFER_SIZE",
+    "Recorder",
+    "RecorderImpl",
+    "SERVICE_TYPE",
 ]
 
 _VERSION = 0
@@ -64,14 +69,14 @@ _VERSION = 0
 SERVICE_TYPE = "recorder"
 PROTOCOL = f"{SERVICE_PROTOCOL_AIKO}/{SERVICE_TYPE}:{_VERSION}"
 
-LRU_CACHE_SIZE = 128     # topics held at once
-RING_BUFFER_SIZE = 128   # log records held for each topic
+LRU_CACHE_SIZE = 128  # topics held at once
+RING_BUFFER_SIZE = 128  # log records held for each topic
 
 # The functions a client may call (P12, ADR-023).  "recorder_handler" is
 # the subscription callback: it takes the transport's (aiko, topic,
 # payload) and a subscription delivers it, so no client calls it and it is
 # taken off the allow list
-FUNCTIONS = None    # composed below, once Recorder is declared
+FUNCTIONS = None  # composed below, once Recorder is declared
 
 # The shared variables a client may change, and the bounds on each
 SIZES = {
@@ -80,6 +85,7 @@ SIZES = {
 }
 
 # --------------------------------------------------------------------------- #
+
 
 class Recorder(Actor):
     """
@@ -90,6 +96,7 @@ class Recorder(Actor):
     be: the spike refined Service, which is why a filter could only be set
     at construction.  record_start() adds one while it runs
     """
+
     Interface.default("Recorder", "aiko_services.main.recorder.RecorderImpl")
 
     @abstractmethod
@@ -115,47 +122,49 @@ class Recorder(Actor):
         subscription to a filter, never by a client.  Projection:
         command"""
 
+
 FUNCTIONS = interface_functions(Recorder) - {"recorder_handler"}
 
-class RecorderImpl(Recorder):
-    def __init__(self, context, topic_path_filter,
-        lru_cache_size=LRU_CACHE_SIZE, ring_buffer_size=RING_BUFFER_SIZE):
 
-        context.call_init(
-            self, "FunctionGate", context, functions=FUNCTIONS)
+class RecorderImpl(Recorder):
+    def __init__(self, context, topic_path_filter, lru_cache_size=LRU_CACHE_SIZE, ring_buffer_size=RING_BUFFER_SIZE):
+
+        context.call_init(self, "FunctionGate", context, functions=FUNCTIONS)
         context.call_init(self, "Actor", context)
 
         self.ring_buffer_size = int(ring_buffer_size)
         self.lru_cache = LRUCache(int(lru_cache_size))
-    # The counters are held here and published from here, never read back
-    # from the share: a share item is writable from the "control" topic,
-    # so a count taken from the share is a count a client can set, and it
-    # is a string once they have
+        # The counters are held here and published from here, never read back
+        # from the share: a share item is writable from the "control" topic,
+        # so a count taken from the share is a count a client can set, and it
+        # is a string once they have
         self._records = 0
         self._evicted = 0
 
         self._filters = []
-        self.share.update({
-            "source_file": f"v{_VERSION}⇒ {__file__}",
-        # One item for each recorded topic, holding its newest log record
-            "lru_cache": {},
-            "lru_cache_size": self.lru_cache.size,
-            "ring_buffer_size": self.ring_buffer_size,
-            "filters": [],
-            "metrics": {
-                "records": 0,     # log records recorded
-                "topics": 0,      # topics held, which is the LRU cache length
-                "evicted": 0,     # topics evicted, each one losing its records
-            },
-        })
+        self.share.update(
+            {
+                "source_file": f"v{_VERSION}⇒ {__file__}",
+                # One item for each recorded topic, holding its newest log record
+                "lru_cache": {},
+                "lru_cache_size": self.lru_cache.size,
+                "ring_buffer_size": self.ring_buffer_size,
+                "filters": [],
+                "metrics": {
+                    "records": 0,  # log records recorded
+                    "topics": 0,  # topics held, which is the LRU cache length
+                    "evicted": 0,  # topics evicted, each one losing its records
+                },
+            }
+        )
         self.ec_producer.add_handler(self._ec_producer_change_handler)
 
         self.record_start(topic_path_filter)
 
     def _ec_producer_change_handler(self, command, item_name, item_value):
-    # "log_level" is the Actor's, which handles it through self.logger.
-    # The Recorder had its own handler for it, and its own module logger,
-    # when it refined Service
+        # "log_level" is the Actor's, which handles it through self.logger.
+        # The Recorder had its own handler for it, and its own module logger,
+        # when it refined Service
         if item_name in SIZES:
             self._set_size(item_name, item_value)
 
@@ -165,13 +174,11 @@ class RecorderImpl(Recorder):
 
         minimum, maximum = SIZES[item_name]
         size = parse_int(item_value, 0)
-        in_force = (self.ring_buffer_size
-            if item_name == "ring_buffer_size" else self.lru_cache.size)
+        in_force = self.ring_buffer_size if item_name == "ring_buffer_size" else self.lru_cache.size
         if size == in_force:
-            return                              # our own publication
+            return  # our own publication
         if not minimum <= size <= maximum:
-            self.logger.warning(f"{item_name} must be {minimum} to {maximum}, "
-                            f"not {item_value}: unchanged")
+            self.logger.warning(f"{item_name} must be {minimum} to {maximum}, not {item_value}: unchanged")
             self.ec_producer.update(item_name, in_force)
             return
         if item_name == "lru_cache_size":
@@ -190,7 +197,7 @@ class RecorderImpl(Recorder):
         """Record the topics that match this filter as well"""
 
         if topic_path_filter in self._filters:
-            return                              # already recording it
+            return  # already recording it
         self._filters.append(topic_path_filter)
         self.add_message_handler(self.recorder_handler, topic_path_filter)
         self.ec_producer.update("filters", list(self._filters))
@@ -203,8 +210,7 @@ class RecorderImpl(Recorder):
             self.logger.warning(f"Not recording: {topic_path_filter}")
             return
         self._filters.remove(topic_path_filter)
-        self.remove_message_handler(
-            self.recorder_handler, topic_path_filter)
+        self.remove_message_handler(self.recorder_handler, topic_path_filter)
         self.ec_producer.update("filters", list(self._filters))
         self.logger.info(f"Record stop: {topic_path_filter}")
 
@@ -228,13 +234,13 @@ class RecorderImpl(Recorder):
                 self._forget(evicted[0])
             self._publish_metrics()
 
-    # The record is stored and published as it arrived.  It used to have
-    # its parentheses turned into braces, and a replace() that was meant
-    # to remove a non-breaking space but had an ordinary space on both
-    # sides, so it did nothing at all.  Neither is necessary: generate()
-    # gives a value with a space, a parenthesis, a quote, a newline or a
-    # non-breaking space a length prefix, and parse() returns it exactly.
-    # Measured over ten awkward records, and the tests hold that
+        # The record is stored and published as it arrived.  It used to have
+        # its parentheses turned into braces, and a replace() that was meant
+        # to remove a non-breaking space but had an ordinary space on both
+        # sides, so it did nothing at all.  Neither is necessary: generate()
+        # gives a value with a space, a parenthesis, a quote, a newline or a
+        # non-breaking space a length prefix, and parse() returns it exactly.
+        # Measured over ten awkward records, and the tests hold that
         ring_buffer.append(payload_in)
         self.ec_producer.update(f"lru_cache.{topic}", payload_in)
         self._records += 1
@@ -248,24 +254,25 @@ class RecorderImpl(Recorder):
         ring_buffer = self.lru_cache.get(topic)
         return list(ring_buffer) if ring_buffer else []
 
+
 # --------------------------------------------------------------------------- #
 
-@click.command("main", help="Recorder Service")
-@click.option("--lru_cache_size", "-l", type=click.INT,
-    default=LRU_CACHE_SIZE, help="Topics held at once")
-@click.option("--ring_buffer_size", "-r", type=click.INT,
-    default=RING_BUFFER_SIZE, help="Log records held for each topic")
-@click.argument("topic_path_filter", nargs=1, required=False,
-    default=f"{get_namespace()}/+/+/+/log")
 
+@click.command("main", help="Recorder Service")
+@click.option("--lru_cache_size", "-l", type=click.INT, default=LRU_CACHE_SIZE, help="Topics held at once")
+@click.option(
+    "--ring_buffer_size", "-r", type=click.INT, default=RING_BUFFER_SIZE, help="Log records held for each topic"
+)
+@click.argument("topic_path_filter", nargs=1, required=False, default=f"{get_namespace()}/+/+/+/log")
 def main(lru_cache_size, ring_buffer_size, topic_path_filter):
     tags = ["ec=true"]  # TODO: Add ECProducer tag before add to Registrar
     init_args = actor_args(SERVICE_TYPE, None, None, PROTOCOL, tags)
     init_args["topic_path_filter"] = topic_path_filter
     init_args["lru_cache_size"] = lru_cache_size
     init_args["ring_buffer_size"] = ring_buffer_size
-    recorder = compose_instance(RecorderImpl, init_args)
+    compose_instance(RecorderImpl, init_args)
     aiko.process.run()
+
 
 if __name__ == "__main__":
     main()

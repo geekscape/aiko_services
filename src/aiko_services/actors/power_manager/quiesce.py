@@ -39,11 +39,15 @@ import os
 from aiko_services.actors.power_manager.shutdown import remount_read_only
 
 __all__ = [
-    "HOOK_QUIESCE", "REMOUNT_GRACE_S", "Quiesce", "sync_filesystems",
+    "HOOK_QUIESCE",
+    "REMOUNT_GRACE_S",
+    "Quiesce",
+    "sync_filesystems",
 ]
 
-HOOK_QUIESCE = "power_quiesce"     # The declared hook's name
-REMOUNT_GRACE_S = 5.0              # Between the alert and the remount
+HOOK_QUIESCE = "power_quiesce"  # The declared hook's name
+REMOUNT_GRACE_S = 5.0  # Between the alert and the remount
+
 
 def sync_filesystems(syncer=None):
     """Flush what the kernel holds.  Returns (ok, reason).
@@ -57,20 +61,20 @@ def sync_filesystems(syncer=None):
         return False, str(error)[:160]
     return True, ""
 
+
 class Quiesce:
     """What the host does on its way to losing power, once.
 
     Each step is done one time only, so a mode that stays in quiesce does
     not sync the disks on every sample.  done() reports which steps ran"""
 
-    def __init__(self, syncer=None, runner=None, mount_point="/",
-        grace=REMOUNT_GRACE_S):
+    def __init__(self, syncer=None, runner=None, mount_point="/", grace=REMOUNT_GRACE_S):
 
         self._syncer = syncer
         self._runner = runner
         self._mount_point = mount_point
         self.grace = float(grace)
-        self.synced = None             # None: not tried.  Else (ok, reason)
+        self.synced = None  # None: not tried.  Else (ok, reason)
         self.remounted = None
         self.entered_at = None
 
@@ -92,8 +96,7 @@ class Quiesce:
         what it holds, because a file system refuses to go read-only while
         one is open for writing"""
 
-        return self.entered_at is not None  \
-            and (now - self.entered_at) >= self.grace
+        return self.entered_at is not None and (now - self.entered_at) >= self.grace
 
     def remount(self):
         """Make the file systems read-only, once.
@@ -103,8 +106,7 @@ class Quiesce:
 
         if self.remounted is not None:
             return None
-        self.remounted = remount_read_only(
-            runner=self._runner, mount_point=self._mount_point)
+        self.remounted = remount_read_only(runner=self._runner, mount_point=self._mount_point)
         return self.remounted
 
     def done(self):
@@ -115,10 +117,12 @@ class Quiesce:
             "quiesce.remounted": _token(self.remounted),
         }
 
+
 def _token(outcome):
     if outcome is None:
         return "-"
     ok, reason = outcome
     return "yes" if ok else f"failed:{reason.split()[0][:24] if reason else '?'}"
+
 
 # --------------------------------------------------------------------------- #

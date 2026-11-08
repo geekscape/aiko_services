@@ -44,50 +44,80 @@
 # * percent, minutes_left and watt_hours, after measurement: phase 6
 # * The Linux and macOS Implementations: phase 7
 
-from abc import abstractmethod
 import time
+from abc import abstractmethod
 
 import aiko_services as aiko
-from aiko_services.main.utilities import get_hostname
-
 from aiko_services.actors.power_manager.log import PowerLog
 from aiko_services.actors.power_manager.policy import (
-    Dwell, EXACT_REASONS, HOLD, MODE_NORMAL, MODE_QUIESCE, SHUTDOWN, decide,
-    decide_action, decide_mode, docked_state, supply_warning,
-    writing_ok as policy_writing_ok
+    EXACT_REASONS,
+    HOLD,
+    MODE_NORMAL,
+    MODE_QUIESCE,
+    SHUTDOWN,
+    Dwell,
+    decide,
+    decide_action,
+    decide_mode,
+    docked_state,
+    supply_warning,
 )
-from aiko_services.actors.power_manager.quiesce import (
-    HOOK_QUIESCE, Quiesce
+from aiko_services.actors.power_manager.policy import (
+    writing_ok as policy_writing_ok,
 )
-from aiko_services.actors.power_manager.reading import (
-    PowerReading, boot_id, utc_now
-)
-from aiko_services.actors.power_manager.shutdown import power_off
 from aiko_services.actors.power_manager.powered_up import (
-    BRIDGE_TOPIC, LeaseConstraint, POWERED_UP_MAXIMUM_S,
-    POWERED_UP_REQUESTS_MAXIMUM, PoweredUpRegister, REFUSED_PARAMETERS
+    BRIDGE_TOPIC,
+    POWERED_UP_MAXIMUM_S,
+    POWERED_UP_REQUESTS_MAXIMUM,
+    REFUSED_PARAMETERS,
+    LeaseConstraint,
+    PoweredUpRegister,
 )
+from aiko_services.actors.power_manager.quiesce import HOOK_QUIESCE, Quiesce
+from aiko_services.actors.power_manager.reading import PowerReading, boot_id, utc_now
+from aiko_services.actors.power_manager.shutdown import power_off
+from aiko_services.main.utilities import get_hostname
 
 try:
     import psutil
-except ImportError:                                      # pragma: no cover
+except ImportError:  # pragma: no cover
     psutil = None
 
 __all__ = [
-    "BUTTON_SHUTDOWN", "DEVICE_FUNCTIONS", "DOCK_DWELL_S", "ENFORCE",
+    "BUTTON_SHUTDOWN",
+    "DEVICE_FUNCTIONS",
+    "DOCK_DWELL_S",
+    "ENFORCE",
     "FUNCTIONS",
-    "LOG_DIRECTORY", "PERIOD_DEVELOPMENT", "PERIOD_PRODUCTION",
-    "POLICY_ADVISORY", "POLICY_SHUTTING_DOWN", "PROPERTIES", "PROTOCOL",
-    "CELL_DAMAGE_VOLTS", "POWERED_DOWN_GRACE_S", "SAFE", "SAFE_FUNCTIONS",
-    "BATTERY_VOLTS_CHARGED", "SUPPLY_AMPS_FRACTION",
+    "LOG_DIRECTORY",
+    "PERIOD_DEVELOPMENT",
+    "PERIOD_PRODUCTION",
+    "POLICY_ADVISORY",
+    "POLICY_SHUTTING_DOWN",
+    "PROPERTIES",
+    "PROTOCOL",
+    "CELL_DAMAGE_VOLTS",
+    "POWERED_DOWN_GRACE_S",
+    "SAFE",
+    "SAFE_FUNCTIONS",
+    "BATTERY_VOLTS_CHARGED",
+    "SUPPLY_AMPS_FRACTION",
     "SUPPLY_HEADROOM_VOLTS",
-    "SUPPLY_WARNING_DWELL_S", "THRESHOLDS",
+    "SUPPLY_WARNING_DWELL_S",
+    "THRESHOLDS",
     "DOCKED_VOLTS_MINIMUM",
-    "UNDOCKED_MAXIMUM_S", "WORKING_DWELL_S", "WORKING_LOSS_S",
-    "WORKING_LOST_PATTERN", "WORKING_PATTERN",
-    "WORKING_REPORTERS_MAXIMUM", "PowerManager",
-    "PowerManagerCommon", "choose_power_manager", "power_manager_args",
-    "service_filter", "service_tags",
+    "UNDOCKED_MAXIMUM_S",
+    "WORKING_DWELL_S",
+    "WORKING_LOSS_S",
+    "WORKING_LOST_PATTERN",
+    "WORKING_PATTERN",
+    "WORKING_REPORTERS_MAXIMUM",
+    "PowerManager",
+    "PowerManagerCommon",
+    "choose_power_manager",
+    "power_manager_args",
+    "service_filter",
+    "service_tags",
 ]
 
 PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/power_manager:0"
@@ -109,8 +139,8 @@ PROTOCOL = f"{aiko.SERVICE_PROTOCOL_AIKO}/power_manager:0"
 # 600 s at the 10.7 W that was measured is about 1.8 Wh, and 900 s is about
 # 2.7 Wh.  A pack at 10.05 V holds little, so both are inside what even a
 # tired pack should carry.
-POWERED_DOWN_GRACE_S = 600.0       # The deployment's deadline: ten minutes
-UNDOCKED_MAXIMUM_S = 900.0         # The backstop: fifteen minutes
+POWERED_DOWN_GRACE_S = 600.0  # The deployment's deadline: ten minutes
+UNDOCKED_MAXIMUM_S = 900.0  # The backstop: fifteen minutes
 
 # The voltage a cell is damaged below, as a pack of three: 3.0 V each.
 #
@@ -144,8 +174,8 @@ SUPPLY_HEADROOM_VOLTS = 0.5
 # either, because the charger has stopped, so without this the warning
 # cannot tell a healthy host from a starved one.  Found on 2026-11-06.
 BATTERY_VOLTS_CHARGED = 12.0
-SUPPLY_AMPS_FRACTION = 0.95        # Of the rating, before it is a warning
-SUPPLY_WARNING_DWELL_S = 3600.0    # Said once, then at most hourly
+SUPPLY_AMPS_FRACTION = 0.95  # Of the rating, before it is a warning
+SUPPLY_WARNING_DWELL_S = 3600.0  # Said once, then at most hourly
 
 # What a report of work sounds like, and the two limits that bound it.  A
 # report makes a noise that reaches a person, so one reporter cannot sound
@@ -177,8 +207,8 @@ WORKING_LOSS_S = None
 # space into two tags (ADR-028 decision 2)
 PROPERTIES = ("readings", "hold", "signal", "button", "dock")
 
-PERIOD_DEVELOPMENT = 5.0           # Seconds between samples, while watching
-PERIOD_PRODUCTION = 60.0           # Seconds between samples, in the field
+PERIOD_DEVELOPMENT = 5.0  # Seconds between samples, while watching
+PERIOD_PRODUCTION = 60.0  # Seconds between samples, in the field
 PERIOD_LOW, PERIOD_HIGH = 0.5, 3600.0
 
 LOG_DIRECTORY = "~/power_log"
@@ -189,7 +219,7 @@ LOG_DIRECTORY = "~/power_log"
 # the battery pack before anything acts on them.  An operator reads "policy_would"
 # and "policy_reason" for as long as that takes, and then turns it on
 ENFORCE = False
-POLICY_ADVISORY = "advisory"       # It decides, publishes, and acts on nothing
+POLICY_ADVISORY = "advisory"  # It decides, publishes, and acts on nothing
 POLICY_SHUTTING_DOWN = "shutting_down"
 
 # The button acts even while the posture is advisory, and this is why.
@@ -215,11 +245,11 @@ DOCK_DWELL_S = 10.0
 # battery_volts_low, so enforcement before measurement would stop the host
 # on its first sample
 THRESHOLDS = {
-    "battery_volts_floor": 9.9,    # The battery pack must not go below this
-    "battery_volts_low": 10.5,     # Start the orderly shutdown
-    "quiesce_volts": 10.2,         # Stop writing, and flush
-    "battery_pack_celsius_maximum": 45.0,     # The battery pack, never the processor
-    "battery_dwell_s": 30.0,       # The voltage must stay low this long
+    "battery_volts_floor": 9.9,  # The battery pack must not go below this
+    "battery_volts_low": 10.5,  # Start the orderly shutdown
+    "quiesce_volts": 10.2,  # Stop writing, and flush
+    "battery_pack_celsius_maximum": 45.0,  # The battery pack, never the processor
+    "battery_dwell_s": 30.0,  # The voltage must stay low this long
     # The backstop on an undocked hold.  It is the longer of the two, so it
     # fires only where a deployment turned the deadline below off or set it
     # longer than this
@@ -240,7 +270,7 @@ THRESHOLDS = {
     # the writers stop before the host does.  None is off, and then an
     # undocked host conserves at once
     "powered_down_application_grace_s": None,
-    "powered_up_grace_s": 60.0,      # After the last Lease is released
+    "powered_up_grace_s": 60.0,  # After the last Lease is released
     "dock_dwell_s": DOCK_DWELL_S,  # Before an undock is believed
     # The dock line is believed only where the supply agrees with it.
     # Off is one signal where the design calls for two, so a deployment
@@ -258,7 +288,7 @@ THRESHOLDS = {
     # Above this the battery pack counts as charged, and no headroom is
     # expected because the charger has stopped
     "battery_volts_charged": BATTERY_VOLTS_CHARGED,
-    "supply_amps_maximum": None,   # From the supply's label
+    "supply_amps_maximum": None,  # From the supply's label
     "supply_amps_fraction": SUPPLY_AMPS_FRACTION,
     "supply_warning_dwell_s": SUPPLY_WARNING_DWELL_S,
     "working_dwell_s": WORKING_DWELL_S,
@@ -271,10 +301,11 @@ THRESHOLDS = {
 # joins them because the command line already accepts zero for it, and the
 # backstop is then the only deadline
 THRESHOLDS_OPTIONAL = frozenset(
-    {name for name, value in THRESHOLDS.items() if value is None}
-    | {"powered_down_grace_s", "docked_volts_minimum"})
+    {name for name, value in THRESHOLDS.items() if value is None} | {"powered_down_grace_s", "docked_volts_minimum"}
+)
 
 THRESHOLD_OFF = ("-", "none", "off", "")
+
 
 def volts_ladder(values, given, prefix=""):
     """The ladder the voltages have to form, in one place.
@@ -304,27 +335,36 @@ def volts_ladder(values, given, prefix=""):
 
     floor = volts("battery_volts_floor")
     if floor <= CELL_DAMAGE_VOLTS:
-        return (f"{prefix}battery_volts_floor {floor:g} must be above the "
+        return (
+            f"{prefix}battery_volts_floor {floor:g} must be above the "
             f"cell damage limit of {CELL_DAMAGE_VOLTS:g} V: this design "
-            "stops above it, and never at it")
+            "stops above it, and never at it"
+        )
     low = volts("battery_volts_low")
     if low < floor:
-        return (f"{prefix}battery_volts_low {low:g} must not be below "
+        return (
+            f"{prefix}battery_volts_low {low:g} must not be below "
             f"{prefix}battery_volts_floor {floor:g}: the shutdown starts "
-            "above the voltage at which the file systems go read-only")
+            "above the voltage at which the file systems go read-only"
+        )
     quiesce = volts("quiesce_volts")
     if "battery_volts_charged" in given:
         charged = values.get("battery_volts_charged")
         if charged is not None and float(charged) <= quiesce:
-            return (f"{prefix}battery_volts_charged {float(charged):g} must "
+            return (
+                f"{prefix}battery_volts_charged {float(charged):g} must "
                 f"be above {prefix}quiesce_volts {quiesce:g}: a battery "
                 "pack counts as charged above the voltage at which writing "
-                "stops")
+                "stops"
+            )
     if "quiesce_volts" in given and quiesce < low:
-        return (f"{prefix}quiesce_volts {quiesce:g} must not be below "
+        return (
+            f"{prefix}quiesce_volts {quiesce:g} must not be below "
             f"{prefix}battery_volts_low {low:g}: writing stops above the "
-            "voltage at which the shutdown starts")
+            "voltage at which the shutdown starts"
+        )
     return None
+
 
 def grace_order_diagnostic(values):
     """The one rule that relates two thresholds, checked where they meet.
@@ -349,8 +389,8 @@ def grace_order_diagnostic(values):
     try:
         application = float(application)
     except (TypeError, ValueError):
-        return None                # _number() already ignores what it
-                                   #   cannot read
+        return None  # _number() already ignores what it
+        #   cannot read
     if application <= 0:
         return None
     # The deadline that will fire, and not one of the two.  Checking only
@@ -365,13 +405,13 @@ def grace_order_diagnostic(values):
         if value > 0:
             deadlines.append((value, name))
     if not deadlines:
-        return None                # No deadline at all: nothing to be
-                                   #   shorter than
+        return None  # No deadline at all: nothing to be
+        #   shorter than
     deadline, name = min(deadlines)
     if deadline > application:
         return None
-    return (f"powered_down_application_grace_s {application:g} is not less "
-        f"than {name} {deadline:g}")
+    return f"powered_down_application_grace_s {application:g} is not less than {name} {deadline:g}"
+
 
 def _grace_order(thresholds):
     """The construction-time correction: an inconsistent pair is turned
@@ -390,6 +430,7 @@ def _grace_order(thresholds):
     thresholds["powered_down_application_grace_s"] = None
     return f"{diagnostic}: turned off"
 
+
 def _volts_floor(thresholds):
     """The floor must stay above the voltage a cell is damaged below.
 
@@ -404,13 +445,16 @@ def _volts_floor(thresholds):
     try:
         floor = float(thresholds.get("battery_volts_floor"))
     except (TypeError, ValueError):
-        return None                # _number() ignores what it cannot read
+        return None  # _number() ignores what it cannot read
     if floor > CELL_DAMAGE_VOLTS:
         return None
     thresholds["battery_volts_floor"] = THRESHOLDS["battery_volts_floor"]
-    return (f"battery_volts_floor {floor:g} is not above the cell damage "
+    return (
+        f"battery_volts_floor {floor:g} is not above the cell damage "
         f"limit {CELL_DAMAGE_VOLTS:g}: using "
-        f"{THRESHOLDS['battery_volts_floor']:g}")
+        f"{THRESHOLDS['battery_volts_floor']:g}"
+    )
+
 
 class PowerManager(aiko.Actor):
     """What the supply and the battery are doing, and what to do about it.
@@ -423,8 +467,7 @@ class PowerManager(aiko.Actor):
 
     PROTOCOL = PROTOCOL
 
-    aiko.Interface.default("PowerManager",
-        "aiko_services.actors.power_manager.mock.MockPowerManagerImpl")
+    aiko.Interface.default("PowerManager", "aiko_services.actors.power_manager.mock.MockPowerManagerImpl")
 
     @abstractmethod
     def properties(self):
@@ -483,8 +526,7 @@ class PowerManager(aiko.Actor):
         trace makes every later reading unexplainable"""
 
     @abstractmethod
-    def request_powered_up(self, response_topic, seconds, reason,
-        constraint_name=None, constraint_value=None):
+    def request_powered_up(self, response_topic, seconds, reason, constraint_name=None, constraint_value=None):
         """Ask this host to stay powered for "seconds", and say why.
 
         "response_topic" is the client's own topic, which identifies the
@@ -567,15 +609,15 @@ class PowerManager(aiko.Actor):
         """Release what open() acquired.  Never releases a power hold:
         only the shutdown hook does that (ADR-028 decision 6)"""
 
+
 # The device seam, which the allow list subtracts.  A name here is called by
 # the CLI and by this Actor, and never from the message bus
-DEVICE_FUNCTIONS = frozenset(
-    {"open", "close", "read", "add_handler", "properties"})
+DEVICE_FUNCTIONS = frozenset({"open", "close", "read", "add_handler", "properties"})
 
 # P12, ADR-023: derived from the contract, less the device seam
 FUNCTIONS = aiko.interface_functions(PowerManager) - DEVICE_FUNCTIONS
 
-SAFE = True                        # The default posture of "run"
+SAFE = True  # The default posture of "run"
 
 # A power manager can stop its host, so what it accepts from the bus is not
 # a small matter.  Safe mode allows the one function that changes nothing:
@@ -594,8 +636,8 @@ SAFE = True                        # The default posture of "run"
 # "report_working" is here for the same reason, and behind the same kind of
 # limits: a dwell for each reporter and a cap on the reporters.  It names
 # one pattern that this Actor chose, so it is not control of the buzzer
-SAFE_FUNCTIONS = frozenset(
-    {"report_working", "request_powered_up", "sample", "set_log_level"})
+SAFE_FUNCTIONS = frozenset({"report_working", "request_powered_up", "sample", "set_log_level"})
+
 
 class PowerManagerCommon:
     """What every Implementation does the same way: the shared state, the
@@ -605,28 +647,35 @@ class PowerManagerCommon:
     it in common, as the display outputs hold _Emulated (ADR-028 decision 4)
     """
 
-    def _init_power(self, context, period=PERIOD_DEVELOPMENT,
-        log_directory=LOG_DIRECTORY, keep_days=None, safe=SAFE,
-        thresholds=None, telemetry=True, timer=True, enforce=ENFORCE,
-        button_shutdown=BUTTON_SHUTDOWN, quiesce=None,
-        power_off_runner=None, worker=True):
-
+    def _init_power(
+        self,
+        context,
+        period=PERIOD_DEVELOPMENT,
+        log_directory=LOG_DIRECTORY,
+        keep_days=None,
+        safe=SAFE,
+        thresholds=None,
+        telemetry=True,
+        timer=True,
+        enforce=ENFORCE,
+        button_shutdown=BUTTON_SHUTDOWN,
+        quiesce=None,
+        power_off_runner=None,
+        worker=True,
+    ):
         """Compose the Actor part.  An Implementation calls this from its
         own __init__, after it has recorded its devices"""
 
-        context.call_init(self, "FunctionGate", context,
-            functions=FUNCTIONS & SAFE_FUNCTIONS if safe else FUNCTIONS)
+        context.call_init(self, "FunctionGate", context, functions=FUNCTIONS & SAFE_FUNCTIONS if safe else FUNCTIONS)
         context.call_init(self, "Actor", context)
 
         self._safe = bool(safe)
         self._telemetry = bool(telemetry)
         self._thresholds = dict(THRESHOLDS)
         self._thresholds.update(thresholds or {})
-        self._threshold_error = _grace_order(self._thresholds)  \
-            or _volts_floor(self._thresholds)
+        self._threshold_error = _grace_order(self._thresholds) or _volts_floor(self._thresholds)
         self._period = self._valid_period(period)
-        self._log = PowerLog(log_directory, keep_days) if log_directory  \
-            else None
+        self._log = PowerLog(log_directory, keep_days) if log_directory else None
         self._boot_id = boot_id()
 
         # The policy's memory.  decide() is pure, so everything it needs to
@@ -640,24 +689,23 @@ class PowerManagerCommon:
         self._worker = bool(worker)
         self._mode = MODE_NORMAL
         self._button_held = False
-        self._undocked = Dwell()       # How long the dock line has said no
-        self._battery_low = Dwell()    # How long the battery pack has been
-                                       #   under its low voltage
+        self._undocked = Dwell()  # How long the dock line has said no
+        self._battery_low = Dwell()  # How long the battery pack has been
+        #   under its low voltage
         self._powered_up_idle = Dwell()  # How long nothing has claimed it
-        self._unmet_told = set()       # Holders already told, told once
+        self._unmet_told = set()  # Holders already told, told once
         # The expiry handler runs on the event-loop thread at the agreed
         # time, which is most of what a Lease is for: the last one to
         # expire is the event that lets a host stop
         self._powered_up = PoweredUpRegister(
-            maximum_seconds=self._thresholds.get(
-                "powered_up_maximum_s", POWERED_UP_MAXIMUM_S),
-            maximum_requests=self._thresholds.get(
-                "powered_up_requests_maximum", POWERED_UP_REQUESTS_MAXIMUM),
-            expired_handler=self._powered_up_expired)
+            maximum_seconds=self._thresholds.get("powered_up_maximum_s", POWERED_UP_MAXIMUM_S),
+            maximum_requests=self._thresholds.get("powered_up_requests_maximum", POWERED_UP_REQUESTS_MAXIMUM),
+            expired_handler=self._powered_up_expired,
+        )
         self._stopping = False
         # Who has reported that they are working, and when each last made a
         # sound.  A dwell for each one, so a Service in a loop is quiet
-        self._working = {}         # Topic -> when its sound last played
+        self._working = {}  # Topic -> when its sound last played
         # Topic -> when it last reported, which is not the same: a report
         # inside the dwell is heard and does not sound.  A loss is about
         # being heard
@@ -668,69 +716,84 @@ class PowerManagerCommon:
         # because a parameter would let a client on the bus pass its own
         # time and defeat the dwell
         self._clock = time.monotonic
-        self._supply_warning = None              # The token last published
-        self._supply_said = None                 # When it was last logged
+        self._supply_warning = None  # The token last published
+        self._supply_said = None  # When it was last logged
         self.add_hook(HOOK_QUIESCE)
 
         properties = tuple(self.properties())
         declared = tuple(getattr(self, "DECLARED_PROPERTIES", properties))
-        self.share.update({
-            "source_file": f"v{aiko.__version__}⇒ {__file__}",
-            "device": getattr(self, "device", "mock"),
-            "safe": self._safe,       # ADR-023 decision 3: observable policy
-            **{name: name in (properties or declared)
-                for name in PROPERTIES},
-            "policy": POLICY_ADVISORY,
-            "policy_reason": "-",
-            "policy_would": "-",       # What it would do, while advisory
-            "policy_acting": "-",      # And what it will act on, if any
-            "enforce": self._enforce,
-            "button_shutdown": self._button_shutdown,
-            "mode": self._mode,
-            "mode_reason": "-",
-            # The one thing an application asks of this Actor.  It is
-            # published rather than answered, so a writer subscribes and
-            # needs no function of its own (P3)
-            "writing_ok": policy_writing_ok(self._mode),
-            # A supply too small to charge the battery pack.  "-" while it
-            # looks adequate, or while there is nothing to judge it by
-            "supply_warning": "-",
-            "undocked_since_utc": "-",
-            "hold_state": "unknown",
-            "hook": "unknown",
-            "sample_period_s": f"{self._period:.1f}",
-            "log": str(self._log.directory) if self._log else "-",
-            "last_error": self._threshold_error or "-",
-            # A threshold that is None is off, and it publishes as "-"
-            # rather than as the word "None": the shared state is read by
-            # an operator, and "None" reads like a fault
-            "thresholds": {name: ("-" if value is None else f"{value}")
-                for name, value in self._thresholds.items()},
-            "metrics": {"samples": 0, "sensor_errors": 0, "signals": 0,
-                "hold_changes": 0, "denied": 0, "shutdowns": 0,
-                "quiesces": 0, "button_presses": 0,
-                "powered_up_granted": 0, "powered_up_refused": 0,
-                "powered_up_expired": 0, "working_reports": 0,
-                "working_losses": 0, "dock_disagreements": 0,
-                "supply_warnings": 0},
-            "dock_disagreement": "-",
-            "working": {"reporters": 0, "last": "-", "lost": False,
-                "age_s": "-"},
-            # The share is a nested dictionary of at most two levels, and a
-            # dotted name is a path into it, not a key (share.py).  So the
-            # snapshot nests what _publish() later updates by path
-            **_nest({**PowerReading().as_share(),
-                "battery.margin_volts": "-",
-                **self._powered_up.as_share(),
-                **self._quiesce.done()}),
-        })
+        self.share.update(
+            {
+                "source_file": f"v{aiko.__version__}⇒ {__file__}",
+                "device": getattr(self, "device", "mock"),
+                "safe": self._safe,  # ADR-023 decision 3: observable policy
+                **{name: name in (properties or declared) for name in PROPERTIES},
+                "policy": POLICY_ADVISORY,
+                "policy_reason": "-",
+                "policy_would": "-",  # What it would do, while advisory
+                "policy_acting": "-",  # And what it will act on, if any
+                "enforce": self._enforce,
+                "button_shutdown": self._button_shutdown,
+                "mode": self._mode,
+                "mode_reason": "-",
+                # The one thing an application asks of this Actor.  It is
+                # published rather than answered, so a writer subscribes and
+                # needs no function of its own (P3)
+                "writing_ok": policy_writing_ok(self._mode),
+                # A supply too small to charge the battery pack.  "-" while it
+                # looks adequate, or while there is nothing to judge it by
+                "supply_warning": "-",
+                "undocked_since_utc": "-",
+                "hold_state": "unknown",
+                "hook": "unknown",
+                "sample_period_s": f"{self._period:.1f}",
+                "log": str(self._log.directory) if self._log else "-",
+                "last_error": self._threshold_error or "-",
+                # A threshold that is None is off, and it publishes as "-"
+                # rather than as the word "None": the shared state is read by
+                # an operator, and "None" reads like a fault
+                "thresholds": {
+                    name: ("-" if value is None else f"{value}") for name, value in self._thresholds.items()
+                },
+                "metrics": {
+                    "samples": 0,
+                    "sensor_errors": 0,
+                    "signals": 0,
+                    "hold_changes": 0,
+                    "denied": 0,
+                    "shutdowns": 0,
+                    "quiesces": 0,
+                    "button_presses": 0,
+                    "powered_up_granted": 0,
+                    "powered_up_refused": 0,
+                    "powered_up_expired": 0,
+                    "working_reports": 0,
+                    "working_losses": 0,
+                    "dock_disagreements": 0,
+                    "supply_warnings": 0,
+                },
+                "dock_disagreement": "-",
+                "working": {"reporters": 0, "last": "-", "lost": False, "age_s": "-"},
+                # The share is a nested dictionary of at most two levels, and a
+                # dotted name is a path into it, not a key (share.py).  So the
+                # snapshot nests what _publish() later updates by path
+                **_nest(
+                    {
+                        **PowerReading().as_share(),
+                        "battery.margin_volts": "-",
+                        **self._powered_up.as_share(),
+                        **self._quiesce.done(),
+                    }
+                ),
+            }
+        )
         self.ec_producer.add_handler(self._power_change_handler)
 
         self._timer = bool(timer)
         if self._timer:
             aiko.event.add_timer_handler(self._sample_timer, self._period)
 
-# The wire surface ---------------------------------------------------------- #
+    # The wire surface ---------------------------------------------------------- #
 
     def reading(self):
         """One reading with both clocks and the processor load filled in,
@@ -755,34 +818,35 @@ class PowerManagerCommon:
         self._check_working(now)
         decision, reason, mode, mode_reason = self._evaluate(reading, now)
         if self._log:
-            self._log.write(reading, extra={
-                "policy": self.share["policy"],
-                "policy_would": decision,
-                "policy_reason": reason,
-                "mode": mode,
-                "mode_reason": mode_reason,
-                "enforce": self._enforce,
-                "powered_up_held": self._powered_up.held(),
-                "power_up_reasons": "+".join(
-                    self._powered_up.reasons()) or "-",
-                "period_s": self._period,
-                # How long this host has been undocked, so that a reading
-                # of the log can say how long real undocked periods last
-                # and what the battery pack did through them.  That is
-                # what the deadlines are tuned from
-                "undocked_s": round(self._undocked.seconds(now), 1),
-                # What it will act on, which is not always the reason above.
-                # It belongs here and not only in the shared state: an
-                # undocked host that stops takes its journal with it where
-                # the journal is not persistent, and this log is then the
-                # only account of why it stopped.  Measured on 2026-11-05,
-                # when exactly that question could not be answered
-                "policy_acting": self.share["policy_acting"],
-                "supply_warning": self.share["supply_warning"],
-            })
+            self._log.write(
+                reading,
+                extra={
+                    "policy": self.share["policy"],
+                    "policy_would": decision,
+                    "policy_reason": reason,
+                    "mode": mode,
+                    "mode_reason": mode_reason,
+                    "enforce": self._enforce,
+                    "powered_up_held": self._powered_up.held(),
+                    "power_up_reasons": "+".join(self._powered_up.reasons()) or "-",
+                    "period_s": self._period,
+                    # How long this host has been undocked, so that a reading
+                    # of the log can say how long real undocked periods last
+                    # and what the battery pack did through them.  That is
+                    # what the deadlines are tuned from
+                    "undocked_s": round(self._undocked.seconds(now), 1),
+                    # What it will act on, which is not always the reason above.
+                    # It belongs here and not only in the shared state: an
+                    # undocked host that stops takes its journal with it where
+                    # the journal is not persistent, and this log is then the
+                    # only account of why it stopped.  Measured on 2026-11-05,
+                    # when exactly that question could not be answered
+                    "policy_acting": self.share["policy_acting"],
+                    "supply_warning": self.share["supply_warning"],
+                },
+            )
             if self._log.last_error:
-                self.ec_producer.update(
-                    "last_error", self._log.last_error[:120])
+                self.ec_producer.update("last_error", self._log.last_error[:120])
                 self._log.last_error = None
         return reading
 
@@ -805,13 +869,13 @@ class PowerManagerCommon:
         return properties
 
     def hold_state(self):
-        """"on", "off" or "unknown".  An Implementation with no hold
+        """ "on", "off" or "unknown".  An Implementation with no hold
         property reports "unknown", which is what it is"""
 
         return "unknown"
 
     def hook_state(self):
-        """"installed", "missing" or "unknown" for the shutdown hook.
+        """ "installed", "missing" or "unknown" for the shutdown hook.
 
         A host whose hook is missing fails safe and costs a charge: the pin
         stays asserted and the halted host stays on the battery pack.  So this is
@@ -819,8 +883,7 @@ class PowerManagerCommon:
 
         return "unknown"
 
-    def request_powered_up(self, response_topic, seconds, reason="-",
-        constraint_name=None, constraint_value=None):
+    def request_powered_up(self, response_topic, seconds, reason="-", constraint_name=None, constraint_value=None):
         """Take, extend or release one claim on this host.
 
         The client names its own topic, and that topic is checked before
@@ -832,8 +895,8 @@ class PowerManagerCommon:
         topic = coerce_response_topic(response_topic, str(self.topic_path))
         if topic is None or topic == BRIDGE_TOPIC:
             self.logger.warning(
-                f"request_powered_up refused: {str(response_topic)[:60]} is not "
-                "a topic this Service may publish to")
+                f"request_powered_up refused: {str(response_topic)[:60]} is not a topic this Service may publish to"
+            )
             self._count("denied")
             return
         # Coerced and checked at the boundary, never assumed away (P12)
@@ -845,12 +908,10 @@ class PowerManagerCommon:
             self._powered_up.refused += 1
             self._publish_powered_up()
             return
-        outcome, detail = self._powered_up.request(
-            topic, seconds, reason, constraint, self.available())
+        outcome, detail = self._powered_up.request(topic, seconds, reason, constraint, self.available())
         self._answer(topic, outcome, detail)
         self._publish_powered_up()
-        self.logger.info(f"Powered up {outcome} {detail}: {reason}"
-            f"{f' [{constraint}]' if constraint else ''} ({topic})")
+        self.logger.info(f"Powered up {outcome} {detail}: {reason}{f' [{constraint}]' if constraint else ''} ({topic})")
 
     def report_working(self, response_topic, detail="-"):
         """Note that one Service is doing its work, and sound it.
@@ -864,33 +925,29 @@ class PowerManagerCommon:
         topic = coerce_response_topic(response_topic, str(self.topic_path))
         if topic is None or topic == BRIDGE_TOPIC:
             self.logger.warning(
-                f"report_working refused: {str(response_topic)[:60]} is not a "
-                "topic this Service may publish to")
+                f"report_working refused: {str(response_topic)[:60]} is not a topic this Service may publish to"
+            )
             self._count("denied")
             return False
         now = self._clock()
-        maximum = int(self._thresholds.get(
-            "working_reporters_maximum", WORKING_REPORTERS_MAXIMUM))
+        maximum = int(self._thresholds.get("working_reporters_maximum", WORKING_REPORTERS_MAXIMUM))
         if topic not in self._working and len(self._working) >= maximum:
-            self.logger.warning(
-                f"report_working refused: {maximum} reporters already")
+            self.logger.warning(f"report_working refused: {maximum} reporters already")
             self._count("denied")
             return False
         dwell = float(self._thresholds.get("working_dwell_s", WORKING_DWELL_S))
         sounded = self._working.get(topic)
         self._count("working_reports")
         self._working_seen[topic] = now
-        self.ec_producer.update("working.reporters", len(self._working) + (
-            0 if topic in self._working else 1))
+        self.ec_producer.update("working.reporters", len(self._working) + (0 if topic in self._working else 1))
         self.ec_producer.update("working.last", str(detail)[:24])
         if self._working_lost:
             self._working_lost = False
             self.ec_producer.update("working.lost", False)
             self.logger.info(f"Working again: {detail} ({topic})")
         if sounded is not None and now - sounded < dwell:
-            self._working[topic] = sounded     # The dwell is not restarted
-            self.logger.debug(
-                f"Working {detail} ({topic}): inside the dwell, so no sound")
+            self._working[topic] = sounded  # The dwell is not restarted
+            self.logger.debug(f"Working {detail} ({topic}): inside the dwell, so no sound")
             return False
         self._working[topic] = now
         self.logger.info(f"Working: {detail} ({topic})")
@@ -911,8 +968,7 @@ class PowerManagerCommon:
         self.ec_producer.update("dock_disagreement", value)
         if disagreement:
             self._count("dock_disagreements")
-            self.logger.warning(f"Dock and supply disagree: {disagreement}"
-                ": treated as undocked")
+            self.logger.warning(f"Dock and supply disagree: {disagreement}: treated as undocked")
         else:
             self.logger.info("Dock and supply agree")
 
@@ -937,12 +993,11 @@ class PowerManagerCommon:
         if age < float(loss):
             return
         if self._working_lost:
-            return                 # It is reported once, and not each sample
+            return  # It is reported once, and not each sample
         self._working_lost = True
         self.ec_producer.update("working.lost", True)
         self._count("working_losses")
-        self.logger.warning(
-            f"Working lost: nothing reported for {age:.0f} s")
+        self.logger.warning(f"Working lost: nothing reported for {age:.0f} s")
         self.signal(WORKING_LOST_PATTERN)
 
     def _answer(self, topic, outcome, detail):
@@ -978,7 +1033,7 @@ class PowerManagerCommon:
             return
         try:
             message.publish(topic, generate(command, list(arguments)))
-        except Exception as error:                       # noqa: BLE001
+        except Exception as error:  # noqa: BLE001
             self.logger.warning(f"Could not answer {topic}: {error}")
 
     def _publish_powered_up(self):
@@ -989,7 +1044,8 @@ class PowerManagerCommon:
         for name, value in (
             ("powered_up_granted", self._powered_up.granted),
             ("powered_up_refused", self._powered_up.refused),
-            ("powered_up_expired", self._powered_up.expired)):
+            ("powered_up_expired", self._powered_up.expired),
+        ):
             self.ec_producer.update(f"metrics.{name}", value)
 
     def available(self):
@@ -1016,11 +1072,9 @@ class PowerManagerCommon:
             if topic == BRIDGE_TOPIC or topic in self._unmet_told:
                 continue
             lease = self._powered_up._leases.get(topic)
-            name = lease.constraint.name if lease and lease.constraint  \
-                else "-"
+            name = lease.constraint.name if lease and lease.constraint else "-"
             left = available.get(name)
-            self._publish_to(topic, "powered_up_unmet", name,
-                "-" if left is None else f"{left:g}")
+            self._publish_to(topic, "powered_up_unmet", name, "-" if left is None else f"{left:g}")
             self.logger.warning(f"Powered up unmet: {name} ({topic})")
         self._unmet_told = set(unmet)
 
@@ -1088,7 +1142,7 @@ class PowerManagerCommon:
             if number < 0:
                 return None, f"{name} {number:g}: not a negative number"
             if number == 0:
-                number = None      # The command line reads zero as off too
+                number = None  # The command line reads zero as off too
         if number is None and name not in THRESHOLDS_OPTIONAL:
             return None, f"{name} cannot be turned off"
         return number, None
@@ -1100,8 +1154,7 @@ class PowerManagerCommon:
         if diagnostic is None:
             candidate = dict(self._thresholds)
             candidate[name] = number
-            diagnostic = (volts_ladder(candidate, {name})
-                or grace_order_diagnostic(candidate))
+            diagnostic = volts_ladder(candidate, {name}) or grace_order_diagnostic(candidate)
         if diagnostic:
             self.logger.warning(f"Refused set_threshold: {diagnostic}")
             self.ec_producer.update("last_error", diagnostic[:120])
@@ -1118,10 +1171,9 @@ class PowerManagerCommon:
         self.ec_producer.update(f"thresholds.{name}", published)
         # With the value it replaced, because a threshold that changed
         # without a trace makes every later reading unexplainable
-        self.logger.info(f"Threshold {name}: "
-            f"{'-' if was is None else was} -> {published}")
+        self.logger.info(f"Threshold {name}: {'-' if was is None else was} -> {published}")
 
-# The event-loop thread ----------------------------------------------------- #
+    # The event-loop thread ----------------------------------------------------- #
 
     def _sample_timer(self):
         self.sample()
@@ -1141,9 +1193,8 @@ class PowerManagerCommon:
         an advisory one, which has no shutdown to finish"""
 
         if not self._timer or not self._enforce:
-            return                     # Nothing waits on a grace to act
-        aiko.event.add_timer_handler(
-            self._grace_timer, float(self._quiesce.grace))
+            return  # Nothing waits on a grace to act
+        aiko.event.add_timer_handler(self._grace_timer, float(self._quiesce.grace))
 
     def _grace_timer(self):
         """One shot: it takes itself away, then decides again"""
@@ -1157,13 +1208,10 @@ class PowerManagerCommon:
 
         try:
             reading = self.read()
-        except OSError as error:                         # A bus or a part
-            self.ec_producer.update(
-                "metrics.sensor_errors",
-                int(self.share["metrics"]["sensor_errors"]) + 1)
+        except OSError as error:  # A bus or a part
+            self.ec_producer.update("metrics.sensor_errors", int(self.share["metrics"]["sensor_errors"]) + 1)
             self.ec_producer.update("last_error", str(error)[:120])
-            reading = PowerReading(
-                device=getattr(self, "device", "mock"), error=str(error)[:120])
+            reading = PowerReading(device=getattr(self, "device", "mock"), error=str(error)[:120])
         return self._with_host_telemetry(reading)
 
     def _with_host_telemetry(self, reading):
@@ -1182,6 +1230,7 @@ class PowerManagerCommon:
         }
         if values["sampled_monotonic"] is None:
             import time
+
             values["sampled_monotonic"] = round(time.monotonic(), 3)
         if self._telemetry:
             cpu, memory, celsius, load = _host_telemetry()
@@ -1218,29 +1267,34 @@ class PowerManagerCommon:
         # powered-down supply floats, and a floating rail used to read as
         # "docked": no deadline started, nothing told the writers to
         # stop, and the battery pack went flat
-        reported, disagreement = docked_state(
-            reading.docked, reading.supply_volts, thresholds)
+        reported, disagreement = docked_state(reading.docked, reading.supply_volts, thresholds)
         self._report_dock(disagreement)
         undocked_s = self._undocked.update(reported is False, now)
         dock_dwell = float(thresholds.get("dock_dwell_s", DOCK_DWELL_S))
-        docked = True if reported is None else (
-            reported or not self._undocked.passed(dock_dwell, now))
+        docked = True if reported is None else (reported or not self._undocked.passed(dock_dwell, now))
 
         low = _as_float(thresholds.get("battery_volts_low"))
         battery_low_s = self._battery_low.update(
-            reading.battery_volts is not None and low is not None
-            and reading.battery_volts < low, now)
+            reading.battery_volts is not None and low is not None and reading.battery_volts < low, now
+        )
         available = self.available()
         met, unmet = self._powered_up.satisfied(available)
         self._tell_unmet(unmet)
         powered_up_held = len(met)
-        powered_up_idle_s = self._powered_up_idle.update(
-            powered_up_held == 0, now)
+        powered_up_idle_s = self._powered_up_idle.update(powered_up_held == 0, now)
 
         arguments = (
-            reading.battery_volts, reading.battery_pack_celsius, docked,
-            properties, powered_up_held, self._button_held,
-            undocked_s, battery_low_s, powered_up_idle_s, thresholds)
+            reading.battery_volts,
+            reading.battery_pack_celsius,
+            docked,
+            properties,
+            powered_up_held,
+            self._button_held,
+            undocked_s,
+            battery_low_s,
+            powered_up_idle_s,
+            thresholds,
+        )
         # What is most urgent, which is what an operator is shown
         decision, reason = decide(*arguments)
         # And what can be acted on in this posture, which is not always the
@@ -1249,15 +1303,15 @@ class PowerManagerCommon:
         # advisory posture holds that back, so without this the deadline
         # below it was never reached and the host ran until it browned out.
         # Measured in production on 2026-11-05
-        action, action_reason = decide_action(*arguments,
-            actionable=None if self._enforce else EXACT_REASONS)
+        action, action_reason = decide_action(*arguments, actionable=None if self._enforce else EXACT_REASONS)
         mode, mode_reason = decide_mode(
-            self._mode, decision, reading.battery_volts, docked,
-            self.hook_state(), thresholds, undocked_s)
+            self._mode, decision, reading.battery_volts, docked, self.hook_state(), thresholds, undocked_s
+        )
 
         self._warn_supply(reading, docked, now)
-        self._publish_decision(decision, reason, mode, mode_reason, docked,
-            undocked_s, now, action_reason if action == SHUTDOWN else "-")
+        self._publish_decision(
+            decision, reason, mode, mode_reason, docked, undocked_s, now, action_reason if action == SHUTDOWN else "-"
+        )
         if mode != self._mode:
             self._enter_mode(mode, mode_reason, now)
         if action == SHUTDOWN:
@@ -1266,9 +1320,7 @@ class PowerManagerCommon:
             # Nothing in the rule can act in this posture.  Saying so is
             # the difference between a log that explains a host which keeps
             # running and one that repeats "would shut down now" for ever
-            self.logger.warning(
-                f"Advisory: would shut down now ({reason}), and no reason "
-                "below it can act either")
+            self.logger.warning(f"Advisory: would shut down now ({reason}), and no reason below it can act either")
         return decision, reason, mode, mode_reason
 
     def _warn_supply(self, reading, docked, now):
@@ -1282,28 +1334,28 @@ class PowerManagerCommon:
         undersized for weeks, and a warning once a minute for weeks is one
         an operator stops reading"""
 
-        token = supply_warning(reading.supply_volts, reading.supply_amps,
-            reading.battery_volts, docked, self._thresholds)
+        token = supply_warning(
+            reading.supply_volts, reading.supply_amps, reading.battery_volts, docked, self._thresholds
+        )
         if token != self._supply_warning:
             self._supply_warning = token
             self.ec_producer.update("supply_warning", token or "-")
-            self._supply_said = None             # A change is always said
+            self._supply_said = None  # A change is always said
         if token is None:
             return
-        dwell = _as_float(
-            self._thresholds.get("supply_warning_dwell_s")) or 0.0
+        dwell = _as_float(self._thresholds.get("supply_warning_dwell_s")) or 0.0
         if self._supply_said is not None and now - self._supply_said < dwell:
             return
         self._supply_said = now
         self._count("supply_warnings")
-        self.logger.warning(f"Supply looks undersized ({token}): "
+        self.logger.warning(
+            f"Supply looks undersized ({token}): "
             f"{reading.supply_volts} V, {reading.supply_amps} A, with the "
             f"battery pack at {reading.battery_volts} V.  The pack cannot "
-            "charge from a supply this close to it")
+            "charge from a supply this close to it"
+        )
 
-    def _publish_decision(self, decision, reason, mode, mode_reason,
-        docked, undocked_s, now=None, acting="-"):
-
+    def _publish_decision(self, decision, reason, mode, mode_reason, docked, undocked_s, now=None, acting="-"):
         """Everything the decision produced, whether or not it is acted on.
 
         "now" is the clock that the decision used.  One clock, or a claim
@@ -1325,8 +1377,7 @@ class PowerManagerCommon:
         if not self._enforce:
             items["policy"] = POLICY_ADVISORY
         elif not self._stopping:
-            items["policy"] = HOLD if decision == HOLD  \
-                else "shutdown_pending"
+            items["policy"] = HOLD if decision == HOLD else "shutdown_pending"
         if undocked_s and self.share["undocked_since_utc"] == "-":
             items["undocked_since_utc"] = utc_now()
         elif not undocked_s:
@@ -1350,8 +1401,7 @@ class PowerManagerCommon:
         self._mode = mode
         self.ec_producer.update("mode", mode)
         self.ec_producer.update("writing_ok", policy_writing_ok(mode))
-        self.logger.info(f"Power mode: {mode} ({reason}), "
-            f"writing {'okay' if policy_writing_ok(mode) else 'not okay'}")
+        self.logger.info(f"Power mode: {mode} ({reason}), writing {'okay' if policy_writing_ok(mode) else 'not okay'}")
         # Every client that holds a claim hears the mode, so it can stop
         # writing without watching the shared state for itself
         self._notify_holders("power_mode", mode, reason)
@@ -1366,8 +1416,7 @@ class PowerManagerCommon:
         if outcome and not outcome[0]:
             self.logger.error(f"Sync failed: {outcome[1]}")
             self.ec_producer.update("last_error", outcome[1][:120])
-        self.run_hook(HOOK_QUIESCE,
-            lambda: {"mode": mode, "reason": reason})
+        self.run_hook(HOOK_QUIESCE, lambda: {"mode": mode, "reason": reason})
         for name, value in self._quiesce.done().items():
             self.ec_producer.update(name, value)
 
@@ -1393,15 +1442,13 @@ class PowerManagerCommon:
         if reason == "button_held" and not self._button_shutdown:
             exact = False
         if not self._enforce and not exact:
-            self.logger.warning(
-                f"Advisory: would shut down now ({reason})")
+            self.logger.warning(f"Advisory: would shut down now ({reason})")
             return
         if self._stopping:
             return
         floor = _as_float(self._thresholds.get("battery_volts_floor"))
         volts = _as_float(self.share["battery"].get("volts"))
-        at_floor = reason == "battery_floor" or (
-            volts is not None and floor is not None and volts < floor)
+        at_floor = reason == "battery_floor" or (volts is not None and floor is not None and volts < floor)
         # A press is answered now, and not after a grace.  The mode change
         # has already told the writers and flushed the file systems, and
         # the power-off unmounts in an orderly way by itself.  Waiting out
@@ -1428,7 +1475,7 @@ class PowerManagerCommon:
             for name, value in self._quiesce.done().items():
                 self.ec_producer.update(name, value)
         elif at_floor:
-            return                     # Wait out the grace, then remount
+            return  # Wait out the grace, then remount
 
         self._stopping = True
         self.ec_producer.update("policy", POLICY_SHUTTING_DOWN)
@@ -1449,8 +1496,7 @@ class PowerManagerCommon:
         def run():
             ok, detail = power_off(runner=self._power_off_runner)
             if not ok:
-                self._post_message(
-                    aiko.ActorTopic.IN, "_power_off_failed", [detail[:120]])
+                self._post_message(aiko.ActorTopic.IN, "_power_off_failed", [detail[:120]])
 
         if not self._worker:
             ok, detail = power_off(runner=self._power_off_runner)
@@ -1520,10 +1566,8 @@ class PowerManagerCommon:
         """One reading into the shared state, through the producer"""
 
         items = reading.as_share()
-        items["battery.margin_volts"] = _token(
-            reading.margin_volts(self._thresholds["battery_volts_floor"]))
-        items["metrics.samples"] =  \
-            int(self.share["metrics"]["samples"]) + 1
+        items["battery.margin_volts"] = _token(reading.margin_volts(self._thresholds["battery_volts_floor"]))
+        items["metrics.samples"] = int(self.share["metrics"]["samples"]) + 1
         for name, value in items.items():
             self.ec_producer.update(name, value)
 
@@ -1546,48 +1590,42 @@ class PowerManagerCommon:
                 self._refuse_update("safe", self._safe, "read only")
             return
         if item_name.startswith("thresholds."):
-            name = item_name[len("thresholds."):]
+            name = item_name[len("thresholds.") :]
             stored = self._thresholds.get(name)
             published = "-" if stored is None else f"{stored}"
             if f"{item_value}" != published:
-                self._refuse_update(item_name, published,
-                    "read only: use (set_threshold NAME VALUE)")
+                self._refuse_update(item_name, published, "read only: use (set_threshold NAME VALUE)")
 
     def _refuse_update(self, item_name, stored, why):
         """Refuse a write to the shared state, and put the value back"""
 
         self.logger.warning(f'Refused "{item_name}": {why}')
-        self.ec_producer.update("metrics.denied",
-            int(self.share["metrics"]["denied"]) + 1)
+        self.ec_producer.update("metrics.denied", int(self.share["metrics"]["denied"]) + 1)
         self.ec_producer.update(item_name, stored)
 
     @staticmethod
     def _valid_period(seconds):
         period = float(seconds)
         if not PERIOD_LOW <= period <= PERIOD_HIGH:
-            raise ValueError(
-                f"period must be {PERIOD_LOW} to {PERIOD_HIGH}, not {period}")
+            raise ValueError(f"period must be {PERIOD_LOW} to {PERIOD_HIGH}, not {period}")
         return period
 
-# Phase 1 has no outputs ---------------------------------------------------- #
+    # Phase 1 has no outputs ---------------------------------------------------- #
 
     def hold(self, on):
         """A no-op where the "hold" property is absent"""
 
-        self.logger.warning(
-            f'hold({on}) ignored: this Implementation has no "hold" property')
+        self.logger.warning(f'hold({on}) ignored: this Implementation has no "hold" property')
 
     def signal(self, name):
         """A no-op where the "signal" property is absent"""
 
-        self.logger.warning(
-            f'signal({name}) ignored: no "signal" property')
+        self.logger.warning(f'signal({name}) ignored: no "signal" property')
 
     def _count(self, name):
         """One more of a metric, published through the producer"""
 
-        self.ec_producer.update(
-            f"metrics.{name}", int(self.share["metrics"][name]) + 1)
+        self.ec_producer.update(f"metrics.{name}", int(self.share["metrics"][name]) + 1)
 
     def add_handler(self, handler):
         """Recorded, and nothing fires it while there is no button or dock
@@ -1612,6 +1650,7 @@ class PowerManagerCommon:
         if self._log:
             self._log.close()
 
+
 def _nest(items):
     """Dotted names as the nested dictionary that the shared state holds.
 
@@ -1627,6 +1666,7 @@ def _nest(items):
             nested[name] = value
     return nested
 
+
 def _as_float(value, default=None):
     """A shared variable or a threshold as a float.  "-" and a mistyped
     value are "default", and a rule whose number is None does not fire"""
@@ -1638,8 +1678,10 @@ def _as_float(value, default=None):
     except (TypeError, ValueError):
         return default
 
+
 def _token(value):
     return "-" if value is None else f"{value:.3f}"
+
 
 def _host_telemetry():
     """(cpu percent, memory percent, processor celsius, one minute load), or
@@ -1670,7 +1712,9 @@ def _host_telemetry():
         pass
     return cpu, memory, celsius, load
 
+
 # Composition --------------------------------------------------------------- #
+
 
 def power_manager_args(name, device, declared=(), **parameters):
     """init_args for composing a PowerManager Implementation.
@@ -1679,10 +1723,10 @@ def power_manager_args(name, device, declared=(), **parameters):
     carry.  It is named apart from the Implementation's own "properties"
     parameter, so that one word never means two things in one call"""
 
-    init_args = aiko.actor_args(
-        name, protocol=PROTOCOL, tags=service_tags(device, declared))
+    init_args = aiko.actor_args(name, protocol=PROTOCOL, tags=service_tags(device, declared))
     init_args.update(parameters)
     return init_args
+
 
 def choose_power_manager(device="auto"):
     """The Implementation class for "device", with nothing acquired.
@@ -1692,9 +1736,7 @@ def choose_power_manager(device="auto"):
     "pmm", "linux", "macos" and "mock" """
 
     from aiko_services.actors.power_manager.mock import MockPowerManagerImpl
-    from aiko_services.actors.power_manager.pmm import (
-        PmmPowerManagerImpl, module_present
-    )
+    from aiko_services.actors.power_manager.pmm import PmmPowerManagerImpl, module_present
 
     implementations = {
         "pmm": PmmPowerManagerImpl,
@@ -1703,27 +1745,29 @@ def choose_power_manager(device="auto"):
     if device == "auto":
         device = "pmm" if module_present() else "mock"
     if device in ("linux", "macos"):
-        raise ValueError(
-            f'"{device}" is phase 7 of the power manager plan: use "mock"')
+        raise ValueError(f'"{device}" is phase 7 of the power manager plan: use "mock"')
     if device not in implementations:
-        raise ValueError(
-            f'unknown device "{device}": one of {sorted(implementations)}')
+        raise ValueError(f'unknown device "{device}": one of {sorted(implementations)}')
     return implementations[device]
+
 
 def service_tags(device, properties=()):
     """The tags the Actor registers with: shared state, the device kind, and
     one tag for each property of PROPERTIES"""
 
-    return ["ec=true", f"device={device}",
-        *[f"{name}={'true' if name in properties else 'false'}"
-            for name in PROPERTIES]]
+    return [
+        "ec=true",
+        f"device={device}",
+        *[f"{name}={'true' if name in properties else 'false'}" for name in PROPERTIES],
+    ]
+
 
 def service_filter(name=None):
     """The discovery filter for the PowerManager named NAME (default: this
     host's name): protocol power_manager:0, any namespace, owner, transport,
     tags"""
 
-    return aiko.ServiceFilter(
-        "*", name or get_hostname(), PROTOCOL, "*", "*", "*")
+    return aiko.ServiceFilter("*", name or get_hostname(), PROTOCOL, "*", "*", "*")
+
 
 # --------------------------------------------------------------------------- #

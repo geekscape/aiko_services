@@ -70,17 +70,17 @@ __all__ = ["BACKENDS", "DataSchemeGigE", "select_backend"]
 SCHEME = "gigev"
 DEFAULT_SETTLE = "2"
 TRIGGER_MODES = ("auto", "software", "off")
-STILLS_FRAME_RATE = 2.0             # at or below: software trigger
+STILLS_FRAME_RATE = 2.0  # at or below: software trigger
 AUTO = ("", "none", "auto")
-MAX_EXPOSURE_US = 250000.0          # the auto-expose ceiling for stills ...
-FRAME_PERIOD_SHARE = 0.8            # ... and free-running: of the period
+MAX_EXPOSURE_US = 250000.0  # the auto-expose ceiling for stills ...
+FRAME_PERIOD_SHARE = 0.8  # ... and free-running: of the period
 EXPOSURE_MODES = ("auto", "camera", "host")
-WHITE_BALANCE_MODES = {"auto": "continuous", "continuous": "continuous",
-                       "once": "once", "off": "off"}
-CAMERA_AUTO_SETTLE_FRAMES = 30      # bound on the camera auto convergence
+WHITE_BALANCE_MODES = {"auto": "continuous", "continuous": "continuous", "once": "once", "off": "off"}
+CAMERA_AUTO_SETTLE_FRAMES = 30  # bound on the camera auto convergence
 
 BACKENDS = {"peak": IdsPeakCamera, "aravis": AravisCamera}  # tests add one
 BACKEND_ORDER = ("peak", "aravis")  # "auto" preference
+
 
 def select_backend(name, backends=None):
     """--> (backend name, camera class), or RuntimeError naming what to
@@ -89,20 +89,18 @@ def select_backend(name, backends=None):
     backends = BACKENDS if backends is None else backends
     name = str(name).strip().lower()
     if name == "auto":
-        order = [n for n in BACKEND_ORDER if n in backends]  \
-            + [n for n in backends if n not in BACKEND_ORDER]
+        order = [n for n in BACKEND_ORDER if n in backends] + [n for n in backends if n not in BACKEND_ORDER]
         for candidate in order:
             if backends[candidate].available():
                 return candidate, backends[candidate]
         diagnostics = "; ".join(backends[n].diagnostic() for n in order)
-        raise RuntimeError(f"No GigE camera backend is available: "
-                           f"{diagnostics}")
+        raise RuntimeError(f"No GigE camera backend is available: {diagnostics}")
     if name not in backends:
-        raise RuntimeError(f'backend "{name}" is not one of auto, '
-                           f'{", ".join(backends)}')
+        raise RuntimeError(f'backend "{name}" is not one of auto, {", ".join(backends)}')
     if not backends[name].available():
         raise RuntimeError(backends[name].diagnostic())
     return name, backends[name]
+
 
 def default_max_exposure_us(frame_rate, trigger):
     """The auto-expose ceiling when "max_exposure_us" is "auto": free-running
@@ -113,7 +111,9 @@ def default_max_exposure_us(frame_rate, trigger):
         return MAX_EXPOSURE_US
     return min(MAX_EXPOSURE_US, FRAME_PERIOD_SHARE * 1e6 / frame_rate)
 
+
 # --------------------------------------------------------------------------- #
+
 
 class DataSchemeGigE(DataSchemeCamera):
     scheme = SCHEME
@@ -126,9 +126,9 @@ class DataSchemeGigE(DataSchemeCamera):
         self._settle_frames = 0
         self._frame_rate = None
         self._trigger = "off"
-        self._max_exposure_us = None    # None: default_max_exposure_us()
+        self._max_exposure_us = None  # None: default_max_exposure_us()
         self._brightness_target = None  # None: the camera's own
-        self._exposure_mode = "fixed"   # camera | host | fixed
+        self._exposure_mode = "fixed"  # camera | host | fixed
 
     def _camera_class(self, settings):
         self.backend_name, camera_class = select_backend(settings["backend"])
@@ -139,21 +139,15 @@ class DataSchemeGigE(DataSchemeCamera):
         settings["backend"] = str(get("backend", "auto")[0]).strip().lower()
         trigger = str(get("trigger", "auto")[0]).strip().lower()
         if trigger not in TRIGGER_MODES:
-            raise ValueError(f'trigger "{trigger}" must be one of '
-                             f'{", ".join(TRIGGER_MODES)}')
+            raise ValueError(f'trigger "{trigger}" must be one of {", ".join(TRIGGER_MODES)}')
         if trigger == "auto":
-            trigger = "software"  \
-                if settings["frame_rate"] <= STILLS_FRAME_RATE else "off"
+            trigger = "software" if settings["frame_rate"] <= STILLS_FRAME_RATE else "off"
         settings["trigger"] = trigger
-        settings["exposure_mode"], settings["exposure_us"] =  \
-            _exposure_setting(get("exposure_us", "auto")[0])
+        settings["exposure_mode"], settings["exposure_us"] = _exposure_setting(get("exposure_us", "auto")[0])
         settings["gain"] = _optional_float(get("gain", None)[0], "gain")
-        settings["max_exposure_us"] = _optional_float(
-            get("max_exposure_us", None)[0], "max_exposure_us")
-        settings["brightness_target"] = _brightness_target(
-            get("brightness_target", None)[0])
-        settings["white_balance"] = _white_balance(
-            get("white_balance", "auto")[0])
+        settings["max_exposure_us"] = _optional_float(get("max_exposure_us", None)[0], "max_exposure_us")
+        settings["brightness_target"] = _brightness_target(get("brightness_target", None)[0])
+        settings["white_balance"] = _white_balance(get("white_balance", "auto")[0])
         if trigger == "software" and settings["rate"] is None:
             settings["rate"] = settings["frame_rate"]  # one trigger a frame
 
@@ -167,8 +161,7 @@ class DataSchemeGigE(DataSchemeCamera):
         self._publish("backend", self.backend_name)
         self._publish("trigger", settings["trigger"])
         self._publish("max_exposure_us", _configured(self._max_exposure_us))
-        self._publish("brightness_target",
-                      _configured(self._brightness_target))
+        self._publish("brightness_target", _configured(self._brightness_target))
         if settings["exposure_mode"] == "fixed":
             self._exposure_mode = "fixed"
             self._publish("exposure_mode", "fixed")
@@ -183,12 +176,11 @@ class DataSchemeGigE(DataSchemeCamera):
 
         available = self._try_bool(self.camera.camera_auto_available)
         if mode == "auto":
-            return "camera" if available and self._trigger == "off"  \
-                else "host"
+            return "camera" if available and self._trigger == "off" else "host"
         if mode == "camera" and not available:
             self.pipeline_element.logger.warning(
-                f"{self.camera_name} has no auto exposure of its own: "
-                "the host auto-expose runs instead")
+                f"{self.camera_name} has no auto exposure of its own: the host auto-expose runs instead"
+            )
             return "host"
         return mode
 
@@ -206,23 +198,21 @@ class DataSchemeGigE(DataSchemeCamera):
             self.warm_up_steps = self._auto_expose_steps()
 
     def _camera_auto_on(self):
-        applied = self.camera.set_camera_auto(True,
-            max_exposure_us=self.exposure_ceiling_us(),
-            brightness_target=self._brightness_target)
+        applied = self.camera.set_camera_auto(
+            True, max_exposure_us=self.exposure_ceiling_us(), brightness_target=self._brightness_target
+        )
         self.pipeline_element.logger.info(
             f"{self.camera_name}: the camera's own auto exposure, at most "
             f"{self.exposure_ceiling_us():.0f} us, target "
-            f"{_configured(self._brightness_target)} ({applied})")
-        bound = 0 if self._settle_frames == 0  \
-            else max(self._settle_frames, CAMERA_AUTO_SETTLE_FRAMES)
+            f"{_configured(self._brightness_target)} ({applied})"
+        )
+        bound = 0 if self._settle_frames == 0 else max(self._settle_frames, CAMERA_AUTO_SETTLE_FRAMES)
         self.settle = camera.CameraAutoSettle(bound)
 
     def _apply_white_balance(self, configured):
-        applied = self.camera.set_white_balance(
-            WHITE_BALANCE_MODES[configured])
+        applied = self.camera.set_white_balance(WHITE_BALANCE_MODES[configured])
         if applied is None and configured != "off":
-            self.pipeline_element.logger.info(
-                f"{self.camera_name} has no white balance of its own")
+            self.pipeline_element.logger.info(f"{self.camera_name} has no white balance of its own")
         self._publish("white_balance", configured)
 
     def _try_bool(self, function):
@@ -248,13 +238,17 @@ class DataSchemeGigE(DataSchemeCamera):
             self.pipeline_element.logger.warning(
                 f"{self.camera_name}: exposure_us {exposure_us:.0f} is "
                 f"longer than the frame period {period_us:.0f}: the camera "
-                f"delivers fewer than {self._frame_rate} frames per second")
+                f"delivers fewer than {self._frame_rate} frames per second"
+            )
 
     def _auto_expose_steps(self):
-        steps = camera.auto_expose(self.camera, self.pipeline_element.logger,
+        steps = camera.auto_expose(
+            self.camera,
+            self.pipeline_element.logger,
             max_exposure_us=self.exposure_ceiling_us(),
             timeout_s=max(self.capture_timeout, 2.0),
-            discard_frames=self.camera.queued_frames())
+            discard_frames=self.camera.queued_frames(),
+        )
         for done, exposure_us, gain in steps:
             values = {}
             if exposure_us is not None:
@@ -272,12 +266,10 @@ class DataSchemeGigE(DataSchemeCamera):
                 actual_gain = self.camera.set_gain(gain)
                 self._publish("gain", f"{actual_gain:.2f}")
         except Exception as exception:
-            self.pipeline_element.logger.warning(
-                f"{self.camera_name} exposure set-up failed: {exception}")
+            self.pipeline_element.logger.warning(f"{self.camera_name} exposure set-up failed: {exception}")
 
-    def _apply_update(self, item_name, item_value):
-        if item_name not in ("exposure_us", "gain", "max_exposure_us",
-                             "brightness_target", "white_balance"):
+    def _apply_update(self, item_name, item_value):  # noqa: C901
+        if item_name not in ("exposure_us", "gain", "max_exposure_us", "brightness_target", "white_balance"):
             return
         if not self.camera:
             raise ValueError("no camera is open")
@@ -314,8 +306,7 @@ class DataSchemeGigE(DataSchemeCamera):
             self._publish("exposure_us", f"{actual:.0f}")
         else:
             if self._exposure_mode == "camera":
-                raise ValueError("the camera's auto exposure sets the gain: "
-                                 "fix exposure_us first")
+                raise ValueError("the camera's auto exposure sets the gain: fix exposure_us first")
             gain = float(item_value)
             if gain < 0:
                 raise ValueError("must not be negative")
@@ -328,21 +319,24 @@ class DataSchemeGigE(DataSchemeCamera):
         self._publish("settled", "waiting")
         self._publish("state", "settling")
 
+
 def _optional_float(value, parameter):
     if value is None or str(value).strip().lower() in AUTO:
         return None
     try:
         number = float(value)
-    except (TypeError, ValueError):
-        raise ValueError(f'{parameter} "{value}" must be a number or auto')
+    except (TypeError, ValueError) as error:
+        raise ValueError(f'{parameter} "{value}" must be a number or auto') from error
     if number < 0 or (number == 0 and parameter != "gain"):
         raise ValueError(f'{parameter} "{value}" must be positive')
     return number
+
 
 def _configured(value):
     """A share value that is also a valid parameter value"""
 
     return "auto" if value is None else f"{value:.0f}"
+
 
 def _exposure_setting(value):
     """--> ("fixed", number) or (mode, None) for auto | camera | host"""
@@ -354,9 +348,9 @@ def _exposure_setting(value):
         return text, None
     try:
         return "fixed", _optional_float(value, "exposure_us")
-    except ValueError:
-        raise ValueError(f'exposure_us "{value}" must be a positive number, '
-                         "auto, camera or host")
+    except ValueError as error:
+        raise ValueError(f'exposure_us "{value}" must be a positive number, auto, camera or host') from error
+
 
 def _brightness_target(value):
     target = _optional_float(value, "brightness_target")
@@ -364,15 +358,16 @@ def _brightness_target(value):
         return None
     low, high = 3, 253
     if not low <= target <= high:
-        raise ValueError(f'brightness_target "{value}" must be from {low} '
-                         f"to {high}, or auto")
+        raise ValueError(f'brightness_target "{value}" must be from {low} to {high}, or auto')
     return int(round(target))
+
 
 def _white_balance(value):
     text = str(value).strip().lower() if value is not None else "auto"
     if text not in WHITE_BALANCE_MODES:
         raise ValueError(f'white_balance "{value}" must be auto, once or off')
     return "auto" if text == "continuous" else text
+
 
 aiko.DataScheme.add_data_scheme(SCHEME, DataSchemeGigE)
 

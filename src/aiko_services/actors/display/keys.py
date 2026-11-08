@@ -32,9 +32,21 @@ from aiko_services.actors.display.drawings import SUBJECTS
 from aiko_services.actors.display.graphics import FONT_SIZES
 from aiko_services.actors.display.status import STATUS_VIEWS
 
-__all__ = ["ACTION_KEYS", "ARROWS", "BACKGROUNDS", "FOREGROUNDS", "KEY_APPLETS",
-           "MAPPED_KEYS", "PRESETS", "RESET", "applet", "key_command", "legend",
-           "reset_commands", "update"]
+__all__ = [
+    "ACTION_KEYS",
+    "ARROWS",
+    "BACKGROUNDS",
+    "FOREGROUNDS",
+    "KEY_APPLETS",
+    "MAPPED_KEYS",
+    "PRESETS",
+    "RESET",
+    "applet",
+    "key_command",
+    "legend",
+    "reset_commands",
+    "update",
+]
 
 ARROWS = {"A": "up", "B": "down", "C": "right", "D": "left"}  # the terminal's codes
 
@@ -42,11 +54,14 @@ ARROWS = {"A": "up", "B": "down", "C": "right", "D": "left"}  # the terminal's c
 FOREGROUNDS = ("white", "deepskyblue", "yellow", "lime", "orange", "hotpink")
 BACKGROUNDS = ("black", "midnightblue", "darkslategray", "maroon", "dimgray", "white")
 
+
 def applet(name, *arguments):
     return ("applet", (name, *arguments))
 
+
 def update(key, value):
     return ("update", key, value)
+
 
 # What each applet key sends; the same key again: the next preset.  A
 # preset without its own font goes back to the base font (see key_command)
@@ -54,27 +69,43 @@ PRESETS = {
     "s": [[applet("status")], [applet("status", "screen=wifi")]],
     "l": [[applet("log")]],
     "h": [[applet("help", f"page={page}")] for page in range(1, 7)],
-    "p": [[applet("pattern")], [update("font", "5x7"), applet("pattern")],
-          [update("font", "10"), applet("pattern")],
-          [update("font", "16"), applet("pattern")]],
-    "t": [[applet("text")], [update("font", "5x7"), applet("text")],
-          [update("font", "10"), applet("text")],
-          [update("font", "16"), applet("text")],
-          [update("font", "10"), applet("text", "Hello!")],
-          [update("font", "24"), applet("text", "OLED")],
-          [update("font", "16"), applet("text", "128x64")]],
-    "d": [[applet("draw")], [applet("draw", "shade=off")],
-          [applet("draw", "style=hatch")], [applet("draw", "style=stipple")]]
-         + [[applet("draw", f"subject={subject}")] for subject in sorted(SUBJECTS)],
+    "p": [
+        [applet("pattern")],
+        [update("font", "5x7"), applet("pattern")],
+        [update("font", "10"), applet("pattern")],
+        [update("font", "16"), applet("pattern")],
+    ],
+    "t": [
+        [applet("text")],
+        [update("font", "5x7"), applet("text")],
+        [update("font", "10"), applet("text")],
+        [update("font", "16"), applet("text")],
+        [update("font", "10"), applet("text", "Hello!")],
+        [update("font", "24"), applet("text", "OLED")],
+        [update("font", "16"), applet("text", "128x64")],
+    ],
+    "d": [
+        [applet("draw")],
+        [applet("draw", "shade=off")],
+        [applet("draw", "style=hatch")],
+        [applet("draw", "style=stipple")],
+    ]
+    + [[applet("draw", f"subject={subject}")] for subject in sorted(SUBJECTS)],
     "g": [[applet("pong")], [applet("asteroids")], [applet("invaders")], [applet("forklift")]],
     "G": [[applet("forklift_game")]],
     "P": [[applet("blink")], [applet("blink", "rate=8")]],
     "D": [[applet("demo")], [applet("demo", "random=off")]],
-    "C": [[applet("clock")], [applet("clock", "title=on")], [applet("clock", "seconds=off")],
-          [applet("clock", "face=digital")]],
-    "e": [[applet("eyes")]] + [[applet("eyes", f"emotion={emotion}")]
-                               for emotion in ("happy", "sad", "angry", "surprised",
-                                               "sleepy", "suspicious", "curious", "loving")],
+    "C": [
+        [applet("clock")],
+        [applet("clock", "title=on")],
+        [applet("clock", "seconds=off")],
+        [applet("clock", "face=digital")],
+    ],
+    "e": [[applet("eyes")]]
+    + [
+        [applet("eyes", f"emotion={emotion}")]
+        for emotion in ("happy", "sad", "angry", "surprised", "sleepy", "suspicious", "curious", "loving")
+    ],
 }
 KEY_APPLETS = {key: presets[0][-1][1][0] for key, presets in PRESETS.items()}
 
@@ -84,11 +115,24 @@ ACTION_KEYS = frozenset("0123456789fFTioa+-bBcSR?")
 MAPPED_KEYS = frozenset(PRESETS) | ACTION_KEYS
 
 # What the action keys mean, as share tokens ("keys.KEY")
-_ACTIONS = {"S": "status_view", "digits": "speed", "f": "font_next",
-            "F": "font_previous", "T": "title", "i": "invert", "o": "power",
-            "a": "all_on", "plus": "contrast_up", "minus": "contrast_down",
-            "b": "foreground", "B": "background", "c": "clear", "R": "reset",
-            "arrows": "applet"}
+_ACTIONS = {
+    "S": "status_view",
+    "digits": "speed",
+    "f": "font_next",
+    "F": "font_previous",
+    "T": "title",
+    "i": "invert",
+    "o": "power",
+    "a": "all_on",
+    "plus": "contrast_up",
+    "minus": "contrast_down",
+    "b": "foreground",
+    "B": "background",
+    "c": "clear",
+    "R": "reset",
+    "arrows": "applet",
+}
+
 
 def legend():
     """The key map as shared state: "keys.KEY" is the applets a key steps
@@ -106,18 +150,29 @@ def legend():
     entries.update(_ACTIONS)
     return entries
 
+
 # "R": every setting back to its default; "default" for a color is the
 # color the Actor started with (-c), as the original oled_test.py reset to
 # the starting colors
-RESET = {"contrast": "255", "invert": "off", "power": "on", "all_on": "off",
-         "font": "5x7", "speed": "1", "foreground": "default", "background": "default"}
+RESET = {
+    "contrast": "255",
+    "invert": "off",
+    "power": "on",
+    "all_on": "off",
+    "font": "5x7",
+    "speed": "1",
+    "foreground": "default",
+    "background": "default",
+}
+
 
 def _next_color(names, current):
     """The color after the current one in the list, or the first"""
 
     return names[(names.index(current) + 1) % len(names)] if current in names else names[0]
 
-def key_command(key, state):
+
+def key_command(key, state):  # noqa: C901
     """The commands a key sends: a list of ("applet", arguments),
     ("key", arguments), ("clear", ()) or ("update", key, value); [] for a
     key that means nothing.  "state" holds the preset turns, the current
@@ -125,7 +180,7 @@ def key_command(key, state):
 
     settings = state["settings"]
     if key == "?":
-        key = "h"                    # help, wherever the key is typed
+        key = "h"  # help, wherever the key is typed
     if key in ARROWS.values():
         return [("key", (key, "tap"))]
     if key in PRESETS:
@@ -136,11 +191,14 @@ def key_command(key, state):
         state["current"] = key
         commands = list(presets[turn])
         base = state.get("base_font")
-        if base and not any(command[:2] == ("update", "font") for command in commands)  \
-                and settings.get("font", base) != base:
-            commands.insert(0, update("font", base))     # back to the base font
+        if (
+            base
+            and not any(command[:2] == ("update", "font") for command in commands)
+            and settings.get("font", base) != base
+        ):
+            commands.insert(0, update("font", base))  # back to the base font
         return commands
-    if key == "S":                   # the next view of the status screen shown
+    if key == "S":  # the next view of the status screen shown
         detail = str(settings.get("applet_detail", ""))
         screen, _, view = detail.partition("_")
         if settings.get("applet") != "status" or screen not in STATUS_VIEWS:
@@ -179,8 +237,9 @@ def key_command(key, state):
         return [("clear", ())]
     return []
 
+
 def reset_commands(state):
-    """"R": every setting in RESET back to its default, then the status
+    """ "R": every setting in RESET back to its default, then the status
     applet in the base font"""
 
     state["current"], state["base_font"] = "s", RESET["font"]

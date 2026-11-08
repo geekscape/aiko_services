@@ -20,11 +20,17 @@ import aiko_services.elements.cameras.scheme_depthai  # registers "depthai://"
 
 __all__ = ["VideoReadDepthAI"]
 
-INITIAL_SHARE = {                  # never a parameter name: the framework
-    "state": "idle", "device_id": "-", "address": "-",  # reads share first
-    "settled": "-", "frames": "0", "measured_fps": "0.0",
-    "capture_timeouts": "0", "last_frame_utc": "-", "last_error": "-",
-    "sensor": {}
+INITIAL_SHARE = {  # never a parameter name: the framework
+    "state": "idle",
+    "device_id": "-",
+    "address": "-",  # reads share first
+    "settled": "-",
+    "frames": "0",
+    "measured_fps": "0.0",
+    "capture_timeouts": "0",
+    "last_frame_utc": "-",
+    "last_error": "-",
+    "sensor": {},
 }
 
 # --------------------------------------------------------------------------- #
@@ -41,6 +47,7 @@ INITIAL_SHARE = {                  # never a parameter name: the framework
 #
 # Note: Only supports Streams with "data_sources" parameter
 
+
 class VideoReadDepthAI(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("video_read_depthai:0")
@@ -51,7 +58,9 @@ class VideoReadDepthAI(aiko.DataSource):  # PipelineElement
         media_type, _ = self.get_parameter("media_type", None)
         if media_type:
             from aiko_services.elements.media.image_io import convert_images
+
             images = convert_images(images, media_type)
         return aiko.StreamEvent.OKAY, {"images": images}
+
 
 # --------------------------------------------------------------------------- #

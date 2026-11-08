@@ -48,18 +48,16 @@ from abc import abstractmethod
 
 from aiko_services.main.context import Interface
 
-__all__ = [
-    "DENY_FUNCTION", "DENY_PARAMETERS", "DENY_PARSE",
-    "FunctionGate", "FunctionGateImpl", "interface_functions"
-]
+__all__ = ["DENY_FUNCTION", "DENY_PARAMETERS", "DENY_PARSE", "FunctionGate", "FunctionGateImpl", "interface_functions"]
 
-DENY_FUNCTION = "function"        # the function is not in the allow list
-DENY_PARAMETERS = "parameters"    # the parameters are not a list
-DENY_PARSE = "parse"              # the payload did not parse
+DENY_FUNCTION = "function"  # the function is not in the allow list
+DENY_PARAMETERS = "parameters"  # the parameters are not a list
+DENY_PARSE = "parse"  # the payload did not parse
 
 # The two framework functions that an Actor does accept from the bus.
 # Everything else the framework declares stays off it (ADR-025 decision 1)
 FUNCTIONS_FRAMEWORK = ("set_log_level", "stop")
+
 
 def _functions_framework():
     """The function names that Actor and Service declare.  Read lazily,
@@ -68,10 +66,13 @@ def _functions_framework():
     from aiko_services.main.actor import Actor
     from aiko_services.main.service import Service
 
-    return {name
+    return {
+        name
         for interface in (Actor, Service)
         for name, member in vars(interface).items()
-        if getattr(member, "__isabstractmethod__", False)}
+        if getattr(member, "__isabstractmethod__", False)
+    }
+
 
 def interface_functions(*interfaces, extra=FUNCTIONS_FRAMEWORK):
     """The abstract function names declared by each Interface, plus "extra".
@@ -82,12 +83,14 @@ def interface_functions(*interfaces, extra=FUNCTIONS_FRAMEWORK):
     message handlers can never reach the bus by accident (ADR-025 decision
     1).  "extra" is applied last, so it decides its own names"""
 
-    names = {name
+    names = {
+        name
         for interface in interfaces
         for name, member in vars(interface).items()
-        if getattr(member, "__isabstractmethod__", False)
-        and not name.startswith("_")}
+        if getattr(member, "__isabstractmethod__", False) and not name.startswith("_")
+    }
     return frozenset((names - _functions_framework()) | set(extra))
+
 
 class FunctionGate(Interface):
     """
@@ -95,14 +98,15 @@ class FunctionGate(Interface):
     An aspect: "Actor" composes it, and any other Implementation may do the
     same.  Local API only -- the gate itself does not cross the wire
     """
-    Interface.default("FunctionGate",
-        "aiko_services.main.function_gate.FunctionGateImpl")
+
+    Interface.default("FunctionGate", "aiko_services.main.function_gate.FunctionGateImpl")
 
     @abstractmethod
     def deny_function(self, name, parameters):
         """None when "name" may be called with "parameters".  Otherwise a
         short reason token, for the log and for "last_error" in the shared
         state.  Pure: no logging, no state change, no message published"""
+
 
 class FunctionGateImpl(FunctionGate):
     """
@@ -121,7 +125,8 @@ class FunctionGateImpl(FunctionGate):
         if not isinstance(parameters, list):
             return DENY_PARAMETERS
         if self.functions is None:
-            return None                       # no list: allow everything
+            return None  # no list: allow everything
         return None if name in self.functions else DENY_FUNCTION
+
 
 # --------------------------------------------------------------------------- #

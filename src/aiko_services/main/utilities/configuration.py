@@ -46,47 +46,59 @@ import getpass
 import os
 import secrets
 import socket
-from threading import Thread
 import time
+from threading import Thread
 
 from .logger import get_logger
 
 __all__ = [
     "create_password",
-    "get_hostname", "get_mqtt_configuration", "get_mqtt_host",
-    "get_mqtt_host_address", "get_mqtt_port",
-    "get_namespace", "get_namespace_prefix", "get_pid", "get_username"
+    "get_hostname",
+    "get_mqtt_configuration",
+    "get_mqtt_host",
+    "get_mqtt_host_address",
+    "get_mqtt_port",
+    "get_namespace",
+    "get_namespace_prefix",
+    "get_pid",
+    "get_username",
 ]
 
 _AIKO_BOOTSTRAP_UDP_PORT = 4149
 _AIKO_MQTT_HOSTS = []  # List of host (name, port) to check for MQTT server
 _AIKO_MQTT_HOST = "localhost"
-_AIKO_MQTT_PORT = 1883        # TCP/IP: 9883, WebSockets: 9884
+_AIKO_MQTT_PORT = 1883  # TCP/IP: 9883, WebSockets: 9884
 _AIKO_MQTT_TRANSPORT = "tcp"  # "websockets"
 _AIKO_NAMESPACE = "aiko"
-_MQTT_PROBE_TIMEOUT = 2.0     # seconds to connect to each address of a host
+_MQTT_PROBE_TIMEOUT = 2.0  # seconds to connect to each address of a host
 
 _LOCALHOST_IP = "127.0.0.1"
 _LOGGER = get_logger(__name__)
 
+
 def create_password(length=32):
     return secrets.token_hex(length)
 
+
 def _get_lan_ip_address():
     try:
-        ip_address = ((
-                [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2]
-                     if not ip.startswith("127.")
+        ip_address = (
+            (
+                [ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")]
+                or [
+                    [
+                        (s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close())
+                        for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]
+                    ][0][1]
                 ]
-                or
-                [[(s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close())
-                    for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]
-                ][0][1]]
-            ) + [_LOCALHOST_IP])[0]
+            )
+            + [_LOCALHOST_IP]
+        )[0]
     except Exception:  # typically this will be "socket.gaierror"
         _LOGGER.warning('Aiko Services using "localhost" as your hostname')
         ip_address = _LOCALHOST_IP
     return ip_address
+
 
 def _resolve_mqtt_host(host, port):
     """The first address of HOST that accepts a TCP connection on PORT:
@@ -98,9 +110,8 @@ def _resolve_mqtt_host(host, port):
     except (socket.gaierror, UnicodeError) as error:
         _LOGGER.warning(f"MQTT host {host}: can't resolve the name: {error}")
         return None
-    candidates = []                     # (family, sockaddr), IPv4 first
-    for family, _, _, _, sockaddr in sorted(
-            infos, key=lambda info: info[0] != socket.AF_INET):
+    candidates = []  # (family, sockaddr), IPv4 first
+    for family, _, _, _, sockaddr in sorted(infos, key=lambda info: info[0] != socket.AF_INET):
         if all(sockaddr[0] != known[1][0] for known in candidates):
             candidates.append((family, sockaddr))
     for family, sockaddr in candidates:
@@ -111,11 +122,11 @@ def _resolve_mqtt_host(host, port):
             _LOGGER.debug(f"MQTT host {host}:{port} answers on {sockaddr[0]}")
             return sockaddr[0]
         except OSError as error:
-            _LOGGER.warning(
-                f"MQTT host {host}:{port} address {sockaddr[0]}: {error}")
+            _LOGGER.warning(f"MQTT host {host}:{port} address {sockaddr[0]}: {error}")
         finally:
             probe.close()
     return None
+
 
 def get_hostname():
     hostname = socket.gethostname()
@@ -127,30 +138,33 @@ def get_hostname():
         hostname = hostname[hyphen:fullstop].replace("-", ".")
     return hostname.removesuffix(".local")
 
+
 def get_mqtt_configuration(tls_enabled=None):
     server_up, mqtt_host, mqtt_port, mqtt_address = get_mqtt_host_address()
     mqtt_transport = os.environ.get("AIKO_MQTT_TRANSPORT", _AIKO_MQTT_TRANSPORT)
     username = os.environ.get("AIKO_USERNAME", None)
     password = os.environ.get("AIKO_PASSWORD", None)
 
-    if tls_enabled == None:
+    if tls_enabled is None:
         mqtt_tls = os.environ.get("AIKO_MQTT_TLS", None)
         if mqtt_tls:
             tls_enabled = mqtt_tls == "true"
         else:
             tls_enabled = (username is not None) and (len(username) > 0)
-    return (server_up, mqtt_host, mqtt_port,  \
-            mqtt_transport, username, password, tls_enabled, mqtt_address)
+    return (server_up, mqtt_host, mqtt_port, mqtt_transport, username, password, tls_enabled, mqtt_address)
+
 
 # Try in order ...
 # - Environment variables: AIKO_MQTT_HOST and AIKO_MQTT_PORT
 # - _AIKO_MQTT_HOSTS list
 # - _AIKO_MQTT_HOST and _AIKO_MQTT_PORT
 
+
 def get_mqtt_host():
     """(server_up, mqtt_host, mqtt_port): see get_mqtt_host_address()"""
 
     return get_mqtt_host_address()[:3]
+
 
 def get_mqtt_host_address():
     """(server_up, mqtt_host, mqtt_port, mqtt_address): the first host
@@ -183,47 +197,54 @@ def get_mqtt_host_address():
         mqtt_host = _AIKO_MQTT_HOST
     return server_up, mqtt_host, mqtt_port, mqtt_address
 
+
 def get_mqtt_port():
     return int(os.environ.get("AIKO_MQTT_PORT", _AIKO_MQTT_PORT))
 
+
 def get_namespace():
     return os.environ.get("AIKO_NAMESPACE", _AIKO_NAMESPACE)
+
 
 def get_namespace_prefix():
     namespace_prefix = ""
     namespace = get_namespace()
     if ":" in namespace:
-        namespace_prefix = namespace[0:namespace.find(":") + 1]
+        namespace_prefix = namespace[0 : namespace.find(":") + 1]
     return namespace_prefix
+
 
 def get_pid():
     return str(os.getpid())
 
+
 def get_username():
     return getpass.getuser()
+
 
 # Bootstrap devices that don't support DNS or mDNS yet.
 # Simple UDP broadcast request / unicast reply to find the MQTT server.
 # Request  message: "boot? response_ip_address response_ip_port"
 # Response message: "boot mqtt_ip_address mqtt_ip_port namespace"
 
-RESPONSE = "boot " +  \
-    _get_lan_ip_address() + " " + str(get_mqtt_port()) + " " + get_namespace()
+RESPONSE = "boot " + _get_lan_ip_address() + " " + str(get_mqtt_port()) + " " + get_namespace()
+
 
 def bootstrap_thread():
     time.sleep(1)  # wait for previous service manager to terminate
     _socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        _socket.bind(("0.0.0.0", _AIKO_BOOTSTRAP_UDP_PORT))
+        _socket.bind(("0.0.0.0", _AIKO_BOOTSTRAP_UDP_PORT))  # noqa: S104
         while True:
             message, address = _socket.recvfrom(256)
             message = message.decode("utf-8")
             tokens = message.split()
-            if len(tokens) == 3  and tokens[0] == "boot?":
+            if len(tokens) == 3 and tokens[0] == "boot?":
                 _LOGGER.info(f"Bootstrap request: {tokens[1]}:{tokens[2]}")
                 _socket.sendto(RESPONSE.encode(), (tokens[1], int(tokens[2])))
     except Exception as exception:
         _LOGGER.warning(f"Bootstrap thread stopped: {exception}")
+
 
 def bootstrap_start():
     thread = Thread(target=bootstrap_thread, args=())

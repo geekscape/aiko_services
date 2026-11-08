@@ -45,6 +45,7 @@ PIPELINE_DEFINITION = """{
 """
 # TODO: Does this need to be a DataSource to replicate the original problem ?
 
+
 class StreamLock_0(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("stream_lock:0")
@@ -58,8 +59,10 @@ class StreamLock_0(aiko.PipelineElement):
         self.logger.info(f"{self.my_id()} process_frame()")
         return aiko.StreamEvent.OKAY, {}
 
+
 # NOTE: This causes deliberately causes a StreamEvent.ERROR
 #       in either start_stream() or process_frame()
+
 
 class StreamLock_1(aiko.PipelineElement):
     def __init__(self, context):
@@ -70,15 +73,19 @@ class StreamLock_1(aiko.PipelineElement):
         self.logger.info(f"{self.my_id()} start_stream()")
         diagnostic = "Deliberate aiko.StreamEvent.ERROR"
         return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+
     #   return aiko.StreamEvent.OKAY, {}
 
     def process_frame(self, stream) -> Tuple[aiko.StreamEvent, dict]:
         self.logger.info(f"{self.my_id()} process_frame()")
         diagnostic = "Deliberate aiko.StreamEvent.ERROR"
         return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
+
     #   return aiko.StreamEvent.OKAY, {}
 
+
 # NOTE: This is here to show whether a subsequent PipelineElement is processed
+
 
 class StreamLock_2(aiko.PipelineElement):
     def __init__(self, context):
@@ -94,16 +101,19 @@ class StreamLock_2(aiko.PipelineElement):
         aiko.process.terminate()  # TODO: Improve Aiko Services Process exit
         return aiko.StreamEvent.OKAY, {}
 
+
 # NOTE: This has nothing to do with the test-case, here to ensure process exit
+
 
 def thread_hack():
     time.sleep(0.5)
-#   print()
-#   print(f"{'Name':<15} {'ID':<10} {'Alive':<7} {'Daemon'}")
-#   print("-" * 45)
-#   for t in threading.enumerate():
-#       print(f"{t.name:<15} {t.ident!s:<10} {t.is_alive():<7} {t.daemon}")
+    #   print()
+    #   print(f"{'Name':<15} {'ID':<10} {'Alive':<7} {'Daemon'}")
+    #   print("-" * 45)
+    #   for t in threading.enumerate():
+    #       print(f"{t.name:<15} {t.ident!s:<10} {t.is_alive():<7} {t.daemon}")
     aiko.process.terminate()
+
 
 def test_stream_lock():
     threading.Thread(target=thread_hack).start()

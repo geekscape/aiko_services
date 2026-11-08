@@ -33,6 +33,7 @@ __all__ = ["VideoReadRTSP"]
 #
 # Note: Only supports Streams with "data_sources" parameter
 
+
 class VideoReadRTSP(aiko.DataSource):  # PipelineElement
     def __init__(self, context: aiko.ContextPipelineElement):
         context.set_protocol("video_read_rtsp:0")
@@ -48,7 +49,8 @@ class VideoReadRTSP(aiko.DataSource):  # PipelineElement
         media_type, _ = self.get_parameter("media_type", None)
         if media_type:
             images = convert_images(images, media_type)
-    #   print_memory_used("VideoReadRTSP.process_frame(): ")
+        #   print_memory_used("VideoReadRTSP.process_frame(): ")
         return aiko.StreamEvent.OKAY, {"images": images}
+
 
 # --------------------------------------------------------------------------- #

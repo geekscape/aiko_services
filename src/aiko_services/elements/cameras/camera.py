@@ -28,33 +28,49 @@
 # - Device-clock timestamps (both SDKs stamp their frames) in place of
 #   time.time() at the moment of dequeue
 
-from collections import deque
 import math
 import re
 import threading
 import time
+from collections import deque
 
 import numpy as np
 
 __all__ = [
-    "CAPTURE_TIMEOUT_LIMIT", "CAPTURE_TIMEOUT_S", "DEFAULT_FRAME_RATE",
-    "DEFAULT_RESOLUTION", "NATIVE_RESOLUTION", "RESIZE_MODES",
-    "EXACT_REGION_MIN_FRACTION", "Camera", "CameraAutoSettle",
-    "CaptureTimeout", "CountdownSettle", "RateMeter", "SettleMonitor",
-    "auto_expose", "focus_sharpness", "parse_bool", "parse_frame_rate",
-    "parse_resolution", "parse_settle", "plan_resolution", "resize_image",
-    "share_token", "utc_now"
+    "CAPTURE_TIMEOUT_LIMIT",
+    "CAPTURE_TIMEOUT_S",
+    "DEFAULT_FRAME_RATE",
+    "DEFAULT_RESOLUTION",
+    "NATIVE_RESOLUTION",
+    "RESIZE_MODES",
+    "EXACT_REGION_MIN_FRACTION",
+    "Camera",
+    "CameraAutoSettle",
+    "CaptureTimeout",
+    "CountdownSettle",
+    "RateMeter",
+    "SettleMonitor",
+    "auto_expose",
+    "focus_sharpness",
+    "parse_bool",
+    "parse_frame_rate",
+    "parse_resolution",
+    "parse_settle",
+    "plan_resolution",
+    "resize_image",
+    "share_token",
+    "utc_now",
 ]
 
-NATIVE_RESOLUTION = (4000, 3000)   # both supported sensors deliver this
+NATIVE_RESOLUTION = (4000, 3000)  # both supported sensors deliver this
 NATIVE_NAMES = ("native", "full")
 RESIZE_MODES = ("crop", "letterbox", "stretch")
 DEFAULT_RESOLUTION = "1920x1080"
-DEFAULT_FRAME_RATE = 8.0           # until higher rates are proven
-CAPTURE_TIMEOUT_S = 1.0            # bounded: destroy_stream() needs the lock
-CAPTURE_TIMEOUT_LIMIT = 10         # consecutive timeouts before STOP
-EXACT_REGION_MIN_FRACTION = 0.9    # crop: the camera region may narrow the
-                                   # view this far to spare a host resize
+DEFAULT_FRAME_RATE = 8.0  # until higher rates are proven
+CAPTURE_TIMEOUT_S = 1.0  # bounded: destroy_stream() needs the lock
+CAPTURE_TIMEOUT_LIMIT = 10  # consecutive timeouts before STOP
+EXACT_REGION_MIN_FRACTION = 0.9  # crop: the camera region may narrow the
+# view this far to spare a host resize
 AUTO_ACTIVE = ("AecActive", "AgcActive", "Active")  # camera auto converging
 
 _RESOLUTION_RE = re.compile(r"^\s*(\d+)\s*[xX]\s*(\d+)\s*$")
@@ -64,8 +80,10 @@ _TOKEN_RE = re.compile(r"[^A-Za-z0-9_.:@-]")
 
 # --------------------------------------------------------------------------- #
 
+
 class CaptureTimeout(Exception):
     """capture(): no frame within the timeout"""
+
 
 class Camera:
     """The duck-typed device contract.  Subclasses implement open(),
@@ -74,14 +92,22 @@ class Camera:
     raises CaptureTimeout.  The lock serialises capture() on the frame
     generator thread against setters called from the event-loop thread"""
 
-    def __init__(self, address=None, resolution=None, frame_rate=None,
-        resize_mode="crop", trigger="off", aux_stream=None, logger=None):
+    def __init__(
+        self,
+        address=None,
+        resolution=None,
+        frame_rate=None,
+        resize_mode="crop",
+        trigger="off",
+        aux_stream=None,
+        logger=None,
+    ):
 
-        self.address = address          # None: the first camera found
-        self._resolution = resolution   # (w, h) or None: native
-        self._frame_rate = frame_rate   # frames per second or None
+        self.address = address  # None: the first camera found
+        self._resolution = resolution  # (w, h) or None: native
+        self._frame_rate = frame_rate  # frames per second or None
         self.resize_mode = resize_mode
-        self.trigger = trigger          # "off" (free-running) or "software"
+        self.trigger = trigger  # "off" (free-running) or "software"
         self.aux_stream = aux_stream
         self.logger = logger
         self.lock = threading.Lock()
@@ -135,8 +161,7 @@ class Camera:
 
         return False
 
-    def set_camera_auto(self, enable, max_exposure_us=None,
-                        brightness_target=None):
+    def set_camera_auto(self, enable, max_exposure_us=None, brightness_target=None):
         """The camera's own continuous auto exposure and gain, on or off,
         with an exposure ceiling and a brightness target when given.
         Returns {"max_exposure_us": ..., "brightness_target": ...} as the
@@ -167,11 +192,13 @@ class Camera:
         if self.logger:
             getattr(self.logger, level)(message)
 
+
 # --------------------------------------------------------------------------- #
 # Parameter coercion: values arrive as strings from the command line
 
+
 def parse_resolution(value, parameter="resolution"):
-    """"1920x1080", (w, h), [w, h], "native", "full" or None.  Returns
+    """ "1920x1080", (w, h), [w, h], "native", "full" or None.  Returns
     (w, h), or None for the sensor's native size.  Raises ValueError"""
 
     if value is None:
@@ -181,17 +208,17 @@ def parse_resolution(value, parameter="resolution"):
             return None
         match = _RESOLUTION_RE.match(value)
         if not match:
-            raise ValueError(
-                f'{parameter} "{value}" must be WxH, "native" or "full"')
+            raise ValueError(f'{parameter} "{value}" must be WxH, "native" or "full"')
         width, height = int(match.group(1)), int(match.group(2))
     else:
         try:
             width, height = int(value[0]), int(value[1])
-        except (TypeError, ValueError, IndexError):
-            raise ValueError(f'{parameter} "{value}" must be WxH')
+        except (TypeError, ValueError, IndexError) as error:
+            raise ValueError(f'{parameter} "{value}" must be WxH') from error
     if width <= 0 or height <= 0:
         raise ValueError(f'{parameter} "{value}" must be positive')
     return width, height
+
 
 def parse_frame_rate(value, parameter="frame_rate"):
     """25, 25.0, "25", "25.0", "25/1" or "30000/1001" --> float > 0.
@@ -201,27 +228,28 @@ def parse_frame_rate(value, parameter="frame_rate"):
         match = _FRACTION_RE.match(value)
         try:
             if match:
-                numerator, denominator = float(match.group(1)),  \
-                    float(match.group(2))
+                numerator, denominator = float(match.group(1)), float(match.group(2))
                 if denominator <= 0:
                     raise ValueError
                 frame_rate = numerator / denominator
             else:
                 frame_rate = float(value)
-        except ValueError:
-            raise ValueError(f'{parameter} "{value}" must be a number of '
-                             'frames per second or a fraction such as 25/1')
+        except ValueError as error:
+            raise ValueError(
+                f'{parameter} "{value}" must be a number of frames per second or a fraction such as 25/1'
+            ) from error
     else:
         try:
             frame_rate = float(value)
-        except (TypeError, ValueError):
-            raise ValueError(f'{parameter} "{value}" must be a number')
+        except (TypeError, ValueError) as error:
+            raise ValueError(f'{parameter} "{value}" must be a number') from error
     if not math.isfinite(frame_rate) or frame_rate <= 0:
         raise ValueError(f'{parameter} "{value}" must be positive')
     return frame_rate
 
+
 def parse_settle(value, frame_rate, parameter="settle"):
-    """"30" (frames), "3s" (seconds at frame_rate), 0, "none" or "off"
+    """ "30" (frames), "3s" (seconds at frame_rate), 0, "none" or "off"
     --> frames to discard, an integer >= 0.  Raises ValueError"""
 
     if value is None:
@@ -235,18 +263,17 @@ def parse_settle(value, frame_rate, parameter="settle"):
             return int(math.ceil(float(match.group(1)) * frame_rate))
         try:
             frames = int(float(text))
-        except ValueError:
-            raise ValueError(
-                f'{parameter} "{value}" must be a frame count or seconds '
-                'such as "3s"')
+        except ValueError as error:
+            raise ValueError(f'{parameter} "{value}" must be a frame count or seconds such as "3s"') from error
     else:
         try:
             frames = int(value)
-        except (TypeError, ValueError):
-            raise ValueError(f'{parameter} "{value}" must be a frame count')
+        except (TypeError, ValueError) as error:
+            raise ValueError(f'{parameter} "{value}" must be a frame count') from error
     if frames < 0:
         raise ValueError(f'{parameter} "{value}" must not be negative')
     return frames
+
 
 def parse_bool(value, parameter="parameter"):
     if isinstance(value, bool):
@@ -258,15 +285,17 @@ def parse_bool(value, parameter="parameter"):
         return False
     raise ValueError(f'{parameter} "{value}" must be true or false')
 
+
 def parse_resize_mode(value, parameter="resize_mode"):
     mode = str(value).strip().lower()
     if mode not in RESIZE_MODES:
-        raise ValueError(
-            f'{parameter} "{value}" must be one of {", ".join(RESIZE_MODES)}')
+        raise ValueError(f'{parameter} "{value}" must be one of {", ".join(RESIZE_MODES)}')
     return mode
+
 
 # --------------------------------------------------------------------------- #
 # Resolution planning and host-side resizing
+
 
 def plan_resolution(native, target, mode="crop", decimations=(1,)):
     """How a sensor of "native" (w, h) delivers "target" (w, h): returns
@@ -283,10 +312,8 @@ def plan_resolution(native, target, mode="crop", decimations=(1,)):
         return (0, 0, native_width, native_height), 1, None
     target_width, target_height = target
     if mode == "crop":
-        aoi_width = min(native_width,
-            int(round(native_height * target_width / target_height)))
-        aoi_height = min(native_height,
-            int(round(native_width * target_height / target_width)))
+        aoi_width = min(native_width, int(round(native_height * target_width / target_height)))
+        aoi_height = min(native_height, int(round(native_width * target_height / target_width)))
     else:
         aoi_width, aoi_height = native_width, native_height
     x = (native_width - aoi_width) // 2
@@ -294,64 +321,60 @@ def plan_resolution(native, target, mode="crop", decimations=(1,)):
 
     decimation = 1
     for candidate in sorted(set(int(d) for d in decimations), reverse=True):
-        if candidate >= 1 and aoi_width // candidate >= target_width  \
-            and aoi_height // candidate >= target_height:
+        if candidate >= 1 and aoi_width // candidate >= target_width and aoi_height // candidate >= target_height:
             decimation = candidate
             break
     delivered = (aoi_width // decimation, aoi_height // decimation)
-    host_size = None if delivered == (target_width, target_height)  \
-        else (target_width, target_height)
-    if mode == "crop" and host_size:    # the camera region, exactly?
+    host_size = None if delivered == (target_width, target_height) else (target_width, target_height)
+    if mode == "crop" and host_size:  # the camera region, exactly?
         exact_width = target_width * decimation
         exact_height = target_height * decimation
-        if exact_width >= EXACT_REGION_MIN_FRACTION * aoi_width  \
-            and exact_height >= EXACT_REGION_MIN_FRACTION * aoi_height:
+        if (
+            exact_width >= EXACT_REGION_MIN_FRACTION * aoi_width
+            and exact_height >= EXACT_REGION_MIN_FRACTION * aoi_height
+        ):
             x = (native_width - exact_width) // 2
             y = (native_height - exact_height) // 2
             return (x, y, exact_width, exact_height), decimation, None
     return (x, y, aoi_width, aoi_height), decimation, host_size
+
 
 def resize_image(image, size, mode="crop"):
     """uint8 HxWx3 --> exactly size (w, h).  crop: centre-crop to the
     target aspect ratio then resize; letterbox: fit inside, pad black;
     stretch: resize without regard to the aspect ratio"""
 
-    import cv2                          # lazy: the package imports without it
+    import cv2  # lazy: the package imports without it
 
     target_width, target_height = size
     height, width = image.shape[:2]
     if (width, height) == (target_width, target_height):
         return image
-    interpolation = cv2.INTER_AREA  \
-        if width >= 2 * target_width else cv2.INTER_LINEAR  # AREA: slow
+    interpolation = cv2.INTER_AREA if width >= 2 * target_width else cv2.INTER_LINEAR  # AREA: slow
     if mode == "crop":
-        crop_width = min(width, int(round(height * target_width /
-                                          target_height)))
-        crop_height = min(height, int(round(width * target_height /
-                                            target_width)))
+        crop_width = min(width, int(round(height * target_width / target_height)))
+        crop_height = min(height, int(round(width * target_height / target_width)))
         x = (width - crop_width) // 2
         y = (height - crop_height) // 2
-        image = image[y:y + crop_height, x:x + crop_width]
-        return cv2.resize(image, (target_width, target_height),
-                          interpolation=interpolation)
+        image = image[y : y + crop_height, x : x + crop_width]
+        return cv2.resize(image, (target_width, target_height), interpolation=interpolation)
     if mode == "letterbox":
         scale = min(target_width / width, target_height / height)
         fit_width = max(1, int(round(width * scale)))
         fit_height = max(1, int(round(height * scale)))
-        fitted = cv2.resize(image, (fit_width, fit_height),
-                            interpolation=interpolation)
-        canvas = np.zeros((target_height, target_width) + image.shape[2:],
-                          dtype=image.dtype)
+        fitted = cv2.resize(image, (fit_width, fit_height), interpolation=interpolation)
+        canvas = np.zeros((target_height, target_width) + image.shape[2:], dtype=image.dtype)
         x = (target_width - fit_width) // 2
         y = (target_height - fit_height) // 2
-        canvas[y:y + fit_height, x:x + fit_width] = fitted
+        canvas[y : y + fit_height, x : x + fit_width] = fitted
         return canvas
-    return cv2.resize(image, (target_width, target_height),
-                      interpolation=interpolation)
+    return cv2.resize(image, (target_width, target_height), interpolation=interpolation)
+
 
 # --------------------------------------------------------------------------- #
 # Warm-up helpers: one step per frame generator call, so start_stream()
 # never blocks and the Stream can still be destroyed while a camera settles
+
 
 class SettleMonitor:
     """Auto-focus / auto-exposure convergence: done once "lens_position"
@@ -377,14 +400,18 @@ class SettleMonitor:
         if len(self._recent) >= self.history:
             lenses = [lens for lens, _ in self._recent]
             isos = [iso for _, iso in self._recent]
-            if None not in lenses and min(lenses) > 0  \
-                and max(lenses) - min(lenses) <= 2  \
-                and max(isos) - min(isos) <= 0.05 * max(isos):
+            if (
+                None not in lenses
+                and min(lenses) > 0
+                and max(lenses) - min(lenses) <= 2
+                and max(isos) - min(isos) <= 0.05 * max(isos)
+            ):
                 self.done = True
         if not self.done and self.frames >= self.max_frames:
             self.timed_out = True
             self.done = True
         return self.done
+
 
 class CameraAutoSettle:
     """A camera's own auto exposure and white balance: done once the
@@ -403,13 +430,13 @@ class CameraAutoSettle:
             return True
         self.frames += 1
         auto_status = metadata.get("auto_status")
-        if auto_status and auto_status not in AUTO_ACTIVE  \
-            and metadata.get("white_balance") not in AUTO_ACTIVE:
+        if auto_status and auto_status not in AUTO_ACTIVE and metadata.get("white_balance") not in AUTO_ACTIVE:
             self.done = True
         elif self.frames >= self.max_frames:
             self.timed_out = True
             self.done = True
         return self.done
+
 
 class CountdownSettle:
     """Discard a fixed number of frames, for example after an exposure
@@ -427,6 +454,7 @@ class CountdownSettle:
             self.done = self.frames >= self.max_frames
         return self.done
 
+
 def focus_sharpness(image):
     """Focus metric of an RGB (or gray) image: the variance of the
     Laplacian over the gray center third.  It only means something
@@ -435,20 +463,20 @@ def focus_sharpness(image):
     cv2.Laplacian uses by default), about 5 ms for a 1080p frame"""
 
     height, width = image.shape[:2]
-    center = image[height // 3:2 * height // 3, width // 3:2 * width // 3]
+    center = image[height // 3 : 2 * height // 3, width // 3 : 2 * width // 3]
     if center.ndim == 3:
-        gray = center[..., :3].astype(np.float32) @  \
-            np.array([0.299, 0.587, 0.114], dtype=np.float32)
+        gray = center[..., :3].astype(np.float32) @ np.array([0.299, 0.587, 0.114], dtype=np.float32)
     else:
         gray = center.astype(np.float32)
     if gray.shape[0] < 3 or gray.shape[1] < 3:
         return 0.0
-    laplacian = gray[:-2, 1:-1] + gray[2:, 1:-1] + gray[1:-1, :-2]  \
-        + gray[1:-1, 2:] - 4.0 * gray[1:-1, 1:-1]
+    laplacian = gray[:-2, 1:-1] + gray[2:, 1:-1] + gray[1:-1, :-2] + gray[1:-1, 2:] - 4.0 * gray[1:-1, 1:-1]
     return float(laplacian.var())
 
-def auto_expose(camera, logger=None, target_p99=225, max_exposure_us=250000,
-    max_iterations=8, timeout_s=None, discard_frames=0):
+
+def auto_expose(
+    camera, logger=None, target_p99=225, max_exposure_us=250000, max_iterations=8, timeout_s=None, discard_frames=0
+):
     """Highlight-based auto-exposure for cameras without one: a generator
     whose every step captures a frame, meters the 99th percentile and
     adjusts exposure first (clean signal), then gain past the exposure cap.
@@ -459,14 +487,12 @@ def auto_expose(camera, logger=None, target_p99=225, max_exposure_us=250000,
 
     exposure = gain = None
     for iteration in range(max_iterations):
-        image, metadata = camera.capture(timeout_s)  \
-            if timeout_s else camera.capture()
+        image, metadata = camera.capture(timeout_s) if timeout_s else camera.capture()
         p99 = float(np.percentile(image, 99))
         exposure = float(metadata.get("exposure_us", 15000.0))
         gain = float(metadata.get("gain", 1.0))
         if logger:
-            logger.debug(f"auto-expose {iteration}: p99={p99:.0f} "
-                         f"exposure_us={exposure:.0f} gain={gain:.2f}")
+            logger.debug(f"auto-expose {iteration}: p99={p99:.0f} exposure_us={exposure:.0f} gain={gain:.2f}")
         if 0.93 * target_p99 <= p99 <= 1.07 * target_p99:
             yield True, exposure, gain
             return
@@ -482,12 +508,16 @@ def auto_expose(camera, logger=None, target_p99=225, max_exposure_us=250000,
                 camera.capture()
             yield False, exposure, gain
     if logger:
-        logger.warning("auto-expose did not converge: scene too dark at "
-                       f"{max_exposure_us / 1000:.0f} ms and maximum gain, "
-                       "add light or open the lens iris")
+        logger.warning(
+            "auto-expose did not converge: scene too dark at "
+            f"{max_exposure_us / 1000:.0f} ms and maximum gain, "
+            "add light or open the lens iris"
+        )
     yield True, exposure, gain
 
+
 # --------------------------------------------------------------------------- #
+
 
 class RateMeter:
     """Frames per second over a sliding window"""
@@ -506,11 +536,13 @@ class RateMeter:
         span = self._times[-1] - self._times[0]
         return (len(self._times) - 1) / span if span > 0 else 0.0
 
+
 def share_token(text, limit=32) -> str:
     """One share token: non-token characters become "_", cut at limit"""
 
     token = _TOKEN_RE.sub("_", str(text))[:limit]
     return token or "-"
+
 
 def utc_now() -> str:
     """ISO 8601 UTC to the second, for frame metadata.  This is data on
@@ -519,5 +551,6 @@ def utc_now() -> str:
     what it reads.  See "display_time()" for what a person is shown"""
 
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
 
 # --------------------------------------------------------------------------- #

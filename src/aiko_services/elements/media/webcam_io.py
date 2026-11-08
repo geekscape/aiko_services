@@ -43,7 +43,6 @@
 #   - cap.get(cv.CAP_PROP_FRAME_WIDTH),     cv.CAP_PROP_FRAME_HEIGHT
 #   - cap.set(cv.CAP_PROP_FRAME_WIDTH,320), cv.CAP_PROP_FRAME_HEIGHT
 
-import os
 from typing import Tuple
 
 import aiko_services as aiko
@@ -52,13 +51,14 @@ from aiko_services.elements.media import convert_images, open_video_capture
 __all__ = ["VideoReadWebcam"]
 
 _DEFAULT_CAMERA_PATHNAME = 0  # Linux: "/dev/video0"
-_DEFAULT_FRAME_RATE = 10.0    # 10 Hz frames per second
+_DEFAULT_FRAME_RATE = 10.0  # 10 Hz frames per second
 
 _LOGGER = aiko.process.logger(__name__)
 
 _CV2_IMPORTED = False
 try:
     import cv2
+
     _CV2_IMPORTED = True
 except ModuleNotFoundError:  # TODO: Optional warning flag
     diagnostic = "webcam_io.py: Couldn't import cv2 module"
@@ -70,11 +70,12 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
 #       'or install opencv-python manually to use the "webcam_io" module')
 
 # --------------------------------------------------------------------------- #
-# VideoReadWebcam is a DataSource which supports web cameras 
+# VideoReadWebcam is a DataSource which supports web cameras
 #
 # parameter: "data_sources" is the read file path or device number
 #
 # Note: Only supports Streams with "data_sources" parameter
+
 
 class VideoReadWebcam(aiko.DataSource):  # PipelineElement
     def __init__(self, context):
@@ -126,11 +127,9 @@ class VideoReadWebcam(aiko.DataSource):  # PipelineElement
 
     def start_stream(self, stream, stream_id):
         self.stream_started += 1
-        path, _ = self.get_parameter(
-            "path", _DEFAULT_CAMERA_PATHNAME, self_share_priority=False)
+        path, _ = self.get_parameter("path", _DEFAULT_CAMERA_PATHNAME, self_share_priority=False)
         self._open_camera(path)
-        rate, _ = self.get_parameter(
-            "rate", _DEFAULT_FRAME_RATE, self_share_priority=False)
+        rate, _ = self.get_parameter("rate", _DEFAULT_FRAME_RATE, self_share_priority=False)
         self.create_frames(stream, self.frame_generator, rate=float(rate))
         return aiko.StreamEvent.OKAY, {}
 
@@ -166,9 +165,10 @@ class VideoReadWebcam(aiko.DataSource):  # PipelineElement
         return aiko.StreamEvent.OKAY, {"images": images}
 
     def stop_stream(self, stream, stream_id):
-    #   self.create_frames_terminate(stream, self.frame_generator)
+        #   self.create_frames_terminate(stream, self.frame_generator)
         self.stream_started -= 1
         self._close_camera()
         return aiko.StreamEvent.OKAY, {}
+
 
 # --------------------------------------------------------------------------- #

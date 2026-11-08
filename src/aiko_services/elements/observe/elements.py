@@ -18,6 +18,7 @@ __all__ = ["Inspect", "Metrics"]
 
 # --------------------------------------------------------------------------- #
 
+
 class Inspect(aiko.PipelineElement):
     def __init__(self, context):
         context.set_protocol("inspect:0")
@@ -59,8 +60,7 @@ class Inspect(aiko.PipelineElement):
                 elif target == "print":
                     print(name_value)
                 else:
-                    diagnostic =  \
-                        "'target' parameter must be 'file', 'log' or 'print'"
+                    diagnostic = "'target' parameter must be 'file', 'log' or 'print'"
                     return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
 
             if target.startswith("file:"):
@@ -74,6 +74,7 @@ class Inspect(aiko.PipelineElement):
             inspect_file.close()
         return aiko.StreamEvent.OKAY, {}
 
+
 # --------------------------------------------------------------------------- #
 # Metrics typically appears at the end of a Pipeline graph.
 # So that child Pipeline responses can be returned to the parent Pipeline.
@@ -81,6 +82,7 @@ class Inspect(aiko.PipelineElement):
 # produced by the prior PipelineElements in the Pipeline graph
 #
 # For example ... "output": [{ "name": "i", "type": "int" }]
+
 
 class Metrics(aiko.PipelineElement):
     def __init__(self, context):
@@ -99,28 +101,24 @@ class Metrics(aiko.PipelineElement):
         for name, value in metrics_elements.items():
             if name.endswith("_memory"):
                 value /= 1000000
-                self.logger.debug(f"{self.my_id()} "
-                    f"{name:22s}: {value:.3f} Mb+")
+                self.logger.debug(f"{self.my_id()} {name:22s}: {value:.3f} Mb+")
             if name.endswith("_time"):
                 value *= 1000
-                self.logger.debug(f"{self.my_id()} "
-                    f"{name:22s}: {value:.3f} ms")
+                self.logger.debug(f"{self.my_id()} {name:22s}: {value:.3f} ms")
 
         if "pipeline_time" in metrics:
             pipeline_time = metrics["pipeline_time"] * 1000
-            self.logger.debug(f"{self.my_id()} "
-                f"{'Pipeline time':22s}: {pipeline_time:.3f} ms")
+            self.logger.debug(f"{self.my_id()} {'Pipeline time':22s}: {pipeline_time:.3f} ms")
 
         if "pipeline_memory" in metrics:
             pipeline_memory = metrics["pipeline_memory"] / 1000000
-            self.logger.debug(f"{self.my_id()} "
-                f"{'Pipeline memory':22s}: {pipeline_memory:.3f} Mb+")
+            self.logger.debug(f"{self.my_id()} {'Pipeline memory':22s}: {pipeline_memory:.3f} Mb+")
 
         if "pipeline_start_memory" in metrics:
             process_memory = metrics["pipeline_start_memory"] / 1000000
-            self.logger.debug(f"{self.my_id()} "
-                f"{'Process  memory':22s}: {process_memory:.3f} Mb")
+            self.logger.debug(f"{self.my_id()} {'Process  memory':22s}: {process_memory:.3f} Mb")
 
         return aiko.StreamEvent.OKAY, all_outputs(self, stream)
+
 
 # --------------------------------------------------------------------------- #

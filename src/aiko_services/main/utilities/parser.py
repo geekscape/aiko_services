@@ -78,13 +78,10 @@
 #       transport/transport_mqtt.py: make_proxy_mqtt()
 
 import re
-import sys
 from typing import Any, Dict, List, Tuple, Union
 
-__all__ = [
-    "generate", "generate_symbol", "parse", "parse_float", "parse_int",
-    "parse_number"
-]
+__all__ = ["generate", "generate_symbol", "parse", "parse_float", "parse_int", "parse_number"]
+
 
 def generate(command: str, parameters: Union[Dict, List, Tuple]) -> str:
     if isinstance(parameters, dict):
@@ -94,6 +91,7 @@ def generate(command: str, parameters: Union[Dict, List, Tuple]) -> str:
     expression = [command] + parameters
     return generate_s_expression(expression)
 
+
 def generate_dict_to_list(expression: Dict) -> list:
     result = []
     for keyword, value in expression.items():
@@ -101,7 +99,9 @@ def generate_dict_to_list(expression: Dict) -> list:
         result.append(value)
     return result
 
+
 RE_DELIMITERS = re.compile(r"^\d+:|[\s()]")
+
 
 def generate_symbol(element: str) -> str:
     """One symbol of an S-expression, length-prefixed when it holds a
@@ -109,8 +109,8 @@ def generate_symbol(element: str) -> str:
     generate_s_expression() does to each of its own symbols, for the
     places that build an expression by hand"""
 
-    return f"{len(element)}:{element}"  \
-        if RE_DELIMITERS.search(element) else element
+    return f"{len(element)}:{element}" if RE_DELIMITERS.search(element) else element
+
 
 def generate_s_expression(expression: List) -> str:
     character = ""
@@ -131,10 +131,12 @@ def generate_s_expression(expression: List) -> str:
     payload = f"{payload})"
     return payload
 
-RE_CANONICAL_SYMBOL = re.compile(r"^(\d+):(.+)", re.DOTALL)  # length:data
-RE_STRING = re.compile(r"""(['"])(.*?)\1""")                 # "text" or 'text'
 
-def parse(payload: str, car_cdr=True, dictionaries_flag=True, _nested=False):
+RE_CANONICAL_SYMBOL = re.compile(r"^(\d+):(.+)", re.DOTALL)  # length:data
+RE_STRING = re.compile(r"""(['"])(.*?)\1""")  # "text" or 'text'
+
+
+def parse(payload: str, car_cdr=True, dictionaries_flag=True, _nested=False):  # noqa: C901
     """An S-expression payload as (car, cdr), or as one list when car_cdr
     is False.  Raises ValueError for a payload that is not well formed: a
     length prefix "N:" with fewer than N characters after it, or a list
@@ -151,11 +153,12 @@ def parse(payload: str, car_cdr=True, dictionaries_flag=True, _nested=False):
                 if int(token_length) > len(match.group(2)):
                     raise ValueError(
                         f'Length prefix "{token_length}:" is longer than the '
-                        f'{len(match.group(2))} characters that follow it')
+                        f"{len(match.group(2))} characters that follow it"
+                    )
                 if int(token_length) == 0:
                     token = None
                 else:
-                    token = match.group(2)[:int(token_length)]
+                    token = match.group(2)[: int(token_length)]
                 result.append(token)
                 token = ""
                 i += len(token_length) + 1 + int(token_length)
@@ -164,19 +167,19 @@ def parse(payload: str, car_cdr=True, dictionaries_flag=True, _nested=False):
             match = RE_STRING.match(payload[i:])
             if match:
                 result.append(match.group(2))  # token
-                i += len(match.group(0))       # token_length
+                i += len(match.group(0))  # token_length
                 continue
 
         c = payload[i]
         if c == "(":
-            sublist, j = parse(payload[i+1:], _nested=True)
+            sublist, j = parse(payload[i + 1 :], _nested=True)
             i += j
             result.append(sublist)
         elif c == ")":
             if token:
                 result.append(token)
                 token = ""
-            return result, i+1
+            return result, i + 1
         elif c in [" ", "\t", "\n"]:
             if token:
                 result.append(token)
@@ -210,19 +213,22 @@ def parse(payload: str, car_cdr=True, dictionaries_flag=True, _nested=False):
         cdr.insert(0, car)
         return cdr
 
-def parse_float(payload: str, default: float=0.0) -> float:
+
+def parse_float(payload: str, default: float = 0.0) -> float:
     try:
         result = float(payload)
     except ValueError:
         result = default
     return result
 
-def parse_int(payload: str, default: int=0) -> int:
+
+def parse_int(payload: str, default: int = 0) -> int:
     try:
         result = int(payload)
     except ValueError:
         result = default
     return result
+
 
 def parse_list_to_dict(tree: Any) -> Union[list, dict]:
     parse_error = "Error parsing S-Expression dictionary starting at keyword"
@@ -234,18 +240,19 @@ def parse_list_to_dict(tree: Any) -> Union[list, dict]:
                 raise ValueError(f'{parse_error} "{car}", must have pairs of keywords and values')
             result = {}
             for i in range(len(tree) // 2):
-                if not isinstance(tree[i*2], str):
-                    raise ValueError(f'{parse_error} "{tree[i*2]}", keyword must be a string')
-                if len(tree[i*2]) and tree[i*2][-1] != ":":
-                    raise ValueError(f'{parse_error} "{tree[i*2]}", keyword must end with ":" character')
-                keyword = tree[i*2][:-1]
-                value = parse_list_to_dict(tree[i*2+1])
+                if not isinstance(tree[i * 2], str):
+                    raise ValueError(f'{parse_error} "{tree[i * 2]}", keyword must be a string')
+                if len(tree[i * 2]) and tree[i * 2][-1] != ":":
+                    raise ValueError(f'{parse_error} "{tree[i * 2]}", keyword must end with ":" character')
+                keyword = tree[i * 2][:-1]
+                value = parse_list_to_dict(tree[i * 2 + 1])
                 result[keyword] = value
         else:
             result = [parse_list_to_dict(element) for element in tree]
     return result
 
-def parse_number(payload: str, default: int=0):
+
+def parse_number(payload: str, default: int = 0):
     try:
         result = int(payload)
     except (TypeError, ValueError):
@@ -255,19 +262,20 @@ def parse_number(payload: str, default: int=0):
             result = default
     return result
 
+
 def main():
     payloads = [
-    #   "abc",                      # Fails: generate() returns list !
-    #   "abc def",                  # Fails: parse() only handles lists
-        "(a 0: b)",                 # List containing None (encoded as 0:)
-        "(a b ())",                 # List containing empty list
-        "(a b (c d))",              # List containing list
+        #   "abc",                      # Fails: generate() returns list !
+        #   "abc def",                  # Fails: parse() only handles lists
+        "(a 0: b)",  # List containing None (encoded as 0:)
+        "(a b ())",  # List containing empty list
+        "(a b (c d))",  # List containing list
         "(a b (c d) (e f (g h)))",  # List containing lists
-        "(a b: 1 c: 2)",            # Dictionary
-        "(a b: 1 c: (d e))",        # Dictionary containing list
+        "(a b: 1 c: 2)",  # Dictionary
+        "(a b: 1 c: (d e))",  # Dictionary containing list
         "(a b: 1 c: (d: 1 e: 2))",  # Dictionary containing dictionary
-        "(7:a b c d)",              # Canonical S-Expression list with symbol
-        "(3:a b 3:c d)"             # Canonical S-Expression list of symbols
+        "(7:a b c d)",  # Canonical S-Expression list with symbol
+        "(3:a b 3:c d)",  # Canonical S-Expression list of symbols
     ]
 
     for payload_in in payloads:
@@ -275,6 +283,7 @@ def main():
         print(f"{payload_in} --> command: {command}, parameters: {parameters}")
         payload_out = generate(command, parameters)
         print(f"{command}, {parameters} --> payload: {payload_out}\n")
+
 
 if __name__ == "__main__":
     main()

@@ -38,15 +38,13 @@
 import os
 
 from aiko_services.main import aiko
-from aiko_services.main.power_manager_client import (
-    POWER_MANAGER_PROTOCOL, PowerManagerClient
-)
+from aiko_services.main.power_manager_client import POWER_MANAGER_PROTOCOL, PowerManagerClient
 from aiko_services.main.utilities import generate, get_logger
 
 __all__ = ["POWER_MANAGER_PROTOCOL", "WorkingClient"]
 
-_LOGGER = get_logger(
-    __name__, log_level=os.environ.get("AIKO_LOG_LEVEL_LEASE", "INFO"))
+_LOGGER = get_logger(__name__, log_level=os.environ.get("AIKO_LOG_LEVEL_LEASE", "INFO"))
+
 
 class WorkingClient(PowerManagerClient):
     """Tells this host's power manager that its caller is doing its work.
@@ -56,13 +54,12 @@ class WorkingClient(PowerManagerClient):
     "frames".  Nothing is acquired until open()
     """
 
-    def __init__(self, service, detail="-",
-        protocol=POWER_MANAGER_PROTOCOL, publish=None):
+    def __init__(self, service, detail="-", protocol=POWER_MANAGER_PROTOCOL, publish=None):
 
         super().__init__(service, protocol)
         self.detail = str(detail or "-")
-        self._publish = publish    # Injected by a test
-        self.reports = 0           # For the caller's metrics
+        self._publish = publish  # Injected by a test
+        self.reports = 0  # For the caller's metrics
 
     def open(self):
         """Start watching for a power manager.  Returns at once: there may
@@ -88,7 +85,7 @@ class WorkingClient(PowerManagerClient):
                 self._publish(f"{self._manager}/in", payload)
             else:
                 aiko.process.message.publish(f"{self._manager}/in", payload)
-        except Exception as error:                       # noqa: BLE001
+        except Exception as error:  # noqa: BLE001
             _LOGGER.warning(f"Could not report working: {error}")
             return False
         self.reports += 1
@@ -100,11 +97,12 @@ class WorkingClient(PowerManagerClient):
 
         super().close()
 
-# ---------------------------------------------------------------------- #
+    # ---------------------------------------------------------------------- #
 
     def _topic(self):
         """The Service's own topic, which identifies the reporter"""
 
         return self.topic()
+
 
 # --------------------------------------------------------------------------- #

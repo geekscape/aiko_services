@@ -7,11 +7,9 @@
 # - Support "data_batch_size" resulting in a frame containing multiple images
 
 import queue
-from threading import Thread
 
 import aiko_services as aiko
-from aiko_services.elements.gstreamer import (
-    get_format, get_h264_decoder, gst_initialise, VideoReader)
+from aiko_services.elements.gstreamer import VideoReader, get_format, get_h264_decoder, gst_initialise
 
 __all__ = ["DataSchemeRTSP"]
 
@@ -24,9 +22,9 @@ RTSP_LATENCY = 500  # milliseconds, default: 2,000 milliseconds
 # - "(rtsp://hostname:port/camera_channel)"
 # - "(rtsp://username:password@hostname:port/camera_channel)"
 
+
 class DataSchemeRTSP(aiko.DataScheme):
-    def create_sources(self,
-        stream, data_sources, frame_generator, use_create_frame=False):
+    def create_sources(self, stream, data_sources, frame_generator, use_create_frame=False):
 
         gst = gst_initialise()
         pipeline_element = self.pipeline_element
@@ -47,15 +45,15 @@ class DataSchemeRTSP(aiko.DataScheme):
             width, height = resolution.split("x")
             resolution = (int(width), int(height))
 
-        gst_launch_command = f"rtspsrc location={rtsp_url} latency={RTSP_LATENCY} ! rtph264depay ! h264parse ! {get_h264_decoder()} ! videoconvert ! videorate ! appsink name=sink"
+        gst_launch_command = f"rtspsrc location={rtsp_url} latency={RTSP_LATENCY} ! rtph264depay ! h264parse ! {get_h264_decoder()} ! videoconvert ! videorate ! appsink name=sink"  # noqa: E501
         gst_pipeline = gst.parse_launch(gst_launch_command)
         sink = gst_pipeline.get_by_name("sink")
         sink_caps = f"video/x-raw, format={format}, width={width}, height={height}, framerate={frame_rate}"
         sink.set_property("caps", gst.caps_from_string(sink_caps))
-        sink.set_property("drop", True)          # drop buffers, if queue full
+        sink.set_property("drop", True)  # drop buffers, if queue full
         sink.set_property("emit-signals", True)  # enable "new-sample" signal
-        sink.set_property("max-buffers", 1)      # buffer queue size
-        sink.set_property("sync", False)         # playback fast as possible
+        sink.set_property("max-buffers", 1)  # buffer queue size
+        sink.set_property("sync", False)  # playback fast as possible
         self.video_reader = VideoReader(gst_pipeline, sink)
 
         self.queue = queue.Queue()
@@ -80,8 +78,7 @@ class DataSchemeRTSP(aiko.DataScheme):
         if self.terminate:
             return aiko.StreamEvent.STOP, {"diagnostic": "Terminated"}
 
-        data_batch_size, _ = self.pipeline_element.get_parameter(
-            "data_batch_size", default=1)
+        data_batch_size, _ = self.pipeline_element.get_parameter("data_batch_size", default=1)
         data_batch_size = int(data_batch_size)
 
         frame = self.video_reader.read_frame(0.01)
@@ -100,6 +97,7 @@ class DataSchemeRTSP(aiko.DataScheme):
             return aiko.StreamEvent.OKAY, {"images": images}
         else:
             return aiko.StreamEvent.NO_FRAME, {}
+
 
 aiko.DataScheme.add_data_scheme("rtsp", DataSchemeRTSP)
 

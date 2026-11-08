@@ -32,26 +32,45 @@
 
 from asciimatics.event import KeyboardEvent
 from asciimatics.widgets import (
-    Divider, Label, Layout, MultiColumnListBox, PopUpDialog, Text,
+    Divider,
+    Label,
+    Layout,
+    MultiColumnListBox,
+    PopUpDialog,
+    Text,
     VerticalDivider,
 )
 
 import aiko_services as aiko
+from aiko_services.ide.tui.dashboard import (
+    FormFrame,
+    ListRequest,
+    LogLevelPopupMenu,
+    LogUI,
+    ServiceFrame,
+    choice_field,
+    text_field,
+)
 from aiko_services.main.category_view import (
-    CATEGORY, CategoryTree, entry_path_join, entry_path_parent,
-    parse_entry_records, protocol_type,
+    CATEGORY,
+    CategoryTree,
+    entry_path_join,
+    entry_path_parent,
+    parse_entry_records,
+    protocol_type,
 )
 from aiko_services.main.connection import ConnectionState
 from aiko_services.main.hyperspace import HyperSpace
-from aiko_services.ide.tui.dashboard import (
-    FormFrame, ListRequest, LogLevelPopupMenu, LogUI, ServiceFrame,
-    choice_field, text_field,
-)
 from aiko_services.main.process_definition import (
-    command_line, definition_json, process_of_entry, process_url,
+    command_line,
+    definition_json,
+    process_of_entry,
+    process_url,
 )
 from aiko_services.main.process_manager import (
-    ProcessManager, SAFE_FUNCTIONS, parse_process_share,
+    SAFE_FUNCTIONS,
+    ProcessManager,
+    parse_process_share,
 )
 
 __all__ = ["ProcessManagerFrame", "ProcessManagerPage", "plugins"]
@@ -80,8 +99,7 @@ DEFINITION_ABSENT = 'no definition: "n" names one'
 
 # The functions this page sends, and the shared-state key that reports
 # whether the Actor is in safe mode
-FUNCTIONS_DENIED_WHEN_SAFE = tuple(
-    sorted({"create", "destroy", "dump", "exit"} - set(SAFE_FUNCTIONS)))
+FUNCTIONS_DENIED_WHEN_SAFE = tuple(sorted({"create", "destroy", "dump", "exit"} - set(SAFE_FUNCTIONS)))
 
 # What the Actor is asked for, for a key that asks by another name.  A
 # definition Entry is started by creating a process and stopped by
@@ -89,9 +107,14 @@ FUNCTIONS_DENIED_WHEN_SAFE = tuple(
 FUNCTION_OF_KEY = {"start": "create", "stop": "destroy"}
 
 STATE_KEYS = (
-    "safe", "watchdog", "definition_pathname", "lifecycle", "log_level",
+    "safe",
+    "watchdog",
+    "definition_pathname",
+    "lifecycle",
+    "log_level",
     "last_error",
 )
+
 
 class ProcessManagerPage:
     """The page's decisions, with no screen and no network.
@@ -138,16 +161,16 @@ class ProcessManagerPage:
             return False, (
                 f"This ProcessManager does not report a posture, so"
                 f" ({function} ...) may be denied.\n"
-                "It is an Actor from before --safe existed.")
+                "It is an Actor from before --safe existed."
+            )
         return False, (
             f"This ProcessManager runs --safe, so it denies ({function} ...)"
             " from the message bus.\n\n"
-            "Each of "
-            + ", ".join(FUNCTIONS_DENIED_WHEN_SAFE)
-            + " needs an Actor started with:\n"
+            "Each of " + ", ".join(FUNCTIONS_DENIED_WHEN_SAFE) + " needs an Actor started with:\n"
             "    aiko_process run --unsafe\n\n"
             "The command line and the definition file are not affected,"
-            " because neither goes through the bus.")
+            " because neither goes through the bus."
+        )
 
     @staticmethod
     def process_rows(cache):
@@ -167,12 +190,10 @@ class ProcessManagerPage:
         """[(name, value)]: the keys that say what this Actor is, then its
         metrics.  "source_file" is left out, as the Dashboard leaves it"""
 
-        rows = [(name, str(cache[name]))
-            for name in STATE_KEYS if name in cache]
+        rows = [(name, str(cache[name])) for name in STATE_KEYS if name in cache]
         metrics = cache.get("metrics")
         if isinstance(metrics, dict):
-            rows += [(f"metrics.{name}", str(metrics[name]))
-                for name in sorted(metrics)]
+            rows += [(f"metrics.{name}", str(metrics[name])) for name in sorted(metrics)]
         return rows
 
     @staticmethod
@@ -222,8 +243,7 @@ class ProcessManagerPage:
                 continue
             process, diagnostic = process_of_entry(node.entry)
             if process is None:
-                rows.append(((f"{indent}{node.name}", "", "-", diagnostic),
-                    node.path))
+                rows.append(((f"{indent}{node.name}", "", "-", diagnostic), node.path))
                 continue
             command = command_line(process)
             enabled = "yes" if process.enabled else "no"
@@ -233,8 +253,7 @@ class ProcessManagerPage:
                 state = "stopped"
             else:
                 state = "disabled"
-            rows.append(((f"{indent}{node.name}", enabled, state, command),
-                node.path))
+            rows.append(((f"{indent}{node.name}", enabled, state, command), node.path))
         return rows
 
     @staticmethod
@@ -272,32 +291,35 @@ class ProcessManagerPage:
 
     @staticmethod
     def help_text():
-        return "\n".join([
-            "The ProcessManager's functions, sent on its in topic:",
-            "  c create a process      u dump the state to its log",
-            "  d destroy (SIGTERM)     k destroy (SIGKILL)",
-            "  K exit: destroy every process, then terminate the Actor",
-            "",
-            "A ProcessManager runs --safe by default, and denies every one",
-            "of those, dump included.  This page says so rather than",
-            "appearing to act.  Start it with --unsafe to use them.",
-            "",
-            "The definition, held in a Category of a HyperSpace:",
-            "  n  name the HyperSpace and the Category path",
-            "  s  start the selected Entry, as a process",
-            "  t  stop the process of the selected Entry",
-            "  e  enable or disable the selected Entry",
-            "  J  the definition as the JSON that a ProcessManager reads",
-            "",
-            "An Entry is a process when its storage URL begins with",
-            '"process:", and what follows is one definition entry, as',
-            "JSON.  Its lifecycle manager URL names the ProcessManager.",
-            "Editing the Category does not restart anything, and a",
-            "ProcessManager still reads its JSON file when it starts.",
-            "",
-            "This page: L log level  H this help",
-            "Esc Backspace q back  x quit the Dashboard",
-        ])
+        return "\n".join(
+            [
+                "The ProcessManager's functions, sent on its in topic:",
+                "  c create a process      u dump the state to its log",
+                "  d destroy (SIGTERM)     k destroy (SIGKILL)",
+                "  K exit: destroy every process, then terminate the Actor",
+                "",
+                "A ProcessManager runs --safe by default, and denies every one",
+                "of those, dump included.  This page says so rather than",
+                "appearing to act.  Start it with --unsafe to use them.",
+                "",
+                "The definition, held in a Category of a HyperSpace:",
+                "  n  name the HyperSpace and the Category path",
+                "  s  start the selected Entry, as a process",
+                "  t  stop the process of the selected Entry",
+                "  e  enable or disable the selected Entry",
+                "  J  the definition as the JSON that a ProcessManager reads",
+                "",
+                "An Entry is a process when its storage URL begins with",
+                '"process:", and what follows is one definition entry, as',
+                "JSON.  Its lifecycle manager URL names the ProcessManager.",
+                "Editing the Category does not restart anything, and a",
+                "ProcessManager still reads its JSON file when it starts.",
+                "",
+                "This page: L log level  H this help",
+                "Esc Backspace q back  x quit the Dashboard",
+            ]
+        )
+
 
 class ProcessManagerFrame(ServiceFrame):
     """The Dashboard page: the process table, the state, the log"""
@@ -310,32 +332,35 @@ class ProcessManagerFrame(ServiceFrame):
         self.service_text = ""
         self.proxy = None
 
-    # The definition: a Category of another Service, so it has its own
-    # proxy and its own request.  The ProcessManager does not know of it
-    # yet, which is why a person names it
-        self.definition_topic = None    # the HyperSpace that holds it
-        self.definition_path = ""       # the Category path within it
+        # The definition: a Category of another Service, so it has its own
+        # proxy and its own request.  The ProcessManager does not know of it
+        # yet, which is why a person names it
+        self.definition_topic = None  # the HyperSpace that holds it
+        self.definition_path = ""  # the Category path within it
         self.definition_proxy = None
         self.definition_tree = CategoryTree()
         self.request = ListRequest()
         self._diagnostic = ""
 
-    # The state table gets its rows first, so that "last_error" and the
-    # metrics are visible on an 80x24 terminal.  The posture and the count
-    # of denials are in the title bar as well, because they are what an
-    # operator came to see
+        # The state table gets its rows first, so that "last_error" and the
+        # metrics are visible on an 80x24 terminal.  The posture and the count
+        # of denials are in the title bar as well, because they are what an
+        # operator came to see
         state_height = min(len(STATE_KEYS) + 3, max(5, screen.height // 3))
         process_height = max(3, screen.height - state_height - 15)
 
-    # The definition on the left, what is running on the right, so that
-    # an Entry and its process are read across one row
-        self.definition_widget = MultiColumnListBox(process_height,
-            ["<18", "<4", "<10", "<0"], options=[],
+        # The definition on the left, what is running on the right, so that
+        # an Entry and its process are read across one row
+        self.definition_widget = MultiColumnListBox(
+            process_height,
+            ["<18", "<4", "<10", "<0"],
+            options=[],
             titles=["Definition", "On", "State", "Command"],
-            on_select=self._on_select_definition)
-        self.process_widget = MultiColumnListBox(process_height,
-            ["<10", "<8", "<0"], options=[],
-            titles=["uid", "pid", "command"])
+            on_select=self._on_select_definition,
+        )
+        self.process_widget = MultiColumnListBox(
+            process_height, ["<10", "<8", "<0"], options=[], titles=["uid", "pid", "command"]
+        )
         columns = Layout([30, 1, 24])
         self.add_layout(columns)
         columns.add_widget(self.definition_widget, 0)
@@ -346,13 +371,12 @@ class ProcessManagerFrame(ServiceFrame):
         self.add_layout(layout)
         layout.add_widget(Divider())
 
-        self.state_widget = MultiColumnListBox(state_height,
-            ["<22", "<0"], options=[], titles=["Variable", "Value"])
+        self.state_widget = MultiColumnListBox(state_height, ["<22", "<0"], options=[], titles=["Variable", "Value"])
         layout = Layout([1])
         self.add_layout(layout)
         layout.add_widget(self.state_widget)
 
-        self.legend = Label("", height=2)      # the keys need two lines
+        self.legend = Label("", height=2)  # the keys need two lines
         layout = Layout([1])
         self.add_layout(layout)
         layout.add_widget(self.legend)
@@ -365,11 +389,10 @@ class ProcessManagerFrame(ServiceFrame):
     def _service_frame_start(self, service, service_ec_consumer):
         topic_path = service[0]
         if topic_path == self.topic_path:
-            return                                       # idempotent
+            return  # idempotent
         self.topic_path = topic_path
         self.service_text = self._service_title.value
-        self.proxy = aiko.get_service_proxy(
-            f"{topic_path}/in", ProcessManager)
+        self.proxy = aiko.get_service_proxy(f"{topic_path}/in", ProcessManager)
         self.request.start()
         self.log_ui._service_frame_start(service, service_ec_consumer)
 
@@ -409,11 +432,10 @@ class ProcessManagerFrame(ServiceFrame):
                 return None
         return super().process_event(event)
 
-    def _act(self, action):
+    def _act(self, action):  # noqa: C901
         kind = action[0]
         if kind == "log_level":
-            self.scene.add_effect(LogLevelPopupMenu(
-                self._screen, self.state_widget, self.topic_path))
+            self.scene.add_effect(LogLevelPopupMenu(self._screen, self.state_widget, self.topic_path))
             return
         if kind == "help":
             self._popup(self.page.help_text(), ["OK"])
@@ -423,15 +445,13 @@ class ProcessManagerFrame(ServiceFrame):
             self._definition_form()
             return
         if kind == "json":
-            self._popup(
-                self.page.definition_text(self._definition_nodes()), ["OK"])
+            self._popup(self.page.definition_text(self._definition_nodes()), ["OK"])
             return
         if kind == "enabled":
-            self._toggle_enabled()        # the Category, not this Actor
+            self._toggle_enabled()  # the Category, not this Actor
             return
 
-        may_send, why = self.page.may_send(
-            self._cache(), self.page.function_of(kind))
+        may_send, why = self.page.may_send(self._cache(), self.page.function_of(kind))
         if not may_send:
             self._popup(why, ["OK"])
             return
@@ -450,8 +470,7 @@ class ProcessManagerFrame(ServiceFrame):
             self._stop()
 
     def _popup(self, text, buttons, on_close=None):
-        self.scene.add_effect(PopUpDialog(
-            self._screen, text, buttons, on_close=on_close, theme="nice"))
+        self.scene.add_effect(PopUpDialog(self._screen, text, buttons, on_close=on_close, theme="nice"))
 
     def _selected_uid(self):
         row = self.process_widget.value
@@ -463,16 +482,16 @@ class ProcessManagerFrame(ServiceFrame):
         """Ask for a command line, then send (create COMMAND ARGUMENTS)"""
 
         text = Text("Command:", "command")
-        text.value = ""         # a Text with no value raises on its draw
+        text.value = ""  # a Text with no value raises on its draw
 
         def _on_close(button_index):
             words = text.value.split()
             if button_index == 1 and words and self._connected():
                 self.proxy.create(words[0], words[1:])
 
-        popup = PopUpDialog(self._screen,
-            "Create a process" + " " * 36, ["Cancel", "Create"],
-            on_close=_on_close, theme="nice")
+        popup = PopUpDialog(
+            self._screen, "Create a process" + " " * 36, ["Cancel", "Create"], on_close=_on_close, theme="nice"
+        )
         layout = Layout([1])
         popup.add_layout(layout)
         layout.add_widget(text)
@@ -489,17 +508,14 @@ class ProcessManagerFrame(ServiceFrame):
                 self.proxy.destroy(uid, kill)
 
         signal = "SIGKILL" if kill else "SIGTERM"
-        self._popup(f"Destroy <{uid}> with {signal}?",
-            ["Cancel", "Destroy"], _on_close)
+        self._popup(f"Destroy <{uid}> with {signal}?", ["Cancel", "Destroy"], _on_close)
 
     def _confirm_exit(self):
         def _on_close(button_index):
             if button_index == 1 and self._connected():
                 self.proxy.exit(0)
 
-        self._popup(
-            "Destroy every process, then terminate the ProcessManager?",
-            ["Cancel", "Exit"], _on_close)
+        self._popup("Destroy every process, then terminate the ProcessManager?", ["Cancel", "Exit"], _on_close)
 
     # The definition, held in a Category ------------------------------- #
 
@@ -513,35 +529,37 @@ class ProcessManagerFrame(ServiceFrame):
                 "No HyperSpace or Category Service is running.\n\n"
                 "A definition is a Category of a HyperSpace, which has to"
                 "\nbe running for this page to read it.  The Dashboard"
-                "\nhides Categories until \"f\" then \"c\" says to show them.",
-                ["OK"])
+                '\nhides Categories until "f" then "c" says to show them.',
+                ["OK"],
+            )
 
         def accept(values):
             self.definition_topic = values["topic_path"]
             self.definition_path = values["path"].strip().strip("/")
-            self.definition_proxy = aiko.get_service_proxy(
-                f"{self.definition_topic}/in", HyperSpace)
+            self.definition_proxy = aiko.get_service_proxy(f"{self.definition_topic}/in", HyperSpace)
             self.definition_tree.reset(self.definition_path or "/")
             self._definition_request(self.definition_path)
 
-        self._form("The definition Category", [
-            choice_field("topic_path", "Service", options,
-                self.definition_topic),
-            text_field("path", "Path", self.definition_path),
-        ], "Read", accept,
+        self._form(
+            "The definition Category",
+            [
+                choice_field("topic_path", "Service", options, self.definition_topic),
+                text_field("path", "Path", self.definition_path),
+            ],
+            "Read",
+            accept,
             note="A Category of Entries whose storage URL begins with"
-                 "\n\"process:\".  An empty path is the HyperSpace itself.")
+            '\n"process:".  An empty path is the HyperSpace itself.',
+        )
 
     def _form(self, title, fields, button, on_accept, note=""):
-        self.scene.add_effect(FormFrame(self._screen, title, fields,
-            button, on_accept, note=note))
+        self.scene.add_effect(FormFrame(self._screen, title, fields, button, on_accept, note=note))
 
     def _absolute(self, path):
         """A tree path is relative to the definition Category, so that the
         tree's root is that Category wherever it is"""
 
-        return entry_path_join(self.definition_path, path)  \
-            if self.definition_path else path
+        return entry_path_join(self.definition_path, path) if self.definition_path else path
 
     def _definition_request(self, path=""):
         """Ask the HyperSpace for one Category, by its own path, and
@@ -550,8 +568,7 @@ class ProcessManagerFrame(ServiceFrame):
         if self.definition_proxy is None or not self._connected():
             return
         absolute = self._absolute(path)
-        self.request.request(path, lambda topic:
-            self.definition_proxy.list(topic, absolute or None, True, False))
+        self.request.request(path, lambda topic: self.definition_proxy.list(topic, absolute or None, True, False))
 
     def _definition_nodes(self):
         return self.definition_tree.rows()
@@ -577,32 +594,35 @@ class ProcessManagerFrame(ServiceFrame):
             return
         if process is None:
             _, diagnostic = process_of_entry(node.entry)
-            return self._popup(f"{node.name}\n\n{diagnostic}\n\n"
-                f"storage: {node.entry.storage_url}", ["OK"])
-        self._popup("\n".join([node.name, "",
-            f"command   {command_line(process)}",
-            f"cwd       {process.cwd or '-'}",
-            f"enabled   {process.enabled}",
-            f"manager   {node.entry.lcm_url}"]), ["OK"])
+            return self._popup(f"{node.name}\n\n{diagnostic}\n\nstorage: {node.entry.storage_url}", ["OK"])
+        self._popup(
+            "\n".join(
+                [
+                    node.name,
+                    "",
+                    f"command   {command_line(process)}",
+                    f"cwd       {process.cwd or '-'}",
+                    f"enabled   {process.enabled}",
+                    f"manager   {node.entry.lcm_url}",
+                ]
+            ),
+            ["OK"],
+        )
 
     def _start(self):
         node, process = self._selected_definition()
         if process is None:
             return self._popup("Select a process Entry first.", ["OK"])
         if not process.enabled:
-            return self._popup(
-                f"{node.name} is disabled.\n\n"
-                'Press "e" to enable it, then "s" to start it.', ["OK"])
+            return self._popup(f'{node.name} is disabled.\n\nPress "e" to enable it, then "s" to start it.', ["OK"])
 
         def _on_close(button_index):
             if button_index == 1 and self._connected():
-            # Positional, as the command line calls it: a remote proxy
-            # turns keyword arguments into one dictionary argument
-                self.proxy.create(process.command, process.arguments,
-                    None, process.cwd)
+                # Positional, as the command line calls it: a remote proxy
+                # turns keyword arguments into one dictionary argument
+                self.proxy.create(process.command, process.arguments, None, process.cwd)
 
-        self._popup(f"Start {command_line(process)} ?",
-            ["Cancel", "Start"], _on_close)
+        self._popup(f"Start {command_line(process)} ?", ["Cancel", "Start"], _on_close)
 
     def _stop(self):
         node, process = self._selected_definition()
@@ -611,16 +631,14 @@ class ProcessManagerFrame(ServiceFrame):
         live = self.page.live_processes(self._cache())
         found = live.get(command_line(process))
         if found is None:
-            return self._popup(
-                f"No process of {node.name} is running.", ["OK"])
+            return self._popup(f"No process of {node.name} is running.", ["OK"])
         uid = found[0]
 
         def _on_close(button_index):
             if button_index == 1 and self._connected():
                 self.proxy.destroy(uid, False)
 
-        self._popup(f"Stop <{uid}> {command_line(process)} ?",
-            ["Cancel", "Stop"], _on_close)
+        self._popup(f"Stop <{uid}> {command_line(process)} ?", ["Cancel", "Stop"], _on_close)
 
     def _toggle_enabled(self):
         """Enable or disable an Entry, by updating the Category that holds
@@ -632,28 +650,24 @@ class ProcessManagerFrame(ServiceFrame):
         if self.definition_proxy is None or not self._connected():
             return
 
-        url = process_url(not process.enabled,
-            command_line(process), process.cwd)
-        self.definition_proxy.update(
-            self._absolute(node.path), None, None, None, url)
+        url = process_url(not process.enabled, command_line(process), process.cwd)
+        self.definition_proxy.update(self._absolute(node.path), None, None, None, url)
         self._definition_request(entry_path_parent(node.path))
-        self._diagnostic = (f"{node.name}: "
-            f"{'enabled' if not process.enabled else 'disabled'}")
+        self._diagnostic = f"{node.name}: {'enabled' if not process.enabled else 'disabled'}"
 
     # Drawing ---------------------------------------------------------- #
 
     def _update(self, frame_no):
-        super()._update(frame_no)                 # may start the Service
+        super()._update(frame_no)  # may start the Service
         if self.topic_path is None:
             return
         cache = self._cache()
 
-        self._service_title.value =  \
-            f"{self.service_text}    {self.page.title(cache)}"
-        self.process_widget.options = [(row, index)
-            for index, row in enumerate(self.page.process_rows(cache))]
-        self.state_widget.options = [((name, value), index)
-            for index, (name, value) in enumerate(self.page.state_rows(cache))]
+        self._service_title.value = f"{self.service_text}    {self.page.title(cache)}"
+        self.process_widget.options = [(row, index) for index, row in enumerate(self.page.process_rows(cache))]
+        self.state_widget.options = [
+            ((name, value), index) for index, (name, value) in enumerate(self.page.state_rows(cache))
+        ]
 
         answer = self.request.take()
         if answer is not None:
@@ -662,9 +676,9 @@ class ProcessManagerFrame(ServiceFrame):
         if expired is not None:
             self._diagnostic = f"{expired or self.definition_path}: no answer"
 
-        self.definition_widget.options = [(columns, path)
-            for columns, path in self.page.definition_rows(
-                self._definition_nodes(), cache)]
+        self.definition_widget.options = [
+            (columns, path) for columns, path in self.page.definition_rows(self._definition_nodes(), cache)
+        ]
         if self.definition_topic is None:
             self._diagnostic = DEFINITION_ABSENT
 
@@ -674,10 +688,8 @@ class ProcessManagerFrame(ServiceFrame):
         else:
             denied = "  ".join(FUNCTIONS_DENIED_WHEN_SAFE)
             keys = f"keys: (--safe denies {denied})"
-        keys += "   n definition  s start  t stop  e enabled  J json"  \
-                "  L log level  H help"
-        self.legend.text =  \
-            f"{keys}   {self._diagnostic}" if self._diagnostic else keys
+        keys += "   n definition  s start  t stop  e enabled  J json  L log level  H help"
+        self.legend.text = f"{keys}   {self._diagnostic}" if self._diagnostic else keys
         self.log_ui._update(frame_no)
 
     def _definition_merge(self, path, records):
@@ -687,6 +699,7 @@ class ProcessManagerFrame(ServiceFrame):
             return
         self._diagnostic = ""
         self.definition_tree.merge(path, entries)
+
 
 # plugin key: the protocol type of process_manager:0
 plugins = {"process_manager": ProcessManagerFrame}

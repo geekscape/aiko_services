@@ -20,6 +20,7 @@
 # - transport_mqtt.py: Wrap in CLI / TUI for handy tools for finding Services
 
 from abc import abstractmethod
+
 import click
 
 from aiko_services.main import *
@@ -33,13 +34,14 @@ _LOGGER = aiko.logger(__name__)
 
 # --------------------------------------------------------------------------- #
 
+
 class MQTTTest(Actor):
-    Interface.default("MQTTTest",
-        "aiko_services.main.transport.test_mqtt.MQTTTestImpl")
+    Interface.default("MQTTTest", "aiko_services.main.transport.test_mqtt.MQTTTestImpl")
 
     @abstractmethod
     def test(self, message):
         pass
+
 
 class MQTTTestImpl(MQTTTest):
     def __init__(self, context):
@@ -69,10 +71,11 @@ class MQTTTestImpl(MQTTTest):
         payload_out = f"(test {message})"
         aiko.message.publish(self.topic_out, payload_out)
 
+
 # --------------------------------------------------------------------------- #
 
-@click.group()
 
+@click.group()
 def main():
     """Transport MQTT Test
 
@@ -81,20 +84,25 @@ def main():
     """
     pass
 
-@main.command(help="Transport MQTT Test Actor")
 
+@main.command(help="Transport MQTT Test Actor")
 def create():
     init_args = actor_args(ACTOR_TYPE, protocol=PROTOCOL)
     mqtt_test = compose_instance(MQTTTestImpl, init_args)
     mqtt_test.run()
 
+
 @main.command(name="test", help="Invoke function call on Transport MQTT Actor")
 @click.argument("message", default=None, required=True)
-
 def test(message):
-    do_command(MQTTTest, ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
-        lambda mqtt_test: mqtt_test.test(message), terminate=True)
+    do_command(
+        MQTTTest,
+        ServiceFilter("*", "*", PROTOCOL, "*", "*", "*"),
+        lambda mqtt_test: mqtt_test.test(message),
+        terminate=True,
+    )
     aiko.process.run()
+
 
 if __name__ == "__main__":
     main()

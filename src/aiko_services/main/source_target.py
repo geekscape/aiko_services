@@ -30,6 +30,7 @@ __all__ = ["DataSource", "DataTarget"]
 # Each Pipeline Stream may have an individual DataSource DataScheme instance.
 # Therefore, DataScheme instance variables are per-Stream variables :)
 
+
 class DataSource(PipelineElementImpl):
     def _get_data_sources(self):
         data_sources, found = self.get_parameter("data_sources", required=True)
@@ -37,8 +38,7 @@ class DataSource(PipelineElementImpl):
         scheme = DataScheme.parse_url_scheme(data_sources[0])
         return data_sources, scheme
 
-    def start_stream(self, stream, stream_id,
-        frame_generator=None, use_create_frame=True):
+    def start_stream(self, stream, stream_id, frame_generator=None, use_create_frame=True):
 
         stream.variables["data_scheme"] = None
 
@@ -47,16 +47,16 @@ class DataSource(PipelineElementImpl):
         except KeyError as key_error:
             return StreamEvent.ERROR, {"diagnostic": key_error}
 
-        if not scheme in DataScheme.LOOKUP:
+        if scheme not in DataScheme.LOOKUP:
             diagnostic = f'DataSource URL scheme "{scheme}" is not supported'
             return StreamEvent.ERROR, {"diagnostic": diagnostic}
 
         data_scheme = DataScheme.LOOKUP[scheme](self)
         stream.variables["data_scheme"] = data_scheme
 
-        return data_scheme.create_sources(stream, data_sources,
-            frame_generator=frame_generator,
-            use_create_frame=use_create_frame)
+        return data_scheme.create_sources(
+            stream, data_sources, frame_generator=frame_generator, use_create_frame=use_create_frame
+        )
 
     def stop_stream(self, stream, stream_id):
         if "data_scheme" in stream.variables:
@@ -64,6 +64,7 @@ class DataSource(PipelineElementImpl):
                 stream.variables["data_scheme"].destroy_sources(stream)
             del stream.variables["data_scheme"]
         return StreamEvent.OKAY, {}
+
 
 # --------------------------------------------------------------------------- #
 # DataTarget: PipelineElement that stores frames of data at given locations
@@ -73,6 +74,7 @@ class DataSource(PipelineElementImpl):
 #
 # Each Pipeline Stream may have an individual DataTarget DataScheme instance.
 # Therefore, DataScheme instance variables are per-Stream variables :)
+
 
 class DataTarget(PipelineElementImpl):
     def _get_data_targets(self):
@@ -89,7 +91,7 @@ class DataTarget(PipelineElementImpl):
         except KeyError as key_error:
             return StreamEvent.ERROR, {"diagnostic": key_error}
 
-        if not scheme in DataScheme.LOOKUP:
+        if scheme not in DataScheme.LOOKUP:
             diagnostic = f'DataTarget URL scheme "{scheme}" is not supported'
             return StreamEvent.ERROR, {"diagnostic": diagnostic}
 
@@ -103,5 +105,6 @@ class DataTarget(PipelineElementImpl):
             stream.variables["data_scheme"].destroy_targets(stream)
             del stream.variables["data_scheme"]
         return StreamEvent.OKAY, {}
+
 
 # --------------------------------------------------------------------------- #

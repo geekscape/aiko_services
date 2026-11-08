@@ -19,15 +19,17 @@ __all__ = ["ImageSink", "RESULTS", "do_results_initialize"]
 RESULTS = {}
 _run_id = 0
 
+
 def do_results_initialize():
     global _run_id
     _run_id += 1
     RESULTS.clear()
-    RESULTS.update({"run_id": _run_id, "frame_ids": [], "shapes": [],
-                    "stopped": False, "watchdog": False})
+    RESULTS.update({"run_id": _run_id, "frame_ids": [], "shapes": [], "stopped": False, "watchdog": False})
     return RESULTS
 
+
 do_results_initialize()
+
 
 class ImageSink(aiko.PipelineElement):
     def __init__(self, context):

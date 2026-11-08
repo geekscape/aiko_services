@@ -43,9 +43,10 @@
 # - Implement destructor ?
 
 import os
-import paho.mqtt.client as mqtt
 import time
-from typing import Any, List
+from typing import Any
+
+import paho.mqtt.client as mqtt
 
 from aiko_services.main.message import *
 from aiko_services.main.utilities import *
@@ -58,12 +59,14 @@ __all__ = ["MQTT"]
 _AIKO_LOG_LEVEL = os.environ.get("AIKO_LOG_LEVEL_MQTT", "INFO")
 _LOGGER = get_logger(__name__, log_level=_AIKO_LOG_LEVEL, logging_handler=None)
 _MAXIMUM_WAIT_TIME = 2000  # milliseconds
-_RECONNECT_DELAY_MINIMUM = 1   # seconds
+_RECONNECT_DELAY_MINIMUM = 1  # seconds
 _RECONNECT_DELAY_MAXIMUM = 30  # seconds
+
 
 def _on_message(mqtt_client: Any, userdata: Any, message: Any) -> None:
     if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
         _LOGGER.debug(f"message: {message.topic}: {message.payload}")
+
 
 class MQTT(Message):
     def __init__(
@@ -71,11 +74,11 @@ class MQTT(Message):
         message_handler: Any = _on_message,
         topics_subscribe: Any = None,
         topic_lwt: str = None,
-        payload_lwt:str = None,
+        payload_lwt: str = None,
         retain_lwt: bool = False,
-        mqtt_state_handler = None,
-        connection_required: bool = True
-        ) -> None:
+        mqtt_state_handler=None,
+        connection_required: bool = True,
+    ) -> None:
 
         self.message_handler = message_handler
         self.mqtt_state_handler = mqtt_state_handler
@@ -109,13 +112,7 @@ class MQTT(Message):
             raise SystemError(diagnostic)
         self._connect(topic_lwt, payload_lwt, retain_lwt, server_up)
 
-    def _connect(
-        self: Any,
-        topic_lwt: Any,
-        payload_lwt: str,
-        retain_lwt: Any,
-        server_up: bool = True
-        ) -> None:
+    def _connect(self: Any, topic_lwt: Any, payload_lwt: str, retain_lwt: Any, server_up: bool = True) -> None:
 
         _LOGGER.debug(f"connecting to {self.mqtt_info}")
         self.mqtt_client = mqtt.Client(transport=self.mqtt_transport)
@@ -123,17 +120,14 @@ class MQTT(Message):
         self.mqtt_client.on_disconnect = self._on_disconnect
         self.mqtt_client.on_message = self.message_handler
         self.mqtt_client.on_publish = self._on_publish
-        self.mqtt_client.reconnect_delay_set(
-            _RECONNECT_DELAY_MINIMUM, _RECONNECT_DELAY_MAXIMUM)
+        self.mqtt_client.reconnect_delay_set(_RECONNECT_DELAY_MINIMUM, _RECONNECT_DELAY_MAXIMUM)
 
         if topic_lwt:
-            self.mqtt_client.will_set(
-                topic_lwt, payload=payload_lwt, retain=retain_lwt)
+            self.mqtt_client.will_set(topic_lwt, payload=payload_lwt, retain=retain_lwt)
         if self.mqtt_tls_enabled:
             self.mqtt_client.tls_set()
         if self.mqtt_username:
-            self.mqtt_client.username_pw_set(
-                self.mqtt_username, self.mqtt_password)
+            self.mqtt_client.username_pw_set(self.mqtt_username, self.mqtt_password)
 
         # The address that answered (IPv4 first), so that paho neither tries
         # an unroutable IPv6 address for 5 seconds nor resolves the name
@@ -141,36 +135,33 @@ class MQTT(Message):
         # check and SNI use it.  Websockets keep it too (the HTTP Host).
         # Trade-off: the address is fixed for the life of the process
         connect_host = self.mqtt_host
-        if self.mqtt_address and not self.mqtt_tls_enabled  \
-                and self.mqtt_transport == "tcp":
+        if self.mqtt_address and not self.mqtt_tls_enabled and self.mqtt_transport == "tcp":
             connect_host = self.mqtt_address
-        _LOGGER.debug(f"MQTT server {self.mqtt_host}:{self.mqtt_port} "
-                      f"connecting to {connect_host}")
+        _LOGGER.debug(f"MQTT server {self.mqtt_host}:{self.mqtt_port} connecting to {connect_host}")
 
         diagnostic = f"Couldn't connect to MQTT server {self.mqtt_info}"
         if server_up:
             try:
-                self.mqtt_client.connect(
-                    host=connect_host, port=self.mqtt_port, keepalive=60)
-                self.connect_deadline =  \
-                    time.monotonic() + _MAXIMUM_WAIT_TIME / 1000
+                self.mqtt_client.connect(host=connect_host, port=self.mqtt_port, keepalive=60)
+                self.connect_deadline = time.monotonic() + _MAXIMUM_WAIT_TIME / 1000
                 self.mqtt_client.loop_start()  # Handles MQTT reconnections
                 return
             except OSError as error:  # unresolved, refused, reset, timed out
                 if self.connection_required:
-                    raise SystemError(f"{diagnostic}: {error}")
+                    raise SystemError(f"{diagnostic}: {error}") from error
                 _LOGGER.warning(f"{diagnostic}: {error}")
 
-    # MQTT server not available: paho loop_start() retries the first connection
-        _LOGGER.warning(f"MQTT server {self.mqtt_info} not available, "
+        # MQTT server not available: paho loop_start() retries the first connection
+        _LOGGER.warning(
+            f"MQTT server {self.mqtt_info} not available, "
             f"retrying every {_RECONNECT_DELAY_MINIMUM} to "
-            f"{_RECONNECT_DELAY_MAXIMUM} seconds")
-        self.mqtt_client.connect_async(
-            host=connect_host, port=self.mqtt_port, keepalive=60)
+            f"{_RECONNECT_DELAY_MAXIMUM} seconds"
+        )
+        self.mqtt_client.connect_async(host=connect_host, port=self.mqtt_port, keepalive=60)
         self.mqtt_client.loop_start()
 
-# Deliberate disconnection: DISCONNECT is sent before the paho loop stops,
-# so the MQTT server discards the LWT.  The mqtt_state_handler isn't told
+    # Deliberate disconnection: DISCONNECT is sent before the paho loop stops,
+    # so the MQTT server discards the LWT.  The mqtt_state_handler isn't told
 
     def _disconnect(self: Any) -> None:
         _LOGGER.debug(f"disconnect from {self.mqtt_info}")
@@ -185,17 +176,10 @@ class MQTT(Message):
             self.mqtt_client = None
 
     # pylint: disable=unused-argument
-    def _on_connect(
-        self: Any,
-        mqtt_client: Any,
-        user_data: Any,
-        dict_flags: Any,
-        result_code: Any
-        ) -> None:
+    def _on_connect(self: Any, mqtt_client: Any, user_data: Any, dict_flags: Any, result_code: Any) -> None:
 
         if result_code != 0:  # for example, bad username or password
-            _LOGGER.error(f"MQTT server {self.mqtt_info} refused connection: "
-                          f"{mqtt.connack_string(result_code)}")
+            _LOGGER.error(f"MQTT server {self.mqtt_info} refused connection: {mqtt.connack_string(result_code)}")
             return
         _LOGGER.debug(f"connected to {self.mqtt_info}")
         self.connected = MessageState.CONNECTED
@@ -203,14 +187,9 @@ class MQTT(Message):
             self.mqtt_state_handler(self.connected)
         self._subscribe_if_connected(self.topics_subscribe)
 
-    def _on_disconnect(
-        self: Any,
-        mqtt_client: Any,
-        user_data: Any,
-        return_code: Any
-        ) -> None:
+    def _on_disconnect(self: Any, mqtt_client: Any, user_data: Any, return_code: Any) -> None:
 
-        _LOGGER.debug(f"on_disconnect")
+        _LOGGER.debug("on_disconnect")
         was_connected = self.connected == MessageState.CONNECTED
         self.connected = MessageState.DISCONNECTED
         self.wildcard_subscribed = False  # subscribe again on reconnection
@@ -222,26 +201,14 @@ class MQTT(Message):
             _LOGGER.info(f"on_disconnect: will reconnect: {return_code}")
 
     # pylint: disable=unused-argument
-    def _on_publish(
-        self: Any,
-        mqtt_client: Any,
-        userdata: Any,
-        result: Any
-        ) -> None:
+    def _on_publish(self: Any, mqtt_client: Any, userdata: Any, result: Any) -> None:
 
         self.published = True
 
-    def publish(
-        self: Any,
-        topic: str,
-        payload: Any,
-        retain: bool = False,
-        wait: bool = False
-        ) -> None:
+    def publish(self: Any, topic: str, payload: Any, retain: bool = False, wait: bool = False) -> None:
 
-    # Only wait for the first CONNACK after connect(), never whilst retrying
-        while self.connected != MessageState.CONNECTED and  \
-                time.monotonic() < self.connect_deadline:
+        # Only wait for the first CONNACK after connect(), never whilst retrying
+        while self.connected != MessageState.CONNECTED and time.monotonic() < self.connect_deadline:
             time.sleep(0.001)
         if self.connected != MessageState.CONNECTED:
             if _LOGGER.isEnabledFor(DEBUG):  # Don't expand debug message
@@ -253,11 +220,8 @@ class MQTT(Message):
             self.wait_published()
 
     def set_last_will_and_testament(
-        self: Any,
-        topic_lwt: str = None,
-        payload_lwt: str = "(absent)",
-        retain_lwt: bool = False
-        ) -> None:
+        self: Any, topic_lwt: str = None, payload_lwt: str = "(absent)", retain_lwt: bool = False
+    ) -> None:
 
         self._disconnect()
         self.wait_disconnected()
@@ -312,43 +276,38 @@ class MQTT(Message):
                         self.mqtt_client.unsubscribe(topic)
                         _LOGGER.debug(f"unsubscribed from {self.mqtt_info}: {topic}")
 
-# TODO: Only wait a limited time and either carry on without failing ...
-#       or fail and choose to reconnect to MQTT
+    # TODO: Only wait a limited time and either carry on without failing ...
+    #       or fail and choose to reconnect to MQTT
 
     def wait_disconnected(self: Any) -> None:
-#       _LOGGER.debug("wait disconnected")
-        for counter in range(_MAXIMUM_WAIT_TIME + 1):
+        #       _LOGGER.debug("wait disconnected")
+        for _ in range(_MAXIMUM_WAIT_TIME + 1):
             if self.connected == MessageState.DISCONNECTED:
                 break
             time.sleep(0.001)
-        if counter >= _MAXIMUM_WAIT_TIME:
-            _LOGGER.error(f"wait disconnected timeout: {counter}")
-#       else:
-#           _LOGGER.debug(f"wait disconnected: {counter}")
+        else:
+            _LOGGER.error(f"wait disconnected timeout: {_}")
 
-# TODO: Only wait a limited time and either carry on without failing ...
-#       or fail and choose to reconnect to MQTT
+    # TODO: Only wait a limited time and either carry on without failing ...
+    #       or fail and choose to reconnect to MQTT
 
     def wait_connected(self: Any) -> None:
-#       _LOGGER.debug("wait connected")
-        for counter in range(_MAXIMUM_WAIT_TIME + 1):
+        #       _LOGGER.debug("wait connected")
+        for _ in range(_MAXIMUM_WAIT_TIME + 1):
             if self.connected == MessageState.CONNECTED:
                 break
             time.sleep(0.001)
-        if counter >= _MAXIMUM_WAIT_TIME:
-            _LOGGER.error(f"wait connected timeout: {counter}")
-#       else:
-#           _LOGGER.debug(f"wait connected: {counter}")
+        else:
+            _LOGGER.error(f"wait connected timeout: {_}")
 
-# TODO: Only wait a limited time and either carry on without failing ...
-#       or fail and choose to reconnect to MQTT
+    # TODO: Only wait a limited time and either carry on without failing ...
+    #       or fail and choose to reconnect to MQTT
 
     def wait_published(self: Any) -> None:
-#       _LOGGER.debug("wait published")
-        for counter in range(_MAXIMUM_WAIT_TIME + 1):
-            if self.published: break
+        #       _LOGGER.debug("wait published")
+        for _ in range(_MAXIMUM_WAIT_TIME + 1):
+            if self.published:
+                break
             time.sleep(0.001)
-        if counter >= _MAXIMUM_WAIT_TIME:
-            _LOGGER.error(f"wait published timeout: {counter}")
-#       else:
-#           _LOGGER.debug(f"wait published: {counter}")
+        else:
+            _LOGGER.error(f"wait published timeout: {_}")

@@ -28,11 +28,10 @@ from aiko_services.main.utilities import get_logger
 __all__ = ["POWER_MANAGER_PROTOCOL", "PowerManagerClient"]
 
 # The protocol that "actors/power_manager" registers
-POWER_MANAGER_PROTOCOL =  \
-    "github.com/geekscape/aiko_services/protocol/power_manager:0"
+POWER_MANAGER_PROTOCOL = "github.com/geekscape/aiko_services/protocol/power_manager:0"
 
-_LOGGER = get_logger(
-    __name__, log_level=os.environ.get("AIKO_LOG_LEVEL_LEASE", "INFO"))
+_LOGGER = get_logger(__name__, log_level=os.environ.get("AIKO_LOG_LEVEL_LEASE", "INFO"))
+
 
 class PowerManagerClient:
     """Finds this host's power manager, and nothing else.
@@ -46,7 +45,7 @@ class PowerManagerClient:
         self.service = service
         self.protocol = protocol
         self._discovery = None
-        self._manager = None       # The power manager's topic path
+        self._manager = None  # The power manager's topic path
 
     def open(self):
         """Start watching for a power manager.  Returns at once: there may
@@ -76,7 +75,7 @@ class PowerManagerClient:
 
         return f"{self.service.topic_path}/in"
 
-# What a subclass may override --------------------------------------------- #
+    # What a subclass may override --------------------------------------------- #
 
     def ready(self):
         """Called on the caller's thread, where a subclass may build what
@@ -86,7 +85,7 @@ class PowerManagerClient:
         """Called when the power manager goes away.  The default does
         nothing"""
 
-# ---------------------------------------------------------------------- #
+    # ---------------------------------------------------------------------- #
 
     def _filter(self):
         return ServiceFilter("*", "*", self.protocol, "*", "*", "*")
@@ -103,5 +102,6 @@ class PowerManagerClient:
         elif command == "remove" and str(service[0]) == self._manager:
             self._manager = None
             self.lost()
+
 
 # --------------------------------------------------------------------------- #
