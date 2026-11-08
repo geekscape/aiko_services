@@ -280,7 +280,11 @@ class WhisPlayImpl(WhisPlay):
         self._stopping = True
         with suppress(Exception):
             self._panel.show(compose(None, [("Shutting down", None, get_hostname())]))
-        subprocess.Popen(["sudo", "-n", "shutdown", "-h", "now"])
+        subprocess.Popen(
+            ["sudo", "-n", "shutdown", "-h", "now"],  # noqa: S607
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
         self.stop()  # The sanctioned self-stop (ADR-027)
 
     def _frames(self, frames):

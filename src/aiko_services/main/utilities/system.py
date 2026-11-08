@@ -109,10 +109,14 @@ def get_uptime():
                 uptime_seconds = float(f.readline().split()[0])
 
         elif os_name == "Darwin":  # Mac OS X
-            output = subprocess.check_output(["sysctl", "-n", "kern.boottime"]).decode()
+            output = subprocess.check_output(  # noqa: S607
+                ["sysctl", "-n", "kern.boottime"]
+            ).decode()
             boot_time_str = output.split("}")[0].split("{")[1].split(",")
             boot_time_seconds = int(boot_time_str[0].split("=")[1])
-            uptime_seconds = int(subprocess.check_output(["date", "+%s"]).decode()) - boot_time_seconds
+            uptime_seconds = int(  # noqa: S607
+                subprocess.check_output(["date", "+%s"]).decode()
+            ) - boot_time_seconds
 
         elif os_name == "Windows":
             import ctypes

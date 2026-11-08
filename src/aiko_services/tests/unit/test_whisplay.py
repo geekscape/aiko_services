@@ -381,7 +381,10 @@ def test_pressing_down_starts_the_countdown():
 
 def test_releasing_ends_the_countdown(monkeypatch):
     actor, _, _ = make_actor()
-    monkeypatch.setattr("aiko_services.actors.whisplay.whisplay.subprocess.Popen", lambda c: None)
+    monkeypatch.setattr(
+        "aiko_services.actors.whisplay.whisplay.subprocess.Popen",
+        lambda *args, **kwargs: None,
+    )
     monkeypatch.setattr(actor, "stop", lambda: None)
 
     actor._button_press("short", "0.20")
@@ -502,7 +505,8 @@ def test_actor_acts_on_a_long_press(monkeypatch):
     actor, panel, _ = make_actor()
     halted = []
     monkeypatch.setattr(
-        "aiko_services.actors.whisplay.whisplay.subprocess.Popen", lambda command: halted.append(command)
+        "aiko_services.actors.whisplay.whisplay.subprocess.Popen",
+        lambda *args, **kwargs: halted.append(args[0]),
     )
     monkeypatch.setattr(actor, "stop", lambda: None)
 
@@ -514,7 +518,8 @@ def test_actor_ignores_a_short_press(monkeypatch):
     actor, _, _ = make_actor()
     halted = []
     monkeypatch.setattr(
-        "aiko_services.actors.whisplay.whisplay.subprocess.Popen", lambda command: halted.append(command)
+        "aiko_services.actors.whisplay.whisplay.subprocess.Popen",
+        lambda *args, **kwargs: halted.append(args[0]),
     )
 
     actor._button_press("short", "0.20")

@@ -50,7 +50,11 @@ def run_hook(tmp_path, action, delay=0):
     hook = tmp_path / "aiko_power_off"
     hook.write_text(render("hook", pinctrl=tool, delay=delay))
     hook.chmod(0o755)
-    subprocess.run(["sh", str(hook), action], check=True, timeout=30)
+    subprocess.run(
+        ["sh", str(hook), action],  # noqa: S607
+        check=True,
+        timeout=30,
+    )
     return record.read_text().splitlines() if record.exists() else []
 
 
