@@ -261,6 +261,7 @@ class IdsPeakCamera(camera.Camera):
                 low, high = int(node.Minimum()), int(node.Maximum())
                 return [c for c in DECIMATION_CANDIDATES if low <= c <= high]
             except Exception:
+                self._log("debug", f"failed to get decimation candidates from {names[0]}")
                 continue
         return [1]
 
@@ -277,6 +278,7 @@ class IdsPeakCamera(camera.Camera):
                     applied = True
                     break
                 except Exception:
+                    self._log("debug", f"failed to apply decimation {decimation} with {names}")
                     continue
             if not applied:
                 self._log("warning", f"decimation {decimation} not accepted, resizing on the host instead")
@@ -298,6 +300,7 @@ class IdsPeakCamera(camera.Camera):
                     self._log("warning", f"frame_rate {frame_rate} clamped to {actual:.2f} by the camera")
                 return actual
             except Exception:
+                self._log("debug", f"failed to apply frame rate {frame_rate} with {enable_name}/{rate_name}")
                 continue
         self._log("warning", "the camera has no frame rate node: running at its own rate")
         return None

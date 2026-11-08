@@ -114,9 +114,12 @@ def get_uptime():
             ).decode()
             boot_time_str = output.split("}")[0].split("{")[1].split(",")
             boot_time_seconds = int(boot_time_str[0].split("=")[1])
-            uptime_seconds = int(  # noqa: S607
-                subprocess.check_output(["date", "+%s"]).decode()
-            ) - boot_time_seconds
+            uptime_seconds = (
+                int(  # noqa: S607
+                    subprocess.check_output(["date", "+%s"]).decode()
+                )
+                - boot_time_seconds
+            )
 
         elif os_name == "Windows":
             import ctypes
