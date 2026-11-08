@@ -75,7 +75,7 @@ class FrameWebServer:
     def __init__(
         self,
         port=DEFAULT_PORT,
-        host="0.0.0.0",
+        host="127.0.0.1",
         title="Camera",
         max_fps=DEFAULT_MAX_FPS,
         width=DEFAULT_WIDTH,
@@ -458,7 +458,7 @@ class VideoShowWeb(aiko.PipelineElement):
             title = get("title", None)[0] or getattr(self.pipeline, "name", "camera")
             self.web = FrameWebServer(
                 port=int(get("port", DEFAULT_PORT)[0]),
-                host=str(get("host", "0.0.0.0")[0]),
+                host=str(get("host", "127.0.0.1")[0]),
                 title=str(title),
                 max_fps=float(get("max_fps", DEFAULT_MAX_FPS)[0]),
                 width=int(get("width", DEFAULT_WIDTH)[0]),

@@ -218,7 +218,7 @@ class StoreForwardMessageHTTPServer(StoreForwardMessage):
         self,
         inbox,
         outbox,
-        bind="0.0.0.0",
+        bind="0.0.0.0",  # noqa: S104
         port_range=(8080, 8089),
         advertise_host=None,
         chunk_size=CHUNK_SIZE,

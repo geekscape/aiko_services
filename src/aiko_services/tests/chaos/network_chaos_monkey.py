@@ -459,7 +459,11 @@ def parse_args():
     sub = p.add_subparsers(dest="cmd", required=True)
 
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--host", default="0.0.0.0", help="Frontend bind address")
+    common.add_argument(
+        "--host",
+        default="0.0.0.0",  # noqa: S104
+        help="Frontend bind address",
+    )
     common.add_argument("--frontend_port", type=int, default=1883, help="Frontend port for tcp_client connections")
     common.add_argument("--backend_host", default="127.0.0.1", help="Backend server host (when proxying)")
     common.add_argument("--backend_port", type=int, default=9883, help="Backend server port (when proxying)")

@@ -1015,7 +1015,13 @@ def main():
     show_default=True,
     help="TCP port or FIRST-LAST range to bind (Aiko Services ZMQ uses 6502)",
 )
-@click.option("--bind", "-b", default="0.0.0.0", show_default=True, help="Interface address to bind")
+@click.option(
+    "--bind",
+    "-b",
+    default="0.0.0.0",  # noqa: S104
+    show_default=True,
+    help="Interface address to bind",
+)
 @click.option(
     "--advertise_host", "-ah", default=None, help="Host name in the advertised endpoint (default: this host name)"
 )

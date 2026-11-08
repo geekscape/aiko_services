@@ -234,7 +234,7 @@ def bootstrap_thread():
     time.sleep(1)  # wait for previous service manager to terminate
     _socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        _socket.bind(("0.0.0.0", _AIKO_BOOTSTRAP_UDP_PORT))
+        _socket.bind(("0.0.0.0", _AIKO_BOOTSTRAP_UDP_PORT))  # noqa: S104
         while True:
             message, address = _socket.recvfrom(256)
             message = message.decode("utf-8")
