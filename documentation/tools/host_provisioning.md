@@ -126,11 +126,25 @@ and `aiko_dashboard --help` prints its options.
 Three artifacts, all rendered rather than copied, so that each host
 writes its own:
 
+**One artifact at a time, and that is deliberate**: each is read before
+it is written, and the grant names whose privilege it is rather than
+guessing from the account that runs `sudo`.
+
 ```bash
-aiko_power_manager render unit           # read them first: this writes nothing
-sudo aiko_power_manager install unit hook grant
+aiko_power_manager render unit                   # each writes nothing
+aiko_power_manager render hook
+aiko_power_manager render grant --account <account>
+
+sudo aiko_power_manager install unit
+sudo aiko_power_manager install hook
+sudo aiko_power_manager install grant --account <account>
+
 aiko_power_manager verify
 ```
+
+`render grant` refuses without `--account`. Under `sudo` the invoking
+account is root, and a grant that gave root the privilege would grant
+nothing to the account that needs it.
 
 - the unit asserts the power hold at boot and sounds `booted`
 - the shutdown hook is the only thing that releases the hold
