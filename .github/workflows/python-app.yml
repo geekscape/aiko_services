@@ -42,20 +42,48 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
+      # The tooling is held to its current major version, so that a release
+      # of "uv", "hatch" or "flake8" cannot fail a run that is about
+      # something else. Each job takes the newest release that its
+      # interpreter allows, because the Python floor differs per tool: the
+      # 3.9 job gets "hatch" 1.15 and "flake8" 7.3, where 3.11 and later
+      # get the current release of each
       run: |
-        python -m pip install uv
+        python -m pip install "uv~=0.13"
         uv venv
-        uv pip install hatch flake8
+        uv pip install "hatch~=1.15" "flake8~=7.3"
     - name: Pin virtualenv for Python 3.9
+      # "hatch" 1.16 and later need Python 3.10, so the 3.9 job stays on
+      # "hatch" 1.15.1, which calls
+      # "virtualenv.discovery.builtin.propose_interpreters". Virtualenv 21
+      # moved discovery into the "python-discovery" package and removed
+      # that function, so without this pin the 3.9 job stops at
+      # "Environment 'default' is incompatible". Remove this step when the
+      # matrix drops Python 3.9
       if: matrix.python-version == '3.9'
       run: uv pip install "virtualenv<21"
     - name: Lint with flake8
       run: |
         # Enforce critical syntax and runtime-related issues ...
-        .venv/bin/flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude .venv
+        # "--extend-exclude" adds to the default exclusions, where
+        # "--exclude" replaces them. ".venv" and ".hatch" come from the
+        # steps above, and "venv*" is where a local environment goes
+        # (see .gitignore)
+        .venv/bin/flake8 . --count --select=E9,F63,F7,F82 --show-source \
+            --statistics --extend-exclude '.venv,.hatch,venv*'
         # exit-zero treats all errors as warnings.
         # Enforce coding standards (complexity, line length) ...
         # flake8 . --count --exit-zero --max-complexity=10 --max-line-length=80 --statistics
     - name: Test with pytest
       run: |
         .venv/bin/hatch run test
+    - name: Upload the coverage report
+      # The report is of no use inside a finished job, and the step only
+      # runs when the tests pass, because "--no-cov-on-fail" writes no
+      # report for a run that fails. One artifact per interpreter, because
+      # what each one measures is not the same
+      uses: actions/upload-artifact@v7
+      with:
+        name: coverage-python-${{ matrix.python-version }}
+        path: coverage/
+        retention-days: 14
