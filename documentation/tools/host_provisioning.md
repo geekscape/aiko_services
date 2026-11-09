@@ -135,9 +135,19 @@ aiko_power_manager render unit                   # each writes nothing
 aiko_power_manager render hook
 aiko_power_manager render grant --account <account>
 
+# The shutdown directory is not on a stock installation.  "install hook"
+# declines rather than making it, because a directory under /usr/lib is
+# the distribution's to own
+sudo mkdir -p /usr/lib/systemd/system-shutdown
+
 sudo aiko_power_manager install unit
 sudo aiko_power_manager install hook
 sudo aiko_power_manager install grant --account <account>
+
+# "install unit" writes the unit and says this, and does not do it: the
+# hold asserts at the NEXT boot, and only once the unit is enabled
+sudo systemctl daemon-reload
+sudo systemctl enable aiko_power_hold
 
 aiko_power_manager verify
 ```
@@ -150,8 +160,13 @@ nothing to the account that needs it.
 - the shutdown hook is the only thing that releases the hold
 - the grant is two exact commands, with absolute paths and no wildcard
 
-*Proved by:* `verify` reports all three present, and the hold is asserted
-after a reboot.
+*Proved by:* `verify` reports all three present, `systemctl is-enabled
+aiko_power_hold` reports enabled, and `pinctrl get 5` shows the hold
+asserted after a reboot.
+
+**The hook matters more than the other two.** It is the only thing that
+releases the hold. A host without it keeps its own power on after it
+stops, and the battery pack goes flat where nobody is watching.
 
 ## 6. The ProcessManager
 
