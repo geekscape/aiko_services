@@ -16,11 +16,23 @@ on:
       - "Agents.md"
       - ".constitution-guard"
 
+# The gates read the tree and report. Nothing here writes to the repository
+permissions:
+  contents: read
+
 jobs:
   gates:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
+      # The gate scripts import the standard library and nothing else, and
+      # they run on every version the project supports. The version is
+      # fixed here so that the result of a gate cannot change because the
+      # runner image changed its "python3". Any supported version will do
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
 
       - name: Self-containment (no references to privately maintained material)
         run: |
