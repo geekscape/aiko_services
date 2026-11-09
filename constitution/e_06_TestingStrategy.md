@@ -8,7 +8,7 @@ audience: [architects, developers, ai-coding-agents]
 status: execution-plan
 ste: adapted
 related: [e_03_FirstClassAgents, p_02_CandidatePrinciples]
-last_updated: 2026-08-01
+last_updated: 2026-11-09
 ---
 
 # Aiko Services — Testing Strategy: Roadmap, Design, Execution, ADRs
@@ -196,7 +196,8 @@ cases.
   topic cardinality.
 - **Process lifecycle:** ProcessManager spawn/kill, orphan/zombie handling, clean shutdown
   (deregistration on SIGTERM).
-- **Version divergence:** behavior across Python 3.9→3.13 (the matrix that current CI omits).
+- **Version divergence:** behavior across Python 3.9→3.14 (CI runs the matrix on Ubuntu;
+  macOS is not covered yet).
 - **Swallowed-error detection:** a meta-test that asserts handler exceptions are *recorded somewhere
   observable*, so the broad-catch behavior cannot hide regressions.
 - **Composition latent bugs:** the two the code itself flags.
@@ -225,7 +226,7 @@ cases.
 | **Cross-language** | M4 conformance against `aiko_engine_mp` (and future clients) | every PR (when impl available) |
 
 CI gate order (fail fast): unit → primitives (M3) → integration/golden (M1) → conformance (M4) →
-type-check → (nightly) chaos/load/soak. The matrix (Python 3.9–3.13 × {ubuntu, macos}) closes the
+type-check → (nightly) chaos/load/soak. The matrix (Python 3.9–3.14 × {ubuntu, macos}) closes the
 version-divergence hole §3.7.
 
 ---
@@ -314,8 +315,10 @@ focused. Thereafter a standing weekly cadence.
   fabric.
 
 **Phase 4 — Scale, soak, cross-language, CI (1–2 weeks)**
-- T14 (AI, 1 session). CI matrix (3.9–3.13 × {ubuntu, macos}) + mosquitto integration job +
-  type-check job + coverage. Gate order per §4.
+- T14 (AI, 1 session). CI matrix (3.9–3.14 × {ubuntu, macos}) + mosquitto integration job +
+  type-check job + coverage. Gate order per §4. Part of this is in place: the matrix runs
+  Python 3.9 to 3.14 on Ubuntu, and `hatch run test` reports coverage. The macOS job, the
+  mosquitto job, the type-check job and the coverage gate remain.
 - T15 (AI, 1–2 sessions). Load/stress + long-running soak (leak/drift detection) on the fabric.
 - T16 (AI, 1–2 sessions). **M4 cross-language conformance** against `aiko_engine_mp` using the M1
   traces. Record divergences as spec findings.

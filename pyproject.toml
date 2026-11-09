@@ -87,7 +87,7 @@ video = ["opencv-python>=4.10"]
 # Unit and integration tests
 test = [
     "pytest~=8.3.4",
-    "pytest-cov"
+    "pytest-cov~=7.1"
 ]
 # opencv-python = ["opencv-python~=4.10.0.84"]
 # opencv-contrib-python = ["opencv-contrib-python~=4.10.0.84"]
@@ -154,14 +154,38 @@ path = ".hatch"
 features = ["test"]
 
 [tool.hatch.envs.default.scripts]
-test = "pytest {args:src/aiko_services/tests/unit} && echo Coverage report written to 'coverage/index.html'"
+# The coverage flags belong to this script and not to "addopts", so that a
+# bare "pytest" run stays quick and quiet, and so that a run of another
+# test directory does not overwrite the unit-test report
+test = """
+pytest --cov --no-cov-on-fail --cov-report=term-missing \
+--cov-report=html {args:src/aiko_services/tests/unit} \
+&& echo Coverage report written to 'coverage/index.html'\
+"""
 
 [tool.pytest.ini_options]
 testpaths = ["src/aiko_services/tests/unit"]
-addopts = "--cov --no-cov-on-fail --cov-report=term --cov-report=html"
 
 [tool.coverage.run]
 source = ["aiko_services"]
+
+[tool.coverage.report]
+# "elements" and "examples" hold no "__init__.py", and the search for
+# source files stops at a directory that is not a package. Without this,
+# a module that no test imports is absent from the report rather than zero
+# in it, and the total moves when an import is added or removed
+include_namespace_packages = true
+# What the wheel and the sdist exclude (see the build targets above), and
+# the tests themselves, which are not the code under test
+omit = [
+    "*/aiko_services/archive/*",
+    "*/aiko_services/examples/*",
+    "*/aiko_services/tests/*",
+    # The GStreamer elements need the GStreamer libraries, which no CI job
+    # installs, so every one of them reads zero. Remove this line with the
+    # job that covers them
+    "*/aiko_services/elements/gstreamer/*"
+]
 
 [tool.coverage.html]
 directory = "coverage"
