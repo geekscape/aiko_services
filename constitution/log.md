@@ -15,8 +15,8 @@ pre-publication history is maintained privately.
   tests alone. The lint command excludes the in-tree environment
   directories, because the workflow makes `.venv` and `.hatch` in the
   repository itself. In e_06 the supported range reads Python 3.9 to 3.14,
-  in §3.7 and in the §4 gate order, which is what `requires-python` and
-  the CI matrix hold. §3.7 said that current CI omits the version matrix.
+  in §3.7 and in the §4 gate order. That is what `requires-python` and the
+  CI matrix hold. §3.7 said that current CI omits the version matrix.
   CI runs it on Ubuntu, and macOS is the part that remains. The T14 entry
   records the same division: the matrix and the coverage report are in
   place, and the macOS job, the mosquitto job, the type-check job and the

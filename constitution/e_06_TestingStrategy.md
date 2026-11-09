@@ -196,7 +196,7 @@ cases.
   topic cardinality.
 - **Process lifecycle:** ProcessManager spawn/kill, orphan/zombie handling, clean shutdown
   (deregistration on SIGTERM).
-- **Version divergence:** behavior across Python 3.9→3.14 (CI runs the matrix on Ubuntu;
+- **Version divergence:** behavior across Python 3.9→3.14 (CI runs the matrix on Ubuntu, and
   macOS is not covered yet).
 - **Swallowed-error detection:** a meta-test that asserts handler exceptions are *recorded somewhere
   observable*, so the broad-catch behavior cannot hide regressions.
