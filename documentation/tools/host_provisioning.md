@@ -1,8 +1,8 @@
 ---
 title: Provision a host to run Aiko Services 24 hours a day
-description: The sequence that turns a new single-board computer into a
-  host that runs the ProcessManager, the power manager and an
-  application, and the de-clone step that a copied host must not skip
+description: The sequence that turns a new host — a cloud instance or a
+  physical edge computer — into one that runs the ProcessManager, its
+  Actors and an application, and the de-clone step a copy must not skip
 type: how-to
 audience: [project-lead, developers, ai-coding-agents]
 status: work-in-progress
@@ -24,6 +24,28 @@ that it worked.
 A deployment has its own names, addresses and keys. **None of them are in
 this document**, because this repository is public. Keep them in a
 private note beside it.
+
+## What a host is
+
+The same sequence builds every kind, with different answers at each
+step. The kind decides which steps apply, not what order they come in.
+
+| Kind | Example | Which steps |
+|---|---|---|
+| A developer's own computer | a laptop | 4 to 7, and usually no hardware |
+| A home or office server | a small always-on machine | 1 to 8 |
+| An edge single-board computer | a Raspberry Pi on a vehicle | **All of them.** This is the demanding case |
+| A cloud instance | a virtual host at a provider | 1, 2, 5, 7, 8. There is no bus and no panel, and the identity step is the provider's |
+
+The edge computer is the one this document is written from, because it
+needs every step. A cloud instance skips the hardware and the power
+manager. A laptop usually skips the service as well, and runs the
+ProcessManager by hand.
+
+**Two things are the same for every kind.** The host is its own machine,
+with an identity nothing else has. And the ProcessManager is the one
+thing the operating system starts: everything else is an entry in its
+definition.
 
 ## Before the first boot
 
@@ -236,6 +258,27 @@ it.
   The already-delivered cache is a cache: the sweep removes it. Anything
   undelivered is a decision, not a clean-up.
 - Confirm the development account holds nothing that should not leave.
+
+## What this document will grow into
+
+It covers one kind of host well and the others in outline. The intent is
+that it becomes the single general procedure for bringing up any Aiko
+Services system, with no deployment's private names in it:
+
+- **The cloud instance**: the provider's own identity step, no bus and
+  no hardware, and what a host without a panel reports instead.
+- **The developer's computer**: the shortest path to a running
+  ProcessManager, which is also the path a new contributor takes.
+- **The Actors a host runs**, and which need hardware: the Display, the
+  power manager, the Recorder, the StoreForward pair.
+- **The hardware notes**, by board: what a Pi 4 does that a Pi 5 does
+  not, and the opposite.
+- **An inventory**, so that a fleet can be read at a glance: which host
+  is which kind, where it is, and what it runs.
+
+Each section is written when a host of that kind is built, and not
+before. Every section here was written while a host was built. Each one
+gained a step that reading alone had not found.
 
 ## What a backup must hold
 
