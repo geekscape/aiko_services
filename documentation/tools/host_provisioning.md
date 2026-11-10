@@ -12,7 +12,7 @@ source:
   - src/aiko_services/main/daemon_supervisor/ReadMe.md
   - src/aiko_services/actors/power_manager/ReadMe.md
 related: [../concepts/process_manager, ../concepts/dashboard_plugin]
-last_updated: 2026-11-08
+last_updated: 2026-11-10
 ---
 
 # Provision a host to run Aiko Services 24 hours a day
@@ -225,8 +225,58 @@ the variant that starts the platform only.
 ## 7. The application
 
 The application's own repository, branch and configuration. A host that
-cannot reach that repository cannot be completed. Give it access before
+cannot reach that repository cannot be completed. Give it the code before
 this step, rather than during it.
+
+### Give the host the history, not a key
+
+Where the application repository is private, **a host that leaves the
+building must not hold a key to it**. A key on a mobile host travels with
+the host. A key that is lost without being noticed cannot be revoked for
+one host alone.
+
+Carry the history instead, from a computer that does have access:
+
+```bash
+# On the computer with the clone
+git bundle create /tmp/application.bundle --all
+scp /tmp/application.bundle <account>@<host>:~/
+
+# On the host
+git fetch ~/application.bundle "refs/heads/*:refs/remotes/source/*"
+git checkout <commit>
+```
+
+A bundle is one file, and the far end needs no credential. The fetch
+writes `source/*` remote-tracking refs. The host's own branch and its
+`origin` refs stay as they were, so the state before the fetch is
+recoverable.
+
+A cloud instance is always on a network the repository answers to. Such a
+host uses its own read-only credential in the usual way. The bundle is
+for the host that is not.
+
+*Proved by:* `git log source/<branch>` on the host shows the commit the
+deployment runs, and that commit matches the record for this host.
+
+### Which commit a host runs, and how to be sure
+
+Record the commit for every host, and read the ancestry in a clone that
+**has fetched**:
+
+```bash
+git merge-base --is-ancestor <older> <newer> && echo "one line, not a fork"
+```
+
+A clone whose remote-tracking refs are older than the last push reports a
+commit as unreachable when it is only not fetched yet. That reads exactly
+like a fork, and it is not one. Several hosts at different commits on one
+branch are usually behind, not divergent.
+
+Catch the branch up with its main line **before** a host is updated, not
+after. Then every host goes to the same commit, and is tested there. A
+host left behind runs code that no longer matches the repository, and
+nobody can say what it runs without reading that host.
 
 ## 8. Acceptance
 
