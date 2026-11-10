@@ -137,8 +137,12 @@ aiko_power_manager render grant --account <account>
 
 # The shutdown directory is not on a stock installation.  "install hook"
 # declines rather than making it, because a directory under /usr/lib is
-# the distribution's to own
-sudo mkdir -p /usr/lib/systemd/system-shutdown
+# the distribution's to own.
+#
+# Give it a mode.  "mkdir" without one follows root's umask, and a
+# directory that the Actor's account cannot search makes the hook read
+# as missing, which puts the host into quiesce for a hook that is there
+sudo install -d -m 755 /usr/lib/systemd/system-shutdown
 
 sudo aiko_power_manager install unit
 sudo aiko_power_manager install hook
