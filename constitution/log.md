@@ -6,6 +6,22 @@ Every substantive change appends an entry under its date heading
 This journal begins at the constitution's first public release. The
 pre-publication history is maintained privately.
 
+## 2026-11-09
+
+- **Update** — [g_03_AgentContext.md](g_03_AgentContext.md) and
+  [e_06_TestingStrategy.md](e_06_TestingStrategy.md): the commands an agent
+  runs match the CI workflow again. CI runs the unit tests through
+  `hatch run test`, which reports coverage, and a bare `pytest` runs the
+  tests alone. The lint command excludes the in-tree environment
+  directories, because the workflow makes `.venv` and `.hatch` in the
+  repository itself. In e_06 the supported range reads Python 3.9 to 3.14,
+  in §3.7 and in the §4 gate order. That is what `requires-python` and the
+  CI matrix hold. §3.7 said that current CI omits the version matrix.
+  CI runs it on Ubuntu, and macOS is the part that remains. The T14 entry
+  records the same division: the matrix and the coverage report are in
+  place, and the macOS job, the mosquitto job, the type-check job and the
+  coverage gate remain.
+
 ## 2026-11-05
 
 - **Creation** — [adr/ADR-028_PowerManagement.md](adr/ADR-028_PowerManagement.md),

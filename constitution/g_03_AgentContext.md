@@ -8,7 +8,7 @@ audience: [ai-coding-agents]
 status: operational
 ste: adapted
 related: [a_00_ArchitectureReview_2026-06, p_00_DesignPrinciples]
-last_updated: 2026-11-02
+last_updated: 2026-11-09
 ---
 
 # CLAUDE.md / AGENTS.md — Aiko Services
@@ -223,8 +223,9 @@ self.run_hook(HOOK_NAME, lambda: {"k": v})           # framework fires it
 
 ```
 pip install -e .                      # dev install (hatchling backend)
-pytest                                # unit tests (src/aiko_services/tests)
-flake8 . --select=E9,F63,F7,F82       # critical lint (matches CI)
+hatch run test                        # unit tests + coverage report (matches CI)
+pytest                                # unit tests alone (src/aiko_services/tests/unit)
+flake8 . --select=E9,F63,F7,F82 --extend-exclude '.venv,.hatch,venv*'   # critical lint (matches CI)
 scripts/system_start.sh               # start mosquitto + Aiko Registrar (see scripts/)
 aiko_registrar  aiko_dashboard  aiko_pipeline  aiko_process  aiko_hyperspace   # console entry points
 ```
