@@ -120,8 +120,6 @@ of the constructor arguments (see Current limitations and roadmap).
   `queue.get()`. After EOS it keeps consuming (an image after EOS would
   be pushed into a stopped stream). Process exit while frames are
   buffered can truncate the file.
-- The Python 2 `Queue` import fallback (`sys.version_info`) is dead
-  code in a Python 3 codebase.
 
 ### CRC card
 
