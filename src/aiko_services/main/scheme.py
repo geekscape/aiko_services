@@ -29,8 +29,8 @@ class DataScheme:
         DataScheme.LOOKUP[name] = data_scheme_class
 
     @classmethod
-    def contains_all(cls, source: str, match: chr):
-        return False not in [character in source for character in match]
+    def contains_all(cls, source: str, match: str) -> bool:
+        return all(character in source for character in match)
 
     @abstractmethod
     def create_sources(self, stream, data_sources,
