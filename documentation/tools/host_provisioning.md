@@ -112,6 +112,28 @@ Install `i2c-tools` for diagnosis.
 expects. For the module and panel used here: the panel, two current
 monitors and a battery pack temperature sensor.
 
+**`i2cdetect` is in `/usr/sbin`**, and a command sent over `ssh` without
+a terminal gets a PATH with no `sbin` in it. The command then reports
+`i2cdetect: command not found` on a host where the package is installed.
+Give the absolute path, or ask for a login shell:
+
+```bash
+ssh <host> '/usr/sbin/i2cdetect -y -r 1'
+ssh <host> 'bash -lc "i2cdetect -y -r 1"'
+```
+
+The same trap applies to every administration tool in `sbin`. Read
+`dpkg -L i2c-tools` before you conclude that a package is missing.
+
+**Use `-r` on a bus that devices are already using.** The default probe
+writes, and a write to a panel at its own address can put rubbish on the
+screen. `-r` reads instead.
+
+A probe can also answer at addresses the deployment does not expect: an
+add-on board can carry an unprogrammed ID EEPROM, which reads as all
+`0xff`. Record what a host answers at, so that the next host can be
+compared to it.
+
 ## 4. Aiko Services
 
 ```bash
