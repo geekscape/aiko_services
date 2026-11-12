@@ -116,36 +116,12 @@ __all__ = [
 
 class ServiceProtocol:
     def __init__(self, url_prefix, name, version):
-        self._url_prefix = url_prefix
-        self._name = name
-        self._version = version
+        self.url_prefix = url_prefix
+        self.name = name
+        self.version = version
 
     def __repr__(self):
-        return f"{self._url_prefix}/{self._name}:{self._version}"
-
-    @property
-    def url_prefix(self):
-        return self._url_prefix
-
-    @url_prefix.setter
-    def url_prefix(self, value):
-        self._url_prefix = value
-
-    @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, value):
-        self._name = value
-
-    @property
-    def version(self):
-        return self._version
-
-    @version.setter
-    def version(self, value):
-        self._version = value
+        return f"{self.url_prefix}/{self.name}:{self.version}"
 
 # class ServiceField:  # TODO: Support integer index plus string name
 #   TOPIC = "TOPIC"          # 0
@@ -159,65 +135,18 @@ class ServiceProtocol:
 
 class ServiceFields:
     def __init__(self, topic_path, name, protocol, transport, owner, tags):
-        self._topic_path = topic_path
-        self._name = name
-        self._protocol = protocol
-        self._transport = transport
-        self._owner = owner
-        self._tags = tags
+        self.topic_path = topic_path
+        self.name = name
+        self.protocol = protocol
+        self.transport = transport
+        self.owner = owner
+        self.tags = tags
 
     def __repr__(self):
-        return f"{self._topic_path}, {self._name}, "  \
-               f"{self._protocol}, {self._transport}, "      \
-               f"{self._owner}, {self._tags}"
+        return f"{self.topic_path}, {self.name}, "  \
+               f"{self.protocol}, {self.transport}, "      \
+               f"{self.owner}, {self.tags}"
 
-    @property
-    def topic_path(self):
-        return self._topic_path
-
-    @topic_path.setter
-    def topic_path(self, value):
-        self._topic_path = value
-
-    @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, value):
-        self._name = value
-
-    @property
-    def protocol(self):
-        return self._protocol
-
-    @protocol.setter
-    def protocol(self, value):
-        self._protocol = value
-
-    @property
-    def transport(self):
-        return self._transport
-
-    @transport.setter
-    def transport(self, value):
-        self._transport = value
-
-    @property
-    def owner(self):
-        return self._owner
-
-    @owner.setter
-    def owner(self, value):
-        self._owner = value
-
-    @property
-    def tags(self):
-        return self._tags
-
-    @tags.setter
-    def tags(self, value):
-        self._tags = value
 
 class ServiceFilter:
     @classmethod
@@ -291,64 +220,32 @@ class ServiceTopicPath:
 
 
     def __init__(self, namespace, hostname, process_id=0, service_id=0):
-        self._namespace = namespace
-        self._hostname = hostname
-        self._process_id = process_id
-        self._service_id = service_id
+        self.namespace = namespace
+        self.hostname = hostname
+        self.process_id = process_id
+        self.service_id = service_id
 
     def __repr__(self):
-        return f"{self.topic_path_process}/{self._service_id}"
-
-    @property
-    def namespace(self):
-        return self._namespace
-
-    @namespace.setter
-    def namespace(self, value):
-        self._namespace = value
-
-    @property
-    def hostname(self):
-        return self._hostname
-
-    @hostname.setter
-    def hostname(self, value):
-        self._hostname = value
-
-    @property
-    def process_id(self):
-        return self._process_id
-
-    @process_id.setter
-    def process_id(self, value):
-        self._process_id = value
-
-    @property
-    def service_id(self):
-        return self._service_id
-
-    @service_id.setter
-    def service_id(self, value):
-        self._service_id = value
+        return f"{self.topic_path_process}/{self.service_id}"
 
     @property
     def terse(self):
         topic_path = str(self)
         if len(topic_path) > 26:
-            namespace = self._namespace[0:4]
-            if len(namespace) < len(self._namespace):
+            namespace = self.namespace[0:4]
+            if len(namespace) < len(self.namespace):
                 namespace += "+"
-            hostname = self._hostname[0:8]
-            if len(hostname) < len(self._hostname):
+            hostname = self.hostname[0:8]
+            if len(hostname) < len(self.hostname):
                 hostname += "+"
-            process_id = self._process_id
-            service_id = self._service_id
+            process_id = self.process_id
+            service_id = self.service_id
             topic_path = f"{namespace}/{hostname}/{process_id}/{service_id}"
         return topic_path
 
     @property
     def topic_path_process(self):
-        return f"{self._namespace}/{self._hostname}/{self._process_id}"
+        return f"{self.namespace}/{self.hostname}/{self.process_id}"
 
 # --------------------------------------------------------------------------- #
 # services dict: Key: Process topic_path --> Value: Per Processs Services dict
