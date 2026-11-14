@@ -8,7 +8,7 @@
 #
 # CUDA_VISIBLE_DEVICES=3 /mnt/code/aiko_services_internal/aiko_services_internal/video/gstreamer/video_example.py -if /app/resources/sample.mp4 -os 192.168.1.154:5000 -r 1280 1280 -f 6/1
 
-import os
+from pathlib import Path
 
 from aiko_services.elements.gstreamer import *
 
@@ -18,7 +18,7 @@ __all__ = ["VideoFileReader"]
 
 class VideoFileReader:
   def __init__(self, input_filename, width, height):
-    if not os.path.exists(input_filename):
+    if not Path(input_filename).exists():
       raise ValueError("File does not exist: " + input_filename)
 
     Gst = gst_initialise()
