@@ -151,7 +151,7 @@ class StorageFileImpl(Storage):
     #       service_filter=None, lifecycle_manager_url=None, storage_url=None
 
     def add(self, dependency_name, dependency=None):
-        path = Path(self._create_unique_path())
+        path = self._create_unique_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.touch()
         try:
@@ -168,9 +168,9 @@ class StorageFileImpl(Storage):
     #       service_filter=None, lifecycle_manager_url=None, storage_url=None
 
     def create(self, category_name):
-        path = Path(self._create_unique_path())
+        path = self._create_unique_path()
         path.mkdir(parents=True, exist_ok=True)
-        rel_back = self._relative_path(str(Path.cwd() / _ROOT_FILENAME), path)
+        rel_back = self._relative_path(Path.cwd() / _ROOT_FILENAME, path)
         try:
             Path(path, _ROOT_FILENAME).symlink_to(rel_back)
         except FileExistsError:
@@ -208,7 +208,7 @@ class StorageFileImpl(Storage):
                             if x.is_symlink() and   \
                                 x.resolve() == absolute_target_path]
             if not others:
-                self._untrack_path(str(absolute_target_path))
+                self._untrack_path(absolute_target_path)
                 if absolute_target_path.is_dir():
                     for child in absolute_target_path.rglob("*"):
                         if child.is_file() or child.is_symlink():
@@ -313,8 +313,7 @@ class StorageFileImpl(Storage):
 
         # Construct full path under .root
         dot_root_path = link_base / relative_storage_path
-        relative_path = self._relative_path(
-            str(dot_root_path), str(base_directory))
+        relative_path = self._relative_path(dot_root_path, base_directory)
         try:
             Path(entry_path_new).symlink_to(relative_path)
         except FileExistsError:
@@ -448,11 +447,11 @@ class StorageFileImpl(Storage):
     @classmethod
     def _check_root_symbolic_link(cls):
         root_pathname = Path.cwd() / _ROOT_FILENAME
-        if not os.path.lexists(root_pathname):
+        if not (root_pathname.exists() or root_pathname.is_symlink()):
             raise FileExistsError(
                 f'Storage: symbolic link "./{_ROOT_FILENAME}" must exist')
         else:
-            if not os.path.islink(root_pathname):
+            if not root_pathname.is_symlink():
                 raise FileExistsError(
                     f'Storage: File "./{_ROOT_FILENAME}" is not a symbolc link')
 
@@ -481,7 +480,7 @@ class StorageFileImpl(Storage):
             path_parts = [uid[i:i+2] for i in range(0, len(uid), 2)]
             new_path = storage_path.joinpath(*path_parts)
             if not new_path.exists() and str(new_path) not in existing_paths:
-                return str(new_path)
+                return new_path
 
     # Generate UID, persisting the "uid_counter" when using incremental mode
 
@@ -509,8 +508,8 @@ class StorageFileImpl(Storage):
 
     # Compute relative path using os.path.relpath
 
-    def _relative_path(self, target_path, start_path):
-        return os.path.relpath(target_path, start=start_path)
+    def _relative_path(self, target_path, start_path) -> Path:
+        return Path(os.path.relpath(target_path, start=start_path))
 
     # Track a created storage path
 

@@ -149,6 +149,7 @@ import click
 import importlib.util
 import json
 import os
+from pathlib import Path
 import shlex
 import shutil
 from subprocess import Popen
@@ -348,8 +349,7 @@ class ProcessManagerImpl(ProcessManager):
         else is left as it is, so that Popen reports the command it could
         not find"""
 
-        file_extension = os.path.splitext(command)[-1]
-        if file_extension in [".py", ".sh"]:         # TODO: Other extensions ?
+        if Path(command).suffix in (".py", ".sh"):         # TODO: Other extensions ?
             return command
         if shutil.which(command):
             return command
@@ -375,7 +375,7 @@ class ProcessManagerImpl(ProcessManager):
     # error which names the command, not the directory, so check it here.
     # Before the uid is allocated, so that nothing starting leaves no gap
     # in the sequence of uids
-        if cwd is not None and not os.path.isdir(cwd):
+        if cwd and not Path(cwd).is_dir():
             self.logger.error(
                 f"Create: not a directory, process not started: {cwd}")
             return
