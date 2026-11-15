@@ -438,7 +438,7 @@ def test_partial_directory_outside_inbox(tmp_path):
     client.start(client_recorder.on_command, client_recorder.on_event)
     try:
         assert server_parts.is_dir() and client_parts.is_dir()
-        assert server.partial_directory == os.path.realpath(server_parts)
+        assert server.partial_directory == server_parts.resolve()
 
         path, data, sha256 = write_segment(client.outbox, "up.txt", 5000)
         (server_parts / "abcd1234.part").write_bytes(data[:2048])

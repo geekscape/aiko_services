@@ -54,38 +54,38 @@ def _part(tmp_path):
 
 def test_partial_path_default_and_explicit(tmp_path, monkeypatch):
     inbox = tmp_path / "in"
-    default = os.path.join(os.path.realpath(inbox), PARTIAL_DIRECTORY)
+    default = inbox.resolve() / PARTIAL_DIRECTORY
     assert partial_path(inbox) == default
     assert partial_path(inbox, "") == default
     assert partial_path(inbox, None) == default
     monkeypatch.setenv("HOME", str(tmp_path))
     assert partial_path(inbox, "~/state/parts")  \
-        == os.path.realpath(tmp_path / "state" / "parts")
+        == (tmp_path / "state" / "parts").resolve()
 
 def test_partial_paths_creates_directory(tmp_path):
     parts = tmp_path / "parts"
-    part, meta = _partial_paths(str(parts), "0123abcd")
+    part, meta = _partial_paths(parts, "0123abcd")
     assert parts.is_dir()
-    assert part == str(parts / "0123abcd.part")
-    assert meta == str(parts / "0123abcd.meta")
+    assert part == parts / "0123abcd.part"
+    assert meta == parts / "0123abcd.meta"
 
 def test_finish_download_same_file_system(tmp_path):
     inbox, part, meta = _part(tmp_path)
-    path = _finish_download(str(inbox), "a.mp4", str(part), str(meta))
-    assert os.path.realpath(path) == os.path.realpath(inbox / "a.mp4")
-    assert os.listdir(inbox) == ["a.mp4"]
+    path = _finish_download(inbox, "a.mp4", part, meta)
+    assert path.resolve() == (inbox.resolve() / "a.mp4").resolve()
+    assert [a.name for a in inbox.iterdir()] == ["a.mp4"]
     assert (inbox / "a.mp4").read_bytes() == DATA
     assert not part.exists() and not meta.exists()
 
 def test_finish_download_exdev_copies_through_temporary(tmp_path, monkeypatch):
     inbox, part, meta = _part(tmp_path)
     calls = _replace_raising(monkeypatch, errno.EXDEV)
-    path = _finish_download(str(inbox), "a.mp4", str(part), str(meta))
+    path = _finish_download(inbox, "a.mp4", part, meta)
     assert (inbox / "a.mp4").read_bytes() == DATA
-    assert os.listdir(inbox) == ["a.mp4"]          # no .a.mp4.part left
+    assert [a.name for a in inbox.iterdir()] == ["a.mp4"]  # no .a.mp4.part left
     assert not part.exists() and not meta.exists()
     assert len(calls) == 2
-    assert calls[1] == (str(inbox / ".a.mp4.part"), path)
+    assert calls[1] == (inbox / ".a.mp4.part", path)
 
 def test_finish_download_exdev_copy_failure_leaves_nothing(
     tmp_path, monkeypatch):
@@ -93,17 +93,17 @@ def test_finish_download_exdev_copy_failure_leaves_nothing(
     inbox, part, meta = _part(tmp_path)
     _replace_raising(monkeypatch, errno.EXDEV, errno.ENOSPC)
     with pytest.raises(OSError) as raised:
-        _finish_download(str(inbox), "a.mp4", str(part), str(meta))
+        _finish_download(inbox, "a.mp4", part, meta)
     assert raised.value.errno == errno.ENOSPC
-    assert os.listdir(inbox) == []                  # temporary removed
+    assert list(inbox.iterdir()) == []              # temporary removed
     assert part.exists() and meta.exists()          # the caller discards
 
 def test_finish_download_other_error_propagates(tmp_path, monkeypatch):
     inbox, part, meta = _part(tmp_path)
     calls = _replace_raising(monkeypatch, errno.EACCES)
     with pytest.raises(OSError) as raised:
-        _finish_download(str(inbox), "a.mp4", str(part), str(meta))
+        _finish_download(inbox, "a.mp4", part, meta)
     assert raised.value.errno == errno.EACCES
     assert len(calls) == 1                          # no copy attempted
-    assert os.listdir(inbox) == []
+    assert list(inbox.iterdir()) == []
     assert part.exists() and meta.exists()

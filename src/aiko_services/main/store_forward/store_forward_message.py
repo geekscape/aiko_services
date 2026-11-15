@@ -35,7 +35,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 import hashlib
-import os
+from pathlib import Path
 import queue
 import re
 import threading
@@ -108,38 +108,32 @@ def valid_segment_name(name) -> bool:
 def valid_sha256(sha256) -> bool:
     return isinstance(sha256, str) and bool(_SHA256_RE.match(sha256))
 
-def resolve_within(directory, name) -> Optional[str]:
+def resolve_within(directory, name) -> Optional[Path]:
     """Return the real path of "directory/name" when it stays inside the
     real "directory" (symbolic links resolved), else None"""
 
     if not valid_segment_name(name):
         return None
-    directory = os.path.realpath(directory)
-    path = os.path.realpath(os.path.join(directory, name))
-    try:
-        if os.path.commonpath([directory, path]) != directory:
-            return None
-    except ValueError:  # different drives (Windows) or mixed absolute paths
+    directory = Path(directory).resolve()
+    path = (directory / name).resolve()
+    if not path.is_relative_to(directory):
         return None
     return path
 
-def partial_path(inbox, partial_directory=None) -> str:
+def partial_path(inbox, partial_directory=None) -> Path:
     """Real path of the directory of resumable parts and .meta sidecars:
     partial_directory when given, else PARTIAL_DIRECTORY under the inbox.
     The message layer and the Actor both resolve it here, so the share,
     the sweep and the part paths agree"""
 
     if partial_directory:
-        return os.path.realpath(os.path.expanduser(str(partial_directory)))
-    return os.path.join(os.path.realpath(inbox), PARTIAL_DIRECTORY)
+        return Path(partial_directory).expanduser().resolve()
+    return Path(inbox).resolve() / PARTIAL_DIRECTORY
 
 def sha256_file(path, chunk_size=1024 * 1024) -> str:
     digest = hashlib.sha256()
     with open(path, "rb") as file:
-        while True:
-            chunk = file.read(chunk_size)
-            if not chunk:
-                break
+        while chunk := file.read(chunk_size):
             digest.update(chunk)
     return digest.hexdigest()
 
@@ -172,7 +166,7 @@ def try_put(bounded_queue, item) -> bool:
 class SendJob:
     segment_id: str
     name: str
-    path: str                 # real path inside the outbox
+    path: Path                # real path inside the outbox
     size: int
     cancel: threading.Event = field(default_factory=threading.Event)
 

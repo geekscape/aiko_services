@@ -9,6 +9,7 @@
 
 import hashlib
 import os
+from pathlib import Path
 import re
 import threading
 import time
@@ -97,9 +98,8 @@ def make_actor(tmp_path, role="edge", accept=True, outbox_period=0,
 
 def write_segment(directory, name, size=100):
     data = (b"segment-" * (size // 8 + 1))[:size]
-    path = os.path.join(directory, name)
-    with open(path, "wb") as file:
-        file.write(data)
+    path = Path(directory) / name
+    path.write_bytes(data)
     return path, hashlib.sha256(data).hexdigest()
 
 # --------------------------------------------------------------------------- #
@@ -145,7 +145,7 @@ def test_send_segment_boundary(tmp_path):
     job = message.jobs[0]
     assert isinstance(job, SendJob)
     assert (job.segment_id, job.name, job.path, job.size) ==  \
-        (GOOD_ID, "notes.txt", os.path.realpath(path), 100)
+        (GOOD_ID, "notes.txt", path.resolve(), 100)
 
     actor.send_segment(GOOD_ID, "notes.txt")             # idempotent
     assert len(message.jobs) == 1
