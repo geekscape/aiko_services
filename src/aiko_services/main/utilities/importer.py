@@ -67,10 +67,9 @@ def _module_name(pathname):
     The digest of the resolved path makes it unique, and the file name
     in front of it makes a traceback readable"""
 
-    resolved = str(pathlib.Path(pathname).resolve())
-    digest = hashlib.sha1(resolved.encode("utf-8")).hexdigest()[:12]
-    stem = pathlib.Path(pathname).stem or "module"
-    return f"aiko_file_{stem}_{digest}"
+    path = pathlib.Path(pathname)
+    digest = hashlib.sha1(bytes(path.resolve())).hexdigest()[:12]
+    return f"aiko_file_{path.stem or 'module'}_{digest}"
 
 def _load_module_from_path(pathname):
     """Load a Python source file as a module of its own.
