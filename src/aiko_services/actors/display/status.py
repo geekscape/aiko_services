@@ -39,6 +39,7 @@ import collections
 from datetime import datetime
 import fcntl
 import os
+from pathlib import Path
 import re
 import shutil
 import socket
@@ -422,7 +423,7 @@ class StatusApplet(Applet):
         if self.options.get("date"):
             lines.append(f"{clock:%a %d %b %Y}")
         lines.append(f"CPU {reading['cpu']:2.0f}% Mem {reading['mem']:2.0f}%")
-        lines.append(f"Dsk {psutil.disk_usage(os.path.expanduser('~')).percent:2.0f}% "
+        lines.append(f"Dsk {psutil.disk_usage(Path('~').expanduser()).percent:2.0f}% "
                      f"R {per_second(rx)} T {per_second(tx)}")
         try:
             lines.append("Load {:.2f} {:.2f} {:.2f}".format(*os.getloadavg()))  # 1, 5, 15 min

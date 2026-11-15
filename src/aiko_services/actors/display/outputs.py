@@ -626,8 +626,8 @@ class PngOutputImpl(_Emulated, Output, OutputControls):
 
     def __init__(self, context, path="oled.png", **_):
         self._emulate()
-        self.path = str(path)
-        self.device = f"png:{os.path.basename(self.path)}"
+        self.path = Path(path)
+        self.device = f"png:{self.path.name}"
         self._saved_at = 0.0
         self._pending = None
 

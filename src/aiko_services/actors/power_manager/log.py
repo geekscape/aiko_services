@@ -23,7 +23,6 @@
 
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
 
 __all__ = ["PowerLog"]
@@ -108,7 +107,7 @@ class PowerLog:
         if self._file is not None and self._path == path:
             return
         self.close()
-        os.makedirs(path.parent, exist_ok=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
         self._file = open(path, "a", encoding="utf-8")
         self._path = path
 
