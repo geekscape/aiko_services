@@ -113,7 +113,7 @@ def _run(outbox, frame_count, segment_frames, segment_seconds, prefix=""):
     do_create_pipeline(definition, frame_data=None)
     assert not results["watchdog"], "Stream did not stop: watchdog fired"
     assert results["stopped"], "ImageSink.stop_stream() was not invoked"
-    names = sorted(os.listdir(outbox))
+    names = sorted([p.name for p in outbox.iterdir()])
     assert not [name for name in names if name.startswith(".")],  \
         f"temporary segment left behind: {names}"
     for name in names:

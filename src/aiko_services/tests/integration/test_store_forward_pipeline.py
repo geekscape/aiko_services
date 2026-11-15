@@ -15,7 +15,6 @@
 #   in one process is a tested configuration
 
 import hashlib
-import os
 import threading
 import time
 
@@ -83,8 +82,7 @@ class _ServerRecorder:
                 self.received.append(segment_id)
 
 def _sha256(path):
-    with open(path, "rb") as file:
-        return hashlib.sha256(file.read()).hexdigest()
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 def test_pipeline_segments_arrive_at_server(tmp_path):
     server_in, server_out = tmp_path / "server_in", tmp_path / "server_out"
@@ -100,8 +98,8 @@ def test_pipeline_segments_arrive_at_server(tmp_path):
 
     client = StoreForwardMessageHTTPClient(endpoint, edge_in,
         edge_out, poll_period=0.2, chunk_size=4096)
-    parameters = {"message": client, "inbox": str(edge_in),
-                  "outbox": str(edge_out), "outbox_period": 0.2}
+    parameters = {"message": client, "inbox": edge_in,
+                  "outbox": edge_out, "outbox_period": 0.2}
     init_args = aiko.actor_args("store_forward_test_edge",
         parameters=parameters, protocol=PROTOCOL, tags=["role=edge"])
     actor = aiko.compose_instance(SegmentStoreForwardImpl, init_args)

@@ -1,13 +1,14 @@
 # Aiko Services StoreForward: partial directory and the final move, no Flask
 #
 # The helpers are module-level functions of store_forward_http.py, which
-# imports without Flask.  The cross-file-system case (os.replace raises
-# EXDEV) is reproduced by a wrapped os.replace that fails on demand.
+# imports without Flask.  The cross-file-system case (Path.replace raises
+# EXDEV) is reproduced by a wrapped Path.replace that fails on demand.
 #
 #   pytest [-s] unit/test_store_forward_partial.py
 
 import errno
 import os
+from pathlib import Path
 
 import pytest
 
@@ -23,10 +24,10 @@ DATA = b"segment-bytes-" * 50
 # --------------------------------------------------------------------------- #
 
 def _replace_raising(monkeypatch, *errnos):
-    """os.replace raising OSError(errnos[i]) on call i, recording the
+    """Path.replace raising OSError(errnos[i]) on call i, recording the
     (source, target) of every call"""
 
-    real_replace = os.replace
+    real_replace = Path.replace
     calls = []
 
     def replace(source, target):
@@ -36,7 +37,7 @@ def _replace_raising(monkeypatch, *errnos):
             raise OSError(code, os.strerror(code), source)
         return real_replace(source, target)
 
-    monkeypatch.setattr(os, "replace", replace)
+    monkeypatch.setattr(Path, "replace", replace)
     return calls
 
 def _part(tmp_path):
@@ -73,7 +74,7 @@ def test_finish_download_same_file_system(tmp_path):
     inbox, part, meta = _part(tmp_path)
     path = _finish_download(inbox, "a.mp4", part, meta)
     assert path.resolve() == (inbox.resolve() / "a.mp4").resolve()
-    assert [a.name for a in inbox.iterdir()] == ["a.mp4"]
+    assert [p.name for p in inbox.iterdir()] == ["a.mp4"]
     assert (inbox / "a.mp4").read_bytes() == DATA
     assert not part.exists() and not meta.exists()
 

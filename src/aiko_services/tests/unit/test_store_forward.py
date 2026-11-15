@@ -84,12 +84,12 @@ def make_actor(tmp_path, role="edge", accept=True, outbox_period=0,
     inbox.mkdir(parents=True)
     outbox.mkdir(parents=True)
     message = FakeMessage(role, accept)
-    parameters = {"message": message, "inbox": str(inbox),
-                  "outbox": str(outbox), "outbox_period": outbox_period}
+    parameters = {"message": message, "inbox": inbox,
+                  "outbox": outbox, "outbox_period": outbox_period}
     if sent_max_age is not None:
         parameters["sent_max_age"] = sent_max_age
     if partial_directory:
-        parameters["partial_directory"] = str(partial_directory)
+        parameters["partial_directory"] = partial_directory
     _actor_count[0] += 1
     init_args = aiko.actor_args(f"st_test_{_actor_count[0]}",
         parameters=parameters, protocol=PROTOCOL, tags=[f"role={role}"])
@@ -98,7 +98,7 @@ def make_actor(tmp_path, role="edge", accept=True, outbox_period=0,
 
 def write_segment(directory, name, size=100):
     data = (b"segment-" * (size // 8 + 1))[:size]
-    path = Path(directory) / name
+    path = directory / name
     path.write_bytes(data)
     return path, hashlib.sha256(data).hexdigest()
 
@@ -108,13 +108,13 @@ def test_initial_share(tmp_path):
     actor, message, inbox, outbox = make_actor(tmp_path, role="server")
     assert actor.share["role"] == "server"
     assert actor.share["http_endpoint"] == "fake://server"
-    assert actor.share["inbox"] == os.path.realpath(str(inbox))
+    assert Path(actor.share["inbox"]) == inbox.resolve()
     assert actor.share["link"] == "unknown"
     assert message.on_command and message.on_event
-    assert os.path.isdir(os.path.join(str(outbox), SENT_DIRECTORY))
-    assert actor.share["partial_directory"]  \
-        == os.path.join(actor.share["inbox"], PARTIAL_DIRECTORY)  # default
-    assert os.path.isdir(actor.share["partial_directory"])
+    assert (outbox / SENT_DIRECTORY).is_dir()
+    assert Path(actor.share["partial_directory"])  \
+        == Path(actor.share["inbox"]) / PARTIAL_DIRECTORY  # default
+    assert Path(actor.share["partial_directory"]).is_dir()
 
 def test_send_segment_boundary(tmp_path):
     actor, message, inbox, outbox = make_actor(tmp_path)
@@ -124,8 +124,8 @@ def test_send_segment_boundary(tmp_path):
     assert store_forwards[GOOD_ID] == "rejected_path"
     actor.forget(GOOD_ID)
 
-    outside, _ = write_segment(str(tmp_path), "secret.txt")
-    os.symlink(outside, os.path.join(str(outbox), "link.txt"))
+    outside, _ = write_segment(tmp_path, "secret.txt")
+    (outbox / "link.txt").symlink_to(outside)
     actor.send_segment(GOOD_ID, "link.txt")
     assert store_forwards[GOOD_ID] == "rejected_path"        # escapes the outbox
     actor.forget(GOOD_ID)
@@ -138,7 +138,7 @@ def test_send_segment_boundary(tmp_path):
     assert "a.b" not in store_forwards
     assert actor.share["metrics"]["rejected_commands"] == "1"
 
-    path, _ = write_segment(str(outbox), "notes.txt")
+    path, _ = write_segment(outbox, "notes.txt")
     actor.send_segment(GOOD_ID, "notes.txt")
     assert store_forwards[GOOD_ID] == "queued"
     assert len(message.jobs) == 1
@@ -172,7 +172,7 @@ def test_fetch_segment_boundary(tmp_path):
 
 def test_queue_full_is_rejected_busy(tmp_path):
     actor, message, _, outbox = make_actor(tmp_path, accept=False)
-    write_segment(str(outbox), "notes.txt")
+    write_segment(outbox, "notes.txt")
     actor.send_segment(GOOD_ID, "notes.txt")
     assert actor.share["store_forwards"][GOOD_ID] == "rejected_busy"
 
@@ -187,7 +187,7 @@ def test_state_tables_are_bounded(tmp_path):
 
 def test_store_forward_events_acknowledge_forget(tmp_path):
     actor, message, inbox, outbox = make_actor(tmp_path)
-    path, sha256 = write_segment(str(outbox), "notes.txt", 100)
+    path, sha256 = write_segment(outbox, "notes.txt", 100)
     actor.send_segment(GOOD_ID, "notes.txt")
 
     actor._store_forward_event(GOOD_ID, "sending", "0/100")
@@ -199,8 +199,8 @@ def test_store_forward_events_acknowledge_forget(tmp_path):
     actor._store_forward_event(GOOD_ID, "done", sha256)
     assert actor.share["store_forwards"][GOOD_ID] == "done"
     assert actor.share["metrics"]["sent_bytes"] == "100"
-    assert not os.path.exists(path)                       # moved to .sent
-    assert os.path.exists(os.path.join(str(outbox), SENT_DIRECTORY, "notes.txt"))
+    assert not path.exists()                              # moved to .sent
+    assert (outbox / SENT_DIRECTORY / "notes.txt").exists()
 
     actor.acknowledge(GOOD_ID, "b" * 64, "ok")            # wrong sha: ignored
     assert actor.share["store_forwards"][GOOD_ID] == "done"
@@ -312,10 +312,10 @@ def test_queue_and_sampled(tmp_path):
     actor, message, _, outbox = make_actor(tmp_path)
     assert actor.share["queue"] == {"depth": "0", "oldest_s": "0", "bytes": "0"}
     for name, size in (("a.txt", 100), ("b.txt", 200), ("c.txt", 300)):
-        write_segment(str(outbox), name, size)
-    old = os.path.join(str(outbox), "a.txt")
+        write_segment(outbox, name, size)
+    old = outbox / "a.txt"
     os.utime(old, (time.time() - 90, time.time() - 90))
-    write_segment(str(outbox), ".hidden", 999)              # ignored
+    write_segment(outbox, ".hidden", 999)                  # ignored
     actor._outbox_scan()                                    # first sighting
     assert actor.share["queue"]["depth"] == "3"
     assert actor.share["queue"]["bytes"] == "600"
@@ -363,7 +363,7 @@ def test_retry_after_failed_send(tmp_path):
     the same outbox file with a fresh id and counts the retry"""
 
     actor, message, _, outbox = make_actor(tmp_path)
-    write_segment(str(outbox), "seg.txt")
+    write_segment(outbox, "seg.txt")
     _queue_via_scan(actor)
     first_id = message.jobs[0].segment_id
     actor._store_forward_event(first_id, "failed_timeout", "")
@@ -385,11 +385,11 @@ def test_retry_after_failed_send(tmp_path):
     _queue_via_scan(actor)
     actor._store_forward_event(message.jobs[2].segment_id, "done", SHA)
     assert "seg.txt" not in actor._retry_backoff            # delivered: reset
-    assert os.path.exists(os.path.join(str(outbox), SENT_DIRECTORY, "seg.txt"))
+    assert (outbox / SENT_DIRECTORY / "seg.txt").exists()
 
 def test_rejected_busy_retries(tmp_path):
     actor, message, _, outbox = make_actor(tmp_path, accept=False)
-    write_segment(str(outbox), "seg.txt")
+    write_segment(outbox, "seg.txt")
     _queue_via_scan(actor)
     assert list(actor.share["store_forwards"].values()) == ["rejected_busy"]
     assert "seg.txt" in actor._retry_after
@@ -405,7 +405,7 @@ def test_offer_not_acked_is_reoffered(tmp_path):
 
     from aiko_services.main.store_forward.store_forward import RETRY_AFTER_S
     actor, message, _, outbox = make_actor(tmp_path, role="server")
-    write_segment(str(outbox), "seg.txt")
+    write_segment(outbox, "seg.txt")
     _queue_via_scan(actor)
     first_id = message.jobs[0].segment_id
     actor._store_forward_event(first_id, "offered", SHA)
@@ -442,15 +442,15 @@ def test_stale_partial_sweep(tmp_path):
 def test_stale_partial_sweep_separate_directory(tmp_path):
     partial = tmp_path / "state" / "parts"
     actor, _, inbox, _ = make_actor(tmp_path, partial_directory=partial)
-    assert actor.share["partial_directory"] == os.path.realpath(partial)
+    assert Path(actor.share["partial_directory"]) == partial.resolve()
     assert partial.is_dir()
-    assert os.listdir(inbox) == []                # nothing hidden in it
+    assert list(inbox.iterdir()) == []            # nothing hidden in it
     _seed_parts(partial)
     actor.partial_max_age = 10
     actor._sweep_partial(time.monotonic(), force=True)
     assert sorted(p.name for p in partial.iterdir()) ==  \
         ["bbbb2222.meta", "bbbb2222.part", "notes.txt"]
-    assert os.listdir(inbox) == []
+    assert list(inbox.iterdir()) == []
 
 def test_partial_directory_option_and_guard(tmp_path):
     from click.testing import CliRunner
@@ -468,7 +468,7 @@ def test_partial_directory_option_and_guard(tmp_path):
 
 def test_cancel_sets_job_event(tmp_path):
     actor, message, _, outbox = make_actor(tmp_path)
-    write_segment(str(outbox), "notes.txt")
+    write_segment(outbox, "notes.txt")
     actor.send_segment(GOOD_ID, "notes.txt")
     assert not message.jobs[0].cancel.is_set()
     actor.cancel(GOOD_ID)
@@ -486,8 +486,8 @@ def test_http_command_guard(tmp_path):
 
 def test_outbox_scan_sends_once_when_stable(tmp_path):
     actor, message, _, outbox = make_actor(tmp_path)
-    write_segment(str(outbox), ".hidden", 10)
-    path, _ = write_segment(str(outbox), "notes.txt", 100)
+    write_segment(outbox, ".hidden", 10)
+    path, _ = write_segment(outbox, "notes.txt", 100)
 
     actor._outbox_scan()                                  # first sighting
     assert message.jobs == []
@@ -508,7 +508,7 @@ def test_mailbox_handoff_runs_on_event_loop_thread(tmp_path):
     changes happen on the event-loop thread (Aiko Services P2)"""
 
     actor, message, _, outbox = make_actor(tmp_path)
-    write_segment(str(outbox), "notes.txt")
+    write_segment(outbox, "notes.txt")
     actor.send_segment(GOOD_ID, "notes.txt")
     poster_thread = {}
 

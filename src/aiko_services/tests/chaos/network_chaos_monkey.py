@@ -40,6 +40,7 @@ import argparse
 import asyncio
 from contextlib import suppress
 import os
+from pathlib import Path
 import random
 import signal
 import socket
@@ -48,8 +49,8 @@ import sys
 import time
 from typing import Optional, Set
 
-PIDFILE = "network_chaos_monkey.pid"
-MODEFILE = "network_chaos_monkey.mode"   # "proxy", "sink", or "drop_midstream"
+PIDFILE = Path("network_chaos_monkey.pid")
+MODEFILE = Path("network_chaos_monkey.mode")   # "proxy", "sink", or "drop_midstream"
 
 ACTIVE_CONNECTIONS: Set[asyncio.StreamWriter] = set()
 
@@ -196,23 +197,19 @@ def _serve_entry(args):
 
 def _read_pid() -> Optional[int]:
     try:
-        with open(PIDFILE, "r") as f:
-            return int(f.read().strip())
+        return int(PIDFILE.read_text().strip())
     except Exception:
         return None
 
 def _write_pid(pid: int):
-    with open(PIDFILE, "w") as f:
-        f.write(str(pid))
+    PIDFILE.write_text(str(pid))
 
 def _write_modefile(behavior: str):
-    with open(MODEFILE, "w") as f:
-        f.write(behavior)
+    MODEFILE.write_text(behavior)
 
 def _read_modefile() -> Optional[str]:
     try:
-        with open(MODEFILE, "r") as f:
-            return f.read().strip()
+        return MODEFILE.read_text().strip()
     except Exception:
         return None
 
@@ -301,12 +298,9 @@ def cmd_down(args):
         if _is_running(pid):
             _kill_pid(pid)
             time.sleep(0.2)
-        for f in (PIDFILE, MODEFILE):
-            if os.path.exists(f):
-                try:
-                    os.remove(f)
-                except Exception:
-                    pass
+        for path in (PIDFILE, MODEFILE):
+            with suppress(Exception):
+                path.unlink(missing_ok=True)
         print("DOWN: hardfail (port closed).")
 
     elif mode == "blackhole":
@@ -352,24 +346,18 @@ def cmd_stop(_args):
     pid = _read_pid()
     if not _is_running(pid):
         print("Nothing to stop (no running process).")
-        for f in (PIDFILE, MODEFILE):
-            if os.path.exists(f):
-                try:
-                    os.remove(f)
-                except Exception:
-                    pass
+        for path in (PIDFILE, MODEFILE):
+            with suppress(Exception):
+                path.unlink(missing_ok=True)
         return
 
     print(f"Stopping chaos monkey (PID {pid}) ...")
     _kill_pid(pid)
     time.sleep(0.2)
 
-    for f in (PIDFILE, MODEFILE):
-        if os.path.exists(f):
-            try:
-                os.remove(f)
-            except Exception:
-                pass
+    for path in (PIDFILE, MODEFILE):
+        with suppress(Exception):
+            path.unlink(missing_ok=True)
     print("Stopped.")
 
 def _jittered(base: float, jitter: float) -> float:

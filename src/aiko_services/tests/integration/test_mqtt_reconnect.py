@@ -17,6 +17,7 @@
 # - None, yet !
 
 import os
+from pathlib import Path
 import shutil
 import signal
 import socket
@@ -30,17 +31,19 @@ import pytest
 
 paho_client = pytest.importorskip("paho.mqtt.client")
 
-_MOSQUITTO_PATHS = ["/opt/homebrew/sbin", "/usr/local/sbin", "/usr/sbin"]
+_MOSQUITTO_PATHS = [Path("/opt/homebrew/sbin"), Path("/usr/local/sbin"),
+    Path("/usr/sbin")]
 _TIMEOUT = 20.0  # seconds
 
 def _mosquitto_path():
     path = shutil.which("mosquitto")
-    if not path:
-        for directory in _MOSQUITTO_PATHS:
-            candidate = os.path.join(directory, "mosquitto")
-            if os.access(candidate, os.X_OK):
-                return candidate
-    return path
+    if path:
+        return Path(path)
+    for directory in _MOSQUITTO_PATHS:
+        candidate = directory / "mosquitto"
+        if os.access(candidate, os.X_OK):
+            return candidate
+    return None
 
 MOSQUITTO = _mosquitto_path()
 pytestmark = pytest.mark.skipif(not MOSQUITTO, reason="mosquitto not installed")
@@ -54,7 +57,7 @@ def _start_mosquitto(tmp_path, port):
     configuration = tmp_path / "mosquitto.conf"
     configuration.write_text(
         f"listener {port} 127.0.0.1\nallow_anonymous true\n")
-    process = subprocess.Popen([MOSQUITTO, "-c", str(configuration)],
+    process = subprocess.Popen([MOSQUITTO, "-c", configuration],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
@@ -139,7 +142,7 @@ def _start_child(tmp_path, port, *arguments):
     environment = dict(os.environ,
         AIKO_MQTT_HOST="127.0.0.1", AIKO_MQTT_PORT=str(port),
         AIKO_LOG_MQTT="false")
-    child = subprocess.Popen([sys.executable, str(script), *arguments],
+    child = subprocess.Popen([sys.executable, script, *arguments],
         env=environment, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
         text=True)
     topic_lwt = child.stdout.readline().strip()

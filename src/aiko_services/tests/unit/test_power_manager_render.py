@@ -66,11 +66,11 @@ def test_an_unknown_artifact_raises():
         render("initrd")
 
 def test_rendering_changes_nothing(tmp_path):
-    before = sorted(os.listdir(tmp_path))
+    before = sorted([p.name for p in tmp_path.iterdir()])
     render("unit")
     render("hook")
     render("grant", account="someone")
-    assert sorted(os.listdir(tmp_path)) == before
+    assert sorted([p.name for p in tmp_path.iterdir()]) == before
 
 # The start-up unit -------------------------------------------------------- #
 
@@ -332,7 +332,7 @@ def test_nothing_is_left_behind_by_an_install(tmp_path):
     """The write is atomic, so no temporary file survives it"""
 
     install("unit", render("unit"), path=str(tmp_path / "unit"))
-    assert sorted(os.listdir(tmp_path)) == ["unit"]
+    assert sorted(entry.name for entry in tmp_path.iterdir()) == ["unit"]
 
 def test_an_empty_artifact_is_refused(tmp_path):
     with pytest.raises(InstallRefused, match="did not validate"):
