@@ -13,6 +13,7 @@
 
 import importlib
 import json
+from pathlib import Path
 import os
 
 import pytest
@@ -23,9 +24,8 @@ import aiko_services as aiko
 from aiko_services.elements import cameras
 from aiko_services.main.utilities import parse
 
-PIPELINES = os.path.join(os.path.dirname(cameras.__file__), "pipelines")
-DEFINITIONS = sorted(name for name in os.listdir(PIPELINES)
-                     if name.endswith(".json"))
+PIPELINES = Path(cameras.__file__).parent / "pipelines"
+DEFINITIONS = sorted(d.name for d in PIPELINES.iterdir() if d.name.endswith(".json"))
 
 def test_five_definitions_are_committed():
     assert DEFINITIONS == ["depthai_pipeline_0.json",
@@ -35,8 +35,8 @@ def test_five_definitions_are_committed():
 
 @pytest.mark.parametrize("name", DEFINITIONS)
 def test_definition_parses_and_deploys(name):
-    path = os.path.join(PIPELINES, name)
-    with open(path) as file:
+    path = PIPELINES / name
+    with path.open() as file:
         definition = json.load(file)                # valid JSON
     parsed = aiko.PipelineImpl.parse_pipeline_definition(path)  # schema
     element_names = [element.name for element in parsed.elements]

@@ -40,8 +40,7 @@
 # ~~~~~
 # - TLS and authentication (LAN only until then)
 # - Replace the werkzeug development server before production use
-
-from collections import deque
+import contextlib
 import errno
 import json
 import logging
@@ -51,7 +50,9 @@ import shutil
 import socket
 import threading
 import time
-from typing import Dict, Optional
+from collections import deque
+from pathlib import Path
+from typing import Dict
 
 import requests
 
@@ -69,8 +70,8 @@ from aiko_services.main.store_forward.store_forward_message import (
     JOB_QUEUE_SIZE, LINK_ID, MAX_INCOMING, MAX_SEGMENT_SIZE, OUT_QUEUE_SIZE,
     NAME_EVENT, PROGRESS_EVENT, PROGRESS_EVERY_CHUNKS, RESUME_EVENT,
     FetchJob, StoreForwardMessage, SendJob, utc_now, partial_path,
-    resolve_within, sha256_file, store_forward_deadline, try_put,
-    valid_segment_name, valid_sha256, valid_segment_id
+    sha256_file, store_forward_deadline, try_put, valid_segment_name,
+    valid_sha256
 )
 
 import queue
@@ -112,9 +113,9 @@ def _describe(exception, limit=160):
     return f"{type(exception).__name__}: {text}"[:limit]
 
 def _partial_paths(partial_directory, segment_id):
-    os.makedirs(partial_directory, exist_ok=True)
-    stem = os.path.join(partial_directory, segment_id)
-    return f"{stem}.part", f"{stem}.meta"
+    partial_directory.mkdir(parents=True, exist_ok=True)
+    stem = partial_directory / segment_id
+    return stem.with_suffix(".part"), stem.with_suffix(".meta")
 
 def _finish_download(inbox, name, part_path, meta_path):
     """Move a verified part into the inbox, so the segment appears
@@ -124,15 +125,15 @@ def _finish_download(inbox, name, part_path, meta_path):
     file is gone, the part is still there and the OSError propagates: the
     caller decides what to report"""
 
-    path = os.path.join(os.path.realpath(inbox), name)
+    path = inbox.resolve() / name
     try:
-        os.replace(part_path, path)
+        part_path.replace(path)
     except OSError as os_error:
         if os_error.errno != errno.EXDEV:
             raise
         _copy_into_place(part_path, path)
         try:
-            os.remove(part_path)
+            part_path.unlink()
         except OSError as os_error:          # delivered: the sweep gets it
             _LOGGER.warning(f"remove {part_path}: {os_error}")
     _discard(meta_path)
@@ -142,28 +143,23 @@ def _copy_into_place(source, target):
     """Copy source to ".<name>.part" beside target, fsync, then rename
     onto target.  The temporary file never survives a failure"""
 
-    directory, name = os.path.split(target)
-    temp_path = os.path.join(directory, f".{name}.part")
+    directory, name = target.parent, target.name
+    temp_path = directory / f".{name}.part"
     try:
         with open(source, "rb") as source_file,  \
              open(temp_path, "wb") as temp_file:
             shutil.copyfileobj(source_file, temp_file, 1024 * 1024)
             temp_file.flush()
             os.fsync(temp_file.fileno())
-        os.replace(temp_path, target)
+        temp_path.replace(target)
     except BaseException:
-        try:
-            os.remove(temp_path)
-        except OSError:
-            pass
+        with contextlib.suppress(OSError):
+            temp_path.unlink()
         raise
 
 def _discard(*paths):
     for path in paths:
-        try:
-            os.remove(path)
-        except FileNotFoundError:
-            pass
+        path.unlink(missing_ok=True)
 
 # --------------------------------------------------------------------------- #
 
@@ -198,8 +194,8 @@ class StoreForwardMessageHTTPServer(StoreForwardMessage):
     def __init__(self, inbox, outbox, bind="0.0.0.0", port_range=(8080, 8089),
         advertise_host=None, chunk_size=CHUNK_SIZE, partial_directory=None):
 
-        self.inbox = os.path.realpath(inbox)
-        self.outbox = os.path.realpath(outbox)
+        self.inbox = Path(inbox).resolve()
+        self.outbox = Path(outbox).resolve()
         self.partial_directory = partial_path(self.inbox, partial_directory)
         self.bind = bind
         self.port_range = port_range
@@ -232,7 +228,7 @@ class StoreForwardMessageHTTPServer(StoreForwardMessage):
             raise OSError('flask not installed: "pip install flask"')
         self._on_command = on_command
         self._on_event = on_event
-        os.makedirs(self.partial_directory, exist_ok=True)
+        self.partial_directory.mkdir(parents=True, exist_ok=True)
 
         app = self._create_app()
         first, last = self.port_range
@@ -436,7 +432,7 @@ class StoreForwardMessageHTTPServer(StoreForwardMessage):
             part_path, meta_path = _partial_paths(
                 self.partial_directory, segment_id)
             offset = 0
-            if os.path.exists(part_path):
+            if part_path.exists():
                 previous = {}
                 try:
                     with open(meta_path) as file:
@@ -444,14 +440,15 @@ class StoreForwardMessageHTTPServer(StoreForwardMessage):
                 except (OSError, ValueError):
                     pass
                 if previous.get("sha256") == sha256:
-                    offset = min(os.path.getsize(part_path), size)
-                    if offset < os.path.getsize(part_path):
+                    part_path_size = part_path.stat().st_size
+                    offset = min(part_path_size, size)
+                    if offset < part_path_size:
                         with open(part_path, "r+b") as file:
                             file.truncate(offset)
                 else:
                     _discard(part_path, meta_path)
-            if not os.path.exists(part_path):
-                open(part_path, "wb").close()
+            if not part_path.exists():
+                part_path.touch()
             with open(meta_path, "w") as file:
                 json.dump({"name": name, "size": size, "sha256": sha256}, file)
             self._incoming[segment_id] =  \
@@ -564,8 +561,8 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
         partial_directory=None):
 
         self.server_url = server_url.rstrip("/")
-        self.inbox = os.path.realpath(inbox)
-        self.outbox = os.path.realpath(outbox)
+        self.inbox = Path(inbox).resolve()
+        self.outbox = Path(outbox).resolve()
         self.partial_directory = partial_path(self.inbox, partial_directory)
         self.poll_period = float(poll_period)
         self.chunk_size = int(chunk_size)
@@ -586,7 +583,7 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
     def start(self, on_command, on_event):
         self._on_command = on_command
         self._on_event = on_event
-        os.makedirs(self.partial_directory, exist_ok=True)
+        self.partial_directory.mkdir(parents=True, exist_ok=True)
         for name, target in (
             ("store_forward_http_poller", self._poller),
             ("store_forward_http_jobs", self._job_worker),
@@ -801,15 +798,15 @@ class StoreForwardMessageHTTPClient(StoreForwardMessage):
         url = self._url(f"/data/{segment_id}")
         part_path, meta_path = _partial_paths(
             self.partial_directory, segment_id)
-        with open(meta_path, "w") as file:
+        with meta_path.open("w") as file:
             json.dump({"name": job.name, "size": job.size,
                        "sha256": job.sha256}, file)
         # Create the part now, so a zero-byte segment (no GET at all) still
         # has a part to hash and move; drop a stale part larger than size
-        offset = os.path.getsize(part_path) if os.path.exists(part_path) else 0
+        offset = part_path.stat().st_size if part_path.exists() else 0
         if offset > job.size:
             offset = 0
-        with open(part_path, "ab") as file:
+        with part_path.open("ab") as file:
             file.truncate(offset)
         self._event(segment_id, NAME_EVENT, job.name)
         self._event(segment_id, "fetching", f"{offset}/{job.size}")

@@ -85,7 +85,7 @@
 # - SQLite3 for the store / forward state-of-play
 
 from abc import abstractmethod
-import os
+from pathlib import Path
 import re
 import sys
 import threading
@@ -237,8 +237,8 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         context.call_init(self, "Actor", context)
         parameters = context.get_parameters()
         self.message = parameters["message"]           # StoreForwardMessage
-        self.inbox = os.path.realpath(parameters["inbox"])
-        self.outbox = os.path.realpath(parameters["outbox"])
+        self.inbox = Path(parameters["inbox"]).resolve()
+        self.outbox = Path(parameters["outbox"]).resolve()
         self.partial_directory = partial_path(
             self.inbox, parameters.get("partial_directory"))
         self.outbox_period = float(parameters.get("outbox_period", 2.0))
@@ -285,9 +285,9 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         self.share.update({                            # initial snapshot
             "source_file": f"v{_VERSION}⇒ {__file__}",
             "role": self.message.role,
-            "inbox": self.inbox,
-            "outbox": self.outbox,
-            "partial_directory": self.partial_directory,
+            "inbox": str(self.inbox),
+            "outbox": str(self.outbox),
+            "partial_directory": str(self.partial_directory),
             "link": "unknown",
             "link_cause": "startup",
             "link_changed_utc": utc_now(),
@@ -300,8 +300,8 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             "metrics": dict(self._metrics)
         })
 
-        os.makedirs(os.path.join(self.outbox, SENT_DIRECTORY), exist_ok=True)
-        os.makedirs(self.partial_directory, exist_ok=True)
+        (self.outbox / SENT_DIRECTORY).mkdir(parents=True, exist_ok=True)
+        self.partial_directory.mkdir(parents=True, exist_ok=True)
         endpoint = self.message.start(self._http_command, self._message_event)
         endpoint_key = "http_endpoint"  \
             if self.message.role == "server" else "server_url"
@@ -342,10 +342,10 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         if not path:
             return self._reject_store_forward(segment_id, "rejected_path",
                 "name must be [A-Za-z0-9_-][A-Za-z0-9._-]* and inside outbox")
-        if not os.path.isfile(path):
+        if not path.is_file():
             return self._reject_store_forward(segment_id, "rejected_missing",
                 f"{path} is not a regular file")
-        size = os.path.getsize(path)
+        size = path.stat().st_size
         if size > MAX_SEGMENT_SIZE:
             return self._reject_store_forward(segment_id, "rejected_size",
                 f"{size} B exceeds {MAX_SEGMENT_SIZE} B")
@@ -593,7 +593,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
 
     def _outbox_scan(self):
         try:
-            entries = list(os.scandir(self.outbox))
+            entries = list(self.outbox.iterdir())
         except OSError as os_error:
             self.logger.warning(f"outbox scan failed: {os_error}")
             return
@@ -602,11 +602,10 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
         now_monotonic = time.monotonic()
         depth, oldest, size_total = 0, None, 0
         for entry in entries:
-            name = entry.name
-            if name.startswith(".")  \
-                or not entry.is_file(follow_symlinks=False):
+            if entry.name.startswith(".") or not (entry.is_file() and not entry.is_symlink()):
                 continue
-            stat = entry.stat(follow_symlinks=False)
+            name = entry.name
+            stat = entry.lstat()
             depth += 1                       # in the outbox: not delivered yet
             size_total += stat.st_size
             oldest = stat.st_mtime if oldest is None  \
@@ -657,7 +656,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             for sent_name, sent_id in self._sent_names.items():
                 if sent_id == segment_id:
                     name = sent_name
-        if not name or not os.path.isfile(os.path.join(self.outbox, name)):
+        if not name or not (self.outbox / name).is_file():
             return                           # nothing left to re-send
         backoff = self._retry_backoff.get(name, RETRY_BACKOFF_MIN_S / 2)
         backoff = min(backoff * 2, RETRY_BACKOFF_MAX_S)
@@ -689,7 +688,7 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             return
         self._last_sweep = now_monotonic
         try:
-            entries = list(os.scandir(self.partial_directory))
+            entries = list(self.partial_directory.iterdir())
         except OSError:
             return
         cutoff = time.time() - self.partial_max_age
@@ -697,9 +696,8 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             if not entry.name.endswith((".part", ".meta")):
                 continue
             try:
-                if entry.is_file(follow_symlinks=False)  \
-                    and entry.stat(follow_symlinks=False).st_mtime < cutoff:
-                    os.remove(entry.path)
+                if entry.is_file() and not entry.is_symlink() and entry.lstat().st_mtime < cutoff:
+                    entry.unlink()
                     self.logger.info(f"swept stale partial {entry.name}")
             except OSError as os_error:
                 self.logger.warning(f"sweep {entry.name}: {os_error}")
@@ -728,22 +726,22 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             and now_monotonic - self._last_sent_sweep < SWEEP_PERIOD_S:
             return
         self._last_sent_sweep = now_monotonic
-        directory = os.path.join(self.outbox, SENT_DIRECTORY)
+        directory = self.outbox / SENT_DIRECTORY
         try:
-            entries = list(os.scandir(directory))
+            entries = list(directory.iterdir())
         except OSError:
             return
         cutoff = time.time() - self.sent_max_age
         removed, freed, failed = 0, 0, 0
         for entry in entries:
             try:
-                if not entry.is_file(follow_symlinks=False):
+                if not (entry.is_file() and not entry.is_symlink()):
                     continue
-                stat = entry.stat(follow_symlinks=False)
+                stat = entry.lstat()
                 if stat.st_mtime >= cutoff:
                     continue
                 size = stat.st_size
-                os.remove(entry.path)
+                entry.unlink()
                 removed += 1
                 freed += size
             except OSError:
@@ -802,11 +800,11 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
                     name = sent_name
         if not name:
             return
-        source = os.path.join(self.outbox, name)
-        target = os.path.join(self.outbox, SENT_DIRECTORY, name)
+        source = self.outbox / name
+        target = self.outbox / SENT_DIRECTORY / name
         try:
-            if os.path.isfile(source):
-                os.replace(source, target)
+            if source.is_file():
+                source.replace(target)
         except OSError as os_error:
             self.logger.warning(
                 f"store_forward {segment_id} {name}: move to "
@@ -914,7 +912,7 @@ def _check_partial_directory(inbox, outbox, partial_directory):
 
     partial = partial_path(inbox, partial_directory)
     for option, directory in (("--inbox", inbox), ("--outbox", outbox)):
-        if partial == os.path.realpath(directory):
+        if partial == Path(directory).resolve():
             raise click.BadParameter(
                 f"must not be the {option} directory {partial}",
                 param_hint="--partial_directory")

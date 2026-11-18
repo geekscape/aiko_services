@@ -2,7 +2,6 @@
 # ~~~~~
 # - Fix ... paths.append((path, None))  # "None" --> should be "file_id" ?
 
-import os
 from pathlib import Path
 
 import aiko_services as aiko
@@ -31,13 +30,12 @@ class DataSchemeFile(aiko.DataScheme):
 
         paths = []
         for data_source in data_sources:
-            path = aiko.DataScheme.parse_url_path(data_source)
+            path = Path(aiko.DataScheme.parse_url_path(data_source))
             file_glob = "*"
-            if aiko.DataScheme.contains_all(path, "{}"):
-                file_glob = os.path.basename(path).replace("{}", "*")
-                path = os.path.dirname(path)
+            if aiko.DataScheme.contains_all(str(path), "{}"):
+                file_glob = path.name.replace("{}", "*")
+                path = path.parent
 
-            path = Path(path)
             if not path.exists():
                 diagnostic = f'path "{path}" does not exist'
                 return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}

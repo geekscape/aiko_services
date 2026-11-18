@@ -43,7 +43,7 @@
 # - A "camera_matrix" / "dist_coeffs" pair as parameters, without a file
 
 import json
-import os
+from pathlib import Path
 from typing import Tuple
 
 import numpy as np
@@ -71,13 +71,13 @@ INITIAL_SHARE = {                  # never a parameter name: the framework
 
 # --------------------------------------------------------------------------- #
 
-def load_calibration(path):
+def load_calibration(path: Path):
     """--> (camera_matrix 3x3 float64, dist_coeffs 1xN float64,
     image_size (w, h) or None).  Raises ValueError for a missing file, bad
     JSON or wrong shapes"""
 
     try:
-        with open(os.path.expanduser(str(path))) as file:
+        with open(path.expanduser()) as file:
             calibration = json.load(file)
     except OSError as os_error:
         raise ValueError(f'calibration "{path}": {os_error}')
@@ -136,10 +136,10 @@ class Dewarper:
         self.alpha = 0.0
         self._maps = {}
 
-    def load(self, path):
+    def load(self, path: Path):
         self.camera_matrix, self.dist_coeffs, self.image_size =  \
             load_calibration(path)
-        self.path = str(path)
+        self.path = path
         self._maps.clear()
 
     def set_alpha(self, alpha):
@@ -202,8 +202,9 @@ class ImageDewarp(aiko.PipelineElement):
                          "parameter"
             return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
         alpha, _ = self.get_parameter("alpha", 0.0)
+        path = Path(path)
         try:
-            if str(path) != self.dewarper.path:
+            if path != self.dewarper.path:
                 self.dewarper.load(path)
             self.dewarper.set_alpha(alpha)
         except ValueError as value_error:
@@ -256,7 +257,7 @@ class ImageDewarp(aiko.PipelineElement):
                 self._publish("alpha", self.dewarper.alpha)
                 self._publish("maps", self.dewarper.map_count)
             elif item_name == "calibration_path":
-                if str(item_value) != self.dewarper.path:
+                if str(item_value) != str(self.dewarper.path):
                     self.dewarper.load(item_value)
                     self._publish_calibration()
         except (TypeError, ValueError) as error:

@@ -12,8 +12,8 @@
 # ~~~~~
 # - None, yet !
 
+from pathlib import Path
 import importlib
-import os
 import re
 import subprocess
 import sys
@@ -29,7 +29,7 @@ from aiko_services.elements.cameras.camera import (
 )
 from aiko_services.tests.unit.fake_camera import FakeCamera, do_fake_initialize
 
-CAMERAS_DIRECTORY = os.path.dirname(camera.__file__)
+CAMERAS_DIRECTORY = Path(camera.__file__).parent
 
 # --------------------------------------------------------------------------- #
 
@@ -173,9 +173,9 @@ def test_no_site_literals():
         r"\.".join(["192", "168", ""]), r"\.".join(["10", "204", ""]),
         r"\.".join(["10", "42", ""]), r"\.".join(["meta", "local"]),
         "1944" + "30104108C02F00", "4110" + "087727"]))
-    for name in sorted(os.listdir(CAMERAS_DIRECTORY)):
+    for name in sorted(entry.name for entry in CAMERAS_DIRECTORY.iterdir()):
         if name.endswith(".py"):
-            path = os.path.join(CAMERAS_DIRECTORY, name)
+            path = CAMERAS_DIRECTORY / name
             with open(path) as file:
                 assert not forbidden.search(file.read()), name
 

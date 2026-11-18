@@ -7,6 +7,7 @@
 
 import os
 import re
+from pathlib import Path
 
 import aiko_services as aiko
 
@@ -40,8 +41,8 @@ class DataSchemeStoreForward(aiko.DataScheme):
 
     def create_targets(self, stream, data_targets):
         path = aiko.DataScheme.parse_url_path(data_targets[0])
-        path = os.path.realpath(os.path.expanduser(path))
-        if not os.path.isdir(path):
+        path = Path(path).expanduser().resolve()
+        if not path.is_dir():
             diagnostic = f'store_forward outbox "{path}" is not a directory'
             return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
         if not os.access(path, os.W_OK):
@@ -59,7 +60,7 @@ class DataSchemeStoreForward(aiko.DataScheme):
         stream.variables["target_prefix"] = prefix
         ec_producer = getattr(self.pipeline_element, "ec_producer", None)
         if ec_producer:
-            ec_producer.update("outbox", path)
+            ec_producer.update("outbox", str(path))
         return aiko.StreamEvent.OKAY, {}
 
 aiko.DataScheme.add_data_scheme("store_forward", DataSchemeStoreForward)

@@ -1,27 +1,4 @@
-#!/usr/bin/env python3
-#
-# Aiko Services tests: draw a Dashboard frame on a real terminal
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# asciimatics has no screen double, and the mistakes it invites are in the
-# parts that no pure test reaches: a constructor that forgets fix(), a
-# widget taller than the frame, a layout with no widget, a Scene that a
-# popup needs, an attribute that _update() reads before it exists.  Each
-# one raises the first time a person opens the page, and never before.
-#
-# So this helper opens a real curses Screen on a pseudo-terminal, builds
-# the frame, registers a real Scene, calls the Service hook, draws one
-# pass, and hands back the characters that reached the screen.  It follows
-# probe_terminal() in "test_display_dashboard_plugin.py", which drives
-# asciimatics the same way.
-#
-# A caller gets either the screen lines or a diagnostic, and the test
-# skips where there is no pseudo-terminal to be had.
-#
-# To Do
-# ~~~~~
-# - Deliver key events, so that process_event() and the popups are covered
-# - Several draw passes, for the frames that change over time
-
+from pathlib import Path
 import json
 import os
 import select
@@ -35,8 +12,10 @@ __all__ = ["draw_frame", "pty_available"]
 _CHILD = r'''
 import json, sys
 from types import SimpleNamespace
+from pathlib import Path
 
 module_name, class_name, state_pathname, out_pathname = sys.argv[1:5]
+state_pathname, out_pathname = Path(state_pathname), Path(out_pathname)
 state = json.load(open(state_pathname))
 
 from asciimatics.scene import Scene
@@ -87,12 +66,12 @@ def report(found):
     appear, and a half-written file would be read as empty"""
 
     import os
-    part_pathname = out_pathname + ".part"
+    part_pathname = out_pathname.with_suffix(".part")
     with open(part_pathname, "w") as file:
         json.dump(found, file)
         file.flush()
         os.fsync(file.fileno())
-    os.replace(part_pathname, out_pathname)
+    part_pathname.replace(out_pathname)
 
 try:
     report({"ok": True, **Screen.wrapper(run)})
@@ -123,8 +102,8 @@ def draw_frame(module_name, class_name, cache, tmp_path,
 
     service = service or [
         "aiko/host/1234/1", class_name, "protocol:0", "mqtt", "owner", []]
-    state_pathname = str(tmp_path / "state.json")
-    out_pathname = str(tmp_path / "drawn.json")
+    state_pathname = tmp_path / "state.json"
+    out_pathname = tmp_path / "drawn.json"
     with open(state_pathname, "w") as file:
         json.dump({"cache": cache, "service": service, "passes": passes}, file)
 
@@ -139,7 +118,7 @@ def draw_frame(module_name, class_name, cache, tmp_path,
             fcntl.ioctl(0, termios.TIOCSWINSZ,
                 struct.pack("HHHH", size[1], size[0], 0, 0))
             os.execve(sys.executable, [sys.executable, "-c", _CHILD,
-                module_name, class_name, state_pathname, out_pathname],
+                module_name, class_name, str(state_pathname), str(out_pathname)],
                 environment)
         finally:
             os._exit(127)
@@ -155,7 +134,7 @@ def draw_frame(module_name, class_name, cache, tmp_path,
                 if not chunk:
                     break
                 output += chunk
-            if os.path.exists(out_pathname):
+            if out_pathname.exists():
                 break
         else:
             os.kill(pid, 9)
@@ -166,7 +145,7 @@ def draw_frame(module_name, class_name, cache, tmp_path,
         except ChildProcessError:
             pass
 
-    if not os.path.exists(out_pathname):
+    if not out_pathname.exists():
         return {"ok": False, "error": "the child wrote nothing",
                 "traceback": output.decode("utf-8", "replace")[-400:]}
     with open(out_pathname) as file:
@@ -233,7 +212,7 @@ class PowerManagerChart:
 
 class PowerManagerChartFilled:
     """The chart with a window of samples already in it.
-
+    
     draw_frame() draws once, and a page that has seen one reading has
     nothing to plot.  This fills the window first, so the drawn test
     covers the lines and not only the frame around them"""
@@ -256,3 +235,4 @@ class PowerManagerChartFilled:
         return PowerManagerChartFrame(screen, dashboard)
 
 # --------------------------------------------------------------------------- #
+

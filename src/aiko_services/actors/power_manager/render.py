@@ -39,8 +39,9 @@
 # ~~~~~
 # * A launchd Implementation, for a laptop, through the DaemonSupervisor
 #   Interface of ADR-026 rather than this module
-
+import contextlib
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import tempfile
@@ -266,8 +267,16 @@ def verify(where=None):
     off has a battery policy that is advisory, whatever its thresholds say,
     and an operator must be able to see that"""
 
+    # NOTE(nic): on Python < 3.14, pathlib.Path.exists() throws PermissionErrors
+    #  when the file is inaccessible, rather than returning False.  Bummer.
+    def _exists(path):
+        try:
+            return Path(path).exists()
+        except OSError:
+            return False
+
     where = where or paths()
-    return {name: ("installed" if os.path.exists(path) else "missing")
+    return {name: ("installed" if _exists(path) else "missing")
         for name, path in where.items()}
 
 def install(artifact, text, path=None, mode=None, validator=None):
@@ -287,16 +296,17 @@ def install(artifact, text, path=None, mode=None, validator=None):
     reason = validator(text)
     if reason:
         raise InstallRefused(f"{artifact} did not validate: {reason}")
-    directory = os.path.dirname(path)
-    if not os.path.isdir(directory):
-        raise InstallRefused(f"{directory} does not exist: make it first")
+    target = Path(path)
+    if not target.parent.is_dir():
+        raise InstallRefused(f"{target.parent} does not exist: make it first")
     try:
         handle, temporary = tempfile.mkstemp(
-            dir=directory, prefix=f".{os.path.basename(path)}.")
+            dir=target.parent, prefix=f".{target.name}.")
+        temporary = Path(temporary)
         with os.fdopen(handle, "w", encoding="utf-8") as file:
             file.write(text)
-        os.chmod(temporary, mode)
-        os.replace(temporary, path)
+        temporary.chmod(mode)
+        temporary.replace(target)
     except OSError as error:
         raise InstallRefused(str(error)) from error
     return path
@@ -319,10 +329,11 @@ def _validate_grant(text):
     if not os.access(tool, os.X_OK):
         return "visudo is not available to check it"
     handle, temporary = tempfile.mkstemp(prefix="aiko_sudoers.")
+    temporary = Path(temporary)
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as file:
             file.write(text)
-        os.chmod(temporary, 0o440)
+        temporary.chmod(0o440)
         done = subprocess.run([tool, "-c", "-f", temporary],
             capture_output=True, text=True, timeout=10)
         if done.returncode != 0:
@@ -330,10 +341,8 @@ def _validate_grant(text):
     except (OSError, subprocess.SubprocessError) as error:
         return str(error)[:120]
     finally:
-        try:
-            os.unlink(temporary)
-        except OSError:
-            pass
+        with contextlib.suppress(OSError):
+            temporary.unlink()
     return None
 
 _VALIDATORS = {

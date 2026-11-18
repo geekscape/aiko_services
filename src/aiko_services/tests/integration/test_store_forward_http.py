@@ -7,6 +7,7 @@
 import errno
 import hashlib
 import os
+from pathlib import Path
 import socket
 import threading
 import time
@@ -78,9 +79,8 @@ class Recorder:
 
 def write_segment(directory, name, size, seed=b"cos-edge-"):
     data = (seed * (size // len(seed) + 1))[:size]
-    path = os.path.join(directory, name)
-    with open(path, "wb") as file:
-        file.write(data)
+    path = Path(directory) / name
+    path.write_bytes(data)
     return path, data, hashlib.sha256(data).hexdigest()
 
 def free_port():
@@ -93,7 +93,7 @@ def make_dirs(tmp_path, prefix):
     outbox = tmp_path / f"{prefix}_out"
     inbox.mkdir()
     outbox.mkdir()
-    return str(inbox), str(outbox)
+    return inbox, outbox
 
 # --------------------------------------------------------------------------- #
 
@@ -135,9 +135,8 @@ def test_upload_roundtrip(pair):
 
     assert client_recorder.wait_event("0123abcd", "done")[2] == sha256
     assert server_recorder.wait_event("0123abcd", "received_ok")[2] == sha256
-    with open(os.path.join(server.inbox, "notes.txt"), "rb") as file:
-        assert file.read() == data
-    assert not os.listdir(server.partial_directory)
+    assert (server.inbox / "notes.txt").read_bytes() == data
+    assert not list(server.partial_directory.iterdir())
     # progress reported as bytes/size on both sides
     assert client_recorder.wait_event("0123abcd", "progress")[2].endswith(
         "/2500")
@@ -163,9 +162,8 @@ def test_download_roundtrip(pair):
     assert client.fetch_segment(FetchJob("89abcdef", "reply.txt", 3000, sha256))
     assert client_recorder.wait_event("89abcdef", "received_ok")[2] == sha256
     client_recorder.wait_event("89abcdef", "done")
-    with open(os.path.join(client.inbox, "reply.txt"), "rb") as file:
-        assert file.read() == data
-    assert not os.listdir(client.partial_directory)
+    assert (client.inbox / "reply.txt").read_bytes() == data
+    assert not list(client.partial_directory.iterdir())
 
 def test_upload_resume_from_partial(pair):
     """A .part with the same sha256 already on the server: the upload
@@ -174,16 +172,14 @@ def test_upload_resume_from_partial(pair):
     server, server_recorder, client, client_recorder = pair
     path, data, sha256 = write_segment(client.outbox, "big.txt", 5000)
     partial = server.partial_directory
-    with open(os.path.join(partial, "abcd1234.part"), "wb") as file:
-        file.write(data[:2048])
-    with open(os.path.join(partial, "abcd1234.meta"), "w") as file:
-        file.write('{"name": "big.txt", "size": 5000, "sha256": "%s"}' % sha256)
+    (partial / "abcd1234.part").write_bytes(data[:2048])
+    (partial / "abcd1234.meta").write_text(
+        '{"name": "big.txt", "size": 5000, "sha256": "%s"}' % sha256)
 
     assert client.send_segment(SendJob("abcd1234", "big.txt", path, 5000))
     assert client_recorder.wait_event("abcd1234", "resume")[2] == "2048"
     client_recorder.wait_event("abcd1234", "done")
-    with open(os.path.join(server.inbox, "big.txt"), "rb") as file:
-        assert file.read() == data
+    assert (server.inbox / "big.txt").read_bytes() == data
 
 def test_upload_resume_after_server_restart(tmp_path):
     """The server dies after two chunks and comes back on the same port
@@ -232,8 +228,7 @@ def test_upload_resume_after_server_restart(tmp_path):
             assert int(resume[2]) >= 2048
             client_recorder.wait_event("feedbeef", "done")
             recorder_2.wait_event("feedbeef", "received_ok")
-            with open(os.path.join(server_in, "big.txt"), "rb") as file:
-                assert file.read() == data
+            assert (server_in / "big.txt").read_bytes() == data
         finally:
             server_2.stop()
     finally:
@@ -245,14 +240,12 @@ def test_download_resume_from_partial(pair):
     assert server.send_segment(SendJob("0000aaaa", "reply.txt", path, 5000))
     server_recorder.wait_event("0000aaaa", "offered")
     partial = client.partial_directory
-    with open(os.path.join(partial, "0000aaaa.part"), "wb") as file:
-        file.write(data[:3000])
+    (partial / "0000aaaa.part").write_bytes(data[:3000])
 
     assert client.fetch_segment(FetchJob("0000aaaa", "reply.txt", 5000, sha256))
     assert client_recorder.wait_event("0000aaaa", "resume")[2] == "3000"
     client_recorder.wait_event("0000aaaa", "received_ok")
-    with open(os.path.join(client.inbox, "reply.txt"), "rb") as file:
-        assert file.read() == data
+    assert (client.inbox / "reply.txt").read_bytes() == data
 
 def test_zero_byte_segment_both_ways(pair):
     """A zero-byte segment needs no PATCH and no GET, yet must still be
@@ -266,7 +259,7 @@ def test_zero_byte_segment_both_ways(pair):
     assert client.send_segment(SendJob("0000000a", "empty_up.txt", path, 0))
     assert client_recorder.wait_event("0000000a", "done")[2] == empty_sha
     server_recorder.wait_event("0000000a", "received_ok")
-    assert os.path.getsize(os.path.join(server.inbox, "empty_up.txt")) == 0
+    assert (server.inbox / "empty_up.txt").stat().st_size == 0
 
     path, _, _ = write_segment(server.outbox, "empty_down.txt", 0)
     assert server.send_segment(SendJob("0000000b", "empty_down.txt", path, 0))
@@ -275,8 +268,8 @@ def test_zero_byte_segment_both_ways(pair):
         FetchJob("0000000b", "empty_down.txt", 0, empty_sha))
     assert client_recorder.wait_event("0000000b", "received_ok")[2] == empty_sha
     client_recorder.wait_event("0000000b", "done")
-    assert os.path.getsize(os.path.join(client.inbox, "empty_down.txt")) == 0
-    assert not os.listdir(client.partial_directory)
+    assert (client.inbox / "empty_down.txt").stat().st_size == 0
+    assert not list(client.partial_directory.iterdir())
     assert client_recorder.count("0000000b", "failed_http") == 0
 
 def test_download_stale_oversized_part_is_discarded(pair):
@@ -288,14 +281,13 @@ def test_download_stale_oversized_part_is_discarded(pair):
     assert server.send_segment(SendJob("0000000c", "reply.txt", path, 2000))
     server_recorder.wait_event("0000000c", "offered")
     partial = client.partial_directory
-    with open(os.path.join(partial, "0000000c.part"), "wb") as file:
-        file.write(b"stale" * 1000)                 # 5000 bytes, wrong data
+    (partial / "0000000c.part").write_bytes(
+        b"stale" * 1000)                            # 5000 bytes, wrong data
 
     assert client.fetch_segment(FetchJob("0000000c", "reply.txt", 2000, sha256))
     assert client_recorder.wait_event("0000000c", "received_ok")[2] == sha256
     assert client_recorder.count("0000000c", "resume") == 0
-    with open(os.path.join(client.inbox, "reply.txt"), "rb") as file:
-        assert file.read() == data
+    assert (client.inbox / "reply.txt").read_bytes() == data
 
 def test_port_range_fallback_and_exhaustion(tmp_path):
     """A busy first port is skipped (werkzeug exits instead of raising);
@@ -403,8 +395,9 @@ def test_bad_input(pair):
     assert requests.post(f"{base}/0123abcd/complete", timeout=5)  \
         .status_code == 422                    # sha256 of zeros is wrong
     server_recorder.wait_event("0123abcd", "received_failed_sha256")
-    assert not os.listdir(server.partial_directory)
-    assert os.listdir(server.inbox) == [PARTIAL_DIRECTORY]
+    assert not list(server.partial_directory.iterdir())
+    assert [entry.name for entry in server.inbox.iterdir()]  \
+        == [PARTIAL_DIRECTORY]
 
     for index in range(MAX_INCOMING):
         assert requests.post(f"{base}/{index:08x}", json=good, timeout=5)  \
@@ -428,17 +421,17 @@ def test_partial_directory_outside_inbox(tmp_path):
     client_parts = tmp_path / "client_state" / "parts"
     server = StoreForwardMessageHTTPServer(server_in, server_out,
         bind="127.0.0.1", port_range=(0, 0), advertise_host="127.0.0.1",
-        chunk_size=CHUNK, partial_directory=str(server_parts))
+        chunk_size=CHUNK, partial_directory=server_parts)
     server_recorder = Recorder()
     endpoint = server.start(server_recorder.on_command, server_recorder.on_event)
     client = StoreForwardMessageHTTPClient(endpoint, client_in, client_out,
         poll_period=0.1, chunk_size=CHUNK, connect_deadline=5.0,
-        partial_directory=str(client_parts))
+        partial_directory=client_parts)
     client_recorder = Recorder()
     client.start(client_recorder.on_command, client_recorder.on_event)
     try:
         assert server_parts.is_dir() and client_parts.is_dir()
-        assert server.partial_directory == os.path.realpath(server_parts)
+        assert server.partial_directory == server_parts.resolve()
 
         path, data, sha256 = write_segment(client.outbox, "up.txt", 5000)
         (server_parts / "abcd1234.part").write_bytes(data[:2048])
@@ -455,10 +448,10 @@ def test_partial_directory_outside_inbox(tmp_path):
             FetchJob("dcba4321", "down.txt", 3000, sha256))
         client_recorder.wait_event("dcba4321", "done")
 
-        assert os.listdir(server.inbox) == ["up.txt"]
-        assert os.listdir(client.inbox) == ["down.txt"]
-        assert os.listdir(server_parts) == []
-        assert os.listdir(client_parts) == []
+        assert [entry.name for entry in server.inbox.iterdir()] == ["up.txt"]
+        assert [entry.name for entry in client.inbox.iterdir()] == ["down.txt"]
+        assert not list(server_parts.iterdir())
+        assert not list(client_parts.iterdir())
     finally:
         client.stop()
         server.stop()
@@ -478,5 +471,5 @@ def test_upload_store_failure_is_reported(pair, monkeypatch):
     assert server_recorder.wait_event("0123abcd", "received_failed_store")[2]  \
         == "ENOSPC"
     assert client_recorder.wait_event("0123abcd", "failed_http")[2] == "507"
-    assert os.listdir(server.partial_directory) == []
-    assert not os.path.exists(os.path.join(server.inbox, "full.txt"))
+    assert not list(server.partial_directory.iterdir())
+    assert not (server.inbox / "full.txt").exists()

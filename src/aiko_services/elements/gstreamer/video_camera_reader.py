@@ -10,7 +10,7 @@
 # ~~~~~
 # - Support Mac OS X camera sources
 
-import os
+from pathlib import Path
 
 from aiko_services.elements.gstreamer import *
 
@@ -20,7 +20,7 @@ __all__ = ["VideoCameraReader"]
 
 class VideoCameraReader:
   def __init__(self, input_devicepath, width, height):
-    if not os.path.exists(input_devicepath):
+    if not Path(input_devicepath).exists():
       raise ValueError("Device does not exist: " + input_devicepath)
 
     Gst = gst_initialise()

@@ -15,7 +15,6 @@
 #   in one process is a tested configuration
 
 import hashlib
-import os
 import threading
 import time
 
@@ -83,8 +82,7 @@ class _ServerRecorder:
                 self.received.append(segment_id)
 
 def _sha256(path):
-    with open(path, "rb") as file:
-        return hashlib.sha256(file.read()).hexdigest()
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 def test_pipeline_segments_arrive_at_server(tmp_path):
     server_in, server_out = tmp_path / "server_in", tmp_path / "server_out"
@@ -93,15 +91,15 @@ def test_pipeline_segments_arrive_at_server(tmp_path):
         directory.mkdir()
 
     recorder = _ServerRecorder()
-    server = StoreForwardMessageHTTPServer(str(server_in), str(server_out),
+    server = StoreForwardMessageHTTPServer(server_in, server_out,
         bind="127.0.0.1", port_range=(0, 0), advertise_host="127.0.0.1",
         chunk_size=4096)
     endpoint = server.start(recorder.on_command, recorder.on_event)
 
-    client = StoreForwardMessageHTTPClient(endpoint, str(edge_in),
-        str(edge_out), poll_period=0.2, chunk_size=4096)
-    parameters = {"message": client, "inbox": str(edge_in),
-                  "outbox": str(edge_out), "outbox_period": 0.2}
+    client = StoreForwardMessageHTTPClient(endpoint, edge_in,
+        edge_out, poll_period=0.2, chunk_size=4096)
+    parameters = {"message": client, "inbox": edge_in,
+                  "outbox": edge_out, "outbox_period": 0.2}
     init_args = aiko.actor_args("store_forward_test_edge",
         parameters=parameters, protocol=PROTOCOL, tags=["role=edge"])
     actor = aiko.compose_instance(SegmentStoreForwardImpl, init_args)
@@ -110,8 +108,8 @@ def test_pipeline_segments_arrive_at_server(tmp_path):
     started = time.monotonic()
 
     def check():
-        arrived = len([name for name in os.listdir(server_in)
-                       if not name.startswith(".")])
+        arrived = len([a.name for a in server_in.iterdir()
+                       if not a.name.startswith(".")])
         if arrived >= SEGMENTS:
             results["ok"] = True
         elif time.monotonic() - started > WATCHDOG_S:
@@ -132,11 +130,10 @@ def test_pipeline_segments_arrive_at_server(tmp_path):
 
     assert not results["watchdog"], f"only {recorder.received} arrived"
     assert sorted(recorder.received) == sorted(actor.share["store_forwards"])
-    arrived = sorted(name for name in os.listdir(server_in)
-                     if not name.startswith("."))
-    sent = sorted(os.listdir(edge_out / ".sent"))
+    arrived = [a.name for a in server_in.iterdir() if not a.name.startswith(".")]
+    sent = [a.name for a in (edge_out / ".sent").iterdir()]
     assert len(arrived) == SEGMENTS and arrived == sent, (arrived, sent)
     for name in arrived:
         assert _sha256(server_in / name) == _sha256(edge_out / ".sent" / name)
     assert actor.share["metrics"]["sent_bytes"] ==  \
-        str(sum(os.path.getsize(server_in / name) for name in arrived))
+        str(sum((server_in / name).stat().st_size for name in arrived))

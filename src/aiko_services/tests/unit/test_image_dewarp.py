@@ -35,7 +35,7 @@ def identity_calibration(width, height, image_size=True):
 
 def write(path, calibration):
     path.write_text(json.dumps(calibration))
-    return str(path)
+    return path
 
 PIPELINE_DEFINITION = """{
   "version": 0, "name": "p_test_image_dewarp", "runtime": "python",
@@ -143,7 +143,7 @@ def test_pipeline_dewarps_frames(tmp_path):
     calibration = write(tmp_path / "identity.json",
                         identity_calibration(64, 48))
     results = do_results_initialize()
-    do_create_pipeline(PIPELINE_DEFINITION.replace("CALIBRATION", calibration),
+    do_create_pipeline(PIPELINE_DEFINITION.replace("CALIBRATION", str(calibration)),
                        frame_data=None)
     assert not results["watchdog"], "Stream did not stop: watchdog fired"
     assert results["stopped"], "ImageSink.stop_stream() was not invoked"

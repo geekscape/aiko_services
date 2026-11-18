@@ -178,6 +178,7 @@ from dataclasses import dataclass, asdict
 import datetime
 from enum import Enum
 import json
+from pathlib import Path
 import os
 import psutil
 import queue
@@ -1951,17 +1952,16 @@ def create(definition_pathname, graph_path, name, parameters, stream_id,
 
     os.environ["AIKO_LOG_MQTT"] = log_mqtt
 
-    if not os.path.exists(definition_pathname):
-        raise SystemExit(
-            f"Error: PipelineDefinition not found: {definition_pathname}")
+    definition = Path(definition_pathname)
+    if not definition.exists():
+        raise SystemExit(f"Error: PipelineDefinition not found: {definition}")
 
-    pipeline_definition = PipelineImpl.parse_pipeline_definition(
-        definition_pathname)
+    pipeline_definition = PipelineImpl.parse_pipeline_definition(definition)
 
     queue_pipeline_response = do_show_response() if show_response else None
 
     pipeline = PipelineImpl.create_pipeline(
-        definition_pathname, pipeline_definition,
+        definition, pipeline_definition,
         name, graph_path, stream_id, parameters, frame_id, frame_data,
         grace_time, queue_response=queue_pipeline_response,
         log_level=log_level, stream_reset=stream_reset, hooks=hooks,

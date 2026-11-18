@@ -35,7 +35,7 @@ the dictionary). Decide those by hand.
 """
 import re
 import sys
-import os
+from pathlib import Path
 
 BRITISH = {
     r"\borganis(e|es|ed|ing|ation|ations|ational)\b": "organiz",
@@ -438,7 +438,7 @@ def wc(sent):
 
 
 def lint(path, limit=25, verbose=True):
-    text = open(path).read()
+    text = path.read_text()
     exempt = exempt_lines(text)
     lines = strip_regions(text)
     for i in exempt:
@@ -544,7 +544,7 @@ def lint(path, limit=25, verbose=True):
             findings["C"].append((i + 1, m.group(0), ""))
 
     if verbose:
-        name = os.path.basename(path)
+        name = path.name
         gate = [k for k in ("L", "S", "B", "W", "X", "C", "F")]
         counts = " ".join(f"{k}={len(findings[k])}" for k in gate)
         advisory = f"   (I={len(findings['I'])})" if findings["I"] else ""
@@ -561,7 +561,7 @@ if __name__ == "__main__":
             limit = int(a.split("=")[1])    # use --limit=20 for procedures (rule 5.1)
     totals = {}
     for path in args:
-        f = lint(path, limit=limit, verbose=not detail)
+        f = lint(Path(path), limit=limit, verbose=not detail)
         for k, v in f.items():
             if k == "I":
                 totals["I"] = totals.get("I", 0) + len(v)

@@ -11,8 +11,6 @@
 # ~~~~~
 # - None, yet !
 
-import os
-
 import pytest
 pytest.importorskip("cv2",
     reason="aiko_services.elements.media needs cv2 (video_io.py)")
@@ -44,7 +42,7 @@ def test_url_path_forms(tmp_path):
         scheme = DataSchemeStoreForward(_StubElement())
         assert scheme.create_targets(stream, [url])[0]  \
             == aiko.StreamEvent.OKAY, url
-        assert stream.variables["target_outbox"] == os.path.realpath(outbox)
+        assert stream.variables["target_outbox"] == outbox.resolve()
         assert stream.variables["target_prefix"] == ""    # default: none
         assert "target_segment_id" not in stream.variables
 
@@ -55,7 +53,7 @@ def test_home_relative_url(tmp_path, monkeypatch):
     scheme = DataSchemeStoreForward(_StubElement({"segment_prefix": "cam0"}))
     assert scheme.create_targets(stream, ["store_forward://~/st"])[0]  \
         == aiko.StreamEvent.OKAY
-    assert stream.variables["target_outbox"] == os.path.realpath(tmp_path / "st")
+    assert stream.variables["target_outbox"] == (tmp_path / "st").resolve()
     assert stream.variables["target_prefix"] == "cam0"
 
 def test_boundary_errors(tmp_path):

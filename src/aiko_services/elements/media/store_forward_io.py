@@ -36,7 +36,6 @@
 # - VideoReadStoreForward: a DataSource reading segments from an inbox
 
 from datetime import datetime, timezone
-import os
 import time
 from typing import Tuple
 
@@ -230,7 +229,7 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
         if not valid_segment_name(name):        # cannot happen: prefix checked
             diagnostic = f'segment name "{name}" rejected'
             return aiko.StreamEvent.ERROR, {"diagnostic": diagnostic}
-        temp_path = os.path.join(outbox, f".{name}")
+        temp_path = outbox / f".{name}"
 
         format, _ = self.get_parameter("format", DEFAULT_FORMAT)
         frame_rate, _ = self.get_parameter("frame_rate", DEFAULT_FRAME_RATE)
@@ -242,7 +241,7 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
             resolution = (image.shape[1], image.shape[0])
         fourcc = cv2.VideoWriter_fourcc(*str(format))
         writer = cv2.VideoWriter(
-            temp_path, fourcc, float(frame_rate), resolution)
+            str(temp_path), fourcc, float(frame_rate), resolution)
         if not writer.isOpened():
             diagnostic = f'cannot open video writer "{temp_path}" '  \
                          f'({format} {resolution} {frame_rate} fps)'
@@ -265,14 +264,11 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
         stream.variables["segment_writer"] = None
         writer.release()
         if frames == 0:                         # nothing written: no segment
-            try:
-                os.remove(temp_path)
-            except OSError:
-                pass
+            temp_path.unlink(missing_ok=True)
             return
-        final_path = os.path.join(stream.variables["target_outbox"], name)
-        os.replace(temp_path, final_path)       # appears complete, at once
-        size = os.path.getsize(final_path)
+        final_path = stream.variables["target_outbox"] / name
+        temp_path.replace(final_path)           # appears complete, at once
+        size = final_path.stat().st_size
         self._segments_written += 1
         now = utc_now()
         self.ec_producer.update(

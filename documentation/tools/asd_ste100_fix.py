@@ -17,6 +17,7 @@ Usage: asd_ste100_fix.py [--write] [--semicolons] FILE...
 """
 import re
 import sys
+from pathlib import Path
 
 SPELLING = [
     (r"\borganis(e|es|ed|ing|ation|ations|ational)\b", lambda m: "organiz" + m.group(1)),
@@ -216,7 +217,8 @@ def split_semicolons(line):
 
 
 def process(path, write=False, semicolons=False):
-    text = open(path).read()
+    path_object = Path(path)
+    text = path_object.read_text()
     lines = text.split("\n")
     out = []
     in_fm = False
@@ -281,7 +283,7 @@ def process(path, write=False, semicolons=False):
             changes += 1
     new = "\n".join(out)
     if write and changes:
-        open(path, "w").write(new)
+        path_object.write_text(new)
     return changes
 
 

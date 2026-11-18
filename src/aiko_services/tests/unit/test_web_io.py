@@ -17,6 +17,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -176,16 +177,16 @@ def test_example_definitions_parse_and_deploy():
     import os
     import aiko_services as aiko
     from aiko_services.elements import web
-    folder = os.path.join(os.path.dirname(web.__file__), "pipelines")
-    names = sorted(name for name in os.listdir(folder)
-                   if name.endswith(".json"))
+    folder = Path(web.__file__).parent / "pipelines"
+    names = sorted(d.name for d in folder.iterdir() if d.name.endswith(".json"))
     assert names == ["web_pipeline_0.json"]
     for name in names:
-        path = os.path.join(folder, name)
-        with open(path) as file:
+        path = folder / name
+        with path.open() as file:
             definition = json.load(file)
-        aiko.PipelineImpl.parse_pipeline_definition(path)
-        for element in definition["elements"]:
-            module = importlib.import_module(
-                element["deploy"]["local"]["module"])
-            assert hasattr(module, element["name"]), element["name"]
+            aiko.PipelineImpl.parse_pipeline_definition(path)
+            for element in definition["elements"]:
+                module = importlib.import_module(
+                    element["deploy"]["local"]["module"])
+                assert hasattr(module, element["name"]), element["name"]
+

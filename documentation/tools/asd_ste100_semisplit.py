@@ -18,6 +18,7 @@ Regions this tool must never touch, each learned from a defect:
 """
 import re
 import sys
+from pathlib import Path
 
 # words that must never be capitalized by the split (identifiers / API names)
 LOWER = {"xgo", "aiko", "mqtt", "ec", "zmq", "pytest", "hatch", "avro", "json",
@@ -49,7 +50,8 @@ def split_outside_parens(text):
 
 
 def process(path, write=False):
-    lines = open(path).read().split("\n")
+    path_object = Path(path)
+    lines = path_object.read_text().split("\n")
     out, in_code, caps, changed, skipped = [], False, [], 0, 0
     in_fm = False
     for n, line in enumerate(lines):
@@ -99,7 +101,7 @@ def process(path, write=False):
             changed += 1
         out.append(nl)
     if write and changed:
-        open(path, "w").write("\n".join(out))
+        path_object.write_text("\n".join(out))
     note = f", {skipped} protected lines left alone" if skipped else ""
     print(f"{path}: {changed} lines changed, {len(caps)} capitalizations{note}")
     for w, ctx in caps[:40]:
