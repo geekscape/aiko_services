@@ -77,6 +77,14 @@ jobs:
     - name: Test with pytest
       run: |
         .venv/bin/hatch run test
+    - name: Test with a non-default AIKO_NAMESPACE
+      # Development and test hosts set AIKO_NAMESPACE, production leaves
+      # it unset. Every test must pass both ways, so a literal "aiko/"
+      # topic is caught here. Bare pytest: no coverage report to overwrite
+      env:
+        AIKO_NAMESPACE: aikotest
+      run: |
+        .venv/bin/hatch run pytest -q
     - name: Upload the coverage report
       # The report is of no use inside a finished job, and the step only
       # runs when the tests pass, because "--no-cov-on-fail" writes no
