@@ -31,7 +31,7 @@ while true; do
   time_now=$(date +%H:%M:%S.%3N)
   echo $time_now: frame: $frame_id
 
-  mosquitto_pub -h $AIKO_MQTT_HOST -t aiko/test -m  \
+  mosquitto_pub -h $AIKO_MQTT_HOST -t ${AIKO_NAMESPACE:-aiko}/test -m  \
     "(process_frame (stream_id: 1 frame_id: 0) (i: 0))"
 
   ((frame_id++))

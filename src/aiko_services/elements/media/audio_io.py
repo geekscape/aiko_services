@@ -183,6 +183,7 @@ from typing import Tuple
 import zlib
 
 import aiko_services as aiko
+from aiko_services.main.utilities import get_namespace
 from aiko_services.main.utilities import get_namespace, parse_number
 
 __all__ = [
@@ -280,7 +281,7 @@ class PE_AudioResampler(PipelineElement):  # TODO: AudioTransform ?
         frequencies = np.array(band_frequencies)
         amplitudes = np.array(band_amplitudes)
 
-        topic_path = "aiko/esp32_ed6cxc/0/0/in"
+        topic_path = f"{get_namespace()}/esp32_ed6cxc/0/0/in"
         self.counter += 1
         if self.counter % 5:
             aiko.message.publish(topic_path, "(led:fill 0 0 0)")

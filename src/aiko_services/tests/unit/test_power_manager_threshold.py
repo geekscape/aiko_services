@@ -28,6 +28,7 @@ import itertools
 import pytest
 
 import aiko_services as aiko
+from aiko_services.main.utilities import get_namespace
 from aiko_services.actors.power_manager import (
     FUNCTIONS, MockPowerManagerImpl, SAFE_FUNCTIONS, THRESHOLDS,
     power_manager_args,
@@ -242,6 +243,11 @@ class Clock:
     def __call__(self):
         return self.now
 
+# A reporter's topic must be in the Actor's own namespace, which follows
+# AIKO_NAMESPACE.  A literal "aiko/" makes these tests fail wherever the
+# variable is set, because coerce_response_topic() refuses the report
+REPORTER = f"{get_namespace()}/host/1/1/in"
+
 def working_actor(loss=None, **parameters):
     actor = make_actor(thresholds={"working_loss_s": loss}, **parameters)
     actor._clock = clock = Clock()
@@ -260,7 +266,7 @@ def test_nothing_is_lost_where_nothing_ever_reported():
 
 def test_a_reporter_that_goes_quiet_is_reported_once():
     actor, clock = working_actor(loss=60.0)
-    actor.report_working("aiko/host/1/1/in", "frames")
+    actor.report_working(REPORTER, "frames")
     actor.signals.clear()
     clock.now += 61
     actor._check_working(clock.now)
@@ -277,13 +283,13 @@ def test_a_reporter_that_goes_quiet_is_reported_once():
 
 def test_a_reporter_that_comes_back_clears_the_loss():
     actor, clock = working_actor(loss=60.0)
-    actor.report_working("aiko/host/1/1/in", "frames")
+    actor.report_working(REPORTER, "frames")
     clock.now += 61
     actor._check_working(clock.now)
     assert actor.share["working"]["lost"] is True
 
     clock.now += 1
-    actor.report_working("aiko/host/1/1/in", "frames")
+    actor.report_working(REPORTER, "frames")
 
     assert actor.share["working"]["lost"] is False
 
@@ -292,10 +298,10 @@ def test_a_report_inside_the_dwell_still_counts_as_heard():
     own clock for this would call a working Pipeline lost"""
 
     actor, clock = working_actor(loss=60.0)
-    actor.report_working("aiko/host/1/1/in", "frames")
+    actor.report_working(REPORTER, "frames")
     for _ in range(4):                # Well inside working_dwell_s
         clock.now += 30
-        actor.report_working("aiko/host/1/1/in", "frames")
+        actor.report_working(REPORTER, "frames")
     actor._check_working(clock.now)
 
     assert actor.share["working"]["lost"] is False
@@ -305,7 +311,7 @@ def test_the_loss_is_off_by_default():
 
     assert THRESHOLDS["working_loss_s"] is None
     actor, clock = working_actor()
-    actor.report_working("aiko/host/1/1/in", "frames")
+    actor.report_working(REPORTER, "frames")
     clock.now += 86400
     actor._check_working(clock.now)
 
@@ -315,7 +321,7 @@ def test_the_age_is_published_whether_or_not_a_loss_is_watched_for():
     """The Dashboard shows the age, and that must not need the threshold"""
 
     actor, clock = working_actor()
-    actor.report_working("aiko/host/1/1/in", "frames")
+    actor.report_working(REPORTER, "frames")
     clock.now += 42
     actor._check_working(clock.now)
 
@@ -324,7 +330,7 @@ def test_the_age_is_published_whether_or_not_a_loss_is_watched_for():
 def test_the_loss_can_be_turned_on_while_the_actor_runs():
     actor, clock = working_actor()
     actor.set_threshold("working_loss_s", "30")
-    actor.report_working("aiko/host/1/1/in", "frames")
+    actor.report_working(REPORTER, "frames")
     actor.signals.clear()
     clock.now += 31
     actor._check_working(clock.now)

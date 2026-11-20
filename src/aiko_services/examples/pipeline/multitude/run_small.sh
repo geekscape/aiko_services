@@ -56,7 +56,7 @@ for pipeline_id in a b c; do
 # aiko_pipeline create ${pipeline_name}.json 2>${pipeline_name}.log &
   process_id=$!
   process_ids="$process_ids $process_id"
-  export topic_pipeline_${pipeline_id}=aiko/$_HOSTNAME/$process_id/1/in
+  export topic_pipeline_${pipeline_id}=${AIKO_NAMESPACE:-aiko}/$_HOSTNAME/$process_id/1/in
 done
 
 use_topic_name=topic_pipeline_${USE_PIPELINE}

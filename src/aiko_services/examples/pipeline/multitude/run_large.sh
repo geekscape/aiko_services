@@ -59,7 +59,7 @@ while [ $pipeline_id -le $PIPELINE_LIMIT ]; do
 # aiko_pipeline create ${pipeline_file}.json 2>${pipeline_file}.log &
   process_id=$!
   process_ids="$process_ids $process_id"
-  export topic_pipeline_${pipeline_name}=aiko/$_HOSTNAME/$process_id/1/in
+  export topic_pipeline_${pipeline_name}=${AIKO_NAMESPACE:-aiko}/$_HOSTNAME/$process_id/1/in
   ((pipeline_id++))
 done
 
