@@ -34,6 +34,7 @@ Navigation: [elements index](../ReadMe.md) ·
 | [elements](elements.md) | `Mock` and `NoOp` — minimal placeholder elements for scaffolding and wiring tests |
 | [image_io](image_io.md) | Image sources, transforms (convert / resize / crop / overlay) and targets — files or ZeroMQ, PIL or NumPy |
 | [images_to_video](images_to_video.md) | Legacy Pipeline_2020 script for images → video; superseded by `images_to_video_pipeline.json` |
+| [mp4_repair](mp4_repair.md) | `merge_leading_parameter_sets()` — repairs an H.264 MP4 whose first sample holds only the parameter sets, as the Raspberry Pi hardware encoder writes |
 | [scheme_file](scheme_file.md) | `file:` DataScheme — files, directories and `{}` glob/format templates; the default scheme |
 | [scheme_store_forward](scheme_store_forward.md) | `store_forward://` DataScheme — target-only; names the outbox that a SegmentStoreForward Actor watches, so a Pipeline hands finished segments to the store / forward custodian |
 | [scheme_synth](scheme_synth.md) | `synth://` DataScheme — synthesized video frames with the frame id and a timestamp, no camera; an extensible kind/pattern URL grammar |

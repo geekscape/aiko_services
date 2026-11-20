@@ -47,6 +47,9 @@ from aiko_services.main.store_forward.store_forward_message import (
     utc_now, valid_segment_name
 )
 from aiko_services.main.writing_client import WritingClient
+from aiko_services.elements.media.mp4_repair import (
+    merge_leading_parameter_sets
+)
 import aiko_services.elements.media.scheme_store_forward  # "store_forward://"
 
 __all__ = ["VideoWriteStoreForward", "segment_file_name"]
@@ -105,8 +108,13 @@ def segment_file_name(prefix="", now=None):
 # ignores; it is renamed into place when it closes, on the last frame of a
 # Stream too (stop_stream() runs after every in-flight Frame)
 #
+# Each closed segment is checked for a first sample that holds only the
+# H.264 parameter sets, which the Raspberry Pi hardware encoder writes, and
+# repaired before the rename (elements/media/mp4_repair.py).  Some readers
+# fail on such a sample: cv2.VideoCapture.read() returns no frame first
+#
 # Shared state: "outbox", "segment" (open segment name), "segments_written",
-# "frames_written", "last_segment_utc"
+# "segments_repaired", "frames_written", "last_segment_utc"
 #
 # Note: Only supports Streams with "data_targets" parameter
 
@@ -116,11 +124,13 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
         context.call_init(self, "PipelineElement", context)
         self.share.update({
             "outbox": "-", "segment": "-", "segments_written": "0",
+            "segments_repaired": "0",
             "frames_written": "0", "last_segment_utc": "-",
             # Why nothing is being written, when nothing is
             "writing_ok": True, "frames_skipped": "0"
         })
         self._segments_written = 0
+        self._segments_repaired = 0
         self._frames_written = 0
         self._frames_skipped = 0
         # Whether this host wants to be written to.  True until a power
@@ -270,6 +280,7 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
             except OSError:
                 pass
             return
+        self._repair_segment(temp_path)         # before it is visible
         final_path = os.path.join(stream.variables["target_outbox"], name)
         os.replace(temp_path, final_path)       # appears complete, at once
         size = os.path.getsize(final_path)
@@ -283,3 +294,21 @@ class VideoWriteStoreForward(aiko.DataTarget):  # PipelineElement
             f"{self.my_id()}: segment {name}: {frames} frames, {size} B")
 
 # --------------------------------------------------------------------------- #
+
+    def _repair_segment(self, path):
+        """Join a leading parameter-sets-only sample to the key frame.
+
+        The Raspberry Pi hardware encoder writes one at the start of every
+        segment.  A segment that cannot be repaired is still sent: the
+        frames in it are intact, and only some readers fail on it"""
+
+        try:
+            repaired = merge_leading_parameter_sets(path)
+        except OSError as error:
+            self.logger.warning(
+                f"{self.my_id()}: segment not checked: {error}")
+            return
+        if repaired:
+            self._segments_repaired += 1
+            self.ec_producer.update(
+                "segments_repaired", str(self._segments_repaired))
