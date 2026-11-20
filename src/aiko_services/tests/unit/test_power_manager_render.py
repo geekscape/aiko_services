@@ -392,6 +392,37 @@ def test_verify_uses_nothing_that_it_reports(tmp_path):
     (tmp_path / "hook").chmod(0o755)
     assert verify(where)["hook"] == "installed"
 
+def test_an_artifact_that_cannot_be_read_is_unknown_and_not_missing(
+    tmp_path):
+
+    """os.path.exists() answers False for both "it is not there" and "I
+    may not look", and the two mean opposite things.
+
+    The shutdown hook lives in a directory that root owns.  Created
+    without an explicit mode it can deny the account that runs the
+    Actor, and reading that as "missing" puts the host into quiesce for
+    a hook that is installed.  Measured on a host on 2026-11-10"""
+
+    import os
+    import pytest as _pytest
+
+    if os.geteuid() == 0:
+        _pytest.skip("root may look into any directory")
+    closed = tmp_path / "closed"
+    closed.mkdir()
+    hook = closed / "aiko_power_off"
+    hook.write_text("#!/bin/sh\n")
+    closed.chmod(0o700 & ~0o100)             # Readable, and not searchable
+    try:
+        assert verify({"hook": str(hook)})["hook"] == "unknown"
+    finally:
+        closed.chmod(0o700)                  # Or tmp_path cannot be removed
+
+def test_an_artifact_that_is_really_absent_is_missing(tmp_path):
+    """The other half, so that "unknown" cannot swallow a real absence"""
+
+    assert verify({"hook": str(tmp_path / "absent")})["hook"] == "missing"
+
 def test_the_default_paths_are_where_the_operating_system_looks():
     where = paths()
     assert where["unit"] == UNIT_PATH

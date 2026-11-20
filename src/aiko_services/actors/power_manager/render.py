@@ -53,7 +53,8 @@ from aiko_services.actors.power_manager.signal import (
 __all__ = [
     "ARTIFACTS", "GRANT_PATH", "HOOK_PATH", "HOLD_RELEASE_DELAY_S",
     "InstallRefused", "POWEROFF_COMMAND", "RELEASE_ACTIONS",
-    "REMOUNT_COMMAND", "UNIT_PATH", "granted_commands", "install", "paths",
+    "REMOUNT_COMMAND", "UNIT_PATH", "artifact_state", "granted_commands",
+    "install", "paths",
     "render", "verify",
 ]
 
@@ -259,16 +260,40 @@ def paths(unit=UNIT_PATH, hook=HOOK_PATH, grant=GRANT_PATH):
 
     return {"unit": unit, "hook": hook, "grant": grant}
 
+def artifact_state(path):
+    """"installed", "missing", or "unknown" where it cannot be read.
+
+    os.path.exists() answers False for BOTH "it is not there" and "I may
+    not look", and the two mean opposite things here.  The shutdown hook
+    lives in a directory that root owns, and a directory created without
+    an explicit mode can deny the account that runs the Actor.  Reading
+    that as "missing" puts the host into quiesce for a hook that is
+    installed: measured on a host on 2026-11-10, where the directory was
+    drwx------ and the hook inside it was correct.
+
+    So a refusal reports "unknown", which decide_mode() does not act on,
+    and only a real absence reports "missing" """
+
+    try:
+        os.stat(path)
+    except PermissionError:
+        return "unknown"            # A path component is not searchable
+    except FileNotFoundError:
+        return "missing"
+    except OSError:
+        return "unknown"            # A broken mount, a dead symlink target
+    return "installed"
+
 def verify(where=None):
-    """Which artifacts are in place: {"unit": "installed" | "missing", ...}.
+    """Which artifacts are in place: {"unit": "installed" | "missing" |
+    "unknown", ...}.
 
     It reports without using any of them.  A host that cannot power itself
     off has a battery policy that is advisory, whatever its thresholds say,
     and an operator must be able to see that"""
 
     where = where or paths()
-    return {name: ("installed" if os.path.exists(path) else "missing")
-        for name, path in where.items()}
+    return {name: artifact_state(path) for name, path in where.items()}
 
 def install(artifact, text, path=None, mode=None, validator=None):
     """Write one rendered artifact.  The only operation here that changes

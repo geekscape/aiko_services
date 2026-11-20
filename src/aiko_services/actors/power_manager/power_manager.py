@@ -1251,9 +1251,17 @@ class PowerManagerCommon:
         # Measured in production on 2026-11-05
         action, action_reason = decide_action(*arguments,
             actionable=None if self._enforce else EXACT_REASONS)
+        # The decision has always read this fresh.  The shared state used
+        # to carry the value that open() found, so a hook installed after
+        # the Actor started read as "missing" on the Dashboard for ever,
+        # while the policy used the true one.  An operator acts on what
+        # is shown, so what is shown is what was decided on
+        hook = self.hook_state()
+        if hook != self.share.get("hook"):
+            self.ec_producer.update("hook", hook)
         mode, mode_reason = decide_mode(
             self._mode, decision, reading.battery_volts, docked,
-            self.hook_state(), thresholds, undocked_s)
+            hook, thresholds, undocked_s)
 
         self._warn_supply(reading, docked, now)
         self._publish_decision(decision, reason, mode, mode_reason, docked,
