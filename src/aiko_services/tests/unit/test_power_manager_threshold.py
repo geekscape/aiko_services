@@ -464,3 +464,39 @@ def test_a_powered_supply_still_reads_as_docked():
     assert actor.share["dock_disagreement"] == "-"
 
 # --------------------------------------------------------------------------- #
+
+# The shutdown hook, as the operator sees it ------------------------------- #
+
+def test_the_published_hook_state_follows_the_host():
+    """It used to be the value that open() found, and nothing else.
+
+    A hook installed after the Actor started therefore read as "missing"
+    on the Dashboard for ever, while the policy used the true one.
+    Measured on a host on 2026-11-10, where the directory mode was
+    corrected under a running Actor and the page kept saying missing"""
+
+    actor = make_actor()
+    states = iter(["missing", "installed", "installed"])
+    actor.hook_state = lambda: next(states)
+
+    actor._evaluate(actor.reading(), now=1000.0)
+    assert actor.share["hook"] == "missing"
+
+    actor._evaluate(actor.reading(), now=1060.0)
+    assert actor.share["hook"] == "installed"
+
+def test_the_hook_state_is_published_only_when_it_changes():
+    """Every sample reads it, and a value that did not move is not news"""
+
+    actor = make_actor()
+    actor.hook_state = lambda: "installed"
+    actor._evaluate(actor.reading(), now=1000.0)
+    denied = int(actor.share["metrics"]["denied"])
+
+    for second in range(1060, 1300, 60):
+        actor._evaluate(actor.reading(), now=float(second))
+
+    assert actor.share["hook"] == "installed"
+    assert int(actor.share["metrics"]["denied"]) == denied
+
+# --------------------------------------------------------------------------- #
