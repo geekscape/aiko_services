@@ -10,11 +10,12 @@ status: work-in-progress
 ste: adapted
 source:
   - src/aiko_services/elements/media/store_forward_io.py
+  - src/aiko_services/elements/media/mp4_repair.py
   - src/aiko_services/elements/media/pipelines/store_forward_pipeline_0.json
 related: [pipeline_element, data_source_target, scheme, stream, parameters,
   share, store_forward, scheme_store_forward, synthetic_io, video_io]
 version: "0.8-dev"
-last_updated: 2026-09-15
+last_updated: 2026-11-20
 ---
 
 # StoreForward video segment writer
@@ -128,7 +129,9 @@ With a prefix the name is `cam0_2026-09-15_03-00-07-413882.mp4`. The
 names sort in time order and the Actor accepts them. There is no counter.
 
 Share: `outbox`, `segment` (the open segment, `-` between segments),
-`segments_written`, `frames_written`, `last_segment_utc`.
+`segments_written`, `segments_repaired`, `frames_written`,
+`last_segment_utc`. `segments_repaired` counts the segments that started
+with a parameter-sets-only sample and were repaired (see below).
 
 `process_frame()` returns `StreamEvent.OKAY` with no outputs. It returns
 `ERROR` when a frame is not a NumPy array or a video writer cannot be
@@ -142,7 +145,7 @@ opened. `start_stream()` returns `ERROR` when OpenCV is absent.
  images ──► process_frame()
               │ no open segment?  open .<name>.mp4 (dot-prefixed temp)
               │ write frame (RGB -> BGR)
-              │ bound reached?    close: release, os.replace -> <name>.mp4
+              │ bound reached?    close: release, repair, os.replace -> <name>.mp4
               ▼
  stop_stream() closes the open segment, then DataTarget.stop_stream()
 ```
@@ -158,6 +161,18 @@ too. A segment with no frames leaves no file.
 
 ### Implementation notes
 
+- On a Raspberry Pi, `avc1` uses the hardware encoder (`bcm2835-codec`
+  through FFmpeg `h264_v4l2m2m`). Each segment it writes starts with a
+  sample that holds only the H.264 parameter sets (SPS and PPS) and no
+  picture. Measured on 2026-11-20: 3988 of 3988 segments. Some readers
+  fail on it: OpenCV's first `read()` returns no frame, so a reader that
+  stops at the first failed `read()` gets no frame at all. So
+  `_close_segment()` calls
+  [`merge_leading_parameter_sets()`](mp4_repair.md) on the temporary
+  file before the rename. It joins that sample to the key frame after
+  it, and changes only the sample tables. A segment of any other shape
+  is not changed. The repair takes about 1 ms for a 1 s segment on a
+  Raspberry Pi 4.
 - OpenCV is a guarded import (`_CV2_IMPORTED`), as in `image_io.py`. The
   media package needs OpenCV at import anyway (`video_io.py`).
 - The writer is opened on the first frame of each segment with that
@@ -175,16 +190,14 @@ too. A segment with no frames leaves no file.
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
-| `VideoWriteStoreForward` | Encode frames into bounded MP4 segments, publish each closed segment atomically into the outbox, report counts in share | `DataSchemeStoreForward`, `cv2.VideoWriter`, `SegmentStoreForward` (through the file system) |
+| `VideoWriteStoreForward` | Encode frames into bounded MP4 segments, repair a leading parameter-sets-only sample, publish each closed segment atomically into the outbox, report counts in share | `DataSchemeStoreForward`, `cv2.VideoWriter`, `merge_leading_parameter_sets()`, `SegmentStoreForward` (through the file system) |
 
 ## Current limitations and roadmap
 
-- On some OpenCV builds, `opencv-python` 5.0 for aarch64 among them,
-  each H.264 segment starts with a 50-byte packet that holds no picture.
-  FFmpeg decodes every frame. OpenCV's first `read()` fails and the next
-  ones succeed. So a reader that stops at the first failed `read()` gets
-  no frame at all, and the container's frame count reads one high. Read
-  segments with a loop that tolerates one failed read, or with FFmpeg.
+- Segments written before 2026-11-20 by the Raspberry Pi hardware
+  encoder start with a sample that holds only the parameter sets. Repair
+  them with `merge_leading_parameter_sets()`, or read them with a loop
+  that tolerates one failed `read()`.
 - Segments are plain MP4 (H.264). Fragmented MP4, so a partially
   received segment plays, is planned.
 - The element does not announce a closed segment to the Actor. The
