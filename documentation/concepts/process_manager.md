@@ -422,8 +422,8 @@ Highlights from the source `To Do` list:
 - The `--watchdog` flag is recorded in shared state, but primary/watchdog
   monitor-and-relaunch behavior is still to come. Until then, nothing
   starts a process again when it exits. A definition entry that must keep
-  running can wrap its command in a respawn loop, as the w3029f1 edge host
-  does. Likewise "one primary
+  running can wrap its command in `scripts/respawn.sh`, which starts it
+  again after a pause. Likewise "one primary
   ProcessManager per host" enforcement and cross-host unification
 - Capture child stdout/stderr. Relaunch failed processes (with
   back-off). Add auto-scaling workers. Add scheduled (crontab-style)
