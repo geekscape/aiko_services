@@ -67,6 +67,9 @@ import platform
 
 import aiko_services as aiko
 from aiko_services.elements.media import convert_images
+from aiko_services.elements.media.mp4_repair import (
+    merge_leading_parameter_sets
+)
 from aiko_services.main.utilities import parse_int
 
 __all__ = [
@@ -85,6 +88,12 @@ _DEFAULT_VIDEO_PATHNAME = "{directory}/{m:02d}m_{s:02d}s.mp4"
 _DEFAULT_VIDEO_FILE_DURATION = 1       # minutes
 _DEFAULT_VIDEO_FRAME_RATE = 4.0        # frames per second
 _DEFAULT_VIDEO_RESOLUTION = "640x480"  # width x height
+
+# Consecutive failed reads that VideoReadFile tolerates while the file still
+# has frames.  An H.264 file whose first sample holds only the parameter
+# sets, as the Raspberry Pi hardware encoder writes it, fails one read and
+# then decodes (elements/media/mp4_repair.py)
+_READ_FAILURES_MAXIMUM = 3
 
 _CV2_IMPORTED = False
 try:
@@ -109,6 +118,28 @@ except ModuleNotFoundError:  # TODO: Optional warning flag
 #   _LOGGER.warning(diagnostic)
 
 # --------------------------------------------------------------------------- #
+
+def _frames_remain(video_capture):
+    """Whether a file's container reports frames after the read position.
+    A live device or a stream reports no frame count, so it has none"""
+
+    count = video_capture.get(cv2.CAP_PROP_FRAME_COUNT)
+    position = video_capture.get(cv2.CAP_PROP_POS_FRAMES)
+    return count > 0 and position < count
+
+def _repair_video_file(element, path):
+    """Repair an H.264 MP4 file whose first sample holds only the parameter
+    sets, which the Raspberry Pi hardware encoder writes.  Any other file
+    is left unchanged (elements/media/mp4_repair.py)"""
+
+    if not path:
+        return
+    try:
+        if merge_leading_parameter_sets(path):
+            element.logger.info(f"{element.my_id()}: repaired {path}")
+    except OSError as error:
+        element.logger.warning(
+            f"{element.my_id()}: video file not checked: {error}")
 
 def camera_api(system=None):
     """The capture back end for this platform, or 0 to let OpenCV choose.
@@ -170,10 +201,16 @@ class VideoReadFile(aiko.DataSource):  # PipelineElement
             frame_generator=self.frame_generator, use_create_frame=False)
 
     def video_frame_iterator(self, video_capture):
+        failures = 0
         while True:
             status, image_bgr = video_capture.read()
             if not status:
-                break
+                failures += 1
+                if failures > _READ_FAILURES_MAXIMUM  \
+                        or not _frames_remain(video_capture):
+                    break
+                continue
+            failures = 0
             image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
             yield image_rgb
 
@@ -364,6 +401,7 @@ class VideoWriteFile(aiko.DataTarget):  # PipelineElement
             if stream.variables["video_writer"]:
                 stream.variables["video_writer"].release()
                 stream.variables["video_writer"] = None
+                _repair_video_file(self, stream.variables["video_path"])
         return aiko.StreamEvent.OKAY, {}
 
 # --------------------------------------------------------------------------- #
@@ -383,6 +421,7 @@ class VideoWriteFiles(aiko.PipelineElement):
     def start_stream(self, stream, stream_id):
         stream.variables["last_minute"] = 0
         stream.variables["video_writer"] = None
+        stream.variables["video_pathname"] = None
         stream.variables["video_file_duration"], _ = self.get_parameter(
             "video_file_duration", _DEFAULT_VIDEO_FILE_DURATION)
         return aiko.StreamEvent.OKAY, {}
@@ -416,6 +455,7 @@ class VideoWriteFiles(aiko.PipelineElement):
         if stream.variables["video_writer"]:
             stream.variables["video_writer"].release()
             stream.variables["video_writer"] = None
+            _repair_video_file(self, stream.variables.get("video_pathname"))
 
     def process_frame(self, stream, images) -> Tuple[aiko.StreamEvent, dict]:
         now_minute = datetime.now().minute
@@ -441,6 +481,7 @@ class VideoWriteFiles(aiko.PipelineElement):
         if not stream.variables["video_writer"]:
             stream.variables["video_writer"], video_pathname =  \
                 self._create_video_writer()
+            stream.variables["video_pathname"] = video_pathname
             self.ec_producer.update("video_pathname", video_pathname)
         stream.variables["last_minute"] = now_minute
 
