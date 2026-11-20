@@ -8,14 +8,16 @@ status: work-in-progress
 ste: adapted
 source:
   - src/aiko_services/elements/media/video_io.py
+  - src/aiko_services/elements/media/mp4_repair.py
   - src/aiko_services/elements/media/pipelines/video_pipeline_0.json
   - src/aiko_services/elements/media/pipelines/video_pipeline_1.json
   - src/aiko_services/elements/media/pipelines/video_to_images_pipeline.json
   - src/aiko_services/elements/media/pipelines/images_to_video_pipeline.json
 related: [pipeline_element, data_source_target, scheme, stream, parameters,
-  scheme_file, image_io, webcam_io, images_to_video, video_example]
+  scheme_file, image_io, webcam_io, images_to_video, video_example,
+  mp4_repair]
 version: "0.6"
-last_updated: 2026-08-01
+last_updated: 2026-11-20
 ---
 
 # Video I/O elements
@@ -135,7 +137,13 @@ through [scheme_file](scheme_file.md).
   The generator walks `source_paths_generator` (from the file scheme),
   opens each video with `open_video_capture()`, and yields **one image
   per Pipeline frame** (`{"images": [image_rgb]}`), converting BGR to
-  RGB. End of the last file returns `StreamEvent.STOP`
+  RGB. A failed read does not end a file while the file has more frames
+  (`CAP_PROP_POS_FRAMES` is less than `CAP_PROP_FRAME_COUNT`), up to 3
+  failed reads in a row. An H.264 file whose first sample holds only the
+  parameter sets fails one read and then decodes
+  ([mp4_repair](mp4_repair.md)). A live source reports no frame count,
+  so its first failed read ends it, as before. End of the last file
+  returns `StreamEvent.STOP`
   (`"End of video file(s)"`). An unopenable file returns
   `StreamEvent.ERROR`.
 - `VideoReadFile.process_frame()` sets
@@ -149,13 +157,17 @@ through [scheme_file](scheme_file.md).
   (`"Image media_type must be a numpy array"`). Use `media_type: numpy`
   on the source, or an `ImageConvert` element
   ([image_io](image_io.md)). `stop_stream()` releases the writer, and
-  finalizes the file.
+  finalizes the file. Then it repairs a first sample that holds only the
+  H.264 parameter sets, which the Raspberry Pi hardware encoder writes
+  for `format` `avc1` ([mp4_repair](mp4_repair.md)). Other files are
+  not changed.
 - `VideoWriteFiles` is a continuous-recording sink, and not a
   DataTarget. It writes date/time-structured rolling files
   (`data_out/YYYY/MM/DD/HH/MMm_SSs.mp4` by default). It starts a new
   file every `video_file_duration` minutes. It records only inside
   `minute_range` (for example, `"00-15"`). It also publishes the current
-  `video_pathname` to shared state for the Aiko Services Dashboard.
+  `video_pathname` to shared state for the Aiko Services Dashboard. When
+  it closes a file, it repairs the file as `VideoWriteFile` does.
 
 ## For framework developers (internals)
 
@@ -215,7 +227,7 @@ through [scheme_file](scheme_file.md).
 | `VideoReadFile` | Iterate video files → decode → emit one RGB image per frame; manage `video_capture` lifecycle; optional `media_type` conversion | [DataSource](../../concepts/data_source_target.md), [DataSchemeFile](scheme_file.md), `open_video_capture()`, [Stream](../../concepts/stream.md), [Parameters](../../concepts/parameters.md) |
 | `VideoSample` | Keep every Nth frame (`sample_rate`), else `DROP_FRAME` | [PipelineElement](../../concepts/pipeline_element.md), [Stream](../../concepts/stream.md) |
 | `VideoShow` | Display images in an OpenCV window; position/title parameters; `x` key stops the Stream or exits | [PipelineElement](../../concepts/pipeline_element.md), [Parameters](../../concepts/parameters.md) |
-| `VideoWriteFile` | Lazily create `cv2.VideoWriter` sized from the first image; encode NumPy RGB frames; release on stop | [DataTarget](../../concepts/data_source_target.md), [DataSchemeFile](scheme_file.md), [Stream](../../concepts/stream.md) |
+| `VideoWriteFile` | Lazily create `cv2.VideoWriter` sized from the first image; encode NumPy RGB frames; release and repair on stop | [DataTarget](../../concepts/data_source_target.md), [DataSchemeFile](scheme_file.md), [Stream](../../concepts/stream.md) |
 | `VideoWriteFiles` | Continuous recording into date/time-templated rolling files; `minute_range` gating; publish `video_pathname` | [PipelineElement](../../concepts/pipeline_element.md), `ECProducer` shared state, [Parameters](../../concepts/parameters.md) |
 | `VideoOutput` | Pass `images` through as the Pipeline response tail | [PipelineElement](../../concepts/pipeline_element.md) |
 

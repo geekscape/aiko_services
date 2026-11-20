@@ -30,7 +30,11 @@ It returns `True` when it repaired the file. It returns `False` for a
 file of any other shape, and then the file is not changed. So a writer
 can call it on every file that it closes.
 [`VideoWriteStoreForward`](store_forward_io.md) calls it on each segment
-before the segment becomes visible.
+before the segment becomes visible. [`VideoWriteFile` and
+`VideoWriteFiles`](video_io.md) call it on each file after they release
+the writer. [`VideoReadFile`](video_io.md) also reads files that were
+not repaired: it does not stop at a failed read while the file has more
+frames.
 
 ## For application developers
 
@@ -123,4 +127,6 @@ segment.
 
 - [store_forward_io](store_forward_io.md), the writer that calls the
   repair
-- [video_io](video_io.md), `VideoWriteFile`, which uses the same encoder
+- [video_io](video_io.md), `VideoWriteFile` and `VideoWriteFiles`,
+  which call the repair, and `VideoReadFile`, which reads files that
+  were not repaired

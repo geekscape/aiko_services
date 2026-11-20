@@ -196,8 +196,9 @@ too. A segment with no frames leaves no file.
 
 - Segments written before 2026-11-20 by the Raspberry Pi hardware
   encoder start with a sample that holds only the parameter sets. Repair
-  them with `merge_leading_parameter_sets()`, or read them with a loop
-  that tolerates one failed `read()`.
+  them with `merge_leading_parameter_sets()`, or read them with
+  [`VideoReadFile`](video_io.md), which does not stop at the failed
+  first `read()`.
 - Segments are plain MP4 (H.264). Fragmented MP4, so a partially
   received segment plays, is planned.
 - The element does not announce a closed segment to the Actor. The
