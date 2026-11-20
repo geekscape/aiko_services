@@ -8,7 +8,7 @@ audience: [project-lead, architects, developers, ai-coding-agents]
 status: operational
 ste: adapted
 related: [../p_01_PrinciplesGovernance, ../p_00_DesignPrinciples]
-last_updated: 2026-11-05
+last_updated: 2026-11-13
 ---
 
 # Aiko Services Architectural Decision Records
@@ -64,6 +64,7 @@ deferral promotion, retirement). Use one for any decision worth a durable ration
 | [026](ADR-026_DaemonSupervision.md) | Daemon supervision — the operating system starts one daemon for each host (the ProcessManager), a `DaemonSupervisor` Interface with one Implementation for each platform, `render` before `install`, and Supervisor recorded as an aspect for composition later | normative (accepted 2026-10-21) | `src/aiko_services/main/daemon_supervisor/` (Epic 0 of the aiko01 work) |
 | 027 | — | free (but see the note below) | |
 | [028](ADR-028_PowerManagement.md) | Power management — one `PowerManager` Interface that extends Actor, with an Implementation for each platform (a power management module, Linux, macOS and a mock), property tokens rather than aspect tags, a power hold that outlives the process that sets it, a release that happens only in the shutdown hook and never on a restart, safe and unsafe postures as `ProcessManager` has them, a quiesce mode before the power ends with a read-only remount at the floor voltage, and an explicit rendered grant for the two privileged operations | proposal (2026-11-05, waits for the lead's acceptance) | `src/aiko_services/actors/power_manager/` (the power manager work) |
-| 029+ | next free numbers | free | |
+| [029](ADR-029_PathLibStandard.md) | Path handling — `pathlib.Path` is the one mechanism for filesystem paths; the operational rules are in the record | proposal (2026-11-12, waits for the project lead's acceptance) | `src/aiko_services/` including tests, and `documentation/tools/` |
+| 030+ | next free numbers | free | |
 
 **Note on 027.** This registry shows 027 as free, and an ADR-027 that adopts P11 is written on a branch that is not merged. The registry owns the numbers, so 027 stays free here until that work claims it. The power management move took 028 rather than 027, so that the two cannot collide.

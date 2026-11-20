@@ -6,6 +6,13 @@ Every substantive change appends an entry under its date heading
 This journal begins at the constitution's first public release. The
 pre-publication history is maintained privately.
 
+## 2026-11-13
+
+- **Creation** — [adr/ADR-029_PathLibStandard.md](adr/ADR-029_PathLibStandard.md),
+  with its row in [adr/ReadMe.md](adr/ReadMe.md): a proposal that
+  `pathlib.Path` is the standard mechanism for filesystem paths. ADR-029
+  holds the operational rules and the permitted exceptions.
+
 ## 2026-11-09
 
 - **Update** — [g_03_AgentContext.md](g_03_AgentContext.md) and
