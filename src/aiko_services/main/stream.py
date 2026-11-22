@@ -19,6 +19,7 @@
 #   - Review "../archive/main/stream_2020.py"
 
 from dataclasses import dataclass, field
+from enum import IntEnum
 import queue
 from typing import Any, Dict
 
@@ -26,13 +27,13 @@ from aiko_services.main.utilities import *
 
 __all__ = [
     "DEFAULT_STREAM_ID", "FIRST_FRAME_ID", "Frame", "Stream",
-    "StreamEvent", "StreamEventName", "StreamState", "StreamStateName"
+    "StreamEvent", "StreamState"
 ]
 
 DEFAULT_STREAM_ID = "*"  # string
 FIRST_FRAME_ID = 0       # integer
 
-class StreamEvent:
+class StreamEvent(IntEnum):
     ERROR      =   -2  # Move to StreamState.ERROR
     STOP       =   -1  # Move to StreamState.STOP
     OKAY       =    0  # Stay calm and keep on running
@@ -41,17 +42,8 @@ class StreamEvent:
     LOOP_END   =    3  # Complete ControlFlowLoop and keep on running
     USER       = 1024  # User defined custom StreamEvents start from here
 
-StreamEventName = {
-    StreamEvent.DROP_FRAME: "DropFrame",
-    StreamEvent.ERROR:      "Error",
-    StreamEvent.LOOP_END:   "LoopEnd",
-    StreamEvent.NO_FRAME:   "NoFrame",
-    StreamEvent.OKAY:       "Okay",
-    StreamEvent.STOP:       "Stop",
-    StreamEvent.USER:       "User"
-}
 
-class StreamState:
+class StreamState(IntEnum):
     ERROR       =   -2  # Don't generate new frames and ignore queued frames
     STOP        =   -1  # Don't generate new frames and process queued frames
     RUN         =    0  # Generate new frames and process queued frames
@@ -59,14 +51,6 @@ class StreamState:
     DROP_FRAME  =    2  # Stop processing current frame, then back to RUN state
     USER        = 1024  # User defined custom StreamStates start from here
 
-StreamStateName = {
-    StreamState.DROP_FRAME: "DropFrame",
-    StreamState.ERROR:      "Error",
-    StreamState.NO_FRAME:   "NoFrame",
-    StreamState.STOP:       "Stop",
-    StreamState.RUN:        "Run",
-    StreamState.USER:       "User"
-}
 
 @dataclass
 class Frame:  # effectively a continuation :)
