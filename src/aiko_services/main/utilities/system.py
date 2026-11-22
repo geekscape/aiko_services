@@ -3,12 +3,11 @@
 # To Do
 # ~~~~~
 # - None, yet !
-
-from datetime import timedelta
 import gc
-import platform
+import time
+from datetime import timedelta
+
 import psutil
-import subprocess
 
 __all__ = [
     "dir_base_name",
@@ -89,40 +88,12 @@ def print_virtual_memory(label, unit=DEFAULT_VIRTUAL_MEMORY_UNIT):
 # --------------------------------------------------------------------------- #
 
 def get_uptime():
-    try:
-        os_name = platform.system()
-
-        if os_name == "Linux":
-            with open("/proc/uptime", "r") as f:
-                uptime_seconds = float(f.readline().split()[0])
-
-        elif os_name == "Darwin":  # Mac OS X
-            output = subprocess.check_output(
-                ["sysctl", "-n", "kern.boottime"]).decode()
-            boot_time_str = output.split("}")[0].split("{")[1].split(",")
-            boot_time_seconds = int(boot_time_str[0].split("=")[1])
-            uptime_seconds = int(subprocess.check_output(
-                ["date", "+%s"]).decode()) - boot_time_seconds
-
-        elif os_name == "Windows":
-            import ctypes
-            kernel32 = ctypes.windll.kernel32
-            uptime_ms = kernel32.GetTickCount64()
-            uptime_seconds = uptime_ms // 1000
-
-        else:
-            raise RuntimeError(
-                f"get_uptime(): Operating System unsupported: {os_name}")
-
-        return str(timedelta(seconds=uptime_seconds))
-
-    except Exception as exception:
-        return f"Error: {exception}"
+    return timedelta(seconds=int(time.time() - psutil.boot_time()))
 
 # --------------------------------------------------------------------------- #
 
 def main():
-    print("System uptime:", get_uptime())
+    print(f"System uptime: {get_uptime()}")
     print_memory_used("")
     print_virtual_memory("")
 

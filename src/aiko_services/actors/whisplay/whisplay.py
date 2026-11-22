@@ -29,9 +29,8 @@
 # * Take any video source through a DataSource, not only this camera
 # * The RGB LEDs, as their own Actor
 
-from abc import abstractmethod
 import math
-import os
+import psutil
 import queue
 import socket
 import subprocess
@@ -44,11 +43,6 @@ from aiko_services.main.utilities import get_hostname
 from aiko_services.actors.whisplay.button import LONG_PRESS_SECONDS
 from aiko_services.actors.whisplay.camera import CameraNotFound
 from aiko_services.actors.whisplay.frame import compose, parse_resolution
-
-try:
-    import psutil
-except ImportError:                                      # pragma: no cover
-    psutil = None
 
 __all__ = [
     "ACTIONS", "COUNTDOWN_LABEL", "PROTOCOL", "ROW_ALIGNS", "SETTINGS",
@@ -323,18 +317,17 @@ def _telemetry():
     so cpu_percent() reads the counters since the last call rather than
     waiting"""
 
-    if psutil is None:
-        return "-", "-", "-"
-    cpu = f"{psutil.cpu_percent(interval=None):.0f}"
-    memory = f"{psutil.virtual_memory().percent:.0f}"
-    temperature = "-"
     try:
+        cpu = f"{psutil.cpu_percent(interval=None):.0f}"
+        memory = f"{psutil.virtual_memory().percent:.0f}"
+        temperature = "-"
         for readings in psutil.sensors_temperatures().values():
             if readings:
                 temperature = f"{readings[0].current:.0f}"
                 break
     except (AttributeError, NotImplementedError, OSError):
-        pass
+        return "-", "-", "-"
+
     return cpu, memory, temperature
 
 def _address():
