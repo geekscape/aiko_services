@@ -1,0 +1,11 @@
+.git
+.hatch
+__pycache__
+*.pyc
+venv
+.venv
+.idea
+.coverage
+.pytest_cache
+**/__pycache__
+**/*.pyc
