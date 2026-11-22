@@ -9,17 +9,19 @@ status: work-in-progress
 ste: adapted
 source:
   - scripts/host_declone.sh
+  - scripts/respawn.sh
   - src/aiko_services/main/daemon_supervisor/ReadMe.md
   - src/aiko_services/actors/power_manager/ReadMe.md
 related: [../concepts/process_manager, ../concepts/dashboard_plugin]
-last_updated: 2026-11-10
+last_updated: 2026-11-20
 ---
 
 # Provision a host to run Aiko Services 24 hours a day
 
 This is the order in which a host is built, and the reason for each step.
 It is written from the hosts that run it, and each step names what proves
-that it worked.
+that it worked. The last section lists what a host is, as data, for a
+port to a declarative system such as NixOS.
 
 A deployment has its own names, addresses and keys. **None of them are in
 this document**, because this repository is public. Keep them in a
@@ -58,6 +60,21 @@ definition.
 A Raspberry Pi 5 that boots from USB needs `usb_max_current_enable=1` in
 `/boot/firmware/config.txt`. On a Pi 4 that line is inert, and it does no
 harm to leave it in a shared configuration.
+
+## Build each host, do not copy one
+
+Build each new host from this procedure, and pull the code from `master`
+and from the application's main branch. Do not copy the storage of a
+host that runs.
+
+- A built host has the latest code, and no identity of another host.
+- Each defect found during a build becomes a step in this document, so
+  the next build does not find it again.
+- A copy carries the old host's identity, keys, queue and local changes.
+  Step 1 removes the identity. Nothing removes the rest.
+
+A copy is correct in one case only: to reuse storage that already holds
+a built host, for a new host name. Then step 1 is mandatory.
 
 ## 1. De-clone, before the host meets a network
 
@@ -139,8 +156,28 @@ compared to it.
 ```bash
 git clone <this repository> ~/aiko_services
 cd ~/aiko_services && git switch master
-python3 -m venv ~/venvs/venv_3.13
-~/venvs/venv_3.13/bin/pip install -e ~/aiko_services
+python3 -m venv --system-site-packages ~/venvs/venv_3.13
+~/venvs/venv_3.13/bin/pip install -e "$HOME/aiko_services[server,video]"
+```
+
+Add the extra for each camera that the host uses: `depthai` for a
+Luxonis camera, `ids_peak` for an IDS camera. The IDS camera also needs
+the vendor's native SDK, which is a separate installation.
+
+**`--system-site-packages` is necessary.** The hardware Actors import
+packages that the operating system supplies: `smbus2`, `gpiozero`,
+`spidev`, `lgpio` and `gi`. A virtual environment without the system
+packages cannot find them.
+
+**The `video` extra installs an OpenCV wheel that is necessary.** It
+hides the system `python3-opencv`. On a Raspberry Pi 4 the system
+OpenCV encodes H.264 in software, at 166 ms for each 1080p frame. The
+wheel uses the hardware encoder.
+
+Record the exact versions, so that the next host can be compared:
+
+```bash
+~/venvs/venv_3.13/bin/pip list --local --format=freeze > ~/pip_freeze.txt
 ```
 
 **A host runs `master`.** A host left on a topic branch is a host nobody
@@ -238,8 +275,34 @@ systemd's own `PATH` does not include the virtual environment. A command
 it cannot find is logged as a warning, and nothing else.
 
 Keep a variant of the definition for each mode the host runs in, and a
-symbolic link that selects one. A host being built points the link at
-the variant that starts the platform only.
+symbolic link that selects one. Every host of a deployment has the same
+four variants:
+
+| Variant | Entries that run | Use |
+|---|---|---|
+| `_none` | The Registrar, the power manager | **While a host is built**, and to stop the capture |
+| `_forward` | ...and the Display, the link to the receiver, and the forwarder | Send the queue, and capture nothing |
+| `_prod` | ...and the camera Pipeline | Production |
+| `_local` | `_prod`, with a receiver on the host itself in place of the link | A bench or boot test of the full chain. Nothing goes to the production receiver |
+
+`_local` fills the host's own storage, because the receiver keeps each
+segment. Use it for a test, then select `_none` or `_prod`.
+
+```bash
+ln -sfn <host>_supervisor.json_none ~/<host>_supervisor.json
+```
+
+The ProcessManager does not start a process again when it exits (see
+[ProcessManager](../concepts/process_manager.md)). So each entry that
+must keep running wraps its command in `scripts/respawn.sh`:
+
+```json
+"command": ["/home/<account>/aiko_services/scripts/respawn.sh", "10",
+            "/home/<account>/venvs/venv_3.13/bin/aiko_registrar"]
+```
+
+`respawn.sh` starts the command again 10 s after it exits. It sends
+`SIGTERM` to the command when the ProcessManager stops the entry.
 
 *Proved by:* `systemctl is-enabled` and `is-active`, then
 `aiko_process list` shows the entries.
@@ -278,8 +341,33 @@ A cloud instance is always on a network the repository answers to. Such a
 host uses its own read-only credential in the usual way. The bundle is
 for the host that is not.
 
+Install the application into the same virtual environment. Use
+`--no-deps`, so that it does not change the versions that step 4
+recorded:
+
+```bash
+~/venvs/venv_3.13/bin/pip install --no-deps -e <application directory>
+```
+
 *Proved by:* `git log source/<branch>` on the host shows the commit the
 deployment runs, and that commit matches the record for this host.
+
+### Each host has its own key for each outbound link
+
+A link from the host to a receiver, for example an SSH tunnel, uses a
+key. **Make a new key on each host.** Do not copy the key of another
+host. Add each public key to the receiver separately, so that one host
+can be removed without a change to the others.
+
+```bash
+ssh-keygen -t ed25519 -N "" -C "<account>@<host>-><receiver>" \
+  -f ~/.ssh/id_ed25519_<receiver>
+```
+
+Add an entry to `~/.ssh/config` that names the key, with
+`IdentitiesOnly yes`. A tunnel that runs with `BatchMode=yes` does not
+find a key with a non-standard name without this entry, and it does not
+ask. It stops, and `respawn.sh` tries again each 30 s.
 
 ### Which commit a host runs, and how to be sure
 
@@ -345,8 +433,9 @@ Services system, with no deployment's private names in it:
   power manager, the Recorder, the StoreForward pair.
 - **The hardware notes**, by board: what a Pi 4 does that a Pi 5 does
   not, and the opposite.
-- **An inventory**, so that a fleet can be read at a glance: which host
-  is which kind, where it is, and what it runs.
+- **A fleet inventory**, so that a fleet can be read at a glance: which
+  host is which kind, where it is, and what it runs. The host inventory
+  below is the part for one host.
 
 Each section is written when a host of that kind is built, and not
 before. Every section here was written while a host was built. Each one
@@ -363,3 +452,37 @@ in ways that are hard to see:
 | `/boot/firmware` | the boot configuration, including the bus and the storage |
 | `/var/spool/cron` | a scheduled job is invisible without it |
 | `/usr/lib/systemd/system-shutdown` | the shutdown hook, which is rendered, so this one costs nothing |
+
+## Host inventory, for a declarative port
+
+The steps above say how a host was made. A port to a declarative
+system, for example NixOS, needs **what the host is**. Record these for
+each host. Each row becomes one option or one module.
+
+| Kind | What to record | Read it with |
+|---|---|---|
+| Board and image | The board model, the image date, the kernel | `cat /proc/device-tree/model`, `cat /etc/rpi-issue`, `uname -r` |
+| Boot configuration | Each active line, and each `[section]` | `grep -v '^#' /boot/firmware/config.txt`, `cmdline.txt` |
+| Kernel modules | The modules loaded at boot | `/etc/modules`, `/etc/modules-load.d/` |
+| Operating system packages | The packages installed by a person | `apt-mark showmanual` |
+| Python packages | The exact versions in the virtual environment | `pip list --local --format=freeze` |
+| Accounts | Each account, its groups and its shell | `id <account>`, `getent passwd` |
+| Privilege | Each `sudoers` grant | `/etc/sudoers.d/` |
+| Device access | Each `udev` rule that is not from a package | `/etc/udev/rules.d/` |
+| Services | Each unit: command, account, directory, environment, order, restart | `systemctl cat <unit>`, `systemctl show <unit>` |
+| Shutdown hook | The file and its mode | `/usr/lib/systemd/system-shutdown/` |
+| Scheduled jobs | Each crontab | `crontab -l`, `/var/spool/cron` |
+| Network | Each interface and its address; each connection profile; the access point | `ip -br addr`, `nmcli con show <profile>` |
+| Message broker | The listener and the access rules | `/etc/mosquitto/` |
+| Name service | The mDNS settings | `/etc/avahi/avahi-daemon.conf` |
+| Identity | The machine id, the SSH host keys, the NetworkManager secret key | `host_declone.sh --show` |
+| Per-host values | The host name, the access point SSID, the camera, the outbound keys | This document, steps 2 and 7 |
+| Code | The repository, the branch and the commit of each checkout | `git log -1` |
+| Definitions | The ProcessManager definition variants, and the one that is selected | `readlink ~/<host>_supervisor.json` |
+
+Two rows are not configuration, and a port must not copy them from
+another host:
+
+- **The identity.** A declarative system makes it on the first boot.
+- **The outbound keys.** Make them on the host, as step 7 says.
+
