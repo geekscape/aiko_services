@@ -129,7 +129,7 @@ def main(ctx, name, timeout):
     aiko_display set contrast 64       # a setting: the Dashboard edits it too
     aiko_display applet pong           # an applet; applet -l lists them
     aiko_display keys                  # an interactive console
-    aiko_display -n w3029f1 -t 3 applet eyes  # another host, 3s to find it
+    aiko_display -n edge01 -t 3 applet eyes   # another host, 3s to find it
     aiko_display exit
     """
 

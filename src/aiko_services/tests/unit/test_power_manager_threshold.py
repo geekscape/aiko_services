@@ -341,7 +341,7 @@ def test_the_loss_can_be_turned_on_while_the_actor_runs():
 
 # The dock line and the supply voltage (§6 item 11) ------------------------ #
 #
-# The forklift found this.  Its supply was powered down and the rail sat
+# A field host found this.  Its supply was powered down and the rail sat
 # between 0.3 V and 2.7 V, and the host reported "docked".  A host that
 # believes it is docked starts no deadline, tells no writer to stop, and
 # holds its own power on until the battery pack is flat.
@@ -420,7 +420,7 @@ def test_a_disagreement_is_published_and_counted():
     assert int(actor.share["metrics"]["dock_disagreements"]) == 1
 
 def test_a_disagreement_is_counted_once_and_not_every_sample():
-    """A forklift is powered down for weeks.  A warning every sample for
+    """A host can be powered down for weeks.  A warning every sample for
     weeks is one an operator stops reading"""
 
     actor = make_actor(script=[

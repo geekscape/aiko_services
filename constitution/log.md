@@ -6,6 +6,13 @@ Every substantive change appends an entry under its date heading
 This journal begins at the constitution's first public release. The
 pre-publication history is maintained privately.
 
+## 2026-11-23
+
+- **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)
+  and [adr/ADR-028_PowerManagement.md](adr/ADR-028_PowerManagement.md): the
+  host names and an example of a deployment use generic words. No rule
+  changes.
+
 ## 2026-11-09
 
 - **Update** — [g_03_AgentContext.md](g_03_AgentContext.md) and

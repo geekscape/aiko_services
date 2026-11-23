@@ -95,7 +95,7 @@ def test_service_filter_defaults_to_the_hostname():
     filter_ = service_filter(None)
     assert filter_.name == get_hostname()
     assert filter_.protocol == PROTOCOL
-    assert service_filter("w3029f1").name == "w3029f1"
+    assert service_filter("edge01").name == "edge01"
 
 def test_remote_commands_send_the_wire_command(remote):
     assert invoke("text", "0", "8", "hello", "world").exit_code == 0

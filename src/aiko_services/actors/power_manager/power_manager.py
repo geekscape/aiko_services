@@ -900,7 +900,7 @@ class PowerManagerCommon:
     def _report_dock(self, disagreement):
         """Report a dock line and a supply that do not agree.
 
-        On the change only.  A forklift is powered down for weeks, and a
+        On the change only.  A host can be powered down for weeks, and a
         warning every sample for weeks is one an operator stops reading.
         The conservative answer is taken either way: a host that quietly
         corrected a broken signal would teach nobody that it is broken"""

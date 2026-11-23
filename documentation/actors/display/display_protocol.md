@@ -77,7 +77,7 @@ interaction=0`. The device tag names the display backend in use. A client
 that needs only drawing filters on the tag `canvas=0`:
 
 ```python
-aiko.ServiceFilter("*", "w3029f1", PROTOCOL, "*", "*", "*")
+aiko.ServiceFilter("*", "edge01", PROTOCOL, "*", "*", "*")
 aiko.ServiceFilter("*", "*", "*", "*", "*", ["canvas=0"])
 ```
 

@@ -57,7 +57,7 @@ whole point is distribution.
 
 **A deployed host has two accounts.** Production runs under its own account, started by one
 systemd unit that runs one ProcessManager (ADR-026). Agent work uses a second, development
-account. On the w3029f edge hosts these are `pi` and `claude`. Test in a copy under `/tmp`,
+account. On the Raspberry Pi edge hosts these are `pi` and `claude`. Test in a copy under `/tmp`,
 never in the production clone or its virtual environment.
 
 ## 3. Repositories and their roles

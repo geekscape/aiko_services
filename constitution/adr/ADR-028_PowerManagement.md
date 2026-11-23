@@ -556,7 +556,7 @@ Interface with one Implementation for each platform, chosen by a `choose_*()` fu
     Turning the threshold off leaves one signal where this design calls for two. That is for
     a deployment whose dock line is trusted on its own, or which has no supply monitor.
 
-    A forklift found this, with its supply powered down and the rail between 0.3 V and 2.7 V.
+    A field host found this, with its supply powered down and the rail between 0.3 V and 2.7 V.
     The rule had been adopted for phase 3 and was never written: `docked` was the line alone.
 
 ## Consequences
