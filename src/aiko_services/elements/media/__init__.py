@@ -39,7 +39,15 @@ from .video_io import (
 
 from .synthetic_io import SyntheticVideoRead
 
-from .store_forward_io import VideoWriteStoreForward
+from .store_forward_base import (
+    CommitStoreForward, ReadStoreForward, SegmentCodec,
+    SegmentReader, SegmentWriter, WriteStoreForward
+)
+
+from .store_forward_io import (
+    TextCodec, TextReadStoreForward, TextWriteStoreForward,
+    VideoWriteStoreForward
+)
 
 from .webcam_io import VideoReadWebcam
 

@@ -59,9 +59,9 @@ def network(monkeypatch):
     return resolved
 
 def test_ipv4_is_tried_first_even_when_the_resolver_lists_ipv6_first(network):
-    network["w3029f1.local"] = [info(socket.AF_INET6, IPV6), info(socket.AF_INET, IPV4)]
+    network["edge01.local"] = [info(socket.AF_INET6, IPV6), info(socket.AF_INET, IPV4)]
     FakeSocket.outcomes = {IPV4: None, IPV6: TimeoutError()}
-    assert configuration._resolve_mqtt_host("w3029f1.local", 1883) == IPV4
+    assert configuration._resolve_mqtt_host("edge01.local", 1883) == IPV4
     assert FakeSocket.attempts == [(socket.AF_INET, IPV4, configuration._MQTT_PROBE_TIMEOUT)]
 
 def test_ipv4_refused_falls_back_to_ipv6(network):

@@ -75,7 +75,7 @@ class FakeClient:
 
 def make_mqtt(monkeypatch, tls=False, transport="tcp", address="192.168.0.137",
               server_up=True, connection_required=True, state_handler=None):
-    configuration = (server_up, "w3029f1.local", 1883, transport, None, None, tls, address)
+    configuration = (server_up, "edge01.local", 1883, transport, None, None, tls, address)
     monkeypatch.setattr(mqtt_module, "get_mqtt_configuration", lambda: configuration)
     monkeypatch.setattr(mqtt_module.mqtt, "Client", FakeClient)
     FakeClient.instances = []
@@ -95,15 +95,15 @@ def test_tls_off_connects_to_the_address(monkeypatch):
 def test_tls_on_keeps_the_host_name(monkeypatch):
     make_mqtt(monkeypatch, tls=True)
     client = FakeClient.instances[-1]
-    assert client.connected_to == ("w3029f1.local", 1883) and client.tls
+    assert client.connected_to == ("edge01.local", 1883) and client.tls
 
 def test_websockets_keep_the_host_name(monkeypatch):
     make_mqtt(monkeypatch, transport="websockets")
-    assert FakeClient.instances[-1].connected_to == ("w3029f1.local", 1883)
+    assert FakeClient.instances[-1].connected_to == ("edge01.local", 1883)
 
 def test_no_address_keeps_the_host_name(monkeypatch):
     make_mqtt(monkeypatch, address=None)
-    assert FakeClient.instances[-1].connected_to == ("w3029f1.local", 1883)
+    assert FakeClient.instances[-1].connected_to == ("edge01.local", 1883)
 
 @pytest.mark.parametrize("error", [TimeoutError("timed out"), OSError(65, "No route to host"),
                                    ConnectionRefusedError(), ConnectionResetError()])
@@ -120,7 +120,7 @@ def test_server_down_and_not_required_retries_in_background(monkeypatch):
     mqtt = make_mqtt(monkeypatch, server_up=False, address=None,
                      connection_required=False)
     client = FakeClient.instances[-1]
-    assert client.connect_async_to == ("w3029f1.local", 1883)
+    assert client.connect_async_to == ("edge01.local", 1883)
     assert client.calls == ["loop_start"]
     assert mqtt.connected == MessageState.DISCONNECTED
 

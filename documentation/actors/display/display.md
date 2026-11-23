@@ -196,7 +196,7 @@ the annunciators, a space and 8 for the clock. Below it, every number
 keeps a fixed width, so nothing jumps:
 
 ```text
-▮w3029f1   LMR 14:26:45▮   the title row, inverse video
+▮edge01    LMR 14:26:45▮   the title row, inverse video
 IP 192.168.0.137
 CPU 12% Mem 34%
 Dsk 61% R 111k T 1.1k      received and sent, bytes per second: three digits and a unit
