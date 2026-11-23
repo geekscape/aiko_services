@@ -384,3 +384,59 @@ def test_pipelines_write_then_read(tmp_path):
     assert {frame["sensor"] for frame in results["frames"]} == {"thermometer"}
     assert sorted(os.listdir(os.path.join(work, "done"))) == names
     assert os.listdir(outbox) == []
+
+
+def test_reader_waits_for_sequence_1_of_a_new_writer(tmp_path):
+    """Sequence 1 arrives last: nothing is applied before it, then 1, 2, 3."""
+
+    outbox, work, state = _dirs(tmp_path)
+    names = _write(outbox, state, 3)
+    held = os.path.join(tmp_path, names[0])
+    os.replace(os.path.join(outbox, names[0]), held)
+
+    reader = SegmentReader(outbox, work, TextCodec(), gap_timeout=100)
+    assert _drain(reader, now=0.0) == []
+    assert _drain(reader, now=50.0) == []
+    os.replace(held, os.path.join(outbox, names[0]))
+    assert _drain(reader, now=60.0) == names
+    assert reader.counters["duplicates"] == 0
+
+def test_reader_continues_without_sequence_1_after_the_gap_timeout(tmp_path):
+    outbox, work, state = _dirs(tmp_path)
+    names = _write(outbox, state, 3)
+    os.remove(os.path.join(outbox, names[0]))         # never arrives
+
+    reader = SegmentReader(outbox, work, TextCodec(), gap_timeout=100)
+    assert _drain(reader, now=0.0) == []
+    assert _drain(reader, now=101.0) == names[1:]
+    assert reader.counters["gaps"] == 1
+
+def test_an_idle_reader_outlives_the_stream_grace_time(tmp_path):
+    """Segments arrive after 4 s with a 2 s grace time: each poll extends
+    the Stream lease, so the reader is still there to apply them"""
+
+    import threading
+
+    outbox, work, state = _dirs(tmp_path)
+    staging = tmp_path / "staging"
+    staging.mkdir()
+    writer = SegmentWriter(str(staging), "host0", TextCodec(compress="gzip"),
+                           state)
+    names = [writer.write(_frame(index))[0] for index in range(3)]
+
+    def deliver():
+        for name in names:
+            os.replace(staging / name, os.path.join(outbox, name))
+
+    timer = threading.Timer(4.0, deliver)
+    results = do_results_initialize()
+    timer.start()
+    try:
+        do_create_pipeline(READER_PIPELINE
+            .replace("INBOX", outbox).replace("WORK", work),
+            frame_data=None, grace_time=2)
+    finally:
+        timer.cancel()
+    assert len(results["frames"]) == 3, (
+        f"stopped={results['stopped']} watchdog={results['watchdog']}")
+    assert sorted(os.listdir(os.path.join(work, "done"))) == sorted(names)
