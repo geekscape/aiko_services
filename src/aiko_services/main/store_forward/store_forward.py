@@ -966,9 +966,15 @@ def _run(name, role, message, inbox, outbox, outbox_period, link_timeout,
     except OSError as os_error:
         click.echo(f"store_forward {role}: cannot start: {os_error}", err=True)
         sys.exit(1)
-    # No MQTT server is needed: segments move over the StoreForwardMessage
-    # layer, and a host with no broker (or a broker across the link that is
-    # down) must still store and forward.  MQTT is retried in the background
+    _process_run()
+
+def _process_run():
+    """Run the event loop.  No MQTT server is needed: segments move over the
+    StoreForwardMessage layer, and a host with no broker (or a broker across
+    the link that is down) must still store and forward.  MQTT is retried in
+    the background.  A function of its own, so that a test can replace it
+    without touching the process-global aiko.process"""
+
     aiko.process.run(mqtt_connection_required=False)
 
 def _common_options(function):
