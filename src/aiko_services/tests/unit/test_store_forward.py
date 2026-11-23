@@ -310,7 +310,8 @@ def test_last_error_token(tmp_path):
 
 def test_queue_and_sampled(tmp_path):
     actor, message, _, outbox = make_actor(tmp_path)
-    assert actor.share["queue"] == {"depth": "0", "oldest_s": "0", "bytes": "0"}
+    assert actor.share["queue"] ==  \
+        {"depth": "0", "oldest_s": "0", "bytes": "0", "alert": "false"}
     for name, size in (("a.txt", 100), ("b.txt", 200), ("c.txt", 300)):
         write_segment(str(outbox), name, size)
     old = os.path.join(str(outbox), "a.txt")
@@ -734,3 +735,45 @@ def test_a_missing_sent_directory_is_not_an_error(tmp_path):
 def test_the_option_reaches_the_actor(tmp_path):
     actor, _, _, _ = make_actor(tmp_path, sent_max_age=3600)
     assert actor.sent_max_age == 3600
+
+# Queue alert and running without an MQTT server --------------------------- #
+
+def test_queue_alert_rises_and_clears(tmp_path):
+    actor, _, _, outbox = make_actor(tmp_path)
+    actor.queue_alert_s = 60
+    write_segment(str(outbox), "a.txt", 100)
+    old = os.path.join(str(outbox), "a.txt")
+    os.utime(old, (time.time() - 30, time.time() - 30))
+    actor._outbox_scan()
+    assert actor.share["queue"]["alert"] == "false"         # 30 s: below
+    os.utime(old, (time.time() - 90, time.time() - 90))
+    actor._outbox_scan()
+    assert actor.share["queue"]["alert"] == "true"          # 90 s: above
+    os.remove(old)
+    actor._outbox_scan()
+    assert actor.share["queue"]["alert"] == "false"         # empty: cleared
+
+def test_queue_alert_zero_disables(tmp_path):
+    actor, _, _, outbox = make_actor(tmp_path)
+    actor.queue_alert_s = 0
+    write_segment(str(outbox), "a.txt", 100)
+    old = os.path.join(str(outbox), "a.txt")
+    os.utime(old, (time.time() - 100000, time.time() - 100000))
+    actor._outbox_scan()
+    assert actor.share["queue"]["alert"] == "false"
+
+def test_the_actor_runs_without_an_mqtt_server(tmp_path, monkeypatch):
+    """A host with no broker, or one across a link that is down, must
+    still store and forward: _run() asks for no MQTT connection"""
+
+    from aiko_services.main.store_forward import store_forward
+    calls = []
+    monkeypatch.setattr(type(aiko.process), "run",
+        lambda self, **kwargs: calls.append(kwargs))
+    inbox = tmp_path / "in"
+    outbox = tmp_path / "out"
+    inbox.mkdir()
+    outbox.mkdir()
+    store_forward._run("st_test_no_mqtt", "edge", FakeMessage("edge", True),
+        str(inbox), str(outbox), 0, 10.0, 86400.0, queue_alert_s=120)
+    assert calls == [{"mqtt_connection_required": False}]

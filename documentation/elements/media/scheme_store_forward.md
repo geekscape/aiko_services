@@ -1,8 +1,9 @@
 ---
 title: StoreForward DataScheme
-description: The store_forward:// DataScheme — a target-only scheme that
-  names the outbox directory a SegmentStoreForward Actor watches, so a
-  Pipeline can hand finished segments to the store / forward custodian
+description: The store_forward:// DataScheme — as a target it names the
+  outbox directory that a SegmentStoreForward Actor watches; as a source it
+  names the inbox that the Actor fills, which a ReadStoreForward element
+  reads in order
 type: concept
 audience: [developers, end-users]
 status: work-in-progress
@@ -10,9 +11,9 @@ ste: adapted
 source:
   - src/aiko_services/elements/media/scheme_store_forward.py
 related: [scheme, data_source_target, store_forward, store_forward_io,
-  scheme_file]
+  store_forward_base, scheme_file]
 version: "0.8-dev"
-last_updated: 2026-09-15
+last_updated: 2026-11-23
 ---
 
 # StoreForward DataScheme
@@ -20,12 +21,17 @@ last_updated: 2026-09-15
 ## Overview
 
 **`DataSchemeStoreForward`** registers the `store_forward://` URL scheme
-for the [DataScheme](../../concepts/scheme.md) lookup. It is target-only:
-a `data_targets` URL names the outbox directory that a
+for the [DataScheme](../../concepts/scheme.md) lookup. A `data_targets`
+URL names the outbox directory that a
 [SegmentStoreForward](../../concepts/store_forward.md) Actor watches. The
-DataTarget element that uses it,
-[`VideoWriteStoreForward`](store_forward_io.md), writes each finished
+DataTarget elements that use it,
+[`VideoWriteStoreForward`](store_forward_io.md) and
+[`TextWriteStoreForward`](store_forward_base.md), write each finished
 segment into that directory, and the Actor forwards it to the peer host.
+
+A `data_sources` URL names the inbox that the peer Actor fills. Only a
+[`ReadStoreForward`](store_forward_base.md) element, for example
+`TextReadStoreForward`, can use it as a source.
 
 **Why to use it**: a Pipeline stays a dataflow graph (P8) and knows
 nothing about the network. It writes files. The Actor, a separate
@@ -56,13 +62,17 @@ in the PipelineDefinition:
 
 # Optional file name prefix (default: none)
 -p VideoWriteStoreForward.segment_prefix cam0
+
+# Source: the inbox, and a work directory outside it
+-p TextReadStoreForward.data_sources "(store_forward:///srv/inbox/host3)"
+-p TextReadStoreForward.work_directory "~/store_forward/host3"
 ```
 
 ### Public API
 
 ```python
 class DataSchemeStoreForward(aiko.DataScheme):
-    def create_sources(self, stream, data_sources, ...)   # ERROR: target-only
+    def create_sources(self, stream, data_sources, frame_generator, ...)
     def create_targets(self, stream, data_targets)
 
 aiko.DataScheme.add_data_scheme("store_forward", DataSchemeStoreForward)
@@ -75,6 +85,14 @@ empty, no prefix. Then it sets two Stream variables for the element:
 `target_outbox` and `target_prefix`. It publishes `outbox` in the
 element's share. A missing directory or a bad prefix returns
 `StreamEvent.ERROR` with a diagnostic.
+
+`create_sources()` accepts only a `ReadStoreForward` element. Such an
+element puts a reader factory in the Stream variables before it calls the
+scheme. The scheme resolves the inbox and checks that it is a readable
+and writable directory. It checks that `work_directory` is set and is
+outside the inbox. Then it asks the element for its `SegmentReader` and
+publishes `inbox` in the share of the element. Last, it starts the frame
+generator at `rate` polls each second (default 1.0).
 
 ## For framework developers (internals)
 
@@ -113,12 +131,12 @@ the element closes its own writer in `stop_stream()`.
 
 | Class | Responsibilities | Collaborators |
 |-------|------------------|---------------|
-| `DataSchemeStoreForward` | Resolve and validate the outbox URL, seed the Stream variables, refuse use as a source | `DataScheme`, `VideoWriteStoreForward` |
+| `DataSchemeStoreForward` | Resolve and validate the outbox or inbox URL, seed the Stream variables, start the reader frame generator | `DataScheme`, `VideoWriteStoreForward`, `WriteStoreForward`, `ReadStoreForward` |
 
 ## Current limitations and roadmap
 
-- Target-only. A `store_forward://` DataSource that reads segments
-  arriving in an inbox into a Pipeline on the recipient host is planned.
+- Only a `ReadStoreForward` element can use the scheme as a source.
+  A video reader is planned.
 - The element relies on the Actor's outbox watcher to notice a closed
   segment. Announcing it with `(send_segment ID NAME)` is planned.
 
@@ -128,5 +146,8 @@ the element closes its own writer in `stop_stream()`.
 - [Data Source / Target](../../concepts/data_source_target.md)
 - [StoreForward](../../concepts/store_forward.md), the Actor that
   watches the outbox
-- [store_forward_io](store_forward_io.md), the element that writes there
+- [store_forward_io](store_forward_io.md), the video element that writes
+  there
+- [store_forward_base](store_forward_base.md), the generic and text
+  elements for both sides
 - [scheme_file](scheme_file.md), the model this scheme follows

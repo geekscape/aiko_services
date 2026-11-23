@@ -129,6 +129,26 @@ sections are.
   and the *VideoWriteStoreForward* DataTarget put video segments from a
   Pipeline in the outbox.  See *documentation/concepts/store_forward.md*
 
+* StoreForward generic elements and text segments,
+  *src/aiko_services/elements/media/store_forward_base.py*:
+  *WriteStoreForward* writes frames as segments named
+  *<writer>_<UTC>_<sequence>* into an outbox.  *ReadStoreForward* reads
+  them from the inbox of the peer, one segment at a time, in the order
+  that each writer wrote them.  It holds a missing sequence for
+  *gap_timeout* seconds.  *CommitStoreForward* moves a segment to *done/*
+  only after the elements before it returned *OKAY*.  Delivery is thus
+  at-least-once.  A media type supplies a *SegmentCodec*.  The first is
+  *TextCodec*, with *TextWriteStoreForward* and *TextReadStoreForward*:
+  a header line with the frame fields, then the text, optionally gzip.
+  The *store_forward://* DataScheme is now also a source.  See
+  *documentation/elements/media/store_forward_base.md*
+
+* *aiko_store_forward* no longer needs an MQTT server to start.  It
+  stores and forwards without one, and tries MQTT again in the
+  background.  New option *--queue_alert_s* (default 3600) sets the share
+  item *queue.alert* and logs a warning while the oldest outbox segment
+  is older than that
+
 * *VideoWriteStoreForward* defaults are now *format* *avc1* (H.264 in
   MP4) and *frame_rate* *8.0*.  Measured on an embedded ARM computer,
   OpenCV's *mp4v* takes 111 ms per 1920x1080 frame and *avc1* 35 ms.

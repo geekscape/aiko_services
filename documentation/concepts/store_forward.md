@@ -15,7 +15,7 @@ source:
 related: [design_overview, actor, share, connection, data_source_target,
   scheme, dashboard]
 version: "0.8-dev"
-last_updated: 2026-09-15
+last_updated: 2026-11-23
 ---
 
 # StoreForward
@@ -40,7 +40,7 @@ and receive. No Aiko Services traffic crosses the link in this first cut.
 Each host runs its own mosquitto and `aiko_registrar`, so its Actor
 appears on its own [Dashboard](dashboard.md).
 
-**Why you would use it.** A forklift appliance records camera video as
+**Why you would use it.** A vehicle appliance records camera video as
 segments while its Wi-Fi comes and goes. The segments must reach the site
 server complete, in order of no importance, without an operator. Two
 commands give that:
@@ -48,7 +48,7 @@ commands give that:
 ```bash
 aiko_store_forward server --inbox ~/store_forward/in --outbox ~/store_forward/out   # site host
 aiko_store_forward edge --inbox ~/store_forward/in --outbox ~/store_forward/out  \
-    --server_host site.local                                  # forklift
+    --server_host site.local                                  # vehicle
 cp segment.mp4 ~/store_forward/out                # arrives in the site host's inbox
 ```
 
@@ -56,20 +56,30 @@ cp segment.mp4 ~/store_forward/out                # arrives in the site host's i
 
 ### Command-line usage
 
-The console script is `aiko_store_forward`. Prerequisites on each host:
+The console script is `aiko_store_forward`. Recommended on each host:
 mosquitto and `aiko_registrar` with `AIKO_MQTT_HOST=localhost`
-(`scripts/system_start.sh`). The server host also needs Flask
-(`pip install flask`). The edge host needs only the core dependencies.
+(`scripts/system_start.sh`), so that the Actor appears on the Dashboard.
+They are not necessary: with no MQTT server, the Actor still stores and
+forwards, and it tries MQTT again in the background. The server host also
+needs Flask (`pip install flask`). The edge host needs only the core
+dependencies.
 
 ```bash
 aiko_store_forward server --inbox DIR --outbox DIR [--partial_directory DIR]  \
     [--http_port_range 8080-8089] [--bind 0.0.0.0] [--advertise_host HOST]  \
-    [--link_timeout 10] [--outbox_period 2] [--partial_max_age 86400]
+    [--link_timeout 10] [--outbox_period 2] [--partial_max_age 86400]  \
+    [--sent_max_age 0] [--queue_alert_s 3600]
 
 aiko_store_forward edge --inbox DIR --outbox DIR [--partial_directory DIR]  \
     --server_host HOST [--server_port 8080] | --server_url URL  \
-    [--poll_period 2] [--outbox_period 2] [--partial_max_age 86400]
+    [--poll_period 2] [--outbox_period 2] [--partial_max_age 86400]  \
+    [--sent_max_age 0] [--queue_alert_s 3600]
 ```
+
+`--queue_alert_s` is a number of seconds. While the oldest segment in
+the outbox is older than this, the share item `queue.alert` is `true`.
+When it becomes `true`, the Actor logs a warning. Zero turns the alert
+off.
 
 `--server_host` takes the server host's IP address or host name. Give
 the IP address on a network where `.local` names do not resolve.
@@ -102,6 +112,10 @@ A Pipeline writes video segments into the outbox with the
 `store_forward://` [DataScheme](scheme.md) and the `VideoWriteStoreForward`
 DataTarget, documented in
 [elements/media/store_forward_io](../elements/media/store_forward_io.md).
+A Pipeline writes text segments with `TextWriteStoreForward`. A Pipeline
+on the recipient host reads them in order from the inbox with
+`TextReadStoreForward` and `CommitStoreForward`, documented in
+[elements/media/store_forward_base](../elements/media/store_forward_base.md).
 
 ### Public API
 
@@ -133,6 +147,7 @@ are observed in `share`, never returned:
 | `progress.<id>` | `<bytes>/<size>` |
 | `last_error` | `<state>/<segment id or ->@UTC` of the latest failure |
 | `queue.depth`, `queue.oldest_s`, `queue.bytes`, `sampled_utc` | Segments in the outbox not yet delivered, refreshed by every scan |
+| `queue.alert` | `true` while `queue.oldest_s` is above `--queue_alert_s`, else `false` |
 | `metrics.*` | `sent_bytes`, `received_bytes`, `resumes`, `retries`, `failures`, `rejected_commands`, `out_dropped`, `link_downs` |
 
 `done` means the receiver verified the sha256 and is the reliable
@@ -300,7 +315,8 @@ Roadmap, in the order agreed with the Aiko Fleet / Aiko Server design:
 2. An MQTT push implementation of the seam through a bridged broker, with
    one Registrar per site.
 3. Discovery by name, protocol and tags.
-4. A `store_forward://` DataSource on the recipient host.
+4. A `store_forward://` DataSource on the recipient host. Done for text
+   segments (`TextReadStoreForward`). A video reader is planned.
 5. Fragmented MP4 segments.
 
 ## Related concepts

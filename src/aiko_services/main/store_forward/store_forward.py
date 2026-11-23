@@ -55,6 +55,8 @@
 #   last_error      <state>/<segment id or ->@UTC of the latest failure
 #   queue.depth queue.oldest_s queue.bytes  segments in the outbox not yet
 #                   delivered (waiting, queued and in flight)
+#   queue.alert     true while queue.oldest_s exceeds --queue_alert_s
+#                   (a warning is logged when it becomes true)
 #   sampled_utc     when queue.* were last refreshed (every outbox scan)
 #   peer.last_poll  server host: UTC of the last /out poll
 #   store_forwards.<id>  queued|hashing|offered|connecting|sending|fetching|
@@ -136,6 +138,10 @@ PARTIAL_MAX_AGE_S = 86400.0    # .part / .meta older than this are swept
 # directory grew by 2,563 files and 479 MB in an hour, which fills 863 GB
 # in about 75 days
 SENT_MAX_AGE_S = 0.0
+# A segment that waits in the outbox longer than this sets queue.alert and
+# logs a warning: the link has been down, or too slow, for that long.  Zero
+# turns the alert off
+QUEUE_ALERT_S = 3600.0
 
 # How long a claim on the host asks for, while the outbox has work.  It
 # extends itself, so this is how long the host would stay up if this Actor
@@ -247,6 +253,9 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             parameters.get("partial_max_age", PARTIAL_MAX_AGE_S))
         self.sent_max_age = float(
             parameters.get("sent_max_age", SENT_MAX_AGE_S))
+        self.queue_alert_s = float(
+            parameters.get("queue_alert_s", QUEUE_ALERT_S))
+        self._queue_alert = False
 
         # A battery pack is a finite resource, so a host that must stay up
         # for this Actor asks for the time it needs and holds a Lease.  The
@@ -294,7 +303,8 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             "last_error": "-",
             "powered_up": "released",
             "powered_up_seconds": f"{self.powered_up_seconds:.0f}",
-            "queue": {"depth": "0", "oldest_s": "0", "bytes": "0"},
+            "queue": {"depth": "0", "oldest_s": "0", "bytes": "0",
+                      "alert": "false"},
             "sampled_utc": utc_now(),
             "store_forwards": {}, "received": {}, "progress": {},
             "metrics": dict(self._metrics)
@@ -767,8 +777,25 @@ class SegmentStoreForwardImpl(SegmentStoreForward):
             self.ec_producer.update("queue.depth", str(depth))
             self.ec_producer.update("queue.oldest_s", str(oldest_s))
             self.ec_producer.update("queue.bytes", str(size_total))
+        self._check_queue_alert(depth, oldest_s)
         self.ec_producer.update("sampled_utc", utc_now())
         self._claim_powered_up(depth)
+
+    def _check_queue_alert(self, depth, oldest_s):
+        """queue.alert true while the oldest waiting segment is older than
+        queue_alert_s; a warning when it rises, information when it clears"""
+
+        alert = self.queue_alert_s > 0 and depth > 0  \
+            and oldest_s > self.queue_alert_s
+        if alert == self._queue_alert:
+            return
+        self._queue_alert = alert
+        self.ec_producer.update("queue.alert", "true" if alert else "false")
+        if alert:
+            self.logger.warning(f"outbox: {depth} segments waiting, oldest "
+                f"{oldest_s} s, above --queue_alert_s {self.queue_alert_s:.0f}")
+        else:
+            self.logger.info("outbox: queue alert cleared")
 
     def _claim_powered_up(self, depth):
         """Hold a claim on the host while segments wait to go, and give it
@@ -921,7 +948,7 @@ def _check_partial_directory(inbox, outbox, partial_directory):
 
 def _run(name, role, message, inbox, outbox, outbox_period, link_timeout,
     partial_max_age, sent_max_age=SENT_MAX_AGE_S, partial_directory=None,
-    powered_up_seconds=POWERED_UP_SECONDS):
+    powered_up_seconds=POWERED_UP_SECONDS, queue_alert_s=QUEUE_ALERT_S):
 
     parameters = {
         "message": message, "inbox": inbox, "outbox": outbox,
@@ -929,7 +956,8 @@ def _run(name, role, message, inbox, outbox, outbox_period, link_timeout,
         "partial_max_age": partial_max_age,
         "sent_max_age": sent_max_age,
         "partial_directory": partial_directory,
-        "powered_up_seconds": powered_up_seconds
+        "powered_up_seconds": powered_up_seconds,
+        "queue_alert_s": queue_alert_s
     }
     init_args = aiko.actor_args(name,
         parameters=parameters, protocol=PROTOCOL, tags=[f"role={role}"])
@@ -938,7 +966,10 @@ def _run(name, role, message, inbox, outbox, outbox_period, link_timeout,
     except OSError as os_error:
         click.echo(f"store_forward {role}: cannot start: {os_error}", err=True)
         sys.exit(1)
-    aiko.process.run()
+    # No MQTT server is needed: segments move over the StoreForwardMessage
+    # layer, and a host with no broker (or a broker across the link that is
+    # down) must still store and forward.  MQTT is retried in the background
+    aiko.process.run(mqtt_connection_required=False)
 
 def _common_options(function):
     options = [
@@ -970,7 +1001,11 @@ def _common_options(function):
         click.option("--powered_up_seconds", "-pu", default=POWERED_UP_SECONDS,
             show_default=True,
             help="Seconds of host power to claim while segments wait "
-                 "(0 does not claim, which suits a host on mains)")
+                 "(0 does not claim, which suits a host on mains)"),
+        click.option("--queue_alert_s", "-qa", default=QUEUE_ALERT_S,
+            show_default=True,
+            help="Seconds the oldest outbox segment may wait before "
+                 "queue.alert is set and a warning logged (0 disables)")
     ]
     for option in reversed(options):
         function = option(function)
@@ -997,8 +1032,8 @@ def main():
     help="Seconds without an edge host poll before link is down")
 
 def server(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
-    partial_max_age, sent_max_age, powered_up_seconds, http_port_range, bind,
-    advertise_host, link_timeout):
+    partial_max_age, sent_max_age, powered_up_seconds, queue_alert_s,
+    http_port_range, bind, advertise_host, link_timeout):
 
     _check_partial_directory(inbox, outbox, partial_directory)
     from aiko_services.main.store_forward.store_forward_http import (
@@ -1011,7 +1046,7 @@ def server(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
     _run(_default_name(name, "server"), "server", message,
         inbox, outbox, outbox_period, link_timeout, partial_max_age,
         sent_max_age,
-        partial_directory, powered_up_seconds)
+        partial_directory, powered_up_seconds, queue_alert_s)
 
 @main.command(help="Run the edge host Actor, polling the server host")
 @_common_options
@@ -1027,9 +1062,8 @@ def server(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
     help="Seconds between /out polls")
 
 def edge(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
-    partial_max_age, sent_max_age, powered_up_seconds, server_host,
-    server_port, server_url,
-    poll_period):
+    partial_max_age, sent_max_age, powered_up_seconds, queue_alert_s,
+    server_host, server_port, server_url, poll_period):
 
     _check_partial_directory(inbox, outbox, partial_directory)
     server_url = server_endpoint(server_url, server_host, server_port)
@@ -1042,7 +1076,7 @@ def edge(name, inbox, outbox, partial_directory, outbox_period, chunk_size,
     _run(_default_name(name, "edge"), "edge", message,
         inbox, outbox, outbox_period, LINK_TIMEOUT, partial_max_age,
         sent_max_age,
-        partial_directory, powered_up_seconds)
+        partial_directory, powered_up_seconds, queue_alert_s)
 
 if __name__ == "__main__":
     main()

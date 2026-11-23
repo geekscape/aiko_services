@@ -36,10 +36,11 @@ Navigation: [elements index](../ReadMe.md) ·
 | [images_to_video](images_to_video.md) | Legacy Pipeline_2020 script for images → video; superseded by `images_to_video_pipeline.json` |
 | [mp4_repair](mp4_repair.md) | `merge_leading_parameter_sets()` — repairs an H.264 MP4 whose first sample holds only the parameter sets, as the Raspberry Pi hardware encoder writes |
 | [scheme_file](scheme_file.md) | `file:` DataScheme — files, directories and `{}` glob/format templates; the default scheme |
-| [scheme_store_forward](scheme_store_forward.md) | `store_forward://` DataScheme — target-only; names the outbox that a SegmentStoreForward Actor watches, so a Pipeline hands finished segments to the store / forward custodian |
+| [scheme_store_forward](scheme_store_forward.md) | `store_forward://` DataScheme — as a target, names the outbox that a SegmentStoreForward Actor watches; as a source, names the inbox that a `ReadStoreForward` element reads in order |
 | [scheme_synth](scheme_synth.md) | `synth://` DataScheme — synthesized video frames with the frame id and a timestamp, no camera; an extensible kind/pattern URL grammar |
 | [scheme_tty](scheme_tty.md) | `tty://` DataScheme — line-oriented interactive terminal input/output |
 | [scheme_zmq](scheme_zmq.md) | `zmq://` DataScheme — out-of-band record transport over ZeroMQ PUSH/PULL |
+| [store_forward_base](store_forward_base.md) | `WriteStoreForward`, `ReadStoreForward`, `CommitStoreForward` — generic segment writer, ordered inbox reader and commit; `TextWriteStoreForward` / `TextReadStoreForward` with `TextCodec` |
 | [store_forward_io](store_forward_io.md) | `VideoWriteStoreForward` — DataTarget that groups frames into MP4 segments and writes each closed one into a store / forward outbox |
 | [synthetic_io](synthetic_io.md) | `SyntheticVideoRead` — camera-less video DataSource built on the `synth://` scheme |
 | [text_io](text_io.md) | Text sources, transforms and targets — files, terminal REPL or ZeroMQ; the exemplar element family |
