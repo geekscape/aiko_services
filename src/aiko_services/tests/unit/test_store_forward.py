@@ -766,14 +766,30 @@ def test_the_actor_runs_without_an_mqtt_server(tmp_path, monkeypatch):
     """A host with no broker, or one across a link that is down, must
     still store and forward: _run() asks for no MQTT connection"""
 
+    # Never patch aiko.process here: earlier tests patch "run" on that
+    # instance, and pytest's undo leaves the real method as an instance
+    # attribute, which hides a patch on the class.  The real event loop then
+    # runs inside pytest and blocks (CI hung for an hour).  Replace the
+    # module's own names instead, which nothing else shares
     from aiko_services.main.store_forward import store_forward
-    calls = []
-    monkeypatch.setattr(type(aiko.process), "run",
-        lambda self, **kwargs: calls.append(kwargs))
+
+    runs = []
+    monkeypatch.setattr(store_forward, "_process_run", lambda: runs.append(1))
     inbox = tmp_path / "in"
     outbox = tmp_path / "out"
     inbox.mkdir()
     outbox.mkdir()
     store_forward._run("st_test_no_mqtt", "edge", FakeMessage("edge", True),
         str(inbox), str(outbox), 0, 10.0, 86400.0, queue_alert_s=120)
+    assert runs == [1]
+
+def test_the_event_loop_asks_for_no_mqtt_connection(monkeypatch):
+    from types import SimpleNamespace
+    from aiko_services.main.store_forward import store_forward
+
+    calls = []
+    fake_process = SimpleNamespace(run=lambda **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(store_forward, "aiko",
+        SimpleNamespace(process=fake_process))
+    store_forward._process_run()
     assert calls == [{"mqtt_connection_required": False}]
