@@ -6,6 +6,19 @@ Every substantive change appends an entry under its date heading
 This journal begins at the constitution's first public release. The
 pre-publication history is maintained privately.
 
+## 2026-11-24
+
+- **Creation** — [adr/ADR-029_UnreliableLinksStoreForward.md](adr/ADR-029_UnreliableLinksStoreForward.md):
+  adopts P13. Number claimed in the registry in the same change. Directed and approved by the
+  project lead.
+- **Update** — [p_00_DesignPrinciples.md](p_00_DesignPrinciples.md): new principle P13. Data
+  that crosses a link that is not always available goes through StoreForward. An edge
+  process does its work with no remote MQTT server or Registrar. The remote Stream protocol
+  over MQTT is a known gap, and the coherent StoreForward layer under remote Streams is DA-6.
+  P13 joins Tier 2. [ReadMe.md](ReadMe.md),
+  [t_03_IdentifierGlossary.md](t_03_IdentifierGlossary.md) and
+  [g_03_AgentContext.md](g_03_AgentContext.md) list P13 and DA-6.
+
 ## 2026-11-23
 
 - **Update** — [g_02_ClaudeCodeOperatingGuide.md](g_02_ClaudeCodeOperatingGuide.md)

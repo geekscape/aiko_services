@@ -8,7 +8,7 @@ audience: [ai-coding-agents]
 status: operational
 ste: adapted
 related: [a_00_ArchitectureReview_2026-06, p_00_DesignPrinciples]
-last_updated: 2026-11-09
+last_updated: 2026-11-24
 ---
 
 # CLAUDE.md / AGENTS.md — Aiko Services
@@ -209,6 +209,13 @@ self.run_hook(HOOK_NAME, lambda: {"k": v})           # framework fires it
   development deployment may run allow-all (explicit config, advertised, never the shipped
   default, never on externally-reachable surfaces). But the no-unguarded-`eval()` rule holds
   in every mode: never add an eval code path for dev convenience.
+- **P13 (ADR-029):** data that must not be lost crosses an unreliable link (WAN, cellular,
+  Wi-Fi, between sites, to a cloud) only through StoreForward (`SegmentStoreForward` and the
+  `store_forward://` elements). An edge process must start and keep working with no remote MQTT
+  server or Registrar (`process.run(mqtt_connection_required=False)`). Remote PipelineElements
+  and remote Streams over MQTT are at-most-once, with no promise of robustness: do not design
+  a data path across an unreliable link on them. Claim only the robustness that tests of link
+  failure show.
 - Public method names become wire commands. Keep them S-expression-friendly (positional args, or
   a single trailing dict). Do **not** use return values to send data across the wire.
 - Discover with `ServiceFilter(topic_path, name, protocol, transport, owner, tags)` (six fields,

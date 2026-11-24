@@ -1,6 +1,6 @@
 ---
 title: Aiko Services — Framework Design Principles
-description: The framework design principles (P1–P10, P12) — the constitution
+description: The framework design principles (P1–P10, P12, P13) — the constitution
   of the framework. When a specification is silent, decisions appeal to these
 type: principles
 audience: [architects, developers, ai-coding-agents]
@@ -9,8 +9,9 @@ ste: adapted
 related: [e_00_TransitionPlan, p_01_PrinciplesGovernance,
   p_02_CandidatePrinciples, s_00_Specifications, s_02_InterfaceComposition,
   a_00_ArchitectureReview_2026-06, adr/ADR-021_SynthesizedDefaultInit,
-  adr/ADR-022_CompositionBoundary, adr/ADR-023_GuardedEvalDefaultDeny]
-last_updated: 2026-08-01
+  adr/ADR-022_CompositionBoundary, adr/ADR-023_GuardedEvalDefaultDeny,
+  adr/ADR-029_UnreliableLinksStoreForward]
+last_updated: 2026-11-24
 ---
 
 # Aiko Services — Framework Design Principles
@@ -376,13 +377,65 @@ default-deny. A policy-update path that is not itself access-controlled, observa
 auditable. Allow-all as a shipped default, an unadvertised mode, or on an
 externally-reachable surface.
 
+## P13. Unreliable links are crossed by StoreForward. The edge never depends on a remote broker
+
+*(Adopted 2026-11-24, ADR-029.)*
+
+**Rule.** Data that crosses a link that is not always available goes through StoreForward.
+Examples of such links are a WAN, cellular, Wi-Fi, satellite, a link between sites and a link
+to a cloud. StoreForward means four things:
+
+- The sender keeps the data on disk until the receiver has verified it.
+- A transfer resumes after the link drops.
+- The receiver applies the data idempotently, so a second delivery has no effect.
+- Order is kept where the application needs it.
+
+An edge Service, Actor, Agent, PipelineElement or Pipeline does its work with no remote MQTT
+server, remote Registrar or other remote service. A broker and Registrar local to the site are
+for discovery and visibility. The data path never needs them across the link.
+
+StoreForward is a layer with its own protocol: segments, a sequence for each writer, segment
+states, and commit and acknowledgment messages. The transport below it is chosen for the
+link: pull (HTTP) or push (MQTT with persistent sessions). The dataflow elements are above it,
+so a Pipeline gets durability with no change to its shape (P8). The reference implementation
+is the `SegmentStoreForward` Actor and the `store_forward://` elements
+(`documentation/concepts/store_forward.md`).
+
+*Why:* partitions are normal at the edge (P4), and delivery is at-most-once (P1). If the data
+path depends on a remote broker, each outage of the link or of the broker is an outage of the
+data path. The end-to-end argument puts the guarantee at the endpoints: durable custody at the
+sender, and an idempotent, ordered apply at the receiver.
+
+*Known gap (2026-11-24) — remote Streams carry no promise of robustness.* Remote
+PipelineElements (`PipelineRemote`), remote Streams and the remote Stream protocol (frame
+sequences, Stream states and the function calls between Pipelines) run over MQTT and the
+Registrar. They were not designed as a protocol, not specified, and not tested for link
+failure before production deployments used them across WAN links. An edge that depends on an
+MQTT server in the cloud for its data path is a design and deployment error. Remote Streams
+are at-most-once, and a Stream is destroyed when its lease expires. StoreForward is also work
+in progress: its tests cover the faults listed in ADR-029 on one host, and not real WAN links
+or long durations. The strengthened form is deferred amendment **DA-6, critically important**:
+remote PipelineElements and remote Streams are carried over the StoreForward layer, with pull
+and push transports. A conformance suite of link-failure tests applies to each
+implementation. DA-6 is promoted into P13 only when the source, tests, documentation and
+examples comply (G3).
+
+*Exception:* data whose loss is acceptable can use a remote Stream or MQTT directly across an
+unreliable link. The design document must record that choice and why. Examples are live
+telemetry, a live view and a Dashboard.
+
+*Forbidden:* a new edge deployment, example or design in which data that must not be lost
+crosses an unreliable link without StoreForward. An edge process that needs a remote MQTT
+server or Registrar to start or to keep working. Documentation, examples or release notes that
+claim delivery or robustness that tests of link failure have not shown.
+
 ---
 
 ## Precedence and prioritization (action 3, 2026-07-07)
 
 ### Precedence among the adopted principles (conflict resolution)
 
-All adopted principles bind (P1–P10, plus P12 since 2026-07-13). Precedence exists for the case
+All adopted principles bind (P1–P10, plus P12 since 2026-07-13 and P13 since 2026-11-24). Precedence exists for the case
 two principles genuinely collide in a design decision — a lower tier never justifies violating a
 higher tier. Within a tier, the project lead decides by ADR.
 
@@ -392,7 +445,8 @@ higher tier. Within a tier, the project lead decides by ADR.
   the most expensive to reverse.
 - **Tier 2 — architecture.** P3 (two messages / subscription), P4 (eventual consistency over
   consensus), P5 (discovery over configuration), P7 (composition of interfaces), P8 (declarative
-  dataflow graphs), P12 (guarded-by-default public API surface — added 2026-07-13). Violations
+  dataflow graphs), P12 (guarded-by-default public API surface — added 2026-07-13), P13
+  (StoreForward across unreliable links, no remote broker at the edge — added 2026-11-24). Violations
   are serious but repairable by refactoring one implementation.
 - **Tier 3 — disciplines.** P9 (edge-first frugality), P10 (elegance). These govern *how*
   decisions are executed rather than *what* the architecture is — with two scoped exceptions
@@ -400,7 +454,7 @@ higher tier. Within a tier, the project lead decides by ADR.
   footprint questions ("the Raspberry-Pi-class device wins the argument"), and P10 is the
   universal tiebreaker: when multiple compliant designs remain, the smallest that composes wins.
 
-### Deferred amendments DA-1…DA-5
+### Deferred amendments DA-1…DA-6
 
 Per the "principles are current, not aspirational" policy (G3), five strengthenings of
 P1/P3/P4/P5/P8 are **deferred amendments** — normative intentions held in the roadmap, not
@@ -410,6 +464,11 @@ maintained privately [Reserved for private items]. Each DA is promoted into its
 principle, per G3, only when the source, tests, documentation and examples comply.
 Promotion *is* the act of bringing the artifacts up to scratch, so the principles never
 drift from the code.
+
+**DA-6 (2026-11-24, ADR-029), critically important** — strengthens P13: remote
+PipelineElements and remote Streams are carried over the StoreForward layer, with pull and push
+transports. A conformance suite of link-failure tests applies to each implementation. Its
+wording is in P13's *Known gap* note.
 
 ---
 
@@ -466,7 +525,7 @@ Possibly a project principle rather than a framework principle. Action (2) decid
 
 ## How agents should use this document
 
-Before proposing a change, check it against the adopted principles (P1–P10, P12). If a change
+Before proposing a change, check it against the adopted principles (P1–P10, P12, P13). If a change
 conflicts with a principle, the change is wrong or the principle needs an ADR — there is no
 third option. In review, citing a
 principle by number ("rejected: violates P3, introduces a blocking getter") is the expected style:
@@ -477,6 +536,14 @@ section or critique U/S number) so that a future reader can reconstruct *why* ea
 
 ## Change log
 
+- **2026-11-24** — **P13 adopted** (directed and approved by the project lead, ADR-029): data
+  that crosses a link that is not always available goes through StoreForward. An edge
+  process does its work with no remote MQTT server, Registrar or other remote service. A
+  local broker and Registrar are for visibility only. Claims of robustness need tests of link
+  failure. The remote Stream protocol over MQTT is recorded as a known gap: it was not
+  designed, specified or tested for link failure before production use across WAN links. An
+  edge that depends on a cloud MQTT server is a design and deployment error. The coherent
+  StoreForward layer under remote Streams is deferred amendment DA-6. P13 joins Tier 2.
 - **2026-07-13 (c)** — P12 development-mode provision (project-lead amendment at ADR-023
   acceptance): in a simple, isolated development environment the guard posture may be set to
   allow-all for the edit/run/debug cycle. It is explicit per-deployment configuration,
