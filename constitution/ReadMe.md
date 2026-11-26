@@ -7,7 +7,7 @@ type: index
 audience: [project-lead, architects, developers, ai-coding-agents]
 status: operational
 ste: adapted
-last_updated: 2026-08-27
+last_updated: 2026-11-24
 ---
 
 # Aiko Services Constitution
@@ -52,7 +52,7 @@ records) and **superseded**.
 
 | Document | Status | One-line summary |
 |----------|--------|------------------|
-| [Framework Design Principles](p_00_DesignPrinciples.md) | normative | The framework design principles (P1–P10, P12) — the constitution of the framework; when a specification is silent, decisions appeal to these |
+| [Framework Design Principles](p_00_DesignPrinciples.md) | normative | The framework design principles (P1–P10, P12, P13) — the constitution of the framework; when a specification is silent, decisions appeal to these |
 | [Design Principles Governance](p_01_PrinciplesGovernance.md) | normative | The governance rules (G1–G7) for the Design Principles — how principles are adopted, amended, deferred and kept aligned with the code |
 | [Candidate Design Principles](p_02_CandidatePrinciples.md) | proposal | The missing crucial Design Principles — full draft wording, in-play assessments and adoption paths, awaiting ADRs |
 
