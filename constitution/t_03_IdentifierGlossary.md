@@ -11,7 +11,7 @@ ste: adapted
 related: [ReadMe, g_04_ModelHandoffGuide, p_00_DesignPrinciples,
   p_01_PrinciplesGovernance, p_02_CandidatePrinciples, t_01_OkfRfcTemplate,
   t_02_OkfTaxonomy]
-last_updated: 2026-07-31
+last_updated: 2026-11-24
 ---
 
 # Identifier glossary — every identifier family and its owning document
@@ -29,12 +29,12 @@ has exactly one **owning document** (the registry pattern). Two conventions bind
 
 | Identifier | Meaning | Owning document |
 |------------|---------|-----------------|
-| **P1–P10, P12** | The adopted framework design principles — the constitution of the framework (P12 adopted 2026-07-13, ADR-023: guarded evaluation + default-deny method exposure — candidate CP-E's promotion) | [p_00_DesignPrinciples.md](p_00_DesignPrinciples.md), one section per principle (rule, reasoning, forbidden anti-patterns) |
+| **P1–P10, P12, P13** | The adopted framework design principles — the constitution of the framework (P12 adopted 2026-07-13, ADR-023: guarded evaluation + default-deny method exposure — candidate CP-E's promotion; P13 adopted 2026-11-24, ADR-029: StoreForward across unreliable links, no remote broker at the edge) | [p_00_DesignPrinciples.md](p_00_DesignPrinciples.md), one section per principle (rule, reasoning, forbidden anti-patterns) |
 | **P11** | Candidate eleventh principle (all state mutation on the event-loop thread) — number reserved, unadopted; hence the gap in the adopted sequence | Stub in p_00 "Candidate principles awaiting ADR"; full draft in [p_02_CandidatePrinciples.md](p_02_CandidatePrinciples.md) |
 | **CP-A…CP-I, CP-M** | **C**andidate **P**rinciples — the missing principles awaiting ADR adoption (CP-E adopted 2026-07-13 as P12; CP-M proposed 2026-09-27) | Stubs in p_00; full wording, in-play assessments and adoption paths in [p_02_CandidatePrinciples.md](p_02_CandidatePrinciples.md) |
 | **Phase 0, 1, …** | The ordered, gate-conditioned segments of one execution plan — **the standard term** (project-lead direction, 2026-07-19): "Stage" and plan-internal "Wave" were retired and renamed to Phase throughout, numbers unchanged. Scoped **per plan** — always cite as "e_03 Phase 0", never bare | Each `e_NN` plan document; convention here and g_04 rule 12 |
 | **Waves 1–3** | The candidate-principle adoption batches — after the 2026-07-19 Phase standardization, **the only sanctioned "Wave" usage**; the only sanctioned "Stage" usages are gate-internal stage numbering and external organizations' own terms | [Privately maintained — prioritization register] |
-| **DA-1…DA-5** | **D**eferred **A**mendments — strengthenings of P1–P10 held in the roadmap until the artifacts comply (per G3); DA-1→P4, DA-2→P5, DA-3→P8, DA-4→P1, DA-5→P3 | p_00 § "Deferred amendments" |
+| **DA-1…DA-6** | **D**eferred **A**mendments — strengthenings of adopted principles held in the roadmap until the artifacts comply (per G3); DA-1→P4, DA-2→P5, DA-3→P8, DA-4→P1, DA-5→P3, DA-6→P13 | p_00 § "Deferred amendments" |
 | **G1–G7** | Governance rules for how principles are adopted, amended and audited | [p_01_PrinciplesGovernance.md](p_01_PrinciplesGovernance.md) |
 | **U1–U8** | "Unknown unknowns" — the July 2026 critique's gap findings | [Privately maintained register] |
 | **S1–S9** | The same critique's suggestions (unrelated to the `s_NN` file-name prefix) | [Privately maintained register] |
