@@ -179,8 +179,9 @@ after its segment is visible. Thus a failed write uses the same sequence
 again.
 
 The reader orders the segments for each key (writer, epoch). The next
-segment for a key has sequence `last + 1`. A key with no state starts at
-its lowest sequence. A sequence at or below the last applied one is a
+segment for a key has sequence `last + 1`. A key with no state expects
+sequence 1, because each writer epoch starts at 1. Thus a segment that
+arrives before sequence 1 waits for it. A sequence at or below the last applied one is a
 duplicate. It moves to `done/` and is not emitted. A missing sequence is
 held until the oldest segment that waits for that key has waited
 `gap_timeout`. Then the reader continues and logs a warning.

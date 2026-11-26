@@ -277,7 +277,9 @@ class SegmentReader:
     """Claim segments from an inbox one at a time, in per-writer order.
 
     Order key: (writer, epoch).  The next segment for a key has sequence
-    last + 1.  A key with no state starts at its lowest sequence.  A
+    last + 1.  A key with no state expects sequence 1, because every
+    writer epoch starts there: a segment that arrives before sequence 1
+    waits for it rather than being applied out of order.  A
     missing sequence is waited for until the oldest waiting segment of
     that key has waited "gap_timeout" seconds, then skipped with a
     warning.  A sequence at or below the last applied is a duplicate and
@@ -394,13 +396,14 @@ class SegmentReader:
             if not items:
                 continue
             sequence, name = items[0]
-            if last is None or sequence == last + 1:
+            expected = (last or 0) + 1
+            if sequence == expected:
                 ready.append(name)
                 continue
             waited = now - min(self._first_seen[n] for _, n in items)
             if waited >= self.gap_timeout:
                 self.logger.warning(
-                    f"store_forward: {key}: sequences {last + 1} to "
+                    f"store_forward: {key}: sequences {expected} to "
                     f"{sequence - 1} did not arrive in {self.gap_timeout:.0f}"
                     f" s, continuing at {sequence}")
                 self.counters["gaps"] += 1
@@ -690,6 +693,12 @@ class ReadStoreForward(aiko.DataSource):  # PipelineElement
         if reader is None:
             return aiko.StreamEvent.ERROR,  \
                 {"diagnostic": "ReadStoreForward: no segment reader"}
+        # An inbox can stay empty for longer than the Stream's grace time,
+        # and a Stream with no frames is destroyed then.  Each poll keeps it
+        stream_lease = getattr(self.pipeline, "stream_leases", {}).get(
+            stream.stream_id)
+        if stream_lease is not None:
+            stream_lease.extend()
         result = reader.poll()
         if result is None:
             return aiko.StreamEvent.NO_FRAME, {}
